@@ -1,0 +1,1003 @@
+openapi: 3.0.1
+info:
+  title: Ledger Adapter Specifications
+  description: This is the API specification for the Ledger Adapter with whom the FinP2P node will interact in order to execute and query the underlying implementation.
+  termsOfService: 'https://ownera.io/terms/'
+  contact:
+    email: support@ownera.io
+  version: x.x.x
+
+tags:
+  - name: payments
+    description: Payments
+  - name: management
+    description: Management
+  - name: issuance
+    description: Issuance
+  - name: transactions
+    description: Transactions
+  - name: escrow
+    description: Escrow
+  - name: operations
+    description: Opetations
+
+paths:
+  /payments/depositInstruction:
+    post:
+      tags:
+        - payments
+      summary: Deposit instruction
+      description: Create a deposit instruction for an owner
+      operationId: depositInstruction
+      parameters:
+        - in: header
+          name: Idempotency-Key
+          description: hex encoding of a 32-byte payload consisting of 24 random bytes + 8-byte epoch timestamp (seconds)
+          schema:
+            type: string
+          required: true
+      requestBody:
+        content:
+          application/json:
+            schema:
+              required:
+                - destination
+                - owner
+                - asset
+              type: object
+              properties:
+                destination:
+                  $ref: '#/components/schemas/destination'
+                owner:
+                  $ref: '#/components/schemas/source'
+                asset:
+                  $ref: '#/components/schemas/asset'
+      responses:
+        '200':
+          description: successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/depositOperation'
+        '400':
+          description: Invalid Input
+          content: { }
+        '500':
+          description: System error
+          content: { }
+
+  /payments/payout:
+    post:
+      tags:
+        - payments
+      summary: Payout request
+      description: Payout owner assets to external destination
+      operationId: payout
+      parameters:
+        - in: header
+          name: Idempotency-Key
+          description: hex encoding of a 32-byte payload consisting of 24 random bytes + 8-byte epoch timestamp (seconds)
+          schema:
+            type: string
+          required: true
+      requestBody:
+        content:
+          application/json:
+            schema:
+              required:
+                - source
+                - destination
+                - quantity
+                - asset
+              type: object
+              properties:
+                source:
+                  $ref: '#/components/schemas/source'
+                destination:
+                  $ref: '#/components/schemas/destination'
+                quantity:
+                  type: string
+                  description: 'How many units of the asset'
+                asset:
+                  $ref: '#/components/schemas/payoutAsset'
+      responses:
+        '200':
+          description: successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/receiptOperation'
+        '400':
+          description: Invalid Input
+          content: { }
+        '500':
+          description: System error
+          content: { }
+
+  /assets/getBalance:
+    post:
+      tags:
+        - transactions
+      summary: Get asset balance
+      description: Get asset balance for specified owner
+      operationId: getAssetBalance
+      requestBody:
+        content:
+          application/json:
+            schema:
+              required:
+                - owner
+                - asset
+              type: object
+              properties:
+                owner:
+                  $ref: '#/components/schemas/source'
+                asset:
+                  $ref: '#/components/schemas/asset'
+      responses:
+        '200':
+          description: successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/balance'
+
+        '404':
+          description: Owner not found
+          content: { }
+        '500':
+          description: System error
+          content: { }
+
+  /assets/create:
+    post:
+      tags:
+        - management
+      summary: Create asset
+      description: Create a new asset
+      operationId: createAsset
+      parameters:
+        - in: header
+          name: Idempotency-Key
+          description: hex encoding of a 32-byte payload consisting of 24 random bytes + 8-byte epoch timestamp (seconds)
+          schema:
+            type: string
+          required: true
+      requestBody:
+        content:
+          application/json:
+            schema:
+              required:
+                - asset
+              type: object
+              properties:
+                asset:
+                  $ref: '#/components/schemas/asset'
+      responses:
+        '200':
+          description: successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/emptyOperation'
+        '400':
+          description: Invalid Input
+          content: { }
+        '500':
+          description: System error
+          content: { }
+
+  /assets/issue:
+    post:
+      tags:
+        - issuance
+      summary: Issue asset token
+      description: Issue specified amount of asset tokens for the owner
+      operationId: issueAssets
+      parameters:
+        - in: header
+          name: Idempotency-Key
+          description: hex encoding of a 32-byte payload consisting of 24 random bytes + 8-byte epoch timestamp (seconds)
+          schema:
+            type: string
+          required: true
+      requestBody:
+        content:
+          application/json:
+            schema:
+              required:
+                - nonce
+                - destination
+                - quantity
+                - asset
+                - settlementRef
+                - signature
+              type: object
+              properties:
+                nonce:
+                  $ref: '#/components/schemas/nonce'
+                destination:
+                  $ref: '#/components/schemas/finIdAccount'
+                quantity:
+                  type: string
+                  description: 'How many units of the asset tokens'
+                asset:
+                  $ref: '#/components/schemas/finp2pAsset'
+                settlementRef:
+                  type: string
+                  description: 'Reference to the corresponding settlement operation'
+                signature:
+                  $ref: '#/components/schemas/signature'
+      responses:
+        '200':
+          description: successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/receiptOperation'
+        '400':
+          description: Invalid Input
+          content: { }
+        '500':
+          description: System error
+          content: { }
+
+  /assets/redeem:
+    post:
+      tags:
+        - issuance
+      summary: Asset Token Redeem
+      description: Redeem existing asset token for new owner. Redeem of ownership is done by eliminating existing tokens owned by the owner.
+      operationId: redeemAssets
+      parameters:
+        - in: header
+          name: Idempotency-Key
+          description: hex encoding of a 32-byte payload consisting of 24 random bytes + 8-byte epoch timestamp (seconds)
+          schema:
+            type: string
+          required: true
+      requestBody:
+        content:
+          application/json:
+            schema:
+              required:
+                - nonce
+                - source
+                - quantity
+                - asset
+                - settlementRef
+                - signature
+              type: object
+              properties:
+                nonce:
+                  $ref: '#/components/schemas/nonce'
+                source:
+                  $ref: '#/components/schemas/finIdAccount'
+                quantity:
+                  type: string
+                  description: 'How many units of the asset tokens'
+                asset:
+                  $ref: '#/components/schemas/finp2pAsset'
+                settlementRef:
+                  type: string
+                  description: 'Reference to the corresponding payment operation'
+                signature:
+                  $ref: '#/components/schemas/signature'
+      responses:
+        '200':
+          description: successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/receiptOperation'
+        '400':
+          description: Invalid Input
+          content: { }
+        '500':
+          description: System error
+          content: { }
+
+  /assets/transfer:
+    post:
+      tags:
+        - transactions
+      summary: Asset Token Transfer
+      description: Transfer existing asset token to a new owner. Transfer of ownership is done by eliminating existing tokens owned by the sender and creating new tokens with the new owner.
+      operationId: transferAsset
+      parameters:
+        - in: header
+          name: Idempotency-Key
+          description: hex encoding of a 32-byte payload consisting of 24 random bytes + 8-byte epoch timestamp (seconds)
+          schema:
+            type: string
+          required: true
+      requestBody:
+        content:
+          application/json:
+            schema:
+              required:
+                - nonce
+                - source
+                - destination
+                - quantity
+                - asset
+                - settlementRef
+                - signature
+              type: object
+              properties:
+                nonce:
+                  $ref: '#/components/schemas/nonce'
+                source:
+                  $ref: '#/components/schemas/source'
+                destination:
+                  $ref: '#/components/schemas/destination'
+                quantity:
+                  type: string
+                  description: 'How many units of the asset tokens'
+                asset:
+                  $ref: '#/components/schemas/asset'
+                settlementRef:
+                  type: string
+                  description: 'Reference to the corresponding payment operation'
+                signature:
+                  $ref: '#/components/schemas/signature'
+      responses:
+        '200':
+          description: successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/receiptOperation'
+        '400':
+          description: Invalid Input
+          content: { }
+        '500':
+          description: System error
+          content: { }
+
+  /assets/receipts/{transactionId}:
+    get:
+      tags:
+        - transactions
+      summary: Get Receipt
+      description: Get asset transaction receipt
+      operationId: getReceipt
+      parameters:
+        - name: transactionId
+          in: path
+          description: ID of the asset transaction
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/receiptOperation'
+
+        '404':
+          description: Transaction not found
+          content: { }
+        '500':
+          description: System error
+          content: { }
+
+  /assets/hold:
+    post:
+      tags:
+        - escrow
+      summary: Hold Asset
+      description: Hold the owner asset
+      operationId: holdOperation
+      parameters:
+        - in: header
+          name: Idempotency-Key
+          description: hex encoding of a 32-byte payload consisting of 24 random bytes + 8-byte epoch timestamp (seconds)
+          schema:
+            type: string
+          required: true
+      requestBody:
+        content:
+          application/json:
+            schema:
+              required:
+                - nonce
+                - operationId
+                - source
+                - quantity
+                - asset
+                - expiry
+                - signature
+              type: object
+              properties:
+                nonce:
+                  $ref: '#/components/schemas/nonce'
+                operationId:
+                  type: string
+                  description: 'Escrow operation id'
+                source:
+                  $ref: '#/components/schemas/source'
+                destination:
+                  $ref: '#/components/schemas/destination'
+                quantity:
+                  type: string
+                  description: 'How many units of the asset tokens'
+                asset:
+                  $ref: '#/components/schemas/asset'
+                expiry:
+                  type: integer
+                  format: uint64
+                  description: 'ttl expiry value indicating the escrow hold time limitation'
+                signature:
+                  $ref: '#/components/schemas/signature'
+      responses:
+        '200':
+          description: successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/receiptOperation'
+        '400':
+          description: Invalid Input
+          content: { }
+        '500':
+          description: System error
+          content: { }
+
+  /assets/release:
+    post:
+      tags:
+        - escrow
+      summary: Release Asset
+      description: Release held assets
+      operationId: releaseOperation
+      parameters:
+        - in: header
+          name: Idempotency-Key
+          description: hex encoding of a 32-byte payload consisting of 24 random bytes + 8-byte epoch timestamp (seconds)
+          schema:
+            type: string
+          required: true
+      requestBody:
+        content:
+          application/json:
+            schema:
+              required:
+                - operationId
+                - source
+                - destination
+                - quantity
+                - asset
+              type: object
+              properties:
+                operationId:
+                  type: string
+                  description: 'Hold operation id'
+                source:
+                  $ref: '#/components/schemas/source'
+                destination:
+                  $ref: '#/components/schemas/destination'
+                quantity:
+                  type: string
+                  description: 'How many units of the asset tokens'
+                asset:
+                  $ref: '#/components/schemas/asset'
+      responses:
+        '200':
+          description: successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/receiptOperation'
+        '400':
+          description: Invalid Input
+          content: { }
+        '500':
+          description: System error
+          content: { }
+
+  /assets/rollback:
+    post:
+      tags:
+        - escrow
+      summary: Rollback held asset
+      description: Release back held asset to the owner
+      operationId: rollbackOperation
+      parameters:
+        - in: header
+          name: Idempotency-Key
+          description: hex encoding of a 32-byte payload consisting of 24 random bytes + 8-byte epoch timestamp (seconds)
+          schema:
+            type: string
+          required: true
+      requestBody:
+        content:
+          application/json:
+            schema:
+              required:
+                - operationId
+                - source
+                - quantity
+                - asset
+              type: object
+              properties:
+                operationId:
+                  type: string
+                  description: 'Hold operation id'
+                source:
+                  $ref: '#/components/schemas/source'
+                quantity:
+                  type: string
+                  description: 'How many units of the asset tokens'
+                asset:
+                  $ref: '#/components/schemas/asset'
+      responses:
+        '200':
+          description: successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/receiptOperation'
+        '400':
+          description: Invalid Input
+          content: { }
+        '500':
+          description: System error
+          content: { }
+
+  /operations/status/{cid}:
+    get:
+      tags:
+        - operations
+      summary: 'Get Operation Status'
+      description: 'Get the operation status by an operation correlation id'
+      operationId: getOperation
+      parameters:
+        - name: cid
+          in: path
+          description: 'correlation id of an operation'
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/operationStatus'
+
+        '404':
+          description: Transaction not found
+          content: { }
+        '500':
+          description: System error
+          content: { }
+
+
+components:
+  schemas:
+    nonce:
+      type: string
+      description: |
+        32 bytes buffer (24 randomly generated bytes by the client + 8 bytes epoch timestamp seconds) encoded to hex:
+        
+          const nonce = Buffer.alloc(32);
+          nonce.fill(crypto.randomBytes(24), 0, 24);
+
+          const nowEpochSeconds = Math.floor(new Date().getTime() / 1000);
+          const t = BigInt(nowEpochSeconds);
+          nonce.writeBigInt64BE(t, 24);
+    depositInstruction:
+      required:
+        - description
+        - account
+      type: object
+      properties:
+        account:
+          $ref: '#/components/schemas/destination'
+        description:
+          type: string
+          description: 'Instructions for the deposit operation'
+
+    asset:
+      type: object
+      discriminator:
+        propertyName: type
+        mapping:
+          cryptocurrency: '#/components/schemas/cryptocurrencyAsset'
+          fiat: '#/components/schemas/fiatAsset'
+          finp2p: '#/components/schemas/finp2pAsset'
+      oneOf:
+        - $ref: '#/components/schemas/cryptocurrencyAsset'
+        - $ref: '#/components/schemas/fiatAsset'
+        - $ref: '#/components/schemas/finp2pAsset'
+
+    payoutAsset:
+      type: object
+      discriminator:
+        propertyName: type
+        mapping:
+          cryptocurrency: '#/components/schemas/cryptocurrencyAsset'
+          fiat: '#/components/schemas/fiatAsset'
+      oneOf:
+        - $ref: '#/components/schemas/cryptocurrencyAsset'
+        - $ref: '#/components/schemas/fiatAsset'
+
+    cryptocurrencyAsset:
+      type: object
+      required:
+        - type
+        - code
+      properties:
+        type:
+          type: "string"
+          enum: [ "cryptocurrency" ]
+        code:
+          type: "string"
+          description: 'unique identifier symbol of the cryptocurrency'
+
+    fiatAsset:
+      type: object
+      required:
+        - type
+        - code
+      properties:
+        type:
+          type: "string"
+          enum: [ "fiat" ]
+        code:
+          type: "string"
+          description: 'unique identifier code of the fiat currency - based on ISO-4217'
+
+    finp2pAsset:
+      type: object
+      required:
+        - type
+        - resourceId
+      properties:
+        type:
+          type: "string"
+          enum: [ "finp2p" ]
+        resourceId:
+          type: "string"
+          description: |
+            Unique resource ID of the FinP2P asset [format]('https://finp2p.atlassian.net/wiki/spaces/FINP2P/pages/67764240/FinP2P+Network+Interface+Specification#ResourceID-format')
+
+    source:
+      type: object
+      required:
+        - finId
+        - account
+      properties:
+        finId:
+          type: string
+          description: FinID, public key of the user
+        account:
+          oneOf:
+            - $ref: '#/components/schemas/finIdAccount'
+          discriminator:
+            propertyName: type
+            mapping:
+              finId: '#/components/schemas/finIdAccount'
+
+    destination:
+      description: 'describes destination for remote operations operations'
+      type: object
+      required:
+        - finId
+        - account
+      properties:
+        finId:
+          type: string
+          description: FinID, public key of the user
+        account:
+          oneOf:
+            - $ref: '#/components/schemas/finIdAccount'
+            - $ref: '#/components/schemas/cryptoWalletAccount'
+            - $ref: '#/components/schemas/fiatAccount'
+          discriminator:
+            propertyName: type
+            mapping:
+              finId: '#/components/schemas/finIdAccount'
+              cryptoWallet: '#/components/schemas/cryptoWalletAccount'
+              fiatAccount: '#/components/schemas/fiatAccount'
+
+    finIdAccount:
+      type: object
+      required:
+        - finId
+        - type
+      properties:
+        type:
+          type: string
+          enum: [ "finId" ]
+        finId:
+          type: "string"
+          description: FinID, public key of the user
+
+    cryptoWalletAccount:
+      type: object
+      required:
+        - type
+        - address
+      properties:
+        type:
+          type: string
+          enum: [ "cryptoWallet" ]
+        address:
+          type: "string"
+          description: 'address of the cryptocurrency wallet'
+
+    fiatAccount:
+      type: object
+      required:
+        - type
+        - code
+      properties:
+        type:
+          type: string
+          enum: [ "fiatAccount" ]
+        code:
+          type: "string"
+          description: 'IBAN or other code to represent a fiat account'
+
+
+    balance:
+      type: object
+      required:
+        - asset
+        - balance
+      properties:
+        asset:
+          $ref: '#/components/schemas/asset'
+        balance:
+          type: string
+          description: the number of asset tokens
+
+    operationBase:
+      type: object
+      required:
+        - cid
+        - isCompleted
+      properties:
+        cid:
+          type: string
+          description: unique correlation id which identify the operation
+        isCompleted:
+          type: boolean
+          description: flag indicating if the operation completed, if true then error or response must be present (but not both)
+
+    receiptOperation:
+      allOf:
+        - $ref: '#/components/schemas/operationBase'
+        - type: object
+          properties:
+            error:
+              $ref: '#/components/schemas/receiptOperationErrorInformation'
+            response:
+              $ref: '#/components/schemas/receipt'
+
+    emptyOperation:
+      allOf:
+        - $ref: '#/components/schemas/operationBase'
+        - type: object
+          properties:
+            error:
+              $ref: '#/components/schemas/emptyOperationErrorInformation'
+
+    depositOperation:
+      allOf:
+        - $ref: '#/components/schemas/operationBase'
+        - type: object
+          properties:
+            error:
+              $ref: '#/components/schemas/depositOperationErrorInformation'
+            response:
+              $ref: '#/components/schemas/depositInstruction'
+
+    depositOperationErrorInformation:
+      type: object
+      properties: { }
+
+    emptyOperationErrorInformation:
+      type: object
+      properties: { }
+
+    receiptOperationErrorInformation:
+      type: object
+      required:
+        - code
+        - message
+      properties:
+        code:
+          type: integer
+          format: uint32
+          description: 1 for failure in regApps validation, 4 failure in signature verification
+        message:
+          type: string
+        regulationErrorDetails:
+          type: array
+          items:
+            $ref: '#/components/schemas/regulationError'
+
+    regulationError:
+      type: object
+      required:
+        - regulationType
+        - details
+      properties:
+        regulationType:
+          type: string
+          description: the type of regulation
+        details:
+          type: string
+          description: actionable details of the error
+
+
+
+    operationStatus:
+      type: object
+      required:
+        - type
+        - operation
+      properties:
+        type:
+          type: string
+          enum: [ receipt, deposit, empty ]
+        operation:
+          oneOf:
+            - $ref: '#/components/schemas/depositOperation'
+            - $ref: '#/components/schemas/receiptOperation'
+            - $ref: '#/components/schemas/emptyOperation'
+
+    signature:
+      type: object
+      required:
+        - signature
+        - template
+      description: 'represent a signature template information'
+      properties:
+        signature:
+          type: string
+          description: 'hex representation of the signature'
+        template:
+          $ref: '#/components/schemas/signatureTemplate'
+
+    signatureTemplate:
+      description: 'ordered list of hash groups'
+      required:
+        - hashGroups
+        - hash
+      type: object
+      properties:
+        hashGroups:
+          type: array
+          items:
+            $ref: '#/components/schemas/hashGroup'
+        hash:
+          type: string
+          description: 'hex representation of the combined hash groups hash value'
+
+    hashGroup:
+      type: object
+      required:
+        - hash
+        - fields
+      properties:
+        hash:
+          type: string
+          description: 'hex representation of the hash group hash value'
+        fields:
+          description: 'list of fields by order they appear in the hash group'
+          type: array
+          items:
+            $ref: '#/components/schemas/field'
+
+    field:
+      type: object
+      description: 'describing a field in the hash group'
+      required:
+        - name
+        - type
+        - value
+      properties:
+        name:
+          type: string
+          description: 'name of field'
+        type:
+          type: string
+          enum: [ "string", "int", "bytes" ]
+          description: 'type of field'
+        value:
+          type: string
+          description: 'hex representation of the field value'
+
+
+    receipt:
+      type: object
+      required:
+        - id
+        - asset
+        - quantity
+        - timestamp
+      properties:
+        id:
+          type: string
+          description: the receipt id
+        asset:
+          $ref: '#/components/schemas/asset'
+        quantity:
+          type: string
+          description: 'How many units of the asset tokens'
+        timestamp:
+          type: integer
+          format: int64
+          description: transaction timestamp
+        source:
+          $ref: '#/components/schemas/source'
+        destination:
+          $ref: '#/components/schemas/destination'
+        settlementRef:
+          type: string
+          description: the id of related / counterpary operation
+        transactionDetails:
+          $ref: '#/components/schemas/transactionDetails'
+
+    transactionDetails:
+      description: Additional input and output details for UTXO supporting DLTs
+      type: object
+      required:
+        - transactionId
+        - inputs
+        - outputs
+      properties:
+        transactionId:
+          type: string
+          description: The Transaction id on the underlying ledger
+        inputs:
+          type: array
+          items:
+            $ref: '#/components/schemas/input'
+        outputs:
+          type: array
+          items:
+            $ref: '#/components/schemas/output'
+
+    input:
+      type: object
+      required:
+        - transactionId
+        - quantity
+        - index
+      properties:
+        transactionId:
+          type: string
+          description: "transaction id of the input token"
+        quantity:
+          type: string
+          description: "token input quantity"
+        index:
+          type: integer
+          format: uint32
+          description: "index of the token in the transaction that created it"
+
+    output:
+      type: object
+      required:
+        - quantity
+        - publicKey
+        - index
+      properties:
+        quantity:
+          type: string
+          description: "token output quantity"
+        publicKey:
+          type: string
+          description: "hex representation of a secp256k1 public key in compressed form: 33bytes"
+        index:
+          type: integer
+          format: uint32
+          description: "index of the token in the transaction"
