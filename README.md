@@ -1,0 +1,1 @@
+Nodejs ledger adapter skeleton
