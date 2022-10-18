@@ -91,7 +91,7 @@ export class CommonAPI {
 }
 
 
-export class OperatorService {
+export class OperatorAPI {
 
   public static async setBalance(req: SetBalanceRequest): Promise<SetBalanceResponse> {
     return await post("/operator/setBalance", req) as SetBalanceResponse;

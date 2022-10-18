@@ -1,8 +1,7 @@
-import {v4 as uuid} from 'uuid';
-import {Transaction, CommonService} from './common';
+import { v4 as uuid } from 'uuid';
+import { Transaction, CommonService } from './common';
 
 let service: TokenService;
-
 
 export class TokenService extends CommonService {
 

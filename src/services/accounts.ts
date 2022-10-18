@@ -1,6 +1,8 @@
 import Asset = Components.Schemas.Asset;
 
+
 export class Account {
+
   balances: Record<string, number> = {};
 
   balance(assetCode: string): number {
@@ -16,7 +18,16 @@ export class Account {
   }
 }
 
+let service: AccountService;
+
 export class AccountService {
+
+  public static GetService(): AccountService {
+    if (!service) {
+      service = new AccountService();
+    }
+    return service;
+  }
 
   accounts: Record<string, Account> = {};
 

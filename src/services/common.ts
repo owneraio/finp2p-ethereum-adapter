@@ -38,7 +38,7 @@ export class Transaction {
 
 export class CommonService {
 
-  accountService: AccountService = new AccountService();
+  accountService: AccountService = AccountService.GetService();
 
   transactions: Record<string, Transaction> = {};
 

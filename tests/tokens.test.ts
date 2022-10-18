@@ -1,8 +1,7 @@
-import {ASSET, createCrypto, generateNonce, randomResourceId} from "./utils";
+import {ASSET, createCrypto, generateNonce, randomResourceId, transferSignature} from "./utils";
 import {TokensAPI, CommonAPI} from "./api";
 import {LEDGER_HASH_FUNCTION, ORG1_MSPID} from "./configuration";
 import {v4 as uuidv4} from 'uuid';
-import {transferSignature} from "./signature";
 
 
 describe(`token service test`, () => {
