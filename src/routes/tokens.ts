@@ -1,6 +1,7 @@
 import * as express from 'express';
 import { asyncMiddleware } from '../helpers/middleware';
 import { TokenService } from '../services/tokens';
+import { EscrowService } from '../services/escrow';
 
 
 const TOKENS_BASE_URL = '/api/assets';
@@ -12,6 +13,33 @@ export const register = (app: express.Application) => {
     asyncMiddleware(async (req, res) => {
       const balance = await TokenService.GetService().balance(req.body);
       res.send(balance);
+    }),
+  );
+
+  /* POST issue a token for a user. */
+  app.post(
+    `${TOKENS_BASE_URL}/issue`,
+    asyncMiddleware(async (req, res) => {
+      const receipt = await TokenService.GetService().issue(req.body);
+      res.json(receipt);
+    }),
+  );
+
+  /* POST transfer token. */
+  app.post(
+    `${TOKENS_BASE_URL}/transfer`,
+    asyncMiddleware(async (req, res) => {
+      const receipt = await TokenService.GetService().transfer(req.body);
+      res.json(receipt);
+    }),
+  );
+
+  /* POST redeem token. */
+  app.post(
+    `${TOKENS_BASE_URL}/redeem`,
+    asyncMiddleware(async (req, res) => {
+      const receipt = await TokenService.GetService().redeem(req.body);
+      res.json(receipt);
     }),
   );
 
@@ -28,7 +56,7 @@ export const register = (app: express.Application) => {
   app.post(
     `${TOKENS_BASE_URL}/hold`,
     asyncMiddleware(async (req, res) => {
-      const receipt = await TokenService.GetService().hold(req.body);
+      const receipt = await EscrowService.GetService().hold(req.body);
       res.json(receipt);
     }),
   );
@@ -37,7 +65,7 @@ export const register = (app: express.Application) => {
   app.post(
     `${TOKENS_BASE_URL}/release`,
     asyncMiddleware(async (req, res) => {
-      const receipt = await TokenService.GetService().release(req.body);
+      const receipt = await EscrowService.GetService().release(req.body);
       res.json(receipt);
     }),
   );
@@ -46,16 +74,17 @@ export const register = (app: express.Application) => {
   app.post(
     `${TOKENS_BASE_URL}/rollback`,
     asyncMiddleware(async (req, res) => {
-      const receipt = await TokenService.GetService().rollback(req.body);
+      const receipt = await EscrowService.GetService().rollback(req.body);
       res.json(receipt);
     }),
   );
 
-  // /* POST operation status. */
-  // app.post(
-  //     `/operations/status/:correlationId`,
-  //     asyncMiddleware(async (req, res) => {
-  //
-  //     }),
-  // );
+  /* POST operation status. */
+  app.get(
+    '/api/operations/status/:cid',
+    asyncMiddleware(async (req, res) => {
+      const status = await TokenService.GetService().operationStatus(req.params.cid);
+      res.json(status);
+    }),
+  );
 };

@@ -1,20 +1,44 @@
-import { v4 as uuid } from 'uuid';
+import { logger } from '../helpers/logger';
 import { Transaction } from './accounts';
+import { v4 as uuid } from 'uuid';
 import { CommonService } from './common';
 
-let service: TokenService;
+let service: EscrowService;
 
 
-export class TokenService extends CommonService {
+export class EscrowService extends CommonService {
 
-  public static GetService(): TokenService {
+  public static GetService(): EscrowService {
     if (!service) {
-      service = new TokenService();
+      service = new EscrowService();
     }
     return service;
   }
 
-  public async issue(request: Paths.IssueAssets.RequestBody): Promise<Paths.IssueAssets.Responses.$200> {
+  public async hold(request: Paths.HoldOperation.RequestBody): Promise<Paths.HoldOperation.Responses.$200> {
+    logger.debug('hold', { request });
+
+    const amount = parseInt(request.quantity);
+    this.accountService.debit(request.source.finId, amount, request.asset);
+
+    const txId = uuid();
+    this.transactions[txId] = {
+      id: txId,
+      source: request.source.finId,
+      amount: amount,
+      asset: request.asset,
+      timestamp: Date.now(),
+    } as Transaction;
+
+    return {
+      isCompleted: true,
+      cid: txId,
+    } as Components.Schemas.ReceiptOperation;
+  }
+
+  public async release(request: Paths.ReleaseOperation.RequestBody): Promise<Paths.ReleaseOperation.Responses.$200> {
+    logger.debug('release', { request });
+
     const amount = parseInt(request.quantity);
     this.accountService.credit(request.destination.finId, amount, request.asset);
 
@@ -33,34 +57,16 @@ export class TokenService extends CommonService {
     } as Components.Schemas.ReceiptOperation;
   }
 
-  public async transfer(request: Paths.Transfer.RequestBody): Promise<Paths.Transfer.Responses.$200> {
+  public async rollback(request: Paths.RollbackOperation.RequestBody): Promise<Paths.RollbackOperation.Responses.$200> {
+    logger.debug('rollback', { request });
+
     const amount = parseInt(request.quantity);
-    this.accountService.move(request.source.finId, request.destination.finId, amount, request.asset);
+    this.accountService.credit(request.source.finId, amount, request.asset);
 
     const txId = uuid();
     this.transactions[txId] = {
       id: txId,
-      source: request.source.finId,
-      destination: request.destination.finId,
-      amount: amount,
-      asset: request.asset,
-      timestamp: Date.now(),
-    } as Transaction;
-
-    return {
-      isCompleted: true,
-      cid: txId,
-    } as Components.Schemas.ReceiptOperation;
-  }
-
-  public async redeem(request: Paths.RedeemAssets.RequestBody): Promise<Paths.RedeemAssets.Responses.$200> {
-    const amount = parseInt(request.quantity);
-    this.accountService.debit(request.source.finId, amount, request.asset);
-
-    const txId = uuid();
-    this.transactions[txId] = {
-      id: txId,
-      source: request.source.finId,
+      destination: request.source.finId,
       amount: amount,
       asset: request.asset,
       timestamp: Date.now(),
