@@ -1,7 +1,6 @@
 import { logger } from '../helpers/logger';
-import { Transaction } from './accounts';
 import { v4 as uuid } from 'uuid';
-import { CommonService } from './common';
+import { Transaction, CommonService } from './common';
 
 let service: EscrowService;
 
@@ -21,18 +20,19 @@ export class EscrowService extends CommonService {
     const amount = parseInt(request.quantity);
     this.accountService.debit(request.source.finId, amount, request.asset);
 
-    const txId = uuid();
-    this.transactions[txId] = {
-      id: txId,
-      source: request.source.finId,
+    let tx = {
+      id: uuid(),
+      source: request.source,
       amount: amount,
       asset: request.asset,
       timestamp: Date.now(),
     } as Transaction;
+    this.transactions[tx.id] = tx;
 
     return {
       isCompleted: true,
-      cid: txId,
+      cid: tx.id,
+      response: Transaction.toReceipt(tx),
     } as Components.Schemas.ReceiptOperation;
   }
 
@@ -42,18 +42,19 @@ export class EscrowService extends CommonService {
     const amount = parseInt(request.quantity);
     this.accountService.credit(request.destination.finId, amount, request.asset);
 
-    const txId = uuid();
-    this.transactions[txId] = {
-      id: txId,
-      destination: request.destination.finId,
+    let tx = {
+      id: uuid(),
+      destination: request.destination,
       amount: amount,
       asset: request.asset,
       timestamp: Date.now(),
     } as Transaction;
+    this.transactions[tx.id] = tx;
 
     return {
       isCompleted: true,
-      cid: txId,
+      cid: tx.id,
+      response: Transaction.toReceipt(tx),
     } as Components.Schemas.ReceiptOperation;
   }
 
@@ -63,18 +64,19 @@ export class EscrowService extends CommonService {
     const amount = parseInt(request.quantity);
     this.accountService.credit(request.source.finId, amount, request.asset);
 
-    const txId = uuid();
-    this.transactions[txId] = {
-      id: txId,
-      destination: request.source.finId,
+    let tx = {
+      id: uuid(),
+      destination: request.source,
       amount: amount,
       asset: request.asset,
       timestamp: Date.now(),
     } as Transaction;
+    this.transactions[tx.id] = tx;
 
     return {
       isCompleted: true,
-      cid: txId,
+      cid: tx.id,
+      response: Transaction.toReceipt(tx),
     } as Components.Schemas.ReceiptOperation;
   }
 

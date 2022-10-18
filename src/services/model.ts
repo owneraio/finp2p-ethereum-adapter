@@ -15,25 +15,25 @@ declare namespace Components {
     export interface CryptocurrencyAsset {
       type: 'cryptocurrency';
       /**
-             * unique identifier symbol of the cryptocurrency
-             */
+       * unique identifier symbol of the cryptocurrency
+       */
       code: string;
     }
     export interface DepositInstruction {
       account: /* describes destination for remote operations operations */ Destination;
       /**
-             * description
-             */
+       * description
+       */
       description: string;
     }
     export interface DepositOperation {
       /**
-             * unique correlation id which identify the operation
-             */
+       * unique correlation id which identify the operation
+       */
       cid: string;
       /**
-             * flag indicating if the operation completed, if true then error or response must be present (but not both)
-             */
+       * flag indicating if the operation completed, if true then error or response must be present (but not both)
+       */
       isCompleted: boolean;
       error?: DepositOperationErrorInformation;
       response?: DepositInstruction;
@@ -41,27 +41,23 @@ declare namespace Components {
     export interface DepositOperationErrorInformation {
     }
     /**
-         * describes destination for remote operations operations
-         */
+     * describes destination for remote operations operations
+     */
     export interface Destination {
       /**
        * FinID, public key of the user
        */
       finId: string;
-      /**
-       * an optional escrow account id
-       */
-      account: FinIdAccount | EscrowAccount  | CryptoWalletAccount | FiatAccount;
+      account: FinIdAccount | EscrowAccount | CryptoWalletAccount | FiatAccount;
     }
-
     export interface EmptyOperation {
       /**
-             * unique correlation id which identify the operation
-             */
+       * unique correlation id which identify the operation
+       */
       cid: string;
       /**
-             * flag indicating if the operation completed, if true then error or response must be present (but not both)
-             */
+       * flag indicating if the operation completed, if true then error or response must be present (but not both)
+       */
       isCompleted: boolean;
       error?: EmptyOperationErrorInformation;
     }
@@ -70,43 +66,39 @@ declare namespace Components {
     export interface EscrowAccount {
       type: 'escrow';
       /**
-             * FinID of the user
-             */
-      finId: string;
-      /**
-             * escrow account id
-             */
+       * escrow account id
+       */
       escrowAccountId: string;
     }
     export interface FiatAccount {
       type: 'fiatAccount';
       /**
-             * IBAN or other code to represent a fiat account
-             */
+       * IBAN or other code to represent a fiat account
+       */
       code: string;
     }
     export interface FiatAsset {
       type: 'fiat';
       /**
-             * unique identifier code of the fiat currency - based on ISO-4217
-             */
+       * unique identifier code of the fiat currency - based on ISO-4217
+       */
       code: string;
     }
     /**
-         * describing a field in the hash group
-         */
+     * describing a field in the hash group
+     */
     export interface Field {
       /**
-             * name of field
-             */
+       * name of field
+       */
       name: string;
       /**
-             * type of field
-             */
+       * type of field
+       */
       type: 'string' | 'int' | 'bytes';
       /**
-             * hex representation of the field value
-             */
+       * hex representation of the field value
+       */
       value: string;
     }
     export interface FinIdAccount {
@@ -116,42 +108,42 @@ declare namespace Components {
     export interface Finp2pAsset {
       type: 'finp2p';
       /**
-             * unique resource ID of the FinP2P asset
-             */
+       * unique resource ID of the FinP2P asset
+       */
       resourceId: string;
     }
     export interface HashGroup {
       /**
-             * hex representation of the hash group hash value
-             */
+       * hex representation of the hash group hash value
+       */
       hash: string;
       /**
-             * list of fields by order they appear in the hash group
-             */
+       * list of fields by order they appear in the hash group
+       */
       fields: /* describing a field in the hash group */ Field[];
     }
     export interface Input {
       /**
-             * transaction id of the input token
-             */
+       * transaction id of the input token
+       */
       transactionId: string;
       /**
-             * token input quantity
-             */
+       * token input quantity
+       */
       quantity: string;
       /**
-             * index of the token in the transaction that created it
-             */
+       * index of the token in the transaction that created it
+       */
       index: number; // uint32
     }
     export interface OperationBase {
       /**
-             * unique correlation id which identify the operation
-             */
+       * unique correlation id which identify the operation
+       */
       cid: string;
       /**
-             * flag indicating if the operation completed, if true then error or response must be present (but not both)
-             */
+       * flag indicating if the operation completed, if true then error or response must be present (but not both)
+       */
       isCompleted: boolean;
     }
     export interface OperationStatus {
@@ -160,90 +152,96 @@ declare namespace Components {
     }
     export interface Output {
       /**
-             * token output quantity
-             */
+       * token output quantity
+       */
       quantity: string;
       /**
-             * toke destination hex representation of a secp256k1 public key 33 bytes compressed
-             */
+       * toke destination hex representation of a secp256k1 public key 33 bytes compressed
+       */
       publicKey: string;
       /**
-             * index of the token in the transaction
-             */
+       * index of the token in the transaction
+       */
       index: number; // uint32
     }
     export type PayoutAsset = CryptocurrencyAsset | FiatAsset;
     export interface Receipt {
       /**
-             * the receipt id
-             */
+       * the receipt id
+       */
       id: string;
       asset: Asset;
       /**
-             * quantity of the assets
-             */
+       * quantity of the assets
+       */
       quantity: string;
       /**
-             * transaction timestamp
-             */
+       * transaction timestamp
+       */
       timestamp: number; // int64
       source?: Source;
       destination?: /* describes destination for remote operations operations */ Destination;
+      /**
+       * the id of related / counterpary operation
+       */
+      settlementRef?: string;
       transactionDetails?: /* Additional input and output details for UTXO supporting DLTs */ TransactionDetails;
     }
     export interface ReceiptOperation {
       /**
-             * unique correlation id which identify the operation
-             */
+       * unique correlation id which identify the operation
+       */
       cid: string;
       /**
-             * flag indicating if the operation completed, if true then error or response must be present (but not both)
-             */
+       * flag indicating if the operation completed, if true then error or response must be present (but not both)
+       */
       isCompleted: boolean;
       error?: ReceiptOperationErrorInformation;
       response?: Receipt;
     }
     export interface ReceiptOperationErrorInformation {
       code: number; // uint32
-      status: string;
+      message: string;
+      regulationErrorDetails?: RegulationError[];
+    }
+    export interface RegulationError {
+      regulationType: string;
+      details: string;
     }
     /**
-         * represent a signature template information
-         */
+     * represent a signature template information
+     */
     export interface Signature {
       /**
-             * hex representation of the signature
-             */
+       * hex representation of the signature
+       */
       signature: string;
       template: /* ordered list of hash groups */ SignatureTemplate;
     }
     /**
-         * ordered list of hash groups
-         */
+     * ordered list of hash groups
+     */
     export interface SignatureTemplate {
       hashGroups: HashGroup[];
       /**
-             * hex representation of the combined hash groups hash value
-             */
+       * hex representation of the combined hash groups hash value
+       */
       hash: string;
     }
     export interface Source {
       /**
-             * FinID, public key of the user
-             */
+       * FinID, public key of the user
+       */
       finId: string;
-      /**
-             * an optional escrow account id
-             */
       account: FinIdAccount | EscrowAccount;
     }
     /**
-         * Additional input and output details for UTXO supporting DLTs
-         */
+     * Additional input and output details for UTXO supporting DLTs
+     */
     export interface TransactionDetails {
       /**
-             * Transaction id
-             */
+       * Transaction id
+       */
       transactionId: string;
       inputs: Input[];
       outputs: Output[];
@@ -321,23 +319,23 @@ declare namespace Paths { // eslint-disable-line @typescript-eslint/no-unused-va
     }
     export interface RequestBody {
       /**
-             * nonce
-             */
+       * nonce
+       */
       nonce: string;
       /**
-             * escrow operation id
-             */
+       * escrow operation id
+       */
       operationId: string;
       source: Components.Schemas.Source;
       destination?: /* describes destination for remote operations operations */ Components.Schemas.Destination;
       /**
-             * quantity
-             */
+       * quantity
+       */
       quantity: string;
       asset: Components.Schemas.Asset;
       /**
-             * expiry
-             */
+       * expiry
+       */
       expiry: number; // uint64
       signature: /* represent a signature template information */ Components.Schemas.Signature;
     }
@@ -354,18 +352,18 @@ declare namespace Paths { // eslint-disable-line @typescript-eslint/no-unused-va
     }
     export interface RequestBody {
       /**
-             * nonce
-             */
+       * nonce
+       */
       nonce: string;
       destination: Components.Schemas.FinIdAccount;
       /**
-             * quantity
-             */
+       * quantity
+       */
       quantity: string;
       asset: Components.Schemas.Finp2pAsset;
       /**
-             * referrence to the corresponding payment operation
-             */
+       * referrence to the corresponding payment operation
+       */
       settlementRef: string;
       signature: /* represent a signature template information */ Components.Schemas.Signature;
     }
@@ -384,8 +382,8 @@ declare namespace Paths { // eslint-disable-line @typescript-eslint/no-unused-va
       source: Components.Schemas.Source;
       destination: /* describes destination for remote operations operations */ Components.Schemas.Destination;
       /**
-             * quantity
-             */
+       * quantity
+       */
       quantity: string;
       asset: Components.Schemas.PayoutAsset;
     }
@@ -402,18 +400,18 @@ declare namespace Paths { // eslint-disable-line @typescript-eslint/no-unused-va
     }
     export interface RequestBody {
       /**
-             * nonce
-             */
+       * nonce
+       */
       nonce: string;
       source: Components.Schemas.FinIdAccount;
       /**
-             * quantity
-             */
+       * quantity
+       */
       quantity: string;
       asset: Components.Schemas.Finp2pAsset;
       /**
-             * referrence to the corresponding payment operation
-             */
+       * referrence to the corresponding payment operation
+       */
       settlementRef: string;
       signature: /* represent a signature template information */ Components.Schemas.Signature;
     }
@@ -430,14 +428,14 @@ declare namespace Paths { // eslint-disable-line @typescript-eslint/no-unused-va
     }
     export interface RequestBody {
       /**
-             * escrow operation id
-             */
+       * escrow operation id
+       */
       operationId: string;
       source: Components.Schemas.Source;
       destination: /* describes destination for remote operations operations */ Components.Schemas.Destination;
       /**
-             * quantity
-             */
+       * quantity
+       */
       quantity: string;
       asset: Components.Schemas.Asset;
     }
@@ -454,13 +452,13 @@ declare namespace Paths { // eslint-disable-line @typescript-eslint/no-unused-va
     }
     export interface RequestBody {
       /**
-             * escrow operation id
-             */
+       * escrow operation id
+       */
       operationId: string;
       source: Components.Schemas.Source;
       /**
-             * quantity
-             */
+       * quantity
+       */
       quantity: string;
       asset: Components.Schemas.Asset;
     }
@@ -477,19 +475,19 @@ declare namespace Paths { // eslint-disable-line @typescript-eslint/no-unused-va
     }
     export interface RequestBody {
       /**
-             * nonce
-             */
+       * nonce
+       */
       nonce: string;
       source: Components.Schemas.Source;
       destination: /* describes destination for remote operations operations */ Components.Schemas.Destination;
       /**
-             * quantity
-             */
+       * quantity
+       */
       quantity: string;
       asset: Components.Schemas.Asset;
       /**
-             * referrence to the corresponding payment operation
-             */
+       * referrence to the corresponding payment operation
+       */
       settlementRef: string;
       signature: /* represent a signature template information */ Components.Schemas.Signature;
     }

@@ -1,5 +1,21 @@
 import Asset = Components.Schemas.Asset;
 
+export class Account {
+  balances: Record<string, number> = {};
+
+  balance(assetCode: string): number {
+    return this.balances[assetCode] || 0;
+  }
+
+  debit(assetCode: string, amount: number) {
+    this.balances[assetCode] = (this.balances[assetCode] || 0) - amount;
+  }
+
+  credit(assetCode: string, amount: number) {
+    this.balances[assetCode] = (this.balances[assetCode] || 0) + amount;
+  }
+}
+
 export class AccountService {
 
   accounts: Record<string, Account> = {};
@@ -31,13 +47,13 @@ export class AccountService {
 
   getOrCreateAccount(finId: string): Account {
     let account = this.accounts[finId];
-    if (account === undefined) {
-      account = {
-        balances: {},
-      } as Account;
-      this.accounts[finId] = account;
+    if (account !== undefined) {
+      return account;
+    } else {
+      const newAccount = new Account();
+      this.accounts[finId] = newAccount;
+      return newAccount;
     }
-    return account;
   }
 
   static extractAssetCode(asset: Asset): string {
@@ -52,30 +68,4 @@ export class AccountService {
         throw new Error('unknown asset type');
     }
   }
-}
-
-
-export class Account {
-  balances: Record<string, number> = {};
-
-  balance(assetCode: string): number {
-    return this.balances[assetCode] || 0;
-  }
-
-  debit(assetCode: string, amount: number) {
-    this.balances[assetCode] -= amount;
-  }
-
-  credit(assetCode: string, amount: number) {
-    this.balances[assetCode] += amount;
-  }
-}
-
-export interface Transaction {
-  id: string;
-  source?: string;
-  destination?: string;
-  amount: number;
-  asset: Asset
-  timestamp: number
 }

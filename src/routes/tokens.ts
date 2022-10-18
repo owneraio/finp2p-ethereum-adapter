@@ -7,6 +7,16 @@ import { EscrowService } from '../services/escrow';
 const TOKENS_BASE_URL = '/api/assets';
 
 export const register = (app: express.Application) => {
+
+  /* POST create asset. */
+  app.post(
+    `${TOKENS_BASE_URL}/create`,
+    asyncMiddleware(async (req, res) => {
+      const response = await TokenService.GetService().createAsset(req.body);
+      return res.send(response);
+    }),
+  );
+
   /* Get token balance. */
   app.post(
     `${TOKENS_BASE_URL}/getBalance`,

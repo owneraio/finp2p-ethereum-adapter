@@ -1,6 +1,40 @@
 import { logger } from '../helpers/logger';
-import { AccountService, Transaction } from './accounts';
+import { AccountService } from './accounts';
 
+export class Transaction {
+
+  constructor(id: string, amount: number, asset: Components.Schemas.Asset, timestamp: number, source?: Components.Schemas.Source, destination?: Components.Schemas.Destination) {
+    this.id = id;
+    this.source = source;
+    this.destination = destination;
+    this.amount = amount;
+    this.asset = asset;
+    this.timestamp = timestamp;
+  }
+
+  id: string;
+
+  source?: Components.Schemas.Source;
+
+  destination?: Components.Schemas.Destination;
+
+  amount: number;
+
+  asset: Components.Schemas.Asset;
+
+  timestamp: number;
+
+  public static toReceipt(tx: Transaction): Components.Schemas.Receipt {
+    return {
+      id: tx.id,
+      asset: tx.asset,
+      quantity: `${tx.amount}`,
+      source: tx.source,
+      destination: tx.destination,
+      timestamp: tx.timestamp,
+    };
+  }
+}
 
 export class CommonService {
 
@@ -24,14 +58,7 @@ export class CommonService {
     }
     return {
       isCompleted: true,
-      response: {
-        id: tx.id,
-        asset: tx.asset,
-        quantity: `${tx.amount}`,
-        source: tx.source,
-        destination: tx.destination,
-        timestamp: tx.timestamp,
-      } as Components.Schemas.Receipt,
+      response: Transaction.toReceipt(tx),
     } as Components.Schemas.ReceiptOperation;
   }
 
@@ -43,14 +70,7 @@ export class CommonService {
     return {
       type: 'receipt', operation: {
         isCompleted: true,
-        response: {
-          id: tx.id,
-          asset: tx.asset,
-          quantity: `${tx.amount}`,
-          source: tx.source,
-          destination: tx.destination,
-          timestamp: tx.timestamp,
-        } as Components.Schemas.Receipt,
+        response: Transaction.toReceipt(tx),
       } as Components.Schemas.ReceiptOperation,
     } as Components.Schemas.OperationStatus;
   }
