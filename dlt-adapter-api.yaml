@@ -51,7 +51,9 @@ paths:
                 owner:
                   $ref: '#/components/schemas/source'
                 asset:
-                  $ref: '#/components/schemas/asset'
+                  $ref: '#/components/schemas/depositAsset'
+                details:
+                  type: object
       responses:
         '200':
           description: successful operation
@@ -601,6 +603,9 @@ components:
         description:
           type: string
           description: 'Instructions for the deposit operation'
+        details:
+          type: object
+          description: Any addition deposit specific information
 
     asset:
       type: object
@@ -614,6 +619,21 @@ components:
         - $ref: '#/components/schemas/cryptocurrencyAsset'
         - $ref: '#/components/schemas/fiatAsset'
         - $ref: '#/components/schemas/finp2pAsset'
+
+    depositAsset:
+      type: object
+      discriminator:
+        propertyName: type
+        mapping:
+          cryptocurrency: '#/components/schemas/cryptocurrencyAsset'
+          fiat: '#/components/schemas/fiatAsset'
+          finp2p: '#/components/schemas/finp2pAsset'
+          custom: '#/components/schemas/customAsset'
+      oneOf:
+        - $ref: '#/components/schemas/cryptocurrencyAsset'
+        - $ref: '#/components/schemas/fiatAsset'
+        - $ref: '#/components/schemas/finp2pAsset'
+        - $ref: '#/components/schemas/customAsset'
 
     payoutAsset:
       type: object
@@ -665,6 +685,15 @@ components:
           type: "string"
           description: |
             Unique resource ID of the FinP2P asset [format]('https://finp2p.atlassian.net/wiki/spaces/FINP2P/pages/67764240/FinP2P+Network+Interface+Specification#ResourceID-format')
+
+    customAsset:
+      type: object
+      required:
+        - type
+      properties:
+        type:
+          type: "string"
+          enum: [ "custom" ]
 
     source:
       type: object

@@ -20,6 +20,7 @@ export class PaymentsService extends CommonService {
       response: {
         account: request.destination,
         description: 'IBAN GB33BUKB20201555555555',
+        details: request.details,
       },
     } as Paths.DepositInstruction.Responses.$200;
   }
