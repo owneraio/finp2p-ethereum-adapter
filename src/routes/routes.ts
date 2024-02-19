@@ -4,9 +4,18 @@ import { TokenService } from '../services/tokens';
 import { EscrowService } from '../services/escrow';
 import { PaymentsService } from '../services/payments';
 import { OperatorService } from '../services/operator';
+import { PlanService } from '../services/plans';
 
 
 export const register = (app: express.Application) => {
+
+  app.post(
+    '/api/plan/approve',
+    asyncMiddleware(async (req, res) => {
+      const response = await PlanService.GetService().approvePlan(req.body);
+      return res.send(response);
+    }),
+  );
 
   /* POST create asset. */
   app.post(

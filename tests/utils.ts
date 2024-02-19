@@ -165,17 +165,14 @@ const extractIdFromAsset = (asset: Components.Schemas.Asset): string => {
   }
 }
 
-const extractIdFromSource = (account: Components.Schemas.FinIdAccount | Components.Schemas.EscrowAccount): string => {
+const extractIdFromSource = (account: Components.Schemas.FinIdAccount): string => {
   switch (account.type) {
     case "finId":
       return account.finId
-    case "escrow":
-      return account.escrowAccountId
   }
 }
 
 const extractIdFromDestination = (account: Components.Schemas.FinIdAccount |
-  Components.Schemas.EscrowAccount |
   Components.Schemas.CryptoWalletAccount |
   Components.Schemas.FiatAccount | undefined): string => {
   if (account === undefined) {
@@ -184,8 +181,6 @@ const extractIdFromDestination = (account: Components.Schemas.FinIdAccount |
   switch (account?.type) {
     case "finId":
       return account.finId
-    case "escrow":
-      return account.escrowAccountId
     case "cryptoWallet":
       return account.address
     case "fiatAccount":

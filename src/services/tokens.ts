@@ -44,7 +44,7 @@ export class TokenService extends CommonService {
     } as Components.Schemas.ReceiptOperation;
   }
 
-  public async transfer(request: Paths.Transfer.RequestBody): Promise<Paths.Transfer.Responses.$200> {
+  public async transfer(request: Paths.TransferAsset.RequestBody): Promise<Paths.TransferAsset.Responses.$200> {
     const amount = parseInt(request.quantity);
     this.accountService.move(request.source.finId, request.destination.finId, amount, request.asset);
 

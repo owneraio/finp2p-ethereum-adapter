@@ -22,6 +22,43 @@ tags:
     description: Opetations
 
 paths:
+  /plan/approve:
+    post:
+      tags:
+        - execution
+      summary: Approve execution plan
+      description: Expects a ledger to approve the upcoming execution plan
+      operationId: approveExecutionPlan
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - executionPlan
+              properties:
+                executionPlan:
+                  type: object
+                  description: execution plan information
+                  required: [ id ]
+                  properties:
+                    id:
+                      type: string
+                      description: execution plan id
+      responses:
+        '200':
+          description: successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/executionPlanApprovalOperation'
+        '400':
+          description: Invalid Input
+          content: { }
+        '500':
+          description: System error
+          content: { }
+
   /payments/depositInstruction:
     post:
       tags:
@@ -52,8 +89,15 @@ paths:
                   $ref: '#/components/schemas/source'
                 asset:
                   $ref: '#/components/schemas/depositAsset'
+                amount:
+                  type: string
+                  description: Amount to deposit
                 details:
                   type: object
+                nonce:
+                  $ref: '#/components/schemas/nonce'
+                signature:
+                  $ref: '#/components/schemas/signature'
       responses:
         '200':
           description: successful operation
@@ -100,8 +144,14 @@ paths:
                 quantity:
                   type: string
                   description: 'How many units of the asset'
+                payoutInstruction:
+                  $ref: '#/components/schemas/payoutInstruction'
                 asset:
                   $ref: '#/components/schemas/payoutAsset'
+                nonce:
+                  $ref: '#/components/schemas/nonce'
+                signature:
+                  $ref: '#/components/schemas/signature'
       responses:
         '200':
           description: successful operation
@@ -230,6 +280,8 @@ paths:
                   description: 'Reference to the corresponding settlement operation'
                 signature:
                   $ref: '#/components/schemas/signature'
+                executionContext:
+                  $ref: '#/components/schemas/executionContext'
       responses:
         '200':
           description: successful operation
@@ -285,6 +337,8 @@ paths:
                   description: 'Reference to the corresponding payment operation'
                 signature:
                   $ref: '#/components/schemas/signature'
+                executionContext:
+                  $ref: '#/components/schemas/executionContext'
       responses:
         '200':
           description: successful operation
@@ -343,6 +397,8 @@ paths:
                   description: 'Reference to the corresponding payment operation'
                 signature:
                   $ref: '#/components/schemas/signature'
+                executionContext:
+                  $ref: '#/components/schemas/executionContext'
       responses:
         '200':
           description: successful operation
@@ -434,6 +490,8 @@ paths:
                   description: 'ttl expiry value indicating the escrow hold time limitation'
                 signature:
                   $ref: '#/components/schemas/signature'
+                executionContext:
+                  $ref: '#/components/schemas/executionContext'
       responses:
         '200':
           description: successful operation
@@ -486,6 +544,8 @@ paths:
                   description: 'How many units of the asset tokens'
                 asset:
                   $ref: '#/components/schemas/asset'
+                executionContext:
+                  $ref: '#/components/schemas/executionContext'
       responses:
         '200':
           description: successful operation
@@ -535,6 +595,8 @@ paths:
                   description: 'How many units of the asset tokens'
                 asset:
                   $ref: '#/components/schemas/asset'
+                executionContext:
+                  $ref: '#/components/schemas/executionContext'
       responses:
         '200':
           description: successful operation
@@ -606,6 +668,9 @@ components:
         details:
           type: object
           description: Any addition deposit specific information
+        operationId:
+          type: string
+          description: operation id
 
     asset:
       type: object
@@ -645,6 +710,15 @@ components:
       oneOf:
         - $ref: '#/components/schemas/cryptocurrencyAsset'
         - $ref: '#/components/schemas/fiatAsset'
+
+    payoutInstruction:
+      type: object
+      required:
+        - description
+      properties:
+        description:
+          type: string
+          description: 'withdrawal description'
 
     cryptocurrencyAsset:
       type: object
@@ -865,7 +939,39 @@ components:
           type: string
           description: actionable details of the error
 
+    executionOperationErrorInformation:
+      type: object
+      properties: { }
 
+    executionContext:
+      type: object
+      required:
+        - executionPlanId
+        - instructionSequenceNumber
+      properties:
+        executionPlanId:
+          type: string
+          description: execution plan id
+        instructionSequenceNumber:
+          type: integer
+          format: uint32
+          description: execution instruction sequence number
+
+    executionPlanApprovalOperation:
+      allOf:
+        - $ref: '#/components/schemas/operationBase'
+        - type: object
+          required: [ approval ]
+          properties:
+            approval:
+              oneOf:
+                - $ref: '#/components/schemas/planApproved'
+                - $ref: '#/components/schemas/planRejected'
+              discriminator:
+                propertyName: status
+                mapping:
+                  approved: '#/components/schemas/planApproved'
+                  rejected: '#/components/schemas/planRejected'
 
     operationStatus:
       type: object
@@ -875,12 +981,13 @@ components:
       properties:
         type:
           type: string
-          enum: [ receipt, deposit, empty ]
+          enum: [ receipt, deposit, empty, approval ]
         operation:
           oneOf:
             - $ref: '#/components/schemas/depositOperation'
             - $ref: '#/components/schemas/receiptOperation'
             - $ref: '#/components/schemas/emptyOperation'
+            - $ref: '#/components/schemas/executionPlanApprovalOperation'
 
     signature:
       type: object
@@ -969,9 +1076,6 @@ components:
           $ref: '#/components/schemas/source'
         destination:
           $ref: '#/components/schemas/destination'
-        settlementRef:
-          type: string
-          description: the id of related / counterpary operation
         transactionDetails:
           $ref: '#/components/schemas/transactionDetails'
 
@@ -980,53 +1084,67 @@ components:
       type: object
       required:
         - transactionId
-        - inputs
-        - outputs
       properties:
         transactionId:
           type: string
           description: The Transaction id on the underlying ledger
-        inputs:
-          type: array
-          items:
-            $ref: '#/components/schemas/input'
-        outputs:
-          type: array
-          items:
-            $ref: '#/components/schemas/output'
+        operationId:
+          type: string
+          description: The Operation id
 
-    input:
+    planApproved:
+      type: object
+      required: [ status ]
+      properties:
+        status:
+          type: string
+          enum: [ 'approved' ]
+
+    planRejected:
+      type: object
+      required: [ status, reason ]
+      properties:
+        status:
+          type: string
+          enum: [ 'rejected' ]
+        failure:
+          oneOf:
+            - $ref: '#/components/schemas/validationFailure'
+            - $ref: '#/components/schemas/regulationFailure'
+          discriminator:
+            propertyName: failureType
+            mapping:
+              validationFailure: '#/components/schemas/validationFailure'
+              regulationFailure: '#/components/schemas/regulationFailure'
+
+    #   TODO: make it generic, regulation or other error could extend this generic time
+    validationFailure:
       type: object
       required:
-        - transactionId
-        - quantity
-        - index
+        - failureType
+        - code
+        - message
       properties:
-        transactionId:
+        failureType:
           type: string
-          description: "transaction id of the input token"
-        quantity:
-          type: string
-          description: "token input quantity"
-        index:
+          enum: [ validationFailure ]
+        code:
           type: integer
           format: uint32
-          description: "index of the token in the transaction that created it"
+          description: ledger error code for validation
+        message:
+          type: string
 
-    output:
+    regulationFailure:
       type: object
       required:
-        - quantity
-        - publicKey
-        - index
+        - failureType
+        - errors
       properties:
-        quantity:
+        failureType:
           type: string
-          description: "token output quantity"
-        publicKey:
-          type: string
-          description: "hex representation of a secp256k1 public key in compressed form: 33bytes"
-        index:
-          type: integer
-          format: uint32
-          description: "index of the token in the transaction"
+          enum: [ regulationFailure ]
+        errors:
+          type: array
+          items:
+            $ref: '#/components/schemas/regulationError'

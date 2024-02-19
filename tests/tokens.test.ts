@@ -87,7 +87,7 @@ describe(`token service test`, () => {
       settlementRef: settlementRef,
       asset,
       signature: signature,
-    } as Paths.Transfer.RequestBody));
+    } as Paths.TransferAsset.RequestBody));
     expect(transferReceipt.asset).toStrictEqual(asset);
     expect(parseInt(transferReceipt.quantity)).toBe(transferQuantity);
     expect(transferReceipt.source).toStrictEqual(buyer);

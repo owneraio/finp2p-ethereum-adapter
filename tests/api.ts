@@ -16,8 +16,8 @@ export class TokensAPI {
     return await post("/assets/redeem", req) as Paths.RedeemAssets.Responses.$200;
   }
 
-  public static async transfer(req: Paths.Transfer.RequestBody): Promise<Paths.Transfer.Responses.$200> {
-    return await post("/assets/transfer", req) as Paths.Transfer.Responses.$200;
+  public static async transfer(req: Paths.TransferAsset.RequestBody): Promise<Paths.TransferAsset.Responses.$200> {
+    return await post("/assets/transfer", req) as Paths.TransferAsset.Responses.$200;
   }
 
 }
