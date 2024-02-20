@@ -11,6 +11,7 @@ export class EscrowService extends CommonService {
 
   public async hold(request: Paths.HoldOperation.RequestBody): Promise<Paths.HoldOperation.Responses.$200> {
     logger.debug("hold", { request });
+
     const operationId = request.operationId;
     const assetId = (request.asset as Finp2pAsset).resourceId;
     const sourceFinId = request.source.finId;

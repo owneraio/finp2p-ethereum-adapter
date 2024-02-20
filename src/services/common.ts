@@ -1,7 +1,8 @@
 import { logger } from "../helpers/logger";
-import { FinP2PContract, FinP2PReceipt } from "../contracts/finp2p";
+import { FinP2PContract } from "../contracts/finp2p";
 import Finp2pAsset = Components.Schemas.Finp2pAsset;
 import Receipt = Components.Schemas.Receipt;
+import { FinP2PReceipt } from "../contracts/model";
 
 
 export class CommonService {

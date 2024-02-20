@@ -1,88 +1,26 @@
-import { ethers, JsonRpcProvider, Wallet, TransactionReceipt } from "ethers";
+import { ethers, JsonRpcProvider, Log, TransactionReceipt, Wallet } from "ethers";
 import Finp2pERC20 from "../../artifacts/contracts/token/ERC20/utils/Finp2pERC20.sol/Finp2pERC20.json";
 import { IFinP2PAsset, IFinP2PEscrow } from "../../typechain-types";
-
-export type OperationStatus = PendingTransaction | SuccessfulTransaction | FailedTransaction;
-
-
-export type PendingTransaction = {
-  status: "pending"
-}
-
-export type SuccessfulTransaction = {
-  status: "completed"
-  receipt: FinP2PReceipt
-}
-
-export type FinP2PReceipt = {
-  id: string
-  assetId: string
-  amount: number
-  source: string
-  destination: string,
-  timestamp: number
-}
-
-export type FailedTransaction = {
-  status: "failed"
-  error: TransactionError
-}
-
-export type TransactionError = {
-  code: number
-  message: string
-}
+import { FinP2PReceipt, OperationStatus } from "./model";
+import { IssueEvent } from "../../typechain-types/contracts/token/ERC20/utils/Finp2pERC20";
 
 export class FinP2PContract {
 
   provider: JsonRpcProvider;
   wallet: Wallet;
+  genericContract: ethers.Contract;
   asset: IFinP2PAsset;
   escrow: IFinP2PEscrow;
 
   constructor(rpcURL: string, privateKey: string, finP2PContractAddress: string) {
     this.provider = new ethers.JsonRpcProvider(rpcURL);
     this.wallet = new ethers.Wallet(privateKey, this.provider);
-    let genericContract = new ethers.Contract(
+    this.genericContract = new ethers.Contract(
       finP2PContractAddress,
       Finp2pERC20.abi,
       this.wallet.connect(this.provider));
-    this.asset = genericContract as unknown as IFinP2PAsset;
-    this.escrow = genericContract as unknown as IFinP2PEscrow;
-  }
-
-  async balance(assetId: string, finId: string) {
-    return await this.asset.getBalance(assetId, finId);
-  }
-
-  async getOperationStatus(hash: string): Promise<OperationStatus> {
-    const receipt = await this.provider.getTransactionReceipt(hash);
-    if (receipt === null) {
-      return {
-        status: "pending"
-      };
-    } else if (receipt?.status === 1) {
-      return {
-        status: "completed",
-        receipt: parseTransactionReceipt(receipt)
-      };
-    } else {
-      return {
-        status: "failed",
-        error: {
-          code: 1,
-          message: "Operation failed"
-        }
-      };
-    }
-  }
-
-  async getReceipt(hash: string): Promise<FinP2PReceipt> {
-    const receipt = await this.provider.getTransactionReceipt(hash);
-    if (receipt?.status === 1) {
-      return {} as FinP2PReceipt;
-    }
-    throw new Error("Transaction failed");
+    this.asset = this.genericContract as unknown as IFinP2PAsset;
+    this.escrow = this.genericContract as unknown as IFinP2PEscrow;
   }
 
   async issue(assetId: string, issuerFinId: string, quantity: number) {
@@ -121,15 +59,63 @@ export class FinP2PContract {
     return response.hash;
   }
 
-}
 
-const parseTransactionReceipt = (receipt: TransactionReceipt): FinP2PReceipt => {
-  return {
-    id: "",
-    assetId: "",
-    amount: 0,
-    source: "",
-    destination: "",
-    timestamp: 0
+  async balance(assetId: string, finId: string) {
+    return await this.asset.getBalance(assetId, finId);
+  }
+
+  async getOperationStatus(hash: string): Promise<OperationStatus> {
+    const receipt = await this.provider.getTransactionReceipt(hash);
+    if (receipt === null) {
+      return {
+        status: "pending"
+      };
+    } else if (receipt?.status === 1) {
+      return {
+        status: "completed",
+        receipt: await this.parseTransactionReceipt(receipt)
+      };
+    } else {
+      return {
+        status: "failed",
+        error: {
+          code: 1,
+          message: "Operation failed"
+        }
+      };
+    }
+  }
+
+  async getReceipt(hash: string): Promise<FinP2PReceipt> {
+    const receipt = await this.provider.getTransactionReceipt(hash);
+    if (receipt === null) {
+      throw new Error("Transaction not found");
+    }
+    return await this.parseTransactionReceipt(receipt);
+  }
+
+
+  async parseTransactionReceipt(receipt: TransactionReceipt): Promise<FinP2PReceipt> {
+    const id = receipt.hash;
+    const timestamp = 0;
+
+    for (const log of receipt.logs) {
+      const parsedLog = this.genericContract.interface.parseLog(log);
+      if (parsedLog === null) {
+        continue;
+      }
+      const args = parsedLog.args;
+      console.log(parsedLog);
+    }
+
+    return {
+      id: "",
+      assetId: "",
+      amount: 0,
+      source: "",
+      destination: "",
+      timestamp: 0
+    };
   };
-};
+
+}
