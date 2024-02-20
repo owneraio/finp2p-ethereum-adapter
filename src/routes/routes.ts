@@ -7,12 +7,18 @@ import { OperatorService } from '../services/operator';
 import { PlanService } from '../services/plans';
 
 
-export const register = (app: express.Application) => {
+export const register = (app: express.Application,
+                         tokenService: TokenService,
+                         escrowService: EscrowService,
+                         paymentService: PaymentsService,
+                         planService: PlanService,
+                         operatorService: OperatorService
+) => {
 
   app.post(
     '/api/plan/approve',
     asyncMiddleware(async (req, res) => {
-      const response = await PlanService.GetService().approvePlan(req.body);
+      const response = await planService.approvePlan(req.body);
       return res.send(response);
     }),
   );
@@ -21,7 +27,7 @@ export const register = (app: express.Application) => {
   app.post(
     '/api/assets/create',
     asyncMiddleware(async (req, res) => {
-      const response = await TokenService.GetService().createAsset(req.body);
+      const response = await tokenService.createAsset(req.body);
       return res.send(response);
     }),
   );
@@ -30,7 +36,7 @@ export const register = (app: express.Application) => {
   app.post(
     '/api/assets/getBalance',
     asyncMiddleware(async (req, res) => {
-      const balance = await TokenService.GetService().balance(req.body);
+      const balance = await tokenService.balance(req.body);
       res.send(balance);
     }),
   );
@@ -39,7 +45,7 @@ export const register = (app: express.Application) => {
   app.post(
     '/api/assets/issue',
     asyncMiddleware(async (req, res) => {
-      const receipt = await TokenService.GetService().issue(req.body);
+      const receipt = await tokenService.issue(req.body);
       res.json(receipt);
     }),
   );
@@ -48,7 +54,7 @@ export const register = (app: express.Application) => {
   app.post(
     '/api/assets/transfer',
     asyncMiddleware(async (req, res) => {
-      const receipt = await TokenService.GetService().transfer(req.body);
+      const receipt = await tokenService.transfer(req.body);
       res.json(receipt);
     }),
   );
@@ -57,7 +63,7 @@ export const register = (app: express.Application) => {
   app.post(
     '/api/assets/redeem',
     asyncMiddleware(async (req, res) => {
-      const receipt = await TokenService.GetService().redeem(req.body);
+      const receipt = await tokenService.redeem(req.body);
       res.json(receipt);
     }),
   );
@@ -66,7 +72,7 @@ export const register = (app: express.Application) => {
     '/api/assets/receipts/:id',
     asyncMiddleware(async (req, res) => {
       const { id } = req.params;
-      const receipt = await TokenService.GetService().getReceipt(id);
+      const receipt = await tokenService.getReceipt(id);
       res.json(receipt);
     }),
   );
@@ -75,7 +81,7 @@ export const register = (app: express.Application) => {
   app.post(
     '/api/payments/depositInstruction/',
     asyncMiddleware(async (req, res) => {
-      const receipt = await PaymentsService.GetService().deposit(req.body);
+      const receipt = await paymentService.deposit(req.body);
       res.json(receipt);
     }),
   );
@@ -84,7 +90,7 @@ export const register = (app: express.Application) => {
   app.post(
     '/api/assets/hold',
     asyncMiddleware(async (req, res) => {
-      const receipt = await EscrowService.GetService().hold(req.body);
+      const receipt = await escrowService.hold(req.body);
       res.json(receipt);
     }),
   );
@@ -93,7 +99,7 @@ export const register = (app: express.Application) => {
   app.post(
     '/api/assets/release',
     asyncMiddleware(async (req, res) => {
-      const receipt = await EscrowService.GetService().release(req.body);
+      const receipt = await escrowService.release(req.body);
       res.json(receipt);
     }),
   );
@@ -102,7 +108,7 @@ export const register = (app: express.Application) => {
   app.post(
     '/api/assets/rollback',
     asyncMiddleware(async (req, res) => {
-      const receipt = await EscrowService.GetService().rollback(req.body);
+      const receipt = await escrowService.rollback(req.body);
       res.json(receipt);
     }),
   );
@@ -111,7 +117,7 @@ export const register = (app: express.Application) => {
   app.post(
     '/api/payments/payout',
     asyncMiddleware(async (req, res) => {
-      const receipt = await PaymentsService.GetService().payout(req.body);
+      const receipt = await paymentService.payout(req.body);
       res.json(receipt);
     }),
   );
@@ -120,7 +126,7 @@ export const register = (app: express.Application) => {
   app.get(
     '/api/operations/status/:cid',
     asyncMiddleware(async (req, res) => {
-      const status = await TokenService.GetService().operationStatus(req.params.cid);
+      const status = await tokenService.operationStatus(req.params.cid);
       res.json(status);
     }),
   );
@@ -129,7 +135,7 @@ export const register = (app: express.Application) => {
   app.post(
     '/api/operator/setBalance',
     asyncMiddleware(async (req, res) => {
-      const status = await OperatorService.GetService().setBalance(req.body);
+      const status = await operatorService.setBalance(req.body);
       res.json(status);
     }),
   );

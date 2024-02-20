@@ -1,17 +1,9 @@
-import { CommonService } from './common';
-import { v4 as uuid } from 'uuid';
+import {CommonService} from './common';
+import {v4 as uuid} from 'uuid';
 
-
-let service: PaymentsService;
 
 export class PaymentsService extends CommonService {
 
-  public static GetService(): PaymentsService {
-    if (!service) {
-      service = new PaymentsService();
-    }
-    return service;
-  }
 
   public async deposit(request: Paths.DepositInstruction.RequestBody): Promise<Paths.DepositInstruction.Responses.$200> {
     return {
