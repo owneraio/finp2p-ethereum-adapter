@@ -1,15 +1,18 @@
-import { ethers, JsonRpcProvider, Log, TransactionReceipt, Wallet } from "ethers";
-import Finp2pERC20 from "../../artifacts/contracts/token/ERC20/utils/Finp2pERC20.sol/Finp2pERC20.json";
-import { IFinP2PAsset, IFinP2PEscrow } from "../../typechain-types";
-import { FinP2PReceipt, OperationStatus } from "./model";
-import { IssueEvent } from "../../typechain-types/contracts/token/ERC20/utils/Finp2pERC20";
+import { ethers, JsonRpcProvider, TransactionReceipt, Wallet } from 'ethers';
+import Finp2pERC20 from '../../artifacts/contracts/token/ERC20/utils/Finp2pERC20.sol/Finp2pERC20.json';
+import { IFinP2PAsset, IFinP2PEscrow } from '../../typechain-types';
+import { FinP2PReceipt, OperationStatus } from './model';
 
 export class FinP2PContract {
 
   provider: JsonRpcProvider;
+
   wallet: Wallet;
+
   genericContract: ethers.Contract;
+
   asset: IFinP2PAsset;
+
   escrow: IFinP2PEscrow;
 
   constructor(rpcURL: string, privateKey: string, finP2PContractAddress: string) {
@@ -29,21 +32,21 @@ export class FinP2PContract {
   }
 
   async transfer(nonce: string, assetId: string, sourceFinId: string, destinationFinId: string, quantity: number,
-                 settlementHash: string, hash: string, signature: string) {
+    settlementHash: string, hash: string, signature: string) {
     const response = await this.asset.transfer(nonce, assetId, sourceFinId, destinationFinId, quantity,
       settlementHash, hash, signature);
     return response.hash;
   }
 
   async redeem(nonce: string, assetId: string, finId: string, quantity: number,
-               settlementHash: string, hash: string, signature: string) {
+    settlementHash: string, hash: string, signature: string) {
     const response = await this.asset.redeem(nonce, assetId, finId, quantity,
       settlementHash, hash, signature);
     return response.hash;
   }
 
   async hold(operationId: string, assetId: string, sourceFinId: string, destinationFinId: string, quantity: number, expiry: number,
-             assetHash: string, hash: string, signature: string) {
+    assetHash: string, hash: string, signature: string) {
     const response = await this.escrow.hold(operationId, assetId, sourceFinId, destinationFinId, quantity, expiry,
       assetHash, hash, signature);
     return response.hash;
@@ -61,27 +64,27 @@ export class FinP2PContract {
 
 
   async balance(assetId: string, finId: string) {
-    return await this.asset.getBalance(assetId, finId);
+    return this.asset.getBalance(assetId, finId);
   }
 
   async getOperationStatus(hash: string): Promise<OperationStatus> {
     const receipt = await this.provider.getTransactionReceipt(hash);
     if (receipt === null) {
       return {
-        status: "pending"
+        status: 'pending',
       };
     } else if (receipt?.status === 1) {
       return {
-        status: "completed",
-        receipt: await this.parseTransactionReceipt(receipt)
+        status: 'completed',
+        receipt: await this.parseTransactionReceipt(receipt),
       };
     } else {
       return {
-        status: "failed",
+        status: 'failed',
         error: {
           code: 1,
-          message: "Operation failed"
-        }
+          message: 'Operation failed',
+        },
       };
     }
   }
@@ -89,33 +92,33 @@ export class FinP2PContract {
   async getReceipt(hash: string): Promise<FinP2PReceipt> {
     const receipt = await this.provider.getTransactionReceipt(hash);
     if (receipt === null) {
-      throw new Error("Transaction not found");
+      throw new Error('Transaction not found');
     }
-    return await this.parseTransactionReceipt(receipt);
+    return this.parseTransactionReceipt(receipt);
   }
 
 
   async parseTransactionReceipt(receipt: TransactionReceipt): Promise<FinP2PReceipt> {
-    const id = receipt.hash;
-    const timestamp = 0;
+    // const id = receipt.hash;
+    // const timestamp = 0;
 
     for (const log of receipt.logs) {
       const parsedLog = this.genericContract.interface.parseLog(log);
       if (parsedLog === null) {
         continue;
       }
-      const args = parsedLog.args;
+      // const args = parsedLog.args;
       console.log(parsedLog);
     }
 
     return {
-      id: "",
-      assetId: "",
+      id: '',
+      assetId: '',
       amount: 0,
-      source: "",
-      destination: "",
-      timestamp: 0
+      source: '',
+      destination: '',
+      timestamp: 0,
     };
-  };
+  }
 
 }

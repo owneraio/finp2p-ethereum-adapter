@@ -1,8 +1,4 @@
 import { CommonService } from './common';
-import { v4 as uuid } from 'uuid';
-
-
-let service: OperatorService;
 
 
 export interface Source {
@@ -10,7 +6,7 @@ export interface Source {
 }
 
 export interface CurrencyCode {
-  code: string
+  code: string;
 }
 
 export interface Asset {
@@ -19,24 +15,28 @@ export interface Asset {
 }
 
 export interface SetBalanceRequest {
-  to: Source
-  asset: Asset
-  balance: string
+  to: Source;
+  asset: Asset;
+  balance: string;
 }
 
 export interface SetBalanceResponse {
-  isCompleted: boolean
-  cid: string
-  response: Components.Schemas.Receipt
+  isCompleted: boolean;
+  cid: string;
+  response: Components.Schemas.Receipt;
 }
 
 export class OperatorService extends CommonService {
 
   public async setBalance(request: SetBalanceRequest): Promise<SetBalanceResponse> {
+    const assetId = request.asset.code.code;
+    const finId = request.to.finId;
+    const amount = parseInt(request.balance);
+
+    const txHash = await this.finP2PContract.issue(assetId, finId, amount);
     return {
-      isCompleted: true,
-      // cid: uuid(),
-      // response: Transaction.toReceipt(tx),
+      isCompleted: false,
+      cid: txHash,
     } as SetBalanceResponse;
   }
 

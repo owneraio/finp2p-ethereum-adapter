@@ -1,20 +1,20 @@
 import express from 'express';
 import * as routes from './routes';
-import {logger as expressLogger} from 'express-winston';
-import {format, transports} from 'winston';
-import {logger} from './helpers/logger';
-import {TokenService} from "./services/tokens";
-import {EscrowService} from "./services/escrow";
-import {PaymentsService} from "./services/payments";
-import {PlanService} from "./services/plans";
-import {OperatorService} from "./services/operator";
-import {FinP2PContract} from "./contracts/finp2p";
-import * as process from "process";
+import { logger as expressLogger } from 'express-winston';
+import { format, transports } from 'winston';
+import { logger } from './helpers/logger';
+import { TokenService } from './services/tokens';
+import { EscrowService } from './services/escrow';
+import { PaymentsService } from './services/payments';
+import { PlanService } from './services/plans';
+import { OperatorService } from './services/operator';
+import { FinP2PContract } from './contracts/finp2p';
+import * as process from 'process';
 
 const port = process.env.PORT || 3000;
-const ethereumRPCUrl = process.env.ETHEREUM_RPC_URL || "";
-const operatorPrivateKey = process.env.OPERATOR_PRIVATE_KEY || "";
-const finP2PContractAddress = process.env.FINP2P_CONTRACT_ADDRESS || "";
+const ethereumRPCUrl = process.env.ETHEREUM_RPC_URL || '';
+const operatorPrivateKey = process.env.OPERATOR_PRIVATE_KEY || '';
+const finP2PContractAddress = process.env.FINP2P_CONTRACT_ADDRESS || '';
 
 if (!ethereumRPCUrl) {
   throw new Error('ETHEREUM_RPC_URL is not set');
@@ -32,11 +32,11 @@ const finP2PContract = new FinP2PContract(ethereumRPCUrl, operatorPrivateKey, fi
 
 const app = express();
 
-app.use(express.json({limit: '50mb'}));
+app.use(express.json({ limit: '50mb' }));
 
 app.use(
   expressLogger({
-    transports: [new transports.Console({level: process.env.LOG_LEVEL || 'info'})],
+    transports: [new transports.Console({ level: process.env.LOG_LEVEL || 'info' })],
     format: format.combine(
       format.timestamp(),
       format(function dynamicContent(info) {
@@ -68,7 +68,7 @@ routes.register(
   new EscrowService(finP2PContract),
   new PaymentsService(),
   new PlanService(),
-  new OperatorService()
+  new OperatorService(),
 );
 
 app.listen(port, () => {
@@ -76,10 +76,10 @@ app.listen(port, () => {
 });
 
 process.on('unhandledRejection', (reason, p) => {
-  logger.error('Unhandled Rejection', {promise: p, reason});
+  logger.error('Unhandled Rejection', { promise: p, reason });
 });
 process.on('uncaughtException', (err, origin) => {
-  logger.error('uncaught exception', {err, origin});
+  logger.error('uncaught exception', { err, origin });
 });
 
 

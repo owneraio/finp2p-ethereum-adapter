@@ -8,11 +8,11 @@ import { PlanService } from '../services/plans';
 
 
 export const register = (app: express.Application,
-                         tokenService: TokenService,
-                         escrowService: EscrowService,
-                         paymentService: PaymentsService,
-                         planService: PlanService,
-                         operatorService: OperatorService
+  tokenService: TokenService,
+  escrowService: EscrowService,
+  paymentService: PaymentsService,
+  planService: PlanService,
+  operatorService: OperatorService,
 ) => {
 
   app.post(

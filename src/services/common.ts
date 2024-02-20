@@ -1,8 +1,7 @@
-import { logger } from "../helpers/logger";
-import { FinP2PContract } from "../contracts/finp2p";
+import { logger } from '../helpers/logger';
+import { FinP2PContract } from '../contracts/finp2p';
 import Finp2pAsset = Components.Schemas.Finp2pAsset;
-import Receipt = Components.Schemas.Receipt;
-import { FinP2PReceipt } from "../contracts/model";
+import { receiptToAPI } from './mapping';
 
 
 export class CommonService {
@@ -14,14 +13,14 @@ export class CommonService {
   }
 
   public async balance(request: Paths.GetAssetBalance.RequestBody): Promise<Paths.GetAssetBalance.Responses.$200> {
-    logger.debug("balance", { request });
+    logger.debug('balance', { request });
 
     let assetId = (request.asset as Finp2pAsset).resourceId;
     const balance = await this.finP2PContract.balance(assetId, request.owner.finId);
 
     return {
       asset: request.asset,
-      balance: `${balance}`
+      balance: `${balance}`,
     } as Components.Schemas.Balance;
   }
 
@@ -30,7 +29,7 @@ export class CommonService {
       const receipt = await this.finP2PContract.getReceipt(id);
       return {
         isCompleted: true,
-        response: receiptToAPI(receipt)
+        response: receiptToAPI(receipt),
       } as Components.Schemas.ReceiptOperation;
 
     } catch (e) {
@@ -38,8 +37,8 @@ export class CommonService {
         isCompleted: true,
         error: {
           code: 1,
-          message: e
-        }
+          message: e,
+        },
       } as Components.Schemas.ReceiptOperation;
     }
   }
@@ -47,61 +46,32 @@ export class CommonService {
   public async operationStatus(cid: string): Promise<Paths.GetOperation.Responses.$200> {
     const status = await this.finP2PContract.getOperationStatus(cid);
     switch (status.status) {
-      case "completed":
+      case 'completed':
         return {
-          type: "receipt",
+          type: 'receipt',
           operation: {
             isCompleted: true,
-            response: receiptToAPI(status.receipt)
-          }
+            response: receiptToAPI(status.receipt),
+          },
         } as Components.Schemas.OperationStatus;
 
-      case "pending":
+      case 'pending':
         return {
-          type: "receipt",
+          type: 'receipt',
           operation: {
             isCompleted: false,
-            cid: cid
-          }
+            cid: cid,
+          },
         } as Components.Schemas.OperationStatus;
 
-      case "failed":
+      case 'failed':
         return {
-          type: "receipt",
+          type: 'receipt',
           operation: {
             isCompleted: true,
-            error: status.error
-          }
+            error: status.error,
+          },
         } as Components.Schemas.OperationStatus;
     }
   }
 }
-
-const receiptToAPI = (receipt: FinP2PReceipt): Receipt => {
-  return {
-    id: receipt.id,
-    asset: {
-      type: "finp2p",
-      resourceId: receipt.assetId
-    },
-    quantity: `${receipt.amount}`,
-    source: {
-      finId: receipt.source,
-      account: {
-        type: "finId",
-        finId: receipt.source
-      }
-    },
-    destination: {
-      finId: receipt.destination,
-      account: {
-        type: "finId",
-        finId: receipt.destination
-      }
-    },
-    transactionDetails: {
-      transactionId: receipt.id
-    },
-    timestamp: receipt.timestamp
-  };
-};

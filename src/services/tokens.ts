@@ -1,16 +1,9 @@
 import { v4 as uuid } from 'uuid';
 import { CommonService } from './common';
-import * as console from "console";
-import {FinP2PContract} from "../contracts/finp2p";
+import * as console from 'console';
 import Finp2pAsset = Components.Schemas.Finp2pAsset;
 
-let service: TokenService;
-
 export class TokenService extends CommonService {
-
-  constructor(finP2PContract: FinP2PContract) {
-    super(finP2PContract);
-  }
 
   public async createAsset(request: Paths.CreateAsset.RequestBody): Promise<Paths.CreateAsset.Responses.$200> {
     console.log(`request: ${request}`);
