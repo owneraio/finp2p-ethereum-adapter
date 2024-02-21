@@ -76,7 +76,7 @@ export const transferSignature = (assetGroup: AssetGroup, settlementGroup: Settl
         value: extractIdFromDestination(assetGroup.destination.account)
       });
     }
-    assetFields.push({ name: "amount", type: "string", value: "0x" + Number(assetGroup.quantity).toString(16) });
+    assetFields.push({ name: "amount", type: "string", value: `${assetGroup.quantity}` });
     let assetHash = hashFields(assetFields, hashFunc);
     hashGroups.push({
       hash: assetHash.toString("hex"),
@@ -112,13 +112,13 @@ export const transferSignature = (assetGroup: AssetGroup, settlementGroup: Settl
     settlementFields.push({
       name: "amount",
       type: "string",
-      value: "0x" + Number(settlementGroup.quantity).toString(16)
+      value: `${settlementGroup.quantity}`
     });
     if (settlementGroup.expiry > 0) {
       settlementFields.push({
         name: "expiry",
         type: "string",
-        value: "0x" + Number(settlementGroup.expiry).toString(16)
+        value: `${settlementGroup.expiry}`
       });
     }
 
