@@ -4,7 +4,6 @@ import { v4 as uuid } from 'uuid';
 
 export class PaymentsService extends CommonService {
 
-
   public async deposit(request: Paths.DepositInstruction.RequestBody): Promise<Paths.DepositInstruction.Responses.$200> {
     return {
       isCompleted: true,

@@ -13,8 +13,11 @@ const config: HardhatUserConfig = {
   },
   networks: {
     hardhat: {
-      chainId: 1337
-    }
+      chainId: 1337,
+      gasPrice: 0,
+      hardfork: "berlin",
+      blockGasLimit: 10000000
+    },
   }
 }
 

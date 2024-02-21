@@ -1,17 +1,17 @@
-import { v4 as uuid } from 'uuid';
 import { CommonService } from './common';
-import * as console from 'console';
 import Finp2pAsset = Components.Schemas.Finp2pAsset;
 
 export class TokenService extends CommonService {
 
   public async createAsset(request: Paths.CreateAsset.RequestBody): Promise<Paths.CreateAsset.Responses.$200> {
-    console.log(`request: ${request}`);
-    const txId = uuid();
+    const assetId = (request.asset as Finp2pAsset).resourceId;
+    const tokenAddress = await this.finP2PContract.deployERC20(assetId, assetId);
+
+    const txHash = await this.finP2PContract.associateAsset(assetId, tokenAddress);
     return {
-      isCompleted: true,
-      cid: txId,
-    } as Components.Schemas.EmptyOperation;
+      isCompleted: false,
+      cid: txHash,
+    } as Components.Schemas.ReceiptOperation;
   }
 
   public async issue(request: Paths.IssueAssets.RequestBody): Promise<Paths.IssueAssets.Responses.$200> {
