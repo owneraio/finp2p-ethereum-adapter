@@ -47,11 +47,12 @@ export class CommonService {
     const status = await this.finP2PContract.getOperationStatus(cid);
     switch (status.status) {
       case 'completed':
+        let receipt = receiptToAPI(status.receipt);
         return {
           type: 'receipt',
           operation: {
             isCompleted: true,
-            response: receiptToAPI(status.receipt),
+            response: receipt,
           },
         } as Components.Schemas.OperationStatus;
 

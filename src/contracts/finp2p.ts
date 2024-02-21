@@ -1,8 +1,8 @@
-import { ethers, Wallet } from 'ethers';
-import Finp2pERC20 from '../../artifacts/contracts/token/ERC20/utils/Finp2pERC20.sol/Finp2pERC20.json';
-import ERC20 from '../../artifacts/contracts/token/ERC20/ERC20WithOperator.sol/ERC20WithOperator.json';
-import { IFinP2PAsset, IFinP2PEscrow } from '../../typechain-types';
-import { FinP2PReceipt, OperationStatus } from './model';
+import { ethers, Wallet } from "ethers";
+import Finp2pERC20 from "../../artifacts/contracts/token/ERC20/utils/Finp2pERC20.sol/Finp2pERC20.json";
+import ERC20 from "../../artifacts/contracts/token/ERC20/ERC20WithOperator.sol/ERC20WithOperator.json";
+import { IFinP2PAsset, IFinP2PEscrow } from "../../typechain-types";
+import { FinP2PReceipt, OperationStatus } from "./model";
 
 export class FinP2PContract {
 
@@ -16,7 +16,7 @@ export class FinP2PContract {
 
   escrow: IFinP2PEscrow;
 
-  finP2PContractAddress: string
+  finP2PContractAddress: string;
 
   constructor(rpcURL: string, privateKey: string, finP2PContractAddress: string) {
     this.provider = new ethers.providers.JsonRpcProvider(rpcURL);
@@ -33,7 +33,7 @@ export class FinP2PContract {
   async deployERC20(name: string, symbol: string) {
     const factory = new ethers.ContractFactory(ERC20.abi, ERC20.bytecode, this.wallet);
     const contract = await factory.deploy(name, symbol, this.finP2PContractAddress);
-    return contract.getAddress();
+    return contract.address;
   }
 
   async associateAsset(assetId: string, tokenAddress: string) {
@@ -47,33 +47,34 @@ export class FinP2PContract {
   }
 
   async transfer(nonce: string, assetId: string, sourceFinId: string, destinationFinId: string, quantity: number,
-    settlementHash: string, hash: string, signature: string) {
-    const response = await this.asset.transfer(nonce, assetId, sourceFinId, destinationFinId, quantity,
-      settlementHash, hash, signature);
+                 settlementHash: string, hash: string, signature: string) {
+    const response = await this.asset.transfer(
+      `0x${nonce}`, assetId, sourceFinId, destinationFinId, quantity,
+      `0x${settlementHash}`, `0x${hash}`, `0x${signature}`);
     return response.hash;
   }
 
   async redeem(nonce: string, assetId: string, finId: string, quantity: number,
-    settlementHash: string, hash: string, signature: string) {
-    const response = await this.asset.redeem(nonce, assetId, finId, quantity,
-      settlementHash, hash, signature);
+               settlementHash: string, hash: string, signature: string) {
+    const response = await this.asset.redeem(`0x${nonce}`, assetId, finId, quantity,
+      `0x${settlementHash}`, `0x${hash}`, `0x${signature}`);
     return response.hash;
   }
 
   async hold(operationId: string, assetId: string, sourceFinId: string, destinationFinId: string, quantity: number, expiry: number,
-    assetHash: string, hash: string, signature: string) {
-    const response = await this.escrow.hold(operationId, assetId, sourceFinId, destinationFinId, quantity, expiry,
-      assetHash, hash, signature);
+             assetHash: string, hash: string, signature: string) {
+    const response = await this.escrow.hold(`0x${operationId}`, assetId, sourceFinId, destinationFinId, quantity, expiry,
+      `0x${assetHash}`, `0x${hash}`, `0x${signature}`);
     return response.hash;
   }
 
   async release(operationId: string, destinationFinId: string) {
-    const response = await this.escrow.release(operationId, destinationFinId);
+    const response = await this.escrow.release(`0x${operationId}`, destinationFinId);
     return response.hash;
   }
 
   async rollback(operationId: string) {
-    const response = await this.escrow.rollback(operationId);
+    const response = await this.escrow.rollback(`0x${operationId}`);
     return response.hash;
   }
 
@@ -86,21 +87,20 @@ export class FinP2PContract {
     const receipt = await this.provider.getTransactionReceipt(hash);
     if (receipt === null) {
       return {
-        status: 'pending',
+        status: "pending"
       };
     } else if (receipt?.status === 1) {
       return {
-        status: 'completed',
-        // receipt: await this.parseTransactionReceipt(receipt),
-        receipt: {  } as FinP2PReceipt,
+        status: "completed",
+        receipt: await this.parseTransactionReceipt(receipt)
       };
     } else {
       return {
-        status: 'failed',
+        status: "failed",
         error: {
           code: 1,
-          message: 'Operation failed',
-        },
+          message: "Operation failed"
+        }
       };
     }
   }
@@ -108,36 +108,83 @@ export class FinP2PContract {
   async getReceipt(hash: string): Promise<FinP2PReceipt> {
     const receipt = await this.provider.getTransactionReceipt(hash);
     if (receipt === null) {
-      throw new Error('Transaction not found');
+      throw new Error("Transaction not found");
     }
-    return new Promise((resolve, reject) => {
-      resolve({ } as FinP2PReceipt)
-    });
-    // return this.parseTransactionReceipt(receipt);
+    return this.parseTransactionReceipt(receipt);
   }
 
+  async parseTransactionReceipt(receipt: any): Promise<FinP2PReceipt> {
+    const id = receipt.transactionHash;
+    const timestamp = 0;
 
-  // async parseTransactionReceipt(receipt: TransactionReceipt): Promise<FinP2PReceipt> {
-  //   // const id = receipt.hash;
-  //   // const timestamp = 0;
-  //
-  //   for (const log of receipt.logs) {
-  //     const parsedLog = this.genericContract.interface.parseLog(log);
-  //     if (parsedLog === null) {
-  //       continue;
-  //     }
-  //     // const args = parsedLog.args;
-  //     console.log(parsedLog);
-  //   }
-  //
-  //   return {
-  //     id: '',
-  //     assetId: '',
-  //     amount: 0,
-  //     source: '',
-  //     destination: '',
-  //     timestamp: 0,
-  //   };
-  // }
+    for (const log of receipt.logs) {
+      try {
+        const parsedLog = this.genericContract.interface.parseLog(log);
+        switch (parsedLog.name) {
+          case "Issue":
+            return {
+              id: id,
+              assetId: parsedLog.args.assetId,
+              amount: parsedLog.args.quantity.toNumber(),
+              destination: parsedLog.args.issuerFinId,
+              timestamp: timestamp
+            };
+          case "Transfer":
+            return {
+              id: id,
+              assetId: parsedLog.args.assetId,
+              amount: parsedLog.args.quantity.toNumber(),
+              source: parsedLog.args.sourceFinId,
+              destination: parsedLog.args.destinationFinId,
+              timestamp: timestamp
+            };
+          case "Redeem":
+            return {
+              id: id,
+              assetId: parsedLog.args.assetId,
+              amount: parsedLog.args.quantity.toNumber(),
+              source: parsedLog.args.issuerFinId,
+              timestamp: timestamp
+            };
+          case "Hold":
+            return {
+              id: id,
+              assetId: parsedLog.args.assetId,
+              amount: parsedLog.args.quantity.toNumber(),
+              source: parsedLog.args.finId,
+              timestamp: timestamp
+            };
+          case "Release":
+            return {
+              id: id,
+              assetId: parsedLog.args.assetId,
+              amount: parsedLog.args.quantity.toNumber(),
+              source: parsedLog.args.sourceFinId,
+              destination: parsedLog.args.destinationFinId,
+              timestamp: timestamp
+            };
+          case "Rollback":
+            return {
+              id: id,
+              assetId: parsedLog.args.assetId,
+              amount: parsedLog.args.quantity.toNumber(),
+              destination: parsedLog.args.destinationFinId,
+              timestamp: timestamp
+            };
+        }
+      } catch (e) {
+        // do nothing
+      }
+    }
+
+    return {
+      id: "",
+      assetId: "",
+      amount: 0,
+      source: "",
+      destination: "",
+      timestamp: 0
+    };
+  }
 
 }

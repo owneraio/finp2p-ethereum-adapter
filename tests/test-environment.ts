@@ -78,6 +78,7 @@ class CustomTestEnvironment extends NodeEnvironment {
     return address;
   }
 
+
 }
 
 module.exports = CustomTestEnvironment;

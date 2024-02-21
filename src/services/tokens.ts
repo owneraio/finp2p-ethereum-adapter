@@ -36,12 +36,22 @@ export class TokenService extends CommonService {
     const hash = request.signature.template.hash;
     const signature = request.signature.signature;
 
-    const txHash = await this.finP2PContract.transfer(nonce, assetId, sourceFinId, destinationFinId, amount, settlementHash, hash, signature);
+    try {
+      const txHash = await this.finP2PContract.transfer(nonce, assetId, sourceFinId, destinationFinId, amount, settlementHash, hash, signature);
 
-    return {
-      isCompleted: false,
-      cid: txHash,
-    } as Components.Schemas.ReceiptOperation;
+      return {
+        isCompleted: false,
+        cid: txHash,
+      } as Components.Schemas.ReceiptOperation;
+    } catch (e) {
+      return {
+        isCompleted: true,
+        error: {
+          code: 1,
+          message: e,
+        },
+      } as Components.Schemas.ReceiptOperation;
+    }
   }
 
   public async redeem(request: Paths.RedeemAssets.RequestBody): Promise<Paths.RedeemAssets.Responses.$200> {
