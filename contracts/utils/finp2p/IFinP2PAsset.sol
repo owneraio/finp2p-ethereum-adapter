@@ -21,9 +21,6 @@ interface IFinP2PAsset is IFinP2PCommon {
 
     function issue(string memory assetId, string memory issuerFinId, uint256 quantity) external;
 
-    function issueWithSignature(bytes32 nonce, string memory assetId, string memory issuerFinId, uint256 quantity,
-        bytes32 settlementHash, bytes32 hash, bytes memory signature) external;
-
     function transfer(bytes32 nonce, string memory assetId, string memory sourceFinId, string memory destinationFinId,
         uint256 quantity, bytes32 settlementHash, bytes32 hash, bytes memory signature) external;
 

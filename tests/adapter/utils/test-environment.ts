@@ -2,7 +2,7 @@ import NodeEnvironment from "jest-environment-node";
 import { GenericContainer, StartedTestContainer } from "testcontainers";
 import { EnvironmentContext, JestEnvironmentConfig } from "@jest/environment";
 import { ethers } from "ethers";
-import Finp2pERC20 from "../../../artifacts/contracts/token/ERC20/utils/Finp2pERC20.sol/Finp2pERC20.json";
+import Finp2pERC20 from "../../../artifacts/contracts/token/ERC20/FINP2POperatorERC20.sol/FINP2POperatorERC20.json";
 import { FinP2PContract } from "../../../src/contracts/finp2p";
 import createApp from "../../../src/app";
 import * as http from "http";

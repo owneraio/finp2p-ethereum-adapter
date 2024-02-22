@@ -5,7 +5,7 @@
   "main": "lib/src/test.js",
   "homepage": "https://ownera.io/",
   "scripts": {
-    "generate": "dtsgen -o ./src/services/model-gen.ts dlt-adapter-api.yaml ",
+    "api-generate": "dtsgen -o ./src/services/model-gen.ts dlt-adapter-api.yaml ",
     "clean": "rm -rf lib",
     "prebuild": "eslint ./src --ext .ts --fix",
     "build": "tsc",

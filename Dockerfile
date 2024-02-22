@@ -5,10 +5,12 @@ WORKDIR /usr/app
 FROM base AS builder
 
 COPY \
-    package.json \
-    tsconfig.json \
     .eslintrc.json \
+    package.json \
+    babel.config.js \
+    tsconfig.json \
     hardhat.config.ts \
+    jest.config.js \
     ./
 
 COPY src ./src
@@ -19,6 +21,7 @@ COPY contracts ./contracts
 RUN npm install
 RUN npm run contracts-compile
 RUN npm run build
+RUN ls -la .
 
 # ------- Release ----------
 FROM base as release

@@ -4,11 +4,11 @@ pragma solidity ^0.8.0;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/access/AccessControlEnumerable.sol";
-import "../ERC20WithOperator.sol";
-import "../../../utils/finp2p/IFinP2PAsset.sol";
-import "../../../utils/finp2p/IFinP2PEscrow.sol";
-import "../../../utils/finp2p/Signature.sol";
-import "../../../utils/finp2p/Bytes.sol";
+import "./ERC20WithOperator.sol";
+import "../../utils/finp2p/IFinP2PAsset.sol";
+import "../../utils/finp2p/IFinP2PEscrow.sol";
+import "../../utils/finp2p/Signature.sol";
+import "../../utils/finp2p/Bytes.sol";
 
 /**
  * @dev A token holder contract that will allow a beneficiary to extract the
@@ -17,7 +17,7 @@ import "../../../utils/finp2p/Bytes.sol";
  * Useful for simple vesting schedules like "advisors get all of their tokens
  * after 1 year".
  */
-contract Finp2pERC20 is IFinP2PAsset, IFinP2PEscrow, AccessControlEnumerable {
+contract FINP2POperatorERC20 is IFinP2PAsset, IFinP2PEscrow, AccessControlEnumerable {
 
     bytes32 private constant ASSET_MANAGER = keccak256("ASSET_MANAGER");
     bytes32 private constant TRANSACTION_MANAGER = keccak256("TRANSACTION_MANAGER");
@@ -80,42 +80,6 @@ contract Finp2pERC20 is IFinP2PAsset, IFinP2PEscrow, AccessControlEnumerable {
         require(haveAsset(assetId), "Asset not found");
 
         address issuer = Bytes.finIdToAddress(issuerFinId);
-
-        Asset memory asset = assets[assetId];
-        ERC20WithOperator(asset.tokenAddress).mint(issuer, quantity);
-
-        emit Issue(assetId, issuerFinId, quantity);
-    }
-
-    function issueWithSignature(
-        bytes32 nonce,
-        string memory assetId,
-        string memory issuerFinId,
-        uint256 quantity,
-        bytes32 settlementHash,
-        bytes32 hash,
-        bytes memory signature
-    ) public override virtual {
-        require(hasRole(TRANSACTION_MANAGER, _msgSender()), "Finp2pERC20: must have transaction manager role to issue asset");
-        require(haveAsset(assetId), "Asset not found");
-
-        require(Signature.isIssueHashValid(
-            nonce,
-            assetId,
-            issuerFinId,
-            quantity,
-            settlementHash,
-            hash
-        ), "Hash is not valid");
-
-        address issuer = Bytes.finIdToAddress(issuerFinId);
-
-        require(Signature.verify(
-            issuer,
-            hash,
-            signature
-        ),
-            "Signature is not verified");
 
         Asset memory asset = assets[assetId];
         ERC20WithOperator(asset.tokenAddress).mint(issuer, quantity);

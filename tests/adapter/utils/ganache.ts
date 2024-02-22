@@ -9,7 +9,7 @@ export class GanacheLogExtractor {
   consume(stream: Readable) {
     stream
       .on("data", line => {
-        console.log(line.toString());
+        // console.log(line.toString());
         const match = line.match(/\((\d)\)\s+0x([a-fA-F0-9]{64})\s+/);
         if (match && match.length > 1) {
           this.privateKeys.push(match[2]);
