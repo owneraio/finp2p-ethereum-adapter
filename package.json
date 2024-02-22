@@ -12,10 +12,7 @@
     "prestart": "npm run build",
     "start": "node .",
     "test": "jest",
-    "contracts-compile": "hardhat compile",
-    "contracts-migrate": "truffle migrate",
-    "contracts-size": "truffle run contract-size",
-    "contracts-test": "truffle test"
+    "contracts-compile": "hardhat compile"
   },
   "keywords": [],
   "author": "",

@@ -1,6 +1,6 @@
-import {ASSET, createCrypto, generateNonce, randomResourceId, transferSignature} from "./utils";
-import {TokensAPI, CommonAPI} from "./api";
-import {LEDGER_HASH_FUNCTION, ORG1_MSPID} from "./configuration";
+import {ASSET, createCrypto, generateNonce, randomResourceId, transferSignature} from "./utils/utils";
+import {TokensAPI, CommonAPI} from "./api/api";
+import {LEDGER_HASH_FUNCTION, ORG1_MSPID} from "./api/configuration";
 import {v4 as uuidv4} from 'uuid';
 
 

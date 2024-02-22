@@ -1,10 +1,10 @@
-import {ACCOUNT, ASSET, createCrypto, generateNonce, randomResourceId, transferSignature} from "./utils";
+import {ACCOUNT, ASSET, createCrypto, generateNonce, randomResourceId, transferSignature} from "./utils/utils";
 import {v4 as uuidv4} from 'uuid';
 import {
   LEDGER_HASH_FUNCTION,
   ORG1_MSPID
-} from "./configuration";
-import {CommonAPI, EscrowAPI, OperatorAPI, PaymentsAPI} from "./api";
+} from "./api/configuration";
+import {CommonAPI, EscrowAPI, OperatorAPI, PaymentsAPI} from "./api/api";
 
 
 describe(`escrow test flow`, () => {
