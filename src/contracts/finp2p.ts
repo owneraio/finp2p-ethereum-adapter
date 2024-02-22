@@ -1,5 +1,6 @@
 import { ethers, Wallet } from 'ethers';
-import Finp2pERC20 from '../../artifacts/contracts/token/ERC20/FINP2POperatorERC20.sol/FINP2POperatorERC20.json';
+import FINP2POperatorERC20
+  from '../../artifacts/contracts/token/ERC20/FINP2POperatorERC20.sol/FINP2POperatorERC20.json';
 import ERC20 from '../../artifacts/contracts/token/ERC20/ERC20WithOperator.sol/ERC20WithOperator.json';
 import { IFinP2PAsset, IFinP2PEscrow } from '../../typechain-types';
 import { FinP2PReceipt, OperationStatus } from './model';
@@ -24,7 +25,7 @@ export class FinP2PContract {
     this.wallet = new ethers.Wallet(privateKey, this.provider);
     this.genericContract = new ethers.Contract(
       finP2PContractAddress,
-      Finp2pERC20.abi,
+      FINP2POperatorERC20.abi,
       this.wallet.connect(this.provider));
     this.asset = this.genericContract as unknown as IFinP2PAsset;
     this.escrow = this.genericContract as unknown as IFinP2PEscrow;
@@ -33,7 +34,7 @@ export class FinP2PContract {
 
   async deployFinP2PContract() {
     console.log('Deploying FinP2P contract...');
-    const factory = new ethers.ContractFactory(Finp2pERC20.abi, Finp2pERC20.bytecode, this.wallet);
+    const factory = new ethers.ContractFactory(FINP2POperatorERC20.abi, FINP2POperatorERC20.bytecode, this.wallet);
     const contract = await factory.deploy();
     const address = contract.address;
     console.log('FinP2P contract deployed successfully at:', address);

@@ -21,16 +21,19 @@ COPY contracts ./contracts
 RUN npm install
 RUN npm run contracts-compile
 RUN npm run build
-RUN ls -la .
 
 # ------- Release ----------
 FROM base as release
 LABEL org.opencontainers.image.source=https://github.com/owneraio/nodejs_ledger_adapter_skeleton
 
 COPY --from=builder /usr/app/node_modules ./node_modules
-COPY package.json .
-RUN yarn link
+COPY --from=builder /usr/app/dist ./dist
+COPY --from=builder /usr/app/package.json ./
+RUN pwd
+RUN ls -la ./dist/src
 
-ENV NODE_ENV=production
+#COPY package.json .
+#RUN yarn link
+#ENV NODE_ENV=production
 
-CMD [ "node", "/usr/app/lib/src/index.js" ]
+CMD [ "node", "/usr/app/dist/src/index.js" ]

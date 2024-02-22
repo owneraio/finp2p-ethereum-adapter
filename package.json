@@ -1,18 +1,17 @@
 {
-  "name": "ledger_adapter",
-  "version": "1.0.0",
+  "name": "ethereum-adapter",
+  "version": "0.1",
   "description": "",
-  "main": "lib/src/test.js",
+  "main": "dist/src/index.js",
   "homepage": "https://ownera.io/",
   "scripts": {
-    "api-generate": "dtsgen -o ./src/services/model-gen.ts dlt-adapter-api.yaml ",
-    "clean": "rm -rf lib",
+    "clean": "rm -rf dist && rm -rf artifacts && rm -rf typechain-types",
+    "api-generate": "dtsgen -o ./src/services/model-gen.ts dlt-adapter-api.yaml",
+    "contracts-compile": "hardhat compile",
     "prebuild": "eslint ./src --ext .ts --fix",
     "build": "tsc",
-    "prestart": "npm run build",
-    "start": "node .",
     "test": "jest",
-    "contracts-compile": "hardhat compile"
+    "start": "node ."
   },
   "keywords": [],
   "author": "",
