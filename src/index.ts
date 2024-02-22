@@ -27,7 +27,6 @@ app.listen(port, () => {
 });
 
 
-
 process.on('unhandledRejection', (reason, p) => {
   logger.error('Unhandled Rejection', { promise: p, reason });
 });

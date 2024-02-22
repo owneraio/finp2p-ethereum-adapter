@@ -3,6 +3,7 @@ import Finp2pERC20 from '../../artifacts/contracts/token/ERC20/utils/Finp2pERC20
 import ERC20 from '../../artifacts/contracts/token/ERC20/ERC20WithOperator.sol/ERC20WithOperator.json';
 import { IFinP2PAsset, IFinP2PEscrow } from '../../typechain-types';
 import { FinP2PReceipt, OperationStatus } from './model';
+import console from "console";
 
 export class FinP2PContract {
 
@@ -30,10 +31,24 @@ export class FinP2PContract {
     this.finP2PContractAddress = finP2PContractAddress;
   }
 
+  async deployFinP2PContract() {
+    console.log("Deploying FinP2P contract...");
+    const factory = new ethers.ContractFactory(Finp2pERC20.abi, Finp2pERC20.bytecode, this.wallet);
+    const contract = await factory.deploy();
+    const address = contract.address;
+    console.log("FinP2P contract deployed successfully at:", address);
+
+    return address;
+  }
+
   async deployERC20(name: string, symbol: string) {
+    console.log("Deploying ERC20 contract...");
     const factory = new ethers.ContractFactory(ERC20.abi, ERC20.bytecode, this.wallet);
     const contract = await factory.deploy(name, symbol, this.finP2PContractAddress);
-    return contract.address;
+    const address = contract.address;
+    console.log("ERC20 contract deployed successfully at:", address);
+
+    return address;
   }
 
   async associateAsset(assetId: string, tokenAddress: string) {
