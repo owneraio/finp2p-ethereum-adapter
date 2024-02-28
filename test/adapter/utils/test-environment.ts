@@ -21,7 +21,12 @@ class CustomTestEnvironment extends NodeEnvironment {
   async setup() {
     try {
       const logExtractor = new GanacheLogExtractor();
-      this.ganacheContainer = await new GenericContainer("trufflesuite/ganache-cli:v6.12.1")
+
+      const container = await GenericContainer
+        .fromDockerfile("./", "Dockerfile-hardhat")
+        .build()
+
+      this.ganacheContainer = await container
         .withLogConsumer((stream) => logExtractor.consume(stream))
         .withExposedPorts(8545)
         .start();
@@ -68,11 +73,11 @@ class CustomTestEnvironment extends NodeEnvironment {
 
   async deployFinP2PContract(rpcURL: string, privateKey: string) {
     console.log("Deploying FinP2P contract...");
-    const provider = new ethers.providers.JsonRpcProvider(rpcURL);
+    const provider = new ethers.JsonRpcProvider(rpcURL);
     const wallet = new ethers.Wallet(privateKey, provider);
     const factory = new ethers.ContractFactory(Finp2pERC20.abi, Finp2pERC20.bytecode, wallet);
     const contract = await factory.deploy();
-    const address = contract.address;
+    const address = contract.getAddress();
     console.log("FinP2P contract deployed successfully at:", address);
 
     return address;

@@ -1,0 +1,12 @@
+FROM node:16
+
+WORKDIR /usr/app
+
+COPY hardhat.config.ts ./
+
+CMD RUN npm install --save-dev hardhat
+CMD RUN echo "1" && npx hardhat init
+
+EXPOSE 8545
+
+CMD [ "npx", "hardhat", "node" ]

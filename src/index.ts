@@ -4,9 +4,9 @@ import * as process from 'process';
 import createApp from './app';
 
 const port = process.env.PORT || '3000';
-const ethereumRPCUrl = process.env.ETHEREUM_RPC_URL || '';
+const ethereumRPCUrl = process.env.NETWORK_HOST || '';
 const operatorPrivateKey = process.env.OPERATOR_PRIVATE_KEY || '';
-const finP2PContractAddress = process.env.FINP2P_CONTRACT_ADDRESS || '';
+const finP2PContractAddress = process.env.TOKEN_ADDRESS || '';
 
 if (!ethereumRPCUrl) {
   throw new Error('ETHEREUM_RPC_URL is not set');
