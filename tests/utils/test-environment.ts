@@ -39,7 +39,7 @@ class CustomTestEnvironment extends NodeEnvironment {
         console.log("No private keys found");
         return;
       }
-      const operator = privateKeys[1];
+      const operator = privateKeys[0];
       console.log("Hardhat node started successfully.");
       const rpcHost = this.ethereumNodeContainer.getHost();
       const rpcPort = this.ethereumNodeContainer.getMappedPort(8545).toString();
@@ -79,7 +79,7 @@ class CustomTestEnvironment extends NodeEnvironment {
     const wallet = new ethers.Wallet(privateKey, provider);
     const factory = new ethers.ContractFactory(Finp2pERC20.abi, Finp2pERC20.bytecode, wallet);
     const contract = await factory.deploy();
-    const address = contract.getAddress();
+    const address = await contract.getAddress();
     console.log("FinP2P contract deployed successfully at:", address);
 
     return address;

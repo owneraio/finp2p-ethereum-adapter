@@ -1,4 +1,4 @@
-import { ethers, Interface, JsonRpcProvider, Wallet } from "ethers";
+import { Interface, JsonRpcProvider, Wallet, Contract, ContractFactory } from "ethers";
 import FINP2POperatorERC20
   from "../../artifacts/contracts/token/ERC20/FINP2POperatorERC20.sol/FINP2POperatorERC20.json";
 import ERC20 from "../../artifacts/contracts/token/ERC20/ERC20WithOperator.sol/ERC20WithOperator.json";
@@ -13,7 +13,7 @@ export class FinP2PContract {
 
   provider: JsonRpcProvider;
 
-  wallet: Wallet;
+  signer: Wallet;
 
   contractInterface: Interface;
 
@@ -22,12 +22,13 @@ export class FinP2PContract {
   finP2PContractAddress: string;
 
   constructor(rpcURL: string, privateKey: string, finP2PContractAddress: string) {
-    this.provider = new ethers.JsonRpcProvider(rpcURL);
-    this.wallet = new ethers.Wallet(privateKey, this.provider);
-    const genericContract = new ethers.Contract(
+    this.provider = new JsonRpcProvider(rpcURL);
+    this.provider.pollingInterval = 500;
+    this.signer = new Wallet(privateKey, this.provider);
+    const genericContract = new Contract(
       finP2PContractAddress,
       FINP2POperatorERC20.abi,
-      this.wallet.connect(this.provider));
+      this.signer.connect(this.provider));
     this.contractInterface = genericContract.interface;
     this.finP2P = genericContract as unknown as IFinP2P;
     this.finP2PContractAddress = finP2PContractAddress;
@@ -35,9 +36,9 @@ export class FinP2PContract {
 
   async deployFinP2PContract() {
     console.log("Deploying FinP2P contract...");
-    const factory = new ethers.ContractFactory(FINP2POperatorERC20.abi, FINP2POperatorERC20.bytecode, this.wallet);
+    const factory = new ContractFactory(FINP2POperatorERC20.abi, FINP2POperatorERC20.bytecode, this.signer);
     const contract = await factory.deploy();
-    const address = contract.getAddress();
+    const address = await contract.getAddress();
     console.log("FinP2P contract deployed successfully at:", address);
 
     return address;
@@ -45,9 +46,9 @@ export class FinP2PContract {
 
   async deployERC20(name: string, symbol: string) {
     console.log("Deploying ERC20 contract...");
-    const factory = new ethers.ContractFactory(ERC20.abi, ERC20.bytecode, this.wallet);
+    const factory = new ContractFactory(ERC20.abi, ERC20.bytecode, this.signer);
     const contract = await factory.deploy(name, symbol, this.finP2PContractAddress);
-    const address = contract.getAddress();
+    const address = await contract.getAddress();
     console.log("ERC20 contract deployed successfully at:", address);
 
     return address;
