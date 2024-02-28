@@ -2,16 +2,16 @@ import NodeEnvironment from "jest-environment-node";
 import { GenericContainer, StartedTestContainer } from "testcontainers";
 import { EnvironmentContext, JestEnvironmentConfig } from "@jest/environment";
 import { ethers } from "ethers";
-import Finp2pERC20 from "../../../artifacts/contracts/token/ERC20/FINP2POperatorERC20.sol/FINP2POperatorERC20.json";
-import { FinP2PContract } from "../../../src/contracts/finp2p";
-import createApp from "../../../src/app";
+import Finp2pERC20 from "../../artifacts/contracts/token/ERC20/FINP2POperatorERC20.sol/FINP2POperatorERC20.json";
+import { FinP2PContract } from "../../src/contracts/finp2p";
+import createApp from "../../src/app";
 import * as http from "http";
 import * as console from "console";
-import { GanacheLogExtractor } from "./ganache";
+import { HardhatLogExtractor } from "./log-extractors";
 
 class CustomTestEnvironment extends NodeEnvironment {
 
-  ganacheContainer: StartedTestContainer | undefined;
+  ethereumNodeContainer: StartedTestContainer | undefined;
   httpServer: http.Server | undefined;
 
   constructor(config: JestEnvironmentConfig, context: EnvironmentContext) {
@@ -20,13 +20,15 @@ class CustomTestEnvironment extends NodeEnvironment {
 
   async setup() {
     try {
-      const logExtractor = new GanacheLogExtractor();
+      const logExtractor = new HardhatLogExtractor();
 
+      console.log("Building hardhat node docker image...")
       const container = await GenericContainer
         .fromDockerfile("./", "Dockerfile-hardhat")
         .build()
 
-      this.ganacheContainer = await container
+      console.log("Starting hardhat node container...")
+      this.ethereumNodeContainer = await container
         .withLogConsumer((stream) => logExtractor.consume(stream))
         .withExposedPorts(8545)
         .start();
@@ -37,10 +39,10 @@ class CustomTestEnvironment extends NodeEnvironment {
         console.log("No private keys found");
         return;
       }
-      const operator = privateKeys[0];
-      console.log("Ganache container started successfully.");
-      const rpcHost = this.ganacheContainer.getHost();
-      const rpcPort = this.ganacheContainer.getMappedPort(8545).toString();
+      const operator = privateKeys[1];
+      console.log("Hardhat node started successfully.");
+      const rpcHost = this.ethereumNodeContainer.getHost();
+      const rpcPort = this.ethereumNodeContainer.getMappedPort(8545).toString();
       const rpcUrl = `http://${rpcHost}:${rpcPort}`;
       const contractAddress = await this.deployFinP2PContract(rpcUrl, operator);
 
@@ -64,7 +66,7 @@ class CustomTestEnvironment extends NodeEnvironment {
   async teardown() {
     try {
       this.httpServer?.close();
-      await this.ganacheContainer?.stop();
+      await this.ethereumNodeContainer?.stop();
       console.log("Ganache container stopped successfully.");
     } catch (err) {
       console.error("Error stopping Ganache container:", err);

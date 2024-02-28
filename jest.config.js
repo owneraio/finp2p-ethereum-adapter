@@ -1,13 +1,13 @@
 module.exports = {
   preset: "ts-jest",
-  testEnvironment: "./tests/adapter/utils/test-environment.ts",
+  testEnvironment: "./tests/utils/test-environment.ts",
   testTimeout: 30000,
   "roots": [
     "<rootDir>/src",
-    "<rootDir>/test"
+    "<rootDir>/tests"
   ],
   "testMatch": [
-    "<rootDir>/test/adapter/**/*.test.+(ts|tsx|js)",
+    "<rootDir>/tests/**/*.test.+(ts|tsx|js)",
   ],
   "transform": {
     "^.+\\.(ts|tsx)$": "ts-jest"

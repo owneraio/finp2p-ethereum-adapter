@@ -5,15 +5,15 @@
   "main": "dist/src/index.js",
   "homepage": "https://ownera.io/",
   "scripts": {
-    "clean": "rm -rf dist && rm -rf artifacts && rm -rf typechain-types",
-    "api-generate": "dtsgen -o ./src/services/model-gen.ts dlt-adapter-api.yaml",
     "contracts-compile": "hardhat compile",
     "contracts-test": "hardhat test --grep contracts/*",
-    "start-hardhat-node": "hardhat node",
-    "prebuild": "eslint ./src --ext .ts --fix",
-    "build": "tsc",
-    "test": "jest",
-    "start": "node ."
+
+    "adapter-clean": "rm -rf dist && rm -rf artifacts && rm -rf typechain-types",
+    "adapter-api-generate": "dtsgen -o ./src/services/model-gen.ts dlt-adapter-api.yaml",
+    "adapter-prebuild": "eslint ./src --ext .ts --fix",
+    "adapter-build": "tsc",
+    "adapter-test": "jest",
+    "adapter-start": "node ."
   },
   "keywords": [],
   "author": "",
