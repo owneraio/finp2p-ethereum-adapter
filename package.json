@@ -6,13 +6,13 @@
   "homepage": "https://ownera.io/",
   "scripts": {
     "contracts-compile": "hardhat compile",
-    "contracts-test": "hardhat test --grep contracts/*",
+    "contracts-test": "hardhat test",
 
     "adapter-clean": "rm -rf dist && rm -rf artifacts && rm -rf typechain-types",
     "adapter-api-generate": "dtsgen -o ./src/services/model-gen.ts dlt-adapter-api.yaml",
     "adapter-prebuild": "eslint ./src --ext .ts --fix",
     "adapter-build": "tsc",
-    "adapter-test": "jest",
+    "adapter-tests": "jest",
     "adapter-start": "node ."
   },
   "keywords": [],

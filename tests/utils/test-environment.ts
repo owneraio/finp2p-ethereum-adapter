@@ -1,13 +1,13 @@
 import NodeEnvironment from "jest-environment-node";
 import { GenericContainer, StartedTestContainer } from "testcontainers";
 import { EnvironmentContext, JestEnvironmentConfig } from "@jest/environment";
-import { ethers } from "ethers";
-import Finp2pERC20 from "../../artifacts/contracts/token/ERC20/FINP2POperatorERC20.sol/FINP2POperatorERC20.json";
+import {  Wallet } from "ethers";
 import { FinP2PContract } from "../../src/contracts/finp2p";
 import createApp from "../../src/app";
 import * as http from "http";
 import * as console from "console";
 import { HardhatLogExtractor } from "./log-extractors";
+import { ContractsManager } from "../../src/contracts/manager";
 
 class CustomTestEnvironment extends NodeEnvironment {
 
@@ -22,12 +22,12 @@ class CustomTestEnvironment extends NodeEnvironment {
     try {
       const logExtractor = new HardhatLogExtractor();
 
-      console.log("Building hardhat node docker image...")
+      console.log("Building hardhat node docker image...");
       const container = await GenericContainer
         .fromDockerfile("./", "Dockerfile-hardhat")
-        .build()
+        .build();
 
-      console.log("Starting hardhat node container...")
+      console.log("Starting hardhat node container...");
       this.ethereumNodeContainer = await container
         .withLogConsumer((stream) => logExtractor.consume(stream))
         .withExposedPorts(8545)
@@ -39,14 +39,21 @@ class CustomTestEnvironment extends NodeEnvironment {
         console.log("No private keys found");
         return;
       }
-      const operator = privateKeys[0];
+      const deployer = privateKeys[0];
+      const signer = privateKeys[1];
       console.log("Hardhat node started successfully.");
       const rpcHost = this.ethereumNodeContainer.getHost();
       const rpcPort = this.ethereumNodeContainer.getMappedPort(8545).toString();
       const rpcUrl = `http://${rpcHost}:${rpcPort}`;
-      const contractAddress = await this.deployFinP2PContract(rpcUrl, operator);
 
-      const finP2PContract = new FinP2PContract(rpcUrl, operator, contractAddress);
+      const contractManger = new ContractsManager(rpcUrl, deployer);
+      const contractAddress = await contractManger.deployFinP2PContract();
+
+      const singerAddress = new Wallet(signer).address;
+      await contractManger.grantAssetManagerRole(contractAddress, singerAddress);
+      await contractManger.grantTransactionManagerRole(contractAddress, singerAddress);
+
+      const finP2PContract = new FinP2PContract(rpcUrl, signer, contractAddress);
 
       const port = 3001;
       const app = createApp(finP2PContract);
@@ -71,18 +78,6 @@ class CustomTestEnvironment extends NodeEnvironment {
     } catch (err) {
       console.error("Error stopping Ganache container:", err);
     }
-  }
-
-  async deployFinP2PContract(rpcURL: string, privateKey: string) {
-    console.log("Deploying FinP2P contract...");
-    const provider = new ethers.JsonRpcProvider(rpcURL);
-    const wallet = new ethers.Wallet(privateKey, provider);
-    const factory = new ethers.ContractFactory(Finp2pERC20.abi, Finp2pERC20.bytecode, wallet);
-    const contract = await factory.deploy();
-    const address = await contract.getAddress();
-    console.log("FinP2P contract deployed successfully at:", address);
-
-    return address;
   }
 
 

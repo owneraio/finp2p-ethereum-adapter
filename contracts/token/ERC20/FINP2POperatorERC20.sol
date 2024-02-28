@@ -39,18 +39,29 @@ contract FINP2POperatorERC20 is IFinP2PAsset, IFinP2PEscrow, AccessControlEnumer
     mapping(bytes16 => Lock) private locks;
 
     constructor() {
+        _setupRole(DEFAULT_ADMIN_ROLE, _msgSender());
         _setupRole(ASSET_MANAGER, _msgSender());
         _setupRole(TRANSACTION_MANAGER, _msgSender());
     }
 
+    function grantAssetManagerRole(address account) public {
+        require(hasRole(DEFAULT_ADMIN_ROLE, _msgSender()), "FINP2POperatorERC20: must have admin role to grant asset manager role");
+        grantRole(ASSET_MANAGER, account);
+    }
+
+    function grantTransactionManagerRole(address account) public {
+        require(hasRole(DEFAULT_ADMIN_ROLE, _msgSender()), "FINP2POperatorERC20: must have admin role to grant transaction manager role");
+        grantRole(TRANSACTION_MANAGER, account);
+    }
+
     function associateAsset(string memory assetId, address tokenAddress) public override {
-        require(hasRole(ASSET_MANAGER, _msgSender()), "Finp2pERC20: must have asset manager role to associate asset");
+        require(hasRole(ASSET_MANAGER, _msgSender()), "FINP2POperatorERC20: must have asset manager role to associate asset");
         require(!haveAsset(assetId), "Asset already exists");
         assets[assetId] = Asset(assetId, tokenAddress);
     }
 
     function removeAsset(string memory assetId) public override {
-        require(hasRole(ASSET_MANAGER, _msgSender()), "Finp2pERC20: must have asset manager role to remove asset");
+        require(hasRole(ASSET_MANAGER, _msgSender()), "FINP2POperatorERC20: must have asset manager role to remove asset");
         require(haveAsset(assetId), "Asset not found");
         delete assets[assetId];
     }
@@ -76,7 +87,7 @@ contract FINP2POperatorERC20 is IFinP2PAsset, IFinP2PEscrow, AccessControlEnumer
         string memory issuerFinId,
         uint256 quantity
     ) public override virtual {
-        require(hasRole(TRANSACTION_MANAGER, _msgSender()), "Finp2pERC20: must have transaction manager role to issue asset");
+        require(hasRole(TRANSACTION_MANAGER, _msgSender()), "FINP2POperatorERC20: must have transaction manager role to issue asset");
         require(haveAsset(assetId), "Asset not found");
 
         address issuer = Bytes.finIdToAddress(issuerFinId);
@@ -97,7 +108,7 @@ contract FINP2POperatorERC20 is IFinP2PAsset, IFinP2PEscrow, AccessControlEnumer
         bytes32 hash,
         bytes memory signature
     ) public override virtual {
-        require(hasRole(TRANSACTION_MANAGER, _msgSender()), "Finp2pERC20: must have transaction manager role to transfer asset");
+        require(hasRole(TRANSACTION_MANAGER, _msgSender()), "FINP2POperatorERC20: must have transaction manager role to transfer asset");
         require(haveAsset(assetId), "Asset not found");
 
         require(Signature.isTransferHashValid(
@@ -138,7 +149,7 @@ contract FINP2POperatorERC20 is IFinP2PAsset, IFinP2PEscrow, AccessControlEnumer
         bytes32 hash,
         bytes memory signature
     ) public override virtual {
-        require(hasRole(TRANSACTION_MANAGER, _msgSender()), "Finp2pERC20: must have transaction manager role to redeem asset");
+        require(hasRole(TRANSACTION_MANAGER, _msgSender()), "FINP2POperatorERC20: must have transaction manager role to redeem asset");
         require(haveAsset(assetId), "Asset not found");
         require(quantity > 0, "Amount should be greater than zero");
 
@@ -180,7 +191,7 @@ contract FINP2POperatorERC20 is IFinP2PAsset, IFinP2PEscrow, AccessControlEnumer
         bytes32 hash,
         bytes memory signature
     ) public override virtual {
-        require(hasRole(TRANSACTION_MANAGER, _msgSender()), "Finp2pERC20: must have transaction manager role to hold asset");
+        require(hasRole(TRANSACTION_MANAGER, _msgSender()), "FINP2POperatorERC20: must have transaction manager role to hold asset");
 
         require(Signature.isHoldHashValid(
                 assetId,
@@ -236,7 +247,7 @@ contract FINP2POperatorERC20 is IFinP2PAsset, IFinP2PEscrow, AccessControlEnumer
         bytes16 operationId,
         string memory destinationFinId
     ) public override virtual {
-        require(hasRole(TRANSACTION_MANAGER, _msgSender()), "Finp2pERC20: must have transaction manager role to release asset");
+        require(hasRole(TRANSACTION_MANAGER, _msgSender()), "FINP2POperatorERC20: must have transaction manager role to release asset");
 
         require(haveContract(operationId), "Contract does not exists");
 
@@ -257,7 +268,7 @@ contract FINP2POperatorERC20 is IFinP2PAsset, IFinP2PEscrow, AccessControlEnumer
     function rollback(
         bytes16 operationId
     ) public override virtual {
-        require(hasRole(TRANSACTION_MANAGER, _msgSender()), "Finp2pERC20: must have transaction manager role to rollback asset");
+        require(hasRole(TRANSACTION_MANAGER, _msgSender()), "FINP2POperatorERC20: must have transaction manager role to rollback asset");
 
         require(haveContract(operationId), "contract does not exists");
         Lock storage lock = locks[operationId];

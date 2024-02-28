@@ -1,57 +1,28 @@
-import { Interface, JsonRpcProvider, Wallet, Contract, ContractFactory } from "ethers";
-import FINP2POperatorERC20
+import { ContractFactory, Interface } from "ethers";
+import FINP2P
   from "../../artifacts/contracts/token/ERC20/FINP2POperatorERC20.sol/FINP2POperatorERC20.json";
-import ERC20 from "../../artifacts/contracts/token/ERC20/ERC20WithOperator.sol/ERC20WithOperator.json";
-import { IFinP2PAsset, IFinP2PEscrow } from "../../typechain-types";
+import { FINP2POperatorERC20 } from "../../typechain-types";
 import { FinP2PReceipt, OperationStatus } from "./model";
-import console from "console";
 import { parseTransactionReceipt } from "./utils";
+import { ContractsManager } from "./manager";
 
-type IFinP2P = IFinP2PAsset & IFinP2PEscrow
-
-export class FinP2PContract {
-
-  provider: JsonRpcProvider;
-
-  signer: Wallet;
+export class FinP2PContract extends ContractsManager {
 
   contractInterface: Interface;
 
-  finP2P: IFinP2P;
+  finP2P: FINP2POperatorERC20;
 
   finP2PContractAddress: string;
 
-  constructor(rpcURL: string, privateKey: string, finP2PContractAddress: string) {
-    this.provider = new JsonRpcProvider(rpcURL);
-    this.provider.pollingInterval = 500;
-    this.signer = new Wallet(privateKey, this.provider);
-    const genericContract = new Contract(
-      finP2PContractAddress,
-      FINP2POperatorERC20.abi,
-      this.signer.connect(this.provider));
-    this.contractInterface = genericContract.interface;
-    this.finP2P = genericContract as unknown as IFinP2P;
+  constructor(rpcURL: string, signerPrivateKey: string, finP2PContractAddress: string) {
+    super(rpcURL, signerPrivateKey);
+    const factory = new ContractFactory<any[], FINP2POperatorERC20>(
+      FINP2P.abi, FINP2P.bytecode, this.signer
+    );
+    const contract = factory.attach(finP2PContractAddress);
+    this.contractInterface = contract.interface;
+    this.finP2P = contract as FINP2POperatorERC20;
     this.finP2PContractAddress = finP2PContractAddress;
-  }
-
-  async deployFinP2PContract() {
-    console.log("Deploying FinP2P contract...");
-    const factory = new ContractFactory(FINP2POperatorERC20.abi, FINP2POperatorERC20.bytecode, this.signer);
-    const contract = await factory.deploy();
-    const address = await contract.getAddress();
-    console.log("FinP2P contract deployed successfully at:", address);
-
-    return address;
-  }
-
-  async deployERC20(name: string, symbol: string) {
-    console.log("Deploying ERC20 contract...");
-    const factory = new ContractFactory(ERC20.abi, ERC20.bytecode, this.signer);
-    const contract = await factory.deploy(name, symbol, this.finP2PContractAddress);
-    const address = await contract.getAddress();
-    console.log("ERC20 contract deployed successfully at:", address);
-
-    return address;
   }
 
   async associateAsset(assetId: string, tokenAddress: string) {
@@ -101,15 +72,26 @@ export class FinP2PContract {
   }
 
   async getOperationStatus(hash: string): Promise<OperationStatus> {
-    const receipt = await this.provider.getTransactionReceipt(hash);
-    if (receipt === null) {
+    const txReceipt = await this.provider.getTransactionReceipt(hash);
+    if (txReceipt === null) {
       return {
         status: "pending"
       };
-    } else if (receipt?.status === 1) {
+    } else if (txReceipt?.status === 1) {
+      let receipt = parseTransactionReceipt(txReceipt, this.contractInterface);
+      if (receipt === null) {
+        console.log("Failed to parse receipt");
+        return {
+          status: "failed",
+          error: {
+            code: 1,
+            message: "Operation failed"
+          }
+        };
+      }
       return {
         status: "completed",
-        receipt: await parseTransactionReceipt(receipt, this.contractInterface)
+        receipt: receipt
       };
     } else {
       return {
@@ -123,11 +105,15 @@ export class FinP2PContract {
   }
 
   async getReceipt(hash: string): Promise<FinP2PReceipt> {
-    const receipt = await this.provider.getTransactionReceipt(hash);
-    if (receipt === null) {
+    const txReceipt = await this.provider.getTransactionReceipt(hash);
+    if (txReceipt === null) {
       throw new Error("Transaction not found");
     }
-    return parseTransactionReceipt(receipt, this.contractInterface);
+    const receipt = parseTransactionReceipt(txReceipt, this.contractInterface);
+    if (receipt === null) {
+      throw new Error("Failed to parse receipt");
+    }
+    return receipt;
   }
 
 }

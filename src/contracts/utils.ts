@@ -1,7 +1,7 @@
-import { Interface, Log, LogDescription, TransactionReceipt } from "ethers";
+import { Interface, TransactionReceipt } from "ethers";
 import { FinP2PReceipt } from "./model";
 
-export const parseTransactionReceipt = async (receipt: TransactionReceipt, contractInterface: Interface): Promise<FinP2PReceipt> => {
+export const parseTransactionReceipt = (receipt: TransactionReceipt, contractInterface: Interface): FinP2PReceipt | null => {
   const id = receipt.hash;
   const timestamp = 0;
 
@@ -16,7 +16,7 @@ export const parseTransactionReceipt = async (receipt: TransactionReceipt, contr
           return {
             id: id,
             assetId: parsedLog.args.assetId,
-            amount: parsedLog.args.quantity.toNumber(),
+            amount: parsedLog.args.quantity,
             destination: parsedLog.args.issuerFinId,
             timestamp: timestamp
           };
@@ -24,7 +24,7 @@ export const parseTransactionReceipt = async (receipt: TransactionReceipt, contr
           return {
             id: id,
             assetId: parsedLog.args.assetId,
-            amount: parsedLog.args.quantity.toNumber(),
+            amount: parsedLog.args.quantity,
             source: parsedLog.args.sourceFinId,
             destination: parsedLog.args.destinationFinId,
             timestamp: timestamp
@@ -33,7 +33,7 @@ export const parseTransactionReceipt = async (receipt: TransactionReceipt, contr
           return {
             id: id,
             assetId: parsedLog.args.assetId,
-            amount: parsedLog.args.quantity.toNumber(),
+            amount: parsedLog.args.quantity,
             source: parsedLog.args.issuerFinId,
             timestamp: timestamp
           };
@@ -41,7 +41,7 @@ export const parseTransactionReceipt = async (receipt: TransactionReceipt, contr
           return {
             id: id,
             assetId: parsedLog.args.assetId,
-            amount: parsedLog.args.quantity.toNumber(),
+            amount: parsedLog.args.quantity,
             source: parsedLog.args.finId,
             timestamp: timestamp
           };
@@ -49,7 +49,7 @@ export const parseTransactionReceipt = async (receipt: TransactionReceipt, contr
           return {
             id: id,
             assetId: parsedLog.args.assetId,
-            amount: parsedLog.args.quantity.toNumber(),
+            amount: parsedLog.args.quantity,
             source: parsedLog.args.sourceFinId,
             destination: parsedLog.args.destinationFinId,
             timestamp: timestamp
@@ -58,7 +58,7 @@ export const parseTransactionReceipt = async (receipt: TransactionReceipt, contr
           return {
             id: id,
             assetId: parsedLog.args.assetId,
-            amount: parsedLog.args.quantity.toNumber(),
+            amount: parsedLog.args.quantity,
             destination: parsedLog.args.destinationFinId,
             timestamp: timestamp
           };
@@ -68,12 +68,5 @@ export const parseTransactionReceipt = async (receipt: TransactionReceipt, contr
     }
   }
 
-  return {
-    id: "",
-    assetId: "",
-    amount: 0,
-    source: "",
-    destination: "",
-    timestamp: 0
-  };
+  return null;
 };

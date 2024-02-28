@@ -5,7 +5,8 @@ export class TokenService extends CommonService {
 
   public async createAsset(request: Paths.CreateAsset.RequestBody): Promise<Paths.CreateAsset.Responses.$200> {
     const assetId = (request.asset as Finp2pAsset).resourceId;
-    const tokenAddress = await this.finP2PContract.deployERC20(assetId, assetId);
+    const tokenAddress = await this.finP2PContract.deployERC20(assetId, assetId,
+      this.finP2PContract.finP2PContractAddress);
 
     const txHash = await this.finP2PContract.associateAsset(assetId, tokenAddress);
     return {

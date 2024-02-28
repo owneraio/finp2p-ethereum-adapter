@@ -14,9 +14,7 @@ import {
   generateNonce,
   sign
 } from "./utils";
-// import { IFinP2PAsset, IFinP2PEscrow } from "../../typechain-types";
 
-// type IFinP2P = IFinP2PAsset & IFinP2PEscrow
 describe("FinP2P proxy contract test", function() {
   // We define a fixture to reuse the same setup in every test.
   // We use loadFixture to run this setup once, snapshot that state,
