@@ -18,7 +18,7 @@ COPY contracts ./contracts
 
 RUN npm install
 RUN npm run contracts-compile
-RUN npm run build
+RUN npm run adapter-build
 
 # ------- Release ----------
 FROM base as release
