@@ -16,6 +16,7 @@ export const parseTransactionReceipt = (receipt: TransactionReceipt, contractInt
           return {
             id: id,
             assetId: parsedLog.args.assetId,
+            assetType: "finp2p",
             amount: parsedLog.args.quantity,
             destination: parsedLog.args.issuerFinId,
             timestamp: timestamp
@@ -24,6 +25,7 @@ export const parseTransactionReceipt = (receipt: TransactionReceipt, contractInt
           return {
             id: id,
             assetId: parsedLog.args.assetId,
+            assetType: "finp2p",
             amount: parsedLog.args.quantity,
             source: parsedLog.args.sourceFinId,
             destination: parsedLog.args.destinationFinId,
@@ -33,6 +35,7 @@ export const parseTransactionReceipt = (receipt: TransactionReceipt, contractInt
           return {
             id: id,
             assetId: parsedLog.args.assetId,
+            assetType: "finp2p",
             amount: parsedLog.args.quantity,
             source: parsedLog.args.issuerFinId,
             timestamp: timestamp
@@ -41,6 +44,7 @@ export const parseTransactionReceipt = (receipt: TransactionReceipt, contractInt
           return {
             id: id,
             assetId: parsedLog.args.assetId,
+            assetType: "fiat",
             amount: parsedLog.args.quantity,
             source: parsedLog.args.finId,
             timestamp: timestamp
@@ -49,6 +53,7 @@ export const parseTransactionReceipt = (receipt: TransactionReceipt, contractInt
           return {
             id: id,
             assetId: parsedLog.args.assetId,
+            assetType: "fiat",
             amount: parsedLog.args.quantity,
             source: parsedLog.args.sourceFinId,
             destination: parsedLog.args.destinationFinId,
@@ -58,6 +63,7 @@ export const parseTransactionReceipt = (receipt: TransactionReceipt, contractInt
           return {
             id: id,
             assetId: parsedLog.args.assetId,
+            assetType: "fiat",
             amount: parsedLog.args.quantity,
             destination: parsedLog.args.destinationFinId,
             timestamp: timestamp
@@ -70,3 +76,10 @@ export const parseTransactionReceipt = (receipt: TransactionReceipt, contractInt
 
   return null;
 };
+
+
+export const stringToByte16 = (str: string): string => {
+  return "0x" + Buffer.from(str).slice(0, 16).toString('hex').padEnd(32, '0');
+}
+
+

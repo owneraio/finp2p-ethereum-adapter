@@ -1,6 +1,7 @@
 import { logger } from '../helpers/logger';
 import { CommonService } from './common';
 import Finp2pAsset = Components.Schemas.Finp2pAsset;
+import { extractAssetId } from "./mapping";
 
 export class EscrowService extends CommonService {
 
@@ -8,7 +9,7 @@ export class EscrowService extends CommonService {
     logger.debug('hold', { request });
 
     const operationId = request.operationId;
-    const assetId = (request.asset as Finp2pAsset).resourceId;
+    const assetId = extractAssetId(request.asset);
     const sourceFinId = request.source.finId;
     const destinationFinId = request.destination?.finId || '';
     const amount = parseInt(request.quantity);
@@ -28,6 +29,7 @@ export class EscrowService extends CommonService {
 
   public async release(request: Paths.ReleaseOperation.RequestBody): Promise<Paths.ReleaseOperation.Responses.$200> {
     logger.debug('release', { request });
+
     const operationId = request.operationId;
     const destinationFinId = request.destination.finId;
 

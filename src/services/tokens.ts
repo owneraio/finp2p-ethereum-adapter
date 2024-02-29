@@ -4,7 +4,10 @@ import Finp2pAsset = Components.Schemas.Finp2pAsset;
 export class TokenService extends CommonService {
 
   public async createAsset(request: Paths.CreateAsset.RequestBody): Promise<Paths.CreateAsset.Responses.$200> {
-    const assetId = (request.asset as Finp2pAsset).resourceId;
+    if (request.asset.type !== 'finp2p') {
+      throw new Error(`Unsupported asset type: ${request.asset.type}`);
+    }
+    const assetId = request.asset.resourceId;
     const tokenAddress = await this.finP2PContract.deployERC20(assetId, assetId,
       this.finP2PContract.finP2PContractAddress);
 
@@ -28,8 +31,11 @@ export class TokenService extends CommonService {
   }
 
   public async transfer(request: Paths.TransferAsset.RequestBody): Promise<Paths.TransferAsset.Responses.$200> {
+    if (request.asset.type !== 'finp2p') {
+      throw new Error(`Unsupported asset type: ${request.asset.type}`);
+    }
     const nonce = request.nonce;
-    const assetId = (request.asset as Finp2pAsset).resourceId;
+    const assetId = request.asset.resourceId;
     const sourceFinId = request.source.finId;
     const destinationFinId = request.destination.finId;
     const amount = parseInt(request.quantity);
@@ -56,8 +62,11 @@ export class TokenService extends CommonService {
   }
 
   public async redeem(request: Paths.RedeemAssets.RequestBody): Promise<Paths.RedeemAssets.Responses.$200> {
+    if (request.asset.type !== 'finp2p') {
+      throw new Error(`Unsupported asset type: ${request.asset.type}`);
+    }
     const nonce = request.nonce;
-    const assetId = (request.asset as Finp2pAsset).resourceId;
+    const assetId = request.asset.resourceId;
     const finId = request.source.finId;
     const amount = parseInt(request.quantity);
     const settlementHash = request.signature.template.hashGroups[1].hash;

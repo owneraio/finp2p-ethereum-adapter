@@ -1,7 +1,7 @@
 import { logger } from '../helpers/logger';
 import { FinP2PContract } from '../contracts/finp2p';
 import Finp2pAsset = Components.Schemas.Finp2pAsset;
-import { receiptToAPI } from './mapping';
+import { extractAssetId, receiptToAPI } from "./mapping";
 
 
 export class CommonService {
@@ -15,7 +15,7 @@ export class CommonService {
   public async balance(request: Paths.GetAssetBalance.RequestBody): Promise<Paths.GetAssetBalance.Responses.$200> {
     logger.debug('balance', { request });
 
-    let assetId = (request.asset as Finp2pAsset).resourceId;
+    let assetId = extractAssetId(request.asset);
     const balance = await this.finP2PContract.balance(assetId, request.owner.finId);
 
     return {

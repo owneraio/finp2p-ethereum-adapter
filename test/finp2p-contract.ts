@@ -12,7 +12,7 @@ import {
   settlementHash,
   randomHash,
   generateNonce,
-  sign
+  sign, stringToByte16
 } from "./utils";
 
 describe("FinP2P proxy contract test", function() {
@@ -119,7 +119,7 @@ describe("FinP2P proxy contract test", function() {
       // -----------------------------
 
       const opNum = 1;
-      const operationId = `0x${opNum.toString(16)}0000000000000000000000000000000`; // TODO: pad bytes16 type with utility method instead
+      const operationId = stringToByte16(`${opNum}`);
       const transferAmount = 50;
       const expiry = currentTimeUnix() + 24 * 60 * 60;
 

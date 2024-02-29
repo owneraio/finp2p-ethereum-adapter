@@ -2,6 +2,11 @@ import * as secp256k1 from 'secp256k1';
 import * as crypto from 'crypto';
 import createKeccakHash from 'keccak';
 
+
+export const stringToByte16 = (str: string): string => {
+  return "0x" + Buffer.from(str).slice(0, 16).toString('hex').padEnd(32, '0');
+}
+
 export const privateKeyToFinId = (privateKey: string): string => {
   const privKeyBuffer = Buffer.from(privateKey.replace('0x', ''), 'hex');
   const pubKeyUInt8Array = secp256k1.publicKeyCreate(privKeyBuffer, true);

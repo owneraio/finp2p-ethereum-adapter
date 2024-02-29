@@ -1,4 +1,4 @@
-import {ACCOUNT, ASSET, createCrypto, generateNonce, randomResourceId, transferSignature} from "./utils/utils";
+import {ASSET, createCrypto, generateNonce, randomResourceId, transferSignature} from "./utils/utils";
 import {v4 as uuidv4} from 'uuid';
 import {
   LEDGER_HASH_FUNCTION,
@@ -13,8 +13,8 @@ describe(`escrow test flow`, () => {
     const asset = {type: "fiat", code: "USD"} as Components.Schemas.Asset;
 
     const buyerCrypto = createCrypto();
-    let buyerFinId = buyerCrypto.public.toString('hex');
-    let buyer = {
+    const buyerFinId = buyerCrypto.public.toString('hex');
+    const buyer = {
       finId: buyerFinId,
       account: {
         type: "finId",
@@ -33,7 +33,7 @@ describe(`escrow test flow`, () => {
 
     let initialBalance: number;
     initialBalance = 1000;
-    let setBalanceStatus = await OperatorAPI.setBalance({
+    const setBalanceStatus = await OperatorAPI.setBalance({
       to: {
         finId: buyer.finId,
       }, asset: {
@@ -91,9 +91,10 @@ describe(`escrow test flow`, () => {
       LEDGER_HASH_FUNCTION, buyerCrypto.private
     );
 
-    let status = await EscrowAPI.hold({
+    const status = await EscrowAPI.hold({
       operationId: operationId,
       source: buyer,
+      destination: seller,
       quantity: `${transferQty}`,
       asset: asset,
       expiry: expiry,

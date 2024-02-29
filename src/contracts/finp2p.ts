@@ -3,7 +3,7 @@ import FINP2P
   from "../../artifacts/contracts/token/ERC20/FINP2POperatorERC20.sol/FINP2POperatorERC20.json";
 import { FINP2POperatorERC20 } from "../../typechain-types";
 import { FinP2PReceipt, OperationStatus } from "./model";
-import { parseTransactionReceipt } from "./utils";
+import { parseTransactionReceipt, stringToByte16 } from "./utils";
 import { ContractsManager } from "./manager";
 
 export class FinP2PContract extends ContractsManager {
@@ -52,18 +52,19 @@ export class FinP2PContract extends ContractsManager {
 
   async hold(operationId: string, assetId: string, sourceFinId: string, destinationFinId: string, quantity: number, expiry: number,
              assetHash: string, hash: string, signature: string) {
-    const response = await this.finP2P.hold(`0x${operationId}`, assetId, sourceFinId, destinationFinId, quantity, expiry,
+    let opId = stringToByte16(operationId);
+    const response = await this.finP2P.hold(opId, assetId, sourceFinId, destinationFinId, quantity, expiry,
       `0x${assetHash}`, `0x${hash}`, `0x${signature}`);
     return response.hash;
   }
 
   async release(operationId: string, destinationFinId: string) {
-    const response = await this.finP2P.release(`0x${operationId}`, destinationFinId);
+    const response = await this.finP2P.release(stringToByte16(operationId), destinationFinId);
     return response.hash;
   }
 
   async rollback(operationId: string) {
-    const response = await this.finP2P.rollback(`0x${operationId}`);
+    const response = await this.finP2P.rollback(stringToByte16(operationId));
     return response.hash;
   }
 
