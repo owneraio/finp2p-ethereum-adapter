@@ -9,6 +9,18 @@ import * as console from "console";
 import { HardhatLogExtractor } from "./log-extractors";
 import { ContractsManager } from "../../src/contracts/manager";
 
+const PREDEFINED_ACCOUNTS = [
+  "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80",
+  "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d",
+  "0x5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a",
+];
+
+// const PARSE_ACCOUNTS = true;
+// const NUMBER_OF_ACCOUNTS = 18;
+
+const PARSE_ACCOUNTS = false;
+const NUMBER_OF_ACCOUNTS = 2;
+
 class CustomTestEnvironment extends NodeEnvironment {
 
   ethereumNodeContainer: StartedTestContainer | undefined;
@@ -20,7 +32,8 @@ class CustomTestEnvironment extends NodeEnvironment {
 
   async setup() {
     try {
-      const logExtractor = new HardhatLogExtractor();
+
+      const logExtractor = new HardhatLogExtractor(PARSE_ACCOUNTS, NUMBER_OF_ACCOUNTS);
 
       console.log("Building hardhat node docker image...");
       const container = await GenericContainer
@@ -34,11 +47,18 @@ class CustomTestEnvironment extends NodeEnvironment {
         .start();
 
       await logExtractor.started();
-      const privateKeys = logExtractor.privateKeys;
-      if (privateKeys.length === 0) {
-        console.log("No private keys found");
-        return;
+
+      let privateKeys: string[]
+      if (PARSE_ACCOUNTS) {
+        privateKeys = logExtractor.privateKeys;
+        if (privateKeys.length === 0) {
+          console.log("No private keys found");
+          return;
+        }
+      } else {
+        privateKeys = PREDEFINED_ACCOUNTS
       }
+
       const deployer = privateKeys[0];
       const signer = privateKeys[1];
       console.log("Hardhat node started successfully.");
