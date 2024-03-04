@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
 // OpenZeppelin Contracts (last updated v4.6.0) (token/ERC20/ERC20.sol)
 
-pragma solidity ^0.8.0;
+pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import "@openzeppelin/contracts/utils/Context.sol";
-import "@openzeppelin/contracts/access/AccessControlEnumerable.sol";
+import "@openzeppelin/contracts/access/AccessControl.sol";
 
 /**
  * @dev Implementation of the {IERC20} interface.
@@ -33,7 +33,7 @@ import "@openzeppelin/contracts/access/AccessControlEnumerable.sol";
  * functions have been added to mitigate the well-known issues around setting
  * allowances. See {IERC20-approve}.
  */
-contract ERC20WithOperator is Context, IERC20, IERC20Metadata, AccessControlEnumerable {
+contract ERC20WithOperator is Context, IERC20, IERC20Metadata, AccessControl {
 
     bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
     bytes32 public constant OPERATOR_ROLE = keccak256("OPERATOR_ROLE");
@@ -57,9 +57,9 @@ contract ERC20WithOperator is Context, IERC20, IERC20Metadata, AccessControlEnum
      * construction.
      */
     constructor(string memory name_, string memory symbol_, address operator) {
-        _setupRole(DEFAULT_ADMIN_ROLE, operator);
-        _setupRole(MINTER_ROLE, operator);
-        _setupRole(OPERATOR_ROLE, operator);
+        _grantRole(DEFAULT_ADMIN_ROLE, operator);
+        _grantRole(MINTER_ROLE, operator);
+        _grantRole(OPERATOR_ROLE, operator);
 
         _name = name_;
         _symbol = symbol_;

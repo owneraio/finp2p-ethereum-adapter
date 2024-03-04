@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 
-pragma solidity ^0.8.0;
+pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts/access/AccessControlEnumerable.sol";
 import "./ERC20WithOperator.sol";
 import "../../utils/finp2p/IFinP2PAsset.sol";
 import "../../utils/finp2p/IFinP2PEscrow.sol";
 import "../../utils/finp2p/Signature.sol";
 import "../../utils/finp2p/Bytes.sol";
+import "@openzeppelin/contracts/access/AccessControl.sol";
 
 /**
  * @dev A token holder contract that will allow a beneficiary to extract the
@@ -17,7 +17,7 @@ import "../../utils/finp2p/Bytes.sol";
  * Useful for simple vesting schedules like "advisors get all of their tokens
  * after 1 year".
  */
-contract FINP2POperatorERC20 is IFinP2PAsset, IFinP2PEscrow, AccessControlEnumerable {
+contract FINP2POperatorERC20 is IFinP2PAsset, IFinP2PEscrow, AccessControl {
 
     bytes32 private constant ASSET_MANAGER = keccak256("ASSET_MANAGER");
     bytes32 private constant TRANSACTION_MANAGER = keccak256("TRANSACTION_MANAGER");
@@ -39,9 +39,9 @@ contract FINP2POperatorERC20 is IFinP2PAsset, IFinP2PEscrow, AccessControlEnumer
     mapping(bytes16 => Lock) private locks;
 
     constructor() {
-        _setupRole(DEFAULT_ADMIN_ROLE, _msgSender());
-        _setupRole(ASSET_MANAGER, _msgSender());
-        _setupRole(TRANSACTION_MANAGER, _msgSender());
+        _grantRole(DEFAULT_ADMIN_ROLE, _msgSender());
+        _grantRole(ASSET_MANAGER, _msgSender());
+        _grantRole(TRANSACTION_MANAGER, _msgSender());
     }
 
     function grantAssetManagerRole(address account) public {

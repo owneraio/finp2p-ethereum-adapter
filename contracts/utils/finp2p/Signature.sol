@@ -119,8 +119,8 @@ library Signature {
             s := mload(add(_signature, 0x40))
         }
         for (uint8 v = 27; v <= 28; v++) {
-            (address recovered, ECDSA.RecoverError error) = ECDSA.tryRecover(_hash, v, r, s);
-            if (error == ECDSA.RecoverError.NoError && recovered == _signer) {
+            (address recovered, ECDSA.RecoverError error, bytes32 sRec) = ECDSA.tryRecover(_hash, v, r, s);
+            if (error == ECDSA.RecoverError.NoError && recovered == _signer && sRec == bytes32(0)) {
                 return true;
             }
         }
