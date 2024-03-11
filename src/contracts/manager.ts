@@ -28,7 +28,7 @@ export class ContractsManager {
     return address;
   }
 
-  async deployFinP2PContract() {
+  async deployFinP2PContract(signerAddress : string | null) {
     console.log("Deploying FinP2P contract...");
     const factory = new ContractFactory<any[], FINP2POperatorERC20>(
       FINP2P.abi, FINP2P.bytecode, this.signer
@@ -38,6 +38,12 @@ export class ContractsManager {
 
     const address = await contract.getAddress();
     console.log("FinP2P contract deployed successfully at:", address);
+
+    if (signerAddress !== null) {
+      await this.grantAssetManagerRole(address, signerAddress);
+      await this.grantTransactionManagerRole(address, signerAddress);
+    }
+
     return address;
   }
 

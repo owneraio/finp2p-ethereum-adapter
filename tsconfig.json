@@ -24,6 +24,7 @@
     "src/**/*.ts",
     "tests/**/*.ts",
     "artifacts/contracts/**/*.json",
-    "typechain-types/**/*.ts"
+    "typechain-types/**/*.ts",
+    "scripts/**/*.ts"
   ]
 }

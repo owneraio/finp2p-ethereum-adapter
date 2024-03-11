@@ -17,28 +17,9 @@ const init = async () => {
   }
   const operator = new NonceManager(new Wallet(operatorPrivateKey));
 
-  const deployContract = process.env.DEPLOY_CONTRACT || "false";
-  let finP2PContractAddress: string;
-
-  if (deployContract === "true" || deployContract === "yes") {
-    const deployerPrivateKey = process.env.DEPLOYER_PRIVATE_KEY || "";
-    if (!deployerPrivateKey) {
-      throw new Error("DEPLOYER_PRIVATE_KEY is not set");
-    }
-    let deployer: NonceManager;
-    if (deployerPrivateKey === operatorPrivateKey) {
-      deployer = operator;
-    } else {
-      deployer = new NonceManager(new Wallet(deployerPrivateKey));
-    }
-    const contractManger = new ContractsManager(ethereumRPCUrl, deployer);
-    finP2PContractAddress = await contractManger.deployFinP2PContract();
-
-  } else {
-    finP2PContractAddress = process.env.TOKEN_ADDRESS || "";
-    if (!finP2PContractAddress) {
-      throw new Error("FINP2P_CONTRACT_ADDRESS is not set");
-    }
+  const finP2PContractAddress = process.env.TOKEN_ADDRESS || "";
+  if (!finP2PContractAddress) {
+    throw new Error("FINP2P_CONTRACT_ADDRESS is not set");
   }
 
   logger.info(`Connecting to ethereum RPC URL: ${ethereumRPCUrl}`);

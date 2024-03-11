@@ -93,13 +93,9 @@ class CustomTestEnvironment extends NodeEnvironment {
     return { rpcUrl, privateKeys } as HardhatContainerDetails;
   }
 
-  private async deployContract(rpcUrl: string, deployer: NonceManager, signerAddress: string) {
+  private async deployContract(rpcUrl: string, deployer: NonceManager, signerAddress: string | null) {
     const contractManger = new ContractsManager(rpcUrl, deployer);
-    const contractAddress = await contractManger.deployFinP2PContract();
-
-    await contractManger.grantAssetManagerRole(contractAddress, signerAddress);
-    await contractManger.grantTransactionManagerRole(contractAddress, signerAddress);
-    return contractAddress;
+    return await contractManger.deployFinP2PContract(signerAddress);
   }
 
   private async startApp(contractAddress: string, rpcUrl: string, signer: NonceManager) {
