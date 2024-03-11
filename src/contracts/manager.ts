@@ -35,6 +35,8 @@ export class ContractsManager {
       FINP2P.abi, FINP2P.bytecode, this.signer
     );
     const contract = await factory.deploy();
+    await contract.waitForDeployment();
+
     const address = await contract.getAddress();
     console.log("FinP2P contract deployed successfully at:", address);
     return address;
