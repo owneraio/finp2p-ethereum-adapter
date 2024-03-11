@@ -3,6 +3,7 @@ import console from "console";
 import FINP2P from "../../artifacts/contracts/token/ERC20/FINP2POperatorERC20.sol/FINP2POperatorERC20.json";
 import ERC20 from "../../artifacts/contracts/token/ERC20/ERC20WithOperator.sol/ERC20WithOperator.json";
 import { ERC20WithOperator, FINP2POperatorERC20 } from "../../typechain-types";
+import { parseTransactionReceipt } from "./utils";
 
 
 export class ContractsManager {
@@ -45,7 +46,8 @@ export class ContractsManager {
       FINP2P.abi, FINP2P.bytecode, this.signer
     );
     const contract = factory.attach(finP2PContractAddress);
-    await contract.grantAssetManagerRole(to);
+    const tx = await contract.grantAssetManagerRole(to);
+    await this.waitForCompletion(tx.hash);
   }
 
   async grantTransactionManagerRole(finP2PContractAddress: string, to: string) {
@@ -54,6 +56,22 @@ export class ContractsManager {
       FINP2P.abi, FINP2P.bytecode, this.signer
     );
     const contract = factory.attach(finP2PContractAddress);
-    await contract.grantTransactionManagerRole(to);
+    const tx = await contract.grantTransactionManagerRole(to);
+    await this.waitForCompletion(tx.hash);
+  }
+
+  private async waitForCompletion(txHash: string, tries: number = 300) {
+    for (let i = 1; i < tries; i++) {
+      const txReceipt = await this.provider.getTransactionReceipt(txHash);
+      if (txReceipt !== null) {
+        if (txReceipt.status === 1) {
+          return;
+        } else {
+          throw new Error(`transaction failed: ${txHash}`);
+        }
+      }
+      await new Promise((r) => setTimeout(r, 500));
+    }
+    throw new Error(`no result after ${tries} retries`);
   }
 }

@@ -1,7 +1,7 @@
-import {ASSET, createCrypto, generateNonce, randomResourceId, transferSignature} from "./utils/utils";
+import { ASSET, createCrypto, generateNonce, randomResourceId, transferSignature } from "./utils/utils";
 import { TokensAPI, CommonAPI, PaymentsAPI, OperatorAPI, EscrowAPI } from "./api/api";
-import {LEDGER_HASH_FUNCTION, ORG1_MSPID} from "./api/configuration";
-import {v4 as uuidv4} from 'uuid';
+import { LEDGER_HASH_FUNCTION, ORG1_MSPID } from "./api/configuration";
+import { v4 as uuidv4 } from "uuid";
 
 
 describe(`token service test`, () => {
@@ -17,16 +17,16 @@ describe(`token service test`, () => {
 
     const buyerCrypto = createCrypto();
     let buyer = {
-      finId: buyerCrypto.public.toString('hex'),
+      finId: buyerCrypto.public.toString("hex"),
       account: {
         type: "finId",
-        finId: buyerCrypto.public.toString('hex')
+        finId: buyerCrypto.public.toString("hex")
       }
     } as Components.Schemas.Source;
 
-    const assetStatus = await TokensAPI.createAsset({asset: asset});
+    const assetStatus = await TokensAPI.createAsset({ asset: asset });
     if (!assetStatus.isCompleted) {
-      await CommonAPI.waitForCompletion(assetStatus.cid)
+      await CommonAPI.waitForCompletion(assetStatus.cid);
     }
 
     await expectBalance(buyer, asset, 0);
@@ -34,7 +34,7 @@ describe(`token service test`, () => {
     let issueQuantity = 1000;
     let settlementRef = `${uuidv4()}`;
     const issueReceipt = await expectReceipt(await TokensAPI.issue({
-      nonce: generateNonce().toString('utf-8'),
+      nonce: generateNonce().toString("utf-8"),
       destination: buyer.account as Components.Schemas.FinIdAccount,
       quantity: `${issueQuantity}`,
       asset: asset as Components.Schemas.Finp2pAsset,
@@ -48,10 +48,10 @@ describe(`token service test`, () => {
 
     const sellerCrypto = createCrypto();
     let seller = {
-      finId: sellerCrypto.public.toString('hex'),
+      finId: sellerCrypto.public.toString("hex"),
       account: {
         type: "finId",
-        finId: sellerCrypto.public.toString('hex')
+        finId: sellerCrypto.public.toString("hex")
       }
     } as Components.Schemas.Source;
 
@@ -68,7 +68,7 @@ describe(`token service test`, () => {
         destination: seller
       },
       {
-        asset: {type: "fiat", code: "USD"},
+        asset: { type: "fiat", code: "USD" },
         quantity: 10000,
         source: seller,
         destination: buyer,
@@ -80,13 +80,13 @@ describe(`token service test`, () => {
 
     settlementRef = `${uuidv4()}`;
     const transferReceipt = await expectReceipt(await TokensAPI.transfer({
-      nonce: nonce.toString('hex'),
+      nonce: nonce.toString("hex"),
       source: buyer,
       destination: seller,
       quantity: `${transferQuantity}`,
       settlementRef: settlementRef,
       asset,
-      signature: signature,
+      signature: signature
     } as Paths.TransferAsset.RequestBody));
     expect(transferReceipt.asset).toStrictEqual(asset);
     expect(parseInt(transferReceipt.quantity)).toBe(transferQuantity);
@@ -104,10 +104,10 @@ describe(`token service test`, () => {
         operation: "redeem",
         quantity: redeemQuantity,
         asset: asset,
-        source: buyer,
+        source: buyer
       },
       {
-        asset: {type: "fiat", code: "USD"},
+        asset: { type: "fiat", code: "USD" },
         quantity: 10000,
         destination: buyer,
         expiry: 6000
@@ -118,12 +118,12 @@ describe(`token service test`, () => {
 
     settlementRef = `${uuidv4()}`;
     const redeemReceipt = await expectReceipt(await TokensAPI.redeem({
-      nonce: nonce.toString('hex'),
+      nonce: nonce.toString("hex"),
       source: buyer.account as Components.Schemas.FinIdAccount,
       quantity: `${redeemQuantity}`,
       settlementRef: settlementRef,
       asset: asset as Components.Schemas.Finp2pAsset,
-      signature: redeemSignature,
+      signature: redeemSignature
     }));
     expect(redeemReceipt.asset).toStrictEqual(asset);
     expect(parseFloat(redeemReceipt.quantity)).toBeCloseTo(redeemQuantity, 4);
@@ -134,10 +134,10 @@ describe(`token service test`, () => {
   });
 
   test(`Scenario: escrow hold / release`, async () => {
-    const asset = {type: "fiat", code: "USD"} as Components.Schemas.Asset;
+    const asset = { type: "fiat", code: "USD" } as Components.Schemas.Asset;
 
     const buyerCrypto = createCrypto();
-    const buyerFinId = buyerCrypto.public.toString('hex');
+    const buyerFinId = buyerCrypto.public.toString("hex");
     const buyer = {
       finId: buyerFinId,
       account: {
@@ -159,7 +159,7 @@ describe(`token service test`, () => {
     initialBalance = 1000;
     const setBalanceStatus = await OperatorAPI.setBalance({
       to: {
-        finId: buyer.finId,
+        finId: buyer.finId
       }, asset: {
         type: asset.type,
         code: {
@@ -168,12 +168,12 @@ describe(`token service test`, () => {
       }, balance: `${initialBalance}`
     });
     if (!setBalanceStatus.isCompleted) {
-      await CommonAPI.waitForReceipt(setBalanceStatus.cid)
+      await CommonAPI.waitForReceipt(setBalanceStatus.cid);
     }
     await expectBalance(buyer, asset, initialBalance);
 
     const sellerCrypto = createCrypto();
-    const sellerFinId = sellerCrypto.public.toString('hex');
+    const sellerFinId = sellerCrypto.public.toString("hex");
     const seller = {
       finId: sellerFinId,
       account: {
@@ -201,7 +201,7 @@ describe(`token service test`, () => {
         nonce: generateNonce(),
         operation: "transfer",
         quantity: 10,
-        asset: {type: "finp2p", resourceId: randomResourceId(ORG1_MSPID, ASSET)},
+        asset: { type: "finp2p", resourceId: randomResourceId(ORG1_MSPID, ASSET) },
         source: seller,
         destination: buyer
       },
@@ -222,7 +222,7 @@ describe(`token service test`, () => {
       quantity: `${transferQty}`,
       asset: asset,
       expiry: expiry,
-      signature: signature,
+      signature: signature
     } as Paths.HoldOperation.RequestBody);
     await expectReceipt(status);
 
@@ -250,11 +250,11 @@ describe(`token service test`, () => {
     } else {
       return await CommonAPI.waitForReceipt(status.cid);
     }
-  }
+  };
 
   const expectBalance = async (owner: Components.Schemas.Source, asset: Components.Schemas.Asset, amount: number) => {
-    const balance = await CommonAPI.balance({asset: asset, owner: owner});
+    const balance = await CommonAPI.balance({ asset: asset, owner: owner });
     expect(parseInt(balance.balance)).toBe(amount);
-  }
+  };
 });
 
