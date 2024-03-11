@@ -1,4 +1,4 @@
-import { ContractFactory, Interface } from "ethers";
+import { ContractFactory, Interface, NonceManager } from "ethers";
 import FINP2P
   from "../../artifacts/contracts/token/ERC20/FINP2POperatorERC20.sol/FINP2POperatorERC20.json";
 import { FINP2POperatorERC20 } from "../../typechain-types";
@@ -14,8 +14,8 @@ export class FinP2PContract extends ContractsManager {
 
   finP2PContractAddress: string;
 
-  constructor(rpcURL: string, signerPrivateKey: string, finP2PContractAddress: string) {
-    super(rpcURL, signerPrivateKey);
+  constructor(rpcURL: string, signer: NonceManager, finP2PContractAddress: string) {
+    super(rpcURL, signer);
     const factory = new ContractFactory<any[], FINP2POperatorERC20>(
       FINP2P.abi, FINP2P.bytecode, this.signer
     );

@@ -3,7 +3,6 @@ import console from "console";
 import FINP2P from "../../artifacts/contracts/token/ERC20/FINP2POperatorERC20.sol/FINP2POperatorERC20.json";
 import ERC20 from "../../artifacts/contracts/token/ERC20/ERC20WithOperator.sol/ERC20WithOperator.json";
 import { ERC20WithOperator, FINP2POperatorERC20 } from "../../typechain-types";
-import { parseTransactionReceipt } from "./utils";
 
 
 export class ContractsManager {
@@ -11,9 +10,9 @@ export class ContractsManager {
   provider: Provider;
   signer: Signer;
 
-  constructor(rpcURL: string, signerPrivateKey: string) {
+  constructor(rpcURL: string, signer: NonceManager) {
     this.provider = new JsonRpcProvider(rpcURL);
-    this.signer = new NonceManager(new Wallet(signerPrivateKey, this.provider));
+    this.signer = signer.connect(this.provider);
   }
 
   async deployERC20(name: string, symbol: string, finP2PContractAddress: string) {

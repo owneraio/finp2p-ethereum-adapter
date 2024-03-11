@@ -1,7 +1,7 @@
 import NodeEnvironment from "jest-environment-node";
 import { GenericContainer, StartedTestContainer } from "testcontainers";
 import { EnvironmentContext, JestEnvironmentConfig } from "@jest/environment";
-import { Wallet } from "ethers";
+import { NonceManager, Wallet } from "ethers";
 import { FinP2PContract } from "../../src/contracts/finp2p";
 import createApp from "../../src/app";
 import * as http from "http";
@@ -33,13 +33,13 @@ class CustomTestEnvironment extends NodeEnvironment {
   async setup() {
     try {
       const container = await this.buildContainer();
-      // const container = new GenericContainer("localhost:5000/hardhat:latest");
       const details = await this.startContainer(container);
-      const deployer = details.privateKeys[0];
-      const signer = details.privateKeys[1];
 
-      const contractAddress = await this.deployContract(details.rpcUrl, deployer, signer);
-      this.global.serverAddress = await this.startApp(contractAddress, details.rpcUrl, signer);
+      const deployer = new NonceManager(new Wallet(details.privateKeys[0]));
+      const operator = new NonceManager(new Wallet(details.privateKeys[1]));
+
+      const contractAddress = await this.deployContract(details.rpcUrl, deployer, await operator.getAddress());
+      this.global.serverAddress = await this.startApp(contractAddress, details.rpcUrl, operator);
 
     } catch (err) {
       console.error("Error starting Ganache container:", err);
@@ -93,17 +93,16 @@ class CustomTestEnvironment extends NodeEnvironment {
     return { rpcUrl, privateKeys } as HardhatContainerDetails;
   }
 
-  private async deployContract(rpcUrl: string, deployer: string, signer: string) {
+  private async deployContract(rpcUrl: string, deployer: NonceManager, signerAddress: string) {
     const contractManger = new ContractsManager(rpcUrl, deployer);
     const contractAddress = await contractManger.deployFinP2PContract();
 
-    const singerAddress = new Wallet(signer).address;
-    await contractManger.grantAssetManagerRole(contractAddress, singerAddress);
-    await contractManger.grantTransactionManagerRole(contractAddress, singerAddress);
+    await contractManger.grantAssetManagerRole(contractAddress, signerAddress);
+    await contractManger.grantTransactionManagerRole(contractAddress, signerAddress);
     return contractAddress;
   }
 
-  private async startApp(contractAddress: string, rpcUrl: string, signer: string) {
+  private async startApp(contractAddress: string, rpcUrl: string, signer: NonceManager) {
     const finP2PContract = new FinP2PContract(rpcUrl, signer, contractAddress);
 
     const port = 3001;

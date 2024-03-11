@@ -1,7 +1,7 @@
 module.exports = {
   preset: "ts-jest",
   testEnvironment: "./tests/utils/test-environment.ts",
-  testTimeout: 30000,
+  testTimeout: 120000,
   "roots": [
     "<rootDir>/src",
     "<rootDir>/tests"

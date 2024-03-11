@@ -3,6 +3,7 @@ import { FinP2PContract } from "./contracts/finp2p";
 import * as process from "process";
 import createApp from "./app";
 import { ContractsManager } from "./contracts/manager";
+import { NonceManager, Wallet } from "ethers";
 
 const init = async () => {
   const port = process.env.PORT || "3000";
@@ -14,6 +15,7 @@ const init = async () => {
   if (!operatorPrivateKey) {
     throw new Error("OPERATOR_PRIVATE_KEY is not set");
   }
+  const operator = new NonceManager(new Wallet(operatorPrivateKey));
 
   const deployContract = process.env.DEPLOY_CONTRACT || "false";
   let finP2PContractAddress: string;
@@ -23,8 +25,13 @@ const init = async () => {
     if (!deployerPrivateKey) {
       throw new Error("DEPLOYER_PRIVATE_KEY is not set");
     }
-
-    const contractManger = new ContractsManager(ethereumRPCUrl, deployerPrivateKey);
+    let deployer: NonceManager;
+    if (deployerPrivateKey === operatorPrivateKey) {
+      deployer = operator;
+    } else {
+      deployer = new NonceManager(new Wallet(deployerPrivateKey));
+    }
+    const contractManger = new ContractsManager(ethereumRPCUrl, deployer);
     finP2PContractAddress = await contractManger.deployFinP2PContract();
 
   } else {
@@ -36,7 +43,7 @@ const init = async () => {
 
   logger.info(`Connecting to ethereum RPC URL: ${ethereumRPCUrl}`);
 
-  const finP2PContract = new FinP2PContract(ethereumRPCUrl, operatorPrivateKey, finP2PContractAddress);
+  const finP2PContract = new FinP2PContract(ethereumRPCUrl, operator, finP2PContractAddress);
   const app = createApp(finP2PContract);
   app.listen(port, () => {
     logger.info(`listening at http://localhost:${port}`);
