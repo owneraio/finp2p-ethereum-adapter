@@ -14,7 +14,7 @@ export class HardhatLogExtractor {
           this.privateKeys.push(match[1]);
         }
 
-        if (line.includes(`Account #3`)) {
+        if (line.includes('Started HTTP and WebSocket JSON-RPC server at')) {
           // stream.destroy();
           this.isStarted = true;
         }

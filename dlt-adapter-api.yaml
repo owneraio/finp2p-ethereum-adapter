@@ -19,7 +19,7 @@ tags:
   - name: escrow
     description: Escrow
   - name: operations
-    description: Opetations
+    description: Operations
 
 paths:
   /plan/approve:

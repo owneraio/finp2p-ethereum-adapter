@@ -2,12 +2,12 @@
 
 export type NetworkParameters = {
   rpcUrl: string,
-  privateKeys: string[]
+  accounts: string[]
 }
 
 export type NetworkDetails = {
   rpcUrl: string,
-  privateKeys: string[]
+  accounts: string[]
 }
 
 export type AdapterParameters = {

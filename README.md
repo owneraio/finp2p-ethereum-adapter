@@ -1,6 +1,10 @@
-Nodejs ledger adapter skeleton
+# FinP2P Ethereum Adapter
 
-## Getting started
+The goal of FinP2P Ethereum adapter is to translate and facilitate FinP2P instructions to move an ownership of the tokenized assets on Ethereum network.
+Adapter communicated with FinP2P proxy contract on Ethereum network which is responsible to verify and execute the asset movements on chain.
+
+### Getting started
+
 
 #### Install dependencies
 

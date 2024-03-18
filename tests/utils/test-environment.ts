@@ -27,16 +27,15 @@ class CustomTestEnvironment extends NodeEnvironment {
   async setup() {
     try {
       let details: NetworkDetails;
-      if (this.network === undefined || this.network.rpcUrl === "") {
+      if (this.network === undefined || this.network.rpcUrl === undefined) {
         const container = await this.buildContainer();
-        const predefinedAccounts = this.network?.privateKeys || [];
-        details = await this.startContainer(container, predefinedAccounts);
+        details = await this.startContainer(container, this.network?.accounts || []);
       } else {
         details = this.network;
       }
 
-      const deployer = new NonceManager(new Wallet(details.privateKeys[0]));
-      const operator = new NonceManager(new Wallet(details.privateKeys[1]));
+      const deployer = new NonceManager(new Wallet(details.accounts[0]));
+      const operator = new NonceManager(new Wallet(details.accounts[1]));
 
       const contractAddress = await this.deployContract(details.rpcUrl, deployer, await operator.getAddress());
       this.global.serverAddress = await this.startApp(contractAddress, details.rpcUrl, operator);
@@ -75,14 +74,14 @@ class CustomTestEnvironment extends NodeEnvironment {
     await logExtractor.started();
     console.log("Hardhat node started successfully.");
 
-    let privateKeys: string[];
+    let accounts: string[];
     if (predefinedAccounts.length > 0) {
-      privateKeys = predefinedAccounts;
+      accounts = predefinedAccounts;
     } else {
-      privateKeys = logExtractor.privateKeys;
+      accounts = logExtractor.privateKeys;
     }
 
-    if (privateKeys.length === 0) {
+    if (accounts.length === 0) {
       throw new Error("No private keys found");
     }
 
@@ -91,7 +90,7 @@ class CustomTestEnvironment extends NodeEnvironment {
     const rpcUrl = `http://${rpcHost}:${rpcPort}`;
     this.ethereumNodeContainer = startedContainer;
 
-    return { rpcUrl, privateKeys } as NetworkDetails;
+    return { rpcUrl, accounts } as NetworkDetails;
   }
 
   private async deployContract(rpcUrl: string, deployer: NonceManager, signerAddress: string | null) {
@@ -102,7 +101,7 @@ class CustomTestEnvironment extends NodeEnvironment {
   private async startApp(contractAddress: string, rpcUrl: string, signer: NonceManager) {
     const finP2PContract = new FinP2PContract(rpcUrl, signer, contractAddress);
 
-    const port = this.adapter?.port || 3000;
+    const port = this.adapter?.port || 3001;
     const app = createApp(finP2PContract);
     console.log("App created successfully.");
 
