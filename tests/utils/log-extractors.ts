@@ -4,27 +4,17 @@ import { Readable } from "stream";
 export class HardhatLogExtractor {
   privateKeys: string[] = [];
   isStarted = false;
-  parseAccounts: boolean
-  numberOfAccounts: number
-
-
-  constructor(parseAccounts: boolean, numberOfAccounts: number) {
-    this.parseAccounts = parseAccounts;
-    this.numberOfAccounts = numberOfAccounts;
-  }
 
   consume(stream: Readable) {
     stream
       .on("data", line => {
         // console.log(line.toString());
-        if (this.parseAccounts) {
-          const match = line.match(/Private Key:\s+(0x[a-fA-F0-9]{64})\s+/);
-          if (match && match.length > 0) {
-            this.privateKeys.push(match[1]);
-          }
+        const match = line.match(/Private Key:\s+(0x[a-fA-F0-9]{64})\s+/);
+        if (match && match.length > 0) {
+          this.privateKeys.push(match[1]);
         }
 
-        if (line.includes(`Account #${this.numberOfAccounts}`)) {
+        if (line.includes(`Account #3`)) {
           // stream.destroy();
           this.isStarted = true;
         }

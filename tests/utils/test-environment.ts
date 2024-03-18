@@ -8,32 +8,32 @@ import * as http from "http";
 import * as console from "console";
 import { HardhatLogExtractor } from "./log-extractors";
 import { ContractsManager } from "../../src/contracts/manager";
+import { AdapterParameters, NetworkDetails, NetworkParameters } from "./models";
 
-const PREDEFINED_ACCOUNTS = [
-  "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80",
-  "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d",
-  "0x5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a"
-];
-
-// const PARSE_ACCOUNTS = true;
-// const NUMBER_OF_ACCOUNTS = 18;
-
-const PARSE_ACCOUNTS = false;
-const NUMBER_OF_ACCOUNTS = 2;
 
 class CustomTestEnvironment extends NodeEnvironment {
 
+  network: NetworkParameters | undefined;
+  adapter: AdapterParameters | undefined;
   ethereumNodeContainer: StartedTestContainer | undefined;
   httpServer: http.Server | undefined;
 
   constructor(config: JestEnvironmentConfig, context: EnvironmentContext) {
     super(config, context);
+    this.network = this.global.network as NetworkParameters | undefined;
+    this.adapter = this.global.adapter as AdapterParameters | undefined;
   }
 
   async setup() {
     try {
-      const container = await this.buildContainer();
-      const details = await this.startContainer(container);
+      let details: NetworkDetails;
+      if (this.network === undefined || this.network.rpcUrl === "") {
+        const container = await this.buildContainer();
+        const predefinedAccounts = this.network?.privateKeys || [];
+        details = await this.startContainer(container, predefinedAccounts);
+      } else {
+        details = this.network;
+      }
 
       const deployer = new NonceManager(new Wallet(details.privateKeys[0]));
       const operator = new NonceManager(new Wallet(details.privateKeys[1]));
@@ -42,7 +42,7 @@ class CustomTestEnvironment extends NodeEnvironment {
       this.global.serverAddress = await this.startApp(contractAddress, details.rpcUrl, operator);
 
     } catch (err) {
-      console.error("Error starting Ganache container:", err);
+      console.error("Error starting container:", err);
     }
   }
 
@@ -56,7 +56,6 @@ class CustomTestEnvironment extends NodeEnvironment {
     }
   }
 
-
   private async buildContainer() {
     console.log("Building hardhat node docker image...");
     return await GenericContainer
@@ -64,33 +63,35 @@ class CustomTestEnvironment extends NodeEnvironment {
       .build();
   }
 
-  private async startContainer(container: GenericContainer) {
+  private async startContainer(container: GenericContainer, predefinedAccounts: string[]) {
     console.log("Starting hardhat node container...");
-    const logExtractor = new HardhatLogExtractor(PARSE_ACCOUNTS, NUMBER_OF_ACCOUNTS);
+    const logExtractor = new HardhatLogExtractor();
+    const containerPort = 8545;
     const startedContainer = await container
       .withLogConsumer((stream) => logExtractor.consume(stream))
-      .withExposedPorts(8545)
+      .withExposedPorts(containerPort)
       .start();
 
     await logExtractor.started();
     console.log("Hardhat node started successfully.");
 
     let privateKeys: string[];
-    if (PARSE_ACCOUNTS) {
-      privateKeys = logExtractor.privateKeys;
-      if (privateKeys.length === 0) {
-        throw new Error("No private keys found");
-      }
+    if (predefinedAccounts.length > 0) {
+      privateKeys = predefinedAccounts;
     } else {
-      privateKeys = PREDEFINED_ACCOUNTS;
+      privateKeys = logExtractor.privateKeys;
+    }
+
+    if (privateKeys.length === 0) {
+      throw new Error("No private keys found");
     }
 
     const rpcHost = startedContainer.getHost();
-    const rpcPort = startedContainer.getMappedPort(8545).toString();
+    const rpcPort = startedContainer.getMappedPort(containerPort).toString();
     const rpcUrl = `http://${rpcHost}:${rpcPort}`;
     this.ethereumNodeContainer = startedContainer;
 
-    return { rpcUrl, privateKeys } as HardhatContainerDetails;
+    return { rpcUrl, privateKeys } as NetworkDetails;
   }
 
   private async deployContract(rpcUrl: string, deployer: NonceManager, signerAddress: string | null) {
@@ -101,7 +102,7 @@ class CustomTestEnvironment extends NodeEnvironment {
   private async startApp(contractAddress: string, rpcUrl: string, signer: NonceManager) {
     const finP2PContract = new FinP2PContract(rpcUrl, signer, contractAddress);
 
-    const port = 3001;
+    const port = this.adapter?.port || 3000;
     const app = createApp(finP2PContract);
     console.log("App created successfully.");
 
@@ -113,9 +114,5 @@ class CustomTestEnvironment extends NodeEnvironment {
   }
 }
 
-type HardhatContainerDetails = {
-  rpcUrl: string,
-  privateKeys: string[]
-}
 
 module.exports = CustomTestEnvironment;

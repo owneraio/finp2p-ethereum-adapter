@@ -9,6 +9,7 @@
     "contracts-test": "hardhat test",
     "deploy-contract": "node dist/scripts/deploy.js",
     "grant-operator-roles": "node dist/scripts/grant.js",
+    "extract": "node dist/scripts/extract.js",
 
     "adapter-clean": "rm -rf dist && rm -rf artifacts && rm -rf typechain-types",
     "adapter-api-generate": "dtsgen -o ./src/services/model-gen.ts dlt-adapter-api.yaml",
