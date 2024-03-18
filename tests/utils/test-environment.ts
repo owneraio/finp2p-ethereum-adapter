@@ -9,6 +9,7 @@ import * as console from "console";
 import { HardhatLogExtractor } from "./log-extractors";
 import { ContractsManager } from "../../src/contracts/manager";
 import { AdapterParameters, NetworkDetails, NetworkParameters } from "./models";
+import { randomPort } from "./utils";
 
 
 class CustomTestEnvironment extends NodeEnvironment {
@@ -25,6 +26,11 @@ class CustomTestEnvironment extends NodeEnvironment {
   }
 
   async setup() {
+    if (this.adapter !== undefined && this.adapter.url !== undefined) {
+      console.log("Using predefined network configuration...");
+      return;
+    }
+
     try {
       let details: NetworkDetails;
       if (this.network === undefined || this.network.rpcUrl === undefined) {
@@ -101,7 +107,7 @@ class CustomTestEnvironment extends NodeEnvironment {
   private async startApp(contractAddress: string, rpcUrl: string, signer: NonceManager) {
     const finP2PContract = new FinP2PContract(rpcUrl, signer, contractAddress);
 
-    const port = this.adapter?.port || 3001;
+    const port = randomPort();
     const app = createApp(finP2PContract);
     console.log("App created successfully.");
 
@@ -109,7 +115,7 @@ class CustomTestEnvironment extends NodeEnvironment {
       console.log(`Server listening on port ${port}`);
     });
 
-    return this.httpServer.address();
+    return `http://localhost:${port}/api`
   }
 }
 

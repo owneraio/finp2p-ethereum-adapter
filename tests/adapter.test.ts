@@ -1,5 +1,5 @@
 import { ASSET, createCrypto, generateNonce, randomResourceId, transferSignature } from "./utils/utils";
-import { TokensAPI, CommonAPI, PaymentsAPI, OperatorAPI, EscrowAPI } from "./api/api";
+import { APIClient } from "./api/api";
 import { LEDGER_HASH_FUNCTION, ORG1_MSPID } from "./api/configuration";
 import { v4 as uuidv4 } from "uuid";
 
@@ -9,6 +9,9 @@ describe(`token service test`, () => {
   test(`
         Scenario: issue / transfer / redeem
      `, async () => {
+
+    // @ts-ignore
+    const client = new APIClient(global.serverAddress);
 
     const asset = {
       type: "finp2p",
@@ -24,16 +27,16 @@ describe(`token service test`, () => {
       }
     } as Components.Schemas.Source;
 
-    const assetStatus = await TokensAPI.createAsset({ asset: asset });
+    const assetStatus = await client.tokens.createAsset({ asset: asset });
     if (!assetStatus.isCompleted) {
-      await CommonAPI.waitForCompletion(assetStatus.cid);
+      await client.common.waitForCompletion(assetStatus.cid);
     }
 
-    await expectBalance(buyer, asset, 0);
+    await client.expectBalance(buyer, asset, 0);
 
     let issueQuantity = 1000;
     let settlementRef = `${uuidv4()}`;
-    const issueReceipt = await expectReceipt(await TokensAPI.issue({
+    const issueReceipt = await client.expectReceipt(await client.tokens.issue({
       nonce: generateNonce().toString("utf-8"),
       destination: buyer.account as Components.Schemas.FinIdAccount,
       quantity: `${issueQuantity}`,
@@ -44,7 +47,7 @@ describe(`token service test`, () => {
     expect(parseInt(issueReceipt.quantity)).toBe(issueQuantity);
     expect(issueReceipt.destination).toStrictEqual(buyer);
 
-    await expectBalance(buyer, asset, issueQuantity);
+    await client.expectBalance(buyer, asset, issueQuantity);
 
     const sellerCrypto = createCrypto();
     let seller = {
@@ -79,7 +82,7 @@ describe(`token service test`, () => {
     );
 
     settlementRef = `${uuidv4()}`;
-    const transferReceipt = await expectReceipt(await TokensAPI.transfer({
+    const transferReceipt = await client.expectReceipt(await client.tokens.transfer({
       nonce: nonce.toString("hex"),
       source: buyer,
       destination: seller,
@@ -93,8 +96,8 @@ describe(`token service test`, () => {
     expect(transferReceipt.source).toStrictEqual(buyer);
     expect(transferReceipt.destination).toStrictEqual(seller);
 
-    await expectBalance(buyer, asset, issueQuantity - transferQuantity);
-    await expectBalance(seller, asset, transferQuantity);
+    await client.expectBalance(buyer, asset, issueQuantity - transferQuantity);
+    await client.expectBalance(seller, asset, transferQuantity);
 
     nonce = generateNonce();
     let redeemQuantity = 300;
@@ -117,7 +120,7 @@ describe(`token service test`, () => {
     );
 
     settlementRef = `${uuidv4()}`;
-    const redeemReceipt = await expectReceipt(await TokensAPI.redeem({
+    const redeemReceipt = await client.expectReceipt(await client.tokens.redeem({
       nonce: nonce.toString("hex"),
       source: buyer.account as Components.Schemas.FinIdAccount,
       quantity: `${redeemQuantity}`,
@@ -130,10 +133,13 @@ describe(`token service test`, () => {
     expect(redeemReceipt.source).toStrictEqual(buyer);
     expect(redeemReceipt.destination).toBeUndefined();
 
-    await expectBalance(buyer, asset, issueQuantity - transferQuantity - redeemQuantity);
+    await client.expectBalance(buyer, asset, issueQuantity - transferQuantity - redeemQuantity);
   });
 
   test(`Scenario: escrow hold / release`, async () => {
+    // @ts-ignore
+    const client = new APIClient(global.serverAddress);
+
     const asset = { type: "fiat", code: "USD" } as Components.Schemas.Asset;
 
     const buyerCrypto = createCrypto();
@@ -146,18 +152,18 @@ describe(`token service test`, () => {
       }
     } as Components.Schemas.Source;
 
-    let depositStatus = await PaymentsAPI.getDepositInstruction({
+    let depositStatus = await client.payments.getDepositInstruction({
       owner: buyer,
       destination: buyer,
       asset: asset
     } as Paths.DepositInstruction.RequestBody);
     if (!depositStatus.isCompleted) {
-      await CommonAPI.waitForCompletion(depositStatus.cid);
+      await client.common.waitForCompletion(depositStatus.cid);
     }
 
     let initialBalance: number;
     initialBalance = 1000;
-    const setBalanceStatus = await OperatorAPI.setBalance({
+    const setBalanceStatus = await client.operator.setBalance({
       to: {
         finId: buyer.finId
       }, asset: {
@@ -168,9 +174,9 @@ describe(`token service test`, () => {
       }, balance: `${initialBalance}`
     });
     if (!setBalanceStatus.isCompleted) {
-      await CommonAPI.waitForReceipt(setBalanceStatus.cid);
+      await client.common.waitForReceipt(setBalanceStatus.cid);
     }
-    await expectBalance(buyer, asset, initialBalance);
+    await client.expectBalance(buyer, asset, initialBalance);
 
     const sellerCrypto = createCrypto();
     const sellerFinId = sellerCrypto.public.toString("hex");
@@ -182,16 +188,16 @@ describe(`token service test`, () => {
       }
     } as Components.Schemas.Source;
 
-    depositStatus = await PaymentsAPI.getDepositInstruction({
+    depositStatus = await client.payments.getDepositInstruction({
       owner: seller,
       destination: seller,
       asset: asset
     } as Paths.DepositInstruction.RequestBody);
     if (!depositStatus.isCompleted) {
-      await CommonAPI.waitForCompletion(depositStatus.cid);
+      await client.common.waitForCompletion(depositStatus.cid);
     }
 
-    await expectBalance(seller, asset, 0);
+    await client.expectBalance(seller, asset, 0);
 
     const operationId = `${uuidv4()}`;
     const transferQty = 1000;
@@ -215,7 +221,7 @@ describe(`token service test`, () => {
       LEDGER_HASH_FUNCTION, buyerCrypto.private
     );
 
-    const status = await EscrowAPI.hold({
+    const status = await client.escrow.hold({
       operationId: operationId,
       source: buyer,
       destination: seller,
@@ -224,11 +230,11 @@ describe(`token service test`, () => {
       expiry: expiry,
       signature: signature
     } as Paths.HoldOperation.RequestBody);
-    await expectReceipt(status);
+    await client.expectReceipt(status);
 
-    await expectBalance(buyer, asset, initialBalance - transferQty);
+    await client.expectBalance(buyer, asset, initialBalance - transferQty);
 
-    const releaseReceipt = await expectReceipt(await EscrowAPI.release({
+    const releaseReceipt = await client.expectReceipt(await client.escrow.release({
       operationId: operationId,
       source: buyer,
       destination: seller,
@@ -240,21 +246,8 @@ describe(`token service test`, () => {
     expect(releaseReceipt.source).toStrictEqual(buyer);
     expect(releaseReceipt.destination).toStrictEqual(seller);
 
-    await expectBalance(seller, asset, transferQty);
+    await client.expectBalance(seller, asset, transferQty);
   });
 
-
-  const expectReceipt = async (status: any): Promise<Components.Schemas.Receipt> => {
-    if (status.isCompleted) {
-      return status.response;
-    } else {
-      return await CommonAPI.waitForReceipt(status.cid);
-    }
-  };
-
-  const expectBalance = async (owner: Components.Schemas.Source, asset: Components.Schemas.Asset, amount: number) => {
-    const balance = await CommonAPI.balance({ asset: asset, owner: owner });
-    expect(parseInt(balance.balance)).toBe(amount);
-  };
 });
 

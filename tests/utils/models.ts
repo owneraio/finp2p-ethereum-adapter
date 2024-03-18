@@ -11,5 +11,5 @@ export type NetworkDetails = {
 }
 
 export type AdapterParameters = {
-  port: number,
+  url: string,
 }

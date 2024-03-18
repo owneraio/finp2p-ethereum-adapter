@@ -3,7 +3,7 @@ module.exports = {
   testEnvironment: "./tests/utils/test-environment.ts",
   testEnvironmentOptions: {
     // adapter: {
-    // url: "http://localhost:3000",
+    //   url: "http://localhost:3000",
     // },
     network: {
       //   rpcUrl: "https://ethereum-rpc-url/",
