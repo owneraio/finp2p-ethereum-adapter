@@ -1,5 +1,4 @@
 import { logger } from './helpers/logger';
-import { FinP2PContract } from '../finp2p-contracts/src/contracts/finp2p';
 import * as process from 'process';
 import createApp from './app';
 
@@ -32,19 +31,10 @@ const init = async () => {
 
   logger.info(`Connecting to ethereum RPC URL: ${ethereumRPCUrl}`);
 
-  const finP2PContract = new FinP2PContract(ethereumRPCUrl, operatorPrivateKey, finP2PContractAddress);
-  const app = createApp(finP2PContract);
+  const app = createApp();
   app.listen(port, () => {
     logger.info(`listening at http://localhost:${port}`);
   });
-
-
-  // process.on("unhandledRejection", (reason, p) => {
-  //   logger.error("Unhandled Rejection", { promise: p, reason });
-  // });
-  // process.on("uncaughtException", (err, origin) => {
-  //   logger.error("uncaught exception", { err, origin });
-  // });
 };
 
 init().then(() => {

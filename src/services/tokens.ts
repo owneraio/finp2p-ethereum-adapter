@@ -1,82 +1,82 @@
-import { CommonService } from './common';
+import { v4 as uuid } from 'uuid';
+import { Transaction, CommonService } from './common';
+import { AccountService } from './accounts';
 
 export class TokenService extends CommonService {
 
   public async createAsset(request: Paths.CreateAsset.RequestBody): Promise<Paths.CreateAsset.Responses.$200> {
-    if (request.asset.type !== 'finp2p') {
-      throw new Error(`Unsupported asset type: ${request.asset.type}`);
-    }
-    const assetId = request.asset.resourceId;
-    const tokenAddress = await this.finP2PContract.deployERC20(assetId, assetId,
-      this.finP2PContract.finP2PContractAddress);
-
-    const txHash = await this.finP2PContract.associateAsset(assetId, tokenAddress);
+    console.log(`request: ${request}`);
+    const txId = uuid();
     return {
-      isCompleted: false,
-      cid: txHash,
-    } as Components.Schemas.ReceiptOperation;
+      isCompleted: true,
+      cid: txId,
+    } as Components.Schemas.EmptyOperation;
   }
 
   public async issue(request: Paths.IssueAssets.RequestBody): Promise<Paths.IssueAssets.Responses.$200> {
-    const assetId = request.asset.resourceId;
-    const issuerFinId = request.destination.finId;
     const amount = parseInt(request.quantity);
-    const txHash = await this.finP2PContract.issue(assetId, issuerFinId, amount);
+    this.accountService.credit(request.destination.finId, amount, request.asset);
+
+    let tx = {
+      id: uuid(),
+      amount: amount,
+      asset: request.asset,
+      timestamp: Date.now(),
+      destination: {
+        finId: request.destination.finId,
+        account: request.destination,
+      },
+    } as Transaction;
+    this.transactions[tx.id] = tx;
 
     return {
-      isCompleted: false,
-      cid: txHash,
+      isCompleted: true,
+      cid: tx.id,
+      response: Transaction.toReceipt(tx),
     } as Components.Schemas.ReceiptOperation;
   }
 
   public async transfer(request: Paths.TransferAsset.RequestBody): Promise<Paths.TransferAsset.Responses.$200> {
-    if (request.asset.type !== 'finp2p') {
-      throw new Error(`Unsupported asset type: ${request.asset.type}`);
-    }
-    const nonce = request.nonce;
-    const assetId = request.asset.resourceId;
-    const sourceFinId = request.source.finId;
-    const destinationFinId = request.destination.finId;
     const amount = parseInt(request.quantity);
-    const settlementHash = request.signature.template.hashGroups[1].hash;
-    const hash = request.signature.template.hash;
-    const signature = request.signature.signature;
+    this.accountService.move(request.source.finId, request.destination.finId, amount, request.asset);
 
-    try {
-      const txHash = await this.finP2PContract.transfer(nonce, assetId, sourceFinId, destinationFinId, amount, settlementHash, hash, signature);
+    let tx = {
+      id: uuid(),
+      source: request.source,
+      destination: request.destination,
+      amount: amount,
+      asset: request.asset,
+      timestamp: Date.now(),
+    } as Transaction;
+    this.transactions[tx.id] = tx;
 
-      return {
-        isCompleted: false,
-        cid: txHash,
-      } as Components.Schemas.ReceiptOperation;
-    } catch (e) {
-      return {
-        isCompleted: true,
-        error: {
-          code: 1,
-          message: e,
-        },
-      } as Components.Schemas.ReceiptOperation;
-    }
+    return {
+      isCompleted: true,
+      cid: tx.id,
+      response: Transaction.toReceipt(tx),
+    } as Components.Schemas.ReceiptOperation;
   }
 
   public async redeem(request: Paths.RedeemAssets.RequestBody): Promise<Paths.RedeemAssets.Responses.$200> {
-    if (request.asset.type !== 'finp2p') {
-      throw new Error(`Unsupported asset type: ${request.asset.type}`);
-    }
-    const nonce = request.nonce;
-    const assetId = request.asset.resourceId;
-    const finId = request.source.finId;
     const amount = parseInt(request.quantity);
-    const settlementHash = request.signature.template.hashGroups[1].hash;
-    const hash = request.signature.template.hash;
-    const signature = request.signature.signature;
+    this.accountService.debit(request.source.finId, amount, request.asset);
 
-    const txHash = await this.finP2PContract.redeem(nonce, assetId, finId, amount, settlementHash, hash, signature);
+    let tx = {
+      id: uuid(),
+      source: {
+        finId: request.source.finId,
+        account: request.source,
+      },
+      amount: amount,
+      asset: request.asset,
+      timestamp: Date.now(),
+    } as Transaction;
+    this.transactions[tx.id] = tx;
 
     return {
-      isCompleted: false,
-      cid: txHash,
+      isCompleted: true,
+      cid: tx.id,
+      response: Transaction.toReceipt(tx),
     } as Components.Schemas.ReceiptOperation;
   }
 
