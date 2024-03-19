@@ -10,9 +10,9 @@ export class ContractsManager {
   provider: Provider;
   signer: Signer;
 
-  constructor(rpcURL: string, signer: NonceManager) {
+  constructor(rpcURL: string, signerPrivateKey: string) {
     this.provider = new JsonRpcProvider(rpcURL);
-    this.signer = signer.connect(this.provider);
+    this.signer = new NonceManager(new Wallet(signerPrivateKey)).connect(this.provider);
   }
 
   async deployERC20(name: string, symbol: string, finP2PContractAddress: string) {

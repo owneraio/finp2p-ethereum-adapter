@@ -1,15 +1,15 @@
 import NodeEnvironment from "jest-environment-node";
 import { GenericContainer, StartedTestContainer } from "testcontainers";
 import { EnvironmentContext, JestEnvironmentConfig } from "@jest/environment";
-import { NonceManager, Wallet } from "ethers";
-import { FinP2PContract } from "../../src/contracts/finp2p";
+import { FinP2PContract } from "../../finp2p-contracts/src/contracts/finp2p";
 import createApp from "../../src/app";
 import * as http from "http";
 import * as console from "console";
 import { HardhatLogExtractor } from "./log-extractors";
-import { ContractsManager } from "../../src/contracts/manager";
+import { ContractsManager } from "../../finp2p-contracts/src/contracts/manager";
 import { AdapterParameters, NetworkDetails, NetworkParameters } from "./models";
 import { randomPort } from "./utils";
+import { addressFromPrivateKey } from "../../finp2p-contracts/src/contracts/utils";
 
 
 class CustomTestEnvironment extends NodeEnvironment {
@@ -40,10 +40,10 @@ class CustomTestEnvironment extends NodeEnvironment {
         details = this.network;
       }
 
-      const deployer = new NonceManager(new Wallet(details.accounts[0]));
-      const operator = new NonceManager(new Wallet(details.accounts[1]));
+      const deployer = details.accounts[0];
+      const operator = details.accounts[1];
 
-      const contractAddress = await this.deployContract(details.rpcUrl, deployer, await operator.getAddress());
+      const contractAddress = await this.deployContract(details.rpcUrl, deployer, addressFromPrivateKey(operator));
       this.global.serverAddress = await this.startApp(contractAddress, details.rpcUrl, operator);
 
     } catch (err) {
@@ -99,13 +99,13 @@ class CustomTestEnvironment extends NodeEnvironment {
     return { rpcUrl, accounts } as NetworkDetails;
   }
 
-  private async deployContract(rpcUrl: string, deployer: NonceManager, signerAddress: string | null) {
+  private async deployContract(rpcUrl: string, deployer: string, signerAddress: string | null) {
     const contractManger = new ContractsManager(rpcUrl, deployer);
     return await contractManger.deployFinP2PContract(signerAddress);
   }
 
-  private async startApp(contractAddress: string, rpcUrl: string, signer: NonceManager) {
-    const finP2PContract = new FinP2PContract(rpcUrl, signer, contractAddress);
+  private async startApp(contractAddress: string, rpcUrl: string, signerPrivateKey: string) {
+    const finP2PContract = new FinP2PContract(rpcUrl, signerPrivateKey, contractAddress);
 
     const port = randomPort();
     const app = createApp(finP2PContract);
@@ -115,7 +115,7 @@ class CustomTestEnvironment extends NodeEnvironment {
       console.log(`Server listening on port ${port}`);
     });
 
-    return `http://localhost:${port}/api`
+    return `http://localhost:${port}/api`;
   }
 }
 

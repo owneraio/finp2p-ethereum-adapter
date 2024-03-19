@@ -14,8 +14,8 @@ export class FinP2PContract extends ContractsManager {
 
   finP2PContractAddress: string;
 
-  constructor(rpcURL: string, signer: NonceManager, finP2PContractAddress: string) {
-    super(rpcURL, signer);
+  constructor(rpcURL: string, signerPrivateKey: string, finP2PContractAddress: string) {
+    super(rpcURL, signerPrivateKey);
     const factory = new ContractFactory<any[], FINP2POperatorERC20>(
       FINP2P.abi, FINP2P.bytecode, this.signer
     );

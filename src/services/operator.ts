@@ -1,4 +1,4 @@
-import { CommonService } from "./common";
+import { CommonService } from './common';
 
 
 export interface Source {
@@ -38,7 +38,7 @@ export class OperatorService extends CommonService {
     const txHash = await this.finP2PContract.issue(assetId, finId, amount);
     return {
       isCompleted: false,
-      cid: txHash
+      cid: txHash,
     } as SetBalanceResponse;
   }
 
@@ -48,7 +48,7 @@ export class OperatorService extends CommonService {
         this.finP2PContract.finP2PContractAddress);
 
       const txHash = await this.finP2PContract.associateAsset(assetId, tokenAddress);
-      return await this.waitForCompletion(txHash);
+      return this.waitForCompletion(txHash);
     }
   }
 
@@ -57,7 +57,7 @@ export class OperatorService extends CommonService {
       await this.finP2PContract.finP2P.getAssetAddress(assetId);
     } catch (e) {
       // @ts-ignore
-      if (e.reason === "Asset not found") {
+      if (e.reason === 'Asset not found') {
         return false;
       } else {
         throw e;

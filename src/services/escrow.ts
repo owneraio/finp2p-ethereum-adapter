@@ -1,7 +1,6 @@
 import { logger } from '../helpers/logger';
 import { CommonService } from './common';
-import Finp2pAsset = Components.Schemas.Finp2pAsset;
-import { extractAssetId } from "./mapping";
+import { extractAssetId } from './mapping';
 
 export class EscrowService extends CommonService {
 

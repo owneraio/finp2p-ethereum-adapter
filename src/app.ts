@@ -8,7 +8,7 @@ import { EscrowService } from './services/escrow';
 import { PaymentsService } from './services/payments';
 import { PlanService } from './services/plans';
 import { OperatorService } from './services/operator';
-import { FinP2PContract } from './contracts/finp2p';
+import { FinP2PContract } from '../finp2p-contracts/src/contracts/finp2p';
 
 
 

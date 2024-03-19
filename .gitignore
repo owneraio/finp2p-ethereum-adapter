@@ -1,5 +1,7 @@
 node_modules
 /dist/
-/artifacts/
-/typechain-types/
 /cache/
+/finp2p-contracts/artifacts/
+/finp2p-contracts/typechain-types/
+/finp2p-contracts/dist/
+/finp2p-contracts/cache/

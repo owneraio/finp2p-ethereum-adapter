@@ -1,5 +1,4 @@
 import { CommonService } from './common';
-import Finp2pAsset = Components.Schemas.Finp2pAsset;
 
 export class TokenService extends CommonService {
 

@@ -1,14 +1,14 @@
-import { FinP2PReceipt } from "../contracts/model";
+import { FinP2PReceipt } from '../../finp2p-contracts/src/contracts/model';
 import Asset = Components.Schemas.Asset;
 import Receipt = Components.Schemas.Receipt;
 
 export const extractAssetId = (asset: Components.Schemas.Asset): string => {
   switch (asset.type) {
-    case "fiat":
+    case 'fiat':
       return asset.code;
-    case "finp2p":
+    case 'finp2p':
       return asset.resourceId;
-    case "cryptocurrency":
+    case 'cryptocurrency':
       return asset.code;
   }
 };
@@ -20,9 +20,9 @@ const finIdSource = (finId?: string): Components.Schemas.Source | undefined => {
   return {
     finId: finId,
     account: {
-      type: "finId",
-      finId: finId
-    }
+      type: 'finId',
+      finId: finId,
+    },
   };
 };
 const finIdDestination = (finId?: string): Components.Schemas.Destination | undefined => {
@@ -32,10 +32,30 @@ const finIdDestination = (finId?: string): Components.Schemas.Destination | unde
   return {
     finId: finId,
     account: {
-      type: "finId",
-      finId: finId
-    }
+      type: 'finId',
+      finId: finId,
+    },
   };
+};
+
+export const assetToAPI = (assetId: string, assetType: 'cryptocurrency' | 'fiat' | 'finp2p'): Asset => {
+  switch (assetType) {
+    case 'fiat':
+      return {
+        type: 'fiat',
+        code: assetId,
+      };
+    case 'finp2p':
+      return {
+        type: 'finp2p',
+        resourceId: assetId,
+      };
+    case 'cryptocurrency':
+      return {
+        type: 'cryptocurrency',
+        code: assetId,
+      };
+  }
 };
 
 export const receiptToAPI = (receipt: FinP2PReceipt): Receipt => {
@@ -46,27 +66,8 @@ export const receiptToAPI = (receipt: FinP2PReceipt): Receipt => {
     source: finIdSource(receipt.source),
     destination: finIdDestination(receipt.destination),
     transactionDetails: {
-      transactionId: receipt.id
+      transactionId: receipt.id,
     },
-    timestamp: receipt.timestamp
+    timestamp: receipt.timestamp,
   };
-};
-export const assetToAPI = (assetId: string, assetType: "cryptocurrency" | "fiat" | "finp2p"): Asset => {
-  switch (assetType) {
-    case "fiat":
-      return {
-        type: "fiat",
-        code: assetId
-      };
-    case "finp2p":
-      return {
-        type: "finp2p",
-        resourceId: assetId
-      };
-    case "cryptocurrency":
-      return {
-        type: "cryptocurrency",
-        code: assetId
-      };
-  }
 };

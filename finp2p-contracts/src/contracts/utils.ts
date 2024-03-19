@@ -1,5 +1,9 @@
-import { Interface, TransactionReceipt } from "ethers";
+import { Interface, TransactionReceipt, Wallet } from "ethers";
 import { FinP2PReceipt } from "./model";
+
+export const addressFromPrivateKey = (privateKey: string): string => {
+ return  new Wallet(privateKey).address;
+}
 
 export const parseTransactionReceipt = (receipt: TransactionReceipt, contractInterface: Interface): FinP2PReceipt | null => {
   const id = receipt.hash;
