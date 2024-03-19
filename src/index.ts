@@ -34,7 +34,6 @@ const init = async () => {
 
   const finP2PContract = new FinP2PContract(ethereumRPCUrl, operatorPrivateKey, finP2PContractAddress);
   const app = createApp(finP2PContract);
-  const app = createApp();
   app.listen(port, () => {
     logger.info(`listening at http://localhost:${port}`);
   });
