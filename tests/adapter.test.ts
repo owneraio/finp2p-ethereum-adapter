@@ -168,16 +168,14 @@ describe(`token service test`, () => {
 
     let initialBalance: number;
     initialBalance = 1000;
-    const setBalanceStatus = await client.operator.setBalance({
-      to: {
-        finId: buyer.finId
-      }, asset: {
-        type: asset.type,
-        code: {
-          code: (asset as Components.Schemas.FiatAsset).code
-        }
-      }, balance: `${initialBalance}`
-    });
+    let settlementRef = `${uuidv4()}`;
+    const setBalanceStatus = await client.tokens.issue({
+      nonce: generateNonce().toString("utf-8"),
+      destination: buyer.account as Components.Schemas.FinIdAccount,
+      quantity: `${initialBalance}`,
+      asset: asset as Components.Schemas.Finp2pAsset,
+      settlementRef: settlementRef
+    } as Paths.IssueAssets.RequestBody);
     if (!setBalanceStatus.isCompleted) {
       await client.common.waitForReceipt(setBalanceStatus.cid);
     }

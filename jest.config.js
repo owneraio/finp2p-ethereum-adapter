@@ -3,7 +3,7 @@ module.exports = {
   testEnvironment: "./tests/utils/test-environment.ts",
   testEnvironmentOptions: {
     orgId: "bank-id",
-    hashFunction: "sha-256",
+    hashFunction: "sha3-256",
     // adapter: {
     //   url: "http://localhost:3000",
     // },
