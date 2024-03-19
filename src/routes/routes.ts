@@ -3,7 +3,6 @@ import { asyncMiddleware } from '../helpers/middleware';
 import { TokenService } from '../services/tokens';
 import { EscrowService } from '../services/escrow';
 import { PaymentsService } from '../services/payments';
-import { OperatorService } from '../services/operator';
 import { PlanService } from '../services/plans';
 
 
@@ -12,7 +11,6 @@ export const register = (app: express.Application,
   escrowService: EscrowService,
   paymentService: PaymentsService,
   planService: PlanService,
-  operatorService: OperatorService,
 ) => {
 
   app.post(
@@ -127,15 +125,6 @@ export const register = (app: express.Application,
     '/api/operations/status/:cid',
     asyncMiddleware(async (req, res) => {
       const status = await tokenService.operationStatus(req.params.cid);
-      res.json(status);
-    }),
-  );
-
-  /* POST operation status. */
-  app.post(
-    '/api/operator/setBalance',
-    asyncMiddleware(async (req, res) => {
-      const status = await operatorService.setBalance(req.body);
       res.json(status);
     }),
   );
