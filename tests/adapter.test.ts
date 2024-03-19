@@ -147,6 +147,11 @@ describe(`token service test`, () => {
 
     const asset = { type: "fiat", code: "USD" } as Components.Schemas.Asset;
 
+    const assetStatus = await client.tokens.createAsset({ asset: asset });
+    if (!assetStatus.isCompleted) {
+      await client.common.waitForCompletion(assetStatus.cid);
+    }
+
     const buyerCrypto = createCrypto();
     const buyerFinId = buyerCrypto.public.toString("hex");
     const buyer = {

@@ -1,12 +1,10 @@
 import { CommonService } from './common';
+import { extractAssetId } from "./mapping";
 
 export class TokenService extends CommonService {
 
   public async createAsset(request: Paths.CreateAsset.RequestBody): Promise<Paths.CreateAsset.Responses.$200> {
-    if (request.asset.type !== 'finp2p') {
-      throw new Error(`Unsupported asset type: ${request.asset.type}`);
-    }
-    const assetId = request.asset.resourceId;
+    const assetId = extractAssetId(request.asset);
     const tokenAddress = await this.finP2PContract.deployERC20(assetId, assetId,
       this.finP2PContract.finP2PContractAddress);
 
@@ -18,7 +16,7 @@ export class TokenService extends CommonService {
   }
 
   public async issue(request: Paths.IssueAssets.RequestBody): Promise<Paths.IssueAssets.Responses.$200> {
-    const assetId = request.asset.resourceId;
+    const assetId = extractAssetId(request.asset);
     const issuerFinId = request.destination.finId;
     const amount = parseInt(request.quantity);
     const txHash = await this.finP2PContract.issue(assetId, issuerFinId, amount);
