@@ -7,7 +7,6 @@ import { TokenService } from './services/tokens';
 import { EscrowService } from './services/escrow';
 import { PaymentsService } from './services/payments';
 import { PlanService } from './services/plans';
-import { OperatorService } from './services/operator';
 import { FinP2PContract } from '../finp2p-contracts/src/contracts/finp2p';
 
 
@@ -52,7 +51,6 @@ function createApp(finP2PContract: FinP2PContract) {
     new EscrowService(finP2PContract),
     new PaymentsService(finP2PContract),
     new PlanService(),
-    new OperatorService(finP2PContract),
   );
 
   return app;
