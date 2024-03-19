@@ -1,6 +1,5 @@
 import { CommonService } from './common';
 import { v4 as uuid } from 'uuid';
-import { AccountService } from './accounts';
 
 
 export class PaymentsService extends CommonService {

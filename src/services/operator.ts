@@ -1,7 +1,4 @@
-import { CommonService, Transaction } from './common';
-import { v4 as uuid } from 'uuid';
-import { AccountService } from './accounts';
-
+import { CommonService } from './common';
 
 
 export interface Source {
@@ -9,7 +6,7 @@ export interface Source {
 }
 
 export interface CurrencyCode {
-  code: string
+  code: string;
 }
 
 export interface Asset {
@@ -18,46 +15,73 @@ export interface Asset {
 }
 
 export interface SetBalanceRequest {
-  to: Source
-  asset: Asset
-  balance: string
+  to: Source;
+  asset: Asset;
+  balance: string;
 }
 
 export interface SetBalanceResponse {
-  isCompleted: boolean
-  cid: string
-  response: Components.Schemas.Receipt
+  isCompleted: boolean;
+  cid: string;
+  response: Components.Schemas.Receipt;
 }
+
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 export class OperatorService extends CommonService {
 
   public async setBalance(request: SetBalanceRequest): Promise<SetBalanceResponse> {
+    const assetId = request.asset.code.code;
+    const finId = request.to.finId;
     const amount = parseInt(request.balance);
-    const asset = {
-      type: 'fiat',
-      code: request.asset.code.code,
-    } as Components.Schemas.Asset;
-    this.accountService.credit(request.to.finId, amount, asset);
 
-    let tx = {
-      id: uuid(),
-      amount: amount,
-      asset: asset,
-      timestamp: Date.now(),
-      destination: {
-        finId: request.to.finId,
-        account: {
-          finId: request.to.finId,
-        },
-      },
-    } as Transaction;
-    this.transactions[tx.id] = tx;
+    await this.createAssetIfNotExists(assetId);
 
+    const txHash = await this.finP2PContract.issue(assetId, finId, amount);
     return {
-      isCompleted: true,
-      cid: uuid(),
-      response: Transaction.toReceipt(tx),
+      isCompleted: false,
+      cid: txHash,
     } as SetBalanceResponse;
   }
 
+  private async createAssetIfNotExists(assetId: string) {
+    if (!await this.isAssetExists(assetId)) {
+      const tokenAddress = await this.finP2PContract.deployERC20(assetId, assetId,
+        this.finP2PContract.finP2PContractAddress);
+
+      const txHash = await this.finP2PContract.associateAsset(assetId, tokenAddress);
+      return this.waitForCompletion(txHash);
+    }
+  }
+
+  private async isAssetExists(assetId: string) {
+    try {
+      await this.finP2PContract.finP2P.getAssetAddress(assetId);
+    } catch (e) {
+      // @ts-ignore
+      if (e.reason === 'Asset not found') {
+        return false;
+      } else {
+        throw e;
+      }
+    }
+    return true;
+  }
+
+  private async waitForCompletion(txHash: string, tries: number = 300) {
+    for (let i = 1; i < tries; i++) {
+      const txReceipt = await this.finP2PContract.provider.getTransactionReceipt(txHash);
+      if (txReceipt !== null) {
+        if (txReceipt.status === 1) {
+          return;
+        } else {
+          throw new Error(`transaction failed: ${txHash}`);
+        }
+      }
+      await sleep(500);
+    }
+    throw new Error(`no result after ${tries} retries`);
+  }
+
 }
+

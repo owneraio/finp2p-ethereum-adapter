@@ -1,54 +1,22 @@
 import { logger } from '../helpers/logger';
-import { AccountService } from './accounts';
+import { FinP2PContract } from '../../finp2p-contracts/src/contracts/finp2p';
+import { extractAssetId, receiptToAPI } from './mapping';
 
-export class Transaction {
-
-  constructor(id: string, amount: number, asset: Components.Schemas.Asset, timestamp: number, source?: Components.Schemas.Source, destination?: Components.Schemas.Destination) {
-    this.id = id;
-    this.source = source;
-    this.destination = destination;
-    this.amount = amount;
-    this.asset = asset;
-    this.timestamp = timestamp;
-  }
-
-  id: string;
-
-  source?: Components.Schemas.Source;
-
-  destination?: Components.Schemas.Destination;
-
-  amount: number;
-
-  asset: Components.Schemas.Asset;
-
-  timestamp: number;
-
-  public static toReceipt(tx: Transaction): Components.Schemas.Receipt {
-    return {
-      id: tx.id,
-      asset: tx.asset,
-      quantity: `${tx.amount}`,
-      source: tx.source,
-      destination: tx.destination,
-      timestamp: tx.timestamp,
-    };
-  }
-}
 
 export class CommonService {
 
-  accountService: AccountService;
+  finP2PContract: FinP2PContract;
 
-  constructor(accountService: AccountService) {
-    this.accountService = accountService;
+  constructor(finP2PContract: FinP2PContract) {
+    this.finP2PContract = finP2PContract;
   }
-
-  transactions: Record<string, Transaction> = {};
 
   public async balance(request: Paths.GetAssetBalance.RequestBody): Promise<Paths.GetAssetBalance.Responses.$200> {
     logger.debug('balance', { request });
-    const balance = this.accountService.getBalance(request.owner.finId, request.asset);
+
+    let assetId = extractAssetId(request.asset);
+    const balance = await this.finP2PContract.balance(assetId, request.owner.finId);
+
     return {
       asset: request.asset,
       balance: `${balance}`,
@@ -56,27 +24,54 @@ export class CommonService {
   }
 
   public async getReceipt(id: Paths.GetReceipt.Parameters.TransactionId): Promise<Paths.GetReceipt.Responses.$200> {
-    const tx = this.transactions[id];
-    if (tx === undefined) {
-      throw new Error('transaction not found!');
+    try {
+      const receipt = await this.finP2PContract.getReceipt(id);
+      return {
+        isCompleted: true,
+        response: receiptToAPI(receipt),
+      } as Components.Schemas.ReceiptOperation;
+
+    } catch (e) {
+      return {
+        isCompleted: true,
+        error: {
+          code: 1,
+          message: e,
+        },
+      } as Components.Schemas.ReceiptOperation;
     }
-    return {
-      isCompleted: true,
-      response: Transaction.toReceipt(tx),
-    } as Components.Schemas.ReceiptOperation;
   }
 
   public async operationStatus(cid: string): Promise<Paths.GetOperation.Responses.$200> {
-    const tx = this.transactions[cid];
-    if (tx === undefined) {
-      throw new Error('transaction not found!');
+    const status = await this.finP2PContract.getOperationStatus(cid);
+    switch (status.status) {
+      case 'completed':
+        let receipt = receiptToAPI(status.receipt);
+        return {
+          type: 'receipt',
+          operation: {
+            isCompleted: true,
+            response: receipt,
+          },
+        } as Components.Schemas.OperationStatus;
+
+      case 'pending':
+        return {
+          type: 'receipt',
+          operation: {
+            isCompleted: false,
+            cid: cid,
+          },
+        } as Components.Schemas.OperationStatus;
+
+      case 'failed':
+        return {
+          type: 'receipt',
+          operation: {
+            isCompleted: true,
+            error: status.error,
+          },
+        } as Components.Schemas.OperationStatus;
     }
-    return {
-      type: 'receipt', operation: {
-        isCompleted: true,
-        response: Transaction.toReceipt(tx),
-      } as Components.Schemas.ReceiptOperation,
-    } as Components.Schemas.OperationStatus;
   }
 }
-
