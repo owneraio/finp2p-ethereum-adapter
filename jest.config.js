@@ -2,6 +2,9 @@ module.exports = {
   preset: "ts-jest",
   testEnvironment: "./tests/utils/test-environment.ts",
   testEnvironmentOptions: {
+    orgId: "bank-id",
+    // hashFunction: "sha-256",
+    hashFunction: "keccak-256",
     // adapter: {
     //   url: "http://localhost:3000",
     // },

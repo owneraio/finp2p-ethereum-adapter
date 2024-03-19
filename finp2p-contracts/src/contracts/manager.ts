@@ -4,7 +4,6 @@ import FINP2P from "../../artifacts/contracts/token/ERC20/FINP2POperatorERC20.so
 import ERC20 from "../../artifacts/contracts/token/ERC20/ERC20WithOperator.sol/ERC20WithOperator.json";
 import { ERC20WithOperator, FINP2POperatorERC20 } from "../../typechain-types";
 
-
 export class ContractsManager {
 
   provider: Provider;
@@ -28,7 +27,7 @@ export class ContractsManager {
     return address;
   }
 
-  async deployFinP2PContract(signerAddress : string | null) {
+  async deployFinP2PContract(signerAddress: string | null) {
     console.log("Deploying FinP2P contract...");
     const factory = new ContractFactory<any[], FINP2POperatorERC20>(
       FINP2P.abi, FINP2P.bytecode, this.signer

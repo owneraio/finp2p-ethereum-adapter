@@ -5,11 +5,11 @@
   "main": "dist/src/index.js",
   "homepage": "https://ownera.io/",
   "scripts": {
-    "clean": "rm -rf dist && rm -rf artifacts && rm -rf typechain-types",
+    "clean": "rm -rf dist",
     "api-generate": "dtsgen -o ./src/services/model-gen.ts dlt-adapter-api.yaml",
     "prebuild": "eslint ./src --ext .ts --fix",
     "build": "tsc",
-    "tests": "jest",
+    "test": "jest",
     "start": "node ."
   },
   "keywords": [],

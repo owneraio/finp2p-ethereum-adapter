@@ -1,4 +1,4 @@
-import { ContractFactory, Interface, NonceManager } from "ethers";
+import { ContractFactory, Interface } from "ethers";
 import FINP2P
   from "../../artifacts/contracts/token/ERC20/FINP2POperatorERC20.sol/FINP2POperatorERC20.json";
 import { FINP2POperatorERC20 } from "../../typechain-types";

@@ -17,14 +17,8 @@
       ]
     }
   },
-  "files": [
-    "hardhat.config.ts"
-  ],
   "include": [
     "src/**/*.ts",
-    "tests/**/*.ts",
-    "artifacts/contracts/**/*.json",
-    "typechain-types/**/*.ts",
-    "scripts/**/*.ts"
+    "test/**/*.ts",
   ]
 }

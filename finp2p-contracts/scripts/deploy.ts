@@ -1,18 +1,12 @@
 import process from "process";
-import { NonceManager, Wallet } from "ethers";
 import { ContractsManager } from "../src/contracts/manager";
 import console from "console";
 
-const deploy = async (ethereumRPCUrl: string, deployerPrivateKey: string, operatorPrivateKey: string) => {
+const deploy = async (ethereumRPCUrl: string, deployerPrivateKey: string, operatorAddress: string) => {
   if (!deployerPrivateKey) {
     throw new Error("DEPLOYER_PRIVATE_KEY is not set");
   }
-  const deployer = new NonceManager(new Wallet(deployerPrivateKey));
-  let operatorAddress: string | null = null;
-  if (operatorPrivateKey !== "") {
-    operatorAddress = new Wallet(operatorPrivateKey).address;
-  }
-  const contractManger = new ContractsManager(ethereumRPCUrl, deployer);
+  const contractManger = new ContractsManager(ethereumRPCUrl, deployerPrivateKey);
   const finP2PContractAddress = await contractManger.deployFinP2PContract(operatorAddress);
   console.log("FINP2P_CONTRACT_ADDRESS=", finP2PContractAddress);
 };

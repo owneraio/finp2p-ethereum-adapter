@@ -1,5 +1,4 @@
 import process from "process";
-import { NonceManager, Wallet } from "ethers";
 import { ContractsManager } from "../src/contracts/manager";
 import console from "console";
 
@@ -8,8 +7,7 @@ const grant = async (ethereumRPCUrl: string, finp2pContractAddress: string, depl
     throw new Error("DEPLOYER_PRIVATE_KEY is not set");
   }
   console.log("Granting asset manager and transaction manager roles finP2P contract", finp2pContractAddress);
-  const deployer = new NonceManager(new Wallet(deployerPrivateKey));
-  const contractManger = new ContractsManager(ethereumRPCUrl, deployer);
+  const contractManger = new ContractsManager(ethereumRPCUrl, deployerPrivateKey);
   await contractManger.grantAssetManagerRole(finp2pContractAddress, operatorAddress);
   await contractManger.grantTransactionManagerRole(finp2pContractAddress, operatorAddress);
 };

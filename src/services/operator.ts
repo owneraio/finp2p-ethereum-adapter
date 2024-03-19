@@ -26,6 +26,8 @@ export interface SetBalanceResponse {
   response: Components.Schemas.Receipt;
 }
 
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
 export class OperatorService extends CommonService {
 
   public async setBalance(request: SetBalanceRequest): Promise<SetBalanceResponse> {
@@ -76,9 +78,10 @@ export class OperatorService extends CommonService {
           throw new Error(`transaction failed: ${txHash}`);
         }
       }
-      await new Promise((r) => setTimeout(r, 500));
+      await sleep(500);
     }
     throw new Error(`no result after ${tries} retries`);
   }
 
 }
+

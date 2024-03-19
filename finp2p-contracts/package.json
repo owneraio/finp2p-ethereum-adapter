@@ -4,6 +4,7 @@
   "description": "",
   "homepage": "https://ownera.io/",
   "scripts": {
+    "clean": "rm -rf dist && rm -rf cache && rm -rf artifacts && rm -rf typechain-types",
     "compile": "hardhat compile",
     "test": "hardhat test",
     "build": "tsc",

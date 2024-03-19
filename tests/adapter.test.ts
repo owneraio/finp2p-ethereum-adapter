@@ -1,21 +1,28 @@
 import { ASSET, createCrypto, generateNonce, randomResourceId, transferSignature } from "./utils/utils";
 import { APIClient } from "./api/api";
-import { LEDGER_HASH_FUNCTION, ORG1_MSPID } from "./api/configuration";
 import { v4 as uuidv4 } from "uuid";
 
 
 describe(`token service test`, () => {
 
-  test(`
-        Scenario: issue / transfer / redeem
-     `, async () => {
+  let client: APIClient;
+  let orgId: string;
+  let hashFunction: string;
 
+  beforeAll(async () => {
     // @ts-ignore
-    const client = new APIClient(global.serverAddress);
+    client = new APIClient(global.serverAddress);
+    // @ts-ignore
+    orgId = global.orgId;
+    // @ts-ignore
+    hashFunction = global.hashFunction;
+  });
+
+  test(` Scenario: issue / transfer / redeem`, async () => {
 
     const asset = {
       type: "finp2p",
-      resourceId: randomResourceId(ORG1_MSPID, ASSET)
+      resourceId: randomResourceId(orgId, ASSET)
     } as Components.Schemas.Asset;
 
     const buyerCrypto = createCrypto();
@@ -77,7 +84,7 @@ describe(`token service test`, () => {
         destination: buyer,
         expiry: 6000
       },
-      LEDGER_HASH_FUNCTION,
+      hashFunction,
       buyerCrypto.private
     );
 
@@ -115,7 +122,7 @@ describe(`token service test`, () => {
         destination: buyer,
         expiry: 6000
       },
-      LEDGER_HASH_FUNCTION,
+      hashFunction,
       buyerCrypto.private
     );
 
@@ -137,8 +144,6 @@ describe(`token service test`, () => {
   });
 
   test(`Scenario: escrow hold / release`, async () => {
-    // @ts-ignore
-    const client = new APIClient(global.serverAddress);
 
     const asset = { type: "fiat", code: "USD" } as Components.Schemas.Asset;
 
@@ -207,7 +212,7 @@ describe(`token service test`, () => {
         nonce: generateNonce(),
         operation: "transfer",
         quantity: 10,
-        asset: { type: "finp2p", resourceId: randomResourceId(ORG1_MSPID, ASSET) },
+        asset: { type: "finp2p", resourceId: randomResourceId(orgId, ASSET) },
         source: seller,
         destination: buyer
       },
@@ -218,7 +223,7 @@ describe(`token service test`, () => {
         destination: seller,
         expiry: expiry
       },
-      LEDGER_HASH_FUNCTION, buyerCrypto.private
+      hashFunction, buyerCrypto.private
     );
 
     const status = await client.escrow.hold({
