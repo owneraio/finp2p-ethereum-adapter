@@ -13,6 +13,9 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '18.x'
+      - run: cd ./finp2p-contracts && npm install
+      - run: cd ./finp2p-contracts && npm run compile
+      - run: cd ./finp2p-contracts && npm run test
       - run: npm install
       - run: npm run build
       - run: npm test
