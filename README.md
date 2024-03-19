@@ -20,7 +20,7 @@ Adapter communicated with FinP2P proxy contract on Ethereum network which is res
 
 #### Run adapter tests
 
-By default, test environment starts Hardhat node within test-containers and adapter server and run tests against it. 
+By default, test environment starts Hardhat node within test-containers and adapter server and run tests against it.
 
 `npm run adapter-test`
 
