@@ -1,5 +1,4 @@
 import { ClientBase } from "./base";
-import { SetBalanceRequest, SetBalanceResponse } from "../../src/services/operator";
 
 
 export class APIClient {
@@ -8,14 +7,12 @@ export class APIClient {
   public readonly escrow: EscrowAPI;
   public readonly payments: PaymentsAPI;
   public readonly common: CommonAPI;
-  public readonly operator: OperatorAPI;
 
   constructor(host: string) {
     this.tokens = new TokensAPI(host);
     this.escrow = new EscrowAPI(host);
     this.payments = new PaymentsAPI(host);
     this.common = new CommonAPI(host);
-    this.operator = new OperatorAPI(host);
   }
 
   async expectReceipt(status: any): Promise<Components.Schemas.Receipt> {
@@ -136,17 +133,4 @@ export class CommonAPI extends ClientBase {
     throw new Error(`no result after ${tries} retries`);
   }
 }
-
-
-export class OperatorAPI extends ClientBase {
-
-  constructor(host: string) {
-    super(host);
-  }
-
-  public async setBalance(req: SetBalanceRequest): Promise<SetBalanceResponse> {
-    return await this.post("/operator/setBalance", req);
-  }
-}
-
 
