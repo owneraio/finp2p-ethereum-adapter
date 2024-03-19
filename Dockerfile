@@ -13,7 +13,10 @@ COPY \
     ./
 
 COPY src ./src
+COPY finp2p-contracts ./finp2p-contracts
 
+RUN cd ./finp2p-contracts && npm install
+RUN cd ./finp2p-contracts && npm run compile
 RUN npm install
 RUN npm run build
 

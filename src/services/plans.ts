@@ -1,7 +1,6 @@
 import { v4 as uuid } from 'uuid';
 import { logger } from '../helpers/logger';
 
-
 export class PlanService {
 
   public async approvePlan(request: Paths.ApproveExecutionPlan.RequestBody): Promise<Paths.ApproveExecutionPlan.Responses.$200> {
