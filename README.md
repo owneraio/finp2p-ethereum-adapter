@@ -1,6 +1,3 @@
-[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://github.com/owneraio/finp2p-ethereum-adapter/blob/master/LICENSE)  
-© 2019-2022 XCap Ecosystem Ltd trading as Ownera. All rights reserved. SPDX-License-Identifier: Apache-2.0
-
 # FinP2P Ethereum Reference Adapter
 
 The FinP2P Ethereum adapter is a reference implementation of a FinP2P adapter to EVM compatiable ledgers. It allows to execute FinP2P instructions to trade tokenized assets on the Ethereum network.
@@ -30,6 +27,9 @@ By default, test environment starts Hardhat node within test-containers and adap
 #### External ethereum network
 
 To run tests against external network, set `network.rpcUrl` parameter in `jest.config.js` to the desired network url.
+
+
+© 2019-2022 XCap Ecosystem Ltd trading as Ownera. All rights reserved. 
 
 To run tests against external adapter, set `adapter.url` parameter in `jest.config.js` to the desired adapter url.
 
