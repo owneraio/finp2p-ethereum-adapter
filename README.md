@@ -3,6 +3,10 @@
 The FinP2P Ethereum adapter is a reference implementation of a FinP2P adapter to EVM compatiable ledgers. It allows to execute FinP2P instructions to trade tokenized assets on the Ethereum network.
 The Adapter communicated with a FinP2P proxy contract on Ethereum network which is responsible to verify and execute the asset movements on chain.
 
+## Documentation
+
+- [Design choices](specs/design.md)
+
 ### Getting started
 
 
