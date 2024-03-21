@@ -1,7 +1,10 @@
-# FinP2P Ethereum Adapter
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://github.com/owneraio/finp2p-ethereum-adapter/blob/master/LICENSE)  
+© 2019-2022 XCap Ecosystem Ltd trading as Ownera. All rights reserved. SPDX-License-Identifier: Apache-2.0
 
-The goal of FinP2P Ethereum adapter is to translate and facilitate FinP2P instructions to move an ownership of the tokenized assets on Ethereum network.
-Adapter communicated with FinP2P proxy contract on Ethereum network which is responsible to verify and execute the asset movements on chain.
+# FinP2P Ethereum Reference Adapter
+
+The FinP2P Ethereum adapter is a reference implementation of a FinP2P adapter to EVM compatiable ledgers. It allows to execute FinP2P instructions to trade tokenized assets on the Ethereum network.
+The Adapter communicated with a FinP2P proxy contract on Ethereum network which is responsible to verify and execute the asset movements on chain.
 
 ### Getting started
 
