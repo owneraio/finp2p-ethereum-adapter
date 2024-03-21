@@ -29,8 +29,6 @@ By default, test environment starts Hardhat node within test-containers and adap
 To run tests against external network, set `network.rpcUrl` parameter in `jest.config.js` to the desired network url.
 
 
-© 2019-2022 XCap Ecosystem Ltd trading as Ownera. All rights reserved. 
-
 To run tests against external adapter, set `adapter.url` parameter in `jest.config.js` to the desired adapter url.
 
 #### Run adapter
