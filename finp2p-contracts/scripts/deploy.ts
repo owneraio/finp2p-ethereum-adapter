@@ -13,7 +13,7 @@ const deploy = async (ethereumRPCUrl: string, deployerPrivateKey: string, operat
 
 const ethereumRPCUrl = process.argv[2] || "";
 const deployerPrivateKey1 = process.argv[3] || "";
-const operatorPrivateKey = process.argv[4] || "";
-deploy(ethereumRPCUrl, deployerPrivateKey1, operatorPrivateKey)
+const operatorAddress = process.argv[4] || "";
+deploy(ethereumRPCUrl, deployerPrivateKey1, operatorAddress)
   .then(() => {
   });

@@ -9,7 +9,8 @@
     "test": "hardhat test",
     "build": "tsc",
     "deploy-contract": "node dist/scripts/deploy.js",
-    "grant-operator-roles": "node dist/scripts/grant.js"
+    "grant-operator-roles": "node dist/scripts/grant.js",
+    "associate-asset": "node dist/scripts/associate.js"
   },
   "keywords": [],
   "author": "",

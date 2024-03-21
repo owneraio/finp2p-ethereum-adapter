@@ -22,6 +22,7 @@ export class ContractsManager {
       this.signer
     );
     const contract = await factory.deploy(name, symbol, finP2PContractAddress);
+    await contract.waitForDeployment();
     const address = await contract.getAddress();
     console.log("ERC20 contract deployed successfully at:", address);
     return address;
