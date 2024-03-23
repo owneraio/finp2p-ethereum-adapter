@@ -6,6 +6,7 @@ The Adapter communicated with a FinP2P proxy contract on Ethereum network which 
 ## Documentation
 
 - [Design choices](specs/design.md)
+- [Contract details and scripts](./finp2p-contracts/README.md)
 
 ### Getting started
 
@@ -35,6 +36,3 @@ To run tests against external network, set `network.rpcUrl` parameter in `jest.c
 
 To run tests against external adapter, set `adapter.url` parameter in `jest.config.js` to the desired adapter url.
 
-
-
-[Contract details and scripts](./finp2p-contracts/README.md)
