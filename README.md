@@ -1,3 +1,5 @@
+© 2024 XCap Ecosystem Ltd trading as Ownera. All rights reserved. SPDX-License-Identifier: Apache-2.0
+
 # FinP2P Ethereum Reference Adapter
 
 The FinP2P Ethereum adapter is a reference implementation of a FinP2P adapter to EVM compatiable ledgers. It allows to execute FinP2P instructions to trade tokenized assets on the Ethereum network.
