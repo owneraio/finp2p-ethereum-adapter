@@ -6,7 +6,7 @@ pragma solidity ^0.8.0;
 import "./IFinP2PCommon.sol";
 
 /**
- * @dev Interface of the ERC20 standard as defined in the EIP.
+ * @dev Interface of the FinP2P protocol escrow operations.
  */
 interface IFinP2PEscrow is IFinP2PCommon {
 

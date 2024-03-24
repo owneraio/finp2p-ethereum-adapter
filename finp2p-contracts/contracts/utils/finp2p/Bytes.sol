@@ -4,7 +4,7 @@
 pragma solidity ^0.8.0;
 
 /**
- * @dev String operations.
+ * @dev Library containing functions for manipulating FinP2P FinID and other utility methods.
  */
 library Bytes {
 

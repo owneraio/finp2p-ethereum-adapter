@@ -11,11 +11,12 @@ import "../../utils/finp2p/Bytes.sol";
 import "@openzeppelin/contracts/access/AccessControl.sol";
 
 /**
- * @dev A token holder contract that will allow a beneficiary to extract the
- * tokens after a given release time.
+ * @dev FINP2POperatorERC20
  *
- * Useful for simple vesting schedules like "advisors get all of their tokens
- * after 1 year".
+ * This contract implements the FINP2P protocol operations for ERC20 tokens.
+ * It allows to associate and remove assets, issue, transfer and redeem tokens.
+ * It also allows to hold and release tokens in escrow.
+ *
  */
 contract FINP2POperatorERC20 is IFinP2PAsset, IFinP2PEscrow, AccessControl {
 

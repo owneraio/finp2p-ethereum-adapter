@@ -5,6 +5,9 @@ pragma solidity ^0.8.0;
 import "../../utils/finp2p/Signature.sol";
 import "../../utils/finp2p/Bytes.sol";
 
+/**
+ * @dev Test contract for FinP2P protocol signature verification.
+ */
 contract SignatureTest {
 
     function verifyHoldSignature(

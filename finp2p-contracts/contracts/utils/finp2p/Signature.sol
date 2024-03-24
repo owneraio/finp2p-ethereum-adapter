@@ -5,8 +5,9 @@ pragma solidity ^0.8.0;
 
 import "@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
 import "@openzeppelin/contracts/utils/Strings.sol";
+
 /**
- * @dev String operations.
+ * @dev Library for FinP2P protocol signature verification.
  */
 library Signature {
 
