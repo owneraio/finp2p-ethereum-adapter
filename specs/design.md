@@ -14,7 +14,7 @@ The execution plan is built of a set of instructions, each targeting a particula
 ## Design Considerations
 
 - **Ethereum Compatibility:** The adapter design should be aligned with Ethereum transaction formats, smart contract standards (such as ERC-20 and other token standards), and the Ethereum Virtual Machine (EVM).
-- **Offline Signing:** Users should securely sign offline transactions with their secp256k1 keys.
+- **Off-chain Signing:** Users should securely sign off-chain transactions with their secp256k1 keys.
 - **Proxy/Operator Contract:** An operator contract will likely be needed to check payload signatures on-chain and dispatch operations to corresponding asset contracts. This principle follows the operator contract model implemented by token standards.
 - **Security:** Protecting against replay attacks and implementing robust authorization mechanisms is paramount.
 - **Flexibility:** The system should be adaptable to support different types of Ethereum-based assets (e.g., fungible, non-fungible).
