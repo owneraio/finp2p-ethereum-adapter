@@ -1,5 +1,4 @@
-// SPDX-License-Identifier: MIT
-// OpenZeppelin Contracts v4.4.1 (utils/Strings.sol)
+// SPDX-License-Identifier: Apache-2.0
 
 pragma solidity ^0.8.0;
 

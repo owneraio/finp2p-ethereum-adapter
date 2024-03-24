@@ -1,5 +1,4 @@
-// SPDX-License-Identifier: MIT
-// OpenZeppelin Contracts v4.4.1 (utils/Strings.sol)
+// SPDX-License-Identifier: Apache-2.0
 
 pragma solidity ^0.8.0;
 
@@ -29,7 +28,7 @@ library Bytes {
     function fromHex(string memory s) public pure returns (bytes memory) {
         bytes memory ss = bytes(s);
         require(ss.length % 2 == 0);
-        // length must be even
+
         bytes memory r = new bytes(ss.length / 2);
         for (uint i = 0; i < ss.length / 2; ++i) {
             r[i] = bytes1(fromHexChar(uint8(ss[2 * i])) * 16 +
@@ -56,7 +55,6 @@ library Bytes {
     function deriveY(uint8 _prefix, uint256 _x, uint256 _aa, uint256 _bb, uint256 _pp) internal pure returns (uint256) {
         require(_prefix == 0x02 || _prefix == 0x03, "Invalid compressed EC point prefix");
         uint256 y2 = addmod(mulmod(_x, mulmod(_x, _x, _pp), _pp), addmod(mulmod(_x, _aa, _pp), _bb, _pp), _pp);
-        // x^3 + ax + b
         y2 = expmod(y2, (_pp + 1) / 4, _pp);
         return (y2 + _prefix) % 2 == 0 ? y2 : _pp - y2;
     }
