@@ -1,21 +1,26 @@
-name: Node.js CI
+name: CI
 
-on: [push]
+on:
+  push:
+    branches:
+      - 'master'
+    tags:
+      - 'v0.**'
+  pull_request:
 
 jobs:
   build:
-
     runs-on: ubuntu-latest
-
+    timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
-      - name: Use Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '18.x'
-      - run: cd ./finp2p-contracts && npm install
-      - run: cd ./finp2p-contracts && npm run compile
-      - run: cd ./finp2p-contracts && npm run test
-      - run: npm install
-      - run: npm run build
-      - run: npm test
+
+      - name: Checkout application repository
+        uses: actions/checkout@v4
+
+      - name: Build Adapter Docker image
+        run: |
+          docker build -t finp2p-ethereum-adapter:latest -f ./Dockerfile .
+
+      - name: Build Hardhat Docker image
+        run: |
+          docker build -t hardhat:latest -f ./Dockerfile-hardhat .
