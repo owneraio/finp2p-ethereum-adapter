@@ -15,21 +15,24 @@ The Adapter communicated with a FinP2P proxy contract on Ethereum network which 
 
 #### Install dependencies
 
+
 `npm install`
 
 #### Compile contracts and generate typescript bindings
 
-`npm run contracts-compile`
+The contracts project is located in ./finp2p-contract folder and has its own dependencies to be installed. 
+
+`cd finp2p-contracts && npm install && npm run compile`
 
 #### Run contracts tests
 
-`npm run contracts-test`
+`cd finp2p-contracts && npm run test`
 
 #### Run adapter tests
 
 By default, test environment starts Hardhat node within test-containers and adapter server and run tests against it.
 
-`npm run adapter-test`
+`npm test`
 
 #### External ethereum network
 
