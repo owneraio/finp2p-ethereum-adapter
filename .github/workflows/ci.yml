@@ -17,10 +17,36 @@ jobs:
       - name: Checkout application repository
         uses: actions/checkout@v4
 
+      - name: Set Docker tags
+        run: |
+          set -euxo pipefail
+          case $GITHUB_EVENT_NAME in
+            push)
+              IMAGE_TAG=$GITHUB_REF_NAME
+              ;;
+            pull_request)
+              IMAGE_TAG=$GITHUB_HEAD_REF
+              ;;
+            *)
+              echo "ERROR: Unknown event"
+              exit 1
+              ;;
+          esac
+          export IMAGE_TAG=$(echo $IMAGE_TAG | sed 's/\//-/g' | sed 's/^v//')
+          echo "IMAGE_TAG=$IMAGE_TAG" >> "$GITHUB_ENV"
+
+      - name: Login to GitHub Container Registry
+        env:
+          GHCR_USER: ${{ secrets.CROSS_REPO_USER }}
+          GHCR_TOKEN: ${{ secrets.CROSS_REPO_TOKEN }}
+        run: |
+          echo $GHCR_TOKEN | docker login ghcr.io -u $GHCR_USER --password-stdin
+
       - name: Build Adapter Docker image
         run: |
-          docker build -t finp2p-ethereum-adapter:latest -f ./Dockerfile .
+          docker build -t finp2p-ethereum-adapter:$IMAGE_TAG -f ./Dockerfile .
 
       - name: Build Hardhat Docker image
         run: |
-          docker build -t hardhat:latest -f ./Dockerfile-hardhat .
+          docker build -t hardhat:$IMAGE_TAG -f ./Dockerfile-hardhat .
+
