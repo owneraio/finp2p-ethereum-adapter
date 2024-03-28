@@ -44,9 +44,16 @@ jobs:
 
       - name: Build Adapter Docker image
         run: |
-          docker build -t finp2p-ethereum-adapter:$IMAGE_TAG -f ./Dockerfile .
+          docker build -t ghcr.io/owneraio/finp2p-ethereum-adapter:$IMAGE_TAG -f ./Dockerfile .
+
+      - name: Push Adapter Docker image
+        run: |
+          docker push ghcr.io/owneraio/finp2p-ethereum-adapter:$IMAGE_TAG
 
       - name: Build Hardhat Docker image
         run: |
-          docker build -t hardhat:$IMAGE_TAG -f ./Dockerfile-hardhat .
+          docker build -t ghcr.io/owneraio/hardhat:$IMAGE_TAG -f ./Dockerfile-hardhat .
 
+      - name: Push Hardhat Docker image
+        run: |
+          docker push ghcr.io/owneraio/hardhat:$IMAGE_TAG
