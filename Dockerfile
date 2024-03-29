@@ -17,8 +17,10 @@ COPY finp2p-contracts ./finp2p-contracts
 
 RUN cd ./finp2p-contracts && npm install
 RUN cd ./finp2p-contracts && npm run compile
+RUN cd ./finp2p-contracts && npm run test
 RUN npm install
 RUN npm run build
+RUN npm run test
 
 # ------- Release ----------
 FROM base as release
