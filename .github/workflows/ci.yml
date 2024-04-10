@@ -17,6 +17,23 @@ jobs:
       - name: Checkout application repository
         uses: actions/checkout@v4
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18.x'
+
+      - run: cd ./finp2p-contracts && npm install
+
+      - run: cd ./finp2p-contracts && npm run compile
+
+      - run: cd ./finp2p-contracts && npm run test
+
+      - run: npm install
+
+      - run: npm run build
+
+      - run: npm test
+
       - name: Set Docker tags
         run: |
           set -euxo pipefail
