@@ -19,7 +19,7 @@
     "ethers": "^6.11.1"
   },
   "devDependencies": {
-    "@nomicfoundation/edr-linux-x64-gnu": "^0.3.2",
+    "@nomicfoundation/edr": "^0.3.2",
     "@nomicfoundation/hardhat-toolbox": "^4.0.0",
     "@openzeppelin/contracts": "^5.0.2",
     "@typechain/hardhat": "^9.1.0",
