@@ -1,5 +1,5 @@
 import { CommonService } from './common';
-import { extractAssetId } from "./mapping";
+import { extractAssetId } from './mapping';
 
 export class TokenService extends CommonService {
 

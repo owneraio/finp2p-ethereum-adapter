@@ -9,9 +9,6 @@ import { PaymentsService } from './services/payments';
 import { PlanService } from './services/plans';
 import { FinP2PContract } from '../finp2p-contracts/src/contracts/finp2p';
 
-
-
-
 function configureLogging(app: Application) {
   app.use(
     expressLogger({

@@ -5,6 +5,7 @@ import { FINP2POperatorERC20 } from "../../typechain-types";
 import { FinP2PReceipt, OperationStatus } from "./model";
 import { parseTransactionReceipt, stringToByte16 } from "./utils";
 import { ContractsManager } from "./manager";
+import { EthereumConfig } from "./ethereumConfig";
 
 export class FinP2PContract extends ContractsManager {
 
@@ -14,15 +15,15 @@ export class FinP2PContract extends ContractsManager {
 
   finP2PContractAddress: string;
 
-  constructor(rpcURL: string, signerPrivateKey: string, finP2PContractAddress: string) {
-    super(rpcURL, signerPrivateKey);
+  constructor(config: EthereumConfig) {
+    super(config);
     const factory = new ContractFactory<any[], FINP2POperatorERC20>(
       FINP2P.abi, FINP2P.bytecode, this.signer
     );
-    const contract = factory.attach(finP2PContractAddress);
+    const contract = factory.attach(config.finP2PContractAddress);
     this.contractInterface = contract.interface;
     this.finP2P = contract as FINP2POperatorERC20;
-    this.finP2PContractAddress = finP2PContractAddress;
+    this.finP2PContractAddress = config.finP2PContractAddress;
   }
 
   async associateAsset(assetId: string, tokenAddress: string) {
