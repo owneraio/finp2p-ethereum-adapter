@@ -1,9 +1,9 @@
 import process from "process";
 import { ContractsManager } from "../src/contracts/manager";
-import { EthereumConfig } from "../src/contracts/ethereumConfig";
+import { ContractManagerConfig } from "../src/contracts/config";
 import console from "console";
 
-const grant = async (config: EthereumConfig) => {
+const grant = async (config: ContractManagerConfig) => {
   if (!deployerPrivateKey) {
     throw new Error("DEPLOYER_PRIVATE_KEY is not set");
   }
@@ -23,7 +23,7 @@ const config = {
   signerPrivateKey: deployerPrivateKey,
   finP2PContractAddress: finp2pContractAddress,
   operatorAddress: operatorAddress,
-} as EthereumConfig;
+} as ContractManagerConfig;
 
 grant(config)
   .then(() => {

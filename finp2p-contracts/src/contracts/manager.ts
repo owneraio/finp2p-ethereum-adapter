@@ -3,14 +3,15 @@ import console from "console";
 import FINP2P from "../../artifacts/contracts/token/ERC20/FINP2POperatorERC20.sol/FINP2POperatorERC20.json";
 import ERC20 from "../../artifacts/contracts/token/ERC20/ERC20WithOperator.sol/ERC20WithOperator.json";
 import { ERC20WithOperator, FINP2POperatorERC20 } from "../../typechain-types";
-import { EthereumConfig } from "./ethereumConfig";
+import { ContractManagerConfig } from "./config";
 
 export class ContractsManager {
 
   provider: Provider;
+
   signer: Signer;
 
-  constructor(config: EthereumConfig) {
+  constructor(config: ContractManagerConfig) {
     this.provider = new JsonRpcProvider(config.rpcURL);
     this.signer = new NonceManager(new Wallet(config.signerPrivateKey)).connect(this.provider);
   }

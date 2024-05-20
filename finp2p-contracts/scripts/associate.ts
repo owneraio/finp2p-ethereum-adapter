@@ -1,9 +1,9 @@
 import process from "process";
 import console from "console";
 import { FinP2PContract } from "../src/contracts/finp2p";
-import { EthereumConfig } from "../src/contracts/ethereumConfig";
+import { FinP2PContractConfig } from "../src/contracts/config";
 
-const associateAsset = async (config: EthereumConfig, assetId: string, erc20Address: string) => {
+const associateAsset = async (config: FinP2PContractConfig, assetId: string, erc20Address: string) => {
   if (!deployerPrivateKey) {
     throw new Error("DEPLOYER_PRIVATE_KEY is not set");
   }
@@ -23,7 +23,7 @@ const config = {
   rpcURL: ethereumRPCUrl,
   signerPrivateKey: deployerPrivateKey,
   finP2PContractAddress: finp2pContractAddress,
-} as EthereumConfig;
+} as FinP2PContractConfig;
 
 associateAsset(config, assetId, erc20Address)
   .then(() => {

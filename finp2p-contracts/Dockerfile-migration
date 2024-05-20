@@ -1,0 +1,26 @@
+FROM node:18-alpine AS base
+WORKDIR /usr/app
+
+FROM base AS builder
+
+COPY \
+    package.json \
+    package-lock.json \
+    tsconfig.json \
+    hardhat.config.ts \
+    ./
+
+COPY src ./src
+COPY scripts ./scripts
+
+RUN npm install
+RUN npm run compile
+RUN npm run build
+
+FROM base AS deployer
+
+COPY --from=builder /usr/app/node_modules ./node_modules
+COPY --from=builder /usr/app/dist ./dist
+COPY --from=builder /usr/app/package.json ./
+
+CMD [ "npm", "run", "deploy-contract-job", "--", "config.json" ]

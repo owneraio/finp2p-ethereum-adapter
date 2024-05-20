@@ -10,6 +10,7 @@ import { ContractsManager } from "../../finp2p-contracts/src/contracts/manager";
 import { AdapterParameters, NetworkDetails, NetworkParameters } from "./models";
 import { randomPort } from "./utils";
 import { addressFromPrivateKey } from "../../finp2p-contracts/src/contracts/utils";
+import { FinP2PDeployerConfig, FinP2PContractConfig } from "../../finp2p-contracts/src/contracts/config";
 
 
 class CustomTestEnvironment extends NodeEnvironment {
@@ -43,8 +44,16 @@ class CustomTestEnvironment extends NodeEnvironment {
       const deployer = details.accounts[0];
       const operator = details.accounts[1];
 
-      const contractAddress = await this.deployContract(details.rpcUrl, deployer, addressFromPrivateKey(operator));
-      this.global.serverAddress = await this.startApp(contractAddress, details.rpcUrl, operator);
+      const finP2PContractAddress = await this.deployContract({
+        rpcURL: details.rpcUrl,
+        deployerPrivateKey: deployer,
+        operatorAddress: addressFromPrivateKey(operator),
+      })
+      this.global.serverAddress = await this.startApp({
+        rpcURL: details.rpcUrl,
+        signerPrivateKey: operator,
+        finP2PContractAddress
+      });
 
     } catch (err) {
       console.error("Error starting container:", err);
@@ -99,13 +108,16 @@ class CustomTestEnvironment extends NodeEnvironment {
     return { rpcUrl, accounts } as NetworkDetails;
   }
 
-  private async deployContract(rpcUrl: string, deployer: string, signerAddress: string | null) {
-    const contractManger = new ContractsManager(rpcUrl, deployer);
-    return await contractManger.deployFinP2PContract(signerAddress);
+  private async deployContract(config: FinP2PDeployerConfig) {
+    const contractManger = new ContractsManager({
+      rpcURL: config.rpcURL,
+      signerPrivateKey: config.deployerPrivateKey
+    });
+    return await contractManger.deployFinP2PContract(config.operatorAddress);
   }
 
-  private async startApp(contractAddress: string, rpcUrl: string, signerPrivateKey: string) {
-    const finP2PContract = new FinP2PContract(rpcUrl, signerPrivateKey, contractAddress);
+  private async startApp(config: FinP2PContractConfig) {
+    const finP2PContract = new FinP2PContract(config);
 
     const port = randomPort();
     const app = createApp(finP2PContract);

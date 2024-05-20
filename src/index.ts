@@ -2,15 +2,15 @@ import { logger } from './helpers/logger';
 import { FinP2PContract } from '../finp2p-contracts/src/contracts/finp2p';
 import * as process from 'process';
 import createApp from './app';
-import { EthereumConfig, readEthereumConfig } from '../finp2p-contracts/src/contracts/ethereumConfig';
+import { FinP2PContractConfig, readConfig } from '../finp2p-contracts/src/contracts/config';
 
 const init = async () => {
   const port = process.env.PORT || '3000';
 
   const configFile = process.env.CONFIG_FILE || '';
-  let config: EthereumConfig;
+  let config: FinP2PContractConfig;
   if (configFile) {
-    config = await readEthereumConfig(configFile);
+    config = await readConfig<FinP2PContractConfig>(configFile);
   } else {
     let ethereumRPCUrl = process.env.NETWORK_HOST || '';
     if (!ethereumRPCUrl) {
@@ -38,8 +38,6 @@ const init = async () => {
     }
     config = {
       rpcURL: ethereumRPCUrl,
-      deployerPrivateKey: '',
-      operatorAddress: '',
       signerPrivateKey: operatorPrivateKey,
       finP2PContractAddress,
     };

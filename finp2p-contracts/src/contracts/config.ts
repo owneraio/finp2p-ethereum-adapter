@@ -1,15 +1,22 @@
 import * as fs from "fs";
 
-export type EthereumConfig = {
+export type ContractManagerConfig = {
+  rpcURL: string;
+  signerPrivateKey: string;
+};
+
+export type FinP2PDeployerConfig = {
   rpcURL: string;
   deployerPrivateKey: string;
   operatorAddress: string;
-  signerPrivateKey: string;
+};
+
+export type FinP2PContractConfig = ContractManagerConfig & {
   finP2PContractAddress: string;
-}
+};
 
 
-export const readEthereumConfig = async (configPath: string): Promise<EthereumConfig> => {
+export const readConfig = async <T>(configPath: string): Promise<T> => {
   return new Promise((resolve, reject) => {
     fs.readFile(configPath, "utf8", (err, data) => {
       if (err) {
@@ -20,7 +27,7 @@ export const readEthereumConfig = async (configPath: string): Promise<EthereumCo
   });
 };
 
-export const writeEthereumConfig = async (configPath: string, config: EthereumConfig): Promise<void> => {
+export const writeConfig = async <T>(configPath: string, config: T): Promise<void> => {
   return new Promise((resolve, reject) => {
     fs.writeFile(configPath, JSON.stringify(config, null, 2), (err) => {
       if (err) {
