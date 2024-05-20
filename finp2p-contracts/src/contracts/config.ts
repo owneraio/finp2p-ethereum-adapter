@@ -27,7 +27,7 @@ export const readConfig = async <T>(configPath: string): Promise<T> => {
   });
 };
 
-export const writeConfig = async <T>(configPath: string, config: T): Promise<void> => {
+export const writeConfig = async <T>(config: T, configPath: string): Promise<void> => {
   return new Promise((resolve, reject) => {
     fs.writeFile(configPath, JSON.stringify(config, null, 2), (err) => {
       if (err) {

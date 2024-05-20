@@ -22,4 +22,4 @@ const outConfigFile = process.argv[3] || inConfigFile;
 
 readConfig<FinP2PDeployerConfig>(inConfigFile)
   .then((config) => deploy(config))
-  .then((config) => writeConfig(outConfigFile, config));
+  .then((config) => writeConfig(config, outConfigFile));
