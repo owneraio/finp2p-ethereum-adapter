@@ -1,6 +1,5 @@
 import console from "console";
-import { privateKeyToFinId } from "../test/utils";
-import { createAccount } from "../src/contracts/utils";
+import { privateKeyToFinId, createAccount } from "../src/contracts/utils";
 
 const generateWallet = async () => {
   const account = createAccount();

@@ -12,6 +12,7 @@ COPY \
 
 COPY src ./src
 COPY scripts ./scripts
+COPY contracts ./contracts
 
 RUN npm install
 RUN npm run compile

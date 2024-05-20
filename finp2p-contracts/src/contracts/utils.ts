@@ -1,7 +1,12 @@
 import { Interface, TransactionReceipt, Wallet } from "ethers";
 import { FinP2PReceipt } from "./model";
-import { privateKeyToFinId } from "../../test/utils";
+import * as secp256k1 from "secp256k1";
 
+export const privateKeyToFinId = (privateKey: string): string => {
+  const privKeyBuffer = Buffer.from(privateKey.replace('0x', ''), 'hex');
+  const pubKeyUInt8Array = secp256k1.publicKeyCreate(privKeyBuffer, true);
+  return Buffer.from(pubKeyUInt8Array).toString('hex');
+}
 
 export const createAccount = () => {
   const account = Wallet.createRandom();
