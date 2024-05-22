@@ -15,8 +15,10 @@ COPY \
 COPY src ./src
 COPY finp2p-contracts ./finp2p-contracts
 
-RUN cd ./finp2p-contracts && npm install
-RUN cd ./finp2p-contracts && npm run compile
+WORKDIR /usr/app/finp2p-contracts
+RUN npm install
+RUN npm run compile
+WORKDIR /usr/app
 RUN npm install
 RUN npm run build
 
