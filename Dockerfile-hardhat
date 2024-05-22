@@ -1,45 +1,64 @@
+# Stage 1: Base image
 FROM node:18-alpine AS base
 WORKDIR /usr/app
 
+# Stage 2: Installer
 FROM base AS installer
 
-RUN echo '{\
-  "name": "hardhat-project",\
-  "devDependencies": {\
-     "@nomicfoundation/hardhat-toolbox": "^4.0.0",\
-     "hardhat": "^2.20.1"\
-  }\
-}' > package.json
+# Add and configure package.json
+RUN cat <<EOF > package.json
+{
+  "name": "hardhat-project",
+  "devDependencies": {
+     "@nomicfoundation/hardhat-toolbox": "^4.0.0",
+     "hardhat": "^2.20.1"
+  }
+}
+EOF
 
-RUN echo 'require("@nomicfoundation/hardhat-toolbox");\
-module.exports = {\
-  solidity: "0.8.24",\
-  networks: {\
-      hardhat: {\
-        accounts: [\
-          {\
-            privateKey: "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80",\
-            balance: "1000000000000000000000"\
-          },\
-          {\
-            privateKey: "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d",\
-            balance: "1000000000000000000000"\
-          }, \
-          { \
-            privateKey: "0x5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a",\
-            balance: "1000000000000000000000"\
-          } \
-        ] \
-      }\
-  }\
-};' > hardhat.config.js
+# Add and configure hardhat.config.js
+RUN cat <<EOF > hardhat.config.js
+require("@nomicfoundation/hardhat-toolbox");
+module.exports = {
+  solidity: {
+    version: "0.8.24",
+    },
+  networks: {
+      hardhat: {
+        accounts: [
+          {
+            privateKey: "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80",
+            balance: "1000000000000000000000"
+          },
+          {
+            privateKey: "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d",
+            balance: "1000000000000000000000"
+          },
+          {
+            privateKey: "0x5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a",
+            balance: "1000000000000000000000"
+          }
+        ]
+      }
+  }
+};
+EOF
 
+# Install dependencies
 RUN npm install
 
+
+# Stage 3: Release
 FROM base as release
 
+# Set label for the image
 LABEL org.opencontainers.image.source=https://github.com/owneraio/hardhat
 
-COPY --from=installer /usr/app ./
+# Copy project files from installer stage to release stage
+COPY --from=installer /usr/app /usr/app
 
-CMD [ "npx", "hardhat", "node" ]
+# Set the working directory
+WORKDIR /usr/app
+
+# Command to run hardhat node
+CMD ["npx", "hardhat", "node"]
