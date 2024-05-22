@@ -71,7 +71,7 @@ jobs:
               ;;
           esac
           export IMAGE_TAG=$(echo $IMAGE_TAG | sed 's/\//-/g' | sed 's/^v//')
-          echo "PLATFORMS=linux/amd64,linux/arm64" >> "$GITHUB_ENV"
+          echo "PLATFORMS=linux/amd64" >> "$GITHUB_ENV"
           echo "IMAGE_TAG=$IMAGE_TAG" >> "$GITHUB_ENV"
 
       - name: Adapter Build and push
