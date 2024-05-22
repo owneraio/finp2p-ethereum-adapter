@@ -91,7 +91,7 @@ jobs:
           platforms: ${{ env.PLATFORMS }}
           push: true
           sbom: false
-          file: ./Dockerfile-migration
+          file: ./finp2p-contracts/Dockerfile-migration
           tags: ghcr.io/owneraio/finp2p-contracts:${{ env.IMAGE_TAG }}
 
       - name: Hardhat Build and push
