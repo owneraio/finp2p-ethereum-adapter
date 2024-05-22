@@ -21,20 +21,26 @@ jobs:
         with:
           node-version: '18.x'
 
-      - working-directory: ./finp2p-contracts
+      - name: Finp2p-Contracts npm install
+        working-directory: ./finp2p-contracts
         run: npm install
 
-      - working-directory: ./finp2p-contracts
+      - name: Finp2p-Contracts npm run compile
+        working-directory: ./finp2p-contracts
         run: npm run compile
 
-      - working-directory: ./finp2p-contracts
+      - name: Finp2p-Contracts npm run test
+        working-directory: ./finp2p-contracts
         run: npm run test
 
-      - run: npm install
+      - name: Adapter npm install
+        run: npm install
 
-      - run: npm run build
+      - name: Adapter npm run build
+        run: npm run build
 
-      - run: npm test
+      - name: Adapter npm test
+        run: npm test
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
