@@ -71,13 +71,14 @@ jobs:
               ;;
           esac
           export IMAGE_TAG=$(echo $IMAGE_TAG | sed 's/\//-/g' | sed 's/^v//')
+          echo "PLATFORMS=linux/amd64,linux/arm64" >> "$GITHUB_ENV"
           echo "IMAGE_TAG=$IMAGE_TAG" >> "$GITHUB_ENV"
 
       - name: Adapter Build and push
         uses: docker/build-push-action@v5
         with:
           context: .
-          platforms: linux/amd64,linux/arm64,linux/arm/v7
+          platforms: ${{ env.PLATFORMS }}
           push: true
           sbom: false
           file: ./Dockerfile
@@ -87,7 +88,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: "{{defaultContext}}:finp2p-contracts"
-          platforms: linux/amd64,linux/arm64,linux/arm/v7
+          platforms: ${{ env.PLATFORMS }}
           push: true
           sbom: false
           file: ./finp2p-contracts/Dockerfile-migration
@@ -97,7 +98,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
-          platforms: linux/amd64,linux/arm64,linux/arm/v7
+          platforms: ${{ env.PLATFORMS }}
           push: true
           sbom: false
           file: ./Dockerfile-hardhat
