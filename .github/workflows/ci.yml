@@ -78,7 +78,6 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
-          platforms: ${{ env.PLATFORMS }}
           push: true
           sbom: false
           file: ./Dockerfile
@@ -88,7 +87,6 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: ./finp2p-contracts
-          platforms: ${{ env.PLATFORMS }}
           push: true
           sbom: false
           file: ./finp2p-contracts/Dockerfile-migration
@@ -98,7 +96,6 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
-          platforms: ${{ env.PLATFORMS }}
           push: true
           sbom: false
           file: ./Dockerfile-hardhat
