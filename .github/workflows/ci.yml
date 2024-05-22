@@ -36,7 +36,6 @@ jobs:
 
       - run: npm test
 
-
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
 
@@ -68,8 +67,7 @@ jobs:
           export IMAGE_TAG=$(echo $IMAGE_TAG | sed 's/\//-/g' | sed 's/^v//')
           echo "IMAGE_TAG=$IMAGE_TAG" >> "$GITHUB_ENV"
 
-
-      - name: [Adapter] Build and push
+      - name: Adapter Build and push
         uses: docker/build-push-action@v5
         with:
           context: .
@@ -78,7 +76,7 @@ jobs:
           file: ./Dockerfile
           tags: owneraio/finp2p-ethereum-adapter:$IMAGE_TAG
 
-      - name: [Migration] Build and push
+      - name: Migration Build and push
         uses: docker/build-push-action@v5
         with:
           context: ./finp2p-contracts
@@ -87,7 +85,7 @@ jobs:
           file: ./finp2p-contracts/Dockerfile-migration
           tags: owneraio/finp2p-contracts:$IMAGE_TAG
 
-      - name: [Hardhat] Build and push
+      - name: Hardhat Build and push
         uses: docker/build-push-action@v5
         with:
           context: .
