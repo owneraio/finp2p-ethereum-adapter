@@ -87,7 +87,7 @@ jobs:
       - name: Migration Build and push
         uses: docker/build-push-action@v5
         with:
-          context: .
+          context: ./finp2p-contracts
           platforms: ${{ env.PLATFORMS }}
           push: true
           sbom: false
