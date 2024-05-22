@@ -79,17 +79,19 @@ jobs:
           context: .
           platforms: linux/amd64,linux/arm64,linux/arm/v7
           push: true
+          sbom: false
           file: ./Dockerfile
-          tags: owneraio/finp2p-ethereum-adapter:$IMAGE_TAG
+          tags: ghcr.io/owneraio/finp2p-ethereum-adapter:$IMAGE_TAG
 
       - name: Migration Build and push
         uses: docker/build-push-action@v5
         with:
-          context: ./finp2p-contracts
+          context: "{{defaultContext}}:finp2p-contracts"
           platforms: linux/amd64,linux/arm64,linux/arm/v7
           push: true
+          sbom: false
           file: ./finp2p-contracts/Dockerfile-migration
-          tags: owneraio/finp2p-contracts:$IMAGE_TAG
+          tags: ghcr.io/owneraio/finp2p-contracts:$IMAGE_TAG
 
       - name: Hardhat Build and push
         uses: docker/build-push-action@v5
@@ -97,5 +99,6 @@ jobs:
           context: .
           platforms: linux/amd64,linux/arm64,linux/arm/v7
           push: true
+          sbom: false
           file: ./Dockerfile-hardhat
-          tags: owneraio/hardhat:$IMAGE_TAG
+          tags: ghcr.io/owneraio/hardhat:$IMAGE_TAG
