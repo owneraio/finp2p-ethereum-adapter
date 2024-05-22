@@ -1,21 +1,76 @@
-name: Node.js CI
+name: CI
 
-on: [push]
+on:
+  push:
+    branches:
+      - 'master'
+    tags:
+      - 'v0.**'
+  pull_request:
 
 jobs:
   build:
-
     runs-on: ubuntu-latest
-
+    timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
-      - name: Use Node.js
+
+      - name: Checkout application repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '18.x'
+
       - run: cd ./finp2p-contracts && npm install
+
       - run: cd ./finp2p-contracts && npm run compile
+
       - run: cd ./finp2p-contracts && npm run test
+
       - run: npm install
+
       - run: npm run build
+
       - run: npm test
+
+      - name: Set Docker tags
+        run: |
+          set -euxo pipefail
+          case $GITHUB_EVENT_NAME in
+            push)
+              IMAGE_TAG=$GITHUB_REF_NAME
+              ;;
+            pull_request)
+              IMAGE_TAG=$GITHUB_HEAD_REF
+              ;;
+            *)
+              echo "ERROR: Unknown event"
+              exit 1
+              ;;
+          esac
+          export IMAGE_TAG=$(echo $IMAGE_TAG | sed 's/\//-/g' | sed 's/^v//')
+          echo "IMAGE_TAG=$IMAGE_TAG" >> "$GITHUB_ENV"
+
+      - name: Login to GitHub Container Registry
+        env:
+          GHCR_USER: ${{ github.actor }}
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo $GHCR_TOKEN | docker login ghcr.io -u $GHCR_USER --password-stdin
+
+      - name: Build Adapter Docker image
+        run: |
+          docker build -t ghcr.io/owneraio/finp2p-ethereum-adapter:$IMAGE_TAG -f ./Dockerfile .
+
+      - name: Push Adapter Docker image
+        run: |
+          docker push ghcr.io/owneraio/finp2p-ethereum-adapter:$IMAGE_TAG
+
+      - name: Build Hardhat Docker image
+        run: |
+          docker build -t ghcr.io/owneraio/hardhat:$IMAGE_TAG -f ./Dockerfile-hardhat .
+
+      - name: Push Hardhat Docker image
+        run: |
+          docker push ghcr.io/owneraio/hardhat:$IMAGE_TAG

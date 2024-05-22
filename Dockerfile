@@ -22,7 +22,7 @@ RUN npm run build
 
 # ------- Release ----------
 FROM base as release
-LABEL org.opencontainers.image.source=https://github.com/owneraio/nodejs_ledger_adapter_skeleton
+LABEL org.opencontainers.image.source=https://github.com/owneraio/finp2p-ethereum-adapter
 
 COPY --from=builder /usr/app/node_modules ./node_modules
 COPY --from=builder /usr/app/dist ./dist
