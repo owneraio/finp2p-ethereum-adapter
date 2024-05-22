@@ -95,19 +95,3 @@ jobs:
           push: true
           file: ./Dockerfile-hardhat
           tags: owneraio/hardhat:$IMAGE_TAG
-
-#      - name: Build Adapter Docker image
-#        run: |
-#          docker build -t ghcr.io/owneraio/finp2p-ethereum-adapter:$IMAGE_TAG -f ./Dockerfile . && \
-#          docker push ghcr.io/owneraio/finp2p-ethereum-adapter:$IMAGE_TAG
-#
-#      - name: Build&Push Migration Docker image
-#        run: |
-#          docker build -t ghcr.io/owneraio/finp2p-contracts:$IMAGE_TAG -f ./finp2p-contracts/Dockerfile-migration . && \
-#          docker push ghcr.io/owneraio/finp2p-ethereum-adapter:$IMAGE_TAG
-#
-#
-#      - name: Build Hardhat Docker image
-#        run: |
-#          docker build -t ghcr.io/owneraio/hardhat:$IMAGE_TAG -f ./Dockerfile-hardhat . && \
-#          docker push ghcr.io/owneraio/hardhat:$IMAGE_TAG
