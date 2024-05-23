@@ -8,6 +8,7 @@ export type ContractManagerConfig = {
 export type FinP2PDeployerConfig = {
   rpcURL: string;
   deployerPrivateKey: string;
+  signerPrivateKey?: string
   operatorAddress: string;
 };
 

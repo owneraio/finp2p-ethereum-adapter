@@ -11,6 +11,9 @@ const init = async () => {
   let config: FinP2PContractConfig;
   if (configFile) {
     config = await readConfig<FinP2PContractConfig>(configFile);
+
+    // TODO: add config validation
+
   } else {
     let ethereumRPCUrl = process.env.NETWORK_HOST || '';
     if (!ethereumRPCUrl) {

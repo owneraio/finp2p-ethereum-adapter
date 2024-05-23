@@ -12,7 +12,7 @@ const deploy = async (config: FinP2PDeployerConfig) => {
   console.log("Contract deployed successfully. FINP2P_CONTRACT_ADDRESS=", finP2PContractAddress);
   return {
     rpcURL: config.rpcURL,
-    signerPrivateKey: '',
+    signerPrivateKey: config.signerPrivateKey || "",
     finP2PContractAddress: finP2PContractAddress
   } as FinP2PContractConfig;
 };
