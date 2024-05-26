@@ -22,6 +22,7 @@ export const readConfig = async <T>(configPath: string): Promise<T> => {
     fs.readFile(configPath, "utf8", (err, data) => {
       if (err) {
         reject(err);
+        return
       }
       resolve(JSON.parse(data));
     });
