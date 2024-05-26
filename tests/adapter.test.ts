@@ -141,7 +141,7 @@ describe(`token service test`, () => {
     expect(redeemReceipt.destination).toBeUndefined();
 
     await client.expectBalance(buyer, asset, issueQuantity - transferQuantity - redeemQuantity);
-  }, 100000);
+  });
 
   test(`Scenario: escrow hold / release`, async () => {
 
