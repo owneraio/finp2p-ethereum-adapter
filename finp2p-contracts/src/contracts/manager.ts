@@ -12,8 +12,9 @@ export class ContractsManager {
   signer: Signer;
 
   constructor(config: ContractManagerConfig) {
-    this.provider = new JsonRpcProvider(config.rpcURL);
-    this.signer = new NonceManager(new Wallet(config.signerPrivateKey)).connect(this.provider);
+    const { rpcURL, signerPrivateKey } = config;
+    this.provider = new JsonRpcProvider(rpcURL);
+    this.signer = new NonceManager(new Wallet(signerPrivateKey)).connect(this.provider);
   }
 
   async deployERC20(name: string, symbol: string, finP2PContractAddress: string) {
@@ -47,6 +48,25 @@ export class ContractsManager {
     }
 
     return address;
+  }
+
+  async isFinP2PContractHealthy(finP2PContractAddress: string): Promise<boolean> {
+    console.log(`Check FinP2P contract at ${finP2PContractAddress} on chain`);
+    const factory = new ContractFactory<any[], FINP2POperatorERC20>(
+      FINP2P.abi, FINP2P.bytecode, this.signer
+    );
+    const contract = factory.attach(finP2PContractAddress);
+    try {
+      await contract.getAssetAddress("test-asset-id");
+    } catch (err) {
+      if (err instanceof Error) {
+        if (err.message.includes("Asset not found")) {
+          return true;
+        }
+      }
+      return false;
+    }
+    return true;
   }
 
   async grantAssetManagerRole(finP2PContractAddress: string, to: string) {
