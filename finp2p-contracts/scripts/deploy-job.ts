@@ -50,7 +50,7 @@ const deploy = async (config: FinP2PDeployerConfig): Promise<FinP2PDeployerConfi
   const contractManger = new ContractsManager({ rpcURL, signerPrivateKey: deployerPrivateKey });
   const finP2PContractAddress = await contractManger.deployFinP2PContract(config.operatorAddress);
   console.debug("Contract deployed successfully. FINP2P_CONTRACT_ADDRESS=", finP2PContractAddress);
-  return { finP2PContractAddress };
+  return { rpcURL, deployerPrivateKey, finP2PContractAddress, operatorAddress };
 };
 
 const configFile = process.env.CONFIG_FILE;
