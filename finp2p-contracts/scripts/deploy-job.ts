@@ -63,5 +63,5 @@ readConfig<FinP2PDeployerConfig>(configFile)
   .catch(_ => configFromEnv())
   .then((config) => isAlreadyDeployed(config))
   .then((config) => deploy(config))
-  .then((config) => console.log(config))
-  .then((config) => writeConfig(config, configFile));
+  .then((config) => console.log(config));
+  // .then((config) => writeConfig(config, configFile));
