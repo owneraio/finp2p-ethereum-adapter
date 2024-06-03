@@ -24,7 +24,4 @@ COPY --from=builder /usr/app/node_modules ./node_modules
 COPY --from=builder /usr/app/dist ./dist
 COPY --from=builder /usr/app/package.json ./
 
-ENV IN_CONFIG="in-config.json"
-ENV OUT_CONFIG="out-config.json"
-
-CMD npm run deploy-contract-job -- $IN_CONFIG $OUT_CONFIG
+CMD npm run --silent deploy-contract-job

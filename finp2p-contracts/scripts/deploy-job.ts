@@ -49,8 +49,8 @@ const deploy = async (config: FinP2PDeployerConfig): Promise<FinP2PDeployerConfi
   const { rpcURL, signerPrivateKey, deployerPrivateKey, operatorAddress } = config;
   const contractManger = new ContractsManager({ rpcURL, signerPrivateKey: deployerPrivateKey });
   const finP2PContractAddress = await contractManger.deployFinP2PContract(config.operatorAddress);
-  console.log("Contract deployed successfully. FINP2P_CONTRACT_ADDRESS=", finP2PContractAddress);
-  return { rpcURL, deployerPrivateKey, signerPrivateKey, operatorAddress, finP2PContractAddress };
+  console.debug("Contract deployed successfully. FINP2P_CONTRACT_ADDRESS=", finP2PContractAddress);
+  return { finP2PContractAddress };
 };
 
 const configFile = process.env.CONFIG_FILE;
@@ -63,4 +63,5 @@ readConfig<FinP2PDeployerConfig>(configFile)
   .catch(_ => configFromEnv())
   .then((config) => isAlreadyDeployed(config))
   .then((config) => deploy(config))
+  .then((config) => console.log(config))
   .then((config) => writeConfig(config, configFile));

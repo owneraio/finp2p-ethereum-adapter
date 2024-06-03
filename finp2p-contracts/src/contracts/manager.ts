@@ -32,7 +32,7 @@ export class ContractsManager {
   }
 
   async deployFinP2PContract(signerAddress: string | null) {
-    console.log("Deploying FinP2P contract...");
+    console.debug("Deploying FinP2P contract...");
     const factory = new ContractFactory<any[], FINP2POperatorERC20>(
       FINP2P.abi, FINP2P.bytecode, this.signer
     );
@@ -40,7 +40,7 @@ export class ContractsManager {
     await contract.waitForDeployment();
 
     const address = await contract.getAddress();
-    console.log("FinP2P contract deployed successfully at:", address);
+    console.debug("FinP2P contract deployed successfully at:", address);
 
     if (signerAddress !== null) {
       await this.grantAssetManagerRole(address, signerAddress);
@@ -70,7 +70,7 @@ export class ContractsManager {
   }
 
   async grantAssetManagerRole(finP2PContractAddress: string, to: string) {
-    console.log(`Granting asset manager role to ${to}...`);
+    console.debug(`Granting asset manager role to ${to}...`);
     const factory = new ContractFactory<any[], FINP2POperatorERC20>(
       FINP2P.abi, FINP2P.bytecode, this.signer
     );
@@ -80,7 +80,7 @@ export class ContractsManager {
   }
 
   async grantTransactionManagerRole(finP2PContractAddress: string, to: string) {
-    console.log(`Granting transaction manager role to ${to}...`);
+    console.debug(`Granting transaction manager role to ${to}...`);
     const factory = new ContractFactory<any[], FINP2POperatorERC20>(
       FINP2P.abi, FINP2P.bytecode, this.signer
     );
