@@ -89,7 +89,7 @@ export class ContractsManager {
     await this.waitForCompletion(tx.hash);
   }
 
-  private async waitForCompletion(txHash: string, tries: number = 300) {
+  public async waitForCompletion(txHash: string, tries: number = 300) {
     for (let i = 1; i < tries; i++) {
       const txReceipt = await this.provider.getTransactionReceipt(txHash);
       if (txReceipt !== null) {
