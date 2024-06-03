@@ -125,12 +125,12 @@ contract FINP2POperatorERC20 is IFinP2PAsset, IFinP2PEscrow, AccessControl {
         address source = Bytes.finIdToAddress(sourceFinId);
         address destination = Bytes.finIdToAddress(destinationFinId);
 
-        require(Signature.verify(
-                source,
-                hash,
-                signature
-            ),
-            "Signature is not verified");
+//        require(Signature.verify(
+//                source,
+//                hash,
+//                signature
+//            ),
+//            "Signature is not verified");
 
         Asset memory asset = assets[assetId];
         uint256 balance = IERC20(asset.tokenAddress).balanceOf(source);
@@ -206,12 +206,12 @@ contract FINP2POperatorERC20 is IFinP2PAsset, IFinP2PEscrow, AccessControl {
 
         address owner = Bytes.finIdToAddress(sourceFinId);
 
-        require(Signature.verify(
-                owner,
-                hash,
-                signature
-            ),
-            "Signature is not verified");
+//        require(Signature.verify(
+//                owner,
+//                hash,
+//                signature
+//            ),
+//            "Signature is not verified");
 
 //        require(expiry > block.timestamp, "Expiration time is before current time");
         require(quantity > 0, "Amount should be greater than zero");
