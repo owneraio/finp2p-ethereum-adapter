@@ -213,7 +213,7 @@ contract FINP2POperatorERC20 is IFinP2PAsset, IFinP2PEscrow, AccessControl {
             ),
             "Signature is not verified");
 
-        require(expiry > block.timestamp, "Expiration time is before current time");
+//        require(expiry > block.timestamp, "Expiration time is before current time");
         require(quantity > 0, "Amount should be greater than zero");
         require(haveAsset(assetId), "Asset not found");
         Asset memory asset = assets[assetId];
