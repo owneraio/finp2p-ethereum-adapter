@@ -1,7 +1,7 @@
 import process from "process";
 import { ContractsManager } from "../src/contracts/manager";
 import console from "console";
-import { ContractManagerConfig, FinP2PDeployerConfig } from "../src/contracts/config";
+import { FinP2PDeployerConfig } from "../src/contracts/config";
 
 const deploy = async (config: FinP2PDeployerConfig) => {
   if (!deployerPrivateKey) {
@@ -11,20 +11,23 @@ const deploy = async (config: FinP2PDeployerConfig) => {
     rpcURL: config.rpcURL,
     signerPrivateKey: config.deployerPrivateKey
   });
-  const finP2PContractAddress = await contractManger.deployFinP2PContract(operatorAddress);
-  console.log("FINP2P_CONTRACT_ADDRESS=", finP2PContractAddress);
+  const finP2PContractAddress = await contractManger.deployFinP2PContract(config.operatorAddress);
+  console.log(JSON.stringify({ finP2PContractAddress }));
 };
 
-const ethereumRPCUrl = process.argv[2] || "";
-const deployerPrivateKey = process.argv[3] || "";
-const operatorAddress = process.argv[4] || "";
+const rpcURL = process.env.RPC_URL;
+if (!rpcURL) {
+  throw new Error("RPC_URL is not set");
+}
+const deployerPrivateKey = process.env.DEPLOYER_PRIVATE_KEY;
+if (!deployerPrivateKey) {
+  throw new Error("DEPLOYER_PRIVATE_KEY is not set");
+}
+const operatorAddress = process.env.OPERATOR_ADDRESS;
+if (!operatorAddress) {
+  throw new Error("OPERATOR_ADDRESS is not set");
+}
 
-const config = {
-  rpcURL: ethereumRPCUrl,
-  deployerPrivateKey: deployerPrivateKey,
-  operatorAddress: operatorAddress,
-} as FinP2PDeployerConfig;
-
-deploy(config)
+deploy({ rpcURL, deployerPrivateKey, operatorAddress })
   .then(() => {
   });
