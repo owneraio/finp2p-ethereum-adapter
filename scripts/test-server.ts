@@ -25,13 +25,6 @@ const startHardhatContainer = async () => {
   return `http://${rpcHost}:${rpcPort}`;
 };
 
-const preCreatePaymentAsset = async (contract: FinP2PContract, finP2PContractAddress: string) => {
-  const assetId = 'USD';
-  const tokenAddress = await contract.deployERC20(assetId, assetId, finP2PContractAddress);
-
-  const txHash = await contract.associateAsset(assetId, tokenAddress);
-  await contract.waitForCompletion(txHash);
-};
 
 const startServer = async (port: number, operatorPort: number) => {
   const rpcURL = await startHardhatContainer();
@@ -39,10 +32,9 @@ const startServer = async (port: number, operatorPort: number) => {
   const operator = '0x5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a';
 
   const contractManger = new ContractsManager({ rpcURL, signerPrivateKey: deployer });
-  const finP2PContractAddress = await contractManger.deployFinP2PContract(addressFromPrivateKey(operator));
+  const finP2PContractAddress = await contractManger.deployFinP2PContract(addressFromPrivateKey(operator), 'USD');
 
   let contract = new FinP2PContract({ rpcURL, signerPrivateKey: operator, finP2PContractAddress });
-  await preCreatePaymentAsset(contract, finP2PContractAddress);
 
   const opApp = createOperatorApp(contract);
   opApp.listen(operatorPort, () => {

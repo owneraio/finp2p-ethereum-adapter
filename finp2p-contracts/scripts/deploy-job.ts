@@ -20,8 +20,11 @@ const configFromEnv = (): FinP2PDeployerConfig => {
   if (!operatorAddress) {
     throw new Error("OPERATOR_ADDRESS is not set");
   }
+
+  const paymentAssetCode = process.env.PAYMENT_ASSET_CODE;
+
   return {
-    rpcURL, deployerPrivateKey, signerPrivateKey, operatorAddress
+    rpcURL, deployerPrivateKey, signerPrivateKey, operatorAddress, paymentAssetCode
   } as FinP2PDeployerConfig
 }
 
@@ -48,7 +51,7 @@ const deploy = async (config: FinP2PDeployerConfig): Promise<FinP2PDeployerConfi
 }> => {
   const { rpcURL, signerPrivateKey, deployerPrivateKey, operatorAddress } = config;
   const contractManger = new ContractsManager({ rpcURL, signerPrivateKey: deployerPrivateKey });
-  const finP2PContractAddress = await contractManger.deployFinP2PContract(config.operatorAddress);
+  const finP2PContractAddress = await contractManger.deployFinP2PContract(config.operatorAddress, config.paymentAssetCode);
   console.log("Contract deployed successfully. FINP2P_CONTRACT_ADDRESS=", finP2PContractAddress);
   return { rpcURL, deployerPrivateKey, signerPrivateKey, operatorAddress, finP2PContractAddress };
 };
