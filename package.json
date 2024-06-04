@@ -10,7 +10,8 @@
     "prebuild": "eslint ./src --ext .ts --fix",
     "build": "tsc",
     "test": "jest",
-    "start": "node ."
+    "start": "node .",
+    "test-server": "tsc && node ./dist/scripts/test-server.js"
   },
   "keywords": [],
   "author": "",
