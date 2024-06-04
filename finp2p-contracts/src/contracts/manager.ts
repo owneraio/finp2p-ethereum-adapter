@@ -18,7 +18,7 @@ export class ContractsManager {
   }
 
   async deployERC20(name: string, symbol: string, finP2PContractAddress: string) {
-    console.log("Deploying ERC20 contract...");
+    // console.log("Deploying ERC20 contract...");
     const factory = new ContractFactory<any[], ERC20WithOperator>(
       ERC20.abi,
       ERC20.bytecode,
@@ -27,12 +27,12 @@ export class ContractsManager {
     const contract = await factory.deploy(name, symbol, finP2PContractAddress);
     await contract.waitForDeployment();
     const address = await contract.getAddress();
-    console.log("ERC20 contract deployed successfully at:", address);
+    // console.log("ERC20 contract deployed successfully at:", address);
     return address;
   }
 
   async deployFinP2PContract(signerAddress: string | null) {
-    console.log("Deploying FinP2P contract...");
+    // console.log("Deploying FinP2P contract...");
     const factory = new ContractFactory<any[], FINP2POperatorERC20>(
       FINP2P.abi, FINP2P.bytecode, this.signer
     );
@@ -40,7 +40,7 @@ export class ContractsManager {
     await contract.waitForDeployment();
 
     const address = await contract.getAddress();
-    console.log("FinP2P contract deployed successfully at:", address);
+    // console.log("FinP2P contract deployed successfully at:", address);
 
     if (signerAddress !== null) {
       await this.grantAssetManagerRole(address, signerAddress);
@@ -51,7 +51,7 @@ export class ContractsManager {
   }
 
   async isFinP2PContractHealthy(finP2PContractAddress: string): Promise<boolean> {
-    console.log(`Check FinP2P contract at ${finP2PContractAddress} on chain`);
+    // console.log(`Check FinP2P contract at ${finP2PContractAddress} on chain`);
     const factory = new ContractFactory<any[], FINP2POperatorERC20>(
       FINP2P.abi, FINP2P.bytecode, this.signer
     );
@@ -70,7 +70,7 @@ export class ContractsManager {
   }
 
   async grantAssetManagerRole(finP2PContractAddress: string, to: string) {
-    console.log(`Granting asset manager role to ${to}...`);
+    // console.log(`Granting asset manager role to ${to}...`);
     const factory = new ContractFactory<any[], FINP2POperatorERC20>(
       FINP2P.abi, FINP2P.bytecode, this.signer
     );
@@ -80,7 +80,7 @@ export class ContractsManager {
   }
 
   async grantTransactionManagerRole(finP2PContractAddress: string, to: string) {
-    console.log(`Granting transaction manager role to ${to}...`);
+    // console.log(`Granting transaction manager role to ${to}...`);
     const factory = new ContractFactory<any[], FINP2POperatorERC20>(
       FINP2P.abi, FINP2P.bytecode, this.signer
     );
