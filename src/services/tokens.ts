@@ -33,15 +33,16 @@ export class TokenService extends CommonService {
   }
 
   public async transfer(request: Paths.TransferAsset.RequestBody): Promise<Paths.TransferAsset.Responses.$200> {
-    if (request.asset.type !== 'finp2p') {
-      throw new Error(`Unsupported asset type: ${request.asset.type}`);
-    }
+    // if (request.asset.type !== 'finp2p') {
+    //   throw new Error(`Unsupported asset type: ${request.asset.type}`);
+    // }
     const nonce = request.nonce;
-    const assetId = request.asset.resourceId;
+    const assetId = extractAssetId(request.asset);
     const sourceFinId = request.source.finId;
     const destinationFinId = request.destination.finId;
     const amount = parseInt(request.quantity);
-    const settlementHash = request.signature.template.hashGroups[1].hash;
+    // const settlementHash = request.signature.template.hashGroups[1].hash;
+    const settlementHash = request.signature.template.hashGroups[0].hash;
     const hash = request.signature.template.hash;
     const signature = request.signature.signature;
 
