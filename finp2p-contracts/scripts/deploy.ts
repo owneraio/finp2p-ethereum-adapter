@@ -11,6 +11,7 @@ const deploy = async (config: FinP2PDeployerConfig) => {
     rpcURL: config.rpcURL,
     signerPrivateKey: config.deployerPrivateKey
   });
+  console.log('Deploying from env variables...')
   const finP2PContractAddress = await contractManger.deployFinP2PContract(config.operatorAddress, config.paymentAssetCode);
   console.log(JSON.stringify({ finP2PContractAddress }));
 };
