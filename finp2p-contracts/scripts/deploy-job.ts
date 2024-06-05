@@ -1,7 +1,6 @@
 import process from "process";
 import { ContractsManager } from "../src/contracts/manager";
 import { FinP2PDeployerConfig, readConfig, writeConfig } from "../src/contracts/config";
-import console from "console";
 
 const configFromEnv = (): FinP2PDeployerConfig => {
   const rpcURL = process.env.RPC_URL;
@@ -67,6 +66,8 @@ if (!configFile) {
   console.error("Please provide the config file path using the CONFIG_FILE environment variable");
   process.exit(1);
 }
+
+console.log(`Reading config from ${configFile}...`)
 
 readConfig<FinP2PDeployerConfig>(configFile)
   .catch(e => {
