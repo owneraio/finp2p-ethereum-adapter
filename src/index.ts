@@ -3,9 +3,12 @@ import { FinP2PContract } from '../finp2p-contracts/src/contracts/finp2p';
 import * as process from 'process';
 import createApp from './app';
 import { FinP2PContractConfig, readConfig } from '../finp2p-contracts/src/contracts/config';
+import createOperatorApp from "./operator";
+import console from "console";
 
 const init = async () => {
   const port = process.env.PORT || '3000';
+  const operatorPort = parseInt(process.env.OPERATOR_PORT || '3001');
 
   const configFile = process.env.CONFIG_FILE || '';
   let config: FinP2PContractConfig;
@@ -53,6 +56,12 @@ const init = async () => {
   app.listen(port, () => {
     logger.info(`listening at http://localhost:${port}`);
   });
+
+  const opApp = createOperatorApp(finP2PContract);
+  opApp.listen(operatorPort, () => {
+    console.log(`Operator app is listening on port ${operatorPort}`);
+  });
+
 };
 
 init().then(() => {
