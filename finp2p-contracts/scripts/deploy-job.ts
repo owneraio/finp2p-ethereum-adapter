@@ -36,11 +36,17 @@ const isAlreadyDeployed = async (config: FinP2PDeployerConfig & {
     operatorAddress, finP2PContractAddress
   } = config;
   if (finP2PContractAddress) {
+    console.log(`Checking if contract ${config.finP2PContractAddress} is already deployed...`)
+
     const contractManger = new ContractsManager({ rpcURL, signerPrivateKey: deployerPrivateKey });
     if (await contractManger.isFinP2PContractHealthy(finP2PContractAddress)) {
-      console.log("Contract already deployed, skipping migration");
+      console.log('Contract already deployed, skipping migration');
       process.exit(0);
+    } else {
+      console.log('Contract is not healthy, deploying a new one')
     }
+  } else {
+    console.log('Contract not deployed yet, deploying a new one');
   }
 
   return { rpcURL, deployerPrivateKey, signerPrivateKey, operatorAddress };
@@ -63,7 +69,14 @@ if (!configFile) {
 }
 
 readConfig<FinP2PDeployerConfig>(configFile)
-  .catch(_ => configFromEnv())
+  .catch(e => {
+    console.error(`Config file ${configFile} wasn't found:`, e)
+    return configFromEnv()
+  })
   .then((config) => isAlreadyDeployed(config))
   .then((config) => deploy(config))
-  .then((config) => writeConfig(config, configFile));
+  .then((config) => {
+    console.log(`Writing config to ${configFile}...`)
+    console.log(JSON.stringify(config))
+    return writeConfig(config, configFile)
+  });
