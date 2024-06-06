@@ -34,7 +34,7 @@ const isAlreadyDeployed = async (config: FinP2PDeployerConfig & {
 }): Promise<FinP2PDeployerConfig> => {
   const {
     rpcURL, deployerPrivateKey, signerPrivateKey,
-    operatorAddress, finP2PContractAddress
+    operatorAddress, finP2PContractAddress, paymentAssetCode
   } = config;
   if (finP2PContractAddress) {
     console.log(`Checking if contract ${config.finP2PContractAddress} is already deployed...`)
@@ -50,7 +50,7 @@ const isAlreadyDeployed = async (config: FinP2PDeployerConfig & {
     console.log('Contract not deployed yet, deploying a new one');
   }
 
-  return { rpcURL, deployerPrivateKey, signerPrivateKey, operatorAddress };
+  return { rpcURL, deployerPrivateKey, signerPrivateKey, operatorAddress, paymentAssetCode };
 };
 
 const deploy = async (config: FinP2PDeployerConfig): Promise<FinP2PDeployerConfig & {
