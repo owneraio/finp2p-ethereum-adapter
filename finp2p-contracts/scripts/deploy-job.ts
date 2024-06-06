@@ -1,6 +1,7 @@
 import process from "process";
 import { ContractsManager } from "../src/contracts/manager";
 import { FinP2PDeployerConfig, readConfig, writeConfig } from "../src/contracts/config";
+import console from "console";
 
 const configFromEnv = (): FinP2PDeployerConfig => {
   const rpcURL = process.env.RPC_URL;
@@ -21,6 +22,7 @@ const configFromEnv = (): FinP2PDeployerConfig => {
   }
 
   const paymentAssetCode = process.env.PAYMENT_ASSET_CODE;
+  console.log(`PAYMENT_ASSET_CODE: '${paymentAssetCode}'`)
 
   return {
     rpcURL, deployerPrivateKey, signerPrivateKey, operatorAddress, paymentAssetCode
@@ -54,11 +56,11 @@ const isAlreadyDeployed = async (config: FinP2PDeployerConfig & {
 const deploy = async (config: FinP2PDeployerConfig): Promise<FinP2PDeployerConfig & {
   finP2PContractAddress: string
 }> => {
-  const { rpcURL, signerPrivateKey, deployerPrivateKey, operatorAddress } = config;
+  const { rpcURL, signerPrivateKey, deployerPrivateKey, operatorAddress, paymentAssetCode } = config;
   const contractManger = new ContractsManager({ rpcURL, signerPrivateKey: deployerPrivateKey });
   const finP2PContractAddress = await contractManger.deployFinP2PContract(config.operatorAddress, config.paymentAssetCode);
   console.log("Contract deployed successfully. FINP2P_CONTRACT_ADDRESS=", finP2PContractAddress);
-  return { rpcURL, deployerPrivateKey, signerPrivateKey, operatorAddress, finP2PContractAddress };
+  return { rpcURL, deployerPrivateKey, signerPrivateKey, operatorAddress, finP2PContractAddress, paymentAssetCode };
 };
 
 const configFile = process.env.CONFIG_FILE;
