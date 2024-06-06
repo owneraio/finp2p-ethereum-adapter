@@ -47,7 +47,6 @@ export class ContractsManager {
       await this.grantTransactionManagerRole(address, signerAddress);
     }
 
-    console.log(`Payment asset code: ${paymentAssetCode}`)
     if (paymentAssetCode) {
       await this.preCreatePaymentAsset(factory, address, paymentAssetCode);
     }
