@@ -20,8 +20,11 @@ const configFromEnv = (): FinP2PDeployerConfig => {
   if (!operatorAddress) {
     throw new Error("OPERATOR_ADDRESS is not set");
   }
+
+  const paymentAssetCode = process.env.PAYMENT_ASSET_CODE;
+
   return {
-    rpcURL, deployerPrivateKey, signerPrivateKey, operatorAddress
+    rpcURL, deployerPrivateKey, signerPrivateKey, operatorAddress, paymentAssetCode
   } as FinP2PDeployerConfig
 }
 
@@ -30,27 +33,33 @@ const isAlreadyDeployed = async (config: FinP2PDeployerConfig & {
 }): Promise<FinP2PDeployerConfig> => {
   const {
     rpcURL, deployerPrivateKey, signerPrivateKey,
-    operatorAddress, finP2PContractAddress
+    operatorAddress, finP2PContractAddress, paymentAssetCode
   } = config;
   if (finP2PContractAddress) {
+    console.log(`Checking if contract ${config.finP2PContractAddress} is already deployed...`)
+
     const contractManger = new ContractsManager({ rpcURL, signerPrivateKey: deployerPrivateKey });
     if (await contractManger.isFinP2PContractHealthy(finP2PContractAddress)) {
-      console.log("Contract already deployed, skipping migration");
+      console.log('Contract already deployed, skipping migration');
       process.exit(0);
+    } else {
+      console.log('Contract is not healthy, deploying a new one')
     }
+  } else {
+    console.log('Contract not deployed yet, deploying a new one');
   }
 
-  return { rpcURL, deployerPrivateKey, signerPrivateKey, operatorAddress };
+  return { rpcURL, deployerPrivateKey, signerPrivateKey, operatorAddress, paymentAssetCode };
 };
 
 const deploy = async (config: FinP2PDeployerConfig): Promise<FinP2PDeployerConfig & {
   finP2PContractAddress: string
 }> => {
-  const { rpcURL, signerPrivateKey, deployerPrivateKey, operatorAddress } = config;
+  const { rpcURL, signerPrivateKey, deployerPrivateKey, operatorAddress, paymentAssetCode } = config;
   const contractManger = new ContractsManager({ rpcURL, signerPrivateKey: deployerPrivateKey });
-  const finP2PContractAddress = await contractManger.deployFinP2PContract(config.operatorAddress);
+  const finP2PContractAddress = await contractManger.deployFinP2PContract(operatorAddress, paymentAssetCode);
   console.log("Contract deployed successfully. FINP2P_CONTRACT_ADDRESS=", finP2PContractAddress);
-  return { rpcURL, deployerPrivateKey, signerPrivateKey, operatorAddress, finP2PContractAddress };
+  return { rpcURL, deployerPrivateKey, signerPrivateKey, operatorAddress, finP2PContractAddress, paymentAssetCode };
 };
 
 const configFile = process.env.CONFIG_FILE;
@@ -59,8 +68,17 @@ if (!configFile) {
   process.exit(1);
 }
 
+console.log(`Reading config from ${configFile}...`)
+
 readConfig<FinP2PDeployerConfig>(configFile)
-  .catch(_ => configFromEnv())
+  .catch(e => {
+    console.error(`Config file ${configFile} wasn't found:`, e)
+    return configFromEnv()
+  })
   .then((config) => isAlreadyDeployed(config))
   .then((config) => deploy(config))
-  .then((config) => writeConfig(config, configFile));
+  .then((config) => {
+    console.log(`Writing config to ${configFile}...`)
+    console.log(JSON.stringify(config))
+    return writeConfig(config, configFile)
+  });

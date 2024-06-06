@@ -26,6 +26,10 @@ export class FinP2PContract extends ContractsManager {
     this.finP2PContractAddress = config.finP2PContractAddress;
   }
 
+  async getAssetAddress(assetId: string) {
+    return await this.finP2P.getAssetAddress(assetId);
+  }
+
   async associateAsset(assetId: string, tokenAddress: string) {
     const response = await this.finP2P.associateAsset(assetId, tokenAddress);
     return response.hash;
