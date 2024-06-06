@@ -58,7 +58,8 @@ const deploy = async (config: FinP2PDeployerConfig): Promise<FinP2PDeployerConfi
 }> => {
   const { rpcURL, signerPrivateKey, deployerPrivateKey, operatorAddress, paymentAssetCode } = config;
   const contractManger = new ContractsManager({ rpcURL, signerPrivateKey: deployerPrivateKey });
-  const finP2PContractAddress = await contractManger.deployFinP2PContract(config.operatorAddress, config.paymentAssetCode);
+  console.log(`Deploy params: ${operatorAddress}, ${paymentAssetCode}`)
+  const finP2PContractAddress = await contractManger.deployFinP2PContract(operatorAddress, paymentAssetCode);
   console.log("Contract deployed successfully. FINP2P_CONTRACT_ADDRESS=", finP2PContractAddress);
   return { rpcURL, deployerPrivateKey, signerPrivateKey, operatorAddress, finP2PContractAddress, paymentAssetCode };
 };
