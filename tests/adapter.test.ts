@@ -53,8 +53,6 @@ describe(`token service test`, () => {
     expect(issueReceipt.asset).toStrictEqual(asset);
     expect(parseInt(issueReceipt.quantity)).toBe(issueQuantity);
     expect(issueReceipt.destination).toStrictEqual(buyer);
-    console.log("Hari>>>>>>>>>>>>>>")
-    console.log(issueReceipt)
     expect(issueReceipt.operationType).toBe("issue");
 
     await client.expectBalance(buyer, asset, issueQuantity);
