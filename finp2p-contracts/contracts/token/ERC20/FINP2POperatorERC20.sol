@@ -142,6 +142,7 @@ contract FINP2POperatorERC20 is IFinP2PAsset, IFinP2PEscrow, AccessControl {
     }
 
     function redeem(
+        bytes16 operationId,
         bytes32 nonce,
         string memory assetId,
         string memory account,
@@ -153,7 +154,6 @@ contract FINP2POperatorERC20 is IFinP2PAsset, IFinP2PEscrow, AccessControl {
         require(hasRole(TRANSACTION_MANAGER, _msgSender()), "FINP2POperatorERC20: must have transaction manager role to redeem asset");
         require(haveAsset(assetId), "Asset not found");
         require(quantity > 0, "Amount should be greater than zero");
-
         require(Signature.isRedeemHashValid(
                 nonce,
                 assetId,
@@ -176,9 +176,24 @@ contract FINP2POperatorERC20 is IFinP2PAsset, IFinP2PEscrow, AccessControl {
         uint256 balance = IERC20(asset.tokenAddress).balanceOf(issuer);
         require(balance >= quantity, "Not sufficient balance to redeem");
 
-        ERC20WithOperator(asset.tokenAddress).burnFrom(issuer, quantity);
+        if (operationId != bytes16(0)) {
+                require(haveContract(operationId), "Contract does not exists");
 
-        emit Redeem(assetId, account, quantity);
+                Lock storage lock = locks[operationId];
+                require(quantity == lock.amount, "Amount to redeem is not equal to locked amount for this operationId");
+        }
+
+if (operationId != bytes16(0)) {
+        ERC20WithOperator(asset.tokenAddress).burnFrom(address(this), quantity);
+} else {
+    ERC20WithOperator(asset.tokenAddress).burnFrom(issuer, quantity);
+}
+
+        if (operationId != bytes16(0)) {
+                delete locks[operationId];
+        }
+
+        emit Redeem(assetId, account, quantity, operationId);
     }
 
     function hold(

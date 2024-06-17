@@ -14,7 +14,6 @@ import {
   generateNonce,
   sign, stringToByte16
 } from "./utils";
-import { createAccount } from "../src/contracts/utils";
 
 describe("FinP2P proxy contract test", function() {
   // We define a fixture to reuse the same setup in every test.
@@ -33,7 +32,14 @@ describe("FinP2P proxy contract test", function() {
     return { contract, address };
   }
 
-
+  async function createAccount() {
+    const account = ethers.Wallet.createRandom();
+    return {
+      address: account.address,
+      privateKey: account.privateKey,
+      finId: privateKeyToFinId(account.privateKey)
+    };
+  }
 
   function currentTimeUnix() {
     return Math.floor(new Date().getTime() / 1000);
@@ -78,16 +84,64 @@ describe("FinP2P proxy contract test", function() {
 
       // -----------------------------
 
+
       const redeemAmount = issueAmountAsset - transferAmount;
       const redeeemNonce = generateNonce();
       const redeemAstHash = assetHash(redeeemNonce, "redeem", "finp2p", assetId, "finId", seller.finId, "", "", redeemAmount);
       const redeemSttlHash = randomHash();
       const redeemHash = combineHashes([redeemAstHash, redeemSttlHash]);
       const redeeemSignature = sign(seller.privateKey, redeemHash);
-      await contract.redeem(redeeemNonce, assetId, seller.finId, redeemAmount, redeemSttlHash, redeemHash, redeeemSignature, { from: operator });
+      const opId = '0x' + '0'.repeat(32);
+      await contract.redeem(opId, redeeemNonce, assetId, seller.finId, redeemAmount, redeemSttlHash, redeemHash, redeeemSignature, { from: operator });
 
       expect(await contract.getBalance(assetId, seller.finId)).to.equal(0);
       expect(await contract.getBalance(assetId, buyer.finId)).to.equal(transferAmount);
+    });
+
+    it("hold/redeem operation", async function() {
+      const [operator] = await ethers.getSigners();
+      const { contract, address: finP2PAddress } = await loadFixture(deployFinP2PProxyFixture);
+
+      const assetId = "USDT";
+      const erc20Address = await deployERC20("Payment stable coin", "USDT", finP2PAddress);
+      await contract.associateAsset(assetId, erc20Address, { from: operator });
+
+      const buyer = await createAccount();
+      const seller = await createAccount();
+
+      // -----------------------------
+
+      expect(await contract.getBalance(assetId, seller.finId)).to.equal(0);
+
+      const issueAmountAsset = 1000;
+      await contract.issue(assetId, seller.finId, issueAmountAsset, { from: operator });
+
+      expect(await contract.getBalance(assetId, seller.finId)).to.equal(issueAmountAsset);
+        
+      const opNum = 1;
+      const operationId = stringToByte16(`${opNum}`);
+      const holdAmount = 50;
+      const expiry = currentTimeUnix() + 24 * 60 * 60;
+      const astHash = randomHash();
+      const sttlHash = settlementHash("fiat", assetId, "finId", seller.finId, "finId", buyer.finId, holdAmount, expiry);
+      const hash = combineHashes([astHash, sttlHash]);
+      const signature = sign(seller.privateKey, hash);
+
+      await contract.hold(operationId, assetId, seller.finId, buyer.finId, holdAmount, expiry, astHash, hash, signature, { from: operator });
+      expect(await contract.getBalance(assetId, seller.finId)).to.equal(issueAmountAsset - holdAmount);
+
+      // -----------------------------
+
+
+      const redeemAmount = holdAmount;
+      const redeeemNonce = generateNonce();
+      const redeemAstHash = assetHash(redeeemNonce, "redeem", "finp2p", assetId, "finId", seller.finId, "", "", redeemAmount);
+      const redeemSttlHash = randomHash();
+      const redeemHash = combineHashes([redeemAstHash, redeemSttlHash]);
+      const redeeemSignature = sign(seller.privateKey, redeemHash);
+
+      await contract.redeem(operationId, redeeemNonce, assetId, seller.finId, redeemAmount, redeemSttlHash, redeemHash, redeeemSignature, { from: operator });
+      expect(await contract.getBalance(assetId, seller.finId)).to.equal(issueAmountAsset - redeemAmount);
     });
 
     it("hold/release/rollback operations", async function() {

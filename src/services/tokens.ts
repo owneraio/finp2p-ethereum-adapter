@@ -68,6 +68,7 @@ export class TokenService extends CommonService {
       throw new Error(`Unsupported asset type: ${request.asset.type}`);
     }
     const nonce = request.nonce;
+    const operationId = request.operationId;
     const assetId = request.asset.resourceId;
     const finId = request.source.finId;
     const amount = parseInt(request.quantity);
@@ -75,7 +76,9 @@ export class TokenService extends CommonService {
     const hash = request.signature.template.hash;
     const signature = request.signature.signature;
 
-    const txHash = await this.finP2PContract.redeem(nonce, assetId, finId, amount, settlementHash, hash, signature);
+    const safeOpId = operationId ?? "0000000000000000"
+
+    const txHash = await this.finP2PContract.redeem(safeOpId, nonce, assetId, finId, amount, settlementHash, hash, signature);
 
     return {
       isCompleted: false,
