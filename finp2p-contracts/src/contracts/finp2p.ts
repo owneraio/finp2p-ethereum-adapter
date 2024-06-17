@@ -50,8 +50,7 @@ export class FinP2PContract extends ContractsManager {
 
   async redeem(operationId: string, nonce: string, assetId: string, finId: string, quantity: number,
                settlementHash: string, hash: string, signature: string) {
-    const safeOperationId = operationId ?? "0000000000000000";
-    const response = await this.finP2P.redeem(stringToByte16(safeOperationId), `0x${nonce}`, assetId, finId, quantity,
+    const response = await this.finP2P.redeem(operationId, `0x${nonce}`, assetId, finId, quantity,
       `0x${settlementHash}`, `0x${hash}`, `0x${signature}`);
     return response.hash;
   }
@@ -118,7 +117,7 @@ export class FinP2PContract extends ContractsManager {
     }
     const receipt = parseTransactionReceipt(txReceipt, this.contractInterface);
     if (receipt === null) {
-      throw new Error("Failed to parse receipt");
+      throw new Error("Failed to parse receipt2");
     }
     return receipt;
   }

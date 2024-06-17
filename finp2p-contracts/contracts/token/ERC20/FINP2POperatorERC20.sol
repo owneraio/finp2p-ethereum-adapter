@@ -176,21 +176,21 @@ contract FINP2POperatorERC20 is IFinP2PAsset, IFinP2PEscrow, AccessControl {
         uint256 balance = IERC20(asset.tokenAddress).balanceOf(issuer);
         require(balance >= quantity, "Not sufficient balance to redeem");
 
-        if (operationId != bytes16(0)) {
+        if (operationId != 0x00000000000000000000000000000000) {
                 require(haveContract(operationId), "Contract does not exists");
 
                 Lock storage lock = locks[operationId];
                 require(quantity == lock.amount, "Amount to redeem is not equal to locked amount for this operationId");
         }
 
-if (operationId != bytes16(0)) {
-        ERC20WithOperator(asset.tokenAddress).burnFrom(address(this), quantity);
-} else {
-    ERC20WithOperator(asset.tokenAddress).burnFrom(issuer, quantity);
-}
+        if (operationId != 0x00000000000000000000000000000000) {
+                ERC20WithOperator(asset.tokenAddress).burnFrom(address(this), quantity);
+        } else {
+                ERC20WithOperator(asset.tokenAddress).burnFrom(issuer, quantity);
+        }
 
-        if (operationId != bytes16(0)) {
-                delete locks[operationId];
+        if (operationId != 0x00000000000000000000000000000000) {
+            delete locks[operationId];
         }
 
         emit Redeem(assetId, account, quantity, operationId);

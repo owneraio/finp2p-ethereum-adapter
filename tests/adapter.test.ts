@@ -127,6 +127,7 @@ describe(`token service test`, () => {
     );
 
     settlementRef = `${uuidv4()}`;
+    console.log(">>>>>>>>>>>>>>>>>>>>>here>>>>>")
     const redeemReceipt = await client.expectReceipt(await client.tokens.redeem({
       nonce: nonce.toString("hex"),
       source: buyer.account as Components.Schemas.FinIdAccount,
