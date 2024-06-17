@@ -15,12 +15,12 @@ const init = async () => {
     // TODO: add config validation
 
   } else {
-    let ethereumRPCUrl = process.env.NETWORK_HOST || '';
+    let ethereumRPCUrl = process.env.NETWORK_HOST;
     if (!ethereumRPCUrl) {
       throw new Error('ETHEREUM_RPC_URL is not set');
     }
-    const ethereumRPCAuth = process.env.NETWORK_AUTH || '';
-    if (!ethereumRPCAuth) {
+    const ethereumRPCAuth = process.env.NETWORK_AUTH;
+    if (ethereumRPCAuth) {
       if (ethereumRPCUrl.startsWith('https://')) {
         ethereumRPCUrl = 'https://' + ethereumRPCAuth + '@' + ethereumRPCUrl.replace('https://', '');
       } else if (ethereumRPCUrl.startsWith('http://')) {
