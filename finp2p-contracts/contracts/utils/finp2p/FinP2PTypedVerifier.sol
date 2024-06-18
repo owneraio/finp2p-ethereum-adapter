@@ -19,20 +19,17 @@ contract FinP2PTypedVerifier is EIP712 {
     );
 
     bytes32 private constant ISSUE_TYPE_HASH = keccak256(
-        "PrimarySale(bytes nonce,finId buyer,finId issuer,string amount,string assetId,string settlementAsset,string settlementAmount)"
+        "PrimarySale(bytes nonce,finId buyer,string issuer,string amount,string assetId,string settlementAsset,string settlementAmount)"
     );
+
 
     constructor() EIP712(SIGNING_DOMAIN, SIGNATURE_VERSION) {}
 
-
-    function hashFinId(string memory finId) internal view returns (bytes32) {
-        return _hashTypedDataV4(keccak256(abi.encode(
-            FINID_TYPE_HASH,
-            finId
-        )));
+    function _hashFinId(string memory finId) private pure returns (bytes memory) {
+        return abi.encode(FINID_TYPE_HASH, keccak256(bytes(finId)));
     }
 
-    function hashIssue(
+    function _hashIssue(
         bytes memory nonce,
         string memory buyer,
         string memory issuer,
@@ -40,17 +37,45 @@ contract FinP2PTypedVerifier is EIP712 {
         string memory assetId,
         string memory settlementAsset,
         string memory settlementAmount
-    ) internal view returns (bytes32) {
+    ) private view returns (bytes32) {
         return _hashTypedDataV4(keccak256(abi.encode(
             ISSUE_TYPE_HASH,
+            keccak256(nonce),
+            keccak256(_hashFinId(buyer)),
+//            keccak256(bytes(buyer)),
+            keccak256(bytes(issuer)),
+//            hashFinId(issuer),
+            keccak256(bytes(amount)),
+            keccak256(bytes(assetId)),
+            keccak256(bytes(settlementAsset)),
+            keccak256(bytes(settlementAmount))
+        )));
+    }
+
+    function verifyIssueSignature(
+        bytes memory nonce,
+        string memory buyer,
+        string memory issuer,
+        string memory amount,
+        string memory assetId,
+        string memory settlementAsset,
+        string memory settlementAmount,
+        address signer,
+        bytes memory signature
+    ) public view returns (bool) {
+        bytes32 hash = _hashIssue(
             nonce,
-            hashFinId(buyer),
-            hashFinId(issuer),
+            buyer,
+            issuer,
             amount,
             assetId,
             settlementAsset,
             settlementAmount
-        )));
+        );
+        return SignatureChecker.isValidSignatureNow(
+            signer,
+            hash,
+            signature
+        );
     }
-
 }
