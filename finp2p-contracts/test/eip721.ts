@@ -5,7 +5,6 @@ import { expect } from "chai";
 // @ts-ignore
 import { ethers } from "hardhat";
 
-
 describe("EIP-721 signing test", function() {
   async function deployFinP2PTypedVerifier() {
     const deployer = await ethers.getContractFactory("FinP2PTypedVerifier");
@@ -34,7 +33,7 @@ describe("EIP-721 signing test", function() {
       PrimarySale: [
         { name: "nonce", type: "bytes" },
         { name: "buyer", type: "finId" },
-        { name: "issuer", type: "string" },
+        { name: "issuer", type: "finId" },
         { name: "amount", type: "string" },
         { name: "assetId", type: "string" },
         { name: "settlementAsset", type: "string" },
@@ -52,10 +51,8 @@ describe("EIP-721 signing test", function() {
 
     const message = {
       nonce,
-      // buyer,
       buyer: { key: buyer },
-      issuer,
-      // issuer: { key: issuer },
+      issuer: { key: issuer },
       amount,
       assetId,
       settlementAsset,
@@ -63,13 +60,12 @@ describe("EIP-721 signing test", function() {
     };
 
     const signature = await signer.signTypedData(domain, types, message);
-    console.log(`signature: ${signature}`);
 
     const signerAddress = await signer.getAddress();
     expect(ethers.verifyTypedData(domain, types, message, signature)).to.equal(signerAddress);
 
-    // const verified = await verifier.verifyTestSignature(nonce, buyer, issuer, signerAddress, signature);
-    const verified = await verifier.verifyIssueSignature(nonce, buyer, issuer, amount, assetId, settlementAsset, settlementAmount, signerAddress, signature);
+    const verified = await verifier.verifyIssueSignature(nonce, buyer, issuer, amount, assetId, settlementAsset, settlementAmount,
+      signerAddress, signature);
     expect(verified).to.equal(true);
   });
 
