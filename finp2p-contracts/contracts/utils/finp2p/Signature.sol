@@ -92,10 +92,11 @@ library Signature {
         uint256 quantity,
         uint256 expiry,
         bytes32 assetHash,
+        string memory assetType,
         bytes32 hash
     ) internal pure returns (bool) {
         bytes32 settlementHash = keccak256(abi.encodePacked(
-                FIAT_ASSET_TYPE,
+                assetType,
                 assetId,
                 DEFAULT_ACCOUNT_TYPE,
                 sourceAccountId,

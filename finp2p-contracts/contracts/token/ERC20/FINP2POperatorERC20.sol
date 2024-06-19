@@ -120,7 +120,7 @@ contract FINP2POperatorERC20 is IFinP2PAsset, IFinP2PEscrow, AccessControl {
                 quantity,
                 settlementHash,
                 hash
-            ), "Hash is not valid");
+            ), "Hash is not valid for transfer");
 
         address source = Bytes.finIdToAddress(sourceFinId);
         address destination = Bytes.finIdToAddress(destinationFinId);
@@ -157,11 +157,11 @@ contract FINP2POperatorERC20 is IFinP2PAsset, IFinP2PEscrow, AccessControl {
         require(Signature.isRedeemHashValid(
                 nonce,
                 assetId,
-            account,
+                account,
                 quantity,
                 settlementHash,
                 hash
-            ), "Hash is not valid");
+            ), "Hash is not valid for redeem");
 
         address issuer = Bytes.finIdToAddress(account);
 
@@ -174,8 +174,9 @@ contract FINP2POperatorERC20 is IFinP2PAsset, IFinP2PEscrow, AccessControl {
 
         Asset memory asset = assets[assetId];
         uint256 balance = IERC20(asset.tokenAddress).balanceOf(issuer);
-        require(balance >= quantity, "Not sufficient balance to redeem");
-
+        if (operationId == 0x00000000000000000000000000000000) {
+           require(balance >= quantity, "Not sufficient balance to redeem");
+        }
         if (operationId != 0x00000000000000000000000000000000) {
                 require(haveContract(operationId), "Contract does not exists");
 
@@ -204,6 +205,7 @@ contract FINP2POperatorERC20 is IFinP2PAsset, IFinP2PEscrow, AccessControl {
         uint256 quantity,
         uint256 expiry,
         bytes32 assetHash,
+        string memory assetType,
         bytes32 hash,
         bytes memory signature
     ) public override virtual {
@@ -216,8 +218,9 @@ contract FINP2POperatorERC20 is IFinP2PAsset, IFinP2PEscrow, AccessControl {
                 quantity,
                 expiry,
                 assetHash,
+                assetType,
                 hash
-            ), "Hash is not valid");
+            ), "Hash is not valid for hold");
 
         address owner = Bytes.finIdToAddress(sourceFinId);
 
@@ -233,8 +236,8 @@ contract FINP2POperatorERC20 is IFinP2PAsset, IFinP2PEscrow, AccessControl {
         require(haveAsset(assetId), "Asset not found");
         Asset memory asset = assets[assetId];
 
-        uint256 balance = IERC20(asset.tokenAddress).balanceOf(owner);
-        require(balance >= quantity, "Not sufficient balance to hold");
+        // uint256 balance = IERC20(asset.tokenAddress).balanceOf(owner);
+        require(IERC20(asset.tokenAddress).balanceOf(owner) >= quantity, "Not sufficient balance to hold");
 
         if (haveContract(operationId))
             revert("Contract already exists");

@@ -13,11 +13,14 @@ export class EscrowService extends CommonService {
     const destinationFinId = request.destination?.finId || '';
     const amount = parseInt(request.quantity);
     const expiry = request.expiry;
+
+    console.log(`>>>>shashgroup: ${JSON.stringify(request.signature.template.hashGroups)}`)
+
     const assetHash = request.signature.template.hashGroups[0].hash;
     const hash = request.signature.template.hash;
     const signature = request.signature.signature;
 
-    const txHash = await this.finP2PContract.hold(operationId, assetId, sourceFinId, destinationFinId, amount, expiry, assetHash, hash, signature);
+    const txHash = await this.finP2PContract.hold(operationId, assetId, sourceFinId, destinationFinId, amount, expiry, assetHash, request.asset.type, hash, signature);
 
     return {
       isCompleted: false,

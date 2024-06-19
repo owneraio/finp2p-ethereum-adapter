@@ -18,7 +18,7 @@ describe(`token service test`, () => {
     hashFunction = global.hashFunction;
   });
 
-  test(` Scenario: issue / transfer / redeem`, async () => {
+  test(`Scenario: issue / transfer / redeem`, async () => {
 
     const asset = {
       type: "finp2p",
@@ -156,7 +156,7 @@ describe(`token service test`, () => {
     const buyerFinId = buyerCrypto.public.toString("hex");
     const buyer = {
       finId: buyerFinId,
-      account: {
+      account: { 
         type: "finId",
         finId: buyerFinId
       }
@@ -257,5 +257,121 @@ describe(`token service test`, () => {
     await client.expectBalance(seller, asset, transferQty);
   });
 
+  test(`Scenario: escrow hold / redeem`, async () => {
+    const buyerCrypto = createCrypto();
+    const buyerFinId = buyerCrypto.public.toString("hex");
+    const buyer = {
+      finId: buyerFinId,
+      account: { 
+        type: "finId",
+        finId: buyerFinId
+      }
+    } as Components.Schemas.Source;
+
+    const finAsset = {
+      type: "finp2p",
+      resourceId: randomResourceId(orgId, ASSET)
+    } as Components.Schemas.Asset;
+
+    const assetStatus = await client.tokens.createAsset({ asset: finAsset });
+    if (!assetStatus.isCompleted) {
+      await client.common.waitForCompletion(assetStatus.cid);
+    }
+    let issueQuantity = 1000;
+    let settlementRef = `${uuidv4()}`;
+    const issueReceipt = await client.expectReceipt(await client.tokens.issue({
+      nonce: generateNonce().toString("utf-8"),
+      destination: buyer.account as Components.Schemas.FinIdAccount,
+      quantity: `${issueQuantity}`,
+      asset: finAsset as Components.Schemas.Finp2pAsset,
+      settlementRef: settlementRef
+    } as Paths.IssueAssets.RequestBody));
+    expect(issueReceipt.asset).toStrictEqual(finAsset);
+    expect(parseInt(issueReceipt.quantity)).toBe(issueQuantity);
+    expect(issueReceipt.destination).toStrictEqual(buyer);
+
+    await client.expectBalance(buyer, finAsset, issueQuantity);
+
+    const sellerCrypto = createCrypto();
+    const sellerFinId = sellerCrypto.public.toString("hex");
+    const seller = {
+      finId: sellerFinId,
+      account: {
+        type: "finId",
+        finId: sellerFinId
+      }
+    } as Components.Schemas.Source;
+
+    const operationId = `${uuidv4()}`;
+    const holdQtu = 300;
+    const expiry = Math.floor(new Date().getTime() / 1000) + 600;
+    const signature = transferSignature(
+      {
+        nonce: generateNonce(),
+        operation: "transfer",
+        quantity: 10,
+        asset: { type: "finp2p", resourceId: randomResourceId(orgId, ASSET) },
+        source: seller,
+        destination: buyer
+      },
+      {
+        asset: finAsset,
+        quantity: holdQtu,
+        source: buyer,
+        destination: seller,
+        expiry: expiry
+      },
+      hashFunction, buyerCrypto.private
+    );
+
+    const status = await client.escrow.hold({
+      operationId: operationId,
+      source: buyer,
+      destination: seller,
+      quantity: `${holdQtu}`,
+      asset: finAsset,
+      expiry: expiry,
+      signature: signature
+    } as Paths.HoldOperation.RequestBody);
+    await client.expectReceipt(status);
+
+    await client.expectBalance(buyer, finAsset, issueQuantity - holdQtu);
+
+    let nonce = generateNonce();
+    let redeemQuantity = holdQtu;
+    const redeemSignature = transferSignature(
+      {
+        nonce: nonce,
+        operation: "redeem",
+        quantity: redeemQuantity,
+        asset: finAsset,
+        source: buyer
+      },
+      {
+        asset: { type: "fiat", code: "USD" },
+        quantity: 10000,
+        destination: buyer,
+        expiry: 6000
+      },
+      hashFunction,
+      buyerCrypto.private
+    );
+
+    const redeemReceipt = await client.expectReceipt(await client.tokens.redeem({
+      nonce: nonce.toString("hex"),
+      operationId: operationId,
+      source: buyer.account as Components.Schemas.FinIdAccount,
+      quantity: `${redeemQuantity}`,
+      settlementRef: settlementRef,
+      asset: finAsset as Components.Schemas.Finp2pAsset,
+      signature: redeemSignature
+    }));
+    expect(redeemReceipt.asset).toStrictEqual(finAsset);
+    expect(parseFloat(redeemReceipt.quantity)).toBeCloseTo(redeemQuantity, 4);
+    expect(redeemReceipt.source).toStrictEqual(buyer);
+    expect(redeemReceipt.destination).toBeUndefined();
+
+     await client.expectBalance(buyer, finAsset, issueQuantity - redeemQuantity);
+  });
 });
 

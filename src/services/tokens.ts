@@ -76,7 +76,7 @@ export class TokenService extends CommonService {
     const settlementHash = request.signature.template.hashGroups[1].hash;
     const hash = request.signature.template.hash;
     const signature = request.signature.signature;
-    const safeOpId = operationId ?? manualHexZeroPad('0x0', 16);
+    const safeOpId = operationId ?? "";
     const txHash = await this.finP2PContract.redeem(safeOpId, nonce, assetId, finId, amount, settlementHash, hash, signature);
 
     return {
@@ -85,18 +85,4 @@ export class TokenService extends CommonService {
     } as Components.Schemas.ReceiptOperation;
   }
 
-}
-
-function manualHexZeroPad(hexString: string, lengthInBytes: number): string {
-  const targetLength = lengthInBytes * 2;  // Each byte consists of two hexadecimal characters
-  const hexStripped = hexString.startsWith('0x') ? hexString.slice(2) : hexString;
-  const paddingNeeded = targetLength - hexStripped.length;
-
-  if (paddingNeeded > 0) {
-      // Pad with zeros at the beginning of the string
-      return '0x' + '0'.repeat(paddingNeeded) + hexStripped;
-  } else {
-      // No padding needed, return original string with '0x'
-      return '0x' + hexStripped;
-  }
 }

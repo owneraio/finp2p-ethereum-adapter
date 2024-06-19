@@ -50,16 +50,17 @@ export class FinP2PContract extends ContractsManager {
 
   async redeem(operationId: string, nonce: string, assetId: string, finId: string, quantity: number,
                settlementHash: string, hash: string, signature: string) {
-    const response = await this.finP2P.redeem(operationId, `0x${nonce}`, assetId, finId, quantity,
+    let opId = stringToByte16(operationId);
+    const response = await this.finP2P.redeem(opId, `0x${nonce}`, assetId, finId, quantity,
       `0x${settlementHash}`, `0x${hash}`, `0x${signature}`);
     return response.hash;
   }
 
   async hold(operationId: string, assetId: string, sourceFinId: string, destinationFinId: string, quantity: number, expiry: number,
-             assetHash: string, hash: string, signature: string) {
+             assetHash: string, assetType: string,hash: string, signature: string) {
     let opId = stringToByte16(operationId);
     const response = await this.finP2P.hold(opId, assetId, sourceFinId, destinationFinId, quantity, expiry,
-      `0x${assetHash}`, `0x${hash}`, `0x${signature}`);
+      `0x${assetHash}`, assetType,`0x${hash}`,`0x${signature}`);
     return response.hash;
   }
 

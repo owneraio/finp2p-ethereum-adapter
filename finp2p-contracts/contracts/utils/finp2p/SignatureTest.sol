@@ -19,6 +19,7 @@ contract SignatureTest {
         uint256 _expiry,
         bytes32 _assetHash,
         bytes32 _hash,
+        string memory _assetType,
         bytes memory _signature
     ) public pure returns (bool) {
         require(Signature.isHoldHashValid(
@@ -28,8 +29,9 @@ contract SignatureTest {
                 _quantity,
                 _expiry,
                 _assetHash,
+                _assetType,
                 _hash
-            ), "Hash is not valid");
+            ), "Hash is not valid for hold");
 
         require(Signature.verify(
                 _owner,
@@ -60,7 +62,7 @@ contract SignatureTest {
                 _quantity,
                 _settlementHash,
                 _hash
-            ), "Hash is not valid");
+            ), "Hash is not valid for transfer");
 
         require(Signature.verify(
                 _source,
@@ -88,7 +90,7 @@ contract SignatureTest {
                 _quantity,
                 _settlementHash,
                 _hash
-            ), "Hash is not valid");
+            ), "Hash is not valid for redeem");
 
         require(Signature.verify(
                 _issuer,
