@@ -9,6 +9,7 @@ import "../../utils/finp2p/IFinP2PEscrow.sol";
 import "../../utils/finp2p/Signature.sol";
 import "../../utils/finp2p/Bytes.sol";
 import "@openzeppelin/contracts/access/AccessControl.sol";
+import "../../utils/finp2p/FinP2PTypedVerifier.sol";
 
 /**
  * @dev FINP2POperatorERC20
@@ -18,7 +19,7 @@ import "@openzeppelin/contracts/access/AccessControl.sol";
  * It also allows to hold and release tokens in escrow.
  *
  */
-contract FINP2POperatorERC20 is IFinP2PAsset, IFinP2PEscrow, AccessControl {
+contract FINP2POperatorERC20 is IFinP2PAsset, IFinP2PEscrow, AccessControl, FinP2PTypedVerifier {
 
     bytes32 private constant ASSET_MANAGER = keccak256("ASSET_MANAGER");
     bytes32 private constant TRANSACTION_MANAGER = keccak256("TRANSACTION_MANAGER");
@@ -112,25 +113,19 @@ contract FINP2POperatorERC20 is IFinP2PAsset, IFinP2PEscrow, AccessControl {
         require(hasRole(TRANSACTION_MANAGER, _msgSender()), "FINP2POperatorERC20: must have transaction manager role to transfer asset");
         require(haveAsset(assetId), "Asset not found");
 
-        require(Signature.isTransferHashValid(
-                nonce,
-                assetId,
-                sourceFinId,
-                destinationFinId,
-                quantity,
-                settlementHash,
-                hash
-            ), "Hash is not valid");
-
         address source = Bytes.finIdToAddress(sourceFinId);
         address destination = Bytes.finIdToAddress(destinationFinId);
 
-        require(Signature.verify(
-                source,
-                hash,
-                signature
-            ),
-            "Signature is not verified");
+        require(verifyTransferSignature(
+            nonce,
+            sourceFinId,
+            destinationFinId,
+            assetId,
+            quantity,
+            settlementHash,
+            source,
+            signature
+        ), "Signature is not verified");
 
         Asset memory asset = assets[assetId];
         uint256 balance = IERC20(asset.tokenAddress).balanceOf(source);

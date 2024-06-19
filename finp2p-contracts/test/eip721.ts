@@ -4,7 +4,14 @@ import {
 import { expect } from "chai";
 // @ts-ignore
 import { ethers } from "hardhat";
-import { createCrypto, generateNonce, termHash } from "./utils";
+import {
+  createCrypto,
+  EIP721IssuanceMessage,
+  generateNonce,
+  signEIP721Issuance,
+  termHash,
+  verifyEIP721Issuance
+} from "./utils";
 import { v4 as uuidv4 } from "uuid";
 
 describe("EIP-721 signing test", function() {
@@ -20,37 +27,14 @@ describe("EIP-721 signing test", function() {
     const [signer] = await ethers.getSigners();
     const { contract: verifier } = await loadFixture(deployFinP2PTypedVerifier);
 
-
     const { name, version, chainId, verifyingContract } = await verifier.eip712Domain();
     console.log(`domain: ${name}, ${version}, ${chainId}, ${verifyingContract}`);
 
-    const domain = {
-      name, version, chainId, verifyingContract
-    };
-
-    const types = {
-      FinId: [{
-        name: "key", type: "string"
-      }],
-      Term: [
-        { name: "assetId", type: "string" },
-        { name: "assetType", type: "string" },
-        { name: "amount", type: "uint256" }
-      ],
-      PrimarySale: [
-        { name: "nonce", type: "bytes32" },
-        { name: "buyer", type: "FinId" },
-        { name: "issuer", type: "FinId" },
-        { name: "asset", type: "Term" },
-        { name: "settlement", type: "Term" }
-      ]
-    };
-
-    const nonce = `0x${generateNonce().toString('hex')}`;
-    const {public: buyerPublic} = createCrypto()
-    const buyer = `${buyerPublic.toString('hex')}`;
-    const {public: issuerPublic} = createCrypto()
-    const issuer = `${issuerPublic.toString('hex')}`;
+    const nonce = `0x${generateNonce().toString("hex")}`;
+    const { public: buyerPublic } = createCrypto();
+    const buyer = `${buyerPublic.toString("hex")}`;
+    const { public: issuerPublic } = createCrypto();
+    const issuer = `${issuerPublic.toString("hex")}`;
     const amount = getRandomNumber(1, 100);
     const assetId = `bank-us:102:${uuidv4()}`;
     const settlementAsset = "USD";
@@ -68,15 +52,15 @@ describe("EIP-721 signing test", function() {
       settlement: {
         assetId: settlementAsset,
         assetType: "fiat",
-        amount: settlementAmount,
-      },
-    };
+        amount: settlementAmount
+      }
+    } as EIP721IssuanceMessage;
 
-    const signature = await signer.signTypedData(domain, types, message);
-    const settlementHash = termHash(settlementAsset, 'fiat', settlementAmount)
+    const signature = await signEIP721Issuance(chainId, verifyingContract, message, signer);
+    const settlementHash = termHash(settlementAsset, "fiat", settlementAmount);
 
     const signerAddress = await signer.getAddress();
-    expect(ethers.verifyTypedData(domain, types, message, signature)).to.equal(signerAddress);
+    expect(verifyEIP721Issuance(chainId, verifyingContract, message, signerAddress, signature)).to.equal(true);
 
     const verified = await verifier.verifyIssueSignature(nonce, buyer, issuer, assetId, amount, settlementHash,
       signerAddress, signature);

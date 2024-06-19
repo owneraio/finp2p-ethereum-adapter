@@ -15,11 +15,19 @@ contract FinP2PTypedVerifier is EIP712 {
     string private constant SIGNATURE_VERSION = "1";
 
     bytes32 private constant FINID_TYPE_HASH = keccak256(
-        "finId(string key)"
+        "FinId(string key)"
+    );
+
+    bytes32 private constant TERM_TYPE_HASH = keccak256(
+        "Term(string assetId,string assetType,uint256 amount)"
     );
 
     bytes32 private constant ISSUE_TYPE_HASH = keccak256(
-        "PrimarySale(bytes nonce,finId buyer,finId issuer,string amount,string assetId,string settlementAsset,string settlementAmount)finId(string key)"
+        "PrimarySale(bytes32 nonce,FinId buyer,FinId issuer,Term asset,Term settlement)FinId(string key)Term(string assetId,string assetType,uint256 amount)"
+    );
+
+    bytes32 private constant TRANSFER_TYPE_HASH = keccak256(
+        "Transfer(bytes32 nonce,FinId buyer,FinId seller,Term asset,Term settlement)FinId(string key)Term(string assetId,string assetType,uint256 amount)"
     );
 
     constructor() EIP712(SIGNING_DOMAIN, SIGNATURE_VERSION) {}
@@ -29,51 +37,77 @@ contract FinP2PTypedVerifier is EIP712 {
         return keccak256(abi.encode(FINID_TYPE_HASH, keccak256(bytes(finId))));
     }
 
+    function _hashTerm(string memory assetId, string memory assetType, uint256 amount) private pure returns (bytes32) {
+        return keccak256(abi.encode(
+            TERM_TYPE_HASH,
+            keccak256(bytes(assetId)),
+            keccak256(bytes(assetType)),
+            amount
+        ));
+    }
+
     function _hashIssue(
-        bytes memory nonce,
+        bytes32 nonce,
         string memory buyer,
         string memory issuer,
-        string memory amount,
         string memory assetId,
-        string memory settlementAsset,
-        string memory settlementAmount
+        uint256 amount,
+        bytes32 settlementHash
     ) private view returns (bytes32) {
         return _hashTypedDataV4(keccak256(abi.encode(
             ISSUE_TYPE_HASH,
-            keccak256(nonce),
+            nonce,
             _hashFinId(buyer),
             _hashFinId(issuer),
-            keccak256(bytes(amount)),
-            keccak256(bytes(assetId)),
-            keccak256(bytes(settlementAsset)),
-            keccak256(bytes(settlementAmount))
+            _hashTerm(assetId, "finP2P", amount),
+            settlementHash
+//            _hashTerm(settlementAsset, "fiat", settlementAmount)
+        )));
+    }
+
+    function _hashTransfer(
+        bytes32 nonce,
+        string memory buyer,
+        string memory seller,
+        string memory assetId,
+        uint256 amount,
+        bytes32 settlementHash
+    ) private view returns (bytes32) {
+        return _hashTypedDataV4(keccak256(abi.encode(
+            TRANSFER_TYPE_HASH,
+            nonce,
+            _hashFinId(buyer),
+            _hashFinId(seller),
+            _hashTerm(assetId, "finP2P", amount),
+            settlementHash
         )));
     }
 
     function verifyIssueSignature(
-        bytes memory nonce,
+        bytes32 nonce,
         string memory buyer,
         string memory issuer,
-        string memory amount,
         string memory assetId,
-        string memory settlementAsset,
-        string memory settlementAmount,
+        uint256 amount,
+        bytes32 settlementHash,
         address signer,
         bytes memory signature
     ) public view returns (bool) {
-        bytes32 hash = _hashIssue(
-            nonce,
-            buyer,
-            issuer,
-            amount,
-            assetId,
-            settlementAsset,
-            settlementAmount
-        );
-        return SignatureChecker.isValidSignatureNow(
-            signer,
-            hash,
-            signature
-        );
+        bytes32 hash = _hashIssue(nonce, buyer, issuer, assetId, amount, settlementHash);
+        return SignatureChecker.isValidSignatureNow(signer, hash, signature);
+    }
+
+    function verifyTransferSignature(
+        bytes32 nonce,
+        string memory buyer,
+        string memory seller,
+        string memory assetId,
+        uint256 amount,
+        bytes32 settlementHash,
+        address signer,
+        bytes memory signature
+    ) public view returns (bool) {
+        bytes32 hash = _hashTransfer(nonce, buyer, seller, assetId, amount, settlementHash);
+        return SignatureChecker.isValidSignatureNow(signer, hash, signature);
     }
 }

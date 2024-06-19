@@ -1,7 +1,7 @@
 import * as secp256k1 from "secp256k1";
 import * as crypto from "crypto";
 import createKeccakHash from "keccak";
-import { TypedDataEncoder } from "ethers";
+import { ethers, TypedDataEncoder } from "ethers";
 
 
 export const stringToByte16 = (str: string): string => {
@@ -78,6 +78,49 @@ export const sign = (privateKey: string, payload: Buffer): Buffer => {
   return Buffer.from(sigObj.signature);
 };
 
+const EIP721_DOMAIN = {
+  name: "FinP2P",
+  version: "1",
+  chainId: 1,
+  verifyingContract: "0x0"
+};
+
+const EIP721_ISSUANCE_TYPES = {
+  FinId: [{
+    name: "key", type: "string"
+  }],
+  Term: [
+    { name: "assetId", type: "string" },
+    { name: "assetType", type: "string" },
+    { name: "amount", type: "uint256" }
+  ],
+  PrimarySale: [
+    { name: "nonce", type: "bytes32" },
+    { name: "buyer", type: "FinId" },
+    { name: "issuer", type: "FinId" },
+    { name: "asset", type: "Term" },
+    { name: "settlement", type: "Term" }
+  ]
+};
+
+export type EIP721IssuanceMessage = {
+  nonce: string,
+  buyer: { key: string },
+  issuer: { key: string },
+  asset: { assetId: string, assetType: string, amount: number },
+  settlement: { assetId: string, assetType: string, amount: number }
+}
+
+export const signEIP721Issuance = async (chainId: string, verifyingContract: string, message: EIP721IssuanceMessage, signer: ethers.Signer) => {
+  const domain = { ...EIP721_DOMAIN, chainId, verifyingContract };
+  return await signer.signTypedData(domain, EIP721_ISSUANCE_TYPES, message);
+};
+
+export const verifyEIP721Issuance = (chainId: string, verifyingContract: string, message: EIP721IssuanceMessage, signerAddress: string, signature: string) => {
+  const domain = { ...EIP721_DOMAIN, chainId, verifyingContract };
+  const address = ethers.verifyTypedData(domain, EIP721_ISSUANCE_TYPES, message, signature);
+  return address.toLowerCase() === signerAddress.toLowerCase();
+};
 
 export const termHash = (assetId: string, assetType: string, amount: number) => {
   const types = {
