@@ -4,6 +4,8 @@ import {
 import { expect } from "chai";
 // @ts-ignore
 import { ethers } from "hardhat";
+import { createCrypto, generateNonce, termHash } from "./utils";
+import { v4 as uuidv4 } from "uuid";
 
 describe("EIP-721 signing test", function() {
   async function deployFinP2PTypedVerifier() {
@@ -27,47 +29,63 @@ describe("EIP-721 signing test", function() {
     };
 
     const types = {
-      finId: [{
+      FinId: [{
         name: "key", type: "string"
       }],
-      PrimarySale: [
-        { name: "nonce", type: "bytes" },
-        { name: "buyer", type: "finId" },
-        { name: "issuer", type: "finId" },
-        { name: "amount", type: "string" },
+      Term: [
         { name: "assetId", type: "string" },
-        { name: "settlementAsset", type: "string" },
-        { name: "settlementAmount", type: "string" }
+        { name: "assetType", type: "string" },
+        { name: "amount", type: "uint256" }
+      ],
+      PrimarySale: [
+        { name: "nonce", type: "bytes32" },
+        { name: "buyer", type: "FinId" },
+        { name: "issuer", type: "FinId" },
+        { name: "asset", type: "Term" },
+        { name: "settlement", type: "Term" }
       ]
     };
 
-    const nonce = "0x712a8920ef2c1c99f8245c7f35b86c80fb6a6ebd4c12bf2f";
-    const buyer = "020e49498eedca38a0b7f74ae1818b21125cb6abfda83de3d31f188f8311522b12";
-    const issuer = "020e49498eedca38a0b7f74ae1818b21125cb6abfda83de3d31f188f8311522b12";
-    const amount = "10";
-    const assetId = "bank-us:102:92c46f2c-43e1-43a5-b8f7-8deb3c23eab5";
+    const nonce = `0x${generateNonce().toString('hex')}`;
+    const {public: buyerPublic} = createCrypto()
+    const buyer = `${buyerPublic.toString('hex')}`;
+    const {public: issuerPublic} = createCrypto()
+    const issuer = `${issuerPublic.toString('hex')}`;
+    const amount = getRandomNumber(1, 100);
+    const assetId = `bank-us:102:${uuidv4()}`;
     const settlementAsset = "USD";
-    const settlementAmount = "30";
+    const settlementAmount = getRandomNumber(1, 100);
 
     const message = {
       nonce,
       buyer: { key: buyer },
       issuer: { key: issuer },
-      amount,
-      assetId,
-      settlementAsset,
-      settlementAmount
+      asset: {
+        assetId,
+        assetType: "finP2P",
+        amount
+      },
+      settlement: {
+        assetId: settlementAsset,
+        assetType: "fiat",
+        amount: settlementAmount,
+      },
     };
 
     const signature = await signer.signTypedData(domain, types, message);
+    const settlementHash = termHash(settlementAsset, 'fiat', settlementAmount)
 
     const signerAddress = await signer.getAddress();
     expect(ethers.verifyTypedData(domain, types, message, signature)).to.equal(signerAddress);
 
-    const verified = await verifier.verifyIssueSignature(nonce, buyer, issuer, amount, assetId, settlementAsset, settlementAmount,
+    const verified = await verifier.verifyIssueSignature(nonce, buyer, issuer, assetId, amount, settlementHash,
       signerAddress, signature);
     expect(verified).to.equal(true);
   });
 
 
 });
+
+function getRandomNumber(min: number, max: number): number {
+  return Math.floor(Math.random() * (max - min + 1)) + min;
+}

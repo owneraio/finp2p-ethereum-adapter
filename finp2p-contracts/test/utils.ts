@@ -1,29 +1,30 @@
-import * as secp256k1 from 'secp256k1';
-import * as crypto from 'crypto';
-import createKeccakHash from 'keccak';
+import * as secp256k1 from "secp256k1";
+import * as crypto from "crypto";
+import createKeccakHash from "keccak";
+import { TypedDataEncoder } from "ethers";
 
 
 export const stringToByte16 = (str: string): string => {
-  return "0x" + Buffer.from(str).slice(0, 16).toString('hex').padEnd(32, '0');
-}
+  return "0x" + Buffer.from(str).slice(0, 16).toString("hex").padEnd(32, "0");
+};
 
 export const privateKeyToFinId = (privateKey: string): string => {
-  const privKeyBuffer = Buffer.from(privateKey.replace('0x', ''), 'hex');
+  const privKeyBuffer = Buffer.from(privateKey.replace("0x", ""), "hex");
   const pubKeyUInt8Array = secp256k1.publicKeyCreate(privKeyBuffer, true);
-  return Buffer.from(pubKeyUInt8Array).toString('hex');
-}
+  return Buffer.from(pubKeyUInt8Array).toString("hex");
+};
 
 export const combineHashes = (hashes: Buffer[]): Buffer => {
   return createKeccakHash("keccak256")
     .update(Buffer.concat(hashes))
     .digest();
-}
+};
 
 export const hashValues = (values: any[]): Buffer => {
   return createKeccakHash("keccak256")
     .update(Buffer.concat(values.map(Buffer.from)))
     .digest();
-}
+};
 
 export const assetHash = (nonce: Buffer, operation: string,
                           assetType: string, assetId: string,
@@ -41,7 +42,7 @@ export const assetHash = (nonce: Buffer, operation: string,
     destinationAccountId,
     `${quantity}`
   ]);
-}
+};
 
 export const settlementHash = (assetType: string, assetId: string,
                                sourceAssetType: string, sourceAccountId: string,
@@ -52,13 +53,13 @@ export const settlementHash = (assetType: string, assetId: string,
     values.push(`${expiry}`);
   }
   return hashValues(values);
-}
+};
 
 export const randomHash = (): Buffer => {
   return createKeccakHash("keccak256")
     .update(crypto.randomBytes(32))
-    .digest()
-}
+    .digest();
+};
 
 export const generateNonce = (): Buffer => {
   const buffer = Buffer.alloc(32);
@@ -69,11 +70,34 @@ export const generateNonce = (): Buffer => {
   buffer.writeBigInt64BE(t, 24);
 
   return buffer;
-}
+};
 
 export const sign = (privateKey: string, payload: Buffer): Buffer => {
-  const privKey = Buffer.from(privateKey.replace('0x', ''), 'hex');
+  const privKey = Buffer.from(privateKey.replace("0x", ""), "hex");
   const sigObj = secp256k1.sign(payload, privKey);
   return Buffer.from(sigObj.signature);
-}
+};
 
+
+export const termHash = (assetId: string, assetType: string, amount: number) => {
+  const types = {
+    Term: [
+      { name: "assetId", type: "string" },
+      { name: "assetType", type: "string" },
+      { name: "amount", type: "uint256" }
+    ]
+  };
+  return TypedDataEncoder.from(types).hash({ assetId, assetType, amount });
+};
+
+export const createCrypto = (): { private: Buffer, public: Buffer } => {
+  // generate privKey
+  let privKey;
+  do {
+    privKey = crypto.randomBytes(32);
+  } while (!secp256k1.privateKeyVerify(privKey));
+
+  // get the public key in a compressed format
+  const pubKey = secp256k1.publicKeyCreate(privKey, true);
+  return { private: privKey, public: Buffer.from(pubKey) };
+};
