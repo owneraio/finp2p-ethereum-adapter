@@ -1003,12 +1003,24 @@ components:
           $ref: '#/components/schemas/signatureTemplate'
 
     signatureTemplate:
+      type: object
+      oneOf:
+        - $ref: '#/components/schemas/hashListTemplate'
+        - $ref: '#/components/schemas/EIP712Template'
+      discriminator:
+        propertyName: type
+        mapping:
+          hashList: '#/components/schemas/hashListTemplate'
+          EIP712: '#/components/schemas/EIP712Template'
+
+    hashListTemplate:
       description: 'ordered list of hash groups'
-      required:
-        - hashGroups
-        - hash
+      required: [ type, hashGroups, hash ]
       type: object
       properties:
+        type:
+          type: string
+          enum: [ "hashList" ]
         hashGroups:
           type: array
           items:
@@ -1051,6 +1063,79 @@ components:
           type: string
           description: 'hex representation of the field value'
 
+    EIP712Domain:
+      type: object
+      properties:
+        name:
+          type: string
+        version:
+          type: string
+        chainId:
+          type: integer
+          format: uint64
+        verifyingContract:
+          type: string
+          format: address
+    EIP712TypedValue:
+      type: object
+      oneOf:
+        - type: string
+        - type: integer
+        - type: boolean
+        - type: string
+          format: byte
+        - type: object
+          properties:
+            fields:
+              type: object
+              additionalProperties:
+                $ref: '#/components/schemas/EIP712TypedValue'
+        - type: array
+          items:
+            $ref: '#/components/schemas/EIP712TypedValue'
+    EIP712Types:
+      type: object
+      properties:
+        definitions:
+          type: array
+          items:
+            $ref: '#/components/schemas/EIP712TypeDefinition'
+    EIP712TypeDefinition:
+      type: object
+      properties:
+        name:
+          type: string
+        fields:
+          type: array
+          items:
+            $ref: '#/components/schemas/EIP712FieldDefinition'
+    EIP712FieldDefinition:
+      type: object
+      properties:
+        name:
+          type: string
+        type:
+          type: string
+    EIP712Template:
+      required: [ type, domain, message, primaryType, types, hash ]
+      type: object
+      properties:
+        type:
+          type: string
+          enum: [ "EIP712" ]
+        domain:
+          $ref: '#/components/schemas/EIP712Domain'
+        message:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/EIP712TypedValue'
+        types:
+          $ref: '#/components/schemas/EIP712Types'
+        primaryType:
+          type: string
+        hash:
+          type: string
+          description: 'hex representation of template hash'
 
     receipt:
       type: object
