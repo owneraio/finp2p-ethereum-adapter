@@ -22,6 +22,7 @@ contract FINP2POperatorERC20 is IFinP2PAsset, IFinP2PEscrow, AccessControl {
 
     bytes32 private constant ASSET_MANAGER = keccak256("ASSET_MANAGER");
     bytes32 private constant TRANSACTION_MANAGER = keccak256("TRANSACTION_MANAGER");
+    bytes16 public constant OPERATION_ID_ZERO_VALUE = 0x00000000000000000000000000000000;
 
     struct Asset {
         string id;
@@ -174,27 +175,18 @@ contract FINP2POperatorERC20 is IFinP2PAsset, IFinP2PEscrow, AccessControl {
 
         Asset memory asset = assets[assetId];
         uint256 balance = IERC20(asset.tokenAddress).balanceOf(issuer);
-        if (operationId == 0x00000000000000000000000000000000) {
+        if (operationId == OPERATION_ID_ZERO_VALUE) {
            require(balance >= quantity, "Not sufficient balance to redeem");
-        }
-        if (operationId != 0x00000000000000000000000000000000) {
-                require(haveContract(operationId), "Contract does not exists");
-
-                Lock storage lock = locks[operationId];
-                require(quantity == lock.amount, "Amount to redeem is not equal to locked amount for this operationId");
-        }
-
-        if (operationId != 0x00000000000000000000000000000000) {
-                ERC20WithOperator(asset.tokenAddress).burnFrom(address(this), quantity);
+           ERC20WithOperator(asset.tokenAddress).burnFrom(issuer, quantity);
+           emit Redeem(assetId, account, quantity, operationId);
         } else {
-                ERC20WithOperator(asset.tokenAddress).burnFrom(issuer, quantity);
+           require(haveContract(operationId), "Contract does not exists");
+           Lock storage lock = locks[operationId];
+           require(quantity == lock.amount, "Amount to redeem is not equal to locked amount for this operationId");
+           ERC20WithOperator(asset.tokenAddress).burnFrom(address(this), quantity);
+           delete locks[operationId];
+           emit Redeem(assetId, account, quantity, operationId);
         }
-
-        if (operationId != 0x00000000000000000000000000000000) {
-            delete locks[operationId];
-        }
-
-        emit Redeem(assetId, account, quantity, operationId);
     }
 
     function hold(
