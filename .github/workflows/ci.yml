@@ -83,6 +83,7 @@ jobs:
           context: .
           push: true
           sbom: false
+          provenance: false
           file: ./Dockerfile
           tags: |
             ownera/finp2p-ethereum-adapter:${{ env.IMAGE_TAG }}
@@ -94,6 +95,7 @@ jobs:
           context: ./finp2p-contracts
           push: true
           sbom: false
+          provenance: false
           file: ./finp2p-contracts/Dockerfile-migration
           tags: |
             ownera/finp2p-contracts:${{ env.IMAGE_TAG }}
@@ -105,6 +107,7 @@ jobs:
           context: .
           push: true
           sbom: false
+          provenance: false
           file: ./Dockerfile-hardhat
           tags: |
             ownera/hardhat:${{ env.IMAGE_TAG }}
