@@ -1,6 +1,6 @@
 openapi: 3.0.1
 info:
-  title: Ledger Adapter Specifications
+  title: Ledger Adapter Specification
   description: This is the API specification for the Ledger Adapter with whom the FinP2P node will interact in order to execute and query the underlying implementation.
   termsOfService: 'https://ownera.io/terms/'
   contact:
@@ -19,7 +19,7 @@ tags:
   - name: escrow
     description: Escrow
   - name: operations
-    description: Operations
+    description: Opetations
 
 paths:
   /plan/approve:
@@ -325,6 +325,9 @@ paths:
               properties:
                 nonce:
                   $ref: '#/components/schemas/nonce'
+                operationId:
+                  type: string
+                  x-go-type-skip-optional-pointer: true
                 source:
                   $ref: '#/components/schemas/finIdAccount'
                 quantity:
@@ -1078,6 +1081,15 @@ components:
           $ref: '#/components/schemas/destination'
         transactionDetails:
           $ref: '#/components/schemas/transactionDetails'
+        operationType:
+          type: string
+          description: "The type of the operation, e.g., issue, transfer, hold, release, redeem"
+          enum:
+            - issue
+            - transfer
+            - hold
+            - release
+            - redeem
 
     transactionDetails:
       description: Additional input and output details for UTXO supporting DLTs
@@ -1117,7 +1129,7 @@ components:
               validationFailure: '#/components/schemas/validationFailure'
               regulationFailure: '#/components/schemas/regulationFailure'
 
-    #   TODO: make it generic, regulation or other error could extend this generic time
+  #   TODO: make it generic, regulation or other error could extend this generic time
     validationFailure:
       type: object
       required:

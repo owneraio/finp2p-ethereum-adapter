@@ -9,8 +9,10 @@
     "test": "hardhat test",
     "build": "tsc",
     "deploy-contract": "node dist/scripts/deploy.js",
+    "deploy-contract-job": "node dist/scripts/deploy-job.js",
     "grant-operator-roles": "node dist/scripts/grant.js",
-    "associate-asset": "node dist/scripts/associate.js"
+    "associate-asset": "node dist/scripts/associate.js",
+    "generate-wallet": "node dist/scripts/generate-wallet.js"
   },
   "keywords": [],
   "author": "",

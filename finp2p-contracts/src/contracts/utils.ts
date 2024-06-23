@@ -1,9 +1,26 @@
 import { Interface, TransactionReceipt, Wallet } from "ethers";
 import { FinP2PReceipt } from "./model";
+import * as secp256k1 from "secp256k1";
+
+export const privateKeyToFinId = (privateKey: string): string => {
+  const privKeyBuffer = Buffer.from(privateKey.replace('0x', ''), 'hex');
+  const pubKeyUInt8Array = secp256k1.publicKeyCreate(privKeyBuffer, true);
+  return Buffer.from(pubKeyUInt8Array).toString('hex');
+}
+
+export const createAccount = () => {
+  const account = Wallet.createRandom();
+  return {
+    address: account.address,
+    privateKey: account.privateKey,
+    finId: privateKeyToFinId(account.privateKey)
+  };
+};
 
 export const addressFromPrivateKey = (privateKey: string): string => {
  return  new Wallet(privateKey).address;
 }
+
 
 export const parseTransactionReceipt = (receipt: TransactionReceipt, contractInterface: Interface): FinP2PReceipt | null => {
   const id = receipt.hash;
@@ -23,7 +40,8 @@ export const parseTransactionReceipt = (receipt: TransactionReceipt, contractInt
             assetType: "finp2p",
             amount: parsedLog.args.quantity,
             destination: parsedLog.args.issuerFinId,
-            timestamp: timestamp
+            timestamp: timestamp,
+            operationType: "issue"
           };
         case "Transfer":
           return {
@@ -33,7 +51,8 @@ export const parseTransactionReceipt = (receipt: TransactionReceipt, contractInt
             amount: parsedLog.args.quantity,
             source: parsedLog.args.sourceFinId,
             destination: parsedLog.args.destinationFinId,
-            timestamp: timestamp
+            timestamp: timestamp,
+            operationType: "transfer"
           };
         case "Redeem":
           return {
@@ -42,7 +61,8 @@ export const parseTransactionReceipt = (receipt: TransactionReceipt, contractInt
             assetType: "finp2p",
             amount: parsedLog.args.quantity,
             source: parsedLog.args.issuerFinId,
-            timestamp: timestamp
+            timestamp: timestamp,
+            operationType: "redeem"
           };
         case "Hold":
           return {
@@ -51,7 +71,8 @@ export const parseTransactionReceipt = (receipt: TransactionReceipt, contractInt
             assetType: "fiat",
             amount: parsedLog.args.quantity,
             source: parsedLog.args.finId,
-            timestamp: timestamp
+            timestamp: timestamp,
+            operationType: "hold"
           };
         case "Release":
           return {
@@ -61,7 +82,8 @@ export const parseTransactionReceipt = (receipt: TransactionReceipt, contractInt
             amount: parsedLog.args.quantity,
             source: parsedLog.args.sourceFinId,
             destination: parsedLog.args.destinationFinId,
-            timestamp: timestamp
+            timestamp: timestamp,
+            operationType: "release"
           };
         case "Rollback":
           return {
@@ -70,7 +92,8 @@ export const parseTransactionReceipt = (receipt: TransactionReceipt, contractInt
             assetType: "fiat",
             amount: parsedLog.args.quantity,
             destination: parsedLog.args.destinationFinId,
-            timestamp: timestamp
+            timestamp: timestamp,
+            operationType: "release"
           };
       }
     } catch (e) {

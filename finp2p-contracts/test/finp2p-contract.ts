@@ -14,6 +14,7 @@ import {
   generateNonce,
   sign, stringToByte16
 } from "./utils";
+import { createAccount } from "../src/contracts/utils";
 
 describe("FinP2P proxy contract test", function() {
   // We define a fixture to reuse the same setup in every test.
@@ -32,14 +33,7 @@ describe("FinP2P proxy contract test", function() {
     return { contract, address };
   }
 
-  async function createAccount() {
-    const account = ethers.Wallet.createRandom();
-    return {
-      address: account.address,
-      privateKey: account.privateKey,
-      finId: privateKeyToFinId(account.privateKey)
-    };
-  }
+
 
   function currentTimeUnix() {
     return Math.floor(new Date().getTime() / 1000);
