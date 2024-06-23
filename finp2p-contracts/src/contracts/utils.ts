@@ -40,7 +40,8 @@ export const parseTransactionReceipt = (receipt: TransactionReceipt, contractInt
             assetType: "finp2p",
             amount: parsedLog.args.quantity,
             destination: parsedLog.args.issuerFinId,
-            timestamp: timestamp
+            timestamp: timestamp,
+            operationType: "issue"
           };
         case "Transfer":
           return {
@@ -50,7 +51,8 @@ export const parseTransactionReceipt = (receipt: TransactionReceipt, contractInt
             amount: parsedLog.args.quantity,
             source: parsedLog.args.sourceFinId,
             destination: parsedLog.args.destinationFinId,
-            timestamp: timestamp
+            timestamp: timestamp,
+            operationType: "transfer"
           };
         case "Redeem":
           return {
@@ -59,7 +61,8 @@ export const parseTransactionReceipt = (receipt: TransactionReceipt, contractInt
             assetType: "finp2p",
             amount: parsedLog.args.quantity,
             source: parsedLog.args.issuerFinId,
-            timestamp: timestamp
+            timestamp: timestamp,
+            operationType: "redeem"
           };
         case "Hold":
           return {
@@ -68,7 +71,8 @@ export const parseTransactionReceipt = (receipt: TransactionReceipt, contractInt
             assetType: "fiat",
             amount: parsedLog.args.quantity,
             source: parsedLog.args.finId,
-            timestamp: timestamp
+            timestamp: timestamp,
+            operationType: "hold"
           };
         case "Release":
           return {
@@ -78,7 +82,8 @@ export const parseTransactionReceipt = (receipt: TransactionReceipt, contractInt
             amount: parsedLog.args.quantity,
             source: parsedLog.args.sourceFinId,
             destination: parsedLog.args.destinationFinId,
-            timestamp: timestamp
+            timestamp: timestamp,
+            operationType: "release"
           };
         case "Rollback":
           return {
@@ -87,7 +92,8 @@ export const parseTransactionReceipt = (receipt: TransactionReceipt, contractInt
             assetType: "fiat",
             amount: parsedLog.args.quantity,
             destination: parsedLog.args.destinationFinId,
-            timestamp: timestamp
+            timestamp: timestamp,
+            operationType: "release"
           };
       }
     } catch (e) {
