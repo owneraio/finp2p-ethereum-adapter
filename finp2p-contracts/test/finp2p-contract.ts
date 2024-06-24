@@ -92,7 +92,7 @@ describe("FinP2P proxy contract test", function() {
       const redeemSttlHash = randomHash();
       const redeemHash = combineHashes([redeemAstHash, redeemSttlHash]);
       const redeeemSignature = sign(seller.privateKey, redeemHash);
-      const opId = '0x' + '0'.repeat(32);
+      const opId = stringToByte16("")
       await contract.redeem(opId, redeeemNonce, assetId, seller.finId, redeemAmount, redeemSttlHash, redeemHash, redeeemSignature, { from: operator });
 
       expect(await contract.getBalance(assetId, seller.finId)).to.equal(0);

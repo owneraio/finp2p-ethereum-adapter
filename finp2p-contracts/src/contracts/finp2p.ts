@@ -88,7 +88,7 @@ export class FinP2PContract extends ContractsManager {
     } else if (txReceipt?.status === 1) {
       let receipt = parseTransactionReceipt(txReceipt, this.contractInterface);
       if (receipt === null) {
-        console.log("Failed to parse receipt");
+        console.log("Failed to parse receipt in getOperationStatus");
         return {
           status: "failed",
           error: {
@@ -119,7 +119,7 @@ export class FinP2PContract extends ContractsManager {
     }
     const receipt = parseTransactionReceipt(txReceipt, this.contractInterface);
     if (receipt === null) {
-      throw new Error("Failed to parse receipt2");
+      throw new Error("Failed to parse receipt in getReceipt");
     }
     return receipt;
   }

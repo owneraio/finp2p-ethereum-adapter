@@ -91,13 +91,13 @@ library Signature {
     }
 
 function assetTypeName(AssetType assetType) internal pure returns (bytes memory){
-unchecked{
-    if (assetType == AssetType.FinP2P) {
-        return FINP2P_ASSET_TYPE;
-    } else {
-        return FIAT_ASSET_TYPE;
+    unchecked{
+        if (assetType == AssetType.FinP2P) {
+            return FINP2P_ASSET_TYPE;
+        } else {
+            return FIAT_ASSET_TYPE;
+        }
     }
-}
 }
 
     function isHoldHashValid(
