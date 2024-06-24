@@ -17,7 +17,7 @@ library Signature {
     bytes private constant FIAT_ASSET_TYPE = "fiat";
     bytes private constant DEFAULT_ACCOUNT_TYPE = "finId";
 
-     enum  AssetType {
+    enum AssetType {
         FinP2P,
         Fiat
     }
