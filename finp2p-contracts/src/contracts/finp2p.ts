@@ -3,7 +3,7 @@ import FINP2P
   from "../../artifacts/contracts/token/ERC20/FINP2POperatorERC20.sol/FINP2POperatorERC20.json";
 import { FINP2POperatorERC20 } from "../../typechain-types";
 import { FinP2PReceipt, OperationStatus } from "./model";
-import { parseTransactionReceipt, stringToByte16 } from "./utils";
+import { parseTransactionReceipt, stringToByte16, enumAssetTypeIndexByName } from "./utils";
 import { ContractsManager } from "./manager";
 import { FinP2PContractConfig } from "./config";
 
@@ -59,8 +59,9 @@ export class FinP2PContract extends ContractsManager {
   async hold(operationId: string, assetId: string, sourceFinId: string, destinationFinId: string, quantity: number, expiry: number,
              assetHash: string, assetType: string,hash: string, signature: string) {
     let opId = stringToByte16(operationId);
+    const assetTypeEnum = enumAssetTypeIndexByName(assetType)
     const response = await this.finP2P.hold(opId, assetId, sourceFinId, destinationFinId, quantity, expiry,
-      `0x${assetHash}`, assetType,`0x${hash}`,`0x${signature}`);
+      `0x${assetHash}`, assetTypeEnum,`0x${hash}`,`0x${signature}`);
     return response.hash;
   }
 

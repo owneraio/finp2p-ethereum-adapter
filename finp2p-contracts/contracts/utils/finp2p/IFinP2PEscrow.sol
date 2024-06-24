@@ -3,6 +3,7 @@
 pragma solidity ^0.8.0;
 
 import "./IFinP2PCommon.sol";
+import "./Signature.sol";
 
 /**
  * @dev Interface of the FinP2P protocol escrow operations.
@@ -20,7 +21,7 @@ interface IFinP2PEscrow is IFinP2PCommon {
     event Rollback(string assetId, string finId, uint256 quantity, bytes16 operationId);
 
     function hold(bytes16 operationId, string memory assetId, string memory sourceFinId, string memory destinationFinId,
-        uint256 quantity, uint256 expiry, bytes32 assetHash, string memory assetType, bytes32 hash, bytes memory signature) external;
+        uint256 quantity, uint256 expiry, bytes32 assetHash, Signature.AssetType assetType, bytes32 hash, bytes memory signature) external;
 
     function getLockInfo(bytes16 operationId) external view returns (LockInfo memory);
 

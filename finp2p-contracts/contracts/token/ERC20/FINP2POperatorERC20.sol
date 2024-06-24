@@ -174,15 +174,17 @@ contract FINP2POperatorERC20 is IFinP2PAsset, IFinP2PEscrow, AccessControl {
             "Signature is not verified");
 
         Asset memory asset = assets[assetId];
-        uint256 balance = IERC20(asset.tokenAddress).balanceOf(issuer);
         if (operationId == OPERATION_ID_ZERO_VALUE) {
-           require(balance >= quantity, "Not sufficient balance to redeem");
+           require(IERC20(asset.tokenAddress).balanceOf(issuer) >= quantity, "Not sufficient balance to redeem");
            ERC20WithOperator(asset.tokenAddress).burnFrom(issuer, quantity);
            emit Redeem(assetId, account, quantity, operationId);
         } else {
            require(haveContract(operationId), "Contract does not exists");
            Lock storage lock = locks[operationId];
            require(quantity == lock.amount, "Amount to redeem is not equal to locked amount for this operationId");
+           require(IERC20(asset.tokenAddress).balanceOf(address(this)) <= quantity, "The amount reported as locked does not actually exist in balance");
+           // An operationId is given. We are burning the quantity from where it was transfered to when a
+           // "Hold" operation was done previously.
            ERC20WithOperator(asset.tokenAddress).burnFrom(address(this), quantity);
            delete locks[operationId];
            emit Redeem(assetId, account, quantity, operationId);
@@ -197,7 +199,7 @@ contract FINP2POperatorERC20 is IFinP2PAsset, IFinP2PEscrow, AccessControl {
         uint256 quantity,
         uint256 expiry,
         bytes32 assetHash,
-        string memory assetType,
+        Signature.AssetType assetType,
         bytes32 hash,
         bytes memory signature
     ) public override virtual {
@@ -228,7 +230,6 @@ contract FINP2POperatorERC20 is IFinP2PAsset, IFinP2PEscrow, AccessControl {
         require(haveAsset(assetId), "Asset not found");
         Asset memory asset = assets[assetId];
 
-        // uint256 balance = IERC20(asset.tokenAddress).balanceOf(owner);
         require(IERC20(asset.tokenAddress).balanceOf(owner) >= quantity, "Not sufficient balance to hold");
 
         if (haveContract(operationId))

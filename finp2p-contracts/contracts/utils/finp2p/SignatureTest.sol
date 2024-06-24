@@ -19,7 +19,7 @@ contract SignatureTest {
         uint256 _expiry,
         bytes32 _assetHash,
         bytes32 _hash,
-        string memory _assetType,
+        Signature.AssetType _assetType,
         bytes memory _signature
     ) public pure returns (bool) {
         require(Signature.isHoldHashValid(

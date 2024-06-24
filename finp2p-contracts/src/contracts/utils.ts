@@ -103,4 +103,10 @@ export const stringToByte16 = (str: string): string => {
   return "0x" + Buffer.from(str).slice(0, 16).toString('hex').padEnd(32, '0');
 }
 
-
+export const enumAssetTypeIndexByName = (assetType: string): number => {
+  if (assetType === "finp2p") {
+    return 0;
+  } else {
+    return 1;
+  }
+};

@@ -12,7 +12,8 @@ import {
   settlementHash,
   randomHash,
   generateNonce,
-  sign, stringToByte16
+  sign, stringToByte16,
+  enumAssetTypeIndexByName
 } from "./utils";
 
 describe("FinP2P proxy contract test", function() {
@@ -127,7 +128,7 @@ describe("FinP2P proxy contract test", function() {
       const hash = combineHashes([astHash, sttlHash]);
       const signature = sign(seller.privateKey, hash);
 
-      await contract.hold(operationId, assetId, seller.finId, buyer.finId, holdAmount, expiry, astHash, "fiat", hash, signature, { from: operator });
+      await contract.hold(operationId, assetId, seller.finId, buyer.finId, holdAmount, expiry, astHash, enumAssetTypeIndexByName("fiat"), hash, signature, { from: operator });
       expect(await contract.getBalance(assetId, seller.finId)).to.equal(issueAmountAsset - holdAmount);
 
       // -----------------------------
@@ -176,7 +177,7 @@ describe("FinP2P proxy contract test", function() {
       const hash = combineHashes([astHash, sttlHash]);
       const signature = sign(seller.privateKey, hash);
 
-      await contract.hold(operationId, assetId, seller.finId, buyer.finId, transferAmount, expiry, astHash, "fiat", hash, signature, { from: operator });
+      await contract.hold(operationId, assetId, seller.finId, buyer.finId, transferAmount, expiry, astHash, enumAssetTypeIndexByName("fiat"), hash, signature, { from: operator });
 
       expect(await contract.getBalance(assetId, seller.finId)).to.equal(issueAmountAsset - transferAmount);
 
