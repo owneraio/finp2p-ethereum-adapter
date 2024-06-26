@@ -17,6 +17,11 @@ library Signature {
     bytes private constant FIAT_ASSET_TYPE = "fiat";
     bytes private constant DEFAULT_ACCOUNT_TYPE = "finId";
 
+    enum AssetType {
+        FinP2P,
+        Fiat
+    }
+
     function isIssueHashValid(
         bytes32 nonce,
         string memory assetId,
@@ -85,6 +90,16 @@ library Signature {
         }
     }
 
+function assetTypeName(AssetType assetType) internal pure returns (bytes memory){
+    unchecked{
+        if (assetType == AssetType.FinP2P) {
+            return FINP2P_ASSET_TYPE;
+        } else {
+            return FIAT_ASSET_TYPE;
+        }
+    }
+}
+
     function isHoldHashValid(
         string memory assetId,
         string memory sourceAccountId,
@@ -92,10 +107,11 @@ library Signature {
         uint256 quantity,
         uint256 expiry,
         bytes32 assetHash,
+        AssetType assetType,
         bytes32 hash
     ) internal pure returns (bool) {
         bytes32 settlementHash = keccak256(abi.encodePacked(
-                FIAT_ASSET_TYPE,
+                assetTypeName(assetType),
                 assetId,
                 DEFAULT_ACCOUNT_TYPE,
                 sourceAccountId,

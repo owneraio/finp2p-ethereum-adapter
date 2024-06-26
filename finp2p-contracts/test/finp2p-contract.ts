@@ -12,9 +12,9 @@ import {
   settlementHash,
   randomHash,
   generateNonce,
-  sign, stringToByte16
+  sign, stringToByte16,
+  enumAssetTypeIndexByName
 } from "./utils";
-import { createAccount } from "../src/contracts/utils";
 
 describe("FinP2P proxy contract test", function() {
   // We define a fixture to reuse the same setup in every test.
@@ -33,7 +33,14 @@ describe("FinP2P proxy contract test", function() {
     return { contract, address };
   }
 
-
+  async function createAccount() {
+    const account = ethers.Wallet.createRandom();
+    return {
+      address: account.address,
+      privateKey: account.privateKey,
+      finId: privateKeyToFinId(account.privateKey)
+    };
+  }
 
   function currentTimeUnix() {
     return Math.floor(new Date().getTime() / 1000);
@@ -78,16 +85,75 @@ describe("FinP2P proxy contract test", function() {
 
       // -----------------------------
 
+
       const redeemAmount = issueAmountAsset - transferAmount;
       const redeeemNonce = generateNonce();
       const redeemAstHash = assetHash(redeeemNonce, "redeem", "finp2p", assetId, "finId", seller.finId, "", "", redeemAmount);
       const redeemSttlHash = randomHash();
       const redeemHash = combineHashes([redeemAstHash, redeemSttlHash]);
       const redeeemSignature = sign(seller.privateKey, redeemHash);
-      await contract.redeem(redeeemNonce, assetId, seller.finId, redeemAmount, redeemSttlHash, redeemHash, redeeemSignature, { from: operator });
+      const opId = stringToByte16("")
+      await contract.redeem(opId, redeeemNonce, assetId, seller.finId, redeemAmount, redeemSttlHash, redeemHash, redeeemSignature, { from: operator });
 
       expect(await contract.getBalance(assetId, seller.finId)).to.equal(0);
       expect(await contract.getBalance(assetId, buyer.finId)).to.equal(transferAmount);
+    });
+
+    it("hold/redeem operation", async function() {
+      const [operator] = await ethers.getSigners();
+      const { contract, address: finP2PAddress } = await loadFixture(deployFinP2PProxyFixture);
+
+      const assetId = "USDT";
+      const erc20Address = await deployERC20("Payment stable coin", "USDT", finP2PAddress);
+      await contract.associateAsset(assetId, erc20Address, { from: operator });
+
+      const buyer = await createAccount();
+      const seller = await createAccount();
+
+      // -----------------------------
+
+      expect(await contract.getBalance(assetId, seller.finId)).to.equal(0);
+
+      const issueAmountAsset = 1000;
+      await contract.issue(assetId, seller.finId, issueAmountAsset, { from: operator });
+
+      expect(await contract.getBalance(assetId, seller.finId)).to.equal(issueAmountAsset);
+        
+      const opNum = 1;
+      const operationId = stringToByte16(`${opNum}`);
+      const holdAmount = 50;
+      const expiry = currentTimeUnix() + 24 * 60 * 60;
+      const astHash = randomHash();
+      const sttlHash = settlementHash("fiat", assetId, "finId", seller.finId, "finId", buyer.finId, holdAmount, expiry);
+      const hash = combineHashes([astHash, sttlHash]);
+      const signature = sign(seller.privateKey, hash);
+
+      await contract.hold(operationId, assetId, seller.finId, buyer.finId, holdAmount, expiry, astHash, enumAssetTypeIndexByName("fiat"), hash, signature, { from: operator });
+      expect(await contract.getBalance(assetId, seller.finId)).to.equal(issueAmountAsset - holdAmount);
+
+      // -----------------------------
+      const redeemAmountW = holdAmount + 10;
+      const redeemNonceW = generateNonce();
+      const redeemAstHashW = assetHash(redeemNonceW, "redeem", "finp2p", assetId, "finId", seller.finId, "", "", redeemAmountW);
+      const redeemSttlHashW = randomHash();
+      const redeemHashW = combineHashes([redeemAstHashW, redeemSttlHashW]);
+      const redeemSignatureW = sign(seller.privateKey, redeemHashW);
+
+      await expect(contract.redeem(operationId, redeemNonceW, assetId, seller.finId, redeemAmountW, redeemSttlHashW, redeemHashW, redeemSignatureW, { from: operator })).to.be.revertedWith(/Amount to redeem is not equal to locked amount for this operationId/)
+      
+      // -------------------
+      const redeemAmount = holdAmount;
+      const redeeemNonce = generateNonce();
+      const redeemAstHash = assetHash(redeeemNonce, "redeem", "finp2p", assetId, "finId", seller.finId, "", "", redeemAmount);
+      const redeemSttlHash = randomHash();
+      const redeemHash = combineHashes([redeemAstHash, redeemSttlHash]);
+      const redeemSignature = sign(seller.privateKey, redeemHash);
+
+      const operationIdW = stringToByte16(`${opNum+3}`)
+      await expect(contract.redeem(operationIdW, redeeemNonce, assetId, seller.finId, redeemAmount, redeemSttlHash, redeemHash, redeemSignature, { from: operator })).to.be.revertedWith(/Contract does not exists/);
+
+      await contract.redeem(operationId, redeeemNonce, assetId, seller.finId, redeemAmount, redeemSttlHash, redeemHash, redeemSignature, { from: operator });
+      expect(await contract.getBalance(assetId, seller.finId)).to.equal(issueAmountAsset - redeemAmount);
     });
 
     it("hold/release/rollback operations", async function() {
@@ -122,7 +188,7 @@ describe("FinP2P proxy contract test", function() {
       const hash = combineHashes([astHash, sttlHash]);
       const signature = sign(seller.privateKey, hash);
 
-      await contract.hold(operationId, assetId, seller.finId, buyer.finId, transferAmount, expiry, astHash, hash, signature, { from: operator });
+      await contract.hold(operationId, assetId, seller.finId, buyer.finId, transferAmount, expiry, astHash, enumAssetTypeIndexByName("fiat"), hash, signature, { from: operator });
 
       expect(await contract.getBalance(assetId, seller.finId)).to.equal(issueAmountAsset - transferAmount);
 

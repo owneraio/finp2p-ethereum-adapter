@@ -1,5 +1,6 @@
 import { CommonService } from './common';
 import { extractAssetId } from './mapping';
+const { ethers } = require('ethers');
 
 export class TokenService extends CommonService {
 
@@ -68,14 +69,15 @@ export class TokenService extends CommonService {
       throw new Error(`Unsupported asset type: ${request.asset.type}`);
     }
     const nonce = request.nonce;
+    const operationId = request.operationId;
     const assetId = request.asset.resourceId;
     const finId = request.source.finId;
     const amount = parseInt(request.quantity);
     const settlementHash = request.signature.template.hashGroups[1].hash;
     const hash = request.signature.template.hash;
     const signature = request.signature.signature;
-
-    const txHash = await this.finP2PContract.redeem(nonce, assetId, finId, amount, settlementHash, hash, signature);
+    const safeOpId = operationId ?? "";
+    const txHash = await this.finP2PContract.redeem(safeOpId, nonce, assetId, finId, amount, settlementHash, hash, signature);
 
     return {
       isCompleted: false,
@@ -84,4 +86,3 @@ export class TokenService extends CommonService {
   }
 
 }
-

@@ -3,7 +3,7 @@ import FINP2P
   from "../../artifacts/contracts/token/ERC20/FINP2POperatorERC20.sol/FINP2POperatorERC20.json";
 import { FINP2POperatorERC20 } from "../../typechain-types";
 import { FinP2PReceipt, OperationStatus } from "./model";
-import { parseTransactionReceipt, stringToByte16 } from "./utils";
+import { parseTransactionReceipt, stringToByte16, enumAssetTypeIndexByName } from "./utils";
 import { ContractsManager } from "./manager";
 import { FinP2PContractConfig } from "./config";
 
@@ -48,18 +48,20 @@ export class FinP2PContract extends ContractsManager {
     return response.hash;
   }
 
-  async redeem(nonce: string, assetId: string, finId: string, quantity: number,
+  async redeem(operationId: string, nonce: string, assetId: string, finId: string, quantity: number,
                settlementHash: string, hash: string, signature: string) {
-    const response = await this.finP2P.redeem(`0x${nonce}`, assetId, finId, quantity,
+    let opId = stringToByte16(operationId);
+    const response = await this.finP2P.redeem(opId, `0x${nonce}`, assetId, finId, quantity,
       `0x${settlementHash}`, `0x${hash}`, `0x${signature}`);
     return response.hash;
   }
 
   async hold(operationId: string, assetId: string, sourceFinId: string, destinationFinId: string, quantity: number, expiry: number,
-             assetHash: string, hash: string, signature: string) {
+             assetHash: string, assetType: string,hash: string, signature: string) {
     let opId = stringToByte16(operationId);
+    const assetTypeEnum = enumAssetTypeIndexByName(assetType)
     const response = await this.finP2P.hold(opId, assetId, sourceFinId, destinationFinId, quantity, expiry,
-      `0x${assetHash}`, `0x${hash}`, `0x${signature}`);
+      `0x${assetHash}`, assetTypeEnum,`0x${hash}`,`0x${signature}`);
     return response.hash;
   }
 
@@ -86,7 +88,7 @@ export class FinP2PContract extends ContractsManager {
     } else if (txReceipt?.status === 1) {
       let receipt = parseTransactionReceipt(txReceipt, this.contractInterface);
       if (receipt === null) {
-        console.log("Failed to parse receipt");
+        console.log("Failed to parse receipt in getOperationStatus");
         return {
           status: "failed",
           error: {
@@ -117,7 +119,7 @@ export class FinP2PContract extends ContractsManager {
     }
     const receipt = parseTransactionReceipt(txReceipt, this.contractInterface);
     if (receipt === null) {
-      throw new Error("Failed to parse receipt");
+      throw new Error("Failed to parse receipt in getReceipt");
     }
     return receipt;
   }

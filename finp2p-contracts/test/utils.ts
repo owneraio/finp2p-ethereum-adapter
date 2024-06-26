@@ -7,6 +7,14 @@ export const stringToByte16 = (str: string): string => {
   return "0x" + Buffer.from(str).slice(0, 16).toString('hex').padEnd(32, '0');
 }
 
+export const enumAssetTypeIndexByName = (assetType: string): number => {
+  if (assetType === "finp2p") {
+    return 0;
+  } else {
+    return 1;
+  }
+};
+
 export const privateKeyToFinId = (privateKey: string): string => {
   const privKeyBuffer = Buffer.from(privateKey.replace('0x', ''), 'hex');
   const pubKeyUInt8Array = secp256k1.publicKeyCreate(privKeyBuffer, true);

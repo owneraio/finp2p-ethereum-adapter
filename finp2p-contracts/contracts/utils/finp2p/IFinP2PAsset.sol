@@ -11,7 +11,7 @@ interface IFinP2PAsset is IFinP2PCommon {
 
     event Issue(string assetId, string issuerFinId, uint256 quantity);
     event Transfer(string assetId, string sourceFinId, string destinationFinId, uint256 quantity);
-    event Redeem(string assetId, string issuerFinId, uint256 quantity);
+    event Redeem(string assetId, string issuerFinId, uint256 quantity, bytes16 operationId);
 
     function associateAsset(string memory assetId, address tokenAddress) external;
 
@@ -24,6 +24,6 @@ interface IFinP2PAsset is IFinP2PCommon {
     function transfer(bytes32 nonce, string memory assetId, string memory sourceFinId, string memory destinationFinId,
         uint256 quantity, bytes32 settlementHash, bytes32 hash, bytes memory signature) external;
 
-    function redeem(bytes32 nonce, string memory assetId, string memory account, uint256 quantity,
+    function redeem(bytes16 operationId, bytes32 nonce, string memory assetId, string memory account, uint256 quantity,
         bytes32 settlementHash, bytes32 hash, bytes memory signature) external;
 }
