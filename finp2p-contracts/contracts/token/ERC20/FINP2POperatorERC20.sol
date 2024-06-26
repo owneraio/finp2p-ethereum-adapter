@@ -84,7 +84,7 @@ contract FINP2POperatorERC20 is IFinP2PAsset, IFinP2PEscrow, AccessControl, FinP
         return IERC20(asset.tokenAddress).balanceOf(addr);
     }
 
-    function issue(
+    function issueWithoutSignature(
         string memory assetId,
         string memory issuerFinId,
         uint256 quantity
@@ -100,6 +100,37 @@ contract FINP2POperatorERC20 is IFinP2PAsset, IFinP2PEscrow, AccessControl, FinP
         emit Issue(assetId, issuerFinId, quantity);
     }
 
+    function issue(
+        bytes32 nonce,
+        string memory assetId,
+        string memory buyerFinId,
+        string memory issuerFinId,
+        uint256 quantity,
+        bytes32 settlementHash,
+        bytes memory signature
+    ) public override virtual {
+        require(hasRole(TRANSACTION_MANAGER, _msgSender()), "FINP2POperatorERC20: must have transaction manager role to issue asset");
+        require(haveAsset(assetId), "Asset not found");
+
+        address issuer = Bytes.finIdToAddress(issuerFinId);
+
+        require(verifyIssueSignature(
+            nonce,
+            buyerFinId,
+            issuerFinId,
+            assetId,
+            quantity,
+            settlementHash,
+            issuer,
+            signature
+        ), "Signature is not verified");
+
+        Asset memory asset = assets[assetId];
+        ERC20WithOperator(asset.tokenAddress).mint(issuer, quantity);
+
+        emit Issue(assetId, issuerFinId, quantity);
+    }
+
     function transfer(
         bytes32 nonce,
         string memory assetId,
@@ -107,7 +138,6 @@ contract FINP2POperatorERC20 is IFinP2PAsset, IFinP2PEscrow, AccessControl, FinP
         string memory destinationFinId,
         uint256 quantity,
         bytes32 settlementHash,
-        bytes32 hash,
         bytes memory signature
     ) public override virtual {
         require(hasRole(TRANSACTION_MANAGER, _msgSender()), "FINP2POperatorERC20: must have transaction manager role to transfer asset");
@@ -139,41 +169,34 @@ contract FINP2POperatorERC20 is IFinP2PAsset, IFinP2PEscrow, AccessControl, FinP
     function redeem(
         bytes32 nonce,
         string memory assetId,
-        string memory account,
+        string memory ownerFinId,
         uint256 quantity,
         bytes32 settlementHash,
-        bytes32 hash,
         bytes memory signature
     ) public override virtual {
         require(hasRole(TRANSACTION_MANAGER, _msgSender()), "FINP2POperatorERC20: must have transaction manager role to redeem asset");
         require(haveAsset(assetId), "Asset not found");
         require(quantity > 0, "Amount should be greater than zero");
 
-        require(Signature.isRedeemHashValid(
-                nonce,
-                assetId,
-            account,
-                quantity,
-                settlementHash,
-                hash
-            ), "Hash is not valid");
+        address owner = Bytes.finIdToAddress(ownerFinId);
 
-        address issuer = Bytes.finIdToAddress(account);
-
-        require(Signature.verify(
-                issuer,
-                hash,
-                signature
-            ),
-            "Signature is not verified");
+        require(verifyRedeemSignature(
+            nonce,
+            ownerFinId,
+            assetId,
+            quantity,
+            settlementHash,
+            owner,
+            signature
+        ), "Signature is not verified");
 
         Asset memory asset = assets[assetId];
-        uint256 balance = IERC20(asset.tokenAddress).balanceOf(issuer);
+        uint256 balance = IERC20(asset.tokenAddress).balanceOf(owner);
         require(balance >= quantity, "Not sufficient balance to redeem");
 
-        ERC20WithOperator(asset.tokenAddress).burnFrom(issuer, quantity);
+        ERC20WithOperator(asset.tokenAddress).burnFrom(owner, quantity);
 
-        emit Redeem(assetId, account, quantity);
+        emit Redeem(assetId, ownerFinId, quantity);
     }
 
     function hold(
@@ -190,22 +213,22 @@ contract FINP2POperatorERC20 is IFinP2PAsset, IFinP2PEscrow, AccessControl, FinP
         require(hasRole(TRANSACTION_MANAGER, _msgSender()), "FINP2POperatorERC20: must have transaction manager role to hold asset");
 
         require(Signature.isHoldHashValid(
-                assetId,
-                sourceFinId,
-                destinationFinId,
-                quantity,
-                expiry,
-                assetHash,
-                hash
-            ), "Hash is not valid");
+            assetId,
+            sourceFinId,
+            destinationFinId,
+            quantity,
+            expiry,
+            assetHash,
+            hash
+        ), "Hash is not valid");
 
         address owner = Bytes.finIdToAddress(sourceFinId);
 
         require(Signature.verify(
-                owner,
-                hash,
-                signature
-            ),
+            owner,
+            hash,
+            signature
+        ),
             "Signature is not verified");
 
         require(expiry > block.timestamp, "Expiration time is before current time");

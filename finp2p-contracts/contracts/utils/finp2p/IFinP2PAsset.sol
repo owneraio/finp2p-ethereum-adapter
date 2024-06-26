@@ -19,11 +19,14 @@ interface IFinP2PAsset is IFinP2PCommon {
 
     function getAssetAddress(string memory assetId) external view returns (address);
 
-    function issue(string memory assetId, string memory issuerFinId, uint256 quantity) external;
+    function issueWithoutSignature(string memory assetId, string memory issuerFinId, uint256 quantity) external;
+
+    function issue(bytes32 nonce, string memory assetId, string memory buyerFinId, string memory issuerFinId,
+        uint256 quantity, bytes32 settlementHash, bytes memory signature) external;
 
     function transfer(bytes32 nonce, string memory assetId, string memory sourceFinId, string memory destinationFinId,
-        uint256 quantity, bytes32 settlementHash, bytes32 hash, bytes memory signature) external;
+        uint256 quantity, bytes32 settlementHash, bytes memory signature) external;
 
-    function redeem(bytes32 nonce, string memory assetId, string memory account, uint256 quantity,
-        bytes32 settlementHash, bytes32 hash, bytes memory signature) external;
+    function redeem(bytes32 nonce, string memory assetId, string memory owner, uint256 quantity,
+        bytes32 settlementHash, bytes memory signature) external;
 }

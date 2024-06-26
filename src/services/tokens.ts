@@ -21,10 +21,27 @@ export class TokenService extends CommonService {
   }
 
   public async issue(request: Paths.IssueAssets.RequestBody): Promise<Paths.IssueAssets.Responses.$200> {
+    const nonce = request.nonce;
     const assetId = extractAssetId(request.asset);
+    let buyerFinId = ''; // TODO: extract from signature template
     const issuerFinId = request.destination.finId;
     const amount = parseInt(request.quantity);
-    const txHash = await this.finP2PContract.issue(assetId, issuerFinId, amount);
+    let settlementHash: string = '';
+    switch (request.signature.template.type ) {
+      case 'hashList':
+        if (request.signature.template.hashGroups.length > 1) {
+          settlementHash = request.signature.template.hashGroups[1].hash;
+        }
+        break;
+      case 'EIP712':
+        const { domain, types, primaryType, message } = request.signature.template;
+        console.log(domain, types, primaryType, message);
+        break;
+    }
+
+    const signature = request.signature.signature;
+
+    const txHash = await this.finP2PContract.issue(nonce, assetId, issuerFinId, buyerFinId, amount, settlementHash, signature);
 
     return {
       isCompleted: false,
@@ -41,12 +58,21 @@ export class TokenService extends CommonService {
     const sourceFinId = request.source.finId;
     const destinationFinId = request.destination.finId;
     const amount = parseInt(request.quantity);
-    const settlementHash = request.signature.template.hashGroups[1].hash;
-    const hash = request.signature.template.hash;
+    let settlementHash: string = '';
+    switch (request.signature.template.type ) {
+      case 'hashList':
+        if (request.signature.template.hashGroups.length > 1) {
+          settlementHash = request.signature.template.hashGroups[1].hash;
+        }
+        break;
+      case 'EIP712':
+        break;
+    }
+    
     const signature = request.signature.signature;
 
     try {
-      const txHash = await this.finP2PContract.transfer(nonce, assetId, sourceFinId, destinationFinId, amount, settlementHash, hash, signature);
+      const txHash = await this.finP2PContract.transfer(nonce, assetId, sourceFinId, destinationFinId, amount, settlementHash, signature);
 
       return {
         isCompleted: false,
@@ -71,11 +97,19 @@ export class TokenService extends CommonService {
     const assetId = request.asset.resourceId;
     const finId = request.source.finId;
     const amount = parseInt(request.quantity);
-    const settlementHash = request.signature.template.hashGroups[1].hash;
-    const hash = request.signature.template.hash;
+    let settlementHash: string = '';
+    switch (request.signature.template.type ) {
+      case 'hashList':
+        if (request.signature.template.hashGroups.length > 1) {
+          settlementHash = request.signature.template.hashGroups[1].hash;
+        }
+        break;
+      case 'EIP712':
+        break;
+    }
     const signature = request.signature.signature;
 
-    const txHash = await this.finP2PContract.redeem(nonce, assetId, finId, amount, settlementHash, hash, signature);
+    const txHash = await this.finP2PContract.redeem(nonce, assetId, finId, amount, settlementHash, signature);
 
     return {
       isCompleted: false,

@@ -30,8 +30,55 @@ contract FinP2PTypedVerifier is EIP712 {
         "Transfer(bytes32 nonce,FinId buyer,FinId seller,Term asset,Term settlement)FinId(string key)Term(string assetId,string assetType,uint256 amount)"
     );
 
+    bytes32 private constant REDEEM_TYPE_HASH = keccak256(
+        "Redeem(bytes32 nonce,FinId owner,Term asset,Term settlement)FinId(string key)Term(string assetId,string assetType,uint256 amount)"
+    );
+
     constructor() EIP712(SIGNING_DOMAIN, SIGNATURE_VERSION) {}
 
+
+    function verifyIssueSignature(
+        bytes32 nonce,
+        string memory buyer,
+        string memory issuer,
+        string memory assetId,
+        uint256 amount,
+        bytes32 settlementHash,
+        address signer,
+        bytes memory signature
+    ) public view returns (bool) {
+        bytes32 hash = _hashIssue(nonce, buyer, issuer, assetId, amount, settlementHash);
+        return SignatureChecker.isValidSignatureNow(signer, hash, signature);
+    }
+
+    function verifyTransferSignature(
+        bytes32 nonce,
+        string memory buyer,
+        string memory seller,
+        string memory assetId,
+        uint256 amount,
+        bytes32 settlementHash,
+        address signer,
+        bytes memory signature
+    ) public view returns (bool) {
+        bytes32 hash = _hashTransfer(nonce, buyer, seller, assetId, amount, settlementHash);
+        return SignatureChecker.isValidSignatureNow(signer, hash, signature);
+    }
+
+    function verifyRedeemSignature(
+        bytes32 nonce,
+        string memory owner,
+        string memory assetId,
+        uint256 amount,
+        bytes32 settlementHash,
+        address signer,
+        bytes memory signature
+    ) public view returns (bool) {
+        bytes32 hash = _hashRedeem(nonce, owner, assetId, amount, settlementHash);
+        return SignatureChecker.isValidSignatureNow(signer, hash, signature);
+    }
+
+    // --------------------------------------------------------------------------------------
 
     function _hashFinId(string memory finId) private pure returns (bytes32) {
         return keccak256(abi.encode(FINID_TYPE_HASH, keccak256(bytes(finId))));
@@ -80,34 +127,24 @@ contract FinP2PTypedVerifier is EIP712 {
             _hashFinId(seller),
             _hashTerm(assetId, "finP2P", amount),
             settlementHash
+//            _hashTerm(settlementAsset, "fiat", settlementAmount)
         )));
     }
 
-    function verifyIssueSignature(
+    function _hashRedeem(
         bytes32 nonce,
-        string memory buyer,
-        string memory issuer,
+        string memory owner,
         string memory assetId,
         uint256 amount,
-        bytes32 settlementHash,
-        address signer,
-        bytes memory signature
-    ) public view returns (bool) {
-        bytes32 hash = _hashIssue(nonce, buyer, issuer, assetId, amount, settlementHash);
-        return SignatureChecker.isValidSignatureNow(signer, hash, signature);
-    }
-
-    function verifyTransferSignature(
-        bytes32 nonce,
-        string memory buyer,
-        string memory seller,
-        string memory assetId,
-        uint256 amount,
-        bytes32 settlementHash,
-        address signer,
-        bytes memory signature
-    ) public view returns (bool) {
-        bytes32 hash = _hashTransfer(nonce, buyer, seller, assetId, amount, settlementHash);
-        return SignatureChecker.isValidSignatureNow(signer, hash, signature);
+        bytes32 settlementHash
+    ) private view returns (bytes32) {
+        return _hashTypedDataV4(keccak256(abi.encode(
+            REDEEM_TYPE_HASH,
+            nonce,
+            _hashFinId(owner),
+            _hashTerm(assetId, "finP2P", amount),
+            settlementHash
+//            _hashTerm(settlementAsset, "fiat", settlementAmount)
+        )));
     }
 }
