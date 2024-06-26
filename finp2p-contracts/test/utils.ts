@@ -1,36 +1,36 @@
-import * as secp256k1 from "secp256k1";
-import * as crypto from "crypto";
-import createKeccakHash from "keccak";
-import { ethers, TypedDataEncoder } from "ethers";
+import * as secp256k1 from 'secp256k1';
+import * as crypto from 'crypto';
+import createKeccakHash from 'keccak';
+import { ethers, TypedDataEncoder } from 'ethers';
 
 
 export const stringToByte16 = (str: string): string => {
-  return "0x" + Buffer.from(str).slice(0, 16).toString("hex").padEnd(32, "0");
+  return '0x' + Buffer.from(str).slice(0, 16).toString('hex').padEnd(32, '0');
 };
 
 export const privateKeyToFinId = (privateKey: string): string => {
-  const privKeyBuffer = Buffer.from(privateKey.replace("0x", ""), "hex");
+  const privKeyBuffer = Buffer.from(privateKey.replace('0x', ''), 'hex');
   const pubKeyUInt8Array = secp256k1.publicKeyCreate(privKeyBuffer, true);
-  return Buffer.from(pubKeyUInt8Array).toString("hex");
+  return Buffer.from(pubKeyUInt8Array).toString('hex');
 };
 
 export const combineHashes = (hashes: Buffer[]): Buffer => {
-  return createKeccakHash("keccak256")
+  return createKeccakHash('keccak256')
     .update(Buffer.concat(hashes))
     .digest();
 };
 
 export const hashValues = (values: any[]): Buffer => {
-  return createKeccakHash("keccak256")
+  return createKeccakHash('keccak256')
     .update(Buffer.concat(values.map(Buffer.from)))
     .digest();
 };
 
 export const assetHash = (nonce: Buffer, operation: string,
-                          assetType: string, assetId: string,
-                          sourceAssetType: string, sourceAccountId: string,
-                          destinationAssetType: string, destinationAccountId: string,
-                          quantity: number): Buffer => {
+  assetType: string, assetId: string,
+  sourceAssetType: string, sourceAccountId: string,
+  destinationAssetType: string, destinationAccountId: string,
+  quantity: number): Buffer => {
   return hashValues([
     nonce,
     operation,
@@ -40,14 +40,14 @@ export const assetHash = (nonce: Buffer, operation: string,
     sourceAccountId,
     destinationAssetType,
     destinationAccountId,
-    `${quantity}`
+    `${quantity}`,
   ]);
 };
 
 export const settlementHash = (assetType: string, assetId: string,
-                               sourceAssetType: string, sourceAccountId: string,
-                               destinationAssetType: string, destinationAccountId: string,
-                               quantity: number, expiry: number): Buffer => {
+  sourceAssetType: string, sourceAccountId: string,
+  destinationAssetType: string, destinationAccountId: string,
+  quantity: number, expiry: number): Buffer => {
   let values = [assetType, assetId, sourceAssetType, sourceAccountId, destinationAssetType, destinationAccountId, `${quantity}`];
   if (expiry > 0) {
     values.push(`${expiry}`);
@@ -56,7 +56,7 @@ export const settlementHash = (assetType: string, assetId: string,
 };
 
 export const randomHash = (): Buffer => {
-  return createKeccakHash("keccak256")
+  return createKeccakHash('keccak256')
     .update(crypto.randomBytes(32))
     .digest();
 };
@@ -73,34 +73,34 @@ export const generateNonce = (): Buffer => {
 };
 
 export const sign = (privateKey: string, payload: Buffer): Buffer => {
-  const privKey = Buffer.from(privateKey.replace("0x", ""), "hex");
+  const privKey = Buffer.from(privateKey.replace('0x', ''), 'hex');
   const sigObj = secp256k1.sign(payload, privKey);
   return Buffer.from(sigObj.signature);
 };
 
 const EIP721_DOMAIN = {
-  name: "FinP2P",
-  version: "1",
+  name: 'FinP2P',
+  version: '1',
   chainId: 1,
-  verifyingContract: "0x0"
+  verifyingContract: '0x0',
 };
 
 const EIP721_ISSUANCE_TYPES = {
   FinId: [{
-    name: "key", type: "string"
+    name: 'key', type: 'string',
   }],
   Term: [
-    { name: "assetId", type: "string" },
-    { name: "assetType", type: "string" },
-    { name: "amount", type: "uint256" }
+    { name: 'assetId', type: 'string' },
+    { name: 'assetType', type: 'string' },
+    { name: 'amount', type: 'uint256' },
   ],
   PrimarySale: [
-    { name: "nonce", type: "bytes32" },
-    { name: "buyer", type: "FinId" },
-    { name: "issuer", type: "FinId" },
-    { name: "asset", type: "Term" },
-    { name: "settlement", type: "Term" }
-  ]
+    { name: 'nonce', type: 'bytes32' },
+    { name: 'buyer', type: 'FinId' },
+    { name: 'issuer', type: 'FinId' },
+    { name: 'asset', type: 'Term' },
+    { name: 'settlement', type: 'Term' },
+  ],
 };
 
 export type EIP721IssuanceMessage = {
@@ -109,11 +109,16 @@ export type EIP721IssuanceMessage = {
   issuer: { key: string },
   asset: { assetId: string, assetType: string, amount: number },
   settlement: { assetId: string, assetType: string, amount: number }
-}
+};
 
 export const signEIP721Issuance = async (chainId: string, verifyingContract: string, message: EIP721IssuanceMessage, signer: ethers.Signer) => {
   const domain = { ...EIP721_DOMAIN, chainId, verifyingContract };
-  return await signer.signTypedData(domain, EIP721_ISSUANCE_TYPES, message);
+  return signer.signTypedData(domain, EIP721_ISSUANCE_TYPES, message);
+};
+
+export const hashEIP721Issuance = (chainId: string, verifyingContract: string, message: EIP721IssuanceMessage) => {
+  const domain = { ...EIP721_DOMAIN, chainId, verifyingContract };
+  return TypedDataEncoder.hash(domain, EIP721_ISSUANCE_TYPES, message);
 };
 
 export const verifyEIP721Issuance = (chainId: string, verifyingContract: string, message: EIP721IssuanceMessage, signerAddress: string, signature: string) => {
@@ -125,10 +130,10 @@ export const verifyEIP721Issuance = (chainId: string, verifyingContract: string,
 export const termHash = (assetId: string, assetType: string, amount: number) => {
   const types = {
     Term: [
-      { name: "assetId", type: "string" },
-      { name: "assetType", type: "string" },
-      { name: "amount", type: "uint256" }
-    ]
+      { name: 'assetId', type: 'string' },
+      { name: 'assetType', type: 'string' },
+      { name: 'amount', type: 'uint256' },
+    ],
   };
   return TypedDataEncoder.from(types).hash({ assetId, assetType, amount });
 };

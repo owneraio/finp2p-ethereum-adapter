@@ -26,6 +26,10 @@ export class FinP2PContract extends ContractsManager {
     this.finP2PContractAddress = config.finP2PContractAddress;
   }
 
+  async eip712Domain() {
+    return this.finP2P.eip712Domain();
+  }
+
   async getAssetAddress(assetId: string) {
     return this.finP2P.getAssetAddress(assetId);
   }
@@ -44,7 +48,7 @@ export class FinP2PContract extends ContractsManager {
     settlementHash: string, signature: string) {
     const response = await this.finP2P.issue(
       `0x${nonce}`, assetId, buyerFinId, issuerFinId, quantity,
-      `0x${settlementHash}`, `0x${signature}`);
+      settlementHash, `0x${signature}`);
     return response.hash;
   }
 
@@ -52,14 +56,14 @@ export class FinP2PContract extends ContractsManager {
     settlementHash: string, signature: string) {
     const response = await this.finP2P.transfer(
       `0x${nonce}`, assetId, sourceFinId, destinationFinId, quantity,
-      `0x${settlementHash}`, `0x${signature}`);
+      settlementHash, `0x${signature}`);
     return response.hash;
   }
 
   async redeem(nonce: string, assetId: string, finId: string, quantity: number,
     settlementHash: string, signature: string) {
     const response = await this.finP2P.redeem(`0x${nonce}`, assetId, finId, quantity,
-      `0x${settlementHash}`, `0x${signature}`);
+      settlementHash, `0x${signature}`);
     return response.hash;
   }
 

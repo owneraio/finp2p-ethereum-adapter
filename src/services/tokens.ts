@@ -1,5 +1,7 @@
 import { CommonService } from './common';
 import { extractAssetId } from './mapping';
+import { termHash } from "../../finp2p-contracts/test/utils";
+import console from "console";
 
 export class TokenService extends CommonService {
 
@@ -23,7 +25,7 @@ export class TokenService extends CommonService {
   public async issue(request: Paths.IssueAssets.RequestBody): Promise<Paths.IssueAssets.Responses.$200> {
     const nonce = request.nonce;
     const assetId = extractAssetId(request.asset);
-    let buyerFinId = ''; // TODO: extract from signature template
+    let buyerFinId = '';
     const issuerFinId = request.destination.finId;
     const amount = parseInt(request.quantity);
     let settlementHash: string = '';
@@ -32,10 +34,19 @@ export class TokenService extends CommonService {
         if (request.signature.template.hashGroups.length > 1) {
           settlementHash = request.signature.template.hashGroups[1].hash;
         }
+        // TODO: extract from signature template
         break;
       case 'EIP712':
         const { domain, types, primaryType, message } = request.signature.template;
-        console.log(domain, types, primaryType, message);
+        console.log('EIP712 payload');
+        console.log('\tdomain: ', domain);
+        console.log('\ttypes: ', types);
+        console.log('\tprimaryType: ', primaryType);
+        console.log('\tmessage: ', message);
+        console.log('\thash: ', request.signature.template.hash);
+        const { buyer, settlement } = message;
+        buyerFinId = buyer.fields.key;
+        settlementHash = termHash(settlement.fields.assetId, settlement.fields.assetType, settlement.fields.amount);
         break;
     }
 
