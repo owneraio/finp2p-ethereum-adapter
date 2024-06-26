@@ -48,11 +48,12 @@ describe(`token service test`, () => {
       destination: buyer.account as Components.Schemas.FinIdAccount,
       quantity: `${issueQuantity}`,
       asset: asset as Components.Schemas.Finp2pAsset,
-      settlementRef: settlementRef
+      settlementRef: settlementRef,
     } as Paths.IssueAssets.RequestBody));
     expect(issueReceipt.asset).toStrictEqual(asset);
     expect(parseInt(issueReceipt.quantity)).toBe(issueQuantity);
     expect(issueReceipt.destination).toStrictEqual(buyer);
+    expect(issueReceipt.operationType).toBe("issue");
 
     await client.expectBalance(buyer, asset, issueQuantity);
 
@@ -102,6 +103,7 @@ describe(`token service test`, () => {
     expect(parseInt(transferReceipt.quantity)).toBe(transferQuantity);
     expect(transferReceipt.source).toStrictEqual(buyer);
     expect(transferReceipt.destination).toStrictEqual(seller);
+    expect(transferReceipt.operationType).toBe("transfer");
 
     await client.expectBalance(buyer, asset, issueQuantity - transferQuantity);
     await client.expectBalance(seller, asset, transferQuantity);
@@ -139,6 +141,7 @@ describe(`token service test`, () => {
     expect(parseFloat(redeemReceipt.quantity)).toBeCloseTo(redeemQuantity, 4);
     expect(redeemReceipt.source).toStrictEqual(buyer);
     expect(redeemReceipt.destination).toBeUndefined();
+    expect(redeemReceipt.operationType).toBe("redeem");
 
     await client.expectBalance(buyer, asset, issueQuantity - transferQuantity - redeemQuantity);
   });
@@ -253,6 +256,7 @@ describe(`token service test`, () => {
     expect(parseFloat(releaseReceipt.quantity)).toBeCloseTo(transferQty, 4);
     expect(releaseReceipt.source).toStrictEqual(buyer);
     expect(releaseReceipt.destination).toStrictEqual(seller);
+    expect(releaseReceipt.operationType).toBe("release");
 
     await client.expectBalance(seller, asset, transferQty);
   });

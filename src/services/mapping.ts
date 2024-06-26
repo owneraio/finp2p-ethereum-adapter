@@ -69,5 +69,6 @@ export const receiptToAPI = (receipt: FinP2PReceipt): Receipt => {
       transactionId: receipt.id,
     },
     timestamp: receipt.timestamp,
+    operationType: receipt.operationType,
   };
 };

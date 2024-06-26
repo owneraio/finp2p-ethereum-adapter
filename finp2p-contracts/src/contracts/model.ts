@@ -16,7 +16,8 @@ export type FinP2PReceipt = {
   amount: number
   source?: string
   destination?: string,
-  timestamp: number
+  timestamp: number,
+  operationType: "transfer" | "redeem" | "hold" | "release" | "issue"
 };
 
 export type FailedTransaction = {
