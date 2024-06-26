@@ -1,7 +1,12 @@
 import { CommonService } from './common';
 import { extractAssetId } from './mapping';
-import { termHash } from "../../finp2p-contracts/test/utils";
-import console from "console";
+import {
+  EIP721IssuanceMessage,
+  hashEIP721Issuance,
+  termHash,
+  verifyEIP721Issuance,
+} from '../../finp2p-contracts/test/utils';
+import console from 'console';
 
 export class TokenService extends CommonService {
 
@@ -23,13 +28,16 @@ export class TokenService extends CommonService {
   }
 
   public async issue(request: Paths.IssueAssets.RequestBody): Promise<Paths.IssueAssets.Responses.$200> {
-    const nonce = request.nonce;
     const assetId = extractAssetId(request.asset);
     let buyerFinId = '';
     const issuerFinId = request.destination.finId;
     const amount = parseInt(request.quantity);
+    let nonce: string = request.nonce;
+    const signature = request.signature.signature;
+
     let settlementHash: string = '';
-    switch (request.signature.template.type ) {
+
+    switch (request.signature.template.type) {
       case 'hashList':
         if (request.signature.template.hashGroups.length > 1) {
           settlementHash = request.signature.template.hashGroups[1].hash;
@@ -43,21 +51,52 @@ export class TokenService extends CommonService {
         console.log('\ttypes: ', types);
         console.log('\tprimaryType: ', primaryType);
         console.log('\tmessage: ', message);
-        console.log('\thash: ', request.signature.template.hash);
+        // console.log('\thash: ', request.signature.template.hash);
+
+        if (domain === undefined || types === undefined || primaryType === undefined || message === undefined) {
+          throw new Error('Invalid EIP712 signature template');
+        }
+        const { chainId, verifyingContract } = domain;
+        if (chainId === undefined || verifyingContract === undefined) {
+          throw new Error('Invalid EIP712 domain');
+        }
+
         const { buyer, settlement } = message;
         buyerFinId = buyer.fields.key;
         settlementHash = termHash(settlement.fields.assetId, settlement.fields.assetType, settlement.fields.amount);
+
+        try {
+          const { nonce: b64Nonce } = message;
+          nonce = Buffer.from(b64Nonce.toString(), 'base64').toString('hex');
+          const eip721message = {
+            nonce: `0x${nonce}`,
+            buyer: { ... message.buyer.fields },
+            issuer: { ... message.issuer.fields },
+            asset: { ... message.asset.fields },
+            settlement: { ... message.settlement.fields },
+          } as EIP721IssuanceMessage;
+          const hash = hashEIP721Issuance(chainId, verifyingContract, eip721message);
+          console.log('\thash: ', hash);
+          const signerAddress = publicKeyToAddress(buyerFinId);
+          console.log('\tsignerAddress: ', signerAddress);
+          const verified = verifyEIP721Issuance(chainId, verifyingContract, eip721message, signerAddress, signature);
+          console.log('\tverified: ', verified);
+        } catch (e) {
+          console.error(e);
+        }
+
+
         break;
     }
 
-    const signature = request.signature.signature;
 
-    const txHash = await this.finP2PContract.issue(nonce, assetId, issuerFinId, buyerFinId, amount, settlementHash, signature);
+    const txHash = await this.finP2PContract.issue(nonce, assetId, buyerFinId, issuerFinId, amount, settlementHash, signature);
 
     return {
       isCompleted: false,
       cid: txHash,
     } as Components.Schemas.ReceiptOperation;
+
   }
 
   public async transfer(request: Paths.TransferAsset.RequestBody): Promise<Paths.TransferAsset.Responses.$200> {
@@ -70,7 +109,7 @@ export class TokenService extends CommonService {
     const destinationFinId = request.destination.finId;
     const amount = parseInt(request.quantity);
     let settlementHash: string = '';
-    switch (request.signature.template.type ) {
+    switch (request.signature.template.type) {
       case 'hashList':
         if (request.signature.template.hashGroups.length > 1) {
           settlementHash = request.signature.template.hashGroups[1].hash;
@@ -79,7 +118,7 @@ export class TokenService extends CommonService {
       case 'EIP712':
         break;
     }
-    
+
     const signature = request.signature.signature;
 
     try {
@@ -109,7 +148,7 @@ export class TokenService extends CommonService {
     const finId = request.source.finId;
     const amount = parseInt(request.quantity);
     let settlementHash: string = '';
-    switch (request.signature.template.type ) {
+    switch (request.signature.template.type) {
       case 'hashList':
         if (request.signature.template.hashGroups.length > 1) {
           settlementHash = request.signature.template.hashGroups[1].hash;

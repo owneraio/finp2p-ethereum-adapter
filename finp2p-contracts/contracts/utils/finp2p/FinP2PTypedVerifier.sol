@@ -5,6 +5,7 @@ pragma solidity ^0.8.0;
 import "@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
 import "@openzeppelin/contracts/utils/Strings.sol";
 import "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
+import "./Signature.sol";
 
 /**
  * @dev Library for FinP2P protocol signature verification.
@@ -48,7 +49,8 @@ contract FinP2PTypedVerifier is EIP712 {
         bytes memory signature
     ) public view returns (bool) {
         bytes32 hash = _hashIssue(nonce, buyer, issuer, assetId, amount, settlementHash);
-        return SignatureChecker.isValidSignatureNow(signer, hash, signature);
+        return Signature.verify(signer, hash, signature);
+//        return SignatureChecker.isValidSignatureNow(signer, hash, signature);
     }
 
     function verifyTransferSignature(
@@ -106,7 +108,7 @@ contract FinP2PTypedVerifier is EIP712 {
             nonce,
             _hashFinId(buyer),
             _hashFinId(issuer),
-            _hashTerm(assetId, "finP2P", amount),
+            _hashTerm(assetId, "finp2p", amount),
             settlementHash
 //            _hashTerm(settlementAsset, "fiat", settlementAmount)
         )));
@@ -125,7 +127,7 @@ contract FinP2PTypedVerifier is EIP712 {
             nonce,
             _hashFinId(buyer),
             _hashFinId(seller),
-            _hashTerm(assetId, "finP2P", amount),
+            _hashTerm(assetId, "finp2p", amount),
             settlementHash
 //            _hashTerm(settlementAsset, "fiat", settlementAmount)
         )));
@@ -142,7 +144,7 @@ contract FinP2PTypedVerifier is EIP712 {
             REDEEM_TYPE_HASH,
             nonce,
             _hashFinId(owner),
-            _hashTerm(assetId, "finP2P", amount),
+            _hashTerm(assetId, "finp2p", amount),
             settlementHash
 //            _hashTerm(settlementAsset, "fiat", settlementAmount)
         )));

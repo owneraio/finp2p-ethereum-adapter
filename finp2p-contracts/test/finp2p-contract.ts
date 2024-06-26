@@ -6,7 +6,6 @@ import { expect } from "chai";
 import { ethers } from "hardhat";
 import { v4 as uuid } from "uuid";
 import {
-  privateKeyToFinId,
   combineHashes,
   assetHash,
   settlementHash,

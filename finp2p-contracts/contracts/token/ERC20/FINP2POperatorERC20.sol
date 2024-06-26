@@ -112,6 +112,7 @@ contract FINP2POperatorERC20 is IFinP2PAsset, IFinP2PEscrow, AccessControl, FinP
         require(hasRole(TRANSACTION_MANAGER, _msgSender()), "FINP2POperatorERC20: must have transaction manager role to issue asset");
         require(haveAsset(assetId), "Asset not found");
 
+        address buyer = Bytes.finIdToAddress(buyerFinId);
         address issuer = Bytes.finIdToAddress(issuerFinId);
 
         require(verifyIssueSignature(
@@ -121,9 +122,9 @@ contract FINP2POperatorERC20 is IFinP2PAsset, IFinP2PEscrow, AccessControl, FinP
             assetId,
             quantity,
             settlementHash,
-            issuer,
+            buyer,
             signature
-        ), "Signature is not verified");
+        ), "EIP721 Signature is not verified");
 
         Asset memory asset = assets[assetId];
         ERC20WithOperator(asset.tokenAddress).mint(issuer, quantity);
