@@ -110,9 +110,8 @@ function assetTypeName(AssetType assetType) internal pure returns (bytes memory)
         AssetType assetType,
         bytes32 hash
     ) internal pure returns (bool) {
-        bytes memory assetTypeBytes = assetTypeName(assetType);
         bytes32 settlementHash = keccak256(abi.encodePacked(
-                assetTypeBytes,
+                assetTypeName(assetType),
                 assetId,
                 DEFAULT_ACCOUNT_TYPE,
                 sourceAccountId,

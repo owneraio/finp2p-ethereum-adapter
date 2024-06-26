@@ -132,16 +132,27 @@ describe("FinP2P proxy contract test", function() {
       expect(await contract.getBalance(assetId, seller.finId)).to.equal(issueAmountAsset - holdAmount);
 
       // -----------------------------
+      const redeemAmountW = holdAmount + 10;
+      const redeemNonceW = generateNonce();
+      const redeemAstHashW = assetHash(redeemNonceW, "redeem", "finp2p", assetId, "finId", seller.finId, "", "", redeemAmountW);
+      const redeemSttlHashW = randomHash();
+      const redeemHashW = combineHashes([redeemAstHashW, redeemSttlHashW]);
+      const redeemSignatureW = sign(seller.privateKey, redeemHashW);
 
-
+      await expect(contract.redeem(operationId, redeemNonceW, assetId, seller.finId, redeemAmountW, redeemSttlHashW, redeemHashW, redeemSignatureW, { from: operator })).to.be.revertedWith(/Amount to redeem is not equal to locked amount for this operationId/)
+      
+      // -------------------
       const redeemAmount = holdAmount;
       const redeeemNonce = generateNonce();
       const redeemAstHash = assetHash(redeeemNonce, "redeem", "finp2p", assetId, "finId", seller.finId, "", "", redeemAmount);
       const redeemSttlHash = randomHash();
       const redeemHash = combineHashes([redeemAstHash, redeemSttlHash]);
-      const redeeemSignature = sign(seller.privateKey, redeemHash);
+      const redeemSignature = sign(seller.privateKey, redeemHash);
 
-      await contract.redeem(operationId, redeeemNonce, assetId, seller.finId, redeemAmount, redeemSttlHash, redeemHash, redeeemSignature, { from: operator });
+      const operationIdW = stringToByte16(`${opNum+3}`)
+      await expect(contract.redeem(operationIdW, redeeemNonce, assetId, seller.finId, redeemAmount, redeemSttlHash, redeemHash, redeemSignature, { from: operator })).to.be.revertedWith(/Contract does not exists/);
+
+      await contract.redeem(operationId, redeeemNonce, assetId, seller.finId, redeemAmount, redeemSttlHash, redeemHash, redeemSignature, { from: operator });
       expect(await contract.getBalance(assetId, seller.finId)).to.equal(issueAmountAsset - redeemAmount);
     });
 
