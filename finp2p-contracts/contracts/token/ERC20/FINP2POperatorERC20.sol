@@ -106,7 +106,8 @@ contract FINP2POperatorERC20 is IFinP2PAsset, IFinP2PEscrow, AccessControl, FinP
         string memory buyerFinId,
         string memory issuerFinId,
         uint256 quantity,
-        bytes32 settlementHash,
+        string memory settlementAsset,
+        uint256 settlementAmount,
         bytes memory signature
     ) public override virtual {
         require(hasRole(TRANSACTION_MANAGER, _msgSender()), "FINP2POperatorERC20: must have transaction manager role to issue asset");
@@ -115,13 +116,14 @@ contract FINP2POperatorERC20 is IFinP2PAsset, IFinP2PEscrow, AccessControl, FinP
         address buyer = Bytes.finIdToAddress(buyerFinId);
         address issuer = Bytes.finIdToAddress(issuerFinId);
 
-        require(verifyIssueSignature(
+        require(verifyPrimarySaleSignature(
             nonce,
             buyerFinId,
             issuerFinId,
             assetId,
             quantity,
-            settlementHash,
+            settlementAsset,
+            settlementAmount,
             buyer,
             signature
         ), "EIP721 Signature is not verified");
@@ -138,7 +140,8 @@ contract FINP2POperatorERC20 is IFinP2PAsset, IFinP2PEscrow, AccessControl, FinP
         string memory sourceFinId,
         string memory destinationFinId,
         uint256 quantity,
-        bytes32 settlementHash,
+        string memory settlementAsset,
+        uint256 settlementAmount,
         bytes memory signature
     ) public override virtual {
         require(hasRole(TRANSACTION_MANAGER, _msgSender()), "FINP2POperatorERC20: must have transaction manager role to transfer asset");
@@ -147,13 +150,14 @@ contract FINP2POperatorERC20 is IFinP2PAsset, IFinP2PEscrow, AccessControl, FinP
         address source = Bytes.finIdToAddress(sourceFinId);
         address destination = Bytes.finIdToAddress(destinationFinId);
 
-        require(verifyTransferSignature(
+        require(verifySecondarySaleSignature(
             nonce,
             sourceFinId,
             destinationFinId,
             assetId,
             quantity,
-            settlementHash,
+            settlementAsset,
+            settlementAmount,
             source,
             signature
         ), "Signature is not verified");
@@ -170,34 +174,38 @@ contract FINP2POperatorERC20 is IFinP2PAsset, IFinP2PEscrow, AccessControl, FinP
     function redeem(
         bytes32 nonce,
         string memory assetId,
-        string memory ownerFinId,
+        string memory buyerFinId,
+        string memory issuerFinId,
         uint256 quantity,
-        bytes32 settlementHash,
+        string memory settlementAsset,
+        uint256 settlementAmount,
         bytes memory signature
     ) public override virtual {
         require(hasRole(TRANSACTION_MANAGER, _msgSender()), "FINP2POperatorERC20: must have transaction manager role to redeem asset");
         require(haveAsset(assetId), "Asset not found");
         require(quantity > 0, "Amount should be greater than zero");
 
-        address owner = Bytes.finIdToAddress(ownerFinId);
+        address issuer = Bytes.finIdToAddress(issuerFinId);
 
-        require(verifyRedeemSignature(
+        require(verifyRedemptionSignature(
             nonce,
-            ownerFinId,
+            buyerFinId,
+            issuerFinId,
             assetId,
             quantity,
-            settlementHash,
-            owner,
+            settlementAsset,
+            settlementAmount,
+            issuer,
             signature
         ), "Signature is not verified");
 
         Asset memory asset = assets[assetId];
-        uint256 balance = IERC20(asset.tokenAddress).balanceOf(owner);
+        uint256 balance = IERC20(asset.tokenAddress).balanceOf(issuer);
         require(balance >= quantity, "Not sufficient balance to redeem");
 
-        ERC20WithOperator(asset.tokenAddress).burnFrom(owner, quantity);
+        ERC20WithOperator(asset.tokenAddress).burnFrom(issuer, quantity);
 
-        emit Redeem(assetId, ownerFinId, quantity);
+        emit Redeem(assetId, issuerFinId, quantity);
     }
 
     function hold(

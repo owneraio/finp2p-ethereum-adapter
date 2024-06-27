@@ -1,12 +1,8 @@
 import { CommonService } from './common';
 import { extractAssetId } from './mapping';
 import {
-  EIP721IssuanceMessage,
-  hashEIP721Issuance,
   termHash,
-  verifyEIP721Issuance,
 } from '../../finp2p-contracts/test/utils';
-import console from 'console';
 
 export class TokenService extends CommonService {
 

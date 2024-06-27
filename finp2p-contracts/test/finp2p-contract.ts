@@ -6,14 +6,15 @@ import { expect } from "chai";
 import { ethers } from "hardhat";
 import { v4 as uuid } from "uuid";
 import {
-  combineHashes,
-  assetHash,
-  settlementHash,
-  randomHash,
   generateNonce,
-  sign, stringToByte16
-} from "./utils";
-import { createAccount } from "../src/contracts/utils";
+  stringToByte16,
+} from './utils';
+import {
+  signMessage,
+  EIP721IssuanceMessage, EIP721_ISSUANCE_TYPES, verifyMessage, hashMessage, EIP721_TRANSFER_TYPES, EIP721_REDEEM_TYPES
+} from "./eip721";
+import { getFinId } from "../src/contracts/utils";
+import { Wallet } from "ethers";
 
 describe("FinP2P proxy contract test", function() {
   // We define a fixture to reuse the same setup in every test.
@@ -32,105 +33,186 @@ describe("FinP2P proxy contract test", function() {
     return { contract, address };
   }
 
-
-
-  function currentTimeUnix() {
-    return Math.floor(new Date().getTime() / 1000);
-  }
-
   describe("FinP2PProxy operations", function() {
 
     it("issue/transfer/redeem operations", async function() {
       const [operator] = await ethers.getSigners();
       const { contract, address: finP2PAddress } = await loadFixture(deployFinP2PProxyFixture);
+      const { chainId, verifyingContract } = contract.eip712Domain();
 
       const assetId = `bank-us:102:${uuid()}`;
+      const settlementAsset = "USD";
+      const settlementAmount = 10000;
 
       const erc20Address = await deployERC20("Tokenized asset owned by bank-us", "AST", finP2PAddress);
       await contract.associateAsset(assetId, erc20Address, { from: operator });
 
-      const buyer = await createAccount();
-      const seller = await createAccount();
+      const buyer = Wallet.createRandom();
+      const seller = Wallet.createRandom();
+      const buyerFinId = getFinId(buyer);
+      const sellerFinId = getFinId(seller);
 
-      // -----------------------------
+      // ----------------------------------------------------------
 
-      expect(await contract.getBalance(assetId, seller.finId)).to.equal(0);
+      expect(await contract.getBalance(assetId, sellerFinId)).to.equal(0);
 
       const issueAmountAsset = 1000;
-      await contract.issue(assetId, seller.finId, issueAmountAsset, { from: operator });
+      let nonce = `0x${generateNonce().toString("hex")}`;
+      let message = {
+        nonce,
+        buyer: { key: buyerFinId },
+        issuer: { key: sellerFinId },
+        asset: {
+          assetId,
+          assetType: "finp2p",
+          amount: issueAmountAsset
+        },
+        settlement: {
+          assetId: settlementAsset,
+          assetType: "fiat",
+          amount: settlementAmount
+        }
+      }  as EIP721IssuanceMessage;
+      let signature = await signMessage(chainId, verifyingContract, EIP721_ISSUANCE_TYPES, message, buyer);
 
-      expect(await contract.getBalance(assetId, seller.finId)).to.equal(issueAmountAsset);
+      expect(verifyMessage(chainId, verifyingContract, EIP721_ISSUANCE_TYPES, message, buyer.address, signature)).to.equal(true);
 
-      // -----------------------------
+      const offChainSignature = hashMessage(chainId, verifyingContract, EIP721_ISSUANCE_TYPES, message)
+      console.log("off-chain hash", offChainSignature);
+
+      const onChainHash = await contract.hashIssue(nonce, buyerFinId, sellerFinId, assetId, issueAmountAsset, settlementAsset, settlementAmount);
+      console.log("on-chain hash", onChainHash);
+
+      await contract.issue(nonce, assetId, buyerFinId, sellerFinId, issueAmountAsset, settlementAsset, settlementAmount, signature, { from: operator });
+
+      expect(await contract.getBalance(assetId, sellerFinId)).to.equal(issueAmountAsset);
+
+      // ----------------------------------------------------------
 
       const transferAmount = 50;
-      const transferNonce = generateNonce();
-      const transferAstHash = assetHash(transferNonce, "transfer", "finp2p", assetId, "finId", seller.finId, "finId", buyer.finId, transferAmount);
-      const transferSttlHash = randomHash();
-      const transferHash = combineHashes([transferAstHash, transferSttlHash]);
-      const transferSignature = sign(seller.privateKey, transferHash);
+      nonce = `0x${generateNonce().toString("hex")}`;
+      signature = await signMessage(chainId, verifyingContract, EIP721_TRANSFER_TYPES,{
+        nonce,
+        buyer: { key: buyerFinId },
+        seller: { key: sellerFinId },
+        asset: {
+          assetId,
+          assetType: "finp2p",
+          amount: issueAmountAsset
+        },
+        settlement: {
+          assetId: settlementAsset,
+          assetType: "fiat",
+          amount: settlementAmount
+        }
+      }, buyer);
+      await contract.transfer(nonce, assetId, sellerFinId, buyerFinId, transferAmount, settlementAsset, settlementAmount, signature, { from: operator });
 
-      await contract.transfer(transferNonce, assetId, seller.finId, buyer.finId, transferAmount, transferSttlHash, transferHash, transferSignature, { from: operator });
+      expect(await contract.getBalance(assetId, sellerFinId)).to.equal(issueAmountAsset - transferAmount);
+      expect(await contract.getBalance(assetId, buyerFinId)).to.equal(transferAmount);
 
-      expect(await contract.getBalance(assetId, seller.finId)).to.equal(issueAmountAsset - transferAmount);
-      expect(await contract.getBalance(assetId, buyer.finId)).to.equal(transferAmount);
-
-      // -----------------------------
+      // ----------------------------------------------------------
 
       const redeemAmount = issueAmountAsset - transferAmount;
-      const redeeemNonce = generateNonce();
-      const redeemAstHash = assetHash(redeeemNonce, "redeem", "finp2p", assetId, "finId", seller.finId, "", "", redeemAmount);
-      const redeemSttlHash = randomHash();
-      const redeemHash = combineHashes([redeemAstHash, redeemSttlHash]);
-      const redeeemSignature = sign(seller.privateKey, redeemHash);
-      await contract.redeem(redeeemNonce, assetId, seller.finId, redeemAmount, redeemSttlHash, redeemHash, redeeemSignature, { from: operator });
+      nonce = `0x${generateNonce().toString("hex")}`;
+      signature = await signMessage(chainId, verifyingContract, EIP721_REDEEM_TYPES,{
+        nonce,
+        buyer: { key: buyerFinId },
+        issuer: { key: sellerFinId },
+        asset: {
+          assetId,
+          assetType: "finp2p",
+          amount: issueAmountAsset
+        },
+        settlement: {
+          assetId: settlementAsset,
+          assetType: "fiat",
+          amount: settlementAmount
+        }
+      }, buyer);
+      await contract.redeem(nonce, assetId, sellerFinId, redeemAmount, settlementAsset, settlementAmount, signature, { from: operator });
 
-      expect(await contract.getBalance(assetId, seller.finId)).to.equal(0);
-      expect(await contract.getBalance(assetId, buyer.finId)).to.equal(transferAmount);
+      expect(await contract.getBalance(assetId, sellerFinId)).to.equal(0);
+      expect(await contract.getBalance(assetId, buyerFinId)).to.equal(transferAmount);
     });
 
     it("hold/release/rollback operations", async function() {
       const [operator] = await ethers.getSigners();
       const { contract, address: finP2PAddress } = await loadFixture(deployFinP2PProxyFixture);
 
-      const assetId = "USDT";
+      const { chainId, verifyingContract } = contract.eip712Domain();
+
+      const assetId = `bank-us:102:${uuid()}`;
+      const settlementAsset = "USD";
+      const assetAmount = 1000;
+      const settlementAmount = 10000;
+
       const erc20Address = await deployERC20("Payment stable coin", "USDT", finP2PAddress);
       await contract.associateAsset(assetId, erc20Address, { from: operator });
 
-      const buyer = await createAccount();
-      const seller = await createAccount();
+      const buyer = Wallet.createRandom();
+      const seller = Wallet.createRandom();
+      const buyerFinId = getFinId(buyer);
+      const sellerFinId = getFinId(seller);
 
-      // -----------------------------
+      // ----------------------------------------------------------
 
-      expect(await contract.getBalance(assetId, seller.finId)).to.equal(0);
+      expect(await contract.getBalance(assetId, sellerFinId)).to.equal(0);
 
       const issueAmountAsset = 1000;
-      await contract.issue(assetId, seller.finId, issueAmountAsset, { from: operator });
+      let nonce = `0x${generateNonce().toString("hex")}`;
+      let signature = await signMessage(chainId, verifyingContract,  EIP721_ISSUANCE_TYPES,{
+        nonce,
+        buyer: { key: buyerFinId },
+        issuer: { key: sellerFinId },
+        asset: {
+          assetId,
+          assetType: "finp2p",
+          amount: issueAmountAsset
+        },
+        settlement: {
+          assetId: settlementAsset,
+          assetType: "fiat",
+          amount: settlementAmount
+        }
+      }, buyer);
+      await contract.issue(nonce, assetId, buyerFinId, sellerFinId, issueAmountAsset, settlementAsset, settlementAmount, signature, { from: operator });
 
-      expect(await contract.getBalance(assetId, seller.finId)).to.equal(issueAmountAsset);
+      expect(await contract.getBalance(assetId, sellerFinId)).to.equal(issueAmountAsset);
 
       // -----------------------------
 
       const opNum = 1;
       const operationId = stringToByte16(`${opNum}`);
       const transferAmount = 50;
-      const expiry = currentTimeUnix() + 24 * 60 * 60;
 
-      const astHash = randomHash();
-      const sttlHash = settlementHash("fiat", assetId, "finId", seller.finId, "finId", buyer.finId, transferAmount, expiry);
-      const hash = combineHashes([astHash, sttlHash]);
-      const signature = sign(seller.privateKey, hash);
+      nonce = `0x${generateNonce().toString("hex")}`;
+      signature = await signMessage(chainId, verifyingContract,  EIP721_TRANSFER_TYPES,{
+        nonce,
+        buyer: { key: buyerFinId },
+        seller: { key: sellerFinId },
+        asset: {
+          assetId,
+          assetType: "finp2p",
+          amount: issueAmountAsset
+        },
+        settlement: {
+          assetId: settlementAsset,
+          assetType: "fiat",
+          amount: settlementAmount
+        }
+      }, buyer);
 
-      await contract.hold(operationId, assetId, seller.finId, buyer.finId, transferAmount, expiry, astHash, hash, signature, { from: operator });
+      await contract.hold(operationId, assetId, sellerFinId, buyerFinId, transferAmount, settlementAsset, settlementAmount, signature, { from: operator });
 
-      expect(await contract.getBalance(assetId, seller.finId)).to.equal(issueAmountAsset - transferAmount);
+      expect(await contract.getBalance(assetId, sellerFinId)).to.equal(issueAmountAsset - transferAmount);
 
       // -----------------------------
 
-      await contract.release(operationId, buyer.finId, { from: operator });
+      await contract.release(operationId, buyerFinId, { from: operator });
 
-      expect(await contract.getBalance(assetId, buyer.finId)).to.equal(transferAmount);
-      expect(await contract.getBalance(assetId, seller.finId)).to.equal(issueAmountAsset - transferAmount);
+      expect(await contract.getBalance(assetId, buyerFinId)).to.equal(transferAmount);
+      expect(await contract.getBalance(assetId, sellerFinId)).to.equal(issueAmountAsset - transferAmount);
     });
 
   });

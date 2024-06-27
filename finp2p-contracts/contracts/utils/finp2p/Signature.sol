@@ -107,6 +107,10 @@ library Signature {
         return keccak256(abi.encodePacked(assetHash, settlementHash)) == hash;
     }
 
+    /**
+     * @dev Verify signature.
+     * FinP2P signature analogue to Openzepppelin's `SignatureChecker.isValidSignatureNow`
+     */
     function verify(
         address _signer,
         bytes32 _hash,
