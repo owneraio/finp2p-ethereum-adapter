@@ -29,73 +29,31 @@ export class TokenService extends CommonService {
 
   public async issue(request: Paths.IssueAssets.RequestBody): Promise<Paths.IssueAssets.Responses.$200> {
     const assetId = extractAssetId(request.asset);
-    let buyerFinId = '';
-    const issuerFinId = request.destination.finId;
     const amount = parseInt(request.quantity);
-    let nonce: string = request.nonce;
-    const signature = request.signature.signature;
-
-    let settlementHash: string = '';
 
     switch (request.signature.template.type) {
-      case 'hashList':
-        if (request.signature.template.hashGroups.length > 1) {
-          settlementHash = request.signature.template.hashGroups[1].hash;
-        }
-        // TODO: extract from signature template
-        break;
-      case 'EIP712':
-        const { domain, types, primaryType, message } = request.signature.template;
-        console.log('EIP712 payload');
-        console.log('\tdomain: ', domain);
-        console.log('\ttypes: ', types);
-        console.log('\tprimaryType: ', primaryType);
-        console.log('\tmessage: ', message);
-        // console.log('\thash: ', request.signature.template.hash);
+      case 'hashList': {
+        const txHash = await this.finP2PContract.issueWithoutSignature(assetId, request.destination.finId, amount);
+        return {
+          isCompleted: false,
+          cid: txHash,
+        } as Components.Schemas.ReceiptOperation;
+      }
 
-        if (domain === undefined || types === undefined || primaryType === undefined || message === undefined) {
-          throw new Error('Invalid EIP712 signature template');
-        }
-        const { chainId, verifyingContract } = domain;
-        if (chainId === undefined || verifyingContract === undefined) {
-          throw new Error('Invalid EIP712 domain');
-        }
-
-        const { buyer, settlement } = message;
-        buyerFinId = buyer.fields.key;
-        settlementHash = termHash(settlement.fields.assetId, settlement.fields.assetType, settlement.fields.amount);
-
-        try {
-          const { nonce: b64Nonce } = message;
-          nonce = Buffer.from(b64Nonce.toString(), 'base64').toString('hex');
-          const eip721message = {
-            nonce: `0x${nonce}`,
-            buyer: { ... message.buyer.fields },
-            issuer: { ... message.issuer.fields },
-            asset: { ... message.asset.fields },
-            settlement: { ... message.settlement.fields },
-          } as EIP721IssuanceMessage;
-          const hash = hashEIP721Issuance(chainId, verifyingContract, eip721message);
-          console.log('\thash: ', hash);
-          const signerAddress = publicKeyToAddress(buyerFinId);
-          console.log('\tsignerAddress: ', signerAddress);
-          const verified = verifyEIP721Issuance(chainId, verifyingContract, eip721message, signerAddress, signature);
-          console.log('\tverified: ', verified);
-        } catch (e) {
-          console.error(e);
-        }
-
-
-        break;
+      case 'EIP712': {
+        const { nonce, issuer, buyer, settlement } = request.signature.template.message;
+        const nonceDec = Buffer.from(nonce.toString(), 'base64').toString('hex');
+        const buyerFinId = buyer.fields.key; // should be equal to request.destination.finId
+        const issuerFinId = issuer.fields.key;
+        const signature = request.signature.signature;
+        const settlementHash = termHash(settlement.fields.assetId, settlement.fields.assetType, settlement.fields.amount);
+        const txHash = await this.finP2PContract.issue(nonceDec, assetId, buyerFinId, issuerFinId, amount, settlementHash, signature);
+        return {
+          isCompleted: false,
+          cid: txHash,
+        } as Components.Schemas.ReceiptOperation;
+      }
     }
-
-
-    const txHash = await this.finP2PContract.issue(nonce, assetId, buyerFinId, issuerFinId, amount, settlementHash, signature);
-
-    return {
-      isCompleted: false,
-      cid: txHash,
-    } as Components.Schemas.ReceiptOperation;
 
   }
 
