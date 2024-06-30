@@ -13,7 +13,18 @@ export class EscrowService extends CommonService {
     const destinationFinId = request.destination?.finId || '';
     const amount = parseInt(request.quantity);
     const expiry = request.expiry;
-    const assetHash = request.signature.template.hashGroups[0].hash;
+    let assetHash: string = '';
+    switch (request.signature.template.type ) {
+      case 'hashList':
+        if (request.signature.template.hashGroups.length > 0) {
+          assetHash = request.signature.template.hashGroups[0].hash;
+        }
+        break;
+      case 'EIP712':
+        const { domain, types, primaryType, message } = request.signature.template;
+        console.log(domain, types, primaryType, message);
+        break;
+    }
     const hash = request.signature.template.hash;
     const signature = request.signature.signature;
 
