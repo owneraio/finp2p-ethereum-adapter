@@ -45,25 +45,25 @@ export class FinP2PContract extends ContractsManager {
   }
 
   async issue(nonce: string, assetId: string, buyerFinId: string, issuerFinId: string, quantity: number,
-    settlementHash: string, signature: string) {
+    settlementAsset: string, settlementAmount: number, signature: string) {
     const response = await this.finP2P.issue(
       `0x${nonce}`, assetId, buyerFinId, issuerFinId, quantity,
-      settlementHash, `0x${signature}`);
+      settlementAsset, settlementAmount, `0x${signature}`);
     return response.hash;
   }
 
   async transfer(nonce: string, assetId: string, sourceFinId: string, destinationFinId: string, quantity: number,
-    settlementHash: string, signature: string) {
+    settlementAsset: string, settlementAmount: number, signature: string) {
     const response = await this.finP2P.transfer(
       `0x${nonce}`, assetId, sourceFinId, destinationFinId, quantity,
-      settlementHash, `0x${signature}`);
+      settlementAsset, settlementAmount, `0x${signature}`);
     return response.hash;
   }
 
-  async redeem(nonce: string, assetId: string, finId: string, quantity: number,
-    settlementHash: string, signature: string) {
-    const response = await this.finP2P.redeem(`0x${nonce}`, assetId, finId, quantity,
-      settlementHash, `0x${signature}`);
+  async redeem(nonce: string, assetId: string, buyerFinId: string, issuerFinId: string, quantity: number,
+    settlementAsset: string, settlementAmount: number, signature: string) {
+    const response = await this.finP2P.redeem(`0x${nonce}`, assetId, buyerFinId, issuerFinId, quantity,
+      settlementAsset, settlementAmount, `0x${signature}`);
     return response.hash;
   }
 

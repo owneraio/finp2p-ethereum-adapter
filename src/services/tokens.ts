@@ -1,8 +1,5 @@
 import { CommonService } from './common';
 import { extractAssetId } from './mapping';
-import {
-  termHash,
-} from '../../finp2p-contracts/test/utils';
 
 export class TokenService extends CommonService {
 
@@ -42,8 +39,9 @@ export class TokenService extends CommonService {
         const buyerFinId = buyer.fields.key; // should be equal to request.destination.finId
         const issuerFinId = issuer.fields.key;
         const signature = request.signature.signature;
-        const settlementHash = termHash(settlement.fields.assetId, settlement.fields.assetType, settlement.fields.amount);
-        const txHash = await this.finP2PContract.issue(nonceDec, assetId, buyerFinId, issuerFinId, amount, settlementHash, signature);
+
+        const txHash = await this.finP2PContract.issue(nonceDec, assetId, buyerFinId, issuerFinId, amount,
+          settlement.fields.assetId, settlement.fields.amount, signature);
         return {
           isCompleted: false,
           cid: txHash,
@@ -62,12 +60,8 @@ export class TokenService extends CommonService {
     const sourceFinId = request.source.finId;
     const destinationFinId = request.destination.finId;
     const amount = parseInt(request.quantity);
-    let settlementHash: string = '';
     switch (request.signature.template.type) {
       case 'hashList':
-        if (request.signature.template.hashGroups.length > 1) {
-          settlementHash = request.signature.template.hashGroups[1].hash;
-        }
         break;
       case 'EIP712':
         break;
@@ -76,7 +70,7 @@ export class TokenService extends CommonService {
     const signature = request.signature.signature;
 
     try {
-      const txHash = await this.finP2PContract.transfer(nonce, assetId, sourceFinId, destinationFinId, amount, settlementHash, signature);
+      const txHash = await this.finP2PContract.transfer(nonce, assetId, sourceFinId, destinationFinId, amount, '', 0, signature);
 
       return {
         isCompleted: false,
@@ -101,19 +95,15 @@ export class TokenService extends CommonService {
     const assetId = request.asset.resourceId;
     const finId = request.source.finId;
     const amount = parseInt(request.quantity);
-    let settlementHash: string = '';
     switch (request.signature.template.type) {
       case 'hashList':
-        if (request.signature.template.hashGroups.length > 1) {
-          settlementHash = request.signature.template.hashGroups[1].hash;
-        }
         break;
       case 'EIP712':
         break;
     }
     const signature = request.signature.signature;
 
-    const txHash = await this.finP2PContract.redeem(nonce, assetId, finId, amount, settlementHash, signature);
+    const txHash = await this.finP2PContract.redeem(nonce, assetId, finId, '', amount, '', 0, signature);
 
     return {
       isCompleted: false,
