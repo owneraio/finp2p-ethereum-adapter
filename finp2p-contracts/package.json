@@ -8,7 +8,7 @@
     "compile": "hardhat compile",
     "test": "hardhat test",
     "build": "tsc",
-    "prebuild": "eslint ./src --ext .ts --fix",
+    "lint": "eslint ./src --ext .ts --fix",
     "deploy-contract": "node dist/scripts/deploy.js",
     "deploy-contract-job": "node dist/scripts/deploy-job.js",
     "grant-operator-roles": "node dist/scripts/grant.js",
