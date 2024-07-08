@@ -101,7 +101,7 @@ contract FINP2POperatorERC20 is IFinP2PAsset, IFinP2PEscrow, AccessControl, FinP
     }
 
     function issue(
-        bytes32 nonce,
+        uint256 nonce,
         string memory assetId,
         string memory buyerFinId,
         string memory issuerFinId,
@@ -135,7 +135,7 @@ contract FINP2POperatorERC20 is IFinP2PAsset, IFinP2PEscrow, AccessControl, FinP
     }
 
     function transfer(
-        bytes32 nonce,
+        uint256 nonce,
         string memory assetId,
         string memory sourceFinId,
         string memory destinationFinId,
@@ -172,7 +172,7 @@ contract FINP2POperatorERC20 is IFinP2PAsset, IFinP2PEscrow, AccessControl, FinP
     }
 
     function redeem(
-        bytes32 nonce,
+        uint256 nonce,
         string memory assetId,
         string memory buyerFinId,
         string memory issuerFinId,

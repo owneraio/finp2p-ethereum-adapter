@@ -40,12 +40,24 @@ export class TokenService extends CommonService {
         const issuerFinId = issuer.fields.key;
         const signature = request.signature.signature;
 
-        const txHash = await this.finP2PContract.issue(nonceDec, assetId, buyerFinId, issuerFinId, amount,
-          settlement.fields.assetId, settlement.fields.amount, signature);
-        return {
-          isCompleted: false,
-          cid: txHash,
-        } as Components.Schemas.ReceiptOperation;
+        try {
+          const txHash = await this.finP2PContract.issue(nonceDec, assetId, buyerFinId, issuerFinId, amount,
+            settlement.fields.assetId, settlement.fields.amount, signature);
+          return {
+            isCompleted: false,
+            cid: txHash,
+          } as Components.Schemas.ReceiptOperation;
+        } catch (e) {
+          console.error(e);
+          return {
+            isCompleted: false,
+            error: {
+              code: 1,
+              message: e,
+            },
+          } as Components.Schemas.ReceiptOperation;
+        }
+
       }
     }
 

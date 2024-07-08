@@ -23,21 +23,21 @@ contract FinP2PTypedVerifier is EIP712 {
     );
 
     bytes32 private constant ISSUE_TYPE_HASH = keccak256(
-        "PrimarySale(bytes32 nonce,FinId buyer,FinId issuer,Term asset,Term settlement)FinId(string key)Term(string assetId,string assetType,uint256 amount)"
+        "PrimarySale(uint256 nonce,FinId buyer,FinId issuer,Term asset,Term settlement)FinId(string key)Term(string assetId,string assetType,uint256 amount)"
     );
 
     bytes32 private constant TRANSFER_TYPE_HASH = keccak256(
-        "SecondarySale(bytes32 nonce,FinId buyer,FinId seller,Term asset,Term settlement)FinId(string key)Term(string assetId,string assetType,uint256 amount)"
+        "SecondarySale(uint256 nonce,FinId buyer,FinId seller,Term asset,Term settlement)FinId(string key)Term(string assetId,string assetType,uint256 amount)"
     );
 
     bytes32 private constant REDEEM_TYPE_HASH = keccak256(
-        "Redemption(bytes32 nonce,FinId buyer,FinId issuer,Term asset,Term settlement)FinId(string key)Term(string assetId,string assetType,uint256 amount)"
+        "Redemption(uint256 nonce,FinId buyer,FinId issuer,Term asset,Term settlement)FinId(string key)Term(string assetId,string assetType,uint256 amount)"
     );
 
     constructor() EIP712(SIGNING_DOMAIN, SIGNATURE_VERSION) {}
 
     function verifyPrimarySaleSignature(
-        bytes32 nonce,
+        uint256 nonce,
         string memory buyer,
         string memory issuer,
         string memory assetId,
@@ -52,7 +52,7 @@ contract FinP2PTypedVerifier is EIP712 {
     }
 
     function verifySecondarySaleSignature(
-        bytes32 nonce,
+        uint256 nonce,
         string memory buyer,
         string memory seller,
         string memory assetId,
@@ -67,7 +67,7 @@ contract FinP2PTypedVerifier is EIP712 {
     }
 
     function verifyRedemptionSignature(
-        bytes32 nonce,
+        uint256 nonce,
         string memory buyer,
         string memory issuer,
         string memory assetId,
@@ -97,7 +97,7 @@ contract FinP2PTypedVerifier is EIP712 {
     }
 
     function hashIssue(
-        bytes32 nonce,
+        uint256 nonce,
         string memory buyer,
         string memory issuer,
         string memory assetId,
@@ -116,7 +116,7 @@ contract FinP2PTypedVerifier is EIP712 {
     }
 
     function hashTransfer(
-        bytes32 nonce,
+        uint256 nonce,
         string memory buyer,
         string memory seller,
         string memory assetId,
@@ -135,7 +135,7 @@ contract FinP2PTypedVerifier is EIP712 {
     }
 
     function hashRedeem(
-        bytes32 nonce,
+        uint256 nonce,
         string memory buyer,
         string memory issuer,
         string memory assetId,
