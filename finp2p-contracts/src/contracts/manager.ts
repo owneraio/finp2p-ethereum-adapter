@@ -118,4 +118,8 @@ export class ContractsManager {
     }
     throw new Error(`no result after ${tries} retries`);
   }
+
+  protected resetNonce() {
+    (this.signer as NonceManager).reset();
+  }
 }

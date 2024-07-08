@@ -2,7 +2,7 @@ import { ContractFactory, Interface } from 'ethers';
 import FINP2P
   from '../../artifacts/contracts/token/ERC20/FINP2POperatorERC20.sol/FINP2POperatorERC20.json';
 import { FINP2POperatorERC20 } from '../../typechain-types';
-import { FinP2PReceipt, OperationStatus } from './model';
+import { detectError, EthereumTransactionError, FinP2PReceipt, NonceToHighError, OperationStatus } from './model';
 import { parseTransactionReceipt, stringToByte16 } from './utils';
 import { ContractsManager } from './manager';
 import { FinP2PContractConfig } from './config';
@@ -36,41 +36,65 @@ export class FinP2PContract extends ContractsManager {
   }
 
   async issue(assetId: string, issuerFinId: string, quantity: number) {
-    const response = await this.finP2P.issue(assetId, issuerFinId, quantity);
-    return response.hash;
+    try {
+      const response = await this.finP2P.issue(assetId, issuerFinId, quantity);
+      return response.hash;
+    } catch (e) {
+      this.processFailure(e);
+    }
   }
 
   async transfer(nonce: string, assetId: string, sourceFinId: string, destinationFinId: string, quantity: number,
     settlementHash: string, hash: string, signature: string) {
-    const response = await this.finP2P.transfer(
-      `0x${nonce}`, assetId, sourceFinId, destinationFinId, quantity,
-      `0x${settlementHash}`, `0x${hash}`, `0x${signature}`);
-    return response.hash;
+    try {
+      const response = await this.finP2P.transfer(
+        `0x${nonce}`, assetId, sourceFinId, destinationFinId, quantity,
+        `0x${settlementHash}`, `0x${hash}`, `0x${signature}`);
+      return response.hash;
+    } catch (e) {
+      this.processFailure(e);
+    }
   }
 
   async redeem(nonce: string, assetId: string, finId: string, quantity: number,
     settlementHash: string, hash: string, signature: string) {
-    const response = await this.finP2P.redeem(`0x${nonce}`, assetId, finId, quantity,
-      `0x${settlementHash}`, `0x${hash}`, `0x${signature}`);
-    return response.hash;
+    try {
+      const response = await this.finP2P.redeem(`0x${nonce}`, assetId, finId, quantity,
+        `0x${settlementHash}`, `0x${hash}`, `0x${signature}`);
+      return response.hash;
+    } catch (e) {
+      this.processFailure(e);
+    }
   }
 
   async hold(operationId: string, assetId: string, sourceFinId: string, destinationFinId: string, quantity: number, expiry: number,
     assetHash: string, hash: string, signature: string) {
     let opId = stringToByte16(operationId);
-    const response = await this.finP2P.hold(opId, assetId, sourceFinId, destinationFinId, quantity, expiry,
-      `0x${assetHash}`, `0x${hash}`, `0x${signature}`);
-    return response.hash;
+    try {
+      const response = await this.finP2P.hold(opId, assetId, sourceFinId, destinationFinId, quantity, expiry,
+        `0x${assetHash}`, `0x${hash}`, `0x${signature}`);
+      return response.hash;
+    } catch (e) {
+      this.processFailure(e);
+    }
   }
 
   async release(operationId: string, destinationFinId: string) {
-    const response = await this.finP2P.release(stringToByte16(operationId), destinationFinId);
-    return response.hash;
+    try {
+      const response = await this.finP2P.release(stringToByte16(operationId), destinationFinId);
+      return response.hash;
+    } catch (e) {
+      this.processFailure(e);
+    }
   }
 
   async rollback(operationId: string) {
-    const response = await this.finP2P.rollback(stringToByte16(operationId));
-    return response.hash;
+    try {
+      const response = await this.finP2P.rollback(stringToByte16(operationId));
+      return response.hash;
+    } catch (e) {
+      this.processFailure(e);
+    }
   }
 
   async balance(assetId: string, finId: string) {
@@ -122,4 +146,15 @@ export class FinP2PContract extends ContractsManager {
     return receipt;
   }
 
+  processFailure(e: any) {
+    const err = detectError(e);
+    if (err instanceof EthereumTransactionError) {
+      console.log('Ethereum transaction error');
+      this.resetNonce();
+    } else  if (err instanceof NonceToHighError) {
+      console.log('Nonce too high error');
+      this.resetNonce();
+    }
+    throw err;
+  }
 }
