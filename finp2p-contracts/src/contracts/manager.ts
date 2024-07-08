@@ -3,7 +3,6 @@ import FINP2P from '../../artifacts/contracts/token/ERC20/FINP2POperatorERC20.so
 import ERC20 from '../../artifacts/contracts/token/ERC20/ERC20WithOperator.sol/ERC20WithOperator.json';
 import { ERC20WithOperator, FINP2POperatorERC20 } from '../../typechain-types';
 import { ContractManagerConfig } from './config';
-import console from "console";
 
 export class ContractsManager {
 
@@ -32,7 +31,7 @@ export class ContractsManager {
   }
 
   async deployFinP2PContract(signerAddress: string | undefined, paymentAssetCode: string | undefined = undefined) {
-    console.log("Deploying FinP2P contract...");
+    console.log('Deploying FinP2P contract...');
     const factory = new ContractFactory<any[], FINP2POperatorERC20>(
       FINP2P.abi, FINP2P.bytecode, this.signer,
     );
@@ -40,7 +39,7 @@ export class ContractsManager {
     await contract.waitForDeployment();
 
     const address = await contract.getAddress();
-    console.log("FinP2P contract deployed successfully at:", address);
+    console.log('FinP2P contract deployed successfully at:', address);
 
     if (signerAddress) {
       await this.grantAssetManagerRole(address, signerAddress);
@@ -74,12 +73,12 @@ export class ContractsManager {
   }
 
   async preCreatePaymentAsset(factory: ContractFactory<any[], FINP2POperatorERC20>, finP2PContractAddress: string, assetId: string): Promise<void> {
-    console.log(`Pre-creating payment asset ${assetId}...`)
+    console.log(`Pre-creating payment asset ${assetId}...`);
     const tokenAddress = await this.deployERC20(assetId, assetId, finP2PContractAddress);
 
     const contract = factory.attach(finP2PContractAddress);
 
-    console.log(`Associating asset ${assetId} with token ${tokenAddress}...`)
+    console.log(`Associating asset ${assetId} with token ${tokenAddress}...`);
     const tx = await contract.associateAsset(assetId, tokenAddress);
     await this.waitForCompletion(tx.hash);
   }
@@ -114,6 +113,7 @@ export class ContractsManager {
           throw new Error(`transaction failed: ${txHash}`);
         }
       }
+      // eslint-disable-next-line @typescript-eslint/no-loop-func
       await new Promise((r) => setTimeout(r, 500));
     }
     throw new Error(`no result after ${tries} retries`);

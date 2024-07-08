@@ -12,12 +12,12 @@ export type SuccessfulTransaction = {
 export type FinP2PReceipt = {
   id: string
   assetId: string
-  assetType: "cryptocurrency" | "fiat" | "finp2p"
+  assetType: 'cryptocurrency' | 'fiat' | 'finp2p'
   amount: number
   source?: string
   destination?: string,
   timestamp: number,
-  operationType: "transfer" | "redeem" | "hold" | "release" | "issue"
+  operationType: 'transfer' | 'redeem' | 'hold' | 'release' | 'issue'
 };
 
 export type FailedTransaction = {

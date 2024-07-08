@@ -1,4 +1,4 @@
-import * as fs from "fs";
+import * as fs from 'fs';
 
 export type ContractManagerConfig = {
   rpcURL: string;
@@ -20,10 +20,10 @@ export type FinP2PContractConfig = ContractManagerConfig & {
 
 export const readConfig = async <T>(configPath: string): Promise<T> => {
   return new Promise((resolve, reject) => {
-    fs.readFile(configPath, "utf8", (err, data) => {
+    fs.readFile(configPath, 'utf8', (err, data) => {
       if (err) {
         reject(err);
-        return
+        return;
       }
       resolve(JSON.parse(data));
     });
