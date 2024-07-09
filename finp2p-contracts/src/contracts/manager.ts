@@ -148,6 +148,7 @@ export class ContractsManager {
         }
       }
     }
+    throw new Error(`Failed to execute transaction without nonce-too-high error after ${maxAttempts} attempts`);
   }
 
   protected resetNonce() {
