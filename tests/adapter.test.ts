@@ -261,5 +261,128 @@ describe(`token service test`, () => {
     await client.expectBalance(seller, asset, transferQty);
   });
 
-});
+  test(`Failed transaction and nonce resetting`, async () => {
 
+    const asset = {
+      type: "finp2p",
+      resourceId: randomResourceId(orgId, ASSET)
+    } as Components.Schemas.Asset;
+
+    const buyerCrypto = createCrypto();
+    let buyer = {
+      finId: buyerCrypto.public.toString("hex"),
+      account: {
+        type: "finId",
+        finId: buyerCrypto.public.toString("hex")
+      }
+    } as Components.Schemas.Source;
+
+    const assetStatus = await client.tokens.createAsset({ asset: asset });
+    if (!assetStatus.isCompleted) {
+      await client.common.waitForCompletion(assetStatus.cid);
+    }
+
+    await client.expectBalance(buyer, asset, 0);
+
+    let issueQuantity = 1000;
+    let settlementRef = `${uuidv4()}`;
+    const issueReceipt = await client.expectReceipt(await client.tokens.issue({
+      nonce: generateNonce().toString("utf-8"),
+      destination: buyer.account as Components.Schemas.FinIdAccount,
+      quantity: `${issueQuantity}`,
+      asset: asset as Components.Schemas.Finp2pAsset,
+      settlementRef: settlementRef,
+    } as Paths.IssueAssets.RequestBody));
+    expect(issueReceipt.asset).toStrictEqual(asset);
+    expect(parseInt(issueReceipt.quantity)).toBe(issueQuantity);
+    expect(issueReceipt.destination).toStrictEqual(buyer);
+    expect(issueReceipt.operationType).toBe("issue");
+
+    await client.expectBalance(buyer, asset, issueQuantity);
+
+    const sellerCrypto = createCrypto();
+    let seller = {
+      finId: sellerCrypto.public.toString("hex"),
+      account: {
+        type: "finId",
+        finId: sellerCrypto.public.toString("hex")
+      }
+    } as Components.Schemas.Source;
+
+    let transferQuantity = 1600;
+
+    let nonce = generateNonce();
+    let signature = transferSignature(
+      {
+        nonce: nonce,
+        operation: "transfer",
+        quantity: transferQuantity,
+        asset: asset,
+        source: buyer,
+        destination: seller
+      },
+      {
+        asset: { type: "fiat", code: "USD" },
+        quantity: 10000,
+        source: seller,
+        destination: buyer,
+        expiry: 6000
+      },
+      hashFunction,
+      buyerCrypto.private
+    );
+
+    settlementRef = `${uuidv4()}`;
+    let failedResult = await client.tokens.transfer({
+      nonce: nonce.toString("hex"),
+      source: buyer,
+      destination: seller,
+      quantity: `${transferQuantity}`,
+      settlementRef: settlementRef,
+      asset,
+      signature: signature
+    } as Paths.TransferAsset.RequestBody);
+    expect(failedResult.isCompleted).toBeTruthy();
+    expect(failedResult.error).toBeDefined();
+    expect(failedResult.error!.message).toBe("Not sufficient balance to transfer");
+
+    transferQuantity = 600;
+
+    nonce = generateNonce();
+    signature = transferSignature(
+      {
+        nonce: nonce,
+        operation: "transfer",
+        quantity: transferQuantity,
+        asset: asset,
+        source: buyer,
+        destination: seller
+      },
+      {
+        asset: { type: "fiat", code: "USD" },
+        quantity: 10000,
+        source: seller,
+        destination: buyer,
+        expiry: 6000
+      },
+      hashFunction,
+      buyerCrypto.private
+    );
+
+    settlementRef = `${uuidv4()}`;
+    const transferReceipt = await client.expectReceipt(await client.tokens.transfer({
+      nonce: nonce.toString("hex"),
+      source: buyer,
+      destination: seller,
+      quantity: `${transferQuantity}`,
+      settlementRef: settlementRef,
+      asset,
+      signature: signature
+    } as Paths.TransferAsset.RequestBody));
+    expect(transferReceipt.asset).toStrictEqual(asset);
+    expect(parseInt(transferReceipt.quantity)).toBe(transferQuantity);
+    expect(transferReceipt.source).toStrictEqual(buyer);
+    expect(transferReceipt.destination).toStrictEqual(seller);
+    expect(transferReceipt.operationType).toBe("transfer");
+  });
+});

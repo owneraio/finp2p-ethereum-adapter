@@ -1,4 +1,4 @@
-import { HDNodeWallet, Interface, TransactionReceipt, Wallet } from "ethers";
+import { HDNodeWallet, Interface, TransactionReceipt, Wallet } from 'ethers';
 import { FinP2PReceipt } from './model';
 import * as secp256k1 from 'secp256k1';
 
@@ -22,7 +22,7 @@ export const createAccount = () => {
 };
 
 export const addressFromPrivateKey = (privateKey: string): string => {
-  return new Wallet(privateKey).address;
+  return  new Wallet(privateKey).address;
 };
 
 

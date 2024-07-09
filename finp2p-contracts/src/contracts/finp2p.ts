@@ -6,6 +6,7 @@ import { FinP2PReceipt, OperationStatus } from './model';
 import { parseTransactionReceipt, stringToByte16 } from './utils';
 import { ContractsManager } from './manager';
 import { FinP2PContractConfig } from './config';
+import console from 'console';
 
 export class FinP2PContract extends ContractsManager {
 
@@ -24,6 +25,9 @@ export class FinP2PContract extends ContractsManager {
     this.contractInterface = contract.interface;
     this.finP2P = contract as FINP2POperatorERC20;
     this.finP2PContractAddress = config.finP2PContractAddress;
+    this.signer.getNonce().then((nonce) => {
+      console.log('Syncing nonce:', nonce);
+    });
   }
 
   async eip712Domain() {
@@ -35,8 +39,9 @@ export class FinP2PContract extends ContractsManager {
   }
 
   async associateAsset(assetId: string, tokenAddress: string) {
-    const response = await this.finP2P.associateAsset(assetId, tokenAddress);
-    return response.hash;
+    return this.safeExecuteTransaction(async () => {
+      return this.finP2P.associateAsset(assetId, tokenAddress);
+    });
   }
 
   async issueWithoutSignature(assetId: string, issuerFinId: string, quantity: number) {
@@ -45,44 +50,51 @@ export class FinP2PContract extends ContractsManager {
   }
 
   async issue(nonce: string, assetId: string, buyerFinId: string, issuerFinId: string, quantity: number,
-    settlementAsset: string, settlementAmount: number, signature: string) {
-    const response = await this.finP2P.issue(
-      `0x${nonce}`, assetId, buyerFinId, issuerFinId, quantity,
-      settlementAsset, settlementAmount, `0x${signature}`);
-    return response.hash;
+              settlementAsset: string, settlementAmount: number, signature: string) {
+    return this.safeExecuteTransaction(async () => {
+      return this.finP2P.issue(
+        `0x${nonce}`, assetId, buyerFinId, issuerFinId, quantity,
+        settlementAsset, settlementAmount, `0x${signature}`);
+    });
   }
 
   async transfer(nonce: string, assetId: string, sourceFinId: string, destinationFinId: string, quantity: number,
-    settlementAsset: string, settlementAmount: number, signature: string) {
-    const response = await this.finP2P.transfer(
-      `0x${nonce}`, assetId, sourceFinId, destinationFinId, quantity,
-      settlementAsset, settlementAmount, `0x${signature}`);
-    return response.hash;
+                 settlementAsset: string, settlementAmount: number, signature: string) {
+    return this.safeExecuteTransaction(async () => {
+      return this.finP2P.transfer(
+        `0x${nonce}`, assetId, sourceFinId, destinationFinId, quantity,
+        settlementAsset, settlementAmount, `0x${signature}`);
+    });
   }
 
+
   async redeem(nonce: string, assetId: string, buyerFinId: string, issuerFinId: string, quantity: number,
-    settlementAsset: string, settlementAmount: number, signature: string) {
-    const response = await this.finP2P.redeem(`0x${nonce}`, assetId, buyerFinId, issuerFinId, quantity,
-      settlementAsset, settlementAmount, `0x${signature}`);
-    return response.hash;
+               settlementAsset: string, settlementAmount: number, signature: string) {
+    return this.safeExecuteTransaction(async () => {
+      return this.finP2P.redeem(`0x${nonce}`, assetId, buyerFinId, issuerFinId, quantity,
+        settlementAsset, settlementAmount, `0x${signature}`);
+    });
   }
 
   async hold(operationId: string, assetId: string, sourceFinId: string, destinationFinId: string, quantity: number, expiry: number,
     assetHash: string, hash: string, signature: string) {
     let opId = stringToByte16(operationId);
-    const response = await this.finP2P.hold(opId, assetId, sourceFinId, destinationFinId, quantity, expiry,
-      `0x${assetHash}`, `0x${hash}`, `0x${signature}`);
-    return response.hash;
+    return this.safeExecuteTransaction(async () => {
+      return this.finP2P.hold(opId, assetId, sourceFinId, destinationFinId, quantity, expiry,
+        `0x${assetHash}`, `0x${hash}`, `0x${signature}`);
+    });
   }
 
   async release(operationId: string, destinationFinId: string) {
-    const response = await this.finP2P.release(stringToByte16(operationId), destinationFinId);
-    return response.hash;
+    return this.safeExecuteTransaction(async () => {
+      return this.finP2P.release(stringToByte16(operationId), destinationFinId);
+    });
   }
 
   async rollback(operationId: string) {
-    const response = await this.finP2P.rollback(stringToByte16(operationId));
-    return response.hash;
+    return this.safeExecuteTransaction(async () => {
+      return this.finP2P.rollback(stringToByte16(operationId));
+    });
   }
 
   async balance(assetId: string, finId: string) {
