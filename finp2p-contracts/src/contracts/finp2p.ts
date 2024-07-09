@@ -1,4 +1,4 @@
-import { ContractFactory, Interface } from 'ethers';
+import { ContractFactory, ethers, Interface } from 'ethers';
 import FINP2P
   from '../../artifacts/contracts/token/ERC20/FINP2POperatorERC20.sol/FINP2POperatorERC20.json';
 import { FINP2POperatorERC20 } from '../../typechain-types';
@@ -48,10 +48,16 @@ export class FinP2PContract extends ContractsManager {
 
   async transfer(nonce: string, assetId: string, sourceFinId: string, destinationFinId: string, quantity: number,
     settlementHash: string, hash: string, signature: string) {
+    let encSettlementHash: string;
+    if (settlementHash.length === 0) {
+      encSettlementHash = ethers.encodeBytes32String('');
+    } else {
+      encSettlementHash = `0x${settlementHash}`;
+    }
     return this.safeExecuteTransaction(async () => {
       return this.finP2P.transfer(
         `0x${nonce}`, assetId, sourceFinId, destinationFinId, quantity,
-        `0x${settlementHash}`, `0x${hash}`, `0x${signature}`);
+        encSettlementHash, `0x${hash}`, `0x${signature}`);
     });
   }
 
