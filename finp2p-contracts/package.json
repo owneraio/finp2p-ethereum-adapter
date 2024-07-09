@@ -8,6 +8,7 @@
     "compile": "hardhat compile",
     "test": "hardhat test",
     "build": "tsc",
+    "lint": "eslint ./src --ext .ts --fix",
     "deploy-contract": "node dist/scripts/deploy.js",
     "deploy-contract-job": "node dist/scripts/deploy-job.js",
     "grant-operator-roles": "node dist/scripts/grant.js",
@@ -18,7 +19,8 @@
   "author": "",
   "license": "TBD",
   "dependencies": {
-    "ethers": "^6.11.1"
+    "ethers": "^6.11.1",
+    "secp256k1": "^3.7.1"
   },
   "devDependencies": {
     "@nomicfoundation/edr": "^0.3.2",
@@ -36,7 +38,6 @@
     "hardhat": "^2.20.1",
     "keccak": "^3.0.2",
     "prettier": "2.5.1",
-    "secp256k1": "^3.7.1",
     "ts-node": "^10.9.2",
     "typescript": "^4.8.4",
     "uuid": "^9.0.0"

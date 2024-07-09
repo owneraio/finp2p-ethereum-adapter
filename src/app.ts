@@ -32,7 +32,9 @@ function configureLogging(app: Application) {
       meta: true,
       expressFormat: true,
       statusLevels: true,
-      ignoreRoute: (req) => req.url.toLowerCase() === '/healthcheck',
+      ignoreRoute: (req) =>
+        req.url.toLowerCase() === '/readiness' ||
+        req.url.toLowerCase() === '/liveness',
     }),
   );
 }

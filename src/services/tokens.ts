@@ -1,5 +1,6 @@
 import { CommonService } from './common';
 import { extractAssetId } from './mapping';
+import { EthereumTransactionError } from '../../finp2p-contracts/src/contracts/model';
 
 export class TokenService extends CommonService {
 
@@ -54,13 +55,23 @@ export class TokenService extends CommonService {
         cid: txHash,
       } as Components.Schemas.ReceiptOperation;
     } catch (e) {
-      return {
-        isCompleted: true,
-        error: {
-          code: 1,
-          message: e,
-        },
-      } as Components.Schemas.ReceiptOperation;
+      if (e instanceof EthereumTransactionError) {
+        return {
+          isCompleted: true,
+          error: {
+            code: 1,
+            message: e.message,
+          },
+        } as Components.Schemas.ReceiptOperation;
+      } else {
+        return {
+          isCompleted: true,
+          error: {
+            code: 1,
+            message: e,
+          },
+        } as Components.Schemas.ReceiptOperation;
+      }
     }
   }
 
