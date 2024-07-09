@@ -135,12 +135,12 @@ export class ContractsManager {
       } catch (e) {
         const err = detectError(e);
         if (err instanceof EthereumTransactionError) {
-          console.log('Ethereum transaction error');
+          // console.log('Ethereum transaction error');
           this.resetNonce();
           throw err;
 
         } else if (err instanceof NonceToHighError) {
-          console.log('Nonce too high error');
+          // console.log('Nonce too high error');
           this.resetNonce();
           // continuing the loop
         } else {

@@ -1,11 +1,12 @@
-import { ContractFactory, ContractTransactionResponse, Interface } from 'ethers';
+import { ContractFactory, Interface } from 'ethers';
 import FINP2P
   from '../../artifacts/contracts/token/ERC20/FINP2POperatorERC20.sol/FINP2POperatorERC20.json';
 import { FINP2POperatorERC20 } from '../../typechain-types';
-import { detectError, EthereumTransactionError, FinP2PReceipt, NonceToHighError, OperationStatus } from './model';
+import { FinP2PReceipt, OperationStatus } from './model';
 import { parseTransactionReceipt, stringToByte16 } from './utils';
 import { ContractsManager } from './manager';
 import { FinP2PContractConfig } from './config';
+import console from 'console';
 
 export class FinP2PContract extends ContractsManager {
 
@@ -24,6 +25,9 @@ export class FinP2PContract extends ContractsManager {
     this.contractInterface = contract.interface;
     this.finP2P = contract as FINP2POperatorERC20;
     this.finP2PContractAddress = config.finP2PContractAddress;
+    this.signer.getNonce().then((nonce) => {
+      console.log('Syncing nonce:', nonce);
+    });
   }
 
   async getAssetAddress(assetId: string) {
@@ -31,8 +35,9 @@ export class FinP2PContract extends ContractsManager {
   }
 
   async associateAsset(assetId: string, tokenAddress: string) {
-    const response = await this.finP2P.associateAsset(assetId, tokenAddress);
-    return response.hash;
+    return this.safeExecuteTransaction(async () => {
+      return this.finP2P.associateAsset(assetId, tokenAddress);
+    });
   }
 
   async issue(assetId: string, issuerFinId: string, quantity: number) {
