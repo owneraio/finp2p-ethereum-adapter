@@ -1,8 +1,16 @@
-import { ContractFactory, JsonRpcProvider, NonceManager, Provider, Signer, Wallet } from 'ethers';
+import {
+  ContractFactory, ContractTransactionResponse,
+  JsonRpcProvider,
+  NonceManager,
+  Provider,
+  Signer,
+  Wallet,
+} from 'ethers';
 import FINP2P from '../../artifacts/contracts/token/ERC20/FINP2POperatorERC20.sol/FINP2POperatorERC20.json';
 import ERC20 from '../../artifacts/contracts/token/ERC20/ERC20WithOperator.sol/ERC20WithOperator.json';
 import { ERC20WithOperator, FINP2POperatorERC20 } from '../../typechain-types';
 import { ContractManagerConfig } from './config';
+import { detectError, EthereumTransactionError, NonceToHighError } from './model';
 
 export class ContractsManager {
 
@@ -117,5 +125,32 @@ export class ContractsManager {
       await new Promise((r) => setTimeout(r, 500));
     }
     throw new Error(`no result after ${tries} retries`);
+  }
+
+  async safeExecuteTransaction(call: () => Promise<ContractTransactionResponse>, maxAttempts: number = 10) {
+    for (let i = 0; i < maxAttempts; i++) {
+      try {
+        const response = await call();
+        return response.hash;
+      } catch (e) {
+        const err = detectError(e);
+        if (err instanceof EthereumTransactionError) {
+          // console.log('Ethereum transaction error');
+          this.resetNonce();
+          throw err;
+
+        } else if (err instanceof NonceToHighError) {
+          // console.log('Nonce too high error');
+          this.resetNonce();
+          // continuing the loop
+        } else {
+          throw err;
+        }
+      }
+    }
+  }
+
+  protected resetNonce() {
+    (this.signer as NonceManager).reset();
   }
 }
