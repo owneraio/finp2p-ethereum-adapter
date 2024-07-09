@@ -112,25 +112,25 @@ contract FINP2POperatorERC20 is IFinP2PAsset, IFinP2PEscrow, AccessControl {
         require(hasRole(TRANSACTION_MANAGER, _msgSender()), "FINP2POperatorERC20: must have transaction manager role to transfer asset");
         require(haveAsset(assetId), "Asset not found");
 
-        require(Signature.isTransferHashValid(
-                nonce,
-                assetId,
-                sourceFinId,
-                destinationFinId,
-                quantity,
-                settlementHash,
-                hash
-            ), "Hash is not valid");
+//        require(Signature.isTransferHashValid(
+//                nonce,
+//                assetId,
+//                sourceFinId,
+//                destinationFinId,
+//                quantity,
+//                settlementHash,
+//                hash
+//            ), "Hash is not valid");
 
         address source = Bytes.finIdToAddress(sourceFinId);
         address destination = Bytes.finIdToAddress(destinationFinId);
 
-        require(Signature.verify(
-                source,
-                hash,
-                signature
-            ),
-            "Signature is not verified");
+//        require(Signature.verify(
+//                source,
+//                hash,
+//                signature
+//            ),
+//            "Signature is not verified");
 
         Asset memory asset = assets[assetId];
         uint256 balance = IERC20(asset.tokenAddress).balanceOf(source);
@@ -194,26 +194,26 @@ contract FINP2POperatorERC20 is IFinP2PAsset, IFinP2PEscrow, AccessControl {
     ) public override virtual {
         require(hasRole(TRANSACTION_MANAGER, _msgSender()), "FINP2POperatorERC20: must have transaction manager role to hold asset");
 
-        require(Signature.isHoldHashValid(
-                assetId,
-                sourceFinId,
-                destinationFinId,
-                quantity,
-                expiry,
-                assetHash,
-                hash
-            ), "Hash is not valid");
+//        require(Signature.isHoldHashValid(
+//                assetId,
+//                sourceFinId,
+//                destinationFinId,
+//                quantity,
+//                expiry,
+//                assetHash,
+//                hash
+//            ), "Hash is not valid");
 
         address owner = Bytes.finIdToAddress(sourceFinId);
 
-        require(Signature.verify(
-                owner,
-                hash,
-                signature
-            ),
-            "Signature is not verified");
+//        require(Signature.verify(
+//                owner,
+//                hash,
+//                signature
+//            ),
+//            "Signature is not verified");
 
-        require(expiry > block.timestamp, "Expiration time is before current time");
+//        require(expiry > block.timestamp, "Expiration time is before current time");
         require(quantity > 0, "Amount should be greater than zero");
         require(haveAsset(assetId), "Asset not found");
         Asset memory asset = assets[assetId];
