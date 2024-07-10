@@ -26,7 +26,7 @@ export const EIP721_ISSUANCE_TYPES = {
   ...EIP721_FINID_TYPE,
   ...EIP721_TERM_TYPE,
   PrimarySale: [
-    { name: "nonce", type: "bytes32" },
+    { name: "nonce", type: "uint256" },
     { name: "buyer", type: "FinId" },
     { name: "issuer", type: "FinId" },
     { name: "asset", type: "Term" },
@@ -38,9 +38,9 @@ export const EIP721_TRANSFER_TYPES = {
   ...EIP721_FINID_TYPE,
   ...EIP721_TERM_TYPE,
   SecondarySale: [
-    { name: "nonce", type: "bytes32" },
-    { name: "buyer", type: "FinId" },
+    { name: "nonce", type: "uint256" },
     { name: "seller", type: "FinId" },
+    { name: "buyer", type: "FinId" },
     { name: "asset", type: "Term" },
     { name: "settlement", type: "Term" }
   ]
@@ -50,9 +50,9 @@ export const EIP721_REDEEM_TYPES = {
   ...EIP721_FINID_TYPE,
   ...EIP721_TERM_TYPE,
   Redemption: [
-    { name: "nonce", type: "bytes32" },
+    { name: "nonce", type: "uint256" },
+    { name: "owner", type: "FinId" },
     { name: "buyer", type: "FinId" },
-    { name: "issuer", type: "FinId" },
     { name: "asset", type: "Term" },
     { name: "settlement", type: "Term" }
   ]
@@ -65,24 +65,24 @@ export interface EIP721IssuanceMessage extends EIP721Message {
   nonce: string,
   buyer: { key: string },
   issuer: { key: string },
-  asset: { assetId: string, assetType: string, amount: number },
-  settlement: { assetId: string, assetType: string, amount: number }
+  asset: { assetId: string, assetType: string, amount: string },
+  settlement: { assetId: string, assetType: string, amount: string }
 }
 
 export interface EIP721TransferMessage extends EIP721Message {
   nonce: string,
   buyer: { key: string },
   seller: { key: string },
-  asset: { assetId: string, assetType: string, amount: number },
-  settlement: { assetId: string, assetType: string, amount: number }
+  asset: { assetId: string, assetType: string, amount: string },
+  settlement: { assetId: string, assetType: string, amount: string }
 }
 
 export interface EIP721RedeemMessage extends EIP721Message {
   nonce: string,
+  owner: { key: string },
   buyer: { key: string },
-  issuer: { key: string },
-  asset: { assetId: string, assetType: string, amount: number },
-  settlement: { assetId: string, assetType: string, amount: number }
+  asset: { assetId: string, assetType: string, amount: string },
+  settlement: { assetId: string, assetType: string, amount: string }
 }
 
 export const signMessage = <T extends EIP721Message>(chainId: number, verifyingContract: string, types: Record<string, Array<TypedDataField>>, message: T, signer: ethers.Signer) => {

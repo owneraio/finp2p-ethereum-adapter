@@ -45,8 +45,9 @@ export class FinP2PContract extends ContractsManager {
   }
 
   async issueWithoutSignature(assetId: string, issuerFinId: string, quantity: number) {
-    const response = await this.finP2P.issueWithoutSignature(assetId, issuerFinId, quantity);
-    return response.hash;
+    return this.safeExecuteTransaction(async () => {
+      return this.finP2P.issueWithoutSignature(assetId, issuerFinId, quantity);
+    });
   }
 
   async issue(nonce: string, assetId: string, buyerFinId: string, issuerFinId: string, quantity: number,
@@ -58,11 +59,11 @@ export class FinP2PContract extends ContractsManager {
     });
   }
 
-  async transfer(nonce: string, assetId: string, sourceFinId: string, destinationFinId: string, quantity: number,
+  async transfer(nonce: string, assetId: string, sellerFinId: string, buyerFinId: string, quantity: number,
     settlementAsset: string, settlementAmount: number, signature: string) {
     return this.safeExecuteTransaction(async () => {
       return this.finP2P.transfer(
-        `0x${nonce}`, assetId, sourceFinId, destinationFinId, quantity,
+        `0x${nonce}`, assetId, sellerFinId, buyerFinId, quantity,
         settlementAsset, settlementAmount, `0x${signature}`);
     });
   }
@@ -76,18 +77,18 @@ export class FinP2PContract extends ContractsManager {
     });
   }
 
-  async hold(operationId: string, assetId: string, sourceFinId: string, destinationFinId: string, quantity: number, expiry: number,
-    assetHash: string, hash: string, signature: string) {
+  async hold(operationId: string, nonce: string, assetId: string, sellerFinId: string, buyerFinId: string, quantity: number,
+    settlementAsset: string, settlementAmount: number, signature: string) {
     let opId = stringToByte16(operationId);
     return this.safeExecuteTransaction(async () => {
-      return this.finP2P.hold(opId, assetId, sourceFinId, destinationFinId, quantity, expiry,
-        `0x${assetHash}`, `0x${hash}`, `0x${signature}`);
+      return this.finP2P.hold(opId, `0x${nonce}`, assetId, sellerFinId, buyerFinId, quantity,
+        settlementAsset, settlementAmount, `0x${signature}`);
     });
   }
 
-  async release(operationId: string, destinationFinId: string) {
+  async release(operationId: string, sellerFinId: string) {
     return this.safeExecuteTransaction(async () => {
-      return this.finP2P.release(stringToByte16(operationId), destinationFinId);
+      return this.finP2P.release(stringToByte16(operationId), sellerFinId);
     });
   }
 

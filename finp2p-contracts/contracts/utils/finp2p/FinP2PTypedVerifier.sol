@@ -27,11 +27,11 @@ contract FinP2PTypedVerifier is EIP712 {
     );
 
     bytes32 private constant TRANSFER_TYPE_HASH = keccak256(
-        "SecondarySale(uint256 nonce,FinId buyer,FinId seller,Term asset,Term settlement)FinId(string key)Term(string assetId,string assetType,uint256 amount)"
+        "SecondarySale(uint256 nonce,FinId seller,FinId buyer,Term asset,Term settlement)FinId(string key)Term(string assetId,string assetType,uint256 amount)"
     );
 
     bytes32 private constant REDEEM_TYPE_HASH = keccak256(
-        "Redemption(uint256 nonce,FinId buyer,FinId issuer,Term asset,Term settlement)FinId(string key)Term(string assetId,string assetType,uint256 amount)"
+        "Redemption(uint256 nonce,FinId owner,FinId buyer,Term asset,Term settlement)FinId(string key)Term(string assetId,string assetType,uint256 amount)"
     );
 
     constructor() EIP712(SIGNING_DOMAIN, SIGNATURE_VERSION) {}
@@ -53,8 +53,8 @@ contract FinP2PTypedVerifier is EIP712 {
 
     function verifySecondarySaleSignature(
         uint256 nonce,
-        string memory buyer,
         string memory seller,
+        string memory buyer,
         string memory assetId,
         uint256 amount,
         string memory settlementAsset,
@@ -62,14 +62,14 @@ contract FinP2PTypedVerifier is EIP712 {
         address signer,
         bytes memory signature
     ) public view returns (bool) {
-        bytes32 hash = hashTransfer(nonce, buyer, seller, assetId, amount, settlementAsset, settlementAmount);
+        bytes32 hash = hashTransfer(nonce, seller, buyer, assetId, amount, settlementAsset, settlementAmount);
         return Signature.verify(signer, hash, signature);
     }
 
     function verifyRedemptionSignature(
         uint256 nonce,
+        string memory owner,
         string memory buyer,
-        string memory issuer,
         string memory assetId,
         uint256 amount,
         string memory settlementAsset,
@@ -77,7 +77,7 @@ contract FinP2PTypedVerifier is EIP712 {
         address signer,
         bytes memory signature
     ) public view returns (bool) {
-        bytes32 hash = hashRedeem(nonce, buyer, issuer, assetId, amount, settlementAsset, settlementAmount);
+        bytes32 hash = hashRedeem(nonce, owner, buyer, assetId, amount, settlementAsset, settlementAmount);
         return Signature.verify(signer, hash, signature);
     }
 
@@ -117,8 +117,8 @@ contract FinP2PTypedVerifier is EIP712 {
 
     function hashTransfer(
         uint256 nonce,
-        string memory buyer,
         string memory seller,
+        string memory buyer,
         string memory assetId,
         uint256 amount,
         string memory settlementAsset,
@@ -127,8 +127,8 @@ contract FinP2PTypedVerifier is EIP712 {
         return _hashTypedDataV4(keccak256(abi.encode(
             TRANSFER_TYPE_HASH,
             nonce,
-            hashFinId(buyer),
             hashFinId(seller),
+            hashFinId(buyer),
             hashTerm(assetId, "finp2p", amount),
             hashTerm(settlementAsset, "fiat", settlementAmount)
         )));
@@ -136,8 +136,8 @@ contract FinP2PTypedVerifier is EIP712 {
 
     function hashRedeem(
         uint256 nonce,
+        string memory owner,
         string memory buyer,
-        string memory issuer,
         string memory assetId,
         uint256 amount,
         string memory settlementAsset,
@@ -146,8 +146,8 @@ contract FinP2PTypedVerifier is EIP712 {
         return _hashTypedDataV4(keccak256(abi.encode(
             REDEEM_TYPE_HASH,
             nonce,
+            hashFinId(owner),
             hashFinId(buyer),
-            hashFinId(issuer),
             hashTerm(assetId, "finp2p", amount),
             hashTerm(settlementAsset, "fiat", settlementAmount)
         )));

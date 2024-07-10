@@ -12,15 +12,14 @@ interface IFinP2PEscrow is IFinP2PCommon {
     struct LockInfo {
         string assetId;
         uint256 amount;
-        uint256 expiry;
     }
 
     event Hold(string assetId, string finId, uint256 quantity, bytes16 operationId);
     event Release(string assetId, string sourceFinId, string destinationFinId, uint256 quantity, bytes16 operationId);
     event Rollback(string assetId, string finId, uint256 quantity, bytes16 operationId);
 
-    function hold(bytes16 operationId, string memory assetId, string memory sourceFinId, string memory destinationFinId,
-        uint256 quantity, uint256 expiry, bytes32 assetHash, bytes32 hash, bytes memory signature) external;
+    function hold(bytes16 operationId, uint256 nonce, string memory assetId, string memory sellerFinId,
+        string memory buyerFinId, uint256 quantity, string memory settlementAsset, uint256 settlementAmount, bytes memory signature) external;
 
     function getLockInfo(bytes16 operationId) external view returns (LockInfo memory);
 
