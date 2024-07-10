@@ -63,24 +63,66 @@ export class EscrowService extends CommonService {
     const operationId = request.operationId;
     const destinationFinId = request.destination.finId;
 
-    const txHash = await this.finP2PContract.release(operationId, destinationFinId);
+    try {
+      const txHash = await this.finP2PContract.release(operationId, destinationFinId);
 
-    return {
-      isCompleted: false,
-      cid: txHash,
-    } as Components.Schemas.ReceiptOperation;
+      return {
+        isCompleted: false,
+        cid: txHash,
+      } as Components.Schemas.ReceiptOperation;
+    }  catch (e) {
+      logger.error(`Error releasing asset: ${e}`);
+      if (e instanceof EthereumTransactionError) {
+        return {
+          isCompleted: true,
+          error: {
+            code: 1,
+            message: e.message,
+          },
+        } as Components.Schemas.ReceiptOperation;
+      } else {
+        return {
+          isCompleted: true,
+          error: {
+            code: 1,
+            message: e,
+          },
+        } as Components.Schemas.ReceiptOperation;
+      }
+    }
   }
 
   public async rollback(request: Paths.RollbackOperation.RequestBody): Promise<Paths.RollbackOperation.Responses.$200> {
     logger.debug('rollback', { request });
     const operationId = request.operationId;
 
-    const txHash = await this.finP2PContract.rollback(operationId);
+    try {
+      const txHash = await this.finP2PContract.rollback(operationId);
 
-    return {
-      isCompleted: false,
-      cid: txHash,
-    } as Components.Schemas.ReceiptOperation;
+      return {
+        isCompleted: false,
+        cid: txHash,
+      } as Components.Schemas.ReceiptOperation;
+    } catch (e) {
+      logger.error(`Error rolling-back asset: ${e}`);
+      if (e instanceof EthereumTransactionError) {
+        return {
+          isCompleted: true,
+          error: {
+            code: 1,
+            message: e.message,
+          },
+        } as Components.Schemas.ReceiptOperation;
+      } else {
+        return {
+          isCompleted: true,
+          error: {
+            code: 1,
+            message: e,
+          },
+        } as Components.Schemas.ReceiptOperation;
+      }
+    }
   }
 
 }
