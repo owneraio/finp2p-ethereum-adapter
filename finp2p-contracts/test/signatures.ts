@@ -12,7 +12,7 @@ import {
   EIP721_ISSUANCE_TYPES, EIP721_REDEEM_TYPES, EIP721_TRANSFER_TYPES,
   EIP721IssuanceMessage, EIP721RedeemMessage, EIP721TransferMessage,
   signMessage, verifyMessage
-} from "./eip721";
+} from "../src/contracts/eip721";
 import { v4 as uuidv4 } from "uuid";
 
 describe("Signing test", function() {

@@ -1079,6 +1079,7 @@ components:
         verifyingContract:
           type: string
           format: address
+
     EIP712TypedValue:
       type: object
       oneOf:
@@ -1096,6 +1097,7 @@ components:
         - type: array
           items:
             $ref: '#/components/schemas/EIP712TypedValue'
+
     EIP712Types:
       type: object
       properties:
@@ -1103,6 +1105,7 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/EIP712TypeDefinition'
+
     EIP712TypeDefinition:
       type: object
       properties:
@@ -1112,6 +1115,7 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/EIP712FieldDefinition'
+
     EIP712FieldDefinition:
       type: object
       properties:
@@ -1119,6 +1123,7 @@ components:
           type: string
         type:
           type: string
+
     EIP712Template:
       required: [ type, domain, message, primaryType, types, hash ]
       type: object
@@ -1139,6 +1144,7 @@ components:
         hash:
           type: string
           description: 'hex representation of template hash'
+
 
     receipt:
       type: object
@@ -1167,14 +1173,7 @@ components:
         transactionDetails:
           $ref: '#/components/schemas/transactionDetails'
         operationType:
-          type: string
-          description: "The type of the operation, e.g., issue, transfer, hold, release, redeem"
-          enum:
-            - issue
-            - transfer
-            - hold
-            - release
-            - redeem
+          $ref: '#/components/schemas/operationType'
 
     transactionDetails:
       description: Additional input and output details for UTXO supporting DLTs
@@ -1214,7 +1213,7 @@ components:
               validationFailure: '#/components/schemas/validationFailure'
               regulationFailure: '#/components/schemas/regulationFailure'
 
-  #   TODO: make it generic, regulation or other error could extend this generic time
+    #   TODO: make it generic, regulation or other error could extend this generic time
     validationFailure:
       type: object
       required:
@@ -1245,3 +1244,6 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/regulationError'
+    operationType:
+      type: string
+      enum: ['issue', 'transfer', 'hold', 'release', 'redeem']
