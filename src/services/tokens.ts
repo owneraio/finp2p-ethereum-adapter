@@ -2,7 +2,6 @@ import { CommonService } from './common';
 import { extractAssetId } from './mapping';
 import { EthereumTransactionError } from '../../finp2p-contracts/src/contracts/model';
 import { logger } from '../helpers/logger';
-import console from 'console';
 
 export class TokenService extends CommonService {
 
@@ -59,18 +58,13 @@ export class TokenService extends CommonService {
           const { nonce } = request;
           const { issuer, buyer,
             settlement } = request.signature.template.message;
-
+          const { assetId: settlementAsset, amount: settlementAmount } = settlement.fields;
           const buyerFinId = buyer.fields.key; // should be equal to request.destination.finId
           const issuerFinId = issuer.fields.key;
           const signature = request.signature.signature;
 
-          const issueHash = await this.finP2PContract.hashIssue(nonce, assetId, buyerFinId, issuerFinId, amount,
-            settlement.fields.assetId, settlement.fields.amount);
-          console.log(`request hash: ${request.signature.template.hash}`);
-          console.log(`on-chain hash: ${issueHash}`);
-
           txHash = await this.finP2PContract.issue(nonce, assetId, buyerFinId, issuerFinId, amount,
-            settlement.fields.assetId, settlement.fields.amount, signature);
+            settlementAsset, settlementAmount, signature);
           break;
         }
 
@@ -124,7 +118,8 @@ export class TokenService extends CommonService {
 
         case 'EIP712': {
           const { settlement } = request.signature.template.message;
-          const { asset: settlementAsset, amount: settlementAmount } = settlement.fields;
+          const { assetId: settlementAsset, amount: settlementAmount } = settlement.fields;
+
           txHash = await this.finP2PContract.transfer(nonce, assetId,
             sellerFinId, buyerFinId, amount, settlementAsset, settlementAmount, signature);
           break;
@@ -161,12 +156,9 @@ export class TokenService extends CommonService {
   }
 
   public async redeem(request: Paths.RedeemAssets.RequestBody): Promise<Paths.RedeemAssets.Responses.$200> {
-    if (request.asset.type !== 'finp2p') {
-      throw new Error(`Unsupported asset type: ${request.asset.type}`);
-    }
     const nonce = request.nonce;
     const assetId = request.asset.resourceId;
-    const finId = request.source.finId;
+    const ownerFinId = request.source.finId;
     const amount = parseInt(request.quantity);
     const signature = request.signature.signature;
 
@@ -174,14 +166,15 @@ export class TokenService extends CommonService {
     try {
       switch (request.signature.template.type) {
         case 'hashList': {
-          txHash = await this.finP2PContract.redeem(nonce, assetId, finId, '', amount, '', 0, signature);
+          txHash = await this.finP2PContract.redeem(nonce, assetId, ownerFinId, '', amount, '', 0, signature);
           break;
         }
 
         case 'EIP712': {
           const { buyer, settlement } = request.signature.template.message;
-          const { asset: settlementAsset, amount: settlementAmount } = settlement.fields;
-          txHash = await this.finP2PContract.redeem(nonce, assetId, finId, buyer.fields.finId, amount,
+          const { assetId: settlementAsset, amount: settlementAmount } = settlement.fields;
+          const buyerFinId = buyer.fields.key;
+          txHash = await this.finP2PContract.redeem(nonce, assetId, ownerFinId, buyerFinId, amount,
             settlementAsset, settlementAmount, signature);
           break;
         }

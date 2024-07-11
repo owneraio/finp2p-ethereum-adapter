@@ -50,13 +50,6 @@ export class FinP2PContract extends ContractsManager {
     });
   }
 
-  async hashIssue(nonce: string, assetId: string, buyerFinId: string, issuerFinId: string, quantity: number,
-    settlementAsset: string, settlementAmount: number) {
-    return this.finP2P.hashIssue(
-      `0x${nonce}`, buyerFinId, issuerFinId, assetId, quantity,
-      settlementAsset, settlementAmount);
-  }
-
   async issue(nonce: string, assetId: string, buyerFinId: string, issuerFinId: string, quantity: number,
     settlementAsset: string, settlementAmount: number, signature: string) {
     return this.safeExecuteTransaction(async () => {
@@ -75,11 +68,10 @@ export class FinP2PContract extends ContractsManager {
     });
   }
 
-
-  async redeem(nonce: string, assetId: string, buyerFinId: string, issuerFinId: string, quantity: number,
+  async redeem(nonce: string, assetId: string, ownerFinId: string, buyerFinId: string, quantity: number,
     settlementAsset: string, settlementAmount: number, signature: string) {
     return this.safeExecuteTransaction(async () => {
-      return this.finP2P.redeem(`0x${nonce}`, assetId, buyerFinId, issuerFinId, quantity,
+      return this.finP2P.redeem(`0x${nonce}`, assetId, ownerFinId, buyerFinId, quantity,
         settlementAsset, settlementAmount, `0x${signature}`);
     });
   }
