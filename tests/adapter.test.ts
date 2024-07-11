@@ -4,7 +4,7 @@ import { v4 as uuidv4 } from "uuid";
 import {
   EIP721_ISSUANCE_TYPES, EIP721_TRANSFER_TYPES,
   EIP721IssuanceMessage,
-  EIP721Message, EIP721TransferMessage,
+  EIP721TransferMessage, hashMessage,
   signMessage
 } from "../finp2p-contracts/src/contracts/eip721";
 import { Wallet } from "ethers";
@@ -43,10 +43,10 @@ describe(`token service test`, () => {
     const issueBuyer = Wallet.createRandom();
     const issueBuyerFinId = getFinId(issueBuyer);
     const issuerSource = {
-      finId: issueBuyerFinId,
+      finId: issuerFinId,
       account: {
         type: 'finId',
-        finId: issueBuyerFinId
+        finId: issuerFinId
       } as Components.Schemas.FinIdAccount
     } as Components.Schemas.Source;
 
@@ -73,41 +73,42 @@ describe(`token service test`, () => {
       asset: {
         assetId,
         assetType: 'finp2p',
-        amount: `${issueAmount}`
+        amount: issueAmount
       },
       settlement: {
         assetId: settlementAsset,
         assetType: 'fiat',
-        amount: `${issueSettlementAmount}`
+        amount: issueSettlementAmount
       }
     } as EIP721IssuanceMessage;
-    const issueSignature = {
-      signature:  await signMessage(chainId, verifyingContract, EIP721_ISSUANCE_TYPES, eip712IssuanceMessage, issuer),
-      template: {
-        type: 'EIP712',
-        domain: {
-          name: 'FinP2P',
-          version: '1',
-          chainId: chainId,
-          verifyingContract: verifyingContract
-        } as Components.Schemas.EIP712Domain,
-        primaryType: 'PrimarySale',
-        types: eip712TypesToAPI(EIP721_ISSUANCE_TYPES),
-        message: eip712MessageToAPI(eip712IssuanceMessage),
-        hash: '',
-      } as Components.Schemas.EIP712Template
-    };
+    const issueHash = hashMessage(chainId, verifyingContract, EIP721_ISSUANCE_TYPES, eip712IssuanceMessage)
+    const issuerSignature = await signMessage(chainId, verifyingContract, EIP721_ISSUANCE_TYPES, eip712IssuanceMessage, issueBuyer);
     const issueReceipt = await client.expectReceipt(await client.tokens.issue({
       nonce: issueNonce.toString("hex"),
       destination: issuerSource.account,
       quantity: `${issueAmount}`,
       asset: asset as Components.Schemas.Finp2pAsset,
       settlementRef: settlementRef,
-      signature: issueSignature
+      signature: {
+        signature: issuerSignature.replace('0x', ''),
+        template: {
+          type: 'EIP712',
+          domain: {
+            name: 'FinP2P',
+            version: '1',
+            chainId: chainId,
+            verifyingContract: verifyingContract
+          } as Components.Schemas.EIP712Domain,
+          primaryType: 'PrimarySale',
+          types:  eip712TypesToAPI(EIP721_ISSUANCE_TYPES),
+          message: eip712MessageToAPI(eip712IssuanceMessage),
+          hash: issueHash,
+        } as Components.Schemas.EIP712Template
+      }
     } as Paths.IssueAssets.RequestBody));
     expect(issueReceipt.asset).toStrictEqual(asset);
     expect(parseInt(issueReceipt.quantity)).toBe(issueAmount);
-    expect(issueReceipt.destination).toStrictEqual(issueBuyer);
+    expect(issueReceipt.destination?.finId).toStrictEqual(issuerFinId);
     expect(issueReceipt.operationType).toBe("issue");
 
     await client.expectBalance(issuerSource, asset, issueAmount);
@@ -138,12 +139,12 @@ describe(`token service test`, () => {
       asset: {
         assetId,
         assetType: 'finp2p',
-        amount: `${transferQuantity}`
+        amount: transferQuantity
       },
       settlement: {
         assetId: settlementAsset,
         assetType: 'fiat',
-        amount: `${transferSettlementQuantity}`
+        amount: transferSettlementQuantity
       }
     } as EIP721TransferMessage;
     const transferSignature = {

@@ -2,6 +2,7 @@ import { CommonService } from './common';
 import { extractAssetId } from './mapping';
 import { EthereumTransactionError } from '../../finp2p-contracts/src/contracts/model';
 import { logger } from '../helpers/logger';
+import console from 'console';
 
 export class TokenService extends CommonService {
 
@@ -55,14 +56,20 @@ export class TokenService extends CommonService {
         }
 
         case 'EIP712': {
-          const { nonce, issuer, buyer,
+          const { nonce } = request;
+          const { issuer, buyer,
             settlement } = request.signature.template.message;
-          const nonceDec = Buffer.from(nonce.toString(), 'base64').toString('hex');
+
           const buyerFinId = buyer.fields.key; // should be equal to request.destination.finId
           const issuerFinId = issuer.fields.key;
           const signature = request.signature.signature;
 
-          txHash = await this.finP2PContract.issue(nonceDec, assetId, buyerFinId, issuerFinId, amount,
+          const issueHash = await this.finP2PContract.hashIssue(nonce, assetId, buyerFinId, issuerFinId, amount,
+            settlement.fields.assetId, settlement.fields.amount);
+          console.log(`request hash: ${request.signature.template.hash}`);
+          console.log(`on-chain hash: ${issueHash}`);
+
+          txHash = await this.finP2PContract.issue(nonce, assetId, buyerFinId, issuerFinId, amount,
             settlement.fields.assetId, settlement.fields.amount, signature);
           break;
         }
