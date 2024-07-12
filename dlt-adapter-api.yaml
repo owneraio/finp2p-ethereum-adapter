@@ -469,7 +469,6 @@ paths:
                 - source
                 - quantity
                 - asset
-                - expiry
                 - signature
               type: object
               properties:
@@ -487,10 +486,6 @@ paths:
                   description: 'How many units of the asset tokens'
                 asset:
                   $ref: '#/components/schemas/asset'
-                expiry:
-                  type: integer
-                  format: uint64
-                  description: 'ttl expiry value indicating the escrow hold time limitation'
                 signature:
                   $ref: '#/components/schemas/signature'
                 executionContext:

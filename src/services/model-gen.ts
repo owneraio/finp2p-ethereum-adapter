@@ -479,10 +479,6 @@ declare namespace Paths {
              */
             quantity: string;
             asset: Components.Schemas.Asset;
-            /**
-             * ttl expiry value indicating the escrow hold time limitation
-             */
-            expiry: number; // uint64
             signature: /* represent a signature template information */ Components.Schemas.Signature;
             executionContext?: Components.Schemas.ExecutionContext;
         }
