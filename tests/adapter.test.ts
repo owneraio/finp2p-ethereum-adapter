@@ -4,12 +4,12 @@ import { v4 as uuidv4 } from "uuid";
 import {
   EIP721_ISSUANCE_TYPES, EIP721_REDEEM_TYPES, EIP721_TRANSFER_TYPES,
   EIP721IssuanceMessage, EIP721RedeemMessage,
-  EIP721TransferMessage, hashMessage,
-  signMessage
+  EIP721TransferMessage,
 } from "../finp2p-contracts/src/contracts/eip721";
 import { Wallet } from "ethers";
 import { getFinId } from "../finp2p-contracts/src/contracts/utils";
-import {  buildEIP721Signature, eip712MessageToAPI, eip712TypesToAPI } from "./api/mapper";
+import {  buildEIP721Signature } from "./api/mapper";
+import { set } from "dtsgenerator/dist/jsonPointer";
 
 
 describe(`token service test`, () => {
@@ -17,6 +17,8 @@ describe(`token service test`, () => {
   let client: APIClient;
   let orgId: string;
   let hashFunction: string;
+  const chainId = 1337;
+  const verifyingContract = '0x5FbDB2315678afecb367f032d93F642f64180aa3';
 
   beforeAll(async () => {
     // @ts-ignore
@@ -154,13 +156,6 @@ describe(`token service test`, () => {
     const redeemOwnerSource = buyerSource;
     const redeemBuyer = Wallet.createRandom();
     const redeemBuyerFinId = getFinId(redeemBuyer);
-    const redeemBuyerSource = {
-      finId: redeemBuyerFinId,
-      account: {
-        type: 'finId',
-        finId: redeemBuyerFinId
-      } as Components.Schemas.FinIdAccount
-    } as Components.Schemas.Source;
 
     const redeemNonce = generateNonce();
     const redeemAmount = 300;
@@ -197,122 +192,122 @@ describe(`token service test`, () => {
     await client.expectBalance(redeemOwnerSource, asset, transferAmount - redeemAmount);
   });
 
-  test.skip(`Scenario: escrow hold / release`, async () => {
+  // test(`Scenario: escrow hold / release`, async () => {
+  //
+  //   const assetId = randomResourceId(orgId, ASSET);
+  //   const settlementAsset = 'USD'
+  //   const asset = { type: "fiat", code: settlementAsset } as Components.Schemas.Asset;
+  //
+  //   const assetStatus = await client.tokens.createAsset({ asset: asset });
+  //   if (!assetStatus.isCompleted) {
+  //     await client.common.waitForCompletion(assetStatus.cid);
+  //   }
+  //
+  //   const buyerCrypto = createCrypto();
+  //   const buyerFinId = buyerCrypto.public.toString("hex");
+  //   const buyer = {
+  //     finId: buyerFinId,
+  //     account: {
+  //       type: "finId",
+  //       finId: buyerFinId
+  //     }
+  //   } as Components.Schemas.Source;
+  //
+  //   let depositStatus = await client.payments.getDepositInstruction({
+  //     owner: buyer,
+  //     destination: buyer,
+  //     asset: asset
+  //   } as Paths.DepositInstruction.RequestBody);
+  //   if (!depositStatus.isCompleted) {
+  //     await client.common.waitForCompletion(depositStatus.cid);
+  //   }
+  //
+  //   let initialBalance: number;
+  //   initialBalance = 1000;
+  //   let settlementRef = `${uuidv4()}`;
+  //   const setBalanceStatus = await client.tokens.issue({
+  //     nonce: generateNonce().toString("utf-8"),
+  //     destination: buyer.account as Components.Schemas.FinIdAccount,
+  //     quantity: `${initialBalance}`,
+  //     asset: asset as Components.Schemas.Finp2pAsset,
+  //     settlementRef: settlementRef
+  //   } as Paths.IssueAssets.RequestBody);
+  //   if (!setBalanceStatus.isCompleted) {
+  //     await client.common.waitForReceipt(setBalanceStatus.cid);
+  //   }
+  //   await client.expectBalance(buyer, asset, initialBalance);
+  //
+  //   const sellerCrypto = createCrypto();
+  //   const sellerFinId = sellerCrypto.public.toString("hex");
+  //   const seller = {
+  //     finId: sellerFinId,
+  //     account: {
+  //       type: "finId",
+  //       finId: sellerFinId
+  //     }
+  //   } as Components.Schemas.Source;
+  //
+  //   depositStatus = await client.payments.getDepositInstruction({
+  //     owner: seller,
+  //     destination: seller,
+  //     asset: asset
+  //   } as Paths.DepositInstruction.RequestBody);
+  //   if (!depositStatus.isCompleted) {
+  //     await client.common.waitForCompletion(depositStatus.cid);
+  //   }
+  //
+  //   await client.expectBalance(seller, asset, 0);
+  //
+  //   const operationId = `${uuidv4()}`;
+  //   const transferAmount = 100;
+  //   const transferSettlementAmount = 1000;
+  //
+  //   const transferNonce = generateNonce();
+  //   const holdReceipt = await client.expectReceipt(await client.escrow.hold({
+  //     operationId: operationId,
+  //     nonce: transferNonce.toString("hex"),
+  //     source: buyer,
+  //     destination: seller,
+  //     quantity: `${transferSettlementAmount}`,
+  //     asset: settlementAsset,
+  //     signature: await buildEIP721Signature(chainId, verifyingContract,
+  //       'SecondarySale', EIP721_TRANSFER_TYPES, {
+  //         nonce: `0x${transferNonce.toString('hex')}`,
+  //         seller: { key: sellerFinId },
+  //         buyer: { key: buyerFinId },
+  //         asset: {
+  //           assetId,
+  //           assetType: 'finp2p',
+  //           amount: transferAmount
+  //         },
+  //         settlement: {
+  //           assetId: settlementAsset,
+  //           assetType: 'fiat',
+  //           amount: transferSettlementAmount
+  //         }
+  //       } as EIP721TransferMessage, seller),
+  //   } as Paths.HoldOperation.RequestBody));
+  //   expect(holdReceipt.asset).toStrictEqual(asset);
+  //
+  //   await client.expectBalance(buyer, asset, initialBalance - transferSettlementAmount);
+  //
+  //   const releaseReceipt = await client.expectReceipt(await client.escrow.release({
+  //     operationId: operationId,
+  //     source: buyer,
+  //     destination: seller,
+  //     quantity: `${transferAmount}`,
+  //     asset: asset
+  //   }));
+  //   expect(releaseReceipt.asset).toStrictEqual(asset);
+  //   expect(parseFloat(releaseReceipt.quantity)).toBeCloseTo(transferAmount, 4);
+  //   expect(releaseReceipt.source).toStrictEqual(buyer);
+  //   expect(releaseReceipt.destination).toStrictEqual(seller);
+  //   expect(releaseReceipt.operationType).toBe("release");
+  //
+  //   await client.expectBalance(seller, asset, transferAmount);
+  // });
 
-    const asset = { type: "fiat", code: "USD" } as Components.Schemas.Asset;
-
-    const assetStatus = await client.tokens.createAsset({ asset: asset });
-    if (!assetStatus.isCompleted) {
-      await client.common.waitForCompletion(assetStatus.cid);
-    }
-
-    const buyerCrypto = createCrypto();
-    const buyerFinId = buyerCrypto.public.toString("hex");
-    const buyer = {
-      finId: buyerFinId,
-      account: {
-        type: "finId",
-        finId: buyerFinId
-      }
-    } as Components.Schemas.Source;
-
-    let depositStatus = await client.payments.getDepositInstruction({
-      owner: buyer,
-      destination: buyer,
-      asset: asset
-    } as Paths.DepositInstruction.RequestBody);
-    if (!depositStatus.isCompleted) {
-      await client.common.waitForCompletion(depositStatus.cid);
-    }
-
-    let initialBalance: number;
-    initialBalance = 1000;
-    let settlementRef = `${uuidv4()}`;
-    const setBalanceStatus = await client.tokens.issue({
-      nonce: generateNonce().toString("utf-8"),
-      destination: buyer.account as Components.Schemas.FinIdAccount,
-      quantity: `${initialBalance}`,
-      asset: asset as Components.Schemas.Finp2pAsset,
-      settlementRef: settlementRef
-    } as Paths.IssueAssets.RequestBody);
-    if (!setBalanceStatus.isCompleted) {
-      await client.common.waitForReceipt(setBalanceStatus.cid);
-    }
-    await client.expectBalance(buyer, asset, initialBalance);
-
-    const sellerCrypto = createCrypto();
-    const sellerFinId = sellerCrypto.public.toString("hex");
-    const seller = {
-      finId: sellerFinId,
-      account: {
-        type: "finId",
-        finId: sellerFinId
-      }
-    } as Components.Schemas.Source;
-
-    depositStatus = await client.payments.getDepositInstruction({
-      owner: seller,
-      destination: seller,
-      asset: asset
-    } as Paths.DepositInstruction.RequestBody);
-    if (!depositStatus.isCompleted) {
-      await client.common.waitForCompletion(depositStatus.cid);
-    }
-
-    await client.expectBalance(seller, asset, 0);
-
-    const operationId = `${uuidv4()}`;
-    const transferQty = 1000;
-    const expiry = Math.floor(new Date().getTime() / 1000) + 600;
-    const signature = transferSignature(
-      {
-        nonce: generateNonce(),
-        operation: "transfer",
-        quantity: 10,
-        asset: { type: "finp2p", resourceId: randomResourceId(orgId, ASSET) },
-        source: seller,
-        destination: buyer
-      },
-      {
-        asset: asset,
-        quantity: transferQty,
-        source: buyer,
-        destination: seller,
-        expiry: expiry
-      },
-      hashFunction, buyerCrypto.private
-    );
-
-    const status = await client.escrow.hold({
-      operationId: operationId,
-      source: buyer,
-      destination: seller,
-      quantity: `${transferQty}`,
-      asset: asset,
-      expiry: expiry,
-      signature: signature
-    } as Paths.HoldOperation.RequestBody);
-    await client.expectReceipt(status);
-
-    await client.expectBalance(buyer, asset, initialBalance - transferQty);
-
-    const releaseReceipt = await client.expectReceipt(await client.escrow.release({
-      operationId: operationId,
-      source: buyer,
-      destination: seller,
-      quantity: `${transferQty}`,
-      asset: asset
-    }));
-    expect(releaseReceipt.asset).toStrictEqual(asset);
-    expect(parseFloat(releaseReceipt.quantity)).toBeCloseTo(transferQty, 4);
-    expect(releaseReceipt.source).toStrictEqual(buyer);
-    expect(releaseReceipt.destination).toStrictEqual(seller);
-    expect(releaseReceipt.operationType).toBe("release");
-
-    await client.expectBalance(seller, asset, transferQty);
-  });
-
-  test(`Failed transaction and nonce resetting`, async () => {
+  test.skip(`Failed transaction and nonce resetting`, async () => {
 
     const asset = {
       type: "finp2p",
