@@ -9,7 +9,6 @@ import {
 import { Wallet } from "ethers";
 import { getFinId } from "../finp2p-contracts/src/contracts/utils";
 import {  buildEIP721Signature } from "./api/mapper";
-import { set } from "dtsgenerator/dist/jsonPointer";
 
 
 describe(`token service test`, () => {
