@@ -4,7 +4,7 @@ import {
 import { expect } from "chai";
 // @ts-ignore
 import { ethers } from "hardhat";
-import { v4 as uuid } from "uuid";
+import { v4 as uuidv4, v4 as uuid } from "uuid";
 import {
   generateNonce,
   stringToByte16,
@@ -177,13 +177,12 @@ describe("FinP2P proxy contract test", function() {
       const seller = Wallet.createRandom();
       const sellerFinId = getFinId(seller);
 
-      const opNum = 1;
-      const operationId = stringToByte16(`${opNum}`);
+      const operationId = `0x${uuidv4().replaceAll('-', '')}`;
       const assetId = `bank-us:102:${uuid()}`;
       const transferAmount = 50;
       const transferSettlementAmount = 450;
       const transferNonce = `0x${generateNonce().toString('hex')}`;
-      const transferSignature = await eip712Sign(chainId, verifyingContract, EIP721_TRANSFER_TYPES,{
+      const transferSignature = await eip712Sign(chainId, verifyingContract, EIP721_TRANSFER_TYPES, {
         nonce: transferNonce,
         seller: { key: sellerFinId },
         buyer: { key: buyerFinId },

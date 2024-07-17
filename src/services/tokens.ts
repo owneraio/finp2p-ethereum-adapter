@@ -48,29 +48,35 @@ export class TokenService extends CommonService {
 
     let txHash: string;
     try {
-      switch (request.signature.template.type) {
-        case 'hashList': {
-          txHash = await this.finP2PContract.issueWithoutSignature(assetId, request.destination.finId, amount);
-          break;
+      if (!request.signature || !request.signature.template) {
+        txHash = await this.finP2PContract.issueWithoutSignature(assetId, request.destination.finId, amount);
+      } else {
+        switch (request.signature.template.type) {
+          case 'hashList': {
+            txHash = await this.finP2PContract.issueWithoutSignature(assetId, request.destination.finId, amount);
+            break;
+          }
+
+          case 'EIP712': {
+            const { nonce } = request;
+            const {
+              issuer, buyer,
+              settlement,
+            } = request.signature.template.message;
+            const { assetId: settlementAsset, amount: settlementAmount } = settlement.fields;
+            const buyerFinId = buyer.fields.key; // should be equal to request.destination.finId
+            const issuerFinId = issuer.fields.key;
+            const signature = request.signature.signature;
+
+            txHash = await this.finP2PContract.issue(nonce, assetId, buyerFinId, issuerFinId, amount,
+              settlementAsset, settlementAmount, signature);
+            break;
+          }
+
+          default:
+            txHash = '';
+            break;
         }
-
-        case 'EIP712': {
-          const { nonce } = request;
-          const { issuer, buyer,
-            settlement } = request.signature.template.message;
-          const { assetId: settlementAsset, amount: settlementAmount } = settlement.fields;
-          const buyerFinId = buyer.fields.key; // should be equal to request.destination.finId
-          const issuerFinId = issuer.fields.key;
-          const signature = request.signature.signature;
-
-          txHash = await this.finP2PContract.issue(nonce, assetId, buyerFinId, issuerFinId, amount,
-            settlementAsset, settlementAmount, signature);
-          break;
-        }
-
-        default:
-          txHash = '';
-          break;
       }
     } catch (e) {
       logger.error(`Error on asset issuance: ${e}`);

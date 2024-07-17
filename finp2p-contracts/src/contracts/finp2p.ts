@@ -3,7 +3,7 @@ import FINP2P
   from '../../artifacts/contracts/token/ERC20/FINP2POperatorERC20.sol/FINP2POperatorERC20.json';
 import { FINP2POperatorERC20 } from '../../typechain-types';
 import { FinP2PReceipt, OperationStatus } from './model';
-import { parseTransactionReceipt, stringToByte16 } from './utils';
+import { parseTransactionReceipt } from './utils';
 import { ContractsManager } from './manager';
 import { FinP2PContractConfig } from './config';
 import console from 'console';
@@ -78,7 +78,7 @@ export class FinP2PContract extends ContractsManager {
 
   async hold(operationId: string, nonce: string, assetId: string, sellerFinId: string, buyerFinId: string, quantity: number,
     settlementAsset: string, settlementAmount: number, signature: string) {
-    let opId = stringToByte16(operationId);
+    const opId = `0x${operationId.replaceAll('-', '')}`;
     return this.safeExecuteTransaction(async () => {
       return this.finP2P.hold(opId, `0x${nonce}`, assetId, sellerFinId, buyerFinId, quantity,
         settlementAsset, settlementAmount, `0x${signature}`);
@@ -86,14 +86,16 @@ export class FinP2PContract extends ContractsManager {
   }
 
   async release(operationId: string, sellerFinId: string) {
+    const opId = `0x${operationId.replaceAll('-', '')}`;
     return this.safeExecuteTransaction(async () => {
-      return this.finP2P.release(stringToByte16(operationId), sellerFinId);
+      return this.finP2P.release(opId, sellerFinId);
     });
   }
 
   async rollback(operationId: string) {
+    const opId = `0x${operationId.replaceAll('-', '')}`;
     return this.safeExecuteTransaction(async () => {
-      return this.finP2P.rollback(stringToByte16(operationId));
+      return this.finP2P.rollback(opId);
     });
   }
 

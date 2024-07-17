@@ -254,7 +254,7 @@ contract FINP2POperatorERC20 is IFinP2PAsset, IFinP2PEscrow, AccessControl, FinP
             settlementAmount
         );
 
-        emit Hold(assetId, buyerFinId, settlementAmount, operationId);
+        emit Hold(settlementAsset, buyerFinId, settlementAmount, operationId);
     }
 
     function getLockInfo(bytes16 operationId) public override view returns (LockInfo memory) {

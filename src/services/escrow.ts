@@ -1,38 +1,36 @@
 import { logger } from '../helpers/logger';
 import { CommonService } from './common';
-import { extractAssetId } from './mapping';
 import { EthereumTransactionError } from '../../finp2p-contracts/src/contracts/model';
 
 export class EscrowService extends CommonService {
 
   public async hold(request: Paths.HoldOperation.RequestBody): Promise<Paths.HoldOperation.Responses.$200> {
     logger.debug('hold', { request });
+   
+    const { operationId, source,
+      destination, nonce, signature } = request;
 
-    const operationId = request.operationId;
-    const assetId = extractAssetId(request.asset);
-    const buyerFinId = request.source.finId;
-    const sellerFinId = request.destination?.finId || '';
-    const amount = parseInt(request.quantity);
-    const signature = request.signature.signature;
+    const buyerFinId = source.finId;
+    const sellerFinId = destination?.finId || '';
 
     let txHash = '';
     try {
-      switch (request.signature.template.type) {
+      switch (signature.template.type) {
         case 'hashList':
-          if (request.signature.template.hashGroups.length > 0) {
+          if (signature.template.hashGroups.length > 0) {
           }
           break;
         case 'EIP712':
-          const { nonce, settlement } =  request.signature.template.message;
-          const nonceDec = Buffer.from(nonce.toString(), 'base64').toString('hex');
-          const { asset: settlementAsset, amount: settlementAmount } = settlement.fields;
-          txHash = await this.finP2PContract.hold(operationId, nonceDec, assetId, sellerFinId,  buyerFinId,
-            amount, settlementAsset, settlementAmount, signature);
+          const { asset, settlement } =  signature.template.message;
+          const { assetId, amount } = asset.fields;
+          const { assetId: settlementAsset, amount: settlementAmount } = settlement.fields;
+          txHash = await this.finP2PContract.hold(operationId, nonce, assetId, sellerFinId, buyerFinId,
+            amount, settlementAsset, settlementAmount, signature.signature);
           break;
       }
 
     } catch (e) {
-      logger.error(`Error asset redeem: ${e}`);
+      logger.error(`Error asset hold: ${e}`);
       if (e instanceof EthereumTransactionError) {
         return {
           isCompleted: true,
