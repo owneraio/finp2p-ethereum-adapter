@@ -1,4 +1,4 @@
-import { ethers, TypedDataEncoder } from 'ethers';
+import { Signer, Wallet, verifyTypedData, TypedDataEncoder } from 'ethers';
 
 export type TypedDataField = {
   name: string;
@@ -90,10 +90,10 @@ export interface EIP721RedeemMessage extends EIP721Message {
 }
 
 export const eip712SignWithPrivateKey = <T extends EIP721Message>(chainId: number, verifyingContract: string, types: Record<string, Array<TypedDataField>>, message: T, signerPrivateKey: string) => {
-  return eip712Sign(chainId, verifyingContract, types, message, new ethers.Wallet(signerPrivateKey));
+  return eip712Sign(chainId, verifyingContract, types, message, new Wallet(signerPrivateKey));
 };
 
-export const eip712Sign = <T extends EIP721Message>(chainId: number, verifyingContract: string, types: Record<string, Array<TypedDataField>>, message: T, signer: ethers.Signer) => {
+export const eip712Sign = <T extends EIP721Message>(chainId: number, verifyingContract: string, types: Record<string, Array<TypedDataField>>, message: T, signer: Signer) => {
   const domain = { ...EIP721_DOMAIN, chainId, verifyingContract };
   return signer.signTypedData(domain, types, message);
 };
@@ -105,6 +105,6 @@ export const eip712Hash = <T extends EIP721Message>(chainId: number, verifyingCo
 
 export const eip712Verify = <T extends EIP721Message>(chainId: number, verifyingContract: string, types: Record<string, Array<TypedDataField>>, message: T, signerAddress: string, signature: string) => {
   const domain = { ...EIP721_DOMAIN, chainId, verifyingContract };
-  const address = ethers.verifyTypedData(domain, types, message, signature);
+  const address = verifyTypedData(domain, types, message, signature);
   return address.toLowerCase() === signerAddress.toLowerCase();
 };

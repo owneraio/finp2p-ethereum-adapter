@@ -16,7 +16,7 @@
   "author": "",
   "license": "TBD",
   "dependencies": {
-    "subproject": "file:./finp2p-contracts",
+    "ethers": "^6.13.1",
     "express": "^4.17.1",
     "express-validator": "^6.14.0",
     "express-winston": "^4.2.0",
