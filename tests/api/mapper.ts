@@ -1,19 +1,17 @@
-import { TypedDataField } from "ethers/src.ts/hash";
 import {
-  EIP721Message, hashMessage, signMessage
+  EIP721Message, eip712Hash, eip712SignWithPrivateKey, TypedDataField
 } from "../../finp2p-contracts/src/contracts/eip721";
-import { ethers } from "ethers";
 
-export const buildEIP721Signature = async (
+export const eip721Signature = async (
   chainId: number,
   verifyingContract: string,
   primaryType: string,
   types: Record<string, Array<TypedDataField>>,
   message: EIP721Message,
-  signer: ethers.Signer
+  signerPrivateKey: string
 ) => {
-  const hash = hashMessage(chainId, verifyingContract, types, message)
-  const signature = await signMessage(chainId, verifyingContract, types, message, signer);
+  const hash = eip712Hash(chainId, verifyingContract, types, message)
+  const signature = await eip712SignWithPrivateKey(chainId, verifyingContract, types, message, signerPrivateKey);
   return {
     signature: signature.replace('0x', ''),
     template: {

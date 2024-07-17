@@ -10,7 +10,7 @@ import {
   stringToByte16,
 } from './utils';
 import {
-  signMessage,
+  eip712Sign,
   EIP721_ISSUANCE_TYPES,
   EIP721_TRANSFER_TYPES,
   EIP721_REDEEM_TYPES,
@@ -65,7 +65,7 @@ describe("FinP2P proxy contract test", function() {
       const issueAmount = 1000;
       const issueSettlementAmount = 10000;
       const issueNonce = `0x${generateNonce().toString('hex')}`;
-      const issueSignature = await signMessage(chainId, verifyingContract, EIP721_ISSUANCE_TYPES, {
+      const issueSignature = await eip712Sign(chainId, verifyingContract, EIP721_ISSUANCE_TYPES, {
         nonce: issueNonce,
         buyer: { key: issueBuyerFinId },
         issuer: { key: issuerFinId },
@@ -96,7 +96,7 @@ describe("FinP2P proxy contract test", function() {
       const transferAmount = 50;
       const transferSettlementAmount = 450;
       const transferNonce = `0x${generateNonce().toString('hex')}`;
-      const transferSignature = await signMessage(chainId, verifyingContract, EIP721_TRANSFER_TYPES,{
+      const transferSignature = await eip712Sign(chainId, verifyingContract, EIP721_TRANSFER_TYPES,{
         nonce: transferNonce,
         seller: { key: sellerFinId },
         buyer: { key: buyerFinId },
@@ -128,7 +128,7 @@ describe("FinP2P proxy contract test", function() {
       const redeemAmount = transferAmount;
       const redeemSettlementAmount = transferSettlementAmount;
       const redeemNonce = `0x${generateNonce().toString("hex")}`;
-      const redeemSignature = await signMessage(chainId, verifyingContract, EIP721_REDEEM_TYPES,{
+      const redeemSignature = await eip712Sign(chainId, verifyingContract, EIP721_REDEEM_TYPES,{
         nonce: redeemNonce,
         owner: { key: ownerFinId },
         buyer: { key: redeemBuyerFinId },
@@ -183,7 +183,7 @@ describe("FinP2P proxy contract test", function() {
       const transferAmount = 50;
       const transferSettlementAmount = 450;
       const transferNonce = `0x${generateNonce().toString('hex')}`;
-      const transferSignature = await signMessage(chainId, verifyingContract, EIP721_TRANSFER_TYPES,{
+      const transferSignature = await eip712Sign(chainId, verifyingContract, EIP721_TRANSFER_TYPES,{
         nonce: transferNonce,
         seller: { key: sellerFinId },
         buyer: { key: buyerFinId },

@@ -11,7 +11,7 @@ import {
 import {
   EIP721_ISSUANCE_TYPES, EIP721_REDEEM_TYPES, EIP721_TRANSFER_TYPES,
   EIP721IssuanceMessage, EIP721RedeemMessage, EIP721TransferMessage,
-  signMessage, verifyMessage
+  eip712Sign, eip712Verify
 } from "../src/contracts/eip721";
 import { v4 as uuidv4 } from "uuid";
 
@@ -54,9 +54,9 @@ describe("Signing test", function() {
       }
     } as EIP721IssuanceMessage;
 
-    const signature = await signMessage(chainId, verifyingContract, EIP721_ISSUANCE_TYPES, message, signer);
+    const signature = await eip712Sign(chainId, verifyingContract, EIP721_ISSUANCE_TYPES, message, signer);
     const signerAddress = await signer.getAddress();
-    expect(verifyMessage(chainId, verifyingContract, EIP721_ISSUANCE_TYPES, message, signerAddress, signature)).to.equal(true);
+    expect(eip712Verify(chainId, verifyingContract, EIP721_ISSUANCE_TYPES, message, signerAddress, signature)).to.equal(true);
     expect(await verifier.verifyPrimarySaleSignature(nonce, buyer, issuer, assetId, amount, settlementAsset, settlementAmount, signerAddress, signature)).to.equal(true);
   });
 
@@ -91,9 +91,9 @@ describe("Signing test", function() {
       }
     } as EIP721TransferMessage;
 
-    const signature = await signMessage(chainId, verifyingContract, EIP721_TRANSFER_TYPES, message, signer);
+    const signature = await eip712Sign(chainId, verifyingContract, EIP721_TRANSFER_TYPES, message, signer);
     const signerAddress = await signer.getAddress();
-    expect(verifyMessage(chainId, verifyingContract, EIP721_TRANSFER_TYPES, message, signerAddress, signature)).to.equal(true);
+    expect(eip712Verify(chainId, verifyingContract, EIP721_TRANSFER_TYPES, message, signerAddress, signature)).to.equal(true);
     expect(await verifier.verifySecondarySaleSignature(nonce, seller, buyer, assetId, amount, settlementAsset,
       settlementAmount, signerAddress, signature)).to.equal(true);
   });
@@ -129,9 +129,9 @@ describe("Signing test", function() {
       }
     } as EIP721RedeemMessage;
 
-    const signature = await signMessage(chainId, verifyingContract, EIP721_REDEEM_TYPES, message, signer);
+    const signature = await eip712Sign(chainId, verifyingContract, EIP721_REDEEM_TYPES, message, signer);
     const signerAddress = await signer.getAddress();
-    expect(verifyMessage(chainId, verifyingContract, EIP721_REDEEM_TYPES, message, signerAddress, signature)).to.equal(true);
+    expect(eip712Verify(chainId, verifyingContract, EIP721_REDEEM_TYPES, message, signerAddress, signature)).to.equal(true);
     expect(await verifier.verifyRedemptionSignature(nonce,  owner, buyer, assetId, amount,
       settlementAsset, settlementAmount, signerAddress, signature)).to.equal(true);
   });

@@ -6,9 +6,7 @@ import {
   EIP721IssuanceMessage, EIP721RedeemMessage,
   EIP721TransferMessage,
 } from "../finp2p-contracts/src/contracts/eip721";
-import { Wallet } from "ethers";
-import { getFinId } from "../finp2p-contracts/src/contracts/utils";
-import {  buildEIP721Signature } from "./api/mapper";
+import {  eip721Signature } from "./api/mapper";
 
 
 describe(`token service test`, () => {
@@ -36,11 +34,13 @@ describe(`token service test`, () => {
       resourceId: assetId
     } as Components.Schemas.Finp2pAsset;
 
-    const issuer = Wallet.createRandom();
-    const issuerFinId = getFinId(issuer);
+    const { private: issuerPrivate, public: issuerPublic } = createCrypto();
+    const issuerPrivateKey = issuerPrivate.toString('hex');
+    const issuerFinId = issuerPublic.toString('hex');
 
-    const issueBuyer = Wallet.createRandom();
-    const issueBuyerFinId = getFinId(issueBuyer);
+    const { private: issueBuyerPrivateBytes, public: issueBuyerPublic } = createCrypto();
+    const issueBuyerPrivateKey = issueBuyerPrivateBytes.toString('hex');
+    const issueBuyerFinId = issueBuyerPublic.toString('hex');
     const issuerSource = {
       finId: issuerFinId,
       account: {
@@ -62,9 +62,6 @@ describe(`token service test`, () => {
     const issueAmount = 1000;
     const issueSettlementAmount = 10000;
 
-    const chainId = 1337;
-    const verifyingContract = '0x5FbDB2315678afecb367f032d93F642f64180aa3';
-
     // --------------------------------------------------------------------------
 
     const issueNonce = generateNonce();
@@ -73,7 +70,7 @@ describe(`token service test`, () => {
       destination: issuerSource.account,
       quantity: `${issueAmount}`,
       asset: asset as Components.Schemas.Finp2pAsset,
-      signature: await buildEIP721Signature(chainId, verifyingContract,
+      signature: await eip721Signature(chainId, verifyingContract,
         'PrimarySale', EIP721_ISSUANCE_TYPES, {
           nonce: `0x${issueNonce.toString('hex')}`,
           buyer: { key: issueBuyerFinId },
@@ -88,7 +85,7 @@ describe(`token service test`, () => {
             assetType: 'fiat',
             amount: issueSettlementAmount
           }
-        } as EIP721IssuanceMessage, issueBuyer)
+        } as EIP721IssuanceMessage, issueBuyerPrivateKey)
     } as Paths.IssueAssets.RequestBody));
     expect(issueReceipt.asset).toStrictEqual(asset);
     expect(parseInt(issueReceipt.quantity)).toBe(issueAmount);
@@ -99,11 +96,12 @@ describe(`token service test`, () => {
 
     // --------------------------------------------------------------------------
 
-    const seller = issuer;
+    const sellerPrivateKey = issuerPrivateKey;
     const sellerFinId = issuerFinId;
     const sellerSource = issuerSource;
-    const buyer = Wallet.createRandom();
-    const buyerFinId = getFinId(buyer);
+    const { private: buyerPrivateBytes, public: buyerPublic } = createCrypto();
+    const buyerPrivateKey = buyerPrivateBytes.toString('hex');
+    const buyerFinId = buyerPublic.toString('hex');
     const buyerSource = {
       finId: buyerFinId,
       account: {
@@ -122,7 +120,7 @@ describe(`token service test`, () => {
       destination: buyerSource,
       quantity: `${transferAmount}`,
       asset,
-      signature: await buildEIP721Signature(chainId, verifyingContract,
+      signature: await eip721Signature(chainId, verifyingContract,
         'SecondarySale', EIP721_TRANSFER_TYPES, {
           nonce: `0x${transferNonce.toString('hex')}`,
           seller: { key: sellerFinId },
@@ -137,7 +135,7 @@ describe(`token service test`, () => {
             assetType: 'fiat',
             amount: transferSettlementAmount
           }
-        } as EIP721TransferMessage, seller),
+        } as EIP721TransferMessage, sellerPrivateKey),
     } as Paths.TransferAsset.RequestBody));
     expect(transferReceipt.asset).toStrictEqual(asset);
     expect(parseInt(transferReceipt.quantity)).toBe(transferAmount);
@@ -150,11 +148,11 @@ describe(`token service test`, () => {
 
     // -------------------------------------------
 
-    const redeemOwner = buyer;
+    const redeemOwnerPrivateKey = buyerPrivateKey;
     const redeemOwnerFinId = buyerFinId;
     const redeemOwnerSource = buyerSource;
-    const redeemBuyer = Wallet.createRandom();
-    const redeemBuyerFinId = getFinId(redeemBuyer);
+    const { private: redeemBuyerPrivate, public: redeemBuyerPublic } = createCrypto();
+    const redeemBuyerFinId = redeemBuyerPublic.toString('hex');
 
     const redeemNonce = generateNonce();
     const redeemAmount = 300;
@@ -165,7 +163,7 @@ describe(`token service test`, () => {
       source: redeemOwnerSource.account as Components.Schemas.FinIdAccount,
       quantity: `${redeemAmount}`,
       asset: asset as Components.Schemas.Finp2pAsset,
-      signature: await buildEIP721Signature(chainId, verifyingContract,
+      signature: await eip721Signature(chainId, verifyingContract,
         'Redemption', EIP721_REDEEM_TYPES, {
           nonce: `0x${redeemNonce.toString('hex')}`,
           owner: { key: redeemOwnerFinId },
@@ -180,7 +178,7 @@ describe(`token service test`, () => {
             assetType: 'fiat',
             amount: redeemSettlementAmount
           }
-        } as EIP721RedeemMessage, redeemOwner)
+        } as EIP721RedeemMessage, redeemOwnerPrivateKey)
     } as Paths.RedeemAssets.RequestBody));
     expect(redeemReceipt.asset).toStrictEqual(asset);
     expect(parseFloat(redeemReceipt.quantity)).toBeCloseTo(redeemAmount, 4);

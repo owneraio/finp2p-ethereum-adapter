@@ -1,61 +1,65 @@
-import { ethers, TypedDataEncoder } from "ethers";
-import type { TypedDataField } from "ethers/src.ts/hash";
+import { ethers, TypedDataEncoder } from 'ethers';
+
+export type TypedDataField = {
+  name: string;
+  type: string;
+};
 
 export const EIP721_DOMAIN = {
-  name: "FinP2P",
-  version: "1",
+  name: 'FinP2P',
+  version: '1',
   chainId: 1,
-  verifyingContract: "0x0"
+  verifyingContract: '0x0',
 };
 
 export const EIP721_FINID_TYPE = {
   FinId: [{
-    name: "key", type: "string"
-  }]
+    name: 'key', type: 'string',
+  }],
 };
 
 export const EIP721_TERM_TYPE = {
   Term: [
-    { name: "assetId", type: "string" },
-    { name: "assetType", type: "string" },
-    { name: "amount", type: "uint256" }
-  ]
+    { name: 'assetId', type: 'string' },
+    { name: 'assetType', type: 'string' },
+    { name: 'amount', type: 'uint256' },
+  ],
 };
 
 export const EIP721_ISSUANCE_TYPES = {
   ...EIP721_FINID_TYPE,
   ...EIP721_TERM_TYPE,
   PrimarySale: [
-    { name: "nonce", type: "uint256" },
-    { name: "buyer", type: "FinId" },
-    { name: "issuer", type: "FinId" },
-    { name: "asset", type: "Term" },
-    { name: "settlement", type: "Term" }
-  ]
+    { name: 'nonce', type: 'uint256' },
+    { name: 'buyer', type: 'FinId' },
+    { name: 'issuer', type: 'FinId' },
+    { name: 'asset', type: 'Term' },
+    { name: 'settlement', type: 'Term' },
+  ],
 };
 
 export const EIP721_TRANSFER_TYPES = {
   ...EIP721_FINID_TYPE,
   ...EIP721_TERM_TYPE,
   SecondarySale: [
-    { name: "nonce", type: "uint256" },
-    { name: "seller", type: "FinId" },
-    { name: "buyer", type: "FinId" },
-    { name: "asset", type: "Term" },
-    { name: "settlement", type: "Term" }
-  ]
+    { name: 'nonce', type: 'uint256' },
+    { name: 'seller', type: 'FinId' },
+    { name: 'buyer', type: 'FinId' },
+    { name: 'asset', type: 'Term' },
+    { name: 'settlement', type: 'Term' },
+  ],
 };
 
 export const EIP721_REDEEM_TYPES = {
   ...EIP721_FINID_TYPE,
   ...EIP721_TERM_TYPE,
   Redemption: [
-    { name: "nonce", type: "uint256" },
-    { name: "owner", type: "FinId" },
-    { name: "buyer", type: "FinId" },
-    { name: "asset", type: "Term" },
-    { name: "settlement", type: "Term" }
-  ]
+    { name: 'nonce', type: 'uint256' },
+    { name: 'owner', type: 'FinId' },
+    { name: 'buyer', type: 'FinId' },
+    { name: 'asset', type: 'Term' },
+    { name: 'settlement', type: 'Term' },
+  ],
 };
 
 export interface EIP721Message {
@@ -85,17 +89,21 @@ export interface EIP721RedeemMessage extends EIP721Message {
   settlement: { assetId: string, assetType: string, amount: number }
 }
 
-export const signMessage = <T extends EIP721Message>(chainId: number, verifyingContract: string, types: Record<string, Array<TypedDataField>>, message: T, signer: ethers.Signer) => {
+export const eip712SignWithPrivateKey = <T extends EIP721Message>(chainId: number, verifyingContract: string, types: Record<string, Array<TypedDataField>>, message: T, signerPrivateKey: string) => {
+  return eip712Sign(chainId, verifyingContract, types, message, new ethers.Wallet(signerPrivateKey));
+};
+
+export const eip712Sign = <T extends EIP721Message>(chainId: number, verifyingContract: string, types: Record<string, Array<TypedDataField>>, message: T, signer: ethers.Signer) => {
   const domain = { ...EIP721_DOMAIN, chainId, verifyingContract };
   return signer.signTypedData(domain, types, message);
 };
 
-export const hashMessage = <T extends EIP721Message>(chainId: number, verifyingContract: string, types: Record<string, Array<TypedDataField>>, message: T) => {
+export const eip712Hash = <T extends EIP721Message>(chainId: number, verifyingContract: string, types: Record<string, Array<TypedDataField>>, message: T) => {
   const domain = { ...EIP721_DOMAIN, chainId, verifyingContract };
   return TypedDataEncoder.hash(domain, types, message);
 };
 
-export const verifyMessage = <T extends EIP721Message>(chainId: number, verifyingContract: string, types: Record<string, Array<TypedDataField>>, message: T, signerAddress: string, signature: string) => {
+export const eip712Verify = <T extends EIP721Message>(chainId: number, verifyingContract: string, types: Record<string, Array<TypedDataField>>, message: T, signerAddress: string, signature: string) => {
   const domain = { ...EIP721_DOMAIN, chainId, verifyingContract };
   const address = ethers.verifyTypedData(domain, types, message, signature);
   return address.toLowerCase() === signerAddress.toLowerCase();
