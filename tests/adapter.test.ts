@@ -80,12 +80,12 @@ describe(`token service test`, () => {
           asset: {
             assetId,
             assetType: 'finp2p',
-            amount: issueAmount
+            amount: `${issueAmount}`
           },
           settlement: {
             assetId: settlementAsset,
             assetType: 'fiat',
-            amount: issueSettlementAmount
+            amount: `${issueSettlementAmount}`
           }
         } as EIP721IssuanceMessage, issueBuyerPrivateKey)
     } as Paths.IssueAssets.RequestBody));
@@ -130,12 +130,12 @@ describe(`token service test`, () => {
           asset: {
             assetId,
             assetType: 'finp2p',
-            amount: transferAmount
+            amount: `${transferAmount}`
           },
           settlement: {
             assetId: settlementAsset,
             assetType: 'fiat',
-            amount: transferSettlementAmount
+            amount: `${transferSettlementAmount}`
           }
         } as EIP721TransferMessage, sellerPrivateKey),
     } as Paths.TransferAsset.RequestBody));
@@ -173,12 +173,12 @@ describe(`token service test`, () => {
           asset: {
             assetId,
             assetType: 'finp2p',
-            amount: redeemAmount
+            amount: `${redeemAmount}`
           },
           settlement: {
             assetId: settlementAsset,
             assetType: 'fiat',
-            amount: redeemSettlementAmount
+            amount: `${redeemSettlementAmount}`
           }
         } as EIP721RedeemMessage, redeemOwnerPrivateKey)
     } as Paths.RedeemAssets.RequestBody));
@@ -267,12 +267,12 @@ describe(`token service test`, () => {
           asset: {
             assetId,
             assetType: 'finp2p',
-            amount: transferAmount
+            amount: `${transferAmount}`
           },
           settlement: {
             assetId: settlementAssetId,
             assetType: 'fiat',
-            amount: transferSettlementAmount
+            amount: `${transferSettlementAmount}`
           }
         } as EIP721TransferMessage, buyerPrivateKey),
     } as Paths.HoldOperation.RequestBody));

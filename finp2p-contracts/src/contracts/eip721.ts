@@ -22,7 +22,7 @@ export const EIP721_TERM_TYPE = {
   Term: [
     { name: 'assetId', type: 'string' },
     { name: 'assetType', type: 'string' },
-    { name: 'amount', type: 'uint256' },
+    { name: 'amount', type: 'string' },
   ],
 };
 
@@ -69,24 +69,24 @@ export interface EIP721IssuanceMessage extends EIP721Message {
   nonce: string,
   buyer: { idkey: string },
   issuer: { idkey: string },
-  asset: { assetId: string, assetType: string, amount: number },
-  settlement: { assetId: string, assetType: string, amount: number }
+  asset: { assetId: string, assetType: string, amount: string },
+  settlement: { assetId: string, assetType: string, amount: string }
 }
 
 export interface EIP721TransferMessage extends EIP721Message {
   nonce: string,
   buyer: { idkey: string },
   seller: { idkey: string },
-  asset: { assetId: string, assetType: string, amount: number },
-  settlement: { assetId: string, assetType: string, amount: number }
+  asset: { assetId: string, assetType: string, amount: string },
+  settlement: { assetId: string, assetType: string, amount: string }
 }
 
 export interface EIP721RedeemMessage extends EIP721Message {
   nonce: string,
   owner: { idkey: string },
   buyer: { idkey: string },
-  asset: { assetId: string, assetType: string, amount: number },
-  settlement: { assetId: string, assetType: string, amount: number }
+  asset: { assetId: string, assetType: string, amount: string },
+  settlement: { assetId: string, assetType: string, amount: string }
 }
 
 export const eip712SignWithPrivateKey = <T extends EIP721Message>(chainId: number, verifyingContract: string, types: Record<string, Array<TypedDataField>>, message: T, signerPrivateKey: string) => {

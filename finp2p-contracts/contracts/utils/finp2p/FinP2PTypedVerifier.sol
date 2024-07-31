@@ -19,19 +19,19 @@ contract FinP2PTypedVerifier is EIP712 {
     );
 
     bytes32 private constant TERM_TYPE_HASH = keccak256(
-        "Term(string assetId,string assetType,uint256 amount)"
+        "Term(string assetId,string assetType,string amount)"
     );
 
     bytes32 private constant ISSUE_TYPE_HASH = keccak256(
-        "PrimarySale(string nonce,FinId buyer,FinId issuer,Term asset,Term settlement)FinId(string idkey)Term(string assetId,string assetType,uint256 amount)"
+        "PrimarySale(string nonce,FinId buyer,FinId issuer,Term asset,Term settlement)FinId(string idkey)Term(string assetId,string assetType,string amount)"
     );
 
     bytes32 private constant TRANSFER_TYPE_HASH = keccak256(
-        "SecondarySale(string nonce,FinId seller,FinId buyer,Term asset,Term settlement)FinId(string idkey)Term(string assetId,string assetType,uint256 amount)"
+        "SecondarySale(string nonce,FinId seller,FinId buyer,Term asset,Term settlement)FinId(string idkey)Term(string assetId,string assetType,string amount)"
     );
 
     bytes32 private constant REDEEM_TYPE_HASH = keccak256(
-        "Redemption(string nonce,FinId owner,FinId buyer,Term asset,Term settlement)FinId(string idkey)Term(string assetId,string assetType,uint256 amount)"
+        "Redemption(string nonce,FinId owner,FinId buyer,Term asset,Term settlement)FinId(string idkey)Term(string assetId,string assetType,string amount)"
     );
 
     constructor() EIP712(SIGNING_DOMAIN, SIGNATURE_VERSION) {}
@@ -88,11 +88,12 @@ contract FinP2PTypedVerifier is EIP712 {
     }
 
     function hashTerm(string memory assetId, string memory assetType, uint256 amount) public pure returns (bytes32) {
+        string memory strAmount = Strings.toString(amount);
         return keccak256(abi.encode(
             TERM_TYPE_HASH,
             keccak256(bytes(assetId)),
             keccak256(bytes(assetType)),
-            amount
+            keccak256(bytes(strAmount))
         ));
     }
 

@@ -71,12 +71,12 @@ describe("FinP2P proxy contract test", function() {
         asset: {
           assetId,
           assetType: 'finp2p',
-          amount: issueAmount
+          amount: `${issueAmount}`
         },
         settlement: {
           assetId: settlementAsset,
           assetType: 'fiat',
-          amount: issueSettlementAmount
+          amount: `${issueSettlementAmount}`
         }
       } as EIP721IssuanceMessage, issueBuyer);
       await contract.issue(issueNonce, assetId, issueBuyerFinId, issuerFinId, issueAmount,
@@ -102,12 +102,12 @@ describe("FinP2P proxy contract test", function() {
         asset: {
           assetId,
           assetType: 'finp2p',
-          amount: transferAmount
+          amount: `${transferAmount}`
         },
         settlement: {
           assetId: settlementAsset,
           assetType: 'fiat',
-          amount: transferSettlementAmount
+          amount: `${transferSettlementAmount}`
         }
       } as EIP721TransferMessage, seller);
 
@@ -134,12 +134,12 @@ describe("FinP2P proxy contract test", function() {
         asset: {
           assetId,
           assetType: 'finp2p',
-          amount: redeemAmount
+          amount: `${redeemAmount}`
         },
         settlement: {
           assetId: settlementAsset,
           assetType: 'fiat',
-          amount: redeemSettlementAmount
+          amount: `${redeemSettlementAmount}`
         }
       } as EIP721RedeemMessage, owner);
       await contract.redeem(redeemNonce, assetId, ownerFinId, redeemBuyerFinId,
@@ -188,12 +188,12 @@ describe("FinP2P proxy contract test", function() {
         asset: {
           assetId,
           assetType: 'finp2p',
-          amount: transferAmount
+          amount: `${transferAmount}`
         },
         settlement: {
           assetId: settlementAsset,
           assetType: 'fiat',
-          amount: transferSettlementAmount
+          amount: `${transferSettlementAmount}`
         }
       } as EIP721TransferMessage, buyer);
 

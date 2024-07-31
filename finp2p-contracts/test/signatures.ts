@@ -45,12 +45,12 @@ describe("Signing test", function() {
       asset: {
         assetId,
         assetType: "finp2p",
-        amount: amount
+        amount: `${amount}`
       },
       settlement: {
         assetId: settlementAsset,
         assetType: "fiat",
-        amount: settlementAmount
+        amount: `${settlementAmount}`
       }
     } as EIP721IssuanceMessage;
 
@@ -82,12 +82,12 @@ describe("Signing test", function() {
       asset: {
         assetId,
         assetType: "finp2p",
-        amount: amount,
+        amount: `${amount}`,
       },
       settlement: {
         assetId: settlementAsset,
         assetType: "fiat",
-        amount: settlementAmount
+        amount: `${settlementAmount}`
       }
     } as EIP721TransferMessage;
 
@@ -120,12 +120,12 @@ describe("Signing test", function() {
       asset: {
         assetId,
         assetType: "finp2p",
-        amount: amount,
+        amount: `${amount}`,
       },
       settlement: {
         assetId: settlementAsset,
         assetType: "fiat",
-        amount: settlementAmount
+        amount: `${settlementAmount}`
       }
     } as EIP721RedeemMessage;
 
