@@ -54,7 +54,7 @@ export class FinP2PContract extends ContractsManager {
     settlementAsset: string, settlementAmount: number, signature: string) {
     return this.safeExecuteTransaction(async () => {
       return this.finP2P.issue(
-        `0x${nonce}`, assetId, buyerFinId, issuerFinId, quantity,
+        nonce, assetId, buyerFinId, issuerFinId, quantity,
         settlementAsset, settlementAmount, `0x${signature}`);
     });
   }
@@ -63,7 +63,7 @@ export class FinP2PContract extends ContractsManager {
     settlementAsset: string, settlementAmount: number, signature: string) {
     return this.safeExecuteTransaction(async () => {
       return this.finP2P.transfer(
-        `0x${nonce}`, assetId, sellerFinId, buyerFinId, quantity,
+        nonce, assetId, sellerFinId, buyerFinId, quantity,
         settlementAsset, settlementAmount, `0x${signature}`);
     });
   }
@@ -71,7 +71,7 @@ export class FinP2PContract extends ContractsManager {
   async redeem(nonce: string, assetId: string, ownerFinId: string, buyerFinId: string, quantity: number,
     settlementAsset: string, settlementAmount: number, signature: string) {
     return this.safeExecuteTransaction(async () => {
-      return this.finP2P.redeem(`0x${nonce}`, assetId, ownerFinId, buyerFinId, quantity,
+      return this.finP2P.redeem(nonce, assetId, ownerFinId, buyerFinId, quantity,
         settlementAsset, settlementAmount, `0x${signature}`);
     });
   }
@@ -80,7 +80,7 @@ export class FinP2PContract extends ContractsManager {
     settlementAsset: string, settlementAmount: number, signature: string) {
     const opId = `0x${operationId.replaceAll('-', '')}`;
     return this.safeExecuteTransaction(async () => {
-      return this.finP2P.hold(opId, `0x${nonce}`, assetId, sellerFinId, buyerFinId, quantity,
+      return this.finP2P.hold(opId, nonce, assetId, sellerFinId, buyerFinId, quantity,
         settlementAsset, settlementAmount, `0x${signature}`);
     });
   }

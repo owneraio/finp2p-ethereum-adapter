@@ -21,12 +21,12 @@ interface IFinP2PAsset is IFinP2PCommon {
 
     function issueWithoutSignature(string memory assetId, string memory issuerFinId, uint256 quantity) external;
 
-    function issue(uint256 nonce, string memory assetId, string memory buyerFinId, string memory issuerFinId,
+    function issue(string memory nonce, string memory assetId, string memory buyerFinId, string memory issuerFinId,
         uint256 quantity, string memory settlementAsset, uint256 settlementAmount, bytes memory signature) external;
 
-    function transfer(uint256 nonce, string memory assetId, string memory sourceFinId, string memory destinationFinId,
+    function transfer(string memory nonce, string memory assetId, string memory sourceFinId, string memory destinationFinId,
         uint256 quantity, string memory settlementAsset, uint256 settlementAmount, bytes memory signature) external;
 
-    function redeem(uint256 nonce, string memory assetId, string memory buyerFinId, string memory issuerFinId, uint256 quantity,
+    function redeem(string memory nonce, string memory assetId, string memory buyerFinId, string memory issuerFinId, uint256 quantity,
         string memory settlementAsset, uint256 settlementAmount, bytes memory signature) external;
 }

@@ -14,7 +14,7 @@ export const EIP721_DOMAIN = {
 
 export const EIP721_FINID_TYPE = {
   FinId: [{
-    name: 'key', type: 'string',
+    name: 'idkey', type: 'string',
   }],
 };
 
@@ -30,7 +30,7 @@ export const EIP721_ISSUANCE_TYPES = {
   ...EIP721_FINID_TYPE,
   ...EIP721_TERM_TYPE,
   PrimarySale: [
-    { name: 'nonce', type: 'uint256' },
+    { name: 'nonce', type: 'string' },
     { name: 'buyer', type: 'FinId' },
     { name: 'issuer', type: 'FinId' },
     { name: 'asset', type: 'Term' },
@@ -42,7 +42,7 @@ export const EIP721_TRANSFER_TYPES = {
   ...EIP721_FINID_TYPE,
   ...EIP721_TERM_TYPE,
   SecondarySale: [
-    { name: 'nonce', type: 'uint256' },
+    { name: 'nonce', type: 'string' },
     { name: 'seller', type: 'FinId' },
     { name: 'buyer', type: 'FinId' },
     { name: 'asset', type: 'Term' },
@@ -54,7 +54,7 @@ export const EIP721_REDEEM_TYPES = {
   ...EIP721_FINID_TYPE,
   ...EIP721_TERM_TYPE,
   Redemption: [
-    { name: 'nonce', type: 'uint256' },
+    { name: 'nonce', type: 'string' },
     { name: 'owner', type: 'FinId' },
     { name: 'buyer', type: 'FinId' },
     { name: 'asset', type: 'Term' },
@@ -67,24 +67,24 @@ export interface EIP721Message {
 
 export interface EIP721IssuanceMessage extends EIP721Message {
   nonce: string,
-  buyer: { key: string },
-  issuer: { key: string },
+  buyer: { idkey: string },
+  issuer: { idkey: string },
   asset: { assetId: string, assetType: string, amount: number },
   settlement: { assetId: string, assetType: string, amount: number }
 }
 
 export interface EIP721TransferMessage extends EIP721Message {
   nonce: string,
-  buyer: { key: string },
-  seller: { key: string },
+  buyer: { idkey: string },
+  seller: { idkey: string },
   asset: { assetId: string, assetType: string, amount: number },
   settlement: { assetId: string, assetType: string, amount: number }
 }
 
 export interface EIP721RedeemMessage extends EIP721Message {
   nonce: string,
-  owner: { key: string },
-  buyer: { key: string },
+  owner: { idkey: string },
+  buyer: { idkey: string },
   asset: { assetId: string, assetType: string, amount: number },
   settlement: { assetId: string, assetType: string, amount: number }
 }

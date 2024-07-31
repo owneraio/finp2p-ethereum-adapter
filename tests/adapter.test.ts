@@ -74,9 +74,9 @@ describe(`token service test`, () => {
       asset: asset as Components.Schemas.Finp2pAsset,
       signature: await eip721Signature(chainId, verifyingContract,
         'PrimarySale', EIP721_ISSUANCE_TYPES, {
-          nonce: `0x${issueNonce}`,
-          buyer: { key: issueBuyerFinId },
-          issuer: { key: issuerFinId },
+          nonce: issueNonce,
+          buyer: { idkey: issueBuyerFinId },
+          issuer: { idkey: issuerFinId },
           asset: {
             assetId,
             assetType: 'finp2p',
@@ -124,9 +124,9 @@ describe(`token service test`, () => {
       asset,
       signature: await eip721Signature(chainId, verifyingContract,
         'SecondarySale', EIP721_TRANSFER_TYPES, {
-          nonce: `0x${transferNonce}`,
-          seller: { key: sellerFinId },
-          buyer: { key: buyerFinId },
+          nonce: transferNonce,
+          seller: { idkey: sellerFinId },
+          buyer: { idkey: buyerFinId },
           asset: {
             assetId,
             assetType: 'finp2p',
@@ -167,9 +167,9 @@ describe(`token service test`, () => {
       asset: asset as Components.Schemas.Finp2pAsset,
       signature: await eip721Signature(chainId, verifyingContract,
         'Redemption', EIP721_REDEEM_TYPES, {
-          nonce: `0x${redeemNonce}`,
-          owner: { key: redeemOwnerFinId },
-          buyer: { key: redeemBuyerFinId },
+          nonce: redeemNonce,
+          owner: { idkey: redeemOwnerFinId },
+          buyer: { idkey: redeemBuyerFinId },
           asset: {
             assetId,
             assetType: 'finp2p',
@@ -261,9 +261,9 @@ describe(`token service test`, () => {
       asset: settlementAsset,
       signature: await eip721Signature(chainId, verifyingContract,
         'SecondarySale', EIP721_TRANSFER_TYPES, {
-          nonce: `0x${transferNonce}`,
-          seller: { key: sellerFinId },
-          buyer: { key: buyerFinId },
+          nonce: transferNonce,
+          seller: { idkey: sellerFinId },
+          buyer: { idkey: buyerFinId },
           asset: {
             assetId,
             assetType: 'finp2p',

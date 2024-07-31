@@ -30,7 +30,7 @@ describe("Signing test", function() {
     const { public: buyerPublic } = createCrypto();
     const { public: issuerPublic } = createCrypto();
 
-    const nonce = `0x${generateNonce().toString("hex")}`;
+    const nonce = `${generateNonce().toString("hex")}`;
     const buyer = `${buyerPublic.toString("hex")}`;
     const issuer = `${issuerPublic.toString("hex")}`;
     const amount = getRandomNumber(1, 100);
@@ -40,8 +40,8 @@ describe("Signing test", function() {
 
     const message = {
       nonce,
-      buyer: { key: buyer },
-      issuer: { key: issuer },
+      buyer: { idkey: buyer },
+      issuer: { idkey: issuer },
       asset: {
         assetId,
         assetType: "finp2p",
@@ -67,7 +67,7 @@ describe("Signing test", function() {
     const { public: buyerPublic } = createCrypto();
     const { public: issuerPublic } = createCrypto();
 
-    const nonce = `0x${generateNonce().toString("hex")}`;
+    const nonce = `${generateNonce().toString("hex")}`;
     const buyer = `${buyerPublic.toString("hex")}`;
     const seller = `${issuerPublic.toString("hex")}`;
     const amount = getRandomNumber(1, 100);
@@ -77,8 +77,8 @@ describe("Signing test", function() {
 
     const message = {
       nonce,
-      seller: { key: seller },
-      buyer: { key: buyer },
+      seller: { idkey: seller },
+      buyer: { idkey: buyer },
       asset: {
         assetId,
         assetType: "finp2p",
@@ -105,7 +105,7 @@ describe("Signing test", function() {
     const { public: ownerPublic } = createCrypto();
     const { public: buyerPublic } = createCrypto();
 
-    const nonce = `0x${generateNonce().toString("hex")}`;
+    const nonce = `${generateNonce().toString("hex")}`;
     const owner = `${ownerPublic.toString("hex")}`;
     const buyer = `${buyerPublic.toString("hex")}`;
     const amount = getRandomNumber(1, 100);
@@ -115,8 +115,8 @@ describe("Signing test", function() {
 
     const message = {
       nonce,
-      owner: { key: owner },
-      buyer: { key: buyer },
+      owner: { idkey: owner },
+      buyer: { idkey: buyer },
       asset: {
         assetId,
         assetType: "finp2p",

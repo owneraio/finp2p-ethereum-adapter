@@ -15,7 +15,7 @@ contract FinP2PTypedVerifier is EIP712 {
     string private constant SIGNATURE_VERSION = "1";
 
     bytes32 private constant FINID_TYPE_HASH = keccak256(
-        "FinId(string key)"
+        "FinId(string idkey)"
     );
 
     bytes32 private constant TERM_TYPE_HASH = keccak256(
@@ -23,21 +23,21 @@ contract FinP2PTypedVerifier is EIP712 {
     );
 
     bytes32 private constant ISSUE_TYPE_HASH = keccak256(
-        "PrimarySale(uint256 nonce,FinId buyer,FinId issuer,Term asset,Term settlement)FinId(string key)Term(string assetId,string assetType,uint256 amount)"
+        "PrimarySale(string nonce,FinId buyer,FinId issuer,Term asset,Term settlement)FinId(string idkey)Term(string assetId,string assetType,uint256 amount)"
     );
 
     bytes32 private constant TRANSFER_TYPE_HASH = keccak256(
-        "SecondarySale(uint256 nonce,FinId seller,FinId buyer,Term asset,Term settlement)FinId(string key)Term(string assetId,string assetType,uint256 amount)"
+        "SecondarySale(string nonce,FinId seller,FinId buyer,Term asset,Term settlement)FinId(string idkey)Term(string assetId,string assetType,uint256 amount)"
     );
 
     bytes32 private constant REDEEM_TYPE_HASH = keccak256(
-        "Redemption(uint256 nonce,FinId owner,FinId buyer,Term asset,Term settlement)FinId(string key)Term(string assetId,string assetType,uint256 amount)"
+        "Redemption(string nonce,FinId owner,FinId buyer,Term asset,Term settlement)FinId(string idkey)Term(string assetId,string assetType,uint256 amount)"
     );
 
     constructor() EIP712(SIGNING_DOMAIN, SIGNATURE_VERSION) {}
 
     function verifyPrimarySaleSignature(
-        uint256 nonce,
+        string memory nonce,
         string memory buyer,
         string memory issuer,
         string memory assetId,
@@ -52,7 +52,7 @@ contract FinP2PTypedVerifier is EIP712 {
     }
 
     function verifySecondarySaleSignature(
-        uint256 nonce,
+        string memory nonce,
         string memory seller,
         string memory buyer,
         string memory assetId,
@@ -67,7 +67,7 @@ contract FinP2PTypedVerifier is EIP712 {
     }
 
     function verifyRedemptionSignature(
-        uint256 nonce,
+        string memory nonce,
         string memory owner,
         string memory buyer,
         string memory assetId,
@@ -97,7 +97,7 @@ contract FinP2PTypedVerifier is EIP712 {
     }
 
     function hashIssue(
-        uint256 nonce,
+        string memory nonce,
         string memory buyer,
         string memory issuer,
         string memory assetId,
@@ -107,7 +107,7 @@ contract FinP2PTypedVerifier is EIP712 {
     ) public view returns (bytes32) {
         return _hashTypedDataV4(keccak256(abi.encode(
             ISSUE_TYPE_HASH,
-            nonce,
+            keccak256(bytes(nonce)),
             hashFinId(buyer),
             hashFinId(issuer),
             hashTerm(assetId, "finp2p", amount),
@@ -116,7 +116,7 @@ contract FinP2PTypedVerifier is EIP712 {
     }
 
     function hashTransfer(
-        uint256 nonce,
+        string memory nonce,
         string memory seller,
         string memory buyer,
         string memory assetId,
@@ -126,7 +126,7 @@ contract FinP2PTypedVerifier is EIP712 {
     ) public view returns (bytes32) {
         return _hashTypedDataV4(keccak256(abi.encode(
             TRANSFER_TYPE_HASH,
-            nonce,
+            keccak256(bytes(nonce)),
             hashFinId(seller),
             hashFinId(buyer),
             hashTerm(assetId, "finp2p", amount),
@@ -135,7 +135,7 @@ contract FinP2PTypedVerifier is EIP712 {
     }
 
     function hashRedeem(
-        uint256 nonce,
+        string memory nonce,
         string memory owner,
         string memory buyer,
         string memory assetId,
@@ -145,7 +145,7 @@ contract FinP2PTypedVerifier is EIP712 {
     ) public view returns (bytes32) {
         return _hashTypedDataV4(keccak256(abi.encode(
             REDEEM_TYPE_HASH,
-            nonce,
+            keccak256(bytes(nonce)),
             hashFinId(owner),
             hashFinId(buyer),
             hashTerm(assetId, "finp2p", amount),

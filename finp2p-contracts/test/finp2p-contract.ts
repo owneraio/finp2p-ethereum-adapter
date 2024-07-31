@@ -7,7 +7,6 @@ import { ethers } from "hardhat";
 import { v4 as uuidv4, v4 as uuid } from "uuid";
 import {
   generateNonce,
-  stringToByte16,
 } from './utils';
 import {
   eip712Sign,
@@ -64,11 +63,11 @@ describe("FinP2P proxy contract test", function() {
 
       const issueAmount = 1000;
       const issueSettlementAmount = 10000;
-      const issueNonce = `0x${generateNonce().toString('hex')}`;
+      const issueNonce = `${generateNonce().toString('hex')}`;
       const issueSignature = await eip712Sign(chainId, verifyingContract, EIP721_ISSUANCE_TYPES, {
         nonce: issueNonce,
-        buyer: { key: issueBuyerFinId },
-        issuer: { key: issuerFinId },
+        buyer: { idkey: issueBuyerFinId },
+        issuer: { idkey: issuerFinId },
         asset: {
           assetId,
           assetType: 'finp2p',
@@ -95,11 +94,11 @@ describe("FinP2P proxy contract test", function() {
 
       const transferAmount = 50;
       const transferSettlementAmount = 450;
-      const transferNonce = `0x${generateNonce().toString('hex')}`;
+      const transferNonce = `${generateNonce().toString('hex')}`;
       const transferSignature = await eip712Sign(chainId, verifyingContract, EIP721_TRANSFER_TYPES,{
         nonce: transferNonce,
-        seller: { key: sellerFinId },
-        buyer: { key: buyerFinId },
+        seller: { idkey: sellerFinId },
+        buyer: { idkey: buyerFinId },
         asset: {
           assetId,
           assetType: 'finp2p',
@@ -127,11 +126,11 @@ describe("FinP2P proxy contract test", function() {
 
       const redeemAmount = transferAmount;
       const redeemSettlementAmount = transferSettlementAmount;
-      const redeemNonce = `0x${generateNonce().toString("hex")}`;
+      const redeemNonce = `${generateNonce().toString("hex")}`;
       const redeemSignature = await eip712Sign(chainId, verifyingContract, EIP721_REDEEM_TYPES,{
         nonce: redeemNonce,
-        owner: { key: ownerFinId },
-        buyer: { key: redeemBuyerFinId },
+        owner: { idkey: ownerFinId },
+        buyer: { idkey: redeemBuyerFinId },
         asset: {
           assetId,
           assetType: 'finp2p',
@@ -181,11 +180,11 @@ describe("FinP2P proxy contract test", function() {
       const assetId = `bank-us:102:${uuid()}`;
       const transferAmount = 50;
       const transferSettlementAmount = 450;
-      const transferNonce = `0x${generateNonce().toString('hex')}`;
+      const transferNonce = `${generateNonce().toString('hex')}`;
       const transferSignature = await eip712Sign(chainId, verifyingContract, EIP721_TRANSFER_TYPES, {
         nonce: transferNonce,
-        seller: { key: sellerFinId },
-        buyer: { key: buyerFinId },
+        seller: { idkey: sellerFinId },
+        buyer: { idkey: buyerFinId },
         asset: {
           assetId,
           assetType: 'finp2p',
