@@ -64,8 +64,8 @@ export class TokenService extends CommonService {
               settlement,
             } = request.signature.template.message;
             const { assetId: settlementAsset, amount: settlementAmount } = settlement.fields;
-            const buyerFinId = buyer.fields.key; // should be equal to request.destination.finId
-            const issuerFinId = issuer.fields.key;
+            const buyerFinId = buyer.fields.idkey; // should be equal to request.destination.finId
+            const issuerFinId = issuer.fields.idkey;
             const signature = request.signature.signature;
 
             txHash = await this.finP2PContract.issue(nonce, assetId, buyerFinId, issuerFinId, amount,
@@ -179,7 +179,7 @@ export class TokenService extends CommonService {
         case 'EIP712': {
           const { buyer, settlement } = request.signature.template.message;
           const { assetId: settlementAsset, amount: settlementAmount } = settlement.fields;
-          const buyerFinId = buyer.fields.key;
+          const buyerFinId = buyer.fields.idkey;
           txHash = await this.finP2PContract.redeem(nonce, assetId, ownerFinId, buyerFinId, amount,
             settlementAsset, settlementAmount, signature);
           break;
