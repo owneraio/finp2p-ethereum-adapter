@@ -107,7 +107,7 @@ class CustomTestEnvironment extends NodeEnvironment {
     const finP2PContract = new FinP2PContract(config);
 
     const port = randomPort();
-    const app = createApp(finP2PContract);
+    const app = createApp(finP2PContract, undefined);
     console.log("App created successfully.");
 
     this.httpServer = app.listen(port, () => {
