@@ -5,12 +5,24 @@ import { logger } from '../helpers/logger';
 import { FinP2PContract } from '../../finp2p-contracts/src/contracts/finp2p';
 import { RegulationChecker } from '../finp2p/regulation';
 
+export type DeployNewToken = {
+  type: 'deploy-new-token';
+};
+export type ReuseExistingToken = {
+  type: 'reuse-existing-token';
+  tokenAddress: string;
+};
+export type AssetCreationPolicy = DeployNewToken | ReuseExistingToken;
+
 export class TokenService extends CommonService {
+
+  assetCreationPolicy: AssetCreationPolicy;
 
   regulation: RegulationChecker | undefined;
 
-  constructor(finP2PContract: FinP2PContract, regulation: RegulationChecker | undefined) {
+  constructor(finP2PContract: FinP2PContract, assetCreationPolicy: AssetCreationPolicy, regulation: RegulationChecker | undefined) {
     super(finP2PContract);
+    this.assetCreationPolicy = assetCreationPolicy;
     this.regulation = regulation;
   }
 
@@ -21,8 +33,16 @@ export class TokenService extends CommonService {
     // in a real-world scenario, the token could already deployed in another tokenization application,
     // so we would just associate the assetId with existing token address
     try {
-      const tokenAddress = await this.finP2PContract.deployERC20(assetId, assetId,
-        this.finP2PContract.finP2PContractAddress);
+      let tokenAddress: string;
+      switch (this.assetCreationPolicy.type) {
+        case 'deploy-new-token':
+          tokenAddress = await this.finP2PContract.deployERC20(assetId, assetId,
+            this.finP2PContract.finP2PContractAddress);
+          break;
+        case 'reuse-existing-token':
+          tokenAddress = this.assetCreationPolicy.tokenAddress;
+          break;
+      }
 
       const txHash = await this.finP2PContract.associateAsset(assetId, tokenAddress);
       return {

@@ -11,6 +11,7 @@ import { AdapterParameters, NetworkDetails, NetworkParameters } from "./models";
 import { randomPort } from "./utils";
 import { addressFromPrivateKey } from "../../finp2p-contracts/src/contracts/utils";
 import { FinP2PDeployerConfig, FinP2PContractConfig } from "../../finp2p-contracts/src/contracts/config";
+import { DeployNewToken } from "../../src/services/tokens";
 
 
 class CustomTestEnvironment extends NodeEnvironment {
@@ -107,7 +108,8 @@ class CustomTestEnvironment extends NodeEnvironment {
     const finP2PContract = new FinP2PContract(config);
 
     const port = randomPort();
-    const app = createApp(finP2PContract, undefined);
+    const assetCreationPolicy = { type: 'deploy-new-token' } as DeployNewToken;
+    const app = createApp(finP2PContract, assetCreationPolicy, undefined);
     console.log("App created successfully.");
 
     this.httpServer = app.listen(port, () => {
