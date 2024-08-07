@@ -22,7 +22,7 @@ export class RegulationChecker {
         if (reg.name === '') {
           continue;
         }
-        if (!owner.certificates.nodes.find(c => c.type === reg.name)) {
+        if (owner.certificates && !owner.certificates.nodes.find(c => c.type === reg.name)) {
           regulationErrorDetails.push({
             regulationType: reg.name,
             details: `Investor ${finId} is not certified`,
