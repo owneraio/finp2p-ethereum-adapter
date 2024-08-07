@@ -3,6 +3,8 @@ import { FinP2PContract } from '../finp2p-contracts/src/contracts/finp2p';
 import * as process from 'process';
 import createApp from './app';
 import { FinP2PContractConfig, readConfig } from '../finp2p-contracts/src/contracts/config';
+import { RegulationChecker } from './finp2p/regulation';
+import { OssClient } from './finp2p/oss.client';
 
 const init = async () => {
   const port = process.env.PORT || '3000';
@@ -49,7 +51,12 @@ const init = async () => {
   logger.info(`Connecting to ethereum RPC URL: ${config.rpcURL}`);
 
   const finP2PContract = new FinP2PContract(config);
-  const app = createApp(finP2PContract);
+  let regulation: RegulationChecker | undefined;
+  const ossUrl = process.env.OSS_URL;
+  if (ossUrl) {
+    regulation = new RegulationChecker(new OssClient(ossUrl, undefined));
+  }
+  const app = createApp(finP2PContract, regulation);
   app.listen(port, () => {
     logger.info(`listening at http://localhost:${port}`);
   });
