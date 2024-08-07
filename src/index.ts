@@ -5,7 +5,7 @@ import createApp from './app';
 import { FinP2PContractConfig, readConfig } from '../finp2p-contracts/src/contracts/config';
 import { RegulationChecker } from './finp2p/regulation';
 import { OssClient } from './finp2p/oss.client';
-import { DeployNewToken } from './services/tokens';
+import { AssetCreationPolicy, DeployNewToken, ReuseExistingToken } from './services/tokens';
 
 const init = async () => {
   const port = process.env.PORT || '3000';
@@ -57,8 +57,27 @@ const init = async () => {
   if (ossUrl) {
     regulation = new RegulationChecker(new OssClient(ossUrl, undefined));
   }
-  const assetCreationPolicy = { type: 'deploy-new-token' } as DeployNewToken;
-  const app = createApp(finP2PContract, assetCreationPolicy, regulation);
+  
+  let policy: AssetCreationPolicy;
+  switch (process.env.ASSET_CREATION_POLICY || 'deploy-new-token') {
+    case 'deploy-new-token':
+      policy = { type: 'deploy-new-token' } as DeployNewToken;
+      break;
+    case 'reuse-existing-token':
+      logger.debug('Deploying new token that will be reused for asset creation');
+      const tokenAddress = await finP2PContract.
+        deployERC20('ERC-20', 'ERC20', config.finP2PContractAddress);
+      policy = {
+        type: 'reuse-existing-token',
+        tokenAddress,
+      } as ReuseExistingToken;
+      break;
+    default:
+      logger.error('Invalid asset creation policy');
+      process.exit(1);
+  }
+  
+  const app = createApp(finP2PContract, policy, regulation);
   app.listen(port, () => {
     logger.info(`listening at http://localhost:${port}`);
   });
