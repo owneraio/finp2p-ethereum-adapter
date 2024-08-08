@@ -55,6 +55,7 @@ const init = async () => {
   let regulation: RegulationChecker | undefined;
   const ossUrl = process.env.OSS_URL;
   if (ossUrl) {
+    logger.info(`Turning on regulation checks with OSS URL: '${ossUrl}', no auth`);
     regulation = new RegulationChecker(new OssClient(ossUrl, undefined));
   }
   
