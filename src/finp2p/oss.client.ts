@@ -85,7 +85,7 @@ export class OssClient {
     }
 
     const response = await axios.default.post<GraphqlResponse<T>>(
-      this.ossUrl,
+      `${this.ossUrl}/query`,
       {
         query: queryDoc.loc?.source.body,
         variables,
