@@ -86,7 +86,7 @@ export class OssClient {
     }
 
     const response = await axios.default.post<GraphqlResponse<T>>(
-      `${this.ossUrl}/query`,
+      this.ossUrl,
       {
         query: queryDoc.loc?.source.body,
         variables,
@@ -94,7 +94,7 @@ export class OssClient {
       {
         headers,
       });
-    console.log(`Request to ${this.ossUrl}/query`);
+    console.log(`Request to ${this.ossUrl}`);
     console.log(response.data.data);
     return response.data.data;
   }
