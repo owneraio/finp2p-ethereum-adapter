@@ -2,7 +2,6 @@ import { OssClient } from './oss.client';
 import ReceiptOperationErrorInformation = Components.Schemas.ReceiptOperationErrorInformation;
 import RegulationError = Components.Schemas.RegulationError;
 import { logger } from '../helpers/logger';
-import console from 'console';
 
 const RegError = 1;
 
@@ -23,15 +22,15 @@ export class RegulationChecker {
         if (reg.name === '') {
           continue;
         }
-        console.log('Checking regulation', reg.name);
         const found = owner.certificates?.nodes.find(c => c.type.toLowerCase() === reg.name.toLowerCase());
         if (!found) {
+          logger.error(`Investor ${finId} is not certified, requited asset certificate ${reg.name} was not found`);
           regulationErrorDetails.push({
             regulationType: reg.name,
             details: `Investor ${finId} is not certified`,
           } as RegulationError);
         } else {
-          console.log('Found certificate', found);
+          logger.info('Found certificate', found);
         }
       }
       if (regulationErrorDetails.length > 0) {
