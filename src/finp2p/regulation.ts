@@ -24,16 +24,14 @@ export class RegulationChecker {
           continue;
         }
         console.log('Checking regulation', reg.name);
-        if (owner.certificates) {
-          const found = owner.certificates.nodes.find(c => c.type.toLowerCase() === reg.name.toLowerCase());
-          if (!found) {
-            regulationErrorDetails.push({
-              regulationType: reg.name,
-              details: `Investor ${finId} is not certified`,
-            } as RegulationError);
-          } else {
-            console.log('Found certificate', found);
-          }
+        const found = owner.certificates?.nodes.find(c => c.type.toLowerCase() === reg.name.toLowerCase());
+        if (!found) {
+          regulationErrorDetails.push({
+            regulationType: reg.name,
+            details: `Investor ${finId} is not certified`,
+          } as RegulationError);
+        } else {
+          console.log('Found certificate', found);
         }
       }
       if (regulationErrorDetails.length > 0) {
