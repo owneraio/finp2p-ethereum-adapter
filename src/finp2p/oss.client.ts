@@ -38,7 +38,7 @@ export class OssClient {
           }
         }[]
       }
-    }>(GET_OWNERS, { userFilter: { key: 'finIds', operator: 'CONTAINS', value: finId }, includeCerts: false, includeHoldings: true });
+    }>(GET_OWNERS, { userFilter: { key: 'finIds', operator: 'CONTAINS', value: finId }, includeCerts: true, includeHoldings: false });
     return resp.users.nodes[0];
   }
 
