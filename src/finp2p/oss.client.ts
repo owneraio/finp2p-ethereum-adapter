@@ -94,8 +94,6 @@ export class OssClient {
       {
         headers,
       });
-    console.log(`Request to ${this.ossUrl}`);
-    console.log(response.data.data);
     return response.data.data;
   }
 

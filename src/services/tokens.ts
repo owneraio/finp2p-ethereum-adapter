@@ -105,7 +105,7 @@ export class TokenService extends CommonService {
           isCompleted: true,
           error: {
             code: 1,
-            message: e,
+            message: `${e}`,
           },
         } as Components.Schemas.ReceiptOperation;
       }
@@ -157,7 +157,7 @@ export class TokenService extends CommonService {
           isCompleted: true,
           error: {
             code: 1,
-            message: e,
+            message: `${e}`,
           },
         } as Components.Schemas.ReceiptOperation;
       }
@@ -198,7 +198,7 @@ export class TokenService extends CommonService {
           isCompleted: true,
           error: {
             code: 1,
-            message: e,
+            message: `${e}`,
           },
         } as Components.Schemas.ReceiptOperation;
       }
