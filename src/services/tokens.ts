@@ -45,10 +45,14 @@ export class TokenService extends CommonService {
       }
 
       const txHash = await this.finP2PContract.associateAsset(assetId, tokenAddress);
+      // return {
+      //   isCompleted: false,
+      //   cid: txHash,
+      // } as Components.Schemas.EmptyOperation;
+      await this.finP2PContract.waitForCompletion(txHash);
       return {
-        isCompleted: false,
-        cid: txHash,
-      } as Components.Schemas.ReceiptOperation;
+        isCompleted: true,
+      } as Components.Schemas.EmptyOperation;
     } catch (e) {
       logger.error(`Error creating asset: ${e}`);
       if (e instanceof EthereumTransactionError) {
