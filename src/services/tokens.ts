@@ -2,8 +2,29 @@ import { CommonService } from './common';
 import { extractAssetId } from './mapping';
 import { EthereumTransactionError } from '../../finp2p-contracts/src/contracts/model';
 import { logger } from '../helpers/logger';
+import { FinP2PContract } from '../../finp2p-contracts/src/contracts/finp2p';
+import { RegulationChecker } from '../finp2p/regulation';
+
+export type DeployNewToken = {
+  type: 'deploy-new-token';
+};
+export type ReuseExistingToken = {
+  type: 'reuse-existing-token';
+  tokenAddress: string;
+};
+export type AssetCreationPolicy = DeployNewToken | ReuseExistingToken;
 
 export class TokenService extends CommonService {
+
+  assetCreationPolicy: AssetCreationPolicy;
+
+  regulation: RegulationChecker | undefined;
+
+  constructor(finP2PContract: FinP2PContract, assetCreationPolicy: AssetCreationPolicy, regulation: RegulationChecker | undefined) {
+    super(finP2PContract);
+    this.assetCreationPolicy = assetCreationPolicy;
+    this.regulation = regulation;
+  }
 
   public async createAsset(request: Paths.CreateAsset.RequestBody): Promise<Paths.CreateAsset.Responses.$200> {
     const assetId = extractAssetId(request.asset);
@@ -12,14 +33,26 @@ export class TokenService extends CommonService {
     // in a real-world scenario, the token could already deployed in another tokenization application,
     // so we would just associate the assetId with existing token address
     try {
-      const tokenAddress = await this.finP2PContract.deployERC20(assetId, assetId,
-        this.finP2PContract.finP2PContractAddress);
+      let tokenAddress: string;
+      switch (this.assetCreationPolicy.type) {
+        case 'deploy-new-token':
+          tokenAddress = await this.finP2PContract.deployERC20(assetId, assetId,
+            this.finP2PContract.finP2PContractAddress);
+          break;
+        case 'reuse-existing-token':
+          tokenAddress = this.assetCreationPolicy.tokenAddress;
+          break;
+      }
 
       const txHash = await this.finP2PContract.associateAsset(assetId, tokenAddress);
+      // return {
+      //   isCompleted: false,
+      //   cid: txHash,
+      // } as Components.Schemas.EmptyOperation;
+      await this.finP2PContract.waitForCompletion(txHash);
       return {
-        isCompleted: false,
-        cid: txHash,
-      } as Components.Schemas.ReceiptOperation;
+        isCompleted: true,
+      } as Components.Schemas.EmptyOperation;
     } catch (e) {
       logger.error(`Error creating asset: ${e}`);
       if (e instanceof EthereumTransactionError) {
@@ -45,6 +78,15 @@ export class TokenService extends CommonService {
   public async issue(request: Paths.IssueAssets.RequestBody): Promise<Paths.IssueAssets.Responses.$200> {
     const assetId = extractAssetId(request.asset);
     const amount = parseInt(request.quantity);
+    if (this.regulation) {
+      const error = await this.regulation.doRegulationCheck(issuerFinId, assetId);
+      if (error) {
+        return {
+          isCompleted: true,
+          error,
+        } as Components.Schemas.ReceiptOperation;
+      }
+    }
 
     let txHash: string;
     try {
@@ -94,7 +136,7 @@ export class TokenService extends CommonService {
           isCompleted: true,
           error: {
             code: 1,
-            message: e,
+            message: `${e}`,
           },
         } as Components.Schemas.ReceiptOperation;
       }
@@ -114,6 +156,16 @@ export class TokenService extends CommonService {
     const signature = request.signature.signature;
 
     let txHash = '';
+    if (this.regulation) {
+      const error = await this.regulation.doRegulationCheck(destinationFinId, assetId);
+      if (error) {
+        return {
+          isCompleted: true,
+          error,
+        } as Components.Schemas.ReceiptOperation;
+      }
+    }
+
     try {
       switch (request.signature.template.type) {
         case 'hashList': {
@@ -150,7 +202,7 @@ export class TokenService extends CommonService {
           isCompleted: true,
           error: {
             code: 1,
-            message: e,
+            message: `${e}`,
           },
         } as Components.Schemas.ReceiptOperation;
       }
@@ -205,7 +257,7 @@ export class TokenService extends CommonService {
           isCompleted: true,
           error: {
             code: 1,
-            message: e,
+            message: `${e}`,
           },
         } as Components.Schemas.ReceiptOperation;
       }
