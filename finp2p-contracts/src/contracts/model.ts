@@ -12,11 +12,12 @@ export type SuccessfulTransaction = {
 export type FinP2PReceipt = {
   id: string
   assetId: string
-  assetType: "cryptocurrency" | "fiat" | "finp2p"
+  assetType: 'cryptocurrency' | 'fiat' | 'finp2p'
   amount: number
   source?: string
   destination?: string,
-  timestamp: number
+  timestamp: number,
+  operationType: 'transfer' | 'redeem' | 'hold' | 'release' | 'issue'
 };
 
 export type FailedTransaction = {
@@ -28,3 +29,27 @@ export type TransactionError = {
   code: number
   message: string
 };
+
+export class EthereumTransactionError extends Error {
+  constructor(public readonly reason: string) {
+    super(reason);
+  }
+}
+
+export class NonceToHighError extends Error {
+  constructor(public readonly reason: string) {
+    super(reason);
+  }
+}
+
+export const detectError = (e: any) : EthereumTransactionError | NonceToHighError | Error => {
+  if ('code' in e && 'action' in e && 'message' in e && 'reason' in e && 'data' in e) {
+    return new EthereumTransactionError(e.reason);
+  } else if ('code' in e && 'error' in e && 'code' in e.error && 'message' in e.error) {
+    if (e.error.code === -32000 || e.error.message.startsWith('Nonce too high')) {
+      return new NonceToHighError(e.error.message);
+    }
+  }
+  return e;
+};
+

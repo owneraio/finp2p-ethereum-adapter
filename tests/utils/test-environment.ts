@@ -10,6 +10,8 @@ import { ContractsManager } from "../../finp2p-contracts/src/contracts/manager";
 import { AdapterParameters, NetworkDetails, NetworkParameters } from "./models";
 import { randomPort } from "./utils";
 import { addressFromPrivateKey } from "../../finp2p-contracts/src/contracts/utils";
+import { FinP2PDeployerConfig, FinP2PContractConfig } from "../../finp2p-contracts/src/contracts/config";
+import { DeployNewToken } from "../../src/services/tokens";
 
 
 class CustomTestEnvironment extends NodeEnvironment {
@@ -34,8 +36,7 @@ class CustomTestEnvironment extends NodeEnvironment {
     try {
       let details: NetworkDetails;
       if (this.network === undefined || this.network.rpcUrl === undefined) {
-        const container = await this.buildContainer();
-        details = await this.startContainer(container, this.network?.accounts || []);
+        details = await this.startHardhatContainer();
       } else {
         details = this.network;
       }
@@ -43,8 +44,16 @@ class CustomTestEnvironment extends NodeEnvironment {
       const deployer = details.accounts[0];
       const operator = details.accounts[1];
 
-      const contractAddress = await this.deployContract(details.rpcUrl, deployer, addressFromPrivateKey(operator));
-      this.global.serverAddress = await this.startApp(contractAddress, details.rpcUrl, operator);
+      const finP2PContractAddress = await this.deployContract({
+        rpcURL: details.rpcUrl,
+        deployerPrivateKey: deployer,
+        operatorAddress: addressFromPrivateKey(operator),
+      })
+      this.global.serverAddress = await this.startApp({
+        rpcURL: details.rpcUrl,
+        signerPrivateKey: operator,
+        finP2PContractAddress
+      });
 
     } catch (err) {
       console.error("Error starting container:", err);
@@ -61,18 +70,11 @@ class CustomTestEnvironment extends NodeEnvironment {
     }
   }
 
-  private async buildContainer() {
-    console.log("Building hardhat node docker image...");
-    return await GenericContainer
-      .fromDockerfile("./", "Dockerfile-hardhat")
-      .build();
-  }
-
-  private async startContainer(container: GenericContainer, predefinedAccounts: string[]) {
+  private async startHardhatContainer() {
     console.log("Starting hardhat node container...");
     const logExtractor = new HardhatLogExtractor();
     const containerPort = 8545;
-    const startedContainer = await container
+    const startedContainer = await new GenericContainer("ghcr.io/owneraio/hardhat:task-fix-docker-build")
       .withLogConsumer((stream) => logExtractor.consume(stream))
       .withExposedPorts(containerPort)
       .start();
@@ -80,16 +82,11 @@ class CustomTestEnvironment extends NodeEnvironment {
     await logExtractor.started();
     console.log("Hardhat node started successfully.");
 
-    let accounts: string[];
-    if (predefinedAccounts.length > 0) {
-      accounts = predefinedAccounts;
-    } else {
-      accounts = logExtractor.privateKeys;
-    }
-
-    if (accounts.length === 0) {
-      throw new Error("No private keys found");
-    }
+    let accounts = [
+      "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80",
+      "0x5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a",
+      "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d",
+    ];
 
     const rpcHost = startedContainer.getHost();
     const rpcPort = startedContainer.getMappedPort(containerPort).toString();
@@ -99,16 +96,20 @@ class CustomTestEnvironment extends NodeEnvironment {
     return { rpcUrl, accounts } as NetworkDetails;
   }
 
-  private async deployContract(rpcUrl: string, deployer: string, signerAddress: string | null) {
-    const contractManger = new ContractsManager(rpcUrl, deployer);
-    return await contractManger.deployFinP2PContract(signerAddress);
+  private async deployContract(config: FinP2PDeployerConfig) {
+    const contractManger = new ContractsManager({
+      rpcURL: config.rpcURL,
+      signerPrivateKey: config.deployerPrivateKey
+    });
+    return await contractManger.deployFinP2PContract(config.operatorAddress);
   }
 
-  private async startApp(contractAddress: string, rpcUrl: string, signerPrivateKey: string) {
-    const finP2PContract = new FinP2PContract(rpcUrl, signerPrivateKey, contractAddress);
+  private async startApp(config: FinP2PContractConfig) {
+    const finP2PContract = new FinP2PContract(config);
 
     const port = randomPort();
-    const app = createApp(finP2PContract);
+    const assetCreationPolicy = { type: 'deploy-new-token' } as DeployNewToken;
+    const app = createApp(finP2PContract, assetCreationPolicy, undefined);
     console.log("App created successfully.");
 
     this.httpServer = app.listen(port, () => {

@@ -15,7 +15,12 @@ export const register = (app: express.Application,
     res.send('OK');
   });
 
-  app.get('/healthCheck', (req, res) => {
+  app.get('/liveness', (req, res) => {
+    res.send('OK');
+  });
+
+  app.get('/readiness', (req, res) => {
+    // todo: check ethereum connection
     res.send('OK');
   });
 

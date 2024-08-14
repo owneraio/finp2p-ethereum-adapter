@@ -14,6 +14,7 @@ import {
   generateNonce,
   sign, stringToByte16
 } from "./utils";
+import { createAccount } from "../src/contracts/utils";
 
 describe("FinP2P proxy contract test", function() {
   // We define a fixture to reuse the same setup in every test.
@@ -32,14 +33,7 @@ describe("FinP2P proxy contract test", function() {
     return { contract, address };
   }
 
-  async function createAccount() {
-    const account = ethers.Wallet.createRandom();
-    return {
-      address: account.address,
-      privateKey: account.privateKey,
-      finId: privateKeyToFinId(account.privateKey)
-    };
-  }
+
 
   function currentTimeUnix() {
     return Math.floor(new Date().getTime() / 1000);
@@ -93,6 +87,42 @@ describe("FinP2P proxy contract test", function() {
       await contract.redeem(redeeemNonce, assetId, seller.finId, redeemAmount, redeemSttlHash, redeemHash, redeeemSignature, { from: operator });
 
       expect(await contract.getBalance(assetId, seller.finId)).to.equal(0);
+      expect(await contract.getBalance(assetId, buyer.finId)).to.equal(transferAmount);
+    });
+
+    it("transfer without settlement", async function() {
+      const [operator] = await ethers.getSigners();
+      const { contract, address: finP2PAddress } = await loadFixture(deployFinP2PProxyFixture);
+
+      const assetId = `bank-us:102:${uuid()}`;
+
+      const erc20Address = await deployERC20("Tokenized asset owned by bank-us", "AST", finP2PAddress);
+      await contract.associateAsset(assetId, erc20Address, { from: operator });
+
+      const buyer = await createAccount();
+      const seller = await createAccount();
+
+      // -----------------------------
+
+      expect(await contract.getBalance(assetId, seller.finId)).to.equal(0);
+
+      const issueAmountAsset = 1000;
+      await contract.issue(assetId, seller.finId, issueAmountAsset, { from: operator });
+
+      expect(await contract.getBalance(assetId, seller.finId)).to.equal(issueAmountAsset);
+
+      // -----------------------------
+
+      const transferAmount = 50;
+      const transferNonce = generateNonce();
+      const transferAstHash = assetHash(transferNonce, "transfer", "finp2p", assetId, "finId", seller.finId, "finId", buyer.finId, transferAmount);
+      const transferSttlHash =  ethers.encodeBytes32String("");
+      const transferHash = combineHashes([transferAstHash]);
+      const transferSignature = sign(seller.privateKey, transferHash);
+
+      await contract.transfer(transferNonce, assetId, seller.finId, buyer.finId, transferAmount, transferSttlHash, transferHash, transferSignature, { from: operator });
+
+      expect(await contract.getBalance(assetId, seller.finId)).to.equal(issueAmountAsset - transferAmount);
       expect(await contract.getBalance(assetId, buyer.finId)).to.equal(transferAmount);
     });
 

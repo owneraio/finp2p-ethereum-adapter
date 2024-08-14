@@ -78,10 +78,10 @@ library Signature {
                 destFinId,
                 Strings.toString(quantity)
             ));
-        if (settlementHash.length > 0) {
-            return keccak256(abi.encodePacked(assetHash, settlementHash)) == transferHash;
-        } else {
+        if (isEmptyBytes32(settlementHash)) {
             return keccak256(abi.encodePacked(assetHash)) == transferHash;
+        } else {
+            return keccak256(abi.encodePacked(assetHash, settlementHash)) == transferHash;
         }
     }
 
@@ -126,5 +126,10 @@ library Signature {
         }
         return false;
     }
+
+    function isEmptyBytes32(bytes32 value) public pure returns (bool) {
+        return value == bytes32(0);
+    }
+
 
 }

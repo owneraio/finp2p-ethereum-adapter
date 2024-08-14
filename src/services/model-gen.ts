@@ -216,6 +216,10 @@ declare namespace Components {
       source?: Source;
       destination?: /* describes destination for remote operations operations */ Destination;
       transactionDetails?: /* Additional input and output details for UTXO supporting DLTs */ TransactionDetails;
+      /**
+             * The type of the operation, e.g., issue, transfer, hold, release, redeem
+             */
+      operationType?: 'issue' | 'transfer' | 'hold' | 'release' | 'redeem';
     }
     export interface ReceiptOperation {
       /**
@@ -532,6 +536,7 @@ declare namespace Paths {
              *
              */
       Components.Schemas.Nonce;
+      operationId?: string;
       source: Components.Schemas.FinIdAccount;
       /**
              * How many units of the asset tokens
