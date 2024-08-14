@@ -13,6 +13,7 @@ import { addressFromPrivateKey } from "../../finp2p-contracts/src/contracts/util
 import { FinP2PDeployerConfig, FinP2PContractConfig } from "../../finp2p-contracts/src/contracts/config";
 import { DeployNewToken } from "../../src/services/tokens";
 
+const DEFAULT_HASH_TYPE = 1; // EIP712
 
 class CustomTestEnvironment extends NodeEnvironment {
 
@@ -97,11 +98,12 @@ class CustomTestEnvironment extends NodeEnvironment {
   }
 
   private async deployContract(config: FinP2PDeployerConfig) {
+    const { hashType, rpcURL, deployerPrivateKey, operatorAddress} = config;
     const contractManger = new ContractsManager({
-      rpcURL: config.rpcURL,
-      signerPrivateKey: config.deployerPrivateKey
+      rpcURL: rpcURL,
+      signerPrivateKey: deployerPrivateKey
     });
-    return await contractManger.deployFinP2PContract(config.operatorAddress);
+    return await contractManger.deployFinP2PContract(hashType || DEFAULT_HASH_TYPE, operatorAddress);
   }
 
   private async startApp(config: FinP2PContractConfig) {

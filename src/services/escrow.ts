@@ -8,25 +8,35 @@ export class EscrowService extends CommonService {
     logger.debug('hold', { request });
    
     const { operationId, source,
-      destination, nonce, signature } = request;
+      destination, nonce } = request;
 
     const buyerFinId = source.finId;
     const sellerFinId = destination?.finId || '';
 
+    const { signature, template } = request.signature;
+
     let txHash = '';
     try {
-      switch (signature.template.type) {
-        case 'hashList':
-          if (signature.template.hashGroups.length > 0) {
-          }
+      switch (template.type) {
+        case 'hashList': {
+          const assetId = template.hashGroups[0].fields.find((field) => field.name === 'assetId')?.value || '';
+          const amount = parseInt(template.hashGroups[0].fields.find((field) => field.name === 'amount')?.value || '');
+          const settlementAsset = template.hashGroups[1].fields.find((field) => field.name === 'assetId')?.value || '';
+          const settlementAmount = parseInt(template.hashGroups[1].fields.find((field) => field.name === 'amount')?.value || '');
+
+          txHash = await this.finP2PContract.hold(operationId, nonce, assetId, sellerFinId, buyerFinId,
+            amount, settlementAsset, settlementAmount, signature);
+
           break;
-        case 'EIP712':
-          const { asset, settlement } =  signature.template.message;
+        }
+        case 'EIP712': {
+          const { asset, settlement } = template.message;
           const { assetId, amount } = asset.fields;
           const { assetId: settlementAsset, amount: settlementAmount } = settlement.fields;
           txHash = await this.finP2PContract.hold(operationId, nonce, assetId, sellerFinId, buyerFinId,
-            amount, settlementAsset, settlementAmount, signature.signature);
+            amount, settlementAsset, settlementAmount, signature);
           break;
+        }
       }
 
     } catch (e) {

@@ -30,6 +30,10 @@ export class FinP2PContract extends ContractsManager {
     });
   }
 
+  async getHashType() {
+    return this.finP2P.getHashType();
+  }
+
   async eip712Domain() {
     return this.finP2P.eip712Domain();
   }

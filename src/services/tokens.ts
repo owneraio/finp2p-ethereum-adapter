@@ -78,6 +78,7 @@ export class TokenService extends CommonService {
   public async issue(request: Paths.IssueAssets.RequestBody): Promise<Paths.IssueAssets.Responses.$200> {
     const assetId = extractAssetId(request.asset);
     const amount = parseInt(request.quantity);
+
     if (this.regulation) {
       const error = await this.regulation.doRegulationCheck(request.destination.finId, assetId);
       if (error) {
@@ -93,22 +94,29 @@ export class TokenService extends CommonService {
       if (!request.signature || !request.signature.template) {
         txHash = await this.finP2PContract.issueWithoutSignature(assetId, request.destination.finId, amount);
       } else {
-        switch (request.signature.template.type) {
+        const { nonce } = request;
+        const { signature, template } = request.signature;
+
+        switch (template.type) {
           case 'hashList': {
-            txHash = await this.finP2PContract.issueWithoutSignature(assetId, request.destination.finId, amount);
+
+            const buyerFinId = template.hashGroups[1].fields.find((field) => field.name === 'srcAccount')?.value || '';
+            const issuerFinId = template.hashGroups[1].fields.find((field) => field.name === 'dstAccount')?.value || '';
+            const settlementAsset = template.hashGroups[1].fields.find((field) => field.name === 'assetId')?.value || '';
+            const settlementAmount = parseInt(template.hashGroups[1].fields.find((field) => field.name === 'amount')?.value || '');
+            txHash = await this.finP2PContract.issue(nonce, assetId, buyerFinId, issuerFinId, amount,
+              settlementAsset, settlementAmount, signature);
             break;
           }
 
           case 'EIP712': {
-            const { nonce } = request;
             const {
               issuer, buyer,
               settlement,
-            } = request.signature.template.message;
+            } = template.message;
             const { assetId: settlementAsset, amount: settlementAmount } = settlement.fields;
             const buyerFinId = buyer.fields.idkey; // should be equal to request.destination.finId
             const issuerFinId = issuer.fields.idkey;
-            const signature = request.signature.signature;
 
             txHash = await this.finP2PContract.issue(nonce, assetId, buyerFinId, issuerFinId, amount,
               settlementAsset, settlementAmount, signature);
@@ -153,7 +161,6 @@ export class TokenService extends CommonService {
     const sellerFinId = request.source.finId;
     const buyerFinId = request.destination.finId;
     const amount = parseInt(request.quantity);
-    const signature = request.signature.signature;
 
     let txHash = '';
     if (this.regulation) {
@@ -165,17 +172,21 @@ export class TokenService extends CommonService {
         } as Components.Schemas.ReceiptOperation;
       }
     }
+    const { signature, template } = request.signature;
 
     try {
-      switch (request.signature.template.type) {
+      switch (template.type) {
         case 'hashList': {
+          const settlementAsset = template.hashGroups[1].fields.find((field) => field.name === 'assetId')?.value || '';
+          const settlementAmount = parseInt(template.hashGroups[1].fields.find((field) => field.name === 'amount')?.value || '');
+
           txHash = await this.finP2PContract.transfer(nonce, assetId,
-            sellerFinId, buyerFinId, amount, '', 0, signature);
+            sellerFinId, buyerFinId, amount, settlementAsset, settlementAmount, signature);
           break;
         }
 
         case 'EIP712': {
-          const { settlement } = request.signature.template.message;
+          const { settlement } = template.message;
           const { assetId: settlementAsset, amount: settlementAmount } = settlement.fields;
 
           txHash = await this.finP2PContract.transfer(nonce, assetId,
@@ -218,18 +229,24 @@ export class TokenService extends CommonService {
     const assetId = request.asset.resourceId;
     const ownerFinId = request.source.finId;
     const amount = parseInt(request.quantity);
-    const signature = request.signature.signature;
+
+    const { signature, template } = request.signature;
 
     let txHash = '';
     try {
-      switch (request.signature.template.type) {
+      switch (template.type) {
         case 'hashList': {
-          txHash = await this.finP2PContract.redeem(nonce, assetId, ownerFinId, '', amount, '', 0, signature);
+          const buyerFinId = template.hashGroups[1].fields.find((field) => field.name === 'srcAccount')?.value || '';
+          const settlementAsset = template.hashGroups[1].fields.find((field) => field.name === 'assetId')?.value || '';
+          const settlementAmount = parseInt(template.hashGroups[1].fields.find((field) => field.name === 'amount')?.value || '');
+
+          txHash = await this.finP2PContract.redeem(nonce, assetId, ownerFinId, buyerFinId, amount,
+            settlementAsset, settlementAmount, signature);
           break;
         }
 
         case 'EIP712': {
-          const { buyer, settlement } = request.signature.template.message;
+          const { buyer, settlement } = template.message;
           const { assetId: settlementAsset, amount: settlementAmount } = settlement.fields;
           const buyerFinId = buyer.fields.idkey;
           txHash = await this.finP2PContract.redeem(nonce, assetId, ownerFinId, buyerFinId, amount,

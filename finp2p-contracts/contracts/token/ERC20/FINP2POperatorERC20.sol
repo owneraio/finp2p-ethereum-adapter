@@ -41,10 +41,14 @@ contract FINP2POperatorERC20 is IFinP2PAsset, IFinP2PEscrow, AccessControl, FinP
     uint8 private hashType;
 
     constructor(uint8 _hashType) {
+        hashType = _hashType;
         _grantRole(DEFAULT_ADMIN_ROLE, _msgSender());
         _grantRole(ASSET_MANAGER, _msgSender());
         _grantRole(TRANSACTION_MANAGER, _msgSender());
-        hashType = _hashType;
+    }
+
+    function getHashType() public view returns (uint8) {
+        return hashType;
     }
 
     function grantAssetManagerRole(address account) public {
