@@ -4,6 +4,7 @@ import { EthereumTransactionError } from '../../finp2p-contracts/src/contracts/m
 import { logger } from '../helpers/logger';
 import { FinP2PContract } from '../../finp2p-contracts/src/contracts/finp2p';
 import { RegulationChecker } from '../finp2p/regulation';
+import console from 'console';
 
 export type DeployNewToken = {
   type: 'deploy-new-token';
@@ -88,6 +89,9 @@ export class TokenService extends CommonService {
         } as Components.Schemas.ReceiptOperation;
       }
     }
+
+    const supportedHashType = await this.finP2PContract.getHashType();
+    console.log(`Supported hash type: ${supportedHashType}`);
 
     let txHash: string;
     try {

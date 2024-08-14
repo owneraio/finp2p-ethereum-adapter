@@ -52,7 +52,6 @@ export interface SettlementGroup {
   source?: Components.Schemas.Source;
   destination?: Components.Schemas.Destination;
   quantity: number;
-  expiry: number;
 }
 
 const extractIdFromAsset = (asset: Components.Schemas.Asset): string => {
@@ -208,13 +207,6 @@ export const transferSignature = (assetGroup: AssetGroup, settlementGroup: Settl
       type: 'string',
       value: `${settlementGroup.quantity}`,
     });
-    if (settlementGroup.expiry > 0) {
-      settlementFields.push({
-        name: 'expiry',
-        type: 'string',
-        value: `${settlementGroup.expiry}`,
-      });
-    }
 
     let settlementHash = hashFields(settlementFields, hashFunc);
     hashGroups.push({
@@ -228,6 +220,7 @@ export const transferSignature = (assetGroup: AssetGroup, settlementGroup: Settl
   return {
     signature: sign(privateKey, hash),
     template: {
+      type: 'hashList',
       hash: hash.toString('hex'),
       hashGroups: hashGroups,
     } as HashListTemplate,

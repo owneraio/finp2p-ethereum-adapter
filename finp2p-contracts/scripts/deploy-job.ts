@@ -3,8 +3,6 @@ import { ContractsManager } from "../src/contracts/manager";
 import { FinP2PDeployerConfig, readConfig, writeConfig } from "../src/contracts/config";
 import console from "console";
 
-const DEFAULT_HASH_TYPE = 1; // EIP712
-
 const configFromEnv = (): FinP2PDeployerConfig => {
   const rpcURL = process.env.RPC_URL;
   if (!rpcURL) {
@@ -59,7 +57,7 @@ const deploy = async (config: FinP2PDeployerConfig): Promise<FinP2PDeployerConfi
 }> => {
   const { rpcURL, signerPrivateKey, deployerPrivateKey, operatorAddress, paymentAssetCode, hashType } = config;
   const contractManger = new ContractsManager({ rpcURL, signerPrivateKey: deployerPrivateKey });
-  const finP2PContractAddress = await contractManger.deployFinP2PContract(hashType || DEFAULT_HASH_TYPE, operatorAddress, paymentAssetCode);
+  const finP2PContractAddress = await contractManger.deployFinP2PContract(operatorAddress, paymentAssetCode, hashType);
   console.log("Contract deployed successfully. FINP2P_CONTRACT_ADDRESS=", finP2PContractAddress);
   return { rpcURL, deployerPrivateKey, signerPrivateKey, operatorAddress, finP2PContractAddress, paymentAssetCode, hashType };
 };

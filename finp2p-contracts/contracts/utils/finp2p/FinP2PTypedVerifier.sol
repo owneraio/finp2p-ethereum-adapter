@@ -9,10 +9,10 @@ import "./Signature.sol";
 /**
  * @dev Library for FinP2P protocol signature verification.
  */
-contract FinP2PTypedVerifier is EIP712 {
+contract FinP2PSignatureVerifier is EIP712 {
 
-    uint8 public constant HASH_TYPE_HASHLIST = 0;
-    uint8 public constant HASH_TYPE_EIP712 = 1;
+    uint8 public constant HASH_TYPE_HASHLIST = 1;
+    uint8 public constant HASH_TYPE_EIP712 = 2;
 
     string private constant SIGNING_DOMAIN = "FinP2P";
     string private constant SIGNATURE_VERSION = "1";

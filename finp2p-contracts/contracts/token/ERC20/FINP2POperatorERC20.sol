@@ -19,7 +19,7 @@ import "../../utils/finp2p/FinP2PTypedVerifier.sol";
  * It also allows to hold and release tokens in escrow.
  *
  */
-contract FINP2POperatorERC20 is IFinP2PAsset, IFinP2PEscrow, AccessControl, FinP2PTypedVerifier {
+contract FINP2POperatorERC20 is IFinP2PAsset, IFinP2PEscrow, AccessControl, FinP2PSignatureVerifier {
 
     bytes32 private constant ASSET_MANAGER = keccak256("ASSET_MANAGER");
     bytes32 private constant TRANSACTION_MANAGER = keccak256("TRANSACTION_MANAGER");

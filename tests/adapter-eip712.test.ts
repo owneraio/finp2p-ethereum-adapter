@@ -2,16 +2,14 @@ import { ASSET, createCrypto, generateNonce, randomResourceId, transferSignature
 import { APIClient } from "./api/api";
 import { v4 as uuidv4 } from "uuid";
 import {
-  eip712Hash,
   EIP721_ISSUANCE_TYPES, EIP721_REDEEM_TYPES, EIP721_TRANSFER_TYPES,
   EIP721IssuanceMessage, EIP721RedeemMessage,
   EIP721TransferMessage
 } from "../finp2p-contracts/src/contracts/eip721";
 import {  eip721Signature } from "./api/mapper";
-import { set } from "dtsgenerator/dist/jsonPointer";
 
 
-describe(`token service test`, () => {
+describe(`token service test (signature hash type: eip712)`, () => {
 
   let client: APIClient;
   let orgId: string;

@@ -12,6 +12,8 @@ import { ERC20WithOperator, FINP2POperatorERC20 } from '../../typechain-types';
 import { ContractManagerConfig } from './config';
 import { detectError, EthereumTransactionError, NonceToHighError } from './model';
 
+const DEFAULT_HASH_TYPE = 2; // EIP712
+
 export class ContractsManager {
 
   provider: Provider;
@@ -38,7 +40,7 @@ export class ContractsManager {
     return address;
   }
 
-  async deployFinP2PContract(hashType: number, signerAddress: string | undefined, paymentAssetCode: string | undefined = undefined) {
+  async deployFinP2PContract(signerAddress: string | undefined, paymentAssetCode: string | undefined = undefined, hashType: number | undefined = DEFAULT_HASH_TYPE) {
     console.log('Deploying FinP2P contract...');
     const factory = new ContractFactory<any[], FINP2POperatorERC20>(
       FINP2P.abi, FINP2P.bytecode, this.signer,

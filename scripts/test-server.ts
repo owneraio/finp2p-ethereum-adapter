@@ -14,8 +14,6 @@ import { OssClient } from '../src/finp2p/oss.client';
 import { generateAuthorizationHeader } from './utils';
 import { ReuseExistingToken } from '../src/services/tokens';
 
-const DEFAULT_HASH_TYPE = 1; // EIP712
-
 let ethereumNodeContainer: StartedTestContainer | undefined;
 let httpServer: http.Server | undefined;
 
@@ -50,8 +48,8 @@ const deployContract = async (config: FinP2PDeployerConfig) => {
     rpcURL: config.rpcURL,
     signerPrivateKey: config.deployerPrivateKey,
   });
-  const { hashType, operatorAddress } = config;
-  return contractManger.deployFinP2PContract(hashType || DEFAULT_HASH_TYPE, operatorAddress);
+  const { operatorAddress, paymentAssetCode, hashType } = config;
+  return contractManger.deployFinP2PContract(operatorAddress, paymentAssetCode, hashType);
 };
 
 const deployERC20Contract = async (config: FinP2PDeployerConfig, finp2pTokenAddress: string) => {
