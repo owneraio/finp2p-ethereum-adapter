@@ -38,12 +38,12 @@ export class ContractsManager {
     return address;
   }
 
-  async deployFinP2PContract(signerAddress: string | undefined, paymentAssetCode: string | undefined = undefined) {
+  async deployFinP2PContract(hashType: number, signerAddress: string | undefined, paymentAssetCode: string | undefined = undefined) {
     console.log('Deploying FinP2P contract...');
     const factory = new ContractFactory<any[], FINP2POperatorERC20>(
       FINP2P.abi, FINP2P.bytecode, this.signer,
     );
-    const contract = await factory.deploy();
+    const contract = await factory.deploy(hashType);
     await contract.waitForDeployment();
 
     const address = await contract.getAddress();

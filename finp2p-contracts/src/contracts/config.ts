@@ -11,6 +11,7 @@ export type FinP2PDeployerConfig = {
   signerPrivateKey?: string
   operatorAddress: string;
   paymentAssetCode?: string;
+  hashType?: number
 };
 
 export type FinP2PContractConfig = ContractManagerConfig & {

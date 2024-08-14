@@ -3,6 +3,8 @@ import { ContractsManager } from "../src/contracts/manager";
 import console from "console";
 import { FinP2PDeployerConfig } from "../src/contracts/config";
 
+const DEFAULT_HASH_TYPE = 1; // EIP712
+
 const deploy = async (config: FinP2PDeployerConfig) => {
   if (!deployerPrivateKey) {
     throw new Error("DEPLOYER_PRIVATE_KEY is not set");
@@ -12,7 +14,8 @@ const deploy = async (config: FinP2PDeployerConfig) => {
     signerPrivateKey: config.deployerPrivateKey
   });
   console.log('Deploying from env variables...')
-  const finP2PContractAddress = await contractManger.deployFinP2PContract(config.operatorAddress, config.paymentAssetCode);
+  const { hashType, operatorAddress, paymentAssetCode } = config;
+  const finP2PContractAddress = await contractManger.deployFinP2PContract(hashType || DEFAULT_HASH_TYPE, operatorAddress, paymentAssetCode);
   console.log(JSON.stringify({ finP2PContractAddress }));
 };
 
