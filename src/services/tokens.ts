@@ -79,7 +79,7 @@ export class TokenService extends CommonService {
     const assetId = extractAssetId(request.asset);
     const amount = parseInt(request.quantity);
     if (this.regulation) {
-      const error = await this.regulation.doRegulationCheck(issuerFinId, assetId);
+      const error = await this.regulation.doRegulationCheck(request.destination.finId, assetId);
       if (error) {
         return {
           isCompleted: true,
@@ -157,7 +157,7 @@ export class TokenService extends CommonService {
 
     let txHash = '';
     if (this.regulation) {
-      const error = await this.regulation.doRegulationCheck(destinationFinId, assetId);
+      const error = await this.regulation.doRegulationCheck(buyerFinId, assetId);
       if (error) {
         return {
           isCompleted: true,
