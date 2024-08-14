@@ -38,11 +38,13 @@ contract FINP2POperatorERC20 is IFinP2PAsset, IFinP2PEscrow, AccessControl, FinP
 
     mapping(string => Asset) assets;
     mapping(bytes16 => Lock) private locks;
+    uint8 private hashType;
 
-    constructor() {
+    constructor(uint8 _hashType) {
         _grantRole(DEFAULT_ADMIN_ROLE, _msgSender());
         _grantRole(ASSET_MANAGER, _msgSender());
         _grantRole(TRANSACTION_MANAGER, _msgSender());
+        hashType = _hashType;
     }
 
     function grantAssetManagerRole(address account) public {
@@ -124,8 +126,9 @@ contract FINP2POperatorERC20 is IFinP2PAsset, IFinP2PEscrow, AccessControl, FinP
             settlementAsset,
             settlementAmount,
             buyer,
+            hashType,
             signature
-        ), "EIP721 signature is not verified");
+        ), "Signature is not verified");
 
         Asset memory asset = assets[assetId];
         ERC20WithOperator(asset.tokenAddress).mint(issuer, quantity);
@@ -158,8 +161,9 @@ contract FINP2POperatorERC20 is IFinP2PAsset, IFinP2PEscrow, AccessControl, FinP
             settlementAsset,
             settlementAmount,
             seller,
+            hashType,
             signature
-        ), "EIP721 signature is not verified");
+        ), "Signature is not verified");
 
         Asset memory asset = assets[assetId];
         uint256 balance = IERC20(asset.tokenAddress).balanceOf(seller);
@@ -195,6 +199,7 @@ contract FINP2POperatorERC20 is IFinP2PAsset, IFinP2PEscrow, AccessControl, FinP
             settlementAsset,
             settlementAmount,
             owner,
+            hashType,
             signature
         ), "Signature is not verified");
 
@@ -231,8 +236,9 @@ contract FINP2POperatorERC20 is IFinP2PAsset, IFinP2PEscrow, AccessControl, FinP
             settlementAsset,
             settlementAmount,
             buyer,
+            hashType,
             signature
-        ), "EIP721 signature is not verified");
+        ), "Signature is not verified");
 
         require(settlementAmount > 0, "Amount should be greater than zero");
         require(haveAsset(settlementAsset), "Asset not found");

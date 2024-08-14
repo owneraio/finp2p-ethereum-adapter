@@ -20,6 +20,11 @@ import {
 import { getFinId } from "../src/contracts/utils";
 import { Wallet } from "ethers";
 
+const HashTypeHashList = 0;
+const HashTypeEIP712 = 1;
+const hashType = HashTypeEIP712;
+
+
 describe("FinP2P proxy contract test", function() {
   // We define a fixture to reuse the same setup in every test.
   // We use loadFixture to run this setup once, snapshot that state,
@@ -32,7 +37,7 @@ describe("FinP2P proxy contract test", function() {
 
   async function deployFinP2PProxyFixture() {
     const deployer = await ethers.getContractFactory("FINP2POperatorERC20");
-    const contract = await deployer.deploy();
+    const contract = await deployer.deploy(hashType);
     const address = await contract.getAddress();
     return { contract, address };
   }

@@ -11,8 +11,16 @@ import "./Signature.sol";
  */
 contract FinP2PTypedVerifier is EIP712 {
 
+    uint8 public constant HASH_TYPE_HASHLIST = 0;
+    uint8 public constant HASH_TYPE_EIP712 = 1;
+
     string private constant SIGNING_DOMAIN = "FinP2P";
     string private constant SIGNATURE_VERSION = "1";
+
+    bytes private constant ISSUE_ACTION = "issue";
+    bytes private constant REDEEM_ACTION = "redeem";
+    bytes private constant TRANSFER_ACTION = "transfer";
+    bytes private constant DEFAULT_ACCOUNT_TYPE = "finId";
 
     bytes32 private constant FINID_TYPE_HASH = keccak256(
         "FinId(string idkey)"
@@ -45,9 +53,10 @@ contract FinP2PTypedVerifier is EIP712 {
         string memory settlementAsset,
         uint256 settlementAmount,
         address signer,
+        uint8 hashType,
         bytes memory signature
     ) public view returns (bool) {
-        bytes32 hash = hashIssue(nonce, buyer, issuer, assetId, amount, settlementAsset, settlementAmount);
+        bytes32 hash = hashIssue(hashType, nonce, buyer, issuer, assetId, amount, settlementAsset, settlementAmount);
         return Signature.verify(signer, hash, signature);
     }
 
@@ -60,9 +69,10 @@ contract FinP2PTypedVerifier is EIP712 {
         string memory settlementAsset,
         uint256 settlementAmount,
         address signer,
+        uint8 hashType,
         bytes memory signature
     ) public view returns (bool) {
-        bytes32 hash = hashTransfer(nonce, seller, buyer, assetId, amount, settlementAsset, settlementAmount);
+        bytes32 hash = hashTransfer(hashType, nonce, seller, buyer, assetId, amount, settlementAsset, settlementAmount);
         return Signature.verify(signer, hash, signature);
     }
 
@@ -75,9 +85,10 @@ contract FinP2PTypedVerifier is EIP712 {
         string memory settlementAsset,
         uint256 settlementAmount,
         address signer,
+        uint8 hashType,
         bytes memory signature
     ) public view returns (bool) {
-        bytes32 hash = hashRedeem(nonce, owner, buyer, assetId, amount, settlementAsset, settlementAmount);
+        bytes32 hash = hashRedeem(hashType, nonce, owner, buyer, assetId, amount, settlementAsset, settlementAmount);
         return Signature.verify(signer, hash, signature);
     }
 
@@ -98,6 +109,7 @@ contract FinP2PTypedVerifier is EIP712 {
     }
 
     function hashIssue(
+        uint8 hashType,
         string memory nonce,
         string memory buyer,
         string memory issuer,
@@ -106,17 +118,43 @@ contract FinP2PTypedVerifier is EIP712 {
         string memory settlementAsset,
         uint256 settlementAmount
     ) public view returns (bytes32) {
-        return _hashTypedDataV4(keccak256(abi.encode(
-            ISSUE_TYPE_HASH,
-            keccak256(bytes(nonce)),
-            hashFinId(buyer),
-            hashFinId(issuer),
-            hashTerm(assetId, "finp2p", amount),
-            hashTerm(settlementAsset, "fiat", settlementAmount)
-        )));
+        if (hashType == HASH_TYPE_HASHLIST) {
+            return keccak256(abi.encodePacked(
+                keccak256(abi.encodePacked(
+                    nonce,
+                    ISSUE_ACTION,
+                    "finp2p",
+                    assetId,
+                    DEFAULT_ACCOUNT_TYPE,
+                    issuer,
+                    Strings.toString(amount)
+                )),
+                keccak256(abi.encodePacked(
+                    "fiat",
+                    settlementAsset,
+                    DEFAULT_ACCOUNT_TYPE,
+                    buyer,
+                    DEFAULT_ACCOUNT_TYPE,
+                    issuer,
+                    Strings.toString(settlementAmount)
+                ))
+            ));
+        } else if (hashType == HASH_TYPE_EIP712) {
+            return _hashTypedDataV4(keccak256(abi.encode(
+                ISSUE_TYPE_HASH,
+                keccak256(bytes(nonce)),
+                hashFinId(buyer),
+                hashFinId(issuer),
+                hashTerm(assetId, "finp2p", amount),
+                hashTerm(settlementAsset, "fiat", settlementAmount)
+            )));
+        } else {
+            revert("Invalid hash type");
+        }
     }
 
     function hashTransfer(
+        uint8 hashType,
         string memory nonce,
         string memory seller,
         string memory buyer,
@@ -125,17 +163,46 @@ contract FinP2PTypedVerifier is EIP712 {
         string memory settlementAsset,
         uint256 settlementAmount
     ) public view returns (bytes32) {
-        return _hashTypedDataV4(keccak256(abi.encode(
-            TRANSFER_TYPE_HASH,
-            keccak256(bytes(nonce)),
-            hashFinId(seller),
-            hashFinId(buyer),
-            hashTerm(assetId, "finp2p", amount),
-            hashTerm(settlementAsset, "fiat", settlementAmount)
-        )));
+        if (hashType == HASH_TYPE_HASHLIST) {
+            return keccak256(abi.encodePacked(
+                keccak256(abi.encodePacked(
+                    nonce,
+                    TRANSFER_ACTION,
+                    "finp2p",
+                    assetId,
+                    DEFAULT_ACCOUNT_TYPE,
+                    seller,
+                    DEFAULT_ACCOUNT_TYPE,
+                    buyer,
+                    Strings.toString(amount)
+                )),
+                keccak256(abi.encodePacked(
+                    "fiat",
+                    settlementAsset,
+                    DEFAULT_ACCOUNT_TYPE,
+                    buyer,
+                    DEFAULT_ACCOUNT_TYPE,
+                    seller,
+                    Strings.toString(settlementAmount)
+                ))
+            ));
+
+        } else if (hashType == HASH_TYPE_EIP712) {
+            return _hashTypedDataV4(keccak256(abi.encode(
+                TRANSFER_TYPE_HASH,
+                keccak256(bytes(nonce)),
+                hashFinId(seller),
+                hashFinId(buyer),
+                hashTerm(assetId, "finp2p", amount),
+                hashTerm(settlementAsset, "fiat", settlementAmount)
+            )));
+        } else {
+            revert("Invalid hash type");
+        }
     }
 
     function hashRedeem(
+        uint8 hashType,
         string memory nonce,
         string memory owner,
         string memory buyer,
@@ -144,13 +211,39 @@ contract FinP2PTypedVerifier is EIP712 {
         string memory settlementAsset,
         uint256 settlementAmount
     ) public view returns (bytes32) {
-        return _hashTypedDataV4(keccak256(abi.encode(
-            REDEEM_TYPE_HASH,
-            keccak256(bytes(nonce)),
-            hashFinId(owner),
-            hashFinId(buyer),
-            hashTerm(assetId, "finp2p", amount),
-            hashTerm(settlementAsset, "fiat", settlementAmount)
-        )));
+        if (hashType == HASH_TYPE_HASHLIST) {
+            return keccak256(abi.encodePacked(
+                keccak256(abi.encodePacked(
+                    nonce,
+                    REDEEM_ACTION,
+                    "finp2p",
+                    assetId,
+                    DEFAULT_ACCOUNT_TYPE,
+                    owner,
+                    Strings.toString(amount)
+                )),
+                keccak256(abi.encodePacked(
+                    "fiat",
+                    settlementAsset,
+                    DEFAULT_ACCOUNT_TYPE,
+                    buyer,
+                    DEFAULT_ACCOUNT_TYPE,
+                    owner,
+                    Strings.toString(settlementAmount)
+                ))
+            ));
+
+        } else if (hashType == HASH_TYPE_EIP712) {
+            return _hashTypedDataV4(keccak256(abi.encode(
+                REDEEM_TYPE_HASH,
+                keccak256(bytes(nonce)),
+                hashFinId(owner),
+                hashFinId(buyer),
+                hashTerm(assetId, "finp2p", amount),
+                hashTerm(settlementAsset, "fiat", settlementAmount)
+            )));
+        } else {
+            revert("Invalid hash type");
+        }
     }
 }

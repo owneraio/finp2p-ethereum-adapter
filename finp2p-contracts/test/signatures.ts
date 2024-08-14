@@ -15,6 +15,11 @@ import {
 } from "../src/contracts/eip721";
 import { v4 as uuidv4 } from "uuid";
 
+const HashTypeHashList = 0;
+const HashTypeEIP712 = 1;
+const hashType = HashTypeEIP712;
+
+
 describe("Signing test", function() {
   async function deployFinP2PTypedVerifier() {
     const deployer = await ethers.getContractFactory("FinP2PTypedVerifier");
@@ -57,7 +62,8 @@ describe("Signing test", function() {
     const signature = await eip712Sign(chainId, verifyingContract, EIP721_ISSUANCE_TYPES, message, signer);
     const signerAddress = await signer.getAddress();
     expect(eip712Verify(chainId, verifyingContract, EIP721_ISSUANCE_TYPES, message, signerAddress, signature)).to.equal(true);
-    expect(await verifier.verifyPrimarySaleSignature(nonce, buyer, issuer, assetId, amount, settlementAsset, settlementAmount, signerAddress, signature)).to.equal(true);
+    expect(await verifier.verifyPrimarySaleSignature(nonce, buyer, issuer, assetId, amount,
+      settlementAsset, settlementAmount, signerAddress, hashType, signature)).to.equal(true);
   });
 
   it("secondary sale signature", async function() {
@@ -95,7 +101,7 @@ describe("Signing test", function() {
     const signerAddress = await signer.getAddress();
     expect(eip712Verify(chainId, verifyingContract, EIP721_TRANSFER_TYPES, message, signerAddress, signature)).to.equal(true);
     expect(await verifier.verifySecondarySaleSignature(nonce, seller, buyer, assetId, amount, settlementAsset,
-      settlementAmount, signerAddress, signature)).to.equal(true);
+      settlementAmount, signerAddress, hashType, signature)).to.equal(true);
   });
 
   it("redemption signature", async function() {
@@ -133,7 +139,7 @@ describe("Signing test", function() {
     const signerAddress = await signer.getAddress();
     expect(eip712Verify(chainId, verifyingContract, EIP721_REDEEM_TYPES, message, signerAddress, signature)).to.equal(true);
     expect(await verifier.verifyRedemptionSignature(nonce,  owner, buyer, assetId, amount,
-      settlementAsset, settlementAmount, signerAddress, signature)).to.equal(true);
+      settlementAsset, settlementAmount, signerAddress, hashType, signature)).to.equal(true);
   });
 
 });
