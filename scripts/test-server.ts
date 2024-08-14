@@ -9,6 +9,10 @@ import createApp from '../src/app';
 import { addressFromPrivateKey } from '../finp2p-contracts/src/contracts/utils';
 import process from 'process';
 import http from 'http';
+import { RegulationChecker } from '../src/finp2p/regulation';
+import { OssClient } from '../src/finp2p/oss.client';
+import { generateAuthorizationHeader } from './utils';
+import { ReuseExistingToken } from '../src/services/tokens';
 
 let ethereumNodeContainer: StartedTestContainer | undefined;
 let httpServer: http.Server | undefined;
@@ -47,13 +51,27 @@ const deployContract = async (config: FinP2PDeployerConfig) => {
   return contractManger.deployFinP2PContract(config.operatorAddress);
 };
 
-const startApp = async (port: number, config: FinP2PContractConfig) => {
+const deployERC20Contract = async (config: FinP2PDeployerConfig, finp2pTokenAddress: string) => {
+  const contractManger = new ContractsManager({
+    rpcURL: config.rpcURL,
+    signerPrivateKey: config.deployerPrivateKey,
+  });
+  return contractManger.deployERC20('ERC-20', 'ERC20', finp2pTokenAddress);
+};
+
+const startApp = async (port: number, config: FinP2PContractConfig, tokenAddress: string) => {
   const finP2PContract = new FinP2PContract(config);
 
-  const { name, version, chainId, verifyingContract }  = await finP2PContract.eip712Domain();
-  console.log(`EIP721 domain:\n\tdomain: ${name}\n\tversion: ${version}\n\tchainId: ${chainId}\n\tverifyingContract: ${verifyingContract}`);
+  const assetCreationPolicy = {
+    type: 'reuse-existing-token',
+    tokenAddress,
+  } as ReuseExistingToken;
 
-  const app = createApp(finP2PContract);
+  const orgId = 'bank-us';
+  const authTokenResolver = () => { return generateAuthorizationHeader(orgId); };
+  const ossClient = new OssClient(`http://${orgId}.api.local.ownera.io/oss/query`, authTokenResolver);
+  const regChecker = new RegulationChecker(ossClient);
+  const app = createApp(finP2PContract, assetCreationPolicy, regChecker);
   console.log('App created successfully.');
 
   httpServer = app.listen(port, () => {
@@ -75,11 +93,16 @@ const start = async () => {
     deployerPrivateKey: deployer,
     operatorAddress: addressFromPrivateKey(operator),
   });
+  const tokenAddress = await deployERC20Contract({
+    rpcURL: details.rpcUrl,
+    deployerPrivateKey: deployer,
+    operatorAddress: addressFromPrivateKey(operator),
+  }, finP2PContractAddress);
   await startApp(port, {
     rpcURL: details.rpcUrl,
     signerPrivateKey: operator,
     finP2PContractAddress,
-  });
+  }, tokenAddress);
 };
 
 
