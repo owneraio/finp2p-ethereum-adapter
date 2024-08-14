@@ -1,0 +1,58 @@
+query GetOwners(
+    $userFilter: [Filter!],
+    $includeCerts: Boolean = true,
+    $includeHoldings: Boolean = true
+) {
+    users(filter: $userFilter) {
+        nodes {
+            id
+            finIds
+            name
+            organizationId
+            metadata {
+                acl
+            }
+            certificates @include(if: $includeCerts){
+                nodes {
+                    id
+                    type
+                    profileId
+                    data
+                    issuedAt
+                    expiry
+                    providerId
+                    documents {
+                        nodes {
+                            id
+                            name
+                            mimeType
+                            uri
+                        }
+                    }
+                }
+            }
+            holdings @include(if: $includeHoldings) {
+                nodes {
+                    assetType
+                    asset {
+                        ... asset
+                    }
+                    balance
+                }
+            }
+        }
+    }
+}
+
+fragment asset on AssetDetails {
+    __typename
+    ... on Cryptocurrency {
+        symbol
+    }
+    ... on FiatAsset {
+        code
+    }
+    ... on FinP2PAsset {
+        resourceId
+    }
+}

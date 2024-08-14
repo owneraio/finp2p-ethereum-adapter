@@ -1,0 +1,28 @@
+query GetAsset($assetId: String!) {
+    assets(filter: { key: "id", operator: EQ, value: $assetId }) {
+        nodes {
+            id
+            name
+            type
+            organizationId
+            denomination {
+                code
+            }
+            issuerId
+            config
+            allowedIntents
+            regulationVerifiers {
+                id, name, provider
+            }
+            certificates {
+                nodes {
+                    id
+                    profileId
+                    type
+                    data
+                    expiry
+                }
+            }
+        }
+    }
+}
