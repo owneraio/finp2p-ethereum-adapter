@@ -92,8 +92,8 @@ jobs:
       
           ## trivy scan on local images
           trivy image "ghcr.io/owneraio/finp2p-ethereum-adapter:${{ env.IMAGE_TAG }}"
-          trivy image "ghcr.io/owneraio/hardhat:${{ env.IMAGE_TAG }}"
-          trivy image "ghcr.io/owneraio/finp2p-contracts:${{ env.IMAGE_TAG }}"
+#          trivy image "ghcr.io/owneraio/hardhat:${{ env.IMAGE_TAG }}"
+#          trivy image "ghcr.io/owneraio/finp2p-contracts:${{ env.IMAGE_TAG }}"
 
       - name: Adapter Build and push
         uses: docker/build-push-action@v5
