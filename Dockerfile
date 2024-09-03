@@ -15,7 +15,6 @@ FROM base AS builder
 COPY \
     .eslintrc.json \
     package.json \
-    babel.config.js \
     tsconfig.json \
     jest.config.js \
     ./
