@@ -19,12 +19,13 @@ WORKDIR /usr/app/finp2p-contracts
 RUN npm install
 RUN npm run compile
 WORKDIR /usr/app
-RUN npm install
+RUN npm install --only=production
 RUN npm run build
 
 # ------- Release ----------
 FROM base as release
 LABEL org.opencontainers.image.source=https://github.com/owneraio/finp2p-ethereum-adapter
+ENV NODE_ENV=production
 
 COPY --from=builder /usr/app/node_modules ./node_modules
 COPY --from=builder /usr/app/dist ./dist
