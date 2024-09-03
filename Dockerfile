@@ -5,7 +5,7 @@ WORKDIR /usr/app
 FROM base AS prebuild
 
 COPY finp2p-contracts ./finp2p-contracts
-WORKDIR /usr/app/finp2p-contract
+WORKDIR /usr/app/finp2p-contracts
 RUN npm install
 RUN npm run compile
 
@@ -22,15 +22,14 @@ COPY \
 COPY src ./src
 
 COPY --from=prebuild \
-    finp2p-contracts/package.json \
-    finp2p-contracts/package-lock.json \
-    finp2p-contracts/tsconfig.json \
+    /usr/app/finp2p-contracts/package.json \
+    /usr/app/finp2p-contracts/package-lock.json \
+    /usr/app/finp2p-contracts/tsconfig.json \
     ./finp2p-contracts/
-COPY --from=prebuild finp2p-contracts/src ./finp2p-contracts/src
-COPY --from=prebuild finp2p-contracts/artifacts ./finp2p-contracts/artifacts
-COPY --from=prebuild finp2p-contracts/typechain-types ./finp2p-contracts/typechain-types
+COPY --from=prebuild /usr/app/finp2p-contracts/src ./finp2p-contracts/src
+COPY --from=prebuild /usr/app/finp2p-contracts/artifacts ./finp2p-contracts/artifacts
+COPY --from=prebuild /usr/app/finp2p-contracts/typechain-types ./finp2p-contracts/typechain-types
 
-WORKDIR /usr/app
 RUN npm install --omit=dev
 RUN npm install --save typescript
 RUN npm install --save-dev ts-node
