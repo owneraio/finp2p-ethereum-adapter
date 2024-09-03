@@ -80,9 +80,9 @@ jobs:
       - name: Docker build local
         run: |
           ## local build for scanners
-          docker build -t "ghcr.io/owneraio/finp2p-ethereum-adapter:${{ env.IMAGE_TAG }}" -f ./Dockerfile
-          docker build -t "ghcr.io/owneraio/hardhat:${{ env.IMAGE_TAG }}" -f ./Dockerfile-hardhat
-          docker build -t "ghcr.io/owneraio/finp2p-contracts:${{ env.IMAGE_TAG }}" -f ./finp2p-contracts/Dockerfile-migration
+          docker build -t "ghcr.io/owneraio/finp2p-ethereum-adapter:${{ env.IMAGE_TAG }}" -f ./Dockerfile .
+          docker build -t "ghcr.io/owneraio/hardhat:${{ env.IMAGE_TAG }}" -f ./Dockerfile-hardhat .
+          docker build -t "ghcr.io/owneraio/finp2p-contracts:${{ env.IMAGE_TAG }}" -f ./finp2p-contracts/Dockerfile-migration .
       
 
       - name: Trivy scan
