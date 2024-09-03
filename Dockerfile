@@ -29,7 +29,7 @@ COPY --from=prebuild /usr/app/finp2p-contracts/src ./finp2p-contracts/src
 COPY --from=prebuild /usr/app/finp2p-contracts/artifacts ./finp2p-contracts/artifacts
 COPY --from=prebuild /usr/app/finp2p-contracts/typechain-types ./finp2p-contracts/typechain-types
 
-RUN npm install --omit=dev
+RUN npm install --only=prod
 RUN npm install --save typescript
 RUN npm install --save-dev ts-node
 RUN npm install --save-dev @types/node
