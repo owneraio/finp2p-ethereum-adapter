@@ -47,9 +47,10 @@ const init = async () => {
       signerPrivateKey: operatorPrivateKey,
       finP2PContractAddress,
     };
+
+    logger.info(`Connecting to ethereum RPC URL: ${ethereumRPCUrl}`);
   }
 
-  logger.info(`Connecting to ethereum RPC URL: ${config.rpcURL}`);
 
   const finP2PContract = new FinP2PContract(config);
   let regulation: RegulationChecker | undefined;
