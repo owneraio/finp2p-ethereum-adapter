@@ -22,6 +22,8 @@ const init = async () => {
     if (!ethereumRPCUrl) {
       throw new Error('ETHEREUM_RPC_URL is not set');
     }
+    logger.info(`Connecting to ethereum RPC URL: ${ethereumRPCUrl}`);
+
     const ethereumRPCAuth = process.env.NETWORK_AUTH;
     if (ethereumRPCAuth) {
       if (ethereumRPCUrl.startsWith('https://')) {
@@ -48,7 +50,6 @@ const init = async () => {
       finP2PContractAddress,
     };
 
-    logger.info(`Connecting to ethereum RPC URL: ${ethereumRPCUrl}`);
   }
 
 

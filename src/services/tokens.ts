@@ -122,6 +122,9 @@ export class TokenService extends CommonService {
     const sourceFinId = request.source.finId;
     const destinationFinId = request.destination.finId;
     const amount = parseInt(request.quantity);
+
+    console.log(`Transfer request signature template: ${JSON.stringify(request.signature.template)}`);
+
     let settlementHash = '';
     if (request.signature.template.hashGroups.length > 1) {
       settlementHash = request.signature.template.hashGroups[1].hash;
