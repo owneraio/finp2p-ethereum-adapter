@@ -19,7 +19,7 @@ tags:
   - name: escrow
     description: Escrow
   - name: operations
-    description: Opetations
+    description: Operations
 
 paths:
   /plan/approve:
@@ -33,25 +33,14 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              required:
-                - executionPlan
-              properties:
-                executionPlan:
-                  type: object
-                  description: execution plan information
-                  required: [ id ]
-                  properties:
-                    id:
-                      type: string
-                      description: execution plan id
+              $ref: '#/components/schemas/ApproveExecutionPlanRequest'
       responses:
         '200':
           description: successful operation
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/executionPlanApprovalOperation'
+                $ref: '#/components/schemas/ApproveExecutionPlanResponse'
         '400':
           description: Invalid Input
           content: { }
@@ -77,34 +66,14 @@ paths:
         content:
           application/json:
             schema:
-              required:
-                - destination
-                - owner
-                - asset
-              type: object
-              properties:
-                destination:
-                  $ref: '#/components/schemas/destination'
-                owner:
-                  $ref: '#/components/schemas/source'
-                asset:
-                  $ref: '#/components/schemas/depositAsset'
-                amount:
-                  type: string
-                  description: Amount to deposit
-                details:
-                  type: object
-                nonce:
-                  $ref: '#/components/schemas/nonce'
-                signature:
-                  $ref: '#/components/schemas/signature'
+              $ref: '#/components/schemas/DepositInstructionRequest'
       responses:
         '200':
           description: successful operation
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/depositOperation'
+                $ref: '#/components/schemas/DepositInstructionResponse'
         '400':
           description: Invalid Input
           content: { }
@@ -130,35 +99,14 @@ paths:
         content:
           application/json:
             schema:
-              required:
-                - source
-                - destination
-                - quantity
-                - asset
-              type: object
-              properties:
-                source:
-                  $ref: '#/components/schemas/source'
-                destination:
-                  $ref: '#/components/schemas/destination'
-                quantity:
-                  type: string
-                  description: 'How many units of the asset'
-                payoutInstruction:
-                  $ref: '#/components/schemas/payoutInstruction'
-                asset:
-                  $ref: '#/components/schemas/payoutAsset'
-                nonce:
-                  $ref: '#/components/schemas/nonce'
-                signature:
-                  $ref: '#/components/schemas/signature'
+              $ref: '#/components/schemas/PayoutRequest'
       responses:
         '200':
           description: successful operation
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/receiptOperation'
+                $ref: '#/components/schemas/PayoutResponse'
         '400':
           description: Invalid Input
           content: { }
@@ -177,23 +125,14 @@ paths:
         content:
           application/json:
             schema:
-              required:
-                - owner
-                - asset
-              type: object
-              properties:
-                owner:
-                  $ref: '#/components/schemas/source'
-                asset:
-                  $ref: '#/components/schemas/asset'
+              $ref: '#/components/schemas/GetAssetBalanceRequest'
       responses:
         '200':
           description: successful operation
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/balance'
-
+                $ref: '#/components/schemas/GetAssetBalanceResponse'
         '404':
           description: Owner not found
           content: { }
@@ -219,19 +158,14 @@ paths:
         content:
           application/json:
             schema:
-              required:
-                - asset
-              type: object
-              properties:
-                asset:
-                  $ref: '#/components/schemas/asset'
+              $ref: '#/components/schemas/CreateAssetRequest'
       responses:
         '200':
           description: successful operation
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/emptyOperation'
+                $ref: '#/components/schemas/CreateAssetResponse'
         '400':
           description: Invalid Input
           content: { }
@@ -257,38 +191,14 @@ paths:
         content:
           application/json:
             schema:
-              required:
-                - nonce
-                - destination
-                - quantity
-                - asset
-                - settlementRef
-                - signature
-              type: object
-              properties:
-                nonce:
-                  $ref: '#/components/schemas/nonce'
-                destination:
-                  $ref: '#/components/schemas/finIdAccount'
-                quantity:
-                  type: string
-                  description: 'How many units of the asset tokens'
-                asset:
-                  $ref: '#/components/schemas/finp2pAsset'
-                settlementRef:
-                  type: string
-                  description: 'Reference to the corresponding settlement operation'
-                signature:
-                  $ref: '#/components/schemas/signature'
-                executionContext:
-                  $ref: '#/components/schemas/executionContext'
+              $ref: '#/components/schemas/IssueAssetsRequest'
       responses:
         '200':
           description: successful operation
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/receiptOperation'
+                $ref: '#/components/schemas/IssueAssetsResponse'
         '400':
           description: Invalid Input
           content: { }
@@ -314,41 +224,14 @@ paths:
         content:
           application/json:
             schema:
-              required:
-                - nonce
-                - source
-                - quantity
-                - asset
-                - settlementRef
-                - signature
-              type: object
-              properties:
-                nonce:
-                  $ref: '#/components/schemas/nonce'
-                operationId:
-                  type: string
-                  x-go-type-skip-optional-pointer: true
-                source:
-                  $ref: '#/components/schemas/finIdAccount'
-                quantity:
-                  type: string
-                  description: 'How many units of the asset tokens'
-                asset:
-                  $ref: '#/components/schemas/finp2pAsset'
-                settlementRef:
-                  type: string
-                  description: 'Reference to the corresponding payment operation'
-                signature:
-                  $ref: '#/components/schemas/signature'
-                executionContext:
-                  $ref: '#/components/schemas/executionContext'
+              $ref: '#/components/schemas/RedeemAssetsRequest'
       responses:
         '200':
           description: successful operation
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/receiptOperation'
+                $ref: '#/components/schemas/RedeemAssetsResponse'
         '400':
           description: Invalid Input
           content: { }
@@ -374,41 +257,14 @@ paths:
         content:
           application/json:
             schema:
-              required:
-                - nonce
-                - source
-                - destination
-                - quantity
-                - asset
-                - settlementRef
-                - signature
-              type: object
-              properties:
-                nonce:
-                  $ref: '#/components/schemas/nonce'
-                source:
-                  $ref: '#/components/schemas/source'
-                destination:
-                  $ref: '#/components/schemas/destination'
-                quantity:
-                  type: string
-                  description: 'How many units of the asset tokens'
-                asset:
-                  $ref: '#/components/schemas/asset'
-                settlementRef:
-                  type: string
-                  description: 'Reference to the corresponding payment operation'
-                signature:
-                  $ref: '#/components/schemas/signature'
-                executionContext:
-                  $ref: '#/components/schemas/executionContext'
+              $ref: '#/components/schemas/TransferAssetRequest'
       responses:
         '200':
           description: successful operation
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/receiptOperation'
+                $ref: '#/components/schemas/TransferAssetResponse'
         '400':
           description: Invalid Input
           content: { }
@@ -436,8 +292,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/receiptOperation'
-
+                $ref: '#/components/schemas/GetReceiptResponse'
         '404':
           description: Transaction not found
           content: { }
@@ -463,45 +318,14 @@ paths:
         content:
           application/json:
             schema:
-              required:
-                - nonce
-                - operationId
-                - source
-                - quantity
-                - asset
-                - expiry
-                - signature
-              type: object
-              properties:
-                nonce:
-                  $ref: '#/components/schemas/nonce'
-                operationId:
-                  type: string
-                  description: 'Escrow operation id'
-                source:
-                  $ref: '#/components/schemas/source'
-                destination:
-                  $ref: '#/components/schemas/destination'
-                quantity:
-                  type: string
-                  description: 'How many units of the asset tokens'
-                asset:
-                  $ref: '#/components/schemas/asset'
-                expiry:
-                  type: integer
-                  format: uint64
-                  description: 'ttl expiry value indicating the escrow hold time limitation'
-                signature:
-                  $ref: '#/components/schemas/signature'
-                executionContext:
-                  $ref: '#/components/schemas/executionContext'
+              $ref: '#/components/schemas/HoldOperationRequest'
       responses:
         '200':
           description: successful operation
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/receiptOperation'
+                $ref: '#/components/schemas/HoldOperationResponse'
         '400':
           description: Invalid Input
           content: { }
@@ -527,35 +351,14 @@ paths:
         content:
           application/json:
             schema:
-              required:
-                - operationId
-                - source
-                - destination
-                - quantity
-                - asset
-              type: object
-              properties:
-                operationId:
-                  type: string
-                  description: 'Hold operation id'
-                source:
-                  $ref: '#/components/schemas/source'
-                destination:
-                  $ref: '#/components/schemas/destination'
-                quantity:
-                  type: string
-                  description: 'How many units of the asset tokens'
-                asset:
-                  $ref: '#/components/schemas/asset'
-                executionContext:
-                  $ref: '#/components/schemas/executionContext'
+              $ref: '#/components/schemas/ReleaseOperationRequest'
       responses:
         '200':
           description: successful operation
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/receiptOperation'
+                $ref: '#/components/schemas/ReleaseOperationResponse'
         '400':
           description: Invalid Input
           content: { }
@@ -581,32 +384,14 @@ paths:
         content:
           application/json:
             schema:
-              required:
-                - operationId
-                - source
-                - quantity
-                - asset
-              type: object
-              properties:
-                operationId:
-                  type: string
-                  description: 'Hold operation id'
-                source:
-                  $ref: '#/components/schemas/source'
-                quantity:
-                  type: string
-                  description: 'How many units of the asset tokens'
-                asset:
-                  $ref: '#/components/schemas/asset'
-                executionContext:
-                  $ref: '#/components/schemas/executionContext'
+              $ref: '#/components/schemas/RollbackOperationRequest'
       responses:
         '200':
           description: successful operation
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/receiptOperation'
+                $ref: '#/components/schemas/RollbackOperationResponse'
         '400':
           description: Invalid Input
           content: { }
@@ -634,8 +419,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/operationStatus'
-
+                $ref: '#/components/schemas/GetOperationStatusResponse'
         '404':
           description: Transaction not found
           content: { }
@@ -646,6 +430,303 @@ paths:
 
 components:
   schemas:
+    DepositInstructionRequest:
+      type: object
+      required:
+        - destination
+        - owner
+        - asset
+      properties:
+        destination:
+          $ref: '#/components/schemas/destination'
+        owner:
+          $ref: '#/components/schemas/source'
+        asset:
+          $ref: '#/components/schemas/depositAsset'
+        amount:
+          type: string
+          description: Amount to deposit
+        details:
+          type: object
+        nonce:
+          $ref: '#/components/schemas/nonce'
+        signature:
+          $ref: '#/components/schemas/signature'
+
+    DepositInstructionResponse:
+      allOf:
+        - $ref: '#/components/schemas/depositOperation'
+
+    PayoutRequest:
+      type: object
+      required:
+        - source
+        - destination
+        - quantity
+        - asset
+      properties:
+        source:
+          $ref: '#/components/schemas/source'
+        destination:
+          $ref: '#/components/schemas/destination'
+        quantity:
+          type: string
+          description: 'How many units of the asset'
+        payoutInstruction:
+          $ref: '#/components/schemas/payoutInstruction'
+        asset:
+          $ref: '#/components/schemas/payoutAsset'
+        nonce:
+          $ref: '#/components/schemas/nonce'
+        signature:
+          $ref: '#/components/schemas/signature'
+
+    PayoutResponse:
+      allOf:
+        - $ref: '#/components/schemas/receiptOperation'
+
+    GetAssetBalanceRequest:
+      type: object
+      required:
+        - owner
+        - asset
+      properties:
+        owner:
+          $ref: '#/components/schemas/source'
+        asset:
+          $ref: '#/components/schemas/asset'
+
+    GetAssetBalanceResponse:
+      allOf:
+        - $ref: '#/components/schemas/balance'
+
+    CreateAssetRequest:
+      type: object
+      required:
+        - asset
+      properties:
+        asset:
+          $ref: '#/components/schemas/asset'
+        ledgerAssetBinding:
+          $ref: '#/components/schemas/ledgerAssetBinding'
+
+    CreateAssetResponse:
+      allOf:
+        - $ref: '#/components/schemas/OperationBase'
+        - type: object
+          properties:
+            error:
+              $ref: '#/components/schemas/createAssetOperationErrorInformation'
+            response:
+              $ref: '#/components/schemas/assetCreateResponse'
+
+    IssueAssetsRequest:
+      type: object
+      required:
+        - nonce
+        - destination
+        - quantity
+        - asset
+        - settlementRef
+        - signature
+      properties:
+        nonce:
+          $ref: '#/components/schemas/nonce'
+        destination:
+          $ref: '#/components/schemas/finIdAccount'
+        quantity:
+          type: string
+          description: 'How many units of the asset tokens'
+        asset:
+          $ref: '#/components/schemas/finp2pAsset'
+        settlementRef:
+          type: string
+          description: 'Reference to the corresponding settlement operation'
+        signature:
+          $ref: '#/components/schemas/signature'
+        executionContext:
+          $ref: '#/components/schemas/executionContext'
+
+
+    IssueAssetsResponse:
+      allOf:
+        - $ref: '#/components/schemas/receiptOperation'
+
+
+    RedeemAssetsRequest:
+      type: object
+      required:
+        - nonce
+        - source
+        - quantity
+        - asset
+        - settlementRef
+        - signature
+      properties:
+        nonce:
+          $ref: '#/components/schemas/nonce'
+        operationId:
+          type: string
+          x-go-type-skip-optional-pointer: true
+        source:
+          $ref: '#/components/schemas/finIdAccount'
+        quantity:
+          type: string
+          description: 'How many units of the asset tokens'
+        asset:
+          $ref: '#/components/schemas/finp2pAsset'
+        settlementRef:
+          type: string
+          description: 'Reference to the corresponding payment operation'
+        signature:
+          $ref: '#/components/schemas/signature'
+        executionContext:
+          $ref: '#/components/schemas/executionContext'
+
+    RedeemAssetsResponse:
+      allOf:
+        - $ref: '#/components/schemas/receiptOperation'
+
+    TransferAssetRequest:
+      type: object
+      required:
+        - nonce
+        - source
+        - destination
+        - quantity
+        - asset
+        - settlementRef
+        - signature
+      properties:
+        nonce:
+          $ref: '#/components/schemas/nonce'
+        source:
+          $ref: '#/components/schemas/source'
+        destination:
+          $ref: '#/components/schemas/destination'
+        quantity:
+          type: string
+          description: 'How many units of the asset tokens'
+        asset:
+          $ref: '#/components/schemas/asset'
+        settlementRef:
+          type: string
+          description: 'Reference to the corresponding payment operation'
+        signature:
+          $ref: '#/components/schemas/signature'
+        executionContext:
+          $ref: '#/components/schemas/executionContext'
+
+    TransferAssetResponse:
+      allOf:
+        - $ref: '#/components/schemas/receiptOperation'
+
+    GetReceiptResponse:
+      allOf:
+        - $ref: '#/components/schemas/receiptOperation'
+
+    HoldOperationRequest:
+      type: object
+      required:
+        - nonce
+        - operationId
+        - source
+        - quantity
+        - asset
+        - expiry
+        - signature
+      properties:
+        nonce:
+          $ref: '#/components/schemas/nonce'
+        operationId:
+          type: string
+          description: 'Escrow operation id'
+        source:
+          $ref: '#/components/schemas/source'
+        destination:
+          $ref: '#/components/schemas/destination'
+        quantity:
+          type: string
+          description: 'How many units of the asset tokens'
+        asset:
+          $ref: '#/components/schemas/asset'
+        expiry:
+          type: integer
+          format: uint64
+          description: 'ttl expiry value indicating the escrow hold time limitation'
+        signature:
+          $ref: '#/components/schemas/signature'
+        executionContext:
+          $ref: '#/components/schemas/executionContext'
+
+    HoldOperationResponse:
+      allOf:
+        - $ref: '#/components/schemas/receiptOperation'
+
+    ReleaseOperationRequest:
+      type: object
+      required:
+        - operationId
+        - source
+        - destination
+        - quantity
+        - asset
+      properties:
+        operationId:
+          type: string
+          description: 'Hold operation id'
+        source:
+          $ref: '#/components/schemas/source'
+        destination:
+          $ref: '#/components/schemas/destination'
+        quantity:
+          type: string
+          description: 'How many units of the asset tokens'
+        asset:
+          $ref: '#/components/schemas/asset'
+        executionContext:
+          $ref: '#/components/schemas/executionContext'
+
+    ReleaseOperationResponse:
+      allOf:
+        - $ref: '#/components/schemas/receiptOperation'
+
+    RollbackOperationRequest:
+      type: object
+      required:
+        - operationId
+        - source
+        - quantity
+        - asset
+      properties:
+        operationId:
+          type: string
+          description: 'Hold operation id'
+        source:
+          $ref: '#/components/schemas/source'
+        quantity:
+          type: string
+          description: 'How many units of the asset tokens'
+        asset:
+          $ref: '#/components/schemas/asset'
+        executionContext:
+          $ref: '#/components/schemas/executionContext'
+
+    RollbackOperationResponse:
+      allOf:
+        - $ref: '#/components/schemas/receiptOperation'
+
+
+    GetOperationStatusRequest:
+      type: object
+      properties:
+        cid:
+          type: string
+          description: 'correlation id of an operation'
+
+    GetOperationStatusResponse:
+      $ref: '#/components/schemas/operationStatus'
+
     nonce:
       type: string
       description: |
@@ -863,22 +944,9 @@ components:
           type: string
           description: the number of asset tokens
 
-    operationBase:
-      type: object
-      required:
-        - cid
-        - isCompleted
-      properties:
-        cid:
-          type: string
-          description: unique correlation id which identify the operation
-        isCompleted:
-          type: boolean
-          description: flag indicating if the operation completed, if true then error or response must be present (but not both)
-
     receiptOperation:
       allOf:
-        - $ref: '#/components/schemas/operationBase'
+        - $ref: '#/components/schemas/OperationBase'
         - type: object
           properties:
             error:
@@ -888,15 +956,33 @@ components:
 
     emptyOperation:
       allOf:
-        - $ref: '#/components/schemas/operationBase'
+        - $ref: '#/components/schemas/OperationBase'
         - type: object
           properties:
             error:
               $ref: '#/components/schemas/emptyOperationErrorInformation'
 
+    createAssetOperation:
+      allOf:
+        - $ref: '#/components/schemas/OperationBase'
+        - type: object
+          properties:
+            error:
+              $ref: '#/components/schemas/createAssetOperationErrorInformation'
+            response:
+              $ref: '#/components/schemas/assetCreateResponse'
+
+    assetCreateResponse:
+      type: object
+      required:
+        - ledgerAssetInfo
+      properties:
+        ledgerAssetInfo:
+          $ref: '#/components/schemas/ledgerAssetInfo'
+
     depositOperation:
       allOf:
-        - $ref: '#/components/schemas/operationBase'
+        - $ref: '#/components/schemas/OperationBase'
         - type: object
           properties:
             error:
@@ -907,6 +993,15 @@ components:
     depositOperationErrorInformation:
       type: object
       properties: { }
+
+    createAssetOperationErrorInformation:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: uint32
+        message:
+          type: string
 
     emptyOperationErrorInformation:
       type: object
@@ -927,20 +1022,7 @@ components:
         regulationErrorDetails:
           type: array
           items:
-            $ref: '#/components/schemas/regulationError'
-
-    regulationError:
-      type: object
-      required:
-        - regulationType
-        - details
-      properties:
-        regulationType:
-          type: string
-          description: the type of regulation
-        details:
-          type: string
-          description: actionable details of the error
+            $ref: '#/components/schemas/RegulationError'
 
     executionOperationErrorInformation:
       type: object
@@ -960,22 +1042,6 @@ components:
           format: uint32
           description: execution instruction sequence number
 
-    executionPlanApprovalOperation:
-      allOf:
-        - $ref: '#/components/schemas/operationBase'
-        - type: object
-          required: [ approval ]
-          properties:
-            approval:
-              oneOf:
-                - $ref: '#/components/schemas/planApproved'
-                - $ref: '#/components/schemas/planRejected'
-              discriminator:
-                propertyName: status
-                mapping:
-                  approved: '#/components/schemas/planApproved'
-                  rejected: '#/components/schemas/planRejected'
-
     operationStatus:
       type: object
       required:
@@ -984,13 +1050,14 @@ components:
       properties:
         type:
           type: string
-          enum: [ receipt, deposit, empty, approval ]
+          enum: [ receipt, deposit, empty, approval, createAsset ]
         operation:
           oneOf:
+            - $ref: '#/components/schemas/createAssetOperation'
             - $ref: '#/components/schemas/depositOperation'
             - $ref: '#/components/schemas/receiptOperation'
             - $ref: '#/components/schemas/emptyOperation'
-            - $ref: '#/components/schemas/executionPlanApprovalOperation'
+            - $ref: '#/components/schemas/ExecutionPlanApprovalOperation'
 
     signature:
       type: object
@@ -1006,12 +1073,24 @@ components:
           $ref: '#/components/schemas/signatureTemplate'
 
     signatureTemplate:
+      type: object
+      oneOf:
+        - $ref: '#/components/schemas/hashListTemplate'
+        - $ref: '#/components/schemas/EIP712Template'
+      discriminator:
+        propertyName: type
+        mapping:
+          hashList: '#/components/schemas/hashListTemplate'
+          EIP712: '#/components/schemas/EIP712Template'
+
+    hashListTemplate:
       description: 'ordered list of hash groups'
-      required:
-        - hashGroups
-        - hash
+      required: [ type, hashGroups, hash ]
       type: object
       properties:
+        type:
+          type: string
+          enum: [ "hashList" ]
         hashGroups:
           type: array
           items:
@@ -1054,6 +1133,80 @@ components:
           type: string
           description: 'hex representation of the field value'
 
+    EIP712Domain:
+      type: object
+      properties:
+        name:
+          type: string
+        version:
+          type: string
+        chainId:
+          type: integer
+          format: uint64
+        verifyingContract:
+          type: string
+          format: address
+    EIP712TypedValue:
+      type: object
+      oneOf:
+        - type: string
+        - type: integer
+        - type: boolean
+        - type: string
+          format: byte
+        - type: object
+          properties:
+            fields:
+              type: object
+              additionalProperties:
+                $ref: '#/components/schemas/EIP712TypedValue'
+        - type: array
+          items:
+            $ref: '#/components/schemas/EIP712TypedValue'
+    EIP712Types:
+      type: object
+      properties:
+        definitions:
+          type: array
+          items:
+            $ref: '#/components/schemas/EIP712TypeDefinition'
+    EIP712TypeDefinition:
+      type: object
+      properties:
+        name:
+          type: string
+        fields:
+          type: array
+          items:
+            $ref: '#/components/schemas/EIP712FieldDefinition'
+    EIP712FieldDefinition:
+      type: object
+      properties:
+        name:
+          type: string
+        type:
+          type: string
+    EIP712Template:
+      required: [ type, domain, message, primaryType, types, hash ]
+      type: object
+      properties:
+        type:
+          type: string
+          enum: [ "EIP712" ]
+        domain:
+          $ref: '#/components/schemas/EIP712Domain'
+        message:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/EIP712TypedValue'
+        types:
+          $ref: '#/components/schemas/EIP712Types'
+        primaryType:
+          type: string
+        hash:
+          type: string
+          description: 'hex representation of template hash'
+
 
     receipt:
       type: object
@@ -1082,14 +1235,7 @@ components:
         transactionDetails:
           $ref: '#/components/schemas/transactionDetails'
         operationType:
-          type: string
-          description: "The type of the operation, e.g., issue, transfer, hold, release, redeem"
-          enum:
-            - issue
-            - transfer
-            - hold
-            - release
-            - redeem
+          $ref: '#/components/schemas/operationType'
 
     transactionDetails:
       description: Additional input and output details for UTXO supporting DLTs
@@ -1104,7 +1250,112 @@ components:
           type: string
           description: The Operation id
 
-    planApproved:
+    operationType:
+      type: string
+      enum: ['issue', 'transfer', 'hold', 'release', 'redeem']
+
+    ledgerAssetInfo:
+      type: object
+      required: [ledgerTokenId]
+      properties:
+        ledgerTokenId:
+          $ref: '#/components/schemas/ledgerTokenId'
+        ledgerReference:
+          oneOf:
+            - $ref: '#/components/schemas/contractDetails'
+          discriminator:
+            propertyName: type
+            mapping:
+              contractDetails: '#/components/schemas/contractDetails'
+
+    contractDetails:
+      type: object
+      required: [network, address, type]
+      properties:
+        type:
+          type: string
+          description: 'the type of the identifier'
+          enum: [ "contractDetails" ]
+        network:
+          type: string
+          description: 'the network'
+        address:
+          type: string
+          description: 'the address'
+        TokenStandard:
+          type: string
+          description: 'The standard of the token (e.g., ERC20, ERC721)'
+        additionalContractDetails:
+          anyOf:
+            - $ref: '#/components/schemas/finP2PEVMOperatorDetails'
+
+    finP2PEVMOperatorDetails:
+      type: object
+      properties:
+        FinP2POperatorContractAddress:
+          type: string
+          description: 'The FinP2P Operator Contract Address'
+        allowanceRequired:
+          type: boolean
+          description: 'Indicates if allowance is required'
+
+    ledgerAssetBinding:
+      type: object
+      oneOf:
+        - $ref: '#/components/schemas/ledgerTokenId'
+      discriminator:
+        propertyName: type
+        mapping:
+          tokenId: '#/components/schemas/ledgerTokenId'
+
+    ledgerTokenId:
+      type: object
+      required: [ tokenId, type ]
+      properties:
+        type:
+          type: string
+          description: 'the type of the identifier'
+          enum: [ "tokenId" ]
+        tokenId:
+          type: string
+          description: 'the token id binding'
+
+
+    ApproveExecutionPlanRequest:
+      type: object
+      required:
+        - executionPlan
+      properties:
+        executionPlan:
+          type: object
+          description: execution plan information
+          required: [ id ]
+          properties:
+            id:
+              type: string
+              description: execution plan id
+
+    ApproveExecutionPlanResponse:
+      allOf:
+        - $ref: '#/components/schemas/ExecutionPlanApprovalOperation'
+
+    ExecutionPlanApprovalOperation:
+      allOf:
+        - $ref: '#/components/schemas/OperationBase'
+        - type: object
+          required: [ approval ]
+          properties:
+            approval:
+              oneOf:
+                - $ref: '#/components/schemas/PlanApproved'
+                - $ref: '#/components/schemas/PlanRejected'
+              discriminator:
+                propertyName: status
+                mapping:
+                  approved: '#/components/schemas/PlanApproved'
+                  rejected: '#/components/schemas/PlanRejected'
+
+    PlanApproved:
       type: object
       required: [ status ]
       properties:
@@ -1112,7 +1363,7 @@ components:
           type: string
           enum: [ 'approved' ]
 
-    planRejected:
+    PlanRejected:
       type: object
       required: [ status, reason ]
       properties:
@@ -1121,16 +1372,15 @@ components:
           enum: [ 'rejected' ]
         failure:
           oneOf:
-            - $ref: '#/components/schemas/validationFailure'
-            - $ref: '#/components/schemas/regulationFailure'
+            - $ref: '#/components/schemas/ValidationFailure'
+            - $ref: '#/components/schemas/RegulationFailure'
           discriminator:
             propertyName: failureType
             mapping:
-              validationFailure: '#/components/schemas/validationFailure'
-              regulationFailure: '#/components/schemas/regulationFailure'
+              validationFailure: '#/components/schemas/ValidationFailure'
+              regulationFailure: '#/components/schemas/RegulationFailure'
 
-  #   TODO: make it generic, regulation or other error could extend this generic time
-    validationFailure:
+    ValidationFailure:
       type: object
       required:
         - failureType
@@ -1139,7 +1389,7 @@ components:
       properties:
         failureType:
           type: string
-          enum: [ validationFailure ]
+          enum: [ ValidationFailure ]
         code:
           type: integer
           format: uint32
@@ -1147,7 +1397,7 @@ components:
         message:
           type: string
 
-    regulationFailure:
+    RegulationFailure:
       type: object
       required:
         - failureType
@@ -1155,8 +1405,34 @@ components:
       properties:
         failureType:
           type: string
-          enum: [ regulationFailure ]
+          enum: [ RegulationFailure ]
         errors:
           type: array
           items:
-            $ref: '#/components/schemas/regulationError'
+            $ref: '#/components/schemas/RegulationError'
+
+    RegulationError:
+      type: object
+      required:
+        - regulationType
+        - details
+      properties:
+        regulationType:
+          type: string
+          description: the type of regulation
+        details:
+          type: string
+          description: actionable details of the error
+
+    OperationBase:
+      type: object
+      required:
+        - cid
+        - isCompleted
+      properties:
+        cid:
+          type: string
+          description: unique correlation id which identify the operation
+        isCompleted:
+          type: boolean
+          description: flag indicating if the operation completed, if true then error or response must be present (but not both)

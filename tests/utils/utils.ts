@@ -138,8 +138,9 @@ export const transferSignature = (assetGroup: AssetGroup, settlementGroup: Settl
     signature: sign(privateKey, hash),
     template: {
       hash: hash.toString("hex"),
-      hashGroups: hashGroups
-    }
+      hashGroups: hashGroups,
+      type: "hashList"
+    } as Components.Schemas.HashListTemplate
   };
 };
 

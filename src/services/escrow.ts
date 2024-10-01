@@ -2,6 +2,7 @@ import { logger } from '../helpers/logger';
 import { CommonService } from './common';
 import { extractAssetId } from './mapping';
 import { EthereumTransactionError } from '../../finp2p-contracts/src/contracts/model';
+import HashListTemplate = Components.Schemas.HashListTemplate;
 
 export class EscrowService extends CommonService {
 
@@ -14,7 +15,8 @@ export class EscrowService extends CommonService {
     const destinationFinId = request.destination?.finId || '';
     const amount = parseInt(request.quantity);
     const expiry = request.expiry;
-    const assetHash = request.signature.template.hashGroups[0].hash;
+    const hashList = request.signature.template as HashListTemplate
+    const assetHash = hashList.hashGroups[0].hash;
     const hash = request.signature.template.hash;
     const signature = request.signature.signature;
 

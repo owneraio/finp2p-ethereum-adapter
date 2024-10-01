@@ -4,6 +4,10 @@ import { EthereumTransactionError } from '../../finp2p-contracts/src/contracts/m
 import { logger } from '../helpers/logger';
 import { FinP2PContract } from '../../finp2p-contracts/src/contracts/finp2p';
 import { RegulationChecker } from '../finp2p/regulation';
+import HashListTemplate = Components.Schemas.HashListTemplate;
+import LedgerTokenId = Components.Schemas.LedgerTokenId;
+import LedgerAssetInfo = Components.Schemas.LedgerAssetInfo;
+import CreateAssetResponse = Components.Schemas.CreateAssetResponse;
 
 export type DeployNewToken = {
   type: 'deploy-new-token';
@@ -28,31 +32,57 @@ export class TokenService extends CommonService {
 
   public async createAsset(request: Paths.CreateAsset.RequestBody): Promise<Paths.CreateAsset.Responses.$200> {
     const assetId = extractAssetId(request.asset);
-
-    // We do deploy ERC20 here and then associate it with the FinP2P assetId,
-    // in a real-world scenario, the token could already deployed in another tokenization application,
-    // so we would just associate the assetId with existing token address
     try {
-      let tokenAddress: string;
-      switch (this.assetCreationPolicy.type) {
-        case 'deploy-new-token':
-          tokenAddress = await this.finP2PContract.deployERC20(assetId, assetId,
-            this.finP2PContract.finP2PContractAddress);
-          break;
-        case 'reuse-existing-token':
-          tokenAddress = this.assetCreationPolicy.tokenAddress;
-          break;
+
+      if (request.ledgerAssetBinding) {
+        const { tokenId : tokenAddress } = request.ledgerAssetBinding as LedgerTokenId;
+        const txHash = await this.finP2PContract.associateAsset(assetId, tokenAddress);
+        await this.finP2PContract.waitForCompletion(txHash);
+        return {
+          isCompleted: true,
+          cid: txHash,
+          response: {
+            ledgerAssetInfo: {
+              ledgerTokenId: {
+                type: 'tokenId',
+                tokenId: tokenAddress,
+              },
+            } as LedgerAssetInfo
+          }
+        } as CreateAssetResponse;
+
+      } else {
+
+          // We do deploy ERC20 here and then associate it with the FinP2P assetId,
+          // in a real-world scenario, the token could already deployed in another tokenization application,
+          // so we would just associate the assetId with existing token address
+          let tokenAddress: string;
+          switch (this.assetCreationPolicy.type) {
+            case 'deploy-new-token':
+              tokenAddress = await this.finP2PContract.deployERC20(assetId, assetId,
+                this.finP2PContract.finP2PContractAddress);
+              break;
+            case 'reuse-existing-token':
+              tokenAddress = this.assetCreationPolicy.tokenAddress;
+              break;
+          }
+
+          const txHash = await this.finP2PContract.associateAsset(assetId, tokenAddress);
+          await this.finP2PContract.waitForCompletion(txHash);
+          return {
+            isCompleted: true,
+            cid: txHash,
+            response: {
+              ledgerAssetInfo: {
+                ledgerTokenId: {
+                  type: 'tokenId',
+                  tokenId: tokenAddress,
+                },
+              } as LedgerAssetInfo
+            }
+          } as CreateAssetResponse;
       }
 
-      const txHash = await this.finP2PContract.associateAsset(assetId, tokenAddress);
-      // return {
-      //   isCompleted: false,
-      //   cid: txHash,
-      // } as Components.Schemas.EmptyOperation;
-      await this.finP2PContract.waitForCompletion(txHash);
-      return {
-        isCompleted: true,
-      } as Components.Schemas.EmptyOperation;
     } catch (e) {
       logger.error(`Error creating asset: ${e}`);
       if (e instanceof EthereumTransactionError) {
@@ -62,7 +92,7 @@ export class TokenService extends CommonService {
             code: 1,
             message: e.message,
           },
-        } as Components.Schemas.ReceiptOperation;
+        } as CreateAssetResponse;
       } else {
         return {
           isCompleted: true,
@@ -70,9 +100,10 @@ export class TokenService extends CommonService {
             code: 1,
             message: e,
           },
-        } as Components.Schemas.ReceiptOperation;
+        } as Components.Schemas.CreateAssetResponse;
       }
     }
+
   }
 
   public async issue(request: Paths.IssueAssets.RequestBody): Promise<Paths.IssueAssets.Responses.$200> {
@@ -123,8 +154,9 @@ export class TokenService extends CommonService {
     const destinationFinId = request.destination.finId;
     const amount = parseInt(request.quantity);
     let settlementHash = '';
-    if (request.signature.template.hashGroups.length > 1) {
-      settlementHash = request.signature.template.hashGroups[1].hash;
+    const hashList = request.signature.template as HashListTemplate
+    if (hashList.hashGroups.length > 1) {
+      settlementHash = hashList.hashGroups[1].hash;
     }
     const hash = request.signature.template.hash;
     const signature = request.signature.signature;
@@ -176,7 +208,8 @@ export class TokenService extends CommonService {
     const assetId = request.asset.resourceId;
     const finId = request.source.finId;
     const amount = parseInt(request.quantity);
-    const settlementHash = request.signature.template.hashGroups[1].hash;
+    const hashList = request.signature.template as HashListTemplate
+    const settlementHash = hashList.hashGroups[1].hash;
     const hash = request.signature.template.hash;
     const signature = request.signature.signature;
 
