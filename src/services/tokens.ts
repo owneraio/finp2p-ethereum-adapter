@@ -53,22 +53,22 @@ export class TokenService extends CommonService {
 
       } else {
 
-          // We do deploy ERC20 here and then associate it with the FinP2P assetId,
-          // in a real-world scenario, the token could already deployed in another tokenization application,
-          // so we would just associate the assetId with existing token address
-          let tokenAddress: string;
-          switch (this.assetCreationPolicy.type) {
-            case 'deploy-new-token':
-              tokenAddress = await this.finP2PContract.deployERC20(assetId, assetId,
-                this.finP2PContract.finP2PContractAddress);
-              break;
-            case 'reuse-existing-token':
-              tokenAddress = this.assetCreationPolicy.tokenAddress;
-              break;
-          }
+        // We do deploy ERC20 here and then associate it with the FinP2P assetId,
+        // in a real-world scenario, the token could already deployed in another tokenization application,
+        // so we would just associate the assetId with existing token address
+        let tokenAddress: string;
+        switch (this.assetCreationPolicy.type) {
+          case 'deploy-new-token':
+            tokenAddress = await this.finP2PContract.deployERC20(assetId, assetId,
+              this.finP2PContract.finP2PContractAddress);
+            break;
+          case 'reuse-existing-token':
+            tokenAddress = this.assetCreationPolicy.tokenAddress;
+            break;
+        }
 
-          const txHash = await this.finP2PContract.associateAsset(assetId, tokenAddress);
-          await this.finP2PContract.waitForCompletion(txHash);
+        const txHash = await this.finP2PContract.associateAsset(assetId, tokenAddress);
+        await this.finP2PContract.waitForCompletion(txHash);
         return assetCreationResult(txHash, tokenAddress, tokenAddress, this.finP2PContract.finP2PContractAddress);
       }
 

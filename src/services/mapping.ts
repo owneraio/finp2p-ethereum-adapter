@@ -3,6 +3,10 @@ import Asset = Components.Schemas.Asset;
 import Receipt = Components.Schemas.Receipt;
 import LedgerAssetInfo = Components.Schemas.LedgerAssetInfo;
 import CreateAssetResponse = Components.Schemas.CreateAssetResponse;
+import LedgerTokenId = Components.Schemas.LedgerTokenId;
+import ContractDetails = Components.Schemas.ContractDetails;
+import AssetCreateResponse = Components.Schemas.AssetCreateResponse;
+import FinP2PEVMOperatorDetails = Components.Schemas.FinP2PEVMOperatorDetails;
 
 export const extractAssetId = (asset: Components.Schemas.Asset): string => {
   switch (asset.type) {
@@ -84,19 +88,18 @@ export const assetCreationResult = (cid: string, tokenId: string, tokenAddress: 
         ledgerTokenId: {
           type: 'tokenId',
           tokenId: tokenId,
-        },
+        } as LedgerTokenId,
+        ledgerReference: {
+          type: 'contractDetails',
+          network: 'ethereum',
+          address: tokenAddress,
+          TokenStandard: 'TokenStandard_ERC20',
+          additionalContractDetails: {
+            FinP2POperatorContractAddress: finp2pTokenAddress,
+            allowanceRequired: true
+          } as FinP2PEVMOperatorDetails
+        } as ContractDetails
       } as LedgerAssetInfo,
-      ledgerReference: {
-        type: 'contractDetails',
-        network: 'ethereum',
-        address: tokenAddress,
-        TokenStandard: 'TokenStandard_ERC20',
-        additionalContractDetails: {
-          FinP2POperatorContractAddress: finp2pTokenAddress,
-          allowanceRequired: true
-        }
-
-      }
-    }
+    } as AssetCreateResponse
   } as CreateAssetResponse;
 }
