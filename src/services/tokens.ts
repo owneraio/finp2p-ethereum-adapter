@@ -41,7 +41,7 @@ export class TokenService extends CommonService {
             isCompleted: true,
             error: {
               code: 1,
-              message: `Token ${tokenId} dos not exist`,
+              message: `Token ${tokenId} does not exist`,
             },
           } as CreateAssetResponse;
         }
