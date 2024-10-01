@@ -1,13 +1,13 @@
 import { CommonService } from './common';
-import { extractAssetId } from './mapping';
+import { assetCreationResult, extractAssetId } from "./mapping";
 import { EthereumTransactionError } from '../../finp2p-contracts/src/contracts/model';
 import { logger } from '../helpers/logger';
 import { FinP2PContract } from '../../finp2p-contracts/src/contracts/finp2p';
 import { RegulationChecker } from '../finp2p/regulation';
 import HashListTemplate = Components.Schemas.HashListTemplate;
 import LedgerTokenId = Components.Schemas.LedgerTokenId;
-import LedgerAssetInfo = Components.Schemas.LedgerAssetInfo;
 import CreateAssetResponse = Components.Schemas.CreateAssetResponse;
+import { isEthereumAddress } from "../../finp2p-contracts/src/contracts/utils";
 
 export type DeployNewToken = {
   type: 'deploy-new-token';
@@ -35,21 +35,21 @@ export class TokenService extends CommonService {
     try {
 
       if (request.ledgerAssetBinding) {
-        const { tokenId : tokenAddress } = request.ledgerAssetBinding as LedgerTokenId;
+        const { tokenId  } = request.ledgerAssetBinding as LedgerTokenId;
+        if (!isEthereumAddress(tokenId)) {
+          return {
+            isCompleted: true,
+            error: {
+              code: 1,
+              message: `Token ${tokenId} dos not exist`,
+            },
+          } as CreateAssetResponse;
+        }
+        const tokenAddress = tokenId;
         const txHash = await this.finP2PContract.associateAsset(assetId, tokenAddress);
         await this.finP2PContract.waitForCompletion(txHash);
-        return {
-          isCompleted: true,
-          cid: txHash,
-          response: {
-            ledgerAssetInfo: {
-              ledgerTokenId: {
-                type: 'tokenId',
-                tokenId: tokenAddress,
-              },
-            } as LedgerAssetInfo
-          }
-        } as CreateAssetResponse;
+
+        return assetCreationResult(txHash, tokenAddress, tokenAddress, this.finP2PContract.finP2PContractAddress);
 
       } else {
 
@@ -69,18 +69,7 @@ export class TokenService extends CommonService {
 
           const txHash = await this.finP2PContract.associateAsset(assetId, tokenAddress);
           await this.finP2PContract.waitForCompletion(txHash);
-          return {
-            isCompleted: true,
-            cid: txHash,
-            response: {
-              ledgerAssetInfo: {
-                ledgerTokenId: {
-                  type: 'tokenId',
-                  tokenId: tokenAddress,
-                },
-              } as LedgerAssetInfo
-            }
-          } as CreateAssetResponse;
+        return assetCreationResult(txHash, tokenAddress, tokenAddress, this.finP2PContract.finP2PContractAddress);
       }
 
     } catch (e) {

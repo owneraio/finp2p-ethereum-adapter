@@ -1,4 +1,4 @@
-import { Interface, TransactionReceipt, Wallet } from 'ethers';
+import { Interface, isAddress, TransactionReceipt, Wallet } from "ethers";
 import { FinP2PReceipt } from './model';
 import * as secp256k1 from 'secp256k1';
 
@@ -109,4 +109,7 @@ export const stringToByte16 = (str: string): string => {
   return '0x' + Buffer.from(str).slice(0, 16).toString('hex').padEnd(32, '0');
 };
 
+export const isEthereumAddress = (address: string): boolean => {
+  return isAddress(address);
+};
 

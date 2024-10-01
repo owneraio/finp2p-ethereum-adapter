@@ -1,6 +1,8 @@
 import { FinP2PReceipt } from '../../finp2p-contracts/src/contracts/model';
 import Asset = Components.Schemas.Asset;
 import Receipt = Components.Schemas.Receipt;
+import LedgerAssetInfo = Components.Schemas.LedgerAssetInfo;
+import CreateAssetResponse = Components.Schemas.CreateAssetResponse;
 
 export const extractAssetId = (asset: Components.Schemas.Asset): string => {
   switch (asset.type) {
@@ -72,3 +74,29 @@ export const receiptToAPI = (receipt: FinP2PReceipt): Receipt => {
     operationType: receipt.operationType,
   };
 };
+
+export const assetCreationResult = (cid: string, tokenId: string, tokenAddress: string, finp2pTokenAddress: string) => {
+  return {
+    isCompleted: true,
+    cid: cid,
+    response: {
+      ledgerAssetInfo: {
+        ledgerTokenId: {
+          type: 'tokenId',
+          tokenId: tokenId,
+        },
+      } as LedgerAssetInfo,
+      ledgerReference: {
+        type: 'contractDetails',
+        network: 'ethereum',
+        address: tokenAddress,
+        TokenStandard: 'TokenStandard_ERC20',
+        additionalContractDetails: {
+          FinP2POperatorContractAddress: finp2pTokenAddress,
+          allowanceRequired: true
+        }
+
+      }
+    }
+  } as CreateAssetResponse;
+}
