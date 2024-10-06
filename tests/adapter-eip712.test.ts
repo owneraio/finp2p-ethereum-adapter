@@ -363,7 +363,6 @@ describe(`token service test (signature hash type: eip712)`, () => {
         quantity: 10000,
         source: seller,
         destination: buyer,
-        expiry: 6000
       },
       hashFunction,
       buyerCrypto.private
@@ -400,7 +399,6 @@ describe(`token service test (signature hash type: eip712)`, () => {
         quantity: 10000,
         source: seller,
         destination: buyer,
-        expiry: 6000
       },
       hashFunction,
       buyerCrypto.private
