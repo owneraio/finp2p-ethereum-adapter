@@ -48,6 +48,7 @@ export class FinP2PContract extends ContractsManager {
 
   async transfer(nonce: string, assetId: string, sourceFinId: string, destinationFinId: string, quantity: number,
     settlementHash: string, hash: string, signature: string) {
+    console.log('transfer', nonce, assetId, sourceFinId, destinationFinId, quantity, settlementHash, hash, signature);
     let encSettlementHash: string;
     if (settlementHash.length === 0) {
       encSettlementHash = ethers.encodeBytes32String('');
