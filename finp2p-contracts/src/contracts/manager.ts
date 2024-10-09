@@ -140,11 +140,11 @@ export class ContractsManager {
           throw err;
 
         } else if (err instanceof NonceToHighError) {
-          console.log('Nonce too high error, retrying');
+          // console.log('Nonce too high error, retrying');
           this.resetNonce();
           // continuing the loop
         } else if (err instanceof NonceAlreadyBeenUsedError) {
-          console.log('Nonce already been used error, retrying');
+          // console.log('Nonce already been used error, retrying');
           this.resetNonce();
           // continuing the loop
         } else {
