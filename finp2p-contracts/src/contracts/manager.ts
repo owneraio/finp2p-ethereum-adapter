@@ -25,7 +25,7 @@ export class ContractsManager {
   }
 
   async deployERC20(name: string, symbol: string, finP2PContractAddress: string) {
-    console.log("Deploying ERC20 contract...");
+     // console.log("Deploying ERC20 contract...");
     const factory = new ContractFactory<any[], ERC20WithOperator>(
       ERC20.abi,
       ERC20.bytecode,
@@ -34,7 +34,7 @@ export class ContractsManager {
     const contract = await factory.deploy(name, symbol, finP2PContractAddress);
     await contract.waitForDeployment();
     const address = await contract.getAddress();
-    console.log("ERC20 contract deployed successfully at:", address);
+    // console.log("ERC20 contract deployed successfully at:", address);
     return address;
   }
 
