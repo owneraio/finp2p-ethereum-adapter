@@ -56,7 +56,7 @@ export const detectError = (e: any) : EthereumTransactionError | NonceToHighErro
       return new NonceToHighError(e.error.message);
     }
   } else if (`${e}`.includes('nonce has already been used')) {
-      return new NonceAlreadyBeenUsedError(e.error.message);
+      return new NonceAlreadyBeenUsedError(`${e}`);
   }
   return e;
 };
