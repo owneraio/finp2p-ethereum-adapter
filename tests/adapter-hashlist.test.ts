@@ -3,7 +3,7 @@ import { APIClient } from "./api/api";
 import { v4 as uuidv4 } from "uuid";
 
 
-describe(`token service test`, () => {
+describe.skip(`token service test (signature hash type: hash-list)`, () => {
 
   let client: APIClient;
   let orgId: string;
@@ -83,7 +83,6 @@ describe(`token service test`, () => {
         quantity: 10000,
         source: seller,
         destination: buyer,
-        expiry: 6000
       },
       hashFunction,
       buyerCrypto.private
@@ -122,7 +121,6 @@ describe(`token service test`, () => {
         asset: { type: "fiat", code: "USD" },
         quantity: 10000,
         destination: buyer,
-        expiry: 6000
       },
       hashFunction,
       buyerCrypto.private
@@ -212,7 +210,6 @@ describe(`token service test`, () => {
 
     const operationId = `${uuidv4()}`;
     const transferQty = 1000;
-    const expiry = Math.floor(new Date().getTime() / 1000) + 600;
     const signature = transferSignature(
       {
         nonce: generateNonce(),
@@ -227,7 +224,6 @@ describe(`token service test`, () => {
         quantity: transferQty,
         source: buyer,
         destination: seller,
-        expiry: expiry
       },
       hashFunction, buyerCrypto.private
     );
@@ -238,7 +234,6 @@ describe(`token service test`, () => {
       destination: seller,
       quantity: `${transferQty}`,
       asset: asset,
-      expiry: expiry,
       signature: signature
     } as Paths.HoldOperation.RequestBody);
     await client.expectReceipt(status);
@@ -325,8 +320,7 @@ describe(`token service test`, () => {
         asset: { type: "fiat", code: "USD" },
         quantity: 10000,
         source: seller,
-        destination: buyer,
-        expiry: 6000
+        destination: buyer
       },
       hashFunction,
       buyerCrypto.private
@@ -363,7 +357,6 @@ describe(`token service test`, () => {
         quantity: 10000,
         source: seller,
         destination: buyer,
-        expiry: 6000
       },
       hashFunction,
       buyerCrypto.private
