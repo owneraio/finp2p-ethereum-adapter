@@ -136,13 +136,13 @@ export const transferSignature = (assetGroup: AssetGroup, settlementGroup: Settl
   const hash = hashBufferValues(hashes, hashFunc);
   return {
     signature: sign(privateKey, hash),
-    hashFunc: hashFunc,
+    hashFunc: hashFunc as HashFunction,
     template: {
       hash: hash.toString("hex"),
       hashGroups: hashGroups,
       type: "hashList"
     } as Components.Schemas.HashListTemplate
-  };
+  } as Components.Schemas.Signature;
 };
 
 export const hashFields = (fields: Components.Schemas.Field[], hashFunc: string): Buffer => {
