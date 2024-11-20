@@ -136,6 +136,7 @@ export const transferSignature = (assetGroup: AssetGroup, settlementGroup: Settl
   const hash = hashBufferValues(hashes, hashFunc);
   return {
     signature: sign(privateKey, hash),
+    hashFunc: hashFunc,
     template: {
       hash: hash.toString("hex"),
       hashGroups: hashGroups,
