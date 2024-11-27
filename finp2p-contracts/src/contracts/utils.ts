@@ -1,4 +1,4 @@
-import { Interface, isAddress, TransactionReceipt, Wallet } from "ethers";
+import { HDNodeWallet, Interface, TransactionReceipt, Wallet, isAddress } from 'ethers';
 import { FinP2PReceipt } from './model';
 import * as secp256k1 from 'secp256k1';
 
@@ -6,6 +6,10 @@ export const privateKeyToFinId = (privateKey: string): string => {
   const privKeyBuffer = Buffer.from(privateKey.replace('0x', ''), 'hex');
   const pubKeyUInt8Array = secp256k1.publicKeyCreate(privKeyBuffer, true);
   return Buffer.from(pubKeyUInt8Array).toString('hex');
+};
+
+export const getFinId = (wallet: HDNodeWallet): string => {
+  return privateKeyToFinId(wallet.privateKey);
 };
 
 export const createAccount = () => {

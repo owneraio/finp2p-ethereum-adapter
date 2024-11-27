@@ -12,7 +12,8 @@ const deploy = async (config: FinP2PDeployerConfig) => {
     signerPrivateKey: config.deployerPrivateKey
   });
   console.log('Deploying from env variables...')
-  const finP2PContractAddress = await contractManger.deployFinP2PContract(config.operatorAddress, config.paymentAssetCode);
+  const { operatorAddress, paymentAssetCode, hashType } = config;
+  const finP2PContractAddress = await contractManger.deployFinP2PContract(operatorAddress, paymentAssetCode, hashType);
   console.log(JSON.stringify({ finP2PContractAddress }));
 };
 

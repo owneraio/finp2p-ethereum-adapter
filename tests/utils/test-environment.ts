@@ -13,7 +13,6 @@ import { addressFromPrivateKey } from "../../finp2p-contracts/src/contracts/util
 import { FinP2PDeployerConfig, FinP2PContractConfig } from "../../finp2p-contracts/src/contracts/config";
 import { DeployNewToken } from "../../src/services/tokens";
 
-
 class CustomTestEnvironment extends NodeEnvironment {
 
   network: NetworkParameters | undefined;
@@ -43,8 +42,12 @@ class CustomTestEnvironment extends NodeEnvironment {
 
       const deployer = details.accounts[0];
       const operator = details.accounts[1];
+      const hashType = 1; // HashList
+      // const hashType = 2; // EIP712
+
 
       const finP2PContractAddress = await this.deployContract({
+        hashType,
         rpcURL: details.rpcUrl,
         deployerPrivateKey: deployer,
         operatorAddress: addressFromPrivateKey(operator),
@@ -97,11 +100,12 @@ class CustomTestEnvironment extends NodeEnvironment {
   }
 
   private async deployContract(config: FinP2PDeployerConfig) {
+    const { rpcURL, deployerPrivateKey, operatorAddress, paymentAssetCode, hashType} = config;
     const contractManger = new ContractsManager({
-      rpcURL: config.rpcURL,
-      signerPrivateKey: config.deployerPrivateKey
+      rpcURL: rpcURL,
+      signerPrivateKey: deployerPrivateKey
     });
-    return await contractManger.deployFinP2PContract(config.operatorAddress);
+    return await contractManger.deployFinP2PContract(operatorAddress, paymentAssetCode, hashType);
   }
 
   private async startApp(config: FinP2PContractConfig) {
