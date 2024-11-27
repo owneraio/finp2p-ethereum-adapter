@@ -16,7 +16,11 @@ export type ReuseExistingToken = {
   type: 'reuse-existing-token';
   tokenAddress: string;
 };
-export type AssetCreationPolicy = DeployNewToken | ReuseExistingToken;
+export type DeploymentForbidden = {
+  type: 'deployment-forbidden';
+};
+
+export type AssetCreationPolicy = DeployNewToken | ReuseExistingToken | DeploymentForbidden;
 
 export class TokenService extends CommonService {
 
@@ -65,6 +69,14 @@ export class TokenService extends CommonService {
           case 'reuse-existing-token':
             tokenAddress = this.assetCreationPolicy.tokenAddress;
             break;
+          case 'deployment-forbidden':
+            return {
+              isCompleted: true,
+              error: {
+                code: 1,
+                message: 'Creation of new assets is not allowed by the policy',
+              },
+            } as CreateAssetResponse;
         }
 
         const txHash = await this.finP2PContract.associateAsset(assetId, tokenAddress);

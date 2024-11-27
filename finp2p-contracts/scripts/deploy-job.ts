@@ -1,30 +1,31 @@
 import process from "process";
 import { ContractsManager } from "../src/contracts/manager";
-import { FinP2PDeployerConfig, readConfig, writeConfig } from "../src/contracts/config";
+import { FinP2PContractConfig, FinP2PDeployerConfig, readConfig, writeConfig } from "../src/contracts/config";
 import console from "console";
+import fs from "node:fs";
+import { ApiBaseUrl, ChainId } from "@fireblocks/fireblocks-web3-provider";
 
 const configFromEnv = (): FinP2PDeployerConfig => {
-  const rpcURL = process.env.RPC_URL;
-  if (!rpcURL) {
-    throw new Error("RPC_URL is not set");
+  const fbPrivateKeyPath = process.env.FIREBLOCKS_API_PRIVATE_KEY_PATH || "";
+  if (!fbPrivateKeyPath) {
+    throw new Error("FIREBLOCKS_API_PRIVATE_KEY_PATH is not set");
   }
-  const deployerPrivateKey = process.env.DEPLOYER_PRIVATE_KEY;
-  if (!deployerPrivateKey) {
-    throw new Error("DEPLOYER_PRIVATE_KEY is not set");
+  const privateKey = fs.readFileSync(fbPrivateKeyPath, "utf-8");
+  const apiKey = process.env.FIREBLOCKS_API_KEY || "";
+  if (!apiKey) {
+    throw new Error("FIREBLOCKS_API_KEY is not set");
   }
-  const signerPrivateKey = process.env.SIGNER_PRIVATE_KEY;
-  if (!signerPrivateKey) {
-    throw new Error("SIGNER_PRIVATE_KEY is not set");
-  }
+  const chainId = (process.env.FIREBLOCKS_CHAIN_ID || ChainId.MAINNET) as ChainId;
+  const apiBaseUrl = (process.env.FIREBLOCKS_API_BASE_URL || ApiBaseUrl.Production) as ApiBaseUrl
+  const vaultAccountIds = process.env.FIREBLOCKS_VAULT_ACCOUNT_IDS?.split(',').map((id) => parseInt(id)) || [];
   const operatorAddress = process.env.OPERATOR_ADDRESS;
   if (!operatorAddress) {
     throw new Error("OPERATOR_ADDRESS is not set");
   }
-
   const paymentAssetCode = process.env.PAYMENT_ASSET_CODE;
 
   return {
-    rpcURL, deployerPrivateKey, signerPrivateKey, operatorAddress, paymentAssetCode
+    privateKey, apiKey, chainId, apiBaseUrl, vaultAccountIds, operatorAddress, paymentAssetCode
   } as FinP2PDeployerConfig
 }
 
@@ -32,13 +33,12 @@ const isAlreadyDeployed = async (config: FinP2PDeployerConfig & {
   finP2PContractAddress?: string
 }): Promise<FinP2PDeployerConfig> => {
   const {
-    rpcURL, deployerPrivateKey, signerPrivateKey,
-    operatorAddress, finP2PContractAddress, paymentAssetCode, hashType
+    finP2PContractAddress, paymentAssetCode
   } = config;
   if (finP2PContractAddress) {
     console.log(`Checking if contract ${config.finP2PContractAddress} is already deployed...`)
 
-    const contractManger = new ContractsManager({ rpcURL, signerPrivateKey: deployerPrivateKey });
+    const contractManger = new ContractsManager(config);
     if (await contractManger.isFinP2PContractHealthy(finP2PContractAddress)) {
       console.log('Contract already deployed, skipping migration');
       process.exit(0);
@@ -49,17 +49,17 @@ const isAlreadyDeployed = async (config: FinP2PDeployerConfig & {
     console.log('Contract not deployed yet, deploying a new one');
   }
 
-  return { rpcURL, deployerPrivateKey, signerPrivateKey, operatorAddress, paymentAssetCode, hashType };
+  return { paymentAssetCode, ...config };
 };
 
 const deploy = async (config: FinP2PDeployerConfig): Promise<FinP2PDeployerConfig & {
   finP2PContractAddress: string
 }> => {
-  const { rpcURL, signerPrivateKey, deployerPrivateKey, operatorAddress, paymentAssetCode, hashType } = config;
-  const contractManger = new ContractsManager({ rpcURL, signerPrivateKey: deployerPrivateKey });
-  const finP2PContractAddress = await contractManger.deployFinP2PContract(operatorAddress, paymentAssetCode, hashType);
+  const { operatorAddress, paymentAssetCode } = config;
+  const contractManger = new ContractsManager(config);
+  const finP2PContractAddress = await contractManger.deployFinP2PContract(operatorAddress, paymentAssetCode);
   console.log("Contract deployed successfully. FINP2P_CONTRACT_ADDRESS=", finP2PContractAddress);
-  return { rpcURL, deployerPrivateKey, signerPrivateKey, operatorAddress, finP2PContractAddress, paymentAssetCode, hashType };
+  return { finP2PContractAddress, ...config };
 };
 
 const configFile = process.env.CONFIG_FILE;

@@ -1,20 +1,13 @@
 import * as fs from 'fs';
+import { FireblocksProviderConfig } from "@fireblocks/fireblocks-web3-provider/dist/src/types";
 
-export type ContractManagerConfig = {
-  rpcURL: string;
-  signerPrivateKey: string;
-};
-
-export type FinP2PDeployerConfig = {
-  rpcURL: string;
-  deployerPrivateKey: string;
-  signerPrivateKey?: string
+export type FinP2PDeployerConfig = FireblocksProviderConfig & {
   operatorAddress: string;
   paymentAssetCode?: string;
   hashType?: number
 };
 
-export type FinP2PContractConfig = ContractManagerConfig & {
+export type FinP2PContractConfig = FireblocksProviderConfig & {
   finP2PContractAddress: string;
 };
 

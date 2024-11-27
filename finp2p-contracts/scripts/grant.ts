@@ -1,9 +1,9 @@
 import process from "process";
 import { ContractsManager } from "../src/contracts/manager";
-import { ContractManagerConfig } from "../src/contracts/config";
 import console from "console";
+import { FireblocksProviderConfig } from "@fireblocks/fireblocks-web3-provider/dist/src/types";
 
-const grant = async (config: ContractManagerConfig) => {
+const grant = async (config: FireblocksProviderConfig) => {
   if (!deployerPrivateKey) {
     throw new Error("DEPLOYER_PRIVATE_KEY is not set");
   }
@@ -19,11 +19,9 @@ const deployerPrivateKey = process.argv[4] || "";
 const operatorAddress = process.argv[5] || "";
 
 const config = {
-  rpcURL: ethereumRPCUrl,
-  signerPrivateKey: deployerPrivateKey,
   finP2PContractAddress: finp2pContractAddress,
   operatorAddress: operatorAddress,
-} as ContractManagerConfig;
+};
 
 grant(config)
   .then(() => {
