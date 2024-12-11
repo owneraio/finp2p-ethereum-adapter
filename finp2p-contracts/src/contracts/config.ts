@@ -1,15 +1,9 @@
 import * as fs from 'fs';
 import { FireblocksProviderConfig } from "@fireblocks/fireblocks-web3-provider/dist/src/types";
-
-export type FinP2PDeployerConfig = FireblocksProviderConfig & {
-  operatorAddress: string;
-  paymentAssetCode?: string;
-  hashType?: number
-};
-
-export type FinP2PContractConfig = FireblocksProviderConfig & {
-  finP2PContractAddress: string;
-};
+import { FireblocksWeb3Provider } from "@fireblocks/fireblocks-web3-provider";
+import { BrowserProvider, JsonRpcProvider, NonceManager, Wallet } from "ethers";
+import type { Provider } from "ethers/src.ts/providers/provider";
+import type { Signer } from "ethers/src.ts/providers/signer";
 
 
 export const readConfig = async <T>(configPath: string): Promise<T> => {

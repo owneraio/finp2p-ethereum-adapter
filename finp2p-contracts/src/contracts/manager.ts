@@ -1,26 +1,21 @@
 import {
-  BrowserProvider,
-  ContractFactory, ContractTransactionResponse,
+  ContractFactory, ContractTransactionResponse, Provider, Signer
 } from "ethers";
 import FINP2P from '../../artifacts/contracts/token/ERC20/FINP2POperatorERC20.sol/FINP2POperatorERC20.json';
 import ERC20 from '../../artifacts/contracts/token/ERC20/ERC20WithOperator.sol/ERC20WithOperator.json';
 import { ERC20WithOperator, FINP2POperatorERC20 } from '../../typechain-types';
 import { detectError, EthereumTransactionError, NonceAlreadyBeenUsedError, NonceToHighError } from "./model";
-import { FireblocksWeb3Provider } from "@fireblocks/fireblocks-web3-provider";
-import { FireblocksProviderConfig } from "@fireblocks/fireblocks-web3-provider/dist/src/types";
 
 const DEFAULT_HASH_TYPE = 2; // EIP712
 
 export class ContractsManager {
 
-  provider: BrowserProvider;
+  provider: Provider;
+  signer: Signer;
 
-  constructor(config: FireblocksProviderConfig) {
-    const { privateKey, apiKey, chainId, apiBaseUrl, vaultAccountIds } = config;
-    const eip1193Provider = new FireblocksWeb3Provider({
-      privateKey, apiKey, chainId, apiBaseUrl, vaultAccountIds
-    });
-    this.provider = new BrowserProvider(eip1193Provider);
+  constructor(provider: Provider, signer: Signer) {
+    this.provider = provider;
+    this.signer = signer;
   }
 
   async deployERC20(name: string, symbol: string, finP2PContractAddress: string) {
@@ -28,7 +23,7 @@ export class ContractsManager {
     const factory = new ContractFactory<any[], ERC20WithOperator>(
       ERC20.abi,
       ERC20.bytecode,
-      await this.provider.getSigner(),
+      this.signer,
     );
     const contract = await factory.deploy(name, symbol, finP2PContractAddress);
     await contract.waitForDeployment();
@@ -40,7 +35,7 @@ export class ContractsManager {
   async deployFinP2PContract(signerAddress: string | undefined, paymentAssetCode: string | undefined = undefined, hashType: number | undefined = DEFAULT_HASH_TYPE) {
     console.log('Deploying FinP2P contract...');
     const factory = new ContractFactory<any[], FINP2POperatorERC20>(
-      FINP2P.abi, FINP2P.bytecode, await this.provider.getSigner(),
+      FINP2P.abi, FINP2P.bytecode, this.signer,
     );
     const contract = await factory.deploy(hashType);
     await contract.waitForDeployment();
@@ -63,7 +58,7 @@ export class ContractsManager {
   async isFinP2PContractHealthy(finP2PContractAddress: string): Promise<boolean> {
     // console.log(`Check FinP2P contract at ${finP2PContractAddress} on chain`);
     const factory = new ContractFactory<any[], FINP2POperatorERC20>(
-      FINP2P.abi, FINP2P.bytecode, await this.provider.getSigner(),
+      FINP2P.abi, FINP2P.bytecode, this.signer,
     );
     const contract = factory.attach(finP2PContractAddress);
     try {
@@ -93,7 +88,7 @@ export class ContractsManager {
   async grantAssetManagerRole(finP2PContractAddress: string, to: string) {
     console.log(`Granting asset manager role to ${to}...`);
     const factory = new ContractFactory<any[], FINP2POperatorERC20>(
-      FINP2P.abi, FINP2P.bytecode, await this.provider.getSigner(),
+      FINP2P.abi, FINP2P.bytecode, this.signer,
     );
     const contract = factory.attach(finP2PContractAddress);
     const tx = await contract.grantAssetManagerRole(to);
@@ -103,7 +98,7 @@ export class ContractsManager {
   async grantTransactionManagerRole(finP2PContractAddress: string, to: string) {
     console.log(`Granting transaction manager role to ${to}...`);
     const factory = new ContractFactory<any[], FINP2POperatorERC20>(
-      FINP2P.abi, FINP2P.bytecode, await this.provider.getSigner(),
+      FINP2P.abi, FINP2P.bytecode, this.signer,
     );
     const contract = factory.attach(finP2PContractAddress);
     const tx = await contract.grantTransactionManagerRole(to);

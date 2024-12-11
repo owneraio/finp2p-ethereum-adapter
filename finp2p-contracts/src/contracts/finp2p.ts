@@ -1,11 +1,10 @@
-import { ContractFactory, Interface } from 'ethers';
+import { ContractFactory, Interface, Provider, Signer } from "ethers";
 import FINP2P
   from '../../artifacts/contracts/token/ERC20/FINP2POperatorERC20.sol/FINP2POperatorERC20.json';
 import { FINP2POperatorERC20 } from '../../typechain-types';
 import { FinP2PReceipt, OperationStatus } from './model';
 import { parseTransactionReceipt } from './utils';
 import { ContractsManager } from './manager';
-import { FinP2PContractConfig } from './config';
 import console from 'console';
 
 export class FinP2PContract extends ContractsManager {
@@ -16,15 +15,15 @@ export class FinP2PContract extends ContractsManager {
 
   finP2PContractAddress: string;
 
-  constructor(config: FinP2PContractConfig) {
-    super(config);
+  constructor(provider: Provider, signer: Signer, finP2PContractAddress: string) {
+    super(provider, signer);
     const factory = new ContractFactory<any[], FINP2POperatorERC20>(
       FINP2P.abi, FINP2P.bytecode, this.signer,
     );
-    const contract = factory.attach(config.finP2PContractAddress);
+    const contract = factory.attach(finP2PContractAddress);
     this.contractInterface = contract.interface;
     this.finP2P = contract as FINP2POperatorERC20;
-    this.finP2PContractAddress = config.finP2PContractAddress;
+    this.finP2PContractAddress = finP2PContractAddress;
     this.signer.getNonce().then((nonce) => {
       console.log('Syncing nonce:', nonce);
     });

@@ -45,13 +45,9 @@ class CustomTestEnvironment extends NodeEnvironment {
       const operator = details.accounts[1];
 
       const finP2PContractAddress = await this.deployContract({
-        rpcURL: details.rpcUrl,
-        deployerPrivateKey: deployer,
         operatorAddress: addressFromPrivateKey(operator),
       })
       this.global.serverAddress = await this.startApp({
-        rpcURL: details.rpcUrl,
-        signerPrivateKey: operator,
         finP2PContractAddress
       });
 
