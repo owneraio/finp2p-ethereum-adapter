@@ -20,8 +20,8 @@ import {
 import { getFinId } from "../src/contracts/utils";
 import { Wallet } from "ethers";
 
-const HashTypeHashList = 0;
-const HashTypeEIP712 = 1;
+const HashTypeHashList = 1;
+const HashTypeEIP712 = 2;
 const hashType = HashTypeEIP712;
 
 

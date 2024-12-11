@@ -73,6 +73,26 @@ export interface EIP721IssuanceMessage extends EIP721Message {
   settlement: { assetId: string, assetType: string, amount: string }
 }
 
+export const buildIssuanceMessage = (nonce: string, buyer: string, issuer: string, assetId: string, assetType: string, amount: string,
+                                        settlementAsset: string, settlementAssetType: string, settlementAmount: string): EIP721IssuanceMessage => {
+  return {
+    nonce,
+    buyer: { idkey: buyer },
+    issuer: { idkey: issuer },
+    asset: {
+      assetId,
+      assetType,
+      amount
+    },
+    settlement: {
+      assetId: settlementAsset,
+      assetType: settlementAssetType,
+      amount: settlementAmount
+    }
+  };
+}
+
+
 export interface EIP721TransferMessage extends EIP721Message {
   nonce: string,
   buyer: { idkey: string },
@@ -81,12 +101,50 @@ export interface EIP721TransferMessage extends EIP721Message {
   settlement: { assetId: string, assetType: string, amount: string }
 }
 
+export const buildTransferMessage = (nonce: string, seller: string, buyer: string, assetId: string, assetType: string, amount: string,
+                                          settlementAsset: string, settlementAssetType: string, settlementAmount: string): EIP721TransferMessage => {
+  return {
+    nonce,
+    seller: { idkey: seller },
+    buyer: { idkey: buyer },
+    asset: {
+      assetId,
+      assetType,
+      amount
+    },
+    settlement: {
+      assetId: settlementAsset,
+      assetType: settlementAssetType,
+      amount: settlementAmount
+    }
+  };
+}
+
 export interface EIP721RedeemMessage extends EIP721Message {
   nonce: string,
   owner: { idkey: string },
   buyer: { idkey: string },
   asset: { assetId: string, assetType: string, amount: string },
   settlement: { assetId: string, assetType: string, amount: string }
+}
+
+export const buildRedeemMessage = (nonce: string, owner: string, buyer: string, assetId: string, assetType: string, amount: string,
+                                        settlementAsset: string, settlementAssetType: string, settlementAmount: string): EIP721RedeemMessage => {
+  return {
+    nonce,
+    owner: { idkey: owner },
+    buyer: { idkey: buyer },
+    asset: {
+      assetId,
+      assetType,
+      amount
+    },
+    settlement: {
+      assetId: settlementAsset,
+      assetType: settlementAssetType,
+      amount: settlementAmount
+    }
+  };
 }
 
 export const eip712SignWithPrivateKey = <T extends EIP721Message>(chainId: number, verifyingContract: string, types: Record<string, Array<TypedDataField>>, message: T, signerPrivateKey: string) => {

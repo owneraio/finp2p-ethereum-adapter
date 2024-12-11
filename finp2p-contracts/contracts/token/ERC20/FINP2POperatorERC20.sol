@@ -9,7 +9,7 @@ import "../../utils/finp2p/IFinP2PEscrow.sol";
 import "../../utils/finp2p/Signature.sol";
 import "../../utils/finp2p/Bytes.sol";
 import "@openzeppelin/contracts/access/AccessControl.sol";
-import "../../utils/finp2p/FinP2PTypedVerifier.sol";
+import "../../utils/finp2p/FinP2PSignatureVerifier.sol";
 
 /**
  * @dev FINP2POperatorERC20

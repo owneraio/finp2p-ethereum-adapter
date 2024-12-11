@@ -7,6 +7,8 @@ import LedgerTokenId = Components.Schemas.LedgerTokenId;
 import ContractDetails = Components.Schemas.ContractDetails;
 import AssetCreateResponse = Components.Schemas.AssetCreateResponse;
 import FinP2PEVMOperatorDetails = Components.Schemas.FinP2PEVMOperatorDetails;
+import Signature = Components.Schemas.Signature;
+import SignatureTemplate = Components.Schemas.SignatureTemplate;
 
 export const extractAssetId = (asset: Components.Schemas.Asset): string => {
   switch (asset.type) {
@@ -102,4 +104,109 @@ export const assetCreationResult = (cid: string, tokenId: string, tokenAddress: 
       } as LedgerAssetInfo,
     } as AssetCreateResponse
   } as CreateAssetResponse;
+}
+
+
+export const failedAssetCreation = (code: number, message: string) => {
+  return {
+    isCompleted: true,
+    error: { code, message }
+  } as Components.Schemas.CreateAssetResponse
+}
+
+export const failedTransaction = (code: number, message: string) => {
+  return {
+    isCompleted: true,
+    error: { code, message }
+  } as Components.Schemas.ReceiptOperation
+}
+
+export const issueParameterFromTemplate = (template: SignatureTemplate) : {
+  buyerFinId: string
+  issuerFinId: string
+  settlementAsset: string
+  settlementAmount: number
+} => {
+  switch (template.type) {
+    case 'hashList':
+      return {
+        buyerFinId: template.hashGroups[1].fields.find((field) => field.name === 'srcAccount')?.value || '',
+        issuerFinId: template.hashGroups[1].fields.find((field) => field.name === 'dstAccount')?.value || '',
+        settlementAsset: template.hashGroups[1].fields.find((field) => field.name === 'assetId')?.value || '',
+        settlementAmount: parseInt(template.hashGroups[1].fields.find((field) => field.name === 'amount')?.value || '')
+      }
+
+    case 'EIP712':
+      const {buyer, issuer, settlement} = template.message;
+      return {
+        buyerFinId: buyer.fields.idkey,
+        issuerFinId: issuer.fields.idkey,
+        settlementAsset: settlement.fields.assetId,
+        settlementAmount: settlement.fields.amount
+      }
+    default:
+      throw new Error(`Unsupported signature template type: ${template}`);
+  }
+}
+
+export const transferParameterFromTemplate = (template: SignatureTemplate): {
+  buyerFinId: string
+  sellerFinId: string
+  settlementAsset: string
+  settlementAmount: number
+} => {
+  switch (template.type) {
+    case 'hashList': {
+      return {
+        buyerFinId: template.hashGroups[0].fields.find((field) => field.name === 'dstAccount')?.value || '',
+        sellerFinId: template.hashGroups[0].fields.find((field) => field.name === 'srcAccount')?.value || '',
+        settlementAsset: template.hashGroups[1].fields.find((field) => field.name === 'assetId')?.value || '',
+        settlementAmount: parseInt(template.hashGroups[1].fields.find((field) => field.name === 'amount')?.value || '')
+      };
+    }
+
+    case 'EIP712': {
+      const {buyer, seller, settlement} = template.message;
+      return {
+        buyerFinId: buyer.fields.idkey,
+        sellerFinId: seller.fields.idkey,
+        settlementAsset: settlement.fields.assetId,
+        settlementAmount: settlement.fields.amount
+      }
+    }
+
+    default:
+      throw new Error(`Unsupported signature template type: ${template}`);
+  }
+}
+
+export const redeemParameterFromTemplate = (template: SignatureTemplate): {
+  buyerFinId: string
+  ownerFinId: string
+  settlementAsset: string
+  settlementAmount: number
+} => {
+  switch (template.type) {
+    case 'hashList': {
+      return {
+        buyerFinId: template.hashGroups[0].fields.find((field) => field.name === 'dstAccount')?.value || '',
+        ownerFinId: template.hashGroups[0].fields.find((field) => field.name === 'srcAccount')?.value || '',
+        settlementAsset: template.hashGroups[1].fields.find((field) => field.name === 'assetId')?.value || '',
+        settlementAmount: parseInt(template.hashGroups[1].fields.find((field) => field.name === 'amount')?.value || '')
+      };
+    }
+
+    case 'EIP712': {
+      const {buyer, owner, settlement} = template.message;
+      return {
+        buyerFinId: buyer.fields.idkey,
+        ownerFinId: owner.fields.idkey,
+        settlementAsset: settlement.fields.assetId,
+        settlementAmount: settlement.fields.amount
+      }
+    }
+
+    default:
+      throw new Error(`Unsupported signature template type: ${template}`);
+  }
 }

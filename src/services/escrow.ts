@@ -1,6 +1,7 @@
 import { logger } from '../helpers/logger';
 import { CommonService } from './common';
 import { EthereumTransactionError } from '../../finp2p-contracts/src/contracts/model';
+import { failedTransaction } from "./mapping";
 
 export class EscrowService extends CommonService {
 
@@ -42,21 +43,10 @@ export class EscrowService extends CommonService {
     } catch (e) {
       logger.error(`Error asset hold: ${e}`);
       if (e instanceof EthereumTransactionError) {
-        return {
-          isCompleted: true,
-          error: {
-            code: 1,
-            message: e.message,
-          },
-        } as Components.Schemas.ReceiptOperation;
+        return failedTransaction(1, e.message);
+
       } else {
-        return {
-          isCompleted: true,
-          error: {
-            code: 1,
-            message: e,
-          },
-        } as Components.Schemas.ReceiptOperation;
+        return failedTransaction(1, `${e}`);
       }
     }
     return {
@@ -81,21 +71,9 @@ export class EscrowService extends CommonService {
     }  catch (e) {
       logger.error(`Error releasing asset: ${e}`);
       if (e instanceof EthereumTransactionError) {
-        return {
-          isCompleted: true,
-          error: {
-            code: 1,
-            message: e.message,
-          },
-        } as Components.Schemas.ReceiptOperation;
+        return failedTransaction(1, e.message);
       } else {
-        return {
-          isCompleted: true,
-          error: {
-            code: 1,
-            message: e,
-          },
-        } as Components.Schemas.ReceiptOperation;
+        return failedTransaction(1, `${e}`);
       }
     }
   }
@@ -114,21 +92,10 @@ export class EscrowService extends CommonService {
     } catch (e) {
       logger.error(`Error rolling-back asset: ${e}`);
       if (e instanceof EthereumTransactionError) {
-        return {
-          isCompleted: true,
-          error: {
-            code: 1,
-            message: e.message,
-          },
-        } as Components.Schemas.ReceiptOperation;
+        return failedTransaction(1, e.message);
+
       } else {
-        return {
-          isCompleted: true,
-          error: {
-            code: 1,
-            message: e,
-          },
-        } as Components.Schemas.ReceiptOperation;
+        return failedTransaction(1, `${e}`);
       }
     }
   }

@@ -1,5 +1,11 @@
 import { CommonService } from './common';
-import { assetCreationResult, extractAssetId } from "./mapping";
+import {
+  assetCreationResult,
+  extractAssetId,
+  failedAssetCreation,
+  failedTransaction,
+  issueParameterFromTemplate, redeemParameterFromTemplate, transferParameterFromTemplate
+} from "./mapping";
 import { EthereumTransactionError } from '../../finp2p-contracts/src/contracts/model';
 import { logger } from '../helpers/logger';
 import { FinP2PContract } from '../../finp2p-contracts/src/contracts/finp2p';
@@ -91,21 +97,10 @@ export class TokenService extends CommonService {
     } catch (e) {
       logger.error(`Error creating asset: ${e}`);
       if (e instanceof EthereumTransactionError) {
-        return {
-          isCompleted: true,
-          error: {
-            code: 1,
-            message: e.message,
-          },
-        } as CreateAssetResponse;
+        return failedAssetCreation(1, e.message);
+
       } else {
-        return {
-          isCompleted: true,
-          error: {
-            code: 1,
-            message: e,
-          },
-        } as Components.Schemas.CreateAssetResponse;
+        return failedAssetCreation(1, `${e}`);
       }
     }
 
@@ -135,57 +130,18 @@ export class TokenService extends CommonService {
       } else {
         const { nonce } = request;
         const { signature, template } = request.signature;
+        const { buyerFinId, issuerFinId, settlementAmount, settlementAsset } = issueParameterFromTemplate(template);
 
-        switch (template.type) {
-          case 'hashList': {
-
-            const buyerFinId = template.hashGroups[1].fields.find((field) => field.name === 'srcAccount')?.value || '';
-            const issuerFinId = template.hashGroups[1].fields.find((field) => field.name === 'dstAccount')?.value || '';
-            const settlementAsset = template.hashGroups[1].fields.find((field) => field.name === 'assetId')?.value || '';
-            const settlementAmount = parseInt(template.hashGroups[1].fields.find((field) => field.name === 'amount')?.value || '');
-            txHash = await this.finP2PContract.issue(nonce, assetId, buyerFinId, issuerFinId, amount,
-              settlementAsset, settlementAmount, signature);
-            break;
-          }
-
-          case 'EIP712': {
-            const {
-              issuer, buyer,
-              settlement,
-            } = template.message;
-            const { assetId: settlementAsset, amount: settlementAmount } = settlement.fields;
-            const buyerFinId = buyer.fields.idkey; // should be equal to request.destination.finId
-            const issuerFinId = issuer.fields.idkey;
-
-            txHash = await this.finP2PContract.issue(nonce, assetId, buyerFinId, issuerFinId, amount,
-              settlementAsset, settlementAmount, signature);
-            break;
-          }
-
-          default:
-            txHash = '';
-            break;
-        }
+        txHash = await this.finP2PContract.issue(nonce, assetId, buyerFinId, issuerFinId, amount,
+          settlementAsset, settlementAmount, signature);
       }
     } catch (e) {
       logger.error(`Error on asset issuance: ${e}`);
       if (e instanceof EthereumTransactionError) {
-        return {
-          isCompleted: true,
-          error: {
-            code: 1,
-            message: e.message,
-          },
-        } as Components.Schemas.ReceiptOperation;
+        return failedTransaction(1, e.message);
 
       } else {
-        return {
-          isCompleted: true,
-          error: {
-            code: 1,
-            message: `${e}`,
-          },
-        } as Components.Schemas.ReceiptOperation;
+        return failedTransaction(1, `${e}`);
       }
     }
     return {
@@ -197,12 +153,11 @@ export class TokenService extends CommonService {
   public async transfer(request: Paths.TransferAsset.RequestBody): Promise<Paths.TransferAsset.Responses.$200> {
     const nonce = request.nonce;
     const assetId = extractAssetId(request.asset);
-    const sellerFinId = request.source.finId;
-    const buyerFinId = request.destination.finId;
     const amount = parseInt(request.quantity);
 
     let txHash = '';
     if (this.regulation) {
+      const buyerFinId = request.destination.finId;
       const error = await this.regulation.doRegulationCheck(buyerFinId, assetId);
       if (error) {
         return {
@@ -212,49 +167,16 @@ export class TokenService extends CommonService {
       }
     }
     const { signature, template } = request.signature;
-
     try {
-      switch (template.type) {
-        case 'hashList': {
-          const settlementAsset = template.hashGroups[1].fields.find((field) => field.name === 'assetId')?.value || '';
-          const settlementAmount = parseInt(template.hashGroups[1].fields.find((field) => field.name === 'amount')?.value || '');
-
-          txHash = await this.finP2PContract.transfer(nonce, assetId,
-            sellerFinId, buyerFinId, amount, settlementAsset, settlementAmount, signature);
-          break;
-        }
-
-        case 'EIP712': {
-          const { settlement } = template.message;
-          const { assetId: settlementAsset, amount: settlementAmount } = settlement.fields;
-
-          txHash = await this.finP2PContract.transfer(nonce, assetId,
-            sellerFinId, buyerFinId, amount, settlementAsset, settlementAmount, signature);
-          break;
-        }
-
-        default:
-          txHash = '';
-          break;
-      }
+      const { buyerFinId, sellerFinId, settlementAmount, settlementAsset } = transferParameterFromTemplate(template);
+      txHash = await this.finP2PContract.transfer(nonce, assetId, sellerFinId, buyerFinId, amount, settlementAsset, settlementAmount, signature);
     } catch (e) {
       logger.error(`Error on asset transfer: ${e}`);
       if (e instanceof EthereumTransactionError) {
-        return {
-          isCompleted: true,
-          error: {
-            code: 1,
-            message: e.message,
-          },
-        } as Components.Schemas.ReceiptOperation;
+        return failedTransaction(1, e.message);
+
       } else {
-        return {
-          isCompleted: true,
-          error: {
-            code: 1,
-            message: `${e}`,
-          },
-        } as Components.Schemas.ReceiptOperation;
+        return failedTransaction(1, `${e}`);
       }
     }
     return {
@@ -266,56 +188,22 @@ export class TokenService extends CommonService {
   public async redeem(request: Paths.RedeemAssets.RequestBody): Promise<Paths.RedeemAssets.Responses.$200> {
     const nonce = request.nonce;
     const assetId = request.asset.resourceId;
-    const ownerFinId = request.source.finId;
     const amount = parseInt(request.quantity);
 
     const { signature, template } = request.signature;
-
     let txHash = '';
     try {
-      switch (template.type) {
-        case 'hashList': {
-          const buyerFinId = template.hashGroups[1].fields.find((field) => field.name === 'srcAccount')?.value || '';
-          const settlementAsset = template.hashGroups[1].fields.find((field) => field.name === 'assetId')?.value || '';
-          const settlementAmount = parseInt(template.hashGroups[1].fields.find((field) => field.name === 'amount')?.value || '');
-
-          txHash = await this.finP2PContract.redeem(nonce, assetId, ownerFinId, buyerFinId, amount,
-            settlementAsset, settlementAmount, signature);
-          break;
-        }
-
-        case 'EIP712': {
-          const { buyer, settlement } = template.message;
-          const { assetId: settlementAsset, amount: settlementAmount } = settlement.fields;
-          const buyerFinId = buyer.fields.idkey;
-          txHash = await this.finP2PContract.redeem(nonce, assetId, ownerFinId, buyerFinId, amount,
-            settlementAsset, settlementAmount, signature);
-          break;
-        }
-
-        default:
-          txHash = '';
-          break;
-      }
+      const { buyerFinId, ownerFinId, settlementAmount, settlementAsset } = redeemParameterFromTemplate(template);
+      txHash = await this.finP2PContract.redeem(nonce, assetId, ownerFinId, buyerFinId, amount,
+        settlementAsset, settlementAmount, signature);
 
     } catch (e) {
       logger.error(`Error asset redeem: ${e}`);
       if (e instanceof EthereumTransactionError) {
-        return {
-          isCompleted: true,
-          error: {
-            code: 1,
-            message: e.message,
-          },
-        } as Components.Schemas.ReceiptOperation;
+        return failedTransaction(1, e.message);
+
       } else {
-        return {
-          isCompleted: true,
-          error: {
-            code: 1,
-            message: `${e}`,
-          },
-        } as Components.Schemas.ReceiptOperation;
+        return failedTransaction(1, `${e}`);
       }
     }
     return {

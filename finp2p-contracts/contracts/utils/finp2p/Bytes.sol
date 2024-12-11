@@ -37,6 +37,19 @@ library Bytes {
         return r;
     }
 
+    function fromHexToUint256(string memory s) internal pure returns (uint256) {
+        require(bytes(s).length == 64, "Invalid hex string length"); // Expect "0x" + 64 hex characters
+
+        bytes memory ss = bytes(s);
+        uint256 r = 0;
+
+        for (uint256 i = 0; i < 64; i += 2) {
+            r = (r << 8) | (uint8(fromHexChar(uint8(ss[i])) << 4) | uint8(fromHexChar(uint8(ss[i + 1]))));
+        }
+
+        return r;
+    }
+
     uint256 constant AA = 0;
     uint256 constant BB = 7;
     uint256 constant PP = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEFFFFFC2F;
