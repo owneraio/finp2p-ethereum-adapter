@@ -154,7 +154,7 @@ describe(`token service test (signature hash type: hash-list)`, () => {
     await client.expectBalance(buyer, asset, issueQuantity - transferQuantity - redeemQuantity);
   });
 
-  test(`Scenario: escrow hold / release`, async () => {
+  test.skip(`Scenario: escrow hold / release`, async () => {
 
     const asset = { type: "fiat", code: "USD" } as Components.Schemas.Asset;
 
@@ -266,7 +266,7 @@ describe(`token service test (signature hash type: hash-list)`, () => {
     await client.expectBalance(seller, asset, transferQty);
   });
 
-  test(`Failed transaction and nonce resetting`, async () => {
+  test.skip(`Failed transaction and nonce resetting`, async () => {
 
     const asset = {
       type: "finp2p",

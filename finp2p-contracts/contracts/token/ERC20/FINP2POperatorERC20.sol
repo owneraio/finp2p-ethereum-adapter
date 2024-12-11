@@ -237,7 +237,7 @@ contract FINP2POperatorERC20 is IFinP2PAsset, IFinP2PEscrow, AccessControl, FinP
             settlementAsset,
             settlementAmount,
             buyer,
-            HASH_TYPE_EIP712, // todo: stack is to deep
+            /*HASH_TYPE_HASHLIST*/HASH_TYPE_EIP712, // todo: stack is to deep
             signature
         ), "Signature is not verified");
 
@@ -249,7 +249,7 @@ contract FINP2POperatorERC20 is IFinP2PAsset, IFinP2PEscrow, AccessControl, FinP
         require(balance >= settlementAmount, "Not sufficient balance to hold");
 
         if (haveContract(operationId))
-            revert("Contract already exists");
+            revert("Withheld contract already exists");
 
         if (!IERC20(asset.tokenAddress).transferFrom(buyer, address(this), settlementAmount))
             revert("Transfer failed");
