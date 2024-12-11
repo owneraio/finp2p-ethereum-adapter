@@ -13,7 +13,7 @@ export type ProviderAndSigner = {
 const createLocalProvider = async (): Promise<ProviderAndSigner> => {
   let ethereumRPCUrl = process.env.NETWORK_HOST;
   if (!ethereumRPCUrl) {
-    throw new Error('ETHEREUM_RPC_URL is not set');
+    throw new Error('NETWORK_HOST is not set');
   }
   const ethereumRPCAuth = process.env.NETWORK_AUTH;
   if (ethereumRPCAuth) {
