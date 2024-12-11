@@ -5,8 +5,8 @@ import {
   EIP721_ISSUANCE_TYPES, EIP721_REDEEM_TYPES, EIP721_TRANSFER_TYPES,
   EIP721IssuanceMessage, EIP721RedeemMessage,
   EIP721TransferMessage
-} from "../finp2p-contracts/src/contracts/eip721";
-import {  eip721Signature } from "./api/mapper";
+} from "../finp2p-contracts/src/contracts/hash";
+import { eip721Signature } from "./api/mapper";
 
 
 describe(`token service test (signature hash type: eip712)`, () => {

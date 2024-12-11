@@ -1,6 +1,6 @@
 import {
   EIP721Message, eip712Hash, eip712SignWithPrivateKey, TypedDataField
-} from "../../finp2p-contracts/src/contracts/eip721";
+} from "../../finp2p-contracts/src/contracts/hash";
 
 export const eip721Signature = async (
   chainId: number,

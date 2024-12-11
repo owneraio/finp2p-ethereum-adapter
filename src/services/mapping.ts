@@ -1,4 +1,5 @@
-import { FinP2PReceipt } from '../../finp2p-contracts/src/contracts/model';
+import { FinP2PReceipt } from "../../finp2p-contracts/src/contracts/model";
+import { HashType } from "../../finp2p-contracts/src/contracts/hash";
 import Asset = Components.Schemas.Asset;
 import Receipt = Components.Schemas.Receipt;
 import LedgerAssetInfo = Components.Schemas.LedgerAssetInfo;
@@ -7,7 +8,6 @@ import LedgerTokenId = Components.Schemas.LedgerTokenId;
 import ContractDetails = Components.Schemas.ContractDetails;
 import AssetCreateResponse = Components.Schemas.AssetCreateResponse;
 import FinP2PEVMOperatorDetails = Components.Schemas.FinP2PEVMOperatorDetails;
-import Signature = Components.Schemas.Signature;
 import SignatureTemplate = Components.Schemas.SignatureTemplate;
 
 export const extractAssetId = (asset: Components.Schemas.Asset): string => {
@@ -122,6 +122,7 @@ export const failedTransaction = (code: number, message: string) => {
 }
 
 export const issueParameterFromTemplate = (template: SignatureTemplate) : {
+  hashType: HashType,
   buyerFinId: string
   issuerFinId: string
   settlementAsset: string
@@ -130,6 +131,7 @@ export const issueParameterFromTemplate = (template: SignatureTemplate) : {
   switch (template.type) {
     case 'hashList':
       return {
+        hashType: HashType.HashList,
         buyerFinId: template.hashGroups[1].fields.find((field) => field.name === 'srcAccount')?.value || '',
         issuerFinId: template.hashGroups[1].fields.find((field) => field.name === 'dstAccount')?.value || '',
         settlementAsset: template.hashGroups[1].fields.find((field) => field.name === 'assetId')?.value || '',
@@ -139,6 +141,7 @@ export const issueParameterFromTemplate = (template: SignatureTemplate) : {
     case 'EIP712':
       const {buyer, issuer, settlement} = template.message;
       return {
+        hashType: HashType.EIP712,
         buyerFinId: buyer.fields.idkey,
         issuerFinId: issuer.fields.idkey,
         settlementAsset: settlement.fields.assetId,
@@ -150,6 +153,7 @@ export const issueParameterFromTemplate = (template: SignatureTemplate) : {
 }
 
 export const transferParameterFromTemplate = (template: SignatureTemplate): {
+  hashType: HashType,
   buyerFinId: string
   sellerFinId: string
   settlementAsset: string
@@ -158,6 +162,7 @@ export const transferParameterFromTemplate = (template: SignatureTemplate): {
   switch (template.type) {
     case 'hashList': {
       return {
+        hashType: HashType.HashList,
         buyerFinId: template.hashGroups[0].fields.find((field) => field.name === 'dstAccount')?.value || '',
         sellerFinId: template.hashGroups[0].fields.find((field) => field.name === 'srcAccount')?.value || '',
         settlementAsset: template.hashGroups[1].fields.find((field) => field.name === 'assetId')?.value || '',
@@ -168,6 +173,7 @@ export const transferParameterFromTemplate = (template: SignatureTemplate): {
     case 'EIP712': {
       const {buyer, seller, settlement} = template.message;
       return {
+        hashType: HashType.EIP712,
         buyerFinId: buyer.fields.idkey,
         sellerFinId: seller.fields.idkey,
         settlementAsset: settlement.fields.assetId,
@@ -181,6 +187,7 @@ export const transferParameterFromTemplate = (template: SignatureTemplate): {
 }
 
 export const redeemParameterFromTemplate = (template: SignatureTemplate): {
+  hashType: HashType,
   buyerFinId: string
   ownerFinId: string
   settlementAsset: string
@@ -189,6 +196,7 @@ export const redeemParameterFromTemplate = (template: SignatureTemplate): {
   switch (template.type) {
     case 'hashList': {
       return {
+        hashType: HashType.HashList,
         buyerFinId: template.hashGroups[0].fields.find((field) => field.name === 'dstAccount')?.value || '',
         ownerFinId: template.hashGroups[0].fields.find((field) => field.name === 'srcAccount')?.value || '',
         settlementAsset: template.hashGroups[1].fields.find((field) => field.name === 'assetId')?.value || '',
@@ -199,6 +207,7 @@ export const redeemParameterFromTemplate = (template: SignatureTemplate): {
     case 'EIP712': {
       const {buyer, owner, settlement} = template.message;
       return {
+        hashType: HashType.EIP712,
         buyerFinId: buyer.fields.idkey,
         ownerFinId: owner.fields.idkey,
         settlementAsset: settlement.fields.assetId,

@@ -5,12 +5,12 @@ import { expect } from "chai";
 // @ts-ignore
 import { ethers } from "hardhat";
 import {
-  buildTransferHash, generateNonce, HashType, sign
+  buildTransferHash, generateNonce, sign
 } from "./utils";
 import {
-  EIP721_ISSUANCE_TYPES, EIP721_REDEEM_TYPES, EIP721_TRANSFER_TYPES,
+  HashType, EIP721_ISSUANCE_TYPES, EIP721_REDEEM_TYPES, EIP721_TRANSFER_TYPES,
   eip712Sign, eip712Verify, buildIssuanceMessage, buildTransferMessage, buildRedeemMessage
-} from "../src/contracts/eip721";
+} from "../src/contracts/hash";
 import { v4 as uuidv4 } from "uuid";
 import { Wallet } from "ethers";
 import { getFinId } from "../src/contracts/utils";

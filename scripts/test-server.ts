@@ -2,7 +2,6 @@ import console from 'console';
 import { HardhatLogExtractor } from '../tests/utils/log-extractors';
 import { GenericContainer, StartedTestContainer } from 'testcontainers';
 import { NetworkDetails } from '../tests/utils/models';
-import { FinP2PContractConfig, FinP2PDeployerConfig } from '../finp2p-contracts/src/contracts/config';
 import { ContractsManager } from '../finp2p-contracts/src/contracts/manager';
 import { FinP2PContract } from '../finp2p-contracts/src/contracts/finp2p';
 import createApp from '../src/app';
@@ -13,9 +12,12 @@ import { RegulationChecker } from '../src/finp2p/regulation';
 import { OssClient } from '../src/finp2p/oss.client';
 import { generateAuthorizationHeader } from './utils';
 import { ReuseExistingToken } from '../src/services/tokens';
+import { Provider, Signer } from "ethers";
+import { createProviderAndSigner, ProviderType } from "../finp2p-contracts/src/contracts/config";
 
 let ethereumNodeContainer: StartedTestContainer | undefined;
 let httpServer: http.Server | undefined;
+const providerType: ProviderType = 'local';
 
 const startHardhatContainer = async () => {
   console.log('Starting hardhat node container...');
@@ -43,25 +45,20 @@ const startHardhatContainer = async () => {
   return { rpcUrl, accounts } as NetworkDetails;
 };
 
-const deployContract = async (config: FinP2PDeployerConfig) => {
-  const contractManger = new ContractsManager({
-    rpcURL: config.rpcURL,
-    signerPrivateKey: config.deployerPrivateKey,
-  });
-  const { operatorAddress, paymentAssetCode, hashType } = config;
-  return contractManger.deployFinP2PContract(operatorAddress, paymentAssetCode, hashType);
+const deployContract = async (provider: Provider, signer: Signer,
+                              operatorAddress: string | undefined,
+                              paymentAssetCode: string | undefined = undefined) => {
+  const contractManger = new ContractsManager(provider, signer);
+  return contractManger.deployFinP2PContract(operatorAddress, paymentAssetCode);
 };
 
-const deployERC20Contract = async (config: FinP2PDeployerConfig, finp2pTokenAddress: string) => {
-  const contractManger = new ContractsManager({
-    rpcURL: config.rpcURL,
-    signerPrivateKey: config.deployerPrivateKey,
-  });
+const deployERC20Contract = async (provider: Provider, signer: Signer, finp2pTokenAddress: string) => {
+  const contractManger = new ContractsManager(provider, signer);
   return contractManger.deployERC20('ERC-20', 'ERC20', finp2pTokenAddress);
 };
 
-const startApp = async (port: number, config: FinP2PContractConfig, tokenAddress: string) => {
-  const finP2PContract = new FinP2PContract(config);
+const startApp = async (port: number, provider: Provider, signer: Signer, finP2PContractAddress: string, tokenAddress: string) => {
+  const finP2PContract = new FinP2PContract(provider, signer, finP2PContractAddress);
 
   const assetCreationPolicy = {
     type: 'reuse-existing-token',
@@ -89,21 +86,14 @@ const start = async () => {
   const deployer = details.accounts[0];
   const operator = details.accounts[1];
 
-  const finP2PContractAddress = await deployContract({
-    rpcURL: details.rpcUrl,
-    deployerPrivateKey: deployer,
-    operatorAddress: addressFromPrivateKey(operator),
-  });
-  const tokenAddress = await deployERC20Contract({
-    rpcURL: details.rpcUrl,
-    deployerPrivateKey: deployer,
-    operatorAddress: addressFromPrivateKey(operator),
-  }, finP2PContractAddress);
-  await startApp(port, {
-    rpcURL: details.rpcUrl,
-    signerPrivateKey: operator,
-    finP2PContractAddress,
-  }, tokenAddress);
+  process.env.OPERATOR_PRIVATE_KEY = deployer;
+  process.env.NETWORK_HOST = details.rpcUrl;
+
+  const operatorAddress = addressFromPrivateKey(operator);
+  const { provider, signer } = await createProviderAndSigner(providerType);
+  const finP2PContractAddress = await deployContract(provider, signer, operatorAddress);
+  const tokenAddress = await deployERC20Contract(provider, signer, finP2PContractAddress);
+  await startApp(port, provider, signer, finP2PContractAddress, tokenAddress);
 };
 
 

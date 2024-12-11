@@ -1,20 +1,6 @@
 import * as secp256k1 from 'secp256k1';
 import * as crypto from 'crypto';
 import createKeccakHash from 'keccak';
-import {
-  eip712Sign,
-  eip712Verify,
-  EIP721_ISSUANCE_TYPES,
-  EIP721IssuanceMessage, EIP721Message,
-  EIP721TransferMessage
-} from "../src/contracts/eip721";
-import { Signer } from "ethers";
-
-
-export const enum HashType {
-  HashList = 1,
-  EIP712 = 2
-}
 
 
 export const combineHashes = (hashes: Buffer[]): Buffer => {

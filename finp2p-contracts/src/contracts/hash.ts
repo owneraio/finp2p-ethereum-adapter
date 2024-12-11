@@ -1,5 +1,11 @@
 import { Signer, Wallet, verifyTypedData, TypedDataEncoder } from 'ethers';
 
+
+export const enum HashType {
+  HashList = 1,
+  EIP712 = 2
+}
+
 export type TypedDataField = {
   name: string;
   type: string;

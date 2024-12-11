@@ -6,7 +6,6 @@ import ERC20 from '../../artifacts/contracts/token/ERC20/ERC20WithOperator.sol/E
 import { ERC20WithOperator, FINP2POperatorERC20 } from '../../typechain-types';
 import { detectError, EthereumTransactionError, NonceAlreadyBeenUsedError, NonceToHighError } from "./model";
 
-const DEFAULT_HASH_TYPE = 2; // EIP712
 
 export class ContractsManager {
 
@@ -32,12 +31,12 @@ export class ContractsManager {
     return address;
   }
 
-  async deployFinP2PContract(signerAddress: string | undefined, paymentAssetCode: string | undefined = undefined, hashType: number | undefined = DEFAULT_HASH_TYPE) {
+  async deployFinP2PContract(signerAddress: string | undefined, paymentAssetCode: string | undefined = undefined) {
     console.log('Deploying FinP2P contract...');
     const factory = new ContractFactory<any[], FINP2POperatorERC20>(
       FINP2P.abi, FINP2P.bytecode, this.signer,
     );
-    const contract = await factory.deploy(hashType);
+    const contract = await factory.deploy();
     await contract.waitForDeployment();
 
     const address = await contract.getAddress();

@@ -48,7 +48,8 @@ class CustomTestEnvironment extends NodeEnvironment {
       process.env.OPERATOR_PRIVATE_KEY = deployer;
       process.env.NETWORK_HOST = details.rpcUrl;
 
-      const finP2PContractAddress = await this.deployContract(addressFromPrivateKey(operator))
+      const operatorAddress = addressFromPrivateKey(operator);
+      const finP2PContractAddress = await this.deployContract(operatorAddress)
       this.global.serverAddress = await this.startApp(finP2PContractAddress);
 
     } catch (err) {

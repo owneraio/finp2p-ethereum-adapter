@@ -10,7 +10,6 @@ import { EthereumTransactionError } from '../../finp2p-contracts/src/contracts/m
 import { logger } from '../helpers/logger';
 import { FinP2PContract } from '../../finp2p-contracts/src/contracts/finp2p';
 import { RegulationChecker } from '../finp2p/regulation';
-import console from 'console';
 import CreateAssetResponse = Components.Schemas.CreateAssetResponse;
 import LedgerTokenId = Components.Schemas.LedgerTokenId;
 import { isEthereumAddress } from "../../finp2p-contracts/src/contracts/utils";
@@ -120,9 +119,6 @@ export class TokenService extends CommonService {
       }
     }
 
-    const supportedHashType = await this.finP2PContract.getHashType();
-    console.log(`Supported hash type: ${supportedHashType}`);
-
     let txHash: string;
     try {
       if (!request.signature || !request.signature.template) {
@@ -130,10 +126,10 @@ export class TokenService extends CommonService {
       } else {
         const { nonce } = request;
         const { signature, template } = request.signature;
-        const { buyerFinId, issuerFinId, settlementAmount, settlementAsset } = issueParameterFromTemplate(template);
+        const { hashType, buyerFinId, issuerFinId, settlementAmount, settlementAsset } = issueParameterFromTemplate(template);
 
         txHash = await this.finP2PContract.issue(nonce, assetId, buyerFinId, issuerFinId, amount,
-          settlementAsset, settlementAmount, signature);
+          settlementAsset, settlementAmount, hashType, signature);
       }
     } catch (e) {
       logger.error(`Error on asset issuance: ${e}`);
@@ -168,8 +164,8 @@ export class TokenService extends CommonService {
     }
     const { signature, template } = request.signature;
     try {
-      const { buyerFinId, sellerFinId, settlementAmount, settlementAsset } = transferParameterFromTemplate(template);
-      txHash = await this.finP2PContract.transfer(nonce, assetId, sellerFinId, buyerFinId, amount, settlementAsset, settlementAmount, signature);
+      const { hashType, buyerFinId, sellerFinId, settlementAmount, settlementAsset } = transferParameterFromTemplate(template);
+      txHash = await this.finP2PContract.transfer(nonce, assetId, sellerFinId, buyerFinId, amount, settlementAsset, settlementAmount, hashType, signature);
     } catch (e) {
       logger.error(`Error on asset transfer: ${e}`);
       if (e instanceof EthereumTransactionError) {
@@ -193,9 +189,9 @@ export class TokenService extends CommonService {
     const { signature, template } = request.signature;
     let txHash = '';
     try {
-      const { buyerFinId, ownerFinId, settlementAmount, settlementAsset } = redeemParameterFromTemplate(template);
+      const { hashType, buyerFinId, ownerFinId, settlementAmount, settlementAsset } = redeemParameterFromTemplate(template);
       txHash = await this.finP2PContract.redeem(nonce, assetId, ownerFinId, buyerFinId, amount,
-        settlementAsset, settlementAmount, signature);
+        settlementAsset, settlementAmount, hashType, signature);
 
     } catch (e) {
       logger.error(`Error asset redeem: ${e}`);
