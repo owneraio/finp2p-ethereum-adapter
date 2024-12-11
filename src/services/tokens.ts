@@ -108,6 +108,7 @@ export class TokenService extends CommonService {
   public async issue(request: Paths.IssueAssets.RequestBody): Promise<Paths.IssueAssets.Responses.$200> {
     const assetId = extractAssetId(request.asset);
     const amount = parseInt(request.quantity);
+    const issuerFinId = request.destination.finId;
 
     if (this.regulation) {
       const error = await this.regulation.doRegulationCheck(request.destination.finId, assetId);
@@ -122,11 +123,11 @@ export class TokenService extends CommonService {
     let txHash: string;
     try {
       if (!request.signature || !request.signature.template) {
-        txHash = await this.finP2PContract.issueWithoutSignature(assetId, request.destination.finId, amount);
+        txHash = await this.finP2PContract.issueWithoutSignature(assetId, issuerFinId, amount);
       } else {
         const { nonce } = request;
         const { signature, template } = request.signature;
-        const { hashType, buyerFinId, issuerFinId, settlementAmount, settlementAsset } = issueParameterFromTemplate(template);
+        const { hashType, buyerFinId, settlementAmount, settlementAsset } = issueParameterFromTemplate(template);
 
         txHash = await this.finP2PContract.issue(nonce, assetId, buyerFinId, issuerFinId, amount,
           settlementAsset, settlementAmount, hashType, signature);
@@ -150,8 +151,9 @@ export class TokenService extends CommonService {
     const nonce = request.nonce;
     const assetId = extractAssetId(request.asset);
     const amount = parseInt(request.quantity);
+    const sellerFinId = request.source.finId;
+    const buyerFinId = request.destination.finId;
 
-    let txHash = '';
     if (this.regulation) {
       const buyerFinId = request.destination.finId;
       const error = await this.regulation.doRegulationCheck(buyerFinId, assetId);
@@ -164,8 +166,13 @@ export class TokenService extends CommonService {
     }
     const { signature, template } = request.signature;
     try {
-      const { hashType, buyerFinId, sellerFinId, settlementAmount, settlementAsset } = transferParameterFromTemplate(template);
-      txHash = await this.finP2PContract.transfer(nonce, assetId, sellerFinId, buyerFinId, amount, settlementAsset, settlementAmount, hashType, signature);
+      const { hashType, settlementAmount, settlementAsset } = transferParameterFromTemplate(template);
+      const txHash = await this.finP2PContract.transfer(nonce, assetId, sellerFinId, buyerFinId, amount,
+        settlementAsset, settlementAmount, hashType, signature);
+      return {
+        isCompleted: false,
+        cid: txHash,
+      } as Components.Schemas.ReceiptOperation;
     } catch (e) {
       logger.error(`Error on asset transfer: ${e}`);
       if (e instanceof EthereumTransactionError) {
@@ -175,21 +182,19 @@ export class TokenService extends CommonService {
         return failedTransaction(1, `${e}`);
       }
     }
-    return {
-      isCompleted: false,
-      cid: txHash,
-    } as Components.Schemas.ReceiptOperation;
+
   }
 
   public async redeem(request: Paths.RedeemAssets.RequestBody): Promise<Paths.RedeemAssets.Responses.$200> {
     const nonce = request.nonce;
     const assetId = request.asset.resourceId;
     const amount = parseInt(request.quantity);
+    const ownerFinId = request.source.finId;
 
     const { signature, template } = request.signature;
     let txHash = '';
     try {
-      const { hashType, buyerFinId, ownerFinId, settlementAmount, settlementAsset } = redeemParameterFromTemplate(template);
+      const { hashType, buyerFinId, settlementAmount, settlementAsset } = redeemParameterFromTemplate(template);
       txHash = await this.finP2PContract.redeem(nonce, assetId, ownerFinId, buyerFinId, amount,
         settlementAsset, settlementAmount, hashType, signature);
 

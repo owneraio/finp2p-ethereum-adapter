@@ -123,8 +123,7 @@ export const failedTransaction = (code: number, message: string) => {
 
 export const issueParameterFromTemplate = (template: SignatureTemplate) : {
   hashType: HashType,
-  buyerFinId: string
-  issuerFinId: string
+  buyerFinId: string,
   settlementAsset: string
   settlementAmount: number
 } => {
@@ -133,17 +132,15 @@ export const issueParameterFromTemplate = (template: SignatureTemplate) : {
       return {
         hashType: HashType.HashList,
         buyerFinId: template.hashGroups[1].fields.find((field) => field.name === 'srcAccount')?.value || '',
-        issuerFinId: template.hashGroups[1].fields.find((field) => field.name === 'dstAccount')?.value || '',
         settlementAsset: template.hashGroups[1].fields.find((field) => field.name === 'assetId')?.value || '',
         settlementAmount: parseInt(template.hashGroups[1].fields.find((field) => field.name === 'amount')?.value || '')
       }
 
     case 'EIP712':
-      const {buyer, issuer, settlement} = template.message;
+      const {buyer, settlement} = template.message;
       return {
         hashType: HashType.EIP712,
         buyerFinId: buyer.fields.idkey,
-        issuerFinId: issuer.fields.idkey,
         settlementAsset: settlement.fields.assetId,
         settlementAmount: settlement.fields.amount
       }
@@ -154,32 +151,24 @@ export const issueParameterFromTemplate = (template: SignatureTemplate) : {
 
 export const transferParameterFromTemplate = (template: SignatureTemplate): {
   hashType: HashType,
-  buyerFinId: string
-  sellerFinId: string
   settlementAsset: string
   settlementAmount: number
 } => {
   switch (template.type) {
-    case 'hashList': {
+    case 'hashList':
       return {
         hashType: HashType.HashList,
-        buyerFinId: template.hashGroups[0].fields.find((field) => field.name === 'dstAccount')?.value || '',
-        sellerFinId: template.hashGroups[0].fields.find((field) => field.name === 'srcAccount')?.value || '',
         settlementAsset: template.hashGroups[1].fields.find((field) => field.name === 'assetId')?.value || '',
         settlementAmount: parseInt(template.hashGroups[1].fields.find((field) => field.name === 'amount')?.value || '')
       };
-    }
 
-    case 'EIP712': {
+    case 'EIP712':
       const {buyer, seller, settlement} = template.message;
       return {
         hashType: HashType.EIP712,
-        buyerFinId: buyer.fields.idkey,
-        sellerFinId: seller.fields.idkey,
         settlementAsset: settlement.fields.assetId,
         settlementAmount: settlement.fields.amount
       }
-    }
 
     default:
       throw new Error(`Unsupported signature template type: ${template}`);
@@ -189,33 +178,61 @@ export const transferParameterFromTemplate = (template: SignatureTemplate): {
 export const redeemParameterFromTemplate = (template: SignatureTemplate): {
   hashType: HashType,
   buyerFinId: string
-  ownerFinId: string
   settlementAsset: string
   settlementAmount: number
 } => {
   switch (template.type) {
-    case 'hashList': {
+    case 'hashList':
       return {
         hashType: HashType.HashList,
-        buyerFinId: template.hashGroups[0].fields.find((field) => field.name === 'dstAccount')?.value || '',
-        ownerFinId: template.hashGroups[0].fields.find((field) => field.name === 'srcAccount')?.value || '',
+        buyerFinId: template.hashGroups[1].fields.find((field) => field.name === 'srcAccount')?.value || '',
         settlementAsset: template.hashGroups[1].fields.find((field) => field.name === 'assetId')?.value || '',
         settlementAmount: parseInt(template.hashGroups[1].fields.find((field) => field.name === 'amount')?.value || '')
       };
-    }
 
-    case 'EIP712': {
+    case 'EIP712':
       const {buyer, owner, settlement} = template.message;
       return {
         hashType: HashType.EIP712,
         buyerFinId: buyer.fields.idkey,
-        ownerFinId: owner.fields.idkey,
         settlementAsset: settlement.fields.assetId,
         settlementAmount: settlement.fields.amount
       }
-    }
 
     default:
       throw new Error(`Unsupported signature template type: ${template}`);
   }
+}
+
+export const holdParameterFromTemplate = (template: SignatureTemplate): {
+  hashType: HashType,
+  buyerFinId: string
+  sellerFinId: string
+  asset: string
+  amount: number
+} => {
+  switch (template.type) {
+    case 'hashList':
+      return {
+        hashType: HashType.HashList,
+        buyerFinId: template.hashGroups[1].fields.find((field) => field.name === 'srcAccount')?.value || '',
+        sellerFinId: template.hashGroups[1].fields.find((field) => field.name === 'dstAccount')?.value || '',
+        asset: template.hashGroups[0].fields.find((field) => field.name === 'assetId')?.value || '',
+        amount: parseInt(template.hashGroups[0].fields.find((field) => field.name === 'amount')?.value || '')
+      };
+
+    case 'EIP712':
+      const { asset, buyer, seller } = template.message;
+      return {
+        hashType: HashType.EIP712,
+        buyerFinId: buyer.fields.idkey,
+        sellerFinId: seller.fields.idkey,
+        asset: asset.fields.assetId,
+        amount: asset.fields.amount
+      }
+
+    default:
+      throw new Error(`Unsupported signature template type: ${template}`);
+  }
+
 }
