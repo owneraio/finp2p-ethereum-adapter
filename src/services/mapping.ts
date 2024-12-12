@@ -9,6 +9,9 @@ import ContractDetails = Components.Schemas.ContractDetails;
 import AssetCreateResponse = Components.Schemas.AssetCreateResponse;
 import FinP2PEVMOperatorDetails = Components.Schemas.FinP2PEVMOperatorDetails;
 import SignatureTemplate = Components.Schemas.SignatureTemplate;
+import EIP712TypeObject = Components.Schemas.EIP712TypeObject;
+import EIP712TypeString = Components.Schemas.EIP712TypeString;
+import EIP712TypeInteger = Components.Schemas.EIP712TypeInteger;
 
 export const extractAssetId = (asset: Components.Schemas.Asset): string => {
   switch (asset.type) {
@@ -149,12 +152,13 @@ export const issueParameterFromTemplate = (template: SignatureTemplate) : {
       }
 
     case 'EIP712':
-      const {buyer, settlement} = template.message;
+      const buyer = template.message.buyer as EIP712TypeObject;
+      const settlement = template.message.settlement as EIP712TypeObject;
       return {
         hashType: HashType.EIP712,
-        buyerFinId: buyer.fields.idkey,
-        settlementAsset: settlement.fields.assetId,
-        settlementAmount: settlement.fields.amount
+        buyerFinId: buyer.idkey as EIP712TypeString,
+        settlementAsset: settlement.assetId as EIP712TypeString,
+        settlementAmount: settlement.amount as EIP712TypeInteger
       }
     default:
       throw new Error(`Unsupported signature template type: ${template}`);
@@ -175,11 +179,11 @@ export const transferParameterFromTemplate = (template: SignatureTemplate): {
       };
 
     case 'EIP712':
-      const {buyer, seller, settlement} = template.message;
+      const settlement = template.message as EIP712TypeObject;
       return {
         hashType: HashType.EIP712,
-        settlementAsset: settlement.fields.assetId,
-        settlementAmount: settlement.fields.amount
+        settlementAsset: settlement.assetId as EIP712TypeString,
+        settlementAmount: settlement.amount as EIP712TypeInteger
       }
 
     default:
@@ -203,12 +207,13 @@ export const redeemParameterFromTemplate = (template: SignatureTemplate): {
       };
 
     case 'EIP712':
-      const {buyer, owner, settlement} = template.message;
+      const buyer = template.message.buyer as EIP712TypeObject;
+      const settlement = template.message.settlement as EIP712TypeObject;
       return {
         hashType: HashType.EIP712,
-        buyerFinId: buyer.fields.idkey,
-        settlementAsset: settlement.fields.assetId,
-        settlementAmount: settlement.fields.amount
+        buyerFinId: buyer.idkey as EIP712TypeString,
+        settlementAsset: settlement.assetId as EIP712TypeString,
+        settlementAmount: settlement.amount as EIP712TypeInteger
       }
 
     default:
@@ -234,13 +239,15 @@ export const holdParameterFromTemplate = (template: SignatureTemplate): {
       };
 
     case 'EIP712':
-      const { asset, buyer, seller } = template.message;
+      const asset = template.message.asset as EIP712TypeObject;
+      const buyer = template.message.buyer as EIP712TypeObject;
+      const seller = template.message.seller as EIP712TypeObject;
       return {
         hashType: HashType.EIP712,
-        buyerFinId: buyer.fields.idkey,
-        sellerFinId: seller.fields.idkey,
-        asset: asset.fields.assetId,
-        amount: asset.fields.amount
+        buyerFinId: buyer.idkey as EIP712TypeString,
+        sellerFinId: seller.idkey as EIP712TypeString,
+        asset: asset.assetId as EIP712TypeString,
+        amount: asset.amount as EIP712TypeInteger
       }
 
     default:
