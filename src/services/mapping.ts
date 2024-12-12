@@ -77,14 +77,14 @@ export const receiptToAPI = (receipt: FinP2PReceipt): Receipt => {
       transactionId: receipt.id,
     },
     timestamp: receipt.timestamp,
+    tradeDetails: {},
     operationType: receipt.operationType,
   };
 };
 
-export const assetCreationResult = (cid: string, tokenId: string, tokenAddress: string, finp2pTokenAddress: string) => {
+export const assetCreationResult = (tokenId: string, tokenAddress: string, finp2pTokenAddress: string) => {
   return {
     isCompleted: true,
-    cid: cid,
     response: {
       ledgerAssetInfo: {
         ledgerTokenId: {
@@ -103,6 +103,18 @@ export const assetCreationResult = (cid: string, tokenId: string, tokenAddress: 
         } as ContractDetails
       } as LedgerAssetInfo,
     } as AssetCreateResponse
+  } as CreateAssetResponse;
+}
+
+export const notFoundErrorCode = 5;
+
+export const assetNotFoundResult = (tokenId: string) => {
+  return {
+    isCompleted: true,
+    error: {
+      code: notFoundErrorCode,
+      message: `Asset not found for token id ${tokenId}`,
+    }
   } as CreateAssetResponse;
 }
 

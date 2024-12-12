@@ -1,6 +1,7 @@
 import { CommonService } from './common';
 import {
   assetCreationResult,
+  assetNotFoundResult,
   extractAssetId,
   getRandomNumber,
   failedAssetCreation,
@@ -49,21 +50,26 @@ export class TokenService extends CommonService {
     try {
 
       if (request.ledgerAssetBinding) {
-        const { tokenId } = request.ledgerAssetBinding as LedgerTokenId;
-        if (!isEthereumAddress(tokenId)) {
+        const { tokenId: tokenAddress  } = request.ledgerAssetBinding as LedgerTokenId;
+        if (!isEthereumAddress(tokenAddress)) {
           return {
             isCompleted: true,
             error: {
               code: 1,
-              message: `Token ${tokenId} does not exist`,
+              message: `Token ${tokenAddress} does not exist`,
             },
           } as CreateAssetResponse;
         }
-        const tokenAddress = tokenId;
-        const txHash = await this.finP2PContract.associateAsset(assetId, tokenAddress);
-        await this.finP2PContract.waitForCompletion(txHash);
+        const address = await this.finP2PContract.getAssetAddress(assetId)
+        if (address !== tokenAddress) {
+          return assetNotFoundResult(tokenAddress);
+        } else {
+          // TODO: just a lookup or actual associate here?
+          // const txHash = await this.finP2PContract.associateAsset(assetId, tokenAddress);
+          // await this.finP2PContract.waitForCompletion(txHash);
+          return assetCreationResult(tokenAddress, tokenAddress, this.finP2PContract.finP2PContractAddress);
+        }
 
-        return assetCreationResult(txHash, tokenId, tokenAddress, this.finP2PContract.finP2PContractAddress);
 
       } else {
 
@@ -93,7 +99,7 @@ export class TokenService extends CommonService {
 
         const txHash = await this.finP2PContract.associateAsset(assetId, tokenAddress);
         await this.finP2PContract.waitForCompletion(txHash);
-        return assetCreationResult(txHash, tokenId, tokenAddress, this.finP2PContract.finP2PContractAddress);
+        return assetCreationResult(tokenId, tokenAddress, this.finP2PContract.finP2PContractAddress);
       }
 
     } catch (e) {
