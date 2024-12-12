@@ -1,5 +1,5 @@
 import { CommonService } from './common';
-import { assetCreationResult, extractAssetId } from "./mapping";
+import { assetCreationResult, extractAssetId, getRandomNumber } from "./mapping";
 import { EthereumTransactionError } from '../../finp2p-contracts/src/contracts/model';
 import { logger } from '../helpers/logger';
 import { FinP2PContract } from '../../finp2p-contracts/src/contracts/finp2p';
@@ -35,7 +35,7 @@ export class TokenService extends CommonService {
     try {
 
       if (request.ledgerAssetBinding) {
-        const { tokenId  } = request.ledgerAssetBinding as LedgerTokenId;
+        const { tokenId } = request.ledgerAssetBinding as LedgerTokenId;
         if (!isEthereumAddress(tokenId)) {
           return {
             isCompleted: true,
@@ -49,27 +49,29 @@ export class TokenService extends CommonService {
         const txHash = await this.finP2PContract.associateAsset(assetId, tokenAddress);
         await this.finP2PContract.waitForCompletion(txHash);
 
-        return assetCreationResult(txHash, tokenAddress, tokenAddress, this.finP2PContract.finP2PContractAddress);
+        return assetCreationResult(txHash, tokenId, tokenAddress, this.finP2PContract.finP2PContractAddress);
 
       } else {
 
         // We do deploy ERC20 here and then associate it with the FinP2P assetId,
         // in a real-world scenario, the token could already deployed in another tokenization application,
         // so we would just associate the assetId with existing token address
-        let tokenAddress: string;
+        let tokenId, tokenAddress: string;
         switch (this.assetCreationPolicy.type) {
           case 'deploy-new-token':
             tokenAddress = await this.finP2PContract.deployERC20(assetId, assetId,
               this.finP2PContract.finP2PContractAddress);
+            tokenId = tokenAddress;
             break;
           case 'reuse-existing-token':
             tokenAddress = this.assetCreationPolicy.tokenAddress;
+            tokenId = `${getRandomNumber(10000, 100000)}-${tokenAddress}`;
             break;
         }
 
         const txHash = await this.finP2PContract.associateAsset(assetId, tokenAddress);
         await this.finP2PContract.waitForCompletion(txHash);
-        return assetCreationResult(txHash, tokenAddress, tokenAddress, this.finP2PContract.finP2PContractAddress);
+        return assetCreationResult(txHash, tokenId, tokenAddress, this.finP2PContract.finP2PContractAddress);
       }
 
     } catch (e) {
