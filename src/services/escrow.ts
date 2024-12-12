@@ -1,54 +1,43 @@
 import { logger } from '../helpers/logger';
 import { CommonService } from './common';
-import { extractAssetId } from './mapping';
 import { EthereumTransactionError } from '../../finp2p-contracts/src/contracts/model';
-import HashListTemplate = Components.Schemas.HashListTemplate;
+import { extractAssetId, failedTransaction, holdParameterFromTemplate, transferParameterFromTemplate } from "./mapping";
 
 export class EscrowService extends CommonService {
 
   public async hold(request: Paths.HoldOperation.RequestBody): Promise<Paths.HoldOperation.Responses.$200> {
     logger.debug('hold', { request });
+   
+    const { operationId, source,
+      destination, nonce } = request;
+    const settlementAsset = extractAssetId(request.asset);
+    const settlementAmount = parseInt(request.quantity);
+    const buyerFinId = source.finId;
+    const sellerFinId = destination?.finId || '';
 
-    const operationId = request.operationId;
-    const assetId = extractAssetId(request.asset);
-    const sourceFinId = request.source.finId;
-    const destinationFinId = request.destination?.finId || '';
-    const amount = parseInt(request.quantity);
-    const expiry = request.expiry;
-    const hashList = request.signature.template as HashListTemplate
-    const assetHash = hashList.hashGroups[0].hash;
-    const hash = request.signature.template.hash;
-    const signature = request.signature.signature;
+    const { signature, template } = request.signature;
 
     try {
-      const txHash = await this.finP2PContract.hold(operationId, assetId, sourceFinId, destinationFinId, amount, expiry, assetHash, hash, signature);
+      const {/* hashType,*/ amount, asset } = holdParameterFromTemplate(template);
+      const txHash = await this.finP2PContract.hold(operationId, nonce, asset, sellerFinId, buyerFinId, amount,
+        settlementAsset, settlementAmount, /*hashType,*/ signature);
 
       return {
         isCompleted: false,
         cid: txHash,
       } as Components.Schemas.ReceiptOperation;
+
     } catch (e) {
-      logger.error(`Error holding asset: ${e}`);
+      logger.error(`Error asset hold: ${e}`);
       if (e instanceof EthereumTransactionError) {
-        return {
-          isCompleted: true,
-          error: {
-            code: 1,
-            message: e.message,
-          },
-        } as Components.Schemas.ReceiptOperation;
+        return failedTransaction(1, e.message);
+
       } else {
-        return {
-          isCompleted: true,
-          error: {
-            code: 1,
-            message: e,
-          },
-        } as Components.Schemas.ReceiptOperation;
+        return failedTransaction(1, `${e}`);
       }
     }
-  }
 
+  }
 
   public async release(request: Paths.ReleaseOperation.RequestBody): Promise<Paths.ReleaseOperation.Responses.$200> {
     logger.debug('release', { request });
@@ -66,21 +55,9 @@ export class EscrowService extends CommonService {
     }  catch (e) {
       logger.error(`Error releasing asset: ${e}`);
       if (e instanceof EthereumTransactionError) {
-        return {
-          isCompleted: true,
-          error: {
-            code: 1,
-            message: e.message,
-          },
-        } as Components.Schemas.ReceiptOperation;
+        return failedTransaction(1, e.message);
       } else {
-        return {
-          isCompleted: true,
-          error: {
-            code: 1,
-            message: e,
-          },
-        } as Components.Schemas.ReceiptOperation;
+        return failedTransaction(1, `${e}`);
       }
     }
   }
@@ -99,21 +76,10 @@ export class EscrowService extends CommonService {
     } catch (e) {
       logger.error(`Error rolling-back asset: ${e}`);
       if (e instanceof EthereumTransactionError) {
-        return {
-          isCompleted: true,
-          error: {
-            code: 1,
-            message: e.message,
-          },
-        } as Components.Schemas.ReceiptOperation;
+        return failedTransaction(1, e.message);
+
       } else {
-        return {
-          isCompleted: true,
-          error: {
-            code: 1,
-            message: e,
-          },
-        } as Components.Schemas.ReceiptOperation;
+        return failedTransaction(1, `${e}`);
       }
     }
   }

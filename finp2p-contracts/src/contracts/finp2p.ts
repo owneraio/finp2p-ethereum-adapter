@@ -1,12 +1,12 @@
-import { ContractFactory, ethers, Interface } from 'ethers';
+import { ContractFactory, Interface, Provider, Signer } from "ethers";
 import FINP2P
   from '../../artifacts/contracts/token/ERC20/FINP2POperatorERC20.sol/FINP2POperatorERC20.json';
 import { FINP2POperatorERC20 } from '../../typechain-types';
 import { FinP2PReceipt, OperationStatus } from './model';
-import { parseTransactionReceipt, stringToByte16 } from './utils';
+import { parseTransactionReceipt } from './utils';
 import { ContractsManager } from './manager';
-import { FinP2PContractConfig } from './config';
 import console from 'console';
+import { HashType } from "./hash";
 
 export class FinP2PContract extends ContractsManager {
 
@@ -16,18 +16,22 @@ export class FinP2PContract extends ContractsManager {
 
   finP2PContractAddress: string;
 
-  constructor(config: FinP2PContractConfig) {
-    super(config);
+  constructor(provider: Provider, signer: Signer, finP2PContractAddress: string) {
+    super(provider, signer);
     const factory = new ContractFactory<any[], FINP2POperatorERC20>(
       FINP2P.abi, FINP2P.bytecode, this.signer,
     );
-    const contract = factory.attach(config.finP2PContractAddress);
+    const contract = factory.attach(finP2PContractAddress);
     this.contractInterface = contract.interface;
     this.finP2P = contract as FINP2POperatorERC20;
-    this.finP2PContractAddress = config.finP2PContractAddress;
+    this.finP2PContractAddress = finP2PContractAddress;
     this.signer.getNonce().then((nonce) => {
       console.log('Syncing nonce:', nonce);
     });
+  }
+
+  async eip712Domain() {
+    return this.finP2P.eip712Domain();
   }
 
   async getAssetAddress(assetId: string) {
@@ -40,54 +44,58 @@ export class FinP2PContract extends ContractsManager {
     });
   }
 
-  async issue(assetId: string, issuerFinId: string, quantity: number) {
+  async issueWithoutSignature(assetId: string, issuerFinId: string, quantity: number) {
     return this.safeExecuteTransaction(async () => {
-      return this.finP2P.issue(assetId, issuerFinId, quantity);
+      return this.finP2P.issueWithoutSignature(assetId, issuerFinId, quantity);
     });
   }
 
-  async transfer(nonce: string, assetId: string, sourceFinId: string, destinationFinId: string, quantity: number,
-    settlementHash: string, hash: string, signature: string) {
-    let encSettlementHash: string;
-    if (settlementHash.length === 0) {
-      encSettlementHash = ethers.encodeBytes32String('');
-    } else {
-      encSettlementHash = `0x${settlementHash}`;
-    }
+  async issue(nonce: string, assetId: string, buyerFinId: string, issuerFinId: string, quantity: number,
+    settlementAsset: string, settlementAmount: number, hashType: HashType, signature: string) {
+    return this.safeExecuteTransaction(async () => {
+      return this.finP2P.issue(
+        nonce, assetId, buyerFinId, issuerFinId, quantity,
+        settlementAsset, settlementAmount, hashType, `0x${signature}`);
+    });
+  }
+
+  async transfer(nonce: string, assetId: string, sellerFinId: string, buyerFinId: string, quantity: number,
+    settlementAsset: string, settlementAmount: number, hashType: HashType, signature: string) {
     return this.safeExecuteTransaction(async () => {
       return this.finP2P.transfer(
-        `0x${nonce}`, assetId, sourceFinId, destinationFinId, quantity,
-        encSettlementHash, `0x${hash}`, `0x${signature}`);
+        nonce, assetId, sellerFinId, buyerFinId, quantity,
+        settlementAsset, settlementAmount, hashType, `0x${signature}`);
     });
   }
 
-
-  async redeem(nonce: string, assetId: string, finId: string, quantity: number,
-    settlementHash: string, hash: string, signature: string) {
+  async redeem(nonce: string, assetId: string, ownerFinId: string, buyerFinId: string, quantity: number,
+    settlementAsset: string, settlementAmount: number, hashType: HashType, signature: string) {
     return this.safeExecuteTransaction(async () => {
-      return this.finP2P.redeem(`0x${nonce}`, assetId, finId, quantity,
-        `0x${settlementHash}`, `0x${hash}`, `0x${signature}`);
+      return this.finP2P.redeem(nonce, assetId, ownerFinId, buyerFinId, quantity,
+        settlementAsset, settlementAmount, hashType, `0x${signature}`);
     });
   }
 
-  async hold(operationId: string, assetId: string, sourceFinId: string, destinationFinId: string, quantity: number, expiry: number,
-    assetHash: string, hash: string, signature: string) {
-    let opId = stringToByte16(operationId);
+  async hold(operationId: string, nonce: string, assetId: string, sellerFinId: string, buyerFinId: string, quantity: number,
+    settlementAsset: string, settlementAmount: number, /*hashType: HashType, */signature: string) {
+    const opId = `0x${operationId.replaceAll('-', '')}`;
     return this.safeExecuteTransaction(async () => {
-      return this.finP2P.hold(opId, assetId, sourceFinId, destinationFinId, quantity, expiry,
-        `0x${assetHash}`, `0x${hash}`, `0x${signature}`);
+      return this.finP2P.hold(opId, nonce, assetId, sellerFinId, buyerFinId, quantity,
+        settlementAsset, settlementAmount, /*hashType,*/ `0x${signature}`);
     });
   }
 
-  async release(operationId: string, destinationFinId: string) {
+  async release(operationId: string, sellerFinId: string) {
+    const opId = `0x${operationId.replaceAll('-', '')}`;
     return this.safeExecuteTransaction(async () => {
-      return this.finP2P.release(stringToByte16(operationId), destinationFinId);
+      return this.finP2P.release(opId, sellerFinId);
     });
   }
 
   async rollback(operationId: string) {
+    const opId = `0x${operationId.replaceAll('-', '')}`;
     return this.safeExecuteTransaction(async () => {
-      return this.finP2P.rollback(stringToByte16(operationId));
+      return this.finP2P.rollback(opId);
     });
   }
 

@@ -1,4 +1,5 @@
-import { FinP2PReceipt } from '../../finp2p-contracts/src/contracts/model';
+import { FinP2PReceipt } from "../../finp2p-contracts/src/contracts/model";
+import { HashType } from "../../finp2p-contracts/src/contracts/hash";
 import Asset = Components.Schemas.Asset;
 import Receipt = Components.Schemas.Receipt;
 import LedgerAssetInfo = Components.Schemas.LedgerAssetInfo;
@@ -7,6 +8,7 @@ import LedgerTokenId = Components.Schemas.LedgerTokenId;
 import ContractDetails = Components.Schemas.ContractDetails;
 import AssetCreateResponse = Components.Schemas.AssetCreateResponse;
 import FinP2PEVMOperatorDetails = Components.Schemas.FinP2PEVMOperatorDetails;
+import SignatureTemplate = Components.Schemas.SignatureTemplate;
 
 export const extractAssetId = (asset: Components.Schemas.Asset): string => {
   switch (asset.type) {
@@ -114,4 +116,140 @@ export const assetNotFoundResult = (tokenId: string) => {
       message: `Asset not found for token id ${tokenId}`,
     }
   } as CreateAssetResponse;
+}
+
+
+export const failedAssetCreation = (code: number, message: string) => {
+  return {
+    isCompleted: true,
+    error: { code, message }
+  } as Components.Schemas.CreateAssetResponse
+}
+
+export const failedTransaction = (code: number, message: string) => {
+  return {
+    isCompleted: true,
+    error: { code, message }
+  } as Components.Schemas.ReceiptOperation
+}
+
+export const issueParameterFromTemplate = (template: SignatureTemplate) : {
+  hashType: HashType,
+  buyerFinId: string,
+  settlementAsset: string
+  settlementAmount: number
+} => {
+  switch (template.type) {
+    case 'hashList':
+      return {
+        hashType: HashType.HashList,
+        buyerFinId: template.hashGroups[1].fields.find((field) => field.name === 'srcAccount')?.value || '',
+        settlementAsset: template.hashGroups[1].fields.find((field) => field.name === 'assetId')?.value || '',
+        settlementAmount: parseInt(template.hashGroups[1].fields.find((field) => field.name === 'amount')?.value || '')
+      }
+
+    case 'EIP712':
+      const {buyer, settlement} = template.message;
+      return {
+        hashType: HashType.EIP712,
+        buyerFinId: buyer.fields.idkey,
+        settlementAsset: settlement.fields.assetId,
+        settlementAmount: settlement.fields.amount
+      }
+    default:
+      throw new Error(`Unsupported signature template type: ${template}`);
+  }
+}
+
+export const transferParameterFromTemplate = (template: SignatureTemplate): {
+  hashType: HashType,
+  settlementAsset: string
+  settlementAmount: number
+} => {
+  switch (template.type) {
+    case 'hashList':
+      return {
+        hashType: HashType.HashList,
+        settlementAsset: template.hashGroups[1].fields.find((field) => field.name === 'assetId')?.value || '',
+        settlementAmount: parseInt(template.hashGroups[1].fields.find((field) => field.name === 'amount')?.value || '')
+      };
+
+    case 'EIP712':
+      const {buyer, seller, settlement} = template.message;
+      return {
+        hashType: HashType.EIP712,
+        settlementAsset: settlement.fields.assetId,
+        settlementAmount: settlement.fields.amount
+      }
+
+    default:
+      throw new Error(`Unsupported signature template type: ${template}`);
+  }
+}
+
+export const redeemParameterFromTemplate = (template: SignatureTemplate): {
+  hashType: HashType,
+  buyerFinId: string
+  settlementAsset: string
+  settlementAmount: number
+} => {
+  switch (template.type) {
+    case 'hashList':
+      return {
+        hashType: HashType.HashList,
+        buyerFinId: template.hashGroups[1].fields.find((field) => field.name === 'srcAccount')?.value || '',
+        settlementAsset: template.hashGroups[1].fields.find((field) => field.name === 'assetId')?.value || '',
+        settlementAmount: parseInt(template.hashGroups[1].fields.find((field) => field.name === 'amount')?.value || '')
+      };
+
+    case 'EIP712':
+      const {buyer, owner, settlement} = template.message;
+      return {
+        hashType: HashType.EIP712,
+        buyerFinId: buyer.fields.idkey,
+        settlementAsset: settlement.fields.assetId,
+        settlementAmount: settlement.fields.amount
+      }
+
+    default:
+      throw new Error(`Unsupported signature template type: ${template}`);
+  }
+}
+
+export const holdParameterFromTemplate = (template: SignatureTemplate): {
+  hashType: HashType,
+  buyerFinId: string
+  sellerFinId: string
+  asset: string
+  amount: number
+} => {
+  switch (template.type) {
+    case 'hashList':
+      return {
+        hashType: HashType.HashList,
+        buyerFinId: template.hashGroups[1].fields.find((field) => field.name === 'srcAccount')?.value || '',
+        sellerFinId: template.hashGroups[1].fields.find((field) => field.name === 'dstAccount')?.value || '',
+        asset: template.hashGroups[0].fields.find((field) => field.name === 'assetId')?.value || '',
+        amount: parseInt(template.hashGroups[0].fields.find((field) => field.name === 'amount')?.value || '')
+      };
+
+    case 'EIP712':
+      const { asset, buyer, seller } = template.message;
+      return {
+        hashType: HashType.EIP712,
+        buyerFinId: buyer.fields.idkey,
+        sellerFinId: seller.fields.idkey,
+        asset: asset.fields.assetId,
+        amount: asset.fields.amount
+      }
+
+    default:
+      throw new Error(`Unsupported signature template type: ${template}`);
+  }
+
+}
+
+
+export function getRandomNumber(min: number, max: number): number {
+  return Math.floor(Math.random() * (max - min + 1)) + min;
 }

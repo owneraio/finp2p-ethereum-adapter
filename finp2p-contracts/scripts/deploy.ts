@@ -1,35 +1,23 @@
 import process from "process";
 import { ContractsManager } from "../src/contracts/manager";
 import console from "console";
-import { FinP2PDeployerConfig } from "../src/contracts/config";
+import { createProviderAndSigner, ProviderType } from "../src/contracts/config";
 
-const deploy = async (config: FinP2PDeployerConfig) => {
-  if (!deployerPrivateKey) {
-    throw new Error("DEPLOYER_PRIVATE_KEY is not set");
-  }
-  const contractManger = new ContractsManager({
-    rpcURL: config.rpcURL,
-    signerPrivateKey: config.deployerPrivateKey
-  });
+const deploy = async (providerType: ProviderType, operatorAddress: string, paymentAssetCode: string | undefined) => {
+  const { provider, signer } = await createProviderAndSigner(providerType);
+  const contractManger = new ContractsManager(provider, signer);
   console.log('Deploying from env variables...')
-  const finP2PContractAddress = await contractManger.deployFinP2PContract(config.operatorAddress, config.paymentAssetCode);
+  const finP2PContractAddress = await contractManger.deployFinP2PContract(operatorAddress, paymentAssetCode);
   console.log(JSON.stringify({ finP2PContractAddress }));
 };
 
-const rpcURL = process.env.RPC_URL;
-if (!rpcURL) {
-  throw new Error("RPC_URL is not set");
-}
-const deployerPrivateKey = process.env.DEPLOYER_PRIVATE_KEY;
-if (!deployerPrivateKey) {
-  throw new Error("DEPLOYER_PRIVATE_KEY is not set");
-}
+const providerType = (process.env.PROVIDER_TYPE || 'local') as ProviderType;
 const operatorAddress = process.env.OPERATOR_ADDRESS;
 if (!operatorAddress) {
   throw new Error("OPERATOR_ADDRESS is not set");
 }
 const paymentAssetCode = process.env.PAYMENT_ASSET_CODE;
 
-deploy({ rpcURL, deployerPrivateKey, operatorAddress, paymentAssetCode })
+deploy(providerType, operatorAddress, paymentAssetCode)
   .then(() => {
   });

@@ -1,27 +1,20 @@
 import {
-  ContractFactory, ContractTransactionResponse,
-  JsonRpcProvider,
-  NonceManager,
-  Provider,
-  Signer,
-  Wallet,
-} from 'ethers';
+  ContractFactory, ContractTransactionResponse, Provider, Signer
+} from "ethers";
 import FINP2P from '../../artifacts/contracts/token/ERC20/FINP2POperatorERC20.sol/FINP2POperatorERC20.json';
 import ERC20 from '../../artifacts/contracts/token/ERC20/ERC20WithOperator.sol/ERC20WithOperator.json';
 import { ERC20WithOperator, FINP2POperatorERC20 } from '../../typechain-types';
-import { ContractManagerConfig } from './config';
 import { detectError, EthereumTransactionError, NonceAlreadyBeenUsedError, NonceToHighError } from "./model";
+
 
 export class ContractsManager {
 
   provider: Provider;
-
   signer: Signer;
 
-  constructor(config: ContractManagerConfig) {
-    const { rpcURL, signerPrivateKey } = config;
-    this.provider = new JsonRpcProvider(rpcURL);
-    this.signer = new NonceManager(new Wallet(signerPrivateKey)).connect(this.provider);
+  constructor(provider: Provider, signer: Signer) {
+    this.provider = provider;
+    this.signer = signer;
   }
 
   async deployERC20(name: string, symbol: string, finP2PContractAddress: string) {
@@ -156,6 +149,6 @@ export class ContractsManager {
   }
 
   protected resetNonce() {
-    (this.signer as NonceManager).reset();
+    // (this.signer as NonceManager).reset();
   }
 }
