@@ -195,10 +195,13 @@ export class TokenService extends CommonService {
     const ownerFinId = request.source.finId;
 
     const { signature, template } = request.signature;
-    let txHash = '';
     try {
-      const txHash = await this.finP2PContract.redeem(nonce, assetId, finId, amount, settlementHash, hash, signature);
-
+      const { hashType, buyerFinId, settlementAmount, settlementAsset } = redeemParameterFromTemplate(template);
+      const txHash = await this.finP2PContract.redeem(nonce, assetId, ownerFinId, buyerFinId, amount, settlementAsset, settlementAmount, hashType, signature);
+      return {
+        isCompleted: false,
+        cid: txHash,
+      } as Components.Schemas.ReceiptOperation;
     } catch (e) {
       logger.error(`Error asset redeem: ${e}`);
       if (e instanceof EthereumTransactionError) {
@@ -208,10 +211,6 @@ export class TokenService extends CommonService {
         return failedTransaction(1, `${e}`);
       }
     }
-    return {
-      isCompleted: false,
-      cid: txHash,
-    } as Components.Schemas.ReceiptOperation;
   }
 
 }
