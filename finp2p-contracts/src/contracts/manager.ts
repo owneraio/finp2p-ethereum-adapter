@@ -10,7 +10,7 @@ import FINP2P from '../../artifacts/contracts/token/ERC20/FINP2POperatorERC20.so
 import ERC20 from '../../artifacts/contracts/token/ERC20/ERC20WithOperator.sol/ERC20WithOperator.json';
 import { ERC20WithOperator, FINP2POperatorERC20 } from '../../typechain-types';
 import { ContractManagerConfig } from './config';
-import { detectError, EthereumTransactionError, NonceToHighError } from './model';
+import { detectError, EthereumTransactionError, NonceAlreadyBeenUsedError, NonceToHighError } from "./model";
 
 const DEFAULT_HASH_TYPE = 2; // EIP712
 
@@ -27,7 +27,7 @@ export class ContractsManager {
   }
 
   async deployERC20(name: string, symbol: string, finP2PContractAddress: string) {
-    // console.log("Deploying ERC20 contract...");
+     // console.log("Deploying ERC20 contract...");
     const factory = new ContractFactory<any[], ERC20WithOperator>(
       ERC20.abi,
       ERC20.bytecode,
@@ -142,7 +142,11 @@ export class ContractsManager {
           throw err;
 
         } else if (err instanceof NonceToHighError) {
-          // console.log('Nonce too high error');
+          // console.log('Nonce too high error, retrying');
+          this.resetNonce();
+          // continuing the loop
+        } else if (err instanceof NonceAlreadyBeenUsedError) {
+          // console.log('Nonce already been used error, retrying');
           this.resetNonce();
           // continuing the loop
         } else {

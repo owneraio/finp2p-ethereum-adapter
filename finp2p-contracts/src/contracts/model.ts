@@ -42,6 +42,12 @@ export class NonceToHighError extends Error {
   }
 }
 
+export class NonceAlreadyBeenUsedError extends Error {
+  constructor(public readonly reason: string) {
+    super(reason);
+  }
+}
+
 export const detectError = (e: any) : EthereumTransactionError | NonceToHighError | Error => {
   if ('code' in e && 'action' in e && 'message' in e && 'reason' in e && 'data' in e) {
     return new EthereumTransactionError(e.reason);
@@ -49,6 +55,8 @@ export const detectError = (e: any) : EthereumTransactionError | NonceToHighErro
     if (e.error.code === -32000 || e.error.message.startsWith('Nonce too high')) {
       return new NonceToHighError(e.error.message);
     }
+  } else if (`${e}`.includes('nonce has already been used')) {
+      return new NonceAlreadyBeenUsedError(`${e}`);
   }
   return e;
 };
