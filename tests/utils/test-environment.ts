@@ -10,8 +10,10 @@ import { ContractsManager } from "../../finp2p-contracts/src/contracts/manager";
 import { AdapterParameters, NetworkDetails, NetworkParameters } from "./models";
 import { randomPort } from "./utils";
 import { addressFromPrivateKey } from "../../finp2p-contracts/src/contracts/utils";
-import { FinP2PDeployerConfig, FinP2PContractConfig } from "../../finp2p-contracts/src/contracts/config";
 import { DeployNewToken } from "../../src/services/tokens";
+import { createProviderAndSigner, ProviderType } from "../../finp2p-contracts/src/contracts/config";
+
+const providerType: ProviderType = 'local';
 
 class CustomTestEnvironment extends NodeEnvironment {
 
@@ -42,21 +44,13 @@ class CustomTestEnvironment extends NodeEnvironment {
 
       const deployer = details.accounts[0];
       const operator = details.accounts[1];
-      const hashType = 1; // HashList
-      // const hashType = 2; // EIP712
 
+      process.env.OPERATOR_PRIVATE_KEY = deployer;
+      process.env.NETWORK_HOST = details.rpcUrl;
 
-      const finP2PContractAddress = await this.deployContract({
-        hashType,
-        rpcURL: details.rpcUrl,
-        deployerPrivateKey: deployer,
-        operatorAddress: addressFromPrivateKey(operator),
-      })
-      this.global.serverAddress = await this.startApp({
-        rpcURL: details.rpcUrl,
-        signerPrivateKey: operator,
-        finP2PContractAddress
-      });
+      const operatorAddress = addressFromPrivateKey(operator);
+      const finP2PContractAddress = await this.deployContract(operatorAddress)
+      this.global.serverAddress = await this.startApp(finP2PContractAddress);
 
     } catch (err) {
       console.error("Error starting container:", err);
@@ -99,17 +93,15 @@ class CustomTestEnvironment extends NodeEnvironment {
     return { rpcUrl, accounts } as NetworkDetails;
   }
 
-  private async deployContract(config: FinP2PDeployerConfig) {
-    const { rpcURL, deployerPrivateKey, operatorAddress, paymentAssetCode, hashType} = config;
-    const contractManger = new ContractsManager({
-      rpcURL: rpcURL,
-      signerPrivateKey: deployerPrivateKey
-    });
-    return await contractManger.deployFinP2PContract(operatorAddress, paymentAssetCode, hashType);
+  private async deployContract(operatorAddress: string) {
+    const { provider, signer } = await createProviderAndSigner(providerType);
+    const contractManger = new ContractsManager(provider, signer);
+    return await contractManger.deployFinP2PContract(operatorAddress);
   }
 
-  private async startApp(config: FinP2PContractConfig) {
-    const finP2PContract = new FinP2PContract(config);
+  private async startApp(finP2PContractAddress: string) {
+    const { provider, signer } = await createProviderAndSigner(providerType);
+    const finP2PContract = new FinP2PContract(provider, signer, finP2PContractAddress);
 
     const port = randomPort();
     const assetCreationPolicy = { type: 'deploy-new-token' } as DeployNewToken;

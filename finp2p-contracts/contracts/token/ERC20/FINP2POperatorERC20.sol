@@ -9,7 +9,7 @@ import "../../utils/finp2p/IFinP2PEscrow.sol";
 import "../../utils/finp2p/Signature.sol";
 import "../../utils/finp2p/Bytes.sol";
 import "@openzeppelin/contracts/access/AccessControl.sol";
-import "../../utils/finp2p/FinP2PTypedVerifier.sol";
+import "../../utils/finp2p/FinP2PSignatureVerifier.sol";
 
 /**
  * @dev FINP2POperatorERC20
@@ -38,17 +38,11 @@ contract FINP2POperatorERC20 is IFinP2PAsset, IFinP2PEscrow, AccessControl, FinP
 
     mapping(string => Asset) assets;
     mapping(bytes16 => Lock) private locks;
-    uint8 private hashType;
 
-    constructor(uint8 _hashType) {
-        hashType = _hashType;
+    constructor() {
         _grantRole(DEFAULT_ADMIN_ROLE, _msgSender());
         _grantRole(ASSET_MANAGER, _msgSender());
         _grantRole(TRANSACTION_MANAGER, _msgSender());
-    }
-
-    function getHashType() public view returns (uint8) {
-        return hashType;
     }
 
     function grantAssetManagerRole(address account) public {
@@ -113,6 +107,7 @@ contract FINP2POperatorERC20 is IFinP2PAsset, IFinP2PEscrow, AccessControl, FinP
         uint256 quantity,
         string memory settlementAsset,
         uint256 settlementAmount,
+        uint8 hashType,
         bytes memory signature
     ) public override virtual {
         require(hasRole(TRANSACTION_MANAGER, _msgSender()), "FINP2POperatorERC20: must have transaction manager role to issue asset");
@@ -148,6 +143,7 @@ contract FINP2POperatorERC20 is IFinP2PAsset, IFinP2PEscrow, AccessControl, FinP
         uint256 quantity,
         string memory settlementAsset,
         uint256 settlementAmount,
+        uint8 hashType,
         bytes memory signature
     ) public override virtual {
         require(hasRole(TRANSACTION_MANAGER, _msgSender()), "FINP2POperatorERC20: must have transaction manager role to transfer asset");
@@ -186,6 +182,7 @@ contract FINP2POperatorERC20 is IFinP2PAsset, IFinP2PEscrow, AccessControl, FinP
         uint256 quantity,
         string memory settlementAsset,
         uint256 settlementAmount,
+        uint8 hashType,
         bytes memory signature
     ) public override virtual {
         require(hasRole(TRANSACTION_MANAGER, _msgSender()), "FINP2POperatorERC20: must have transaction manager role to redeem asset");
@@ -240,7 +237,7 @@ contract FINP2POperatorERC20 is IFinP2PAsset, IFinP2PEscrow, AccessControl, FinP
             settlementAsset,
             settlementAmount,
             buyer,
-            hashType,
+            /*HASH_TYPE_HASHLIST*/HASH_TYPE_EIP712, // todo: stack is to deep
             signature
         ), "Signature is not verified");
 
@@ -252,7 +249,7 @@ contract FINP2POperatorERC20 is IFinP2PAsset, IFinP2PEscrow, AccessControl, FinP
         require(balance >= settlementAmount, "Not sufficient balance to hold");
 
         if (haveContract(operationId))
-            revert("Contract already exists");
+            revert("Withheld contract already exists");
 
         if (!IERC20(asset.tokenAddress).transferFrom(buyer, address(this), settlementAmount))
             revert("Transfer failed");

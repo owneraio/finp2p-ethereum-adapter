@@ -6,8 +6,8 @@ import { expect } from "chai";
 import { ethers } from "hardhat";
 import { v4 as uuidv4, v4 as uuid } from "uuid";
 import {
-  generateNonce,
-} from './utils';
+  generateNonce
+} from "./utils";
 import {
   eip712Sign,
   EIP721_ISSUANCE_TYPES,
@@ -16,13 +16,11 @@ import {
   EIP721IssuanceMessage,
   EIP721TransferMessage,
   EIP721RedeemMessage
-} from "../src/contracts/eip721";
+} from "../src/contracts/hash";
 import { getFinId } from "../src/contracts/utils";
 import { Wallet } from "ethers";
+import { HashType } from "../src/contracts/hash";
 
-const HashTypeHashList = 0;
-const HashTypeEIP712 = 1;
-const hashType = HashTypeEIP712;
 
 
 describe("FinP2P proxy contract test", function() {
@@ -37,7 +35,7 @@ describe("FinP2P proxy contract test", function() {
 
   async function deployFinP2PProxyFixture() {
     const deployer = await ethers.getContractFactory("FINP2POperatorERC20");
-    const contract = await deployer.deploy(hashType);
+    const contract = await deployer.deploy();
     const address = await contract.getAddress();
     return { contract, address };
   }
@@ -85,7 +83,7 @@ describe("FinP2P proxy contract test", function() {
         }
       } as EIP721IssuanceMessage, issueBuyer);
       await contract.issue(issueNonce, assetId, issueBuyerFinId, issuerFinId, issueAmount,
-        settlementAsset, issueSettlementAmount, issueSignature, { from: operator });
+        settlementAsset, issueSettlementAmount, HashType.EIP712, issueSignature, { from: operator });
 
       expect(await contract.getBalance(assetId, issueBuyerFinId)).to.equal(0);
       expect(await contract.getBalance(assetId, issuerFinId)).to.equal(issueAmount);
@@ -117,7 +115,7 @@ describe("FinP2P proxy contract test", function() {
       } as EIP721TransferMessage, seller);
 
       await contract.transfer(transferNonce, assetId, sellerFinId, buyerFinId, transferAmount,
-        settlementAsset, transferSettlementAmount, transferSignature, { from: operator });
+        settlementAsset, transferSettlementAmount, HashType.EIP712, transferSignature, { from: operator });
 
       expect(await contract.getBalance(assetId, sellerFinId)).to.equal(issueAmount - transferAmount);
       expect(await contract.getBalance(assetId, buyerFinId)).to.equal(transferAmount);
@@ -148,7 +146,7 @@ describe("FinP2P proxy contract test", function() {
         }
       } as EIP721RedeemMessage, owner);
       await contract.redeem(redeemNonce, assetId, ownerFinId, redeemBuyerFinId,
-        redeemAmount, settlementAsset, redeemSettlementAmount, redeemSignature, { from: operator });
+        redeemAmount, settlementAsset, redeemSettlementAmount, HashType.EIP712, redeemSignature, { from: operator });
 
       expect(await contract.getBalance(assetId, ownerFinId)).to.equal(0);
       expect(await contract.getBalance(assetId, redeemBuyerFinId)).to.equal(0);
@@ -203,7 +201,7 @@ describe("FinP2P proxy contract test", function() {
       } as EIP721TransferMessage, buyer);
 
       await contract.hold(operationId, transferNonce, assetId, sellerFinId,
-        buyerFinId, transferAmount, settlementAsset, transferSettlementAmount, transferSignature, { from: operator });
+        buyerFinId, transferAmount, settlementAsset, transferSettlementAmount, /*HashType.EIP712,*/ transferSignature, { from: operator });
 
       expect(await contract.getBalance(settlementAsset, buyerFinId)).to.equal(issueSettlementAmount - transferSettlementAmount);
 

@@ -13,12 +13,14 @@
     "deploy-contract-job": "node dist/scripts/deploy-job.js",
     "grant-operator-roles": "node dist/scripts/grant.js",
     "associate-asset": "node dist/scripts/associate.js",
-    "generate-wallet": "node dist/scripts/generate-wallet.js"
+    "generate-wallet": "node dist/scripts/generate-wallet.js",
+    "amend-asset": "ts-node scripts/amend-asset.ts"
   },
   "keywords": [],
   "author": "",
   "license": "TBD",
   "dependencies": {
+    "@fireblocks/fireblocks-web3-provider": "^1.3.12",
     "ethers": "^6.11.1",
     "secp256k1": "^3.7.1"
   },

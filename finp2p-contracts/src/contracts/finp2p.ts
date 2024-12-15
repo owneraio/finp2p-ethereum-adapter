@@ -1,12 +1,12 @@
-import { ContractFactory, Interface } from 'ethers';
+import { ContractFactory, Interface, Provider, Signer } from "ethers";
 import FINP2P
   from '../../artifacts/contracts/token/ERC20/FINP2POperatorERC20.sol/FINP2POperatorERC20.json';
 import { FINP2POperatorERC20 } from '../../typechain-types';
 import { FinP2PReceipt, OperationStatus } from './model';
 import { parseTransactionReceipt } from './utils';
 import { ContractsManager } from './manager';
-import { FinP2PContractConfig } from './config';
 import console from 'console';
+import { HashType } from "./hash";
 
 export class FinP2PContract extends ContractsManager {
 
@@ -16,22 +16,18 @@ export class FinP2PContract extends ContractsManager {
 
   finP2PContractAddress: string;
 
-  constructor(config: FinP2PContractConfig) {
-    super(config);
+  constructor(provider: Provider, signer: Signer, finP2PContractAddress: string) {
+    super(provider, signer);
     const factory = new ContractFactory<any[], FINP2POperatorERC20>(
       FINP2P.abi, FINP2P.bytecode, this.signer,
     );
-    const contract = factory.attach(config.finP2PContractAddress);
+    const contract = factory.attach(finP2PContractAddress);
     this.contractInterface = contract.interface;
     this.finP2P = contract as FINP2POperatorERC20;
-    this.finP2PContractAddress = config.finP2PContractAddress;
+    this.finP2PContractAddress = finP2PContractAddress;
     this.signer.getNonce().then((nonce) => {
       console.log('Syncing nonce:', nonce);
     });
-  }
-
-  async getHashType() {
-    return this.finP2P.getHashType();
   }
 
   async eip712Domain() {
@@ -55,37 +51,37 @@ export class FinP2PContract extends ContractsManager {
   }
 
   async issue(nonce: string, assetId: string, buyerFinId: string, issuerFinId: string, quantity: number,
-    settlementAsset: string, settlementAmount: number, signature: string) {
+    settlementAsset: string, settlementAmount: number, hashType: HashType, signature: string) {
     return this.safeExecuteTransaction(async () => {
       return this.finP2P.issue(
         nonce, assetId, buyerFinId, issuerFinId, quantity,
-        settlementAsset, settlementAmount, `0x${signature}`);
+        settlementAsset, settlementAmount, hashType, `0x${signature}`);
     });
   }
 
   async transfer(nonce: string, assetId: string, sellerFinId: string, buyerFinId: string, quantity: number,
-    settlementAsset: string, settlementAmount: number, signature: string) {
+    settlementAsset: string, settlementAmount: number, hashType: HashType, signature: string) {
     return this.safeExecuteTransaction(async () => {
       return this.finP2P.transfer(
         nonce, assetId, sellerFinId, buyerFinId, quantity,
-        settlementAsset, settlementAmount, `0x${signature}`);
+        settlementAsset, settlementAmount, hashType, `0x${signature}`);
     });
   }
 
   async redeem(nonce: string, assetId: string, ownerFinId: string, buyerFinId: string, quantity: number,
-    settlementAsset: string, settlementAmount: number, signature: string) {
+    settlementAsset: string, settlementAmount: number, hashType: HashType, signature: string) {
     return this.safeExecuteTransaction(async () => {
       return this.finP2P.redeem(nonce, assetId, ownerFinId, buyerFinId, quantity,
-        settlementAsset, settlementAmount, `0x${signature}`);
+        settlementAsset, settlementAmount, hashType, `0x${signature}`);
     });
   }
 
   async hold(operationId: string, nonce: string, assetId: string, sellerFinId: string, buyerFinId: string, quantity: number,
-    settlementAsset: string, settlementAmount: number, signature: string) {
+    settlementAsset: string, settlementAmount: number, /*hashType: HashType, */signature: string) {
     const opId = `0x${operationId.replaceAll('-', '')}`;
     return this.safeExecuteTransaction(async () => {
       return this.finP2P.hold(opId, nonce, assetId, sellerFinId, buyerFinId, quantity,
-        settlementAsset, settlementAmount, `0x${signature}`);
+        settlementAsset, settlementAmount, /*hashType,*/ `0x${signature}`);
     });
   }
 

@@ -1061,9 +1061,7 @@ components:
 
     signature:
       type: object
-      required:
-        - signature
-        - template
+      required: [ signature, template, hashFunc ]
       description: 'represent a signature template information'
       properties:
         signature:
@@ -1071,6 +1069,8 @@ components:
           description: 'hex representation of the signature'
         template:
           $ref: '#/components/schemas/signatureTemplate'
+        hashFunc:
+          $ref: '#/components/schemas/hashFunction'
 
     signatureTemplate:
       type: object
@@ -1147,22 +1147,13 @@ components:
           type: string
           format: address
     EIP712TypedValue:
-      type: object
       oneOf:
-        - type: string
-        - type: integer
-        - type: boolean
-        - type: string
-          format: byte
-        - type: object
-          properties:
-            fields:
-              type: object
-              additionalProperties:
-                $ref: '#/components/schemas/EIP712TypedValue'
-        - type: array
-          items:
-            $ref: '#/components/schemas/EIP712TypedValue'
+        - $ref: '#/components/schemas/EIP712TypeString'
+        - $ref: '#/components/schemas/EIP712TypeInteger'
+        - $ref: '#/components/schemas/EIP712TypeBool'
+        - $ref: '#/components/schemas/EIP712TypeByte'
+        - $ref: '#/components/schemas/EIP712TypeObject'
+        - $ref: '#/components/schemas/EIP712TypeArray'
     EIP712Types:
       type: object
       properties:
@@ -1207,6 +1198,40 @@ components:
           type: string
           description: 'hex representation of template hash'
 
+    EIP712TypeString:
+      type: string
+      pattern: '^(?:$|0([^x].*)?|[^0].*)$' # matches string that doesn't start with hexadecimal prefix
+
+    EIP712TypeByte:
+      type: string
+      pattern: '^0x[0-9a-fA-F]+$' # matches hexadecimal string starting with '0x'
+      minLength: 3
+      maxLength: 320
+
+    EIP712TypeInteger:
+      type: integer
+
+    EIP712TypeBool:
+      type: boolean
+
+    EIP712TypeObject:
+      type: object
+      additionalProperties:
+        $ref: '#/components/schemas/EIP712TypedValue'
+
+    EIP712TypeArray:
+      type: array
+      items:
+        $ref: '#/components/schemas/EIP712TypedValue'
+
+    hashFunction:
+      type: string
+      enum:
+        - unspecified
+        - sha3_256
+        - blake2b
+        - keccak_256
+      description: hash function types
 
     receipt:
       type: object
@@ -1215,6 +1240,7 @@ components:
         - asset
         - quantity
         - timestamp
+        - tradeDetails
       properties:
         id:
           type: string
@@ -1236,9 +1262,63 @@ components:
           $ref: '#/components/schemas/transactionDetails'
         operationType:
           $ref: '#/components/schemas/operationType'
+        tradeDetails:
+          $ref: '#/components/schemas/receiptTradeDetails'
+        proof:
+          $ref: '#/components/schemas/proofPolicy'
+
+    receiptTradeDetails:
+      type: object
+      properties:
+        intentId:
+          type: string
+        intentVersion:
+          type: string
+        executionContext:
+          $ref: '#/components/schemas/receiptExecutionContext'
+
+    receiptExecutionContext:
+      type: object
+      required: [ executionPlanId, instructionSequenceNumber ]
+      properties:
+        executionPlanId:
+          type: string
+        instructionSequenceNumber:
+          type: integer
+
+    proofPolicy:
+      description: additional proof information attached to a receipt
+      type: object
+      discriminator:
+        propertyName: type
+        mapping:
+          signatureProofPolicy: '#/components/schemas/signatureProofPolicy'
+          noProofPolicy: '#/components/schemas/noProofPolicy'
+      oneOf:
+        - $ref: '#/components/schemas/signatureProofPolicy'
+        - $ref: '#/components/schemas/noProofPolicy'
+
+    noProofPolicy:
+      type: object
+      required: [ type ]
+      properties:
+        type:
+          type: string
+          enum: [ "noProofPolicy" ]
+      description: "no proof validation required for this policy"
+
+    signatureProofPolicy:
+      type: object
+      required: [type]
+      properties:
+        type:
+          type: string
+          enum: [ "signatureProofPolicy" ]
+        signature:
+          $ref: '#/components/schemas/signature'
 
     transactionDetails:
-      description: Additional input and output details for UTXO supporting DLTs
+      description: additional ledger specific
       type: object
       required:
         - transactionId
@@ -1319,7 +1399,6 @@ components:
         tokenId:
           type: string
           description: 'the token id binding'
-
 
     ApproveExecutionPlanRequest:
       type: object

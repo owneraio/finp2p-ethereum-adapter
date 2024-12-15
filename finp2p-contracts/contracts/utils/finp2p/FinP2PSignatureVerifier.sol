@@ -2,9 +2,10 @@
 
 pragma solidity ^0.8.0;
 
+import "./Bytes.sol";
+import "./Signature.sol";
 import "@openzeppelin/contracts/utils/Strings.sol";
 import "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
-import "./Signature.sol";
 
 /**
  * @dev Library for FinP2P protocol signature verification.
@@ -121,7 +122,7 @@ contract FinP2PSignatureVerifier is EIP712 {
         if (hashType == HASH_TYPE_HASHLIST) {
             return keccak256(abi.encodePacked(
                 keccak256(abi.encodePacked(
-                    nonce,
+                    Bytes.fromHexToUint256(nonce),
                     ISSUE_ACTION,
                     "finp2p",
                     assetId,
@@ -153,6 +154,7 @@ contract FinP2PSignatureVerifier is EIP712 {
         }
     }
 
+
     function hashTransfer(
         uint8 hashType,
         string memory nonce,
@@ -166,7 +168,7 @@ contract FinP2PSignatureVerifier is EIP712 {
         if (hashType == HASH_TYPE_HASHLIST) {
             return keccak256(abi.encodePacked(
                 keccak256(abi.encodePacked(
-                    nonce,
+                    Bytes.fromHexToUint256(nonce),
                     TRANSFER_ACTION,
                     "finp2p",
                     assetId,
@@ -214,7 +216,7 @@ contract FinP2PSignatureVerifier is EIP712 {
         if (hashType == HASH_TYPE_HASHLIST) {
             return keccak256(abi.encodePacked(
                 keccak256(abi.encodePacked(
-                    nonce,
+                    Bytes.fromHexToUint256(nonce),
                     REDEEM_ACTION,
                     "finp2p",
                     assetId,

@@ -3,7 +3,7 @@ import { APIClient } from "./api/api";
 import { v4 as uuidv4 } from "uuid";
 
 
-describe.skip(`token service test (signature hash type: hash-list)`, () => {
+describe(`token service test (signature hash type: hash-list)`, () => {
 
   let client: APIClient;
   let orgId: string;
@@ -25,8 +25,17 @@ describe.skip(`token service test (signature hash type: hash-list)`, () => {
       resourceId: randomResourceId(orgId, ASSET)
     } as Components.Schemas.Asset;
 
+    const issuerCrypto = createCrypto();
+    const issuer = {
+      finId: issuerCrypto.public.toString("hex"),
+      account: {
+        type: "finId",
+        finId: issuerCrypto.public.toString("hex")
+      }
+    } as Components.Schemas.Source;
+
     const buyerCrypto = createCrypto();
-    let buyer = {
+    const buyer = {
       finId: buyerCrypto.public.toString("hex"),
       account: {
         type: "finId",
@@ -120,6 +129,7 @@ describe.skip(`token service test (signature hash type: hash-list)`, () => {
       {
         asset: { type: "fiat", code: "USD" },
         quantity: 10000,
+        source: issuer,
         destination: buyer,
       },
       hashFunction,
@@ -144,7 +154,7 @@ describe.skip(`token service test (signature hash type: hash-list)`, () => {
     await client.expectBalance(buyer, asset, issueQuantity - transferQuantity - redeemQuantity);
   });
 
-  test(`Scenario: escrow hold / release`, async () => {
+  test.skip(`Scenario: escrow hold / release`, async () => {
 
     const asset = { type: "fiat", code: "USD" } as Components.Schemas.Asset;
 
@@ -256,7 +266,7 @@ describe.skip(`token service test (signature hash type: hash-list)`, () => {
     await client.expectBalance(seller, asset, transferQty);
   });
 
-  test(`Failed transaction and nonce resetting`, async () => {
+  test.skip(`Failed transaction and nonce resetting`, async () => {
 
     const asset = {
       type: "finp2p",
