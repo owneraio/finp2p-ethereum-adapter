@@ -65,7 +65,7 @@ describe(`token service test (signature hash type: eip712)`, () => {
     // --------------------------------------------------------------------------
 
     const issueNonce = generateNonce().toString('hex');
-    const issueReceipt = await client.expectReceipt(await client.tokens.issue({
+    const issueStatus = await client.tokens.issue({
       nonce: issueNonce,
       destination: issuerSource.account,
       quantity: `${issueAmount}`,
@@ -86,7 +86,9 @@ describe(`token service test (signature hash type: eip712)`, () => {
             amount: `${issueSettlementAmount}`
           }
         } as EIP721IssuanceMessage, issueBuyerPrivateKey)
-    } as Paths.IssueAssets.RequestBody));
+    } as Paths.IssueAssets.RequestBody);
+    expect(issueStatus.error).toBeUndefined();
+    const issueReceipt = await client.expectReceipt(issueStatus);
     expect(issueReceipt.asset).toStrictEqual(asset);
     expect(parseInt(issueReceipt.quantity)).toBe(issueAmount);
     expect(issueReceipt.destination?.finId).toBe(issuerFinId);
@@ -250,7 +252,7 @@ describe(`token service test (signature hash type: eip712)`, () => {
     const transferSettlementAmount = 1000;
 
     const transferNonce = generateNonce().toString('hex');
-    const holdReceipt = await client.expectReceipt(await client.escrow.hold({
+    const holdStatus = await client.escrow.hold({
       operationId: operationId,
       nonce: transferNonce,
       source: buyerSource,
@@ -273,7 +275,9 @@ describe(`token service test (signature hash type: eip712)`, () => {
             amount: `${transferSettlementAmount}`
           }
         } as EIP721TransferMessage, buyerPrivateKey),
-    } as Paths.HoldOperation.RequestBody));
+    } as Paths.HoldOperation.RequestBody);
+    expect(holdStatus.error).toBeUndefined();
+    const holdReceipt = await client.expectReceipt(holdStatus);
     expect(holdReceipt.asset).toStrictEqual(settlementAsset);
     expect(holdReceipt.source).toStrictEqual(buyerSource);
     expect(holdReceipt.destination).toBeUndefined();

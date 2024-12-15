@@ -3,6 +3,8 @@ import * as crypto from 'crypto';
 import { v4 as uuidv4 } from 'uuid';
 import createKeccakHash from 'keccak';
 import HashListTemplate = Components.Schemas.HashListTemplate;
+import { OpenApisV3 } from "dtsgenerator/dist/core/openApiV3";
+import Components = OpenApisV3.SchemaJson.Definitions.Components;
 
 export const ASSET = 102;
 export const ACCOUNT = 103;
@@ -64,7 +66,6 @@ const extractIdFromAsset = (asset: Components.Schemas.Asset): string => {
   }
 };
 
-
 const extractIdFromSource = (account: Components.Schemas.FinIdAccount): string => {
   switch (account.type) {
     case 'finId':
@@ -72,10 +73,12 @@ const extractIdFromSource = (account: Components.Schemas.FinIdAccount): string =
   }
 };
 
-
-const extractIdFromDestination = (account: Components.Schemas.FinIdAccount |
-Components.Schemas.CryptoWalletAccount |
-Components.Schemas.FiatAccount | undefined): string => {
+const extractIdFromDestination = (
+  account: Components.Schemas.FinIdAccount |
+  Components.Schemas.CryptoWalletAccount |
+  Components.Schemas.FiatAccount |
+  undefined
+): string => {
   if (account === undefined) {
     return '';
   }
@@ -96,6 +99,19 @@ let HashFunction = {
   BLAKE2B: 'blake2b',
   KECCAK_256: 'keccak-256',
 };
+
+export const hashFunctionToAPI = (hashFunc: HashFunction): Components.Schemas.HashFunction => {
+  switch (hashFunc) {
+    case HashFunction.SHA3_256:
+      return 'sha3_256';
+    case HashFunction.BLAKE2B:
+      return 'blake2b';
+    case HashFunction.KECCAK_256:
+      return 'keccak_256';
+    default:
+      throw Error('unsupported hash function : ' + hashFunc);
+  }
+}
 
 export const hashBufferValues = (values: Buffer[], hashFunc: HashFunction = HashFunction.SHA3_256) => {
   let hashFn: crypto.Hash;
@@ -219,6 +235,7 @@ export const transferSignature = (assetGroup: AssetGroup, settlementGroup: Settl
   const hash = hashBufferValues(hashes, hashFunc);
   return {
     signature: sign(privateKey, hash),
+    hashFunc: hashFunctionToAPI(hashFunc),
     template: {
       type: 'hashList',
       hash: hash.toString('hex'),
@@ -227,6 +244,7 @@ export const transferSignature = (assetGroup: AssetGroup, settlementGroup: Settl
   };
 };
 
+// export const hashFunction
 export const verify = (mes: Buffer, signature: Buffer, pubKey: Buffer) => {
   return secp256k1.verify(mes, signature, pubKey);
 };

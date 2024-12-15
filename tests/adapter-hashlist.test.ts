@@ -50,15 +50,17 @@ describe(`token service test (signature hash type: hash-list)`, () => {
 
     await client.expectBalance(buyer, asset, 0);
 
-    let issueQuantity = 1000;
+    const issueQuantity = 1000;
     let settlementRef = `${uuidv4()}`;
-    const issueReceipt = await client.expectReceipt(await client.tokens.issue({
+    const issueStatus = await client.tokens.issue({
       nonce: generateNonce().toString("utf-8"),
       destination: buyer.account as Components.Schemas.FinIdAccount,
       quantity: `${issueQuantity}`,
       asset: asset as Components.Schemas.Finp2pAsset,
       settlementRef: settlementRef,
-    } as Paths.IssueAssets.RequestBody));
+    } as Paths.IssueAssets.RequestBody);
+    expect(issueStatus.error).toBeUndefined();
+    const issueReceipt = await client.expectReceipt(issueStatus);
     expect(issueReceipt.asset).toStrictEqual(asset);
     expect(parseInt(issueReceipt.quantity)).toBe(issueQuantity);
     expect(issueReceipt.destination).toStrictEqual(buyer);
@@ -98,7 +100,7 @@ describe(`token service test (signature hash type: hash-list)`, () => {
     );
 
     settlementRef = `${uuidv4()}`;
-    const transferReceipt = await client.expectReceipt(await client.tokens.transfer({
+    const transferStatus = await client.tokens.transfer({
       nonce: nonce.toString("hex"),
       source: buyer,
       destination: seller,
@@ -106,7 +108,9 @@ describe(`token service test (signature hash type: hash-list)`, () => {
       settlementRef: settlementRef,
       asset,
       signature: signature
-    } as Paths.TransferAsset.RequestBody));
+    } as Paths.TransferAsset.RequestBody);
+    expect(transferStatus.error).toBeUndefined();
+    const transferReceipt = await client.expectReceipt(transferStatus);
     expect(transferReceipt.asset).toStrictEqual(asset);
     expect(parseInt(transferReceipt.quantity)).toBe(transferQuantity);
     expect(transferReceipt.source).toStrictEqual(buyer);
@@ -137,14 +141,16 @@ describe(`token service test (signature hash type: hash-list)`, () => {
     );
 
     settlementRef = `${uuidv4()}`;
-    const redeemReceipt = await client.expectReceipt(await client.tokens.redeem({
+    const redeemStatus = await client.tokens.redeem({
       nonce: nonce.toString("hex"),
       source: buyer.account as Components.Schemas.FinIdAccount,
       quantity: `${redeemQuantity}`,
       settlementRef: settlementRef,
       asset: asset as Components.Schemas.Finp2pAsset,
       signature: redeemSignature
-    }));
+    });
+    expect(redeemStatus.error).toBeUndefined();
+    const redeemReceipt = await client.expectReceipt(redeemStatus);
     expect(redeemReceipt.asset).toStrictEqual(asset);
     expect(parseFloat(redeemReceipt.quantity)).toBeCloseTo(redeemQuantity, 4);
     expect(redeemReceipt.source).toStrictEqual(buyer);
@@ -238,7 +244,7 @@ describe(`token service test (signature hash type: hash-list)`, () => {
       hashFunction, buyerCrypto.private
     );
 
-    const status = await client.escrow.hold({
+    const holdStatus = await client.escrow.hold({
       operationId: operationId,
       source: buyer,
       destination: seller,
@@ -246,17 +252,20 @@ describe(`token service test (signature hash type: hash-list)`, () => {
       asset: asset,
       signature: signature
     } as Paths.HoldOperation.RequestBody);
-    await client.expectReceipt(status);
+    expect(holdStatus.error).toBeUndefined();
+
+    await client.expectReceipt(holdStatus);
 
     await client.expectBalance(buyer, asset, initialBalance - transferQty);
 
-    const releaseReceipt = await client.expectReceipt(await client.escrow.release({
+    const releaseStatus = await client.escrow.release({
       operationId: operationId,
       source: buyer,
       destination: seller,
       quantity: `${transferQty}`,
       asset: asset
-    }));
+    });
+    const releaseReceipt = await client.expectReceipt(releaseStatus);
     expect(releaseReceipt.asset).toStrictEqual(asset);
     expect(parseFloat(releaseReceipt.quantity)).toBeCloseTo(transferQty, 4);
     expect(releaseReceipt.source).toStrictEqual(buyer);
@@ -289,15 +298,17 @@ describe(`token service test (signature hash type: hash-list)`, () => {
 
     await client.expectBalance(buyer, asset, 0);
 
-    let issueQuantity = 1000;
+    const issueQuantity = 1000;
     let settlementRef = `${uuidv4()}`;
-    const issueReceipt = await client.expectReceipt(await client.tokens.issue({
+    const issueStatus = await client.tokens.issue({
       nonce: generateNonce().toString("utf-8"),
       destination: buyer.account as Components.Schemas.FinIdAccount,
       quantity: `${issueQuantity}`,
       asset: asset as Components.Schemas.Finp2pAsset,
       settlementRef: settlementRef,
-    } as Paths.IssueAssets.RequestBody));
+    } as Paths.IssueAssets.RequestBody);
+    expect(issueStatus.error).toBeUndefined();
+    const issueReceipt = await client.expectReceipt(issueStatus);
     expect(issueReceipt.asset).toStrictEqual(asset);
     expect(parseInt(issueReceipt.quantity)).toBe(issueQuantity);
     expect(issueReceipt.destination).toStrictEqual(buyer);
@@ -373,7 +384,7 @@ describe(`token service test (signature hash type: hash-list)`, () => {
     );
 
     settlementRef = `${uuidv4()}`;
-    const transferReceipt = await client.expectReceipt(await client.tokens.transfer({
+    const transferStatus = await client.tokens.transfer({
       nonce: nonce.toString("hex"),
       source: buyer,
       destination: seller,
@@ -381,7 +392,9 @@ describe(`token service test (signature hash type: hash-list)`, () => {
       settlementRef: settlementRef,
       asset,
       signature: signature
-    } as Paths.TransferAsset.RequestBody));
+    } as Paths.TransferAsset.RequestBody);
+    expect(transferStatus.error).toBeUndefined();
+    const transferReceipt = await client.expectReceipt(transferStatus);
     expect(transferReceipt.asset).toStrictEqual(asset);
     expect(parseInt(transferReceipt.quantity)).toBe(transferQuantity);
     expect(transferReceipt.source).toStrictEqual(buyer);
