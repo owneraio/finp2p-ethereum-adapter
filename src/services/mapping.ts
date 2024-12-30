@@ -179,7 +179,7 @@ export const transferParameterFromTemplate = (template: SignatureTemplate): {
       };
 
     case 'EIP712':
-      const settlement = template.message as EIP712TypeObject;
+      const settlement = template.message.settlement as EIP712TypeObject;
       return {
         hashType: HashType.EIP712,
         settlementAsset: settlement.assetId as EIP712TypeString,

@@ -120,34 +120,6 @@ export class ContractsManager {
     throw new Error(`no result after ${tries} retries`);
   }
 
-  async safeExecuteTransaction(call: () => Promise<ContractTransactionResponse>, maxAttempts: number = 10) {
-    for (let i = 0; i < maxAttempts; i++) {
-      try {
-        const response = await call();
-        return response.hash;
-      } catch (e) {
-        const err = detectError(e);
-        if (err instanceof EthereumTransactionError) {
-          // console.log('Ethereum transaction error');
-          this.resetNonce();
-          throw err;
-
-        } else if (err instanceof NonceToHighError) {
-          // console.log('Nonce too high error, retrying');
-          this.resetNonce();
-          // continuing the loop
-        } else if (err instanceof NonceAlreadyBeenUsedError) {
-          // console.log('Nonce already been used error, retrying');
-          this.resetNonce();
-          // continuing the loop
-        } else {
-          throw err;
-        }
-      }
-    }
-    throw new Error(`Failed to execute transaction without nonce-too-high error after ${maxAttempts} attempts`);
-  }
-
   protected resetNonce() {
     // (this.signer as NonceManager).reset();
   }

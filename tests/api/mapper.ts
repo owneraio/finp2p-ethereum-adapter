@@ -51,9 +51,7 @@ export const eip712MessageToAPI = (message: EIP721Message): {
     if (isPrimitive(value)) {
       result[name] = value
     } else if (typeof value === 'object' && value !== null) {
-      result[name] = {
-        fields: value
-      }
+      result[name] = { ...value } as Components.Schemas.EIP712TypeObject
     }
   })
   return result;
