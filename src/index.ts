@@ -12,15 +12,22 @@ import {
   readConfig
 } from "../finp2p-contracts/src/contracts/config";
 
-
-const createAssetCreationPolicy = (deploymentType: DeploymentType): AssetCreationPolicy => {
+const createAssetCreationPolicy = async (deploymentType: DeploymentType, contractManager: FinP2PContract | undefined): Promise<AssetCreationPolicy> => {
   switch (deploymentType) {
     case 'deploy-new-token':
       return {type: 'deploy-new-token'};
     case 'reuse-existing-token':
+      let tokenAddress = process.env.TOKEN_ADDRESS;
+      if (!tokenAddress) {
+        if (!contractManager) {
+          throw new Error('Contract manager is not defined');
+        }
+        tokenAddress = await contractManager.deployERC20(`ERC20`, `ERC20`, contractManager.finP2PContractAddress);
+      }
+
       return {
         type: 'reuse-existing-token',
-        tokenAddress: process.env.TOKEN_ADDRESS || ''
+        tokenAddress,
       };
     case 'no-deployment':
       return {type: 'no-deployment'};
@@ -61,7 +68,7 @@ const init = async () => {
 
   createApp(
     finp2pContract,
-    createAssetCreationPolicy(deploymentType),
+    await createAssetCreationPolicy(deploymentType, finp2pContract),
     createRegulation(ossUrl)
   ).listen(port, () => {
     logger.info(`listening at http://localhost:${port}`);
