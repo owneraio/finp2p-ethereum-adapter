@@ -10,30 +10,49 @@ export type ProviderAndSigner = {
   signer: Signer,
 }
 
+export type ContractManagerConfig = {
+  rpcURL: string;
+  signerPrivateKey: string;
+};
+
+export type FinP2PContractConfig = ContractManagerConfig & {
+  finP2PContractAddress: string;
+};
+
 const createLocalProvider = async (): Promise<ProviderAndSigner> => {
-  let ethereumRPCUrl = process.env.NETWORK_HOST;
-  if (!ethereumRPCUrl) {
-    throw new Error('NETWORK_HOST is not set');
-  }
-  const ethereumRPCAuth = process.env.NETWORK_AUTH;
-  if (ethereumRPCAuth) {
-    if (ethereumRPCUrl.startsWith('https://')) {
-      ethereumRPCUrl = 'https://' + ethereumRPCAuth + '@' + ethereumRPCUrl.replace('https://', '');
-    } else if (ethereumRPCUrl.startsWith('http://')) {
-      ethereumRPCUrl = 'http://' + ethereumRPCAuth + '@' + ethereumRPCUrl.replace('http://', '');
-    } else {
-      ethereumRPCUrl = ethereumRPCAuth + '@' + ethereumRPCUrl;
+  let ethereumRPCUrl: string;
+  let operatorPrivateKey: string;
+  const configFile = process.env.CONFIG_FILE || '';
+  if (configFile) {
+    const config = await readConfig<ContractManagerConfig>(configFile);
+    ethereumRPCUrl = config.rpcURL;
+    operatorPrivateKey = config.signerPrivateKey;
+  } else {
+    let networkHost = process.env.NETWORK_HOST;
+    if (!networkHost) {
+      throw new Error('NETWORK_HOST is not set');
     }
-  }
-  const operatorPrivateKey = process.env.OPERATOR_PRIVATE_KEY || '';
-  if (!operatorPrivateKey) {
-    throw new Error('OPERATOR_PRIVATE_KEY is not set');
+    const ethereumRPCAuth = process.env.NETWORK_AUTH;
+    if (ethereumRPCAuth) {
+      if (networkHost.startsWith('https://')) {
+        networkHost = 'https://' + ethereumRPCAuth + '@' + networkHost.replace('https://', '');
+      } else if (networkHost.startsWith('http://')) {
+        networkHost = 'http://' + ethereumRPCAuth + '@' + networkHost.replace('http://', '');
+      } else {
+        networkHost = ethereumRPCAuth + '@' + networkHost;
+      }
+    }
+    ethereumRPCUrl = networkHost
+    operatorPrivateKey = process.env.OPERATOR_PRIVATE_KEY || '';
+    if (!operatorPrivateKey) {
+      throw new Error('OPERATOR_PRIVATE_KEY is not set');
+    }
   }
 
   const provider = new JsonRpcProvider(ethereumRPCUrl);
   const signer = new NonceManager(new Wallet(operatorPrivateKey)).connect(provider);
 
-  return {provider, signer};
+  return { provider, signer };
 }
 
 const createFireblocksProvider = async (): Promise<ProviderAndSigner> => {

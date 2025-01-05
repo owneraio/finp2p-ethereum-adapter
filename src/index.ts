@@ -5,7 +5,12 @@ import createApp from './app';
 import { RegulationChecker } from './finp2p/regulation';
 import { OssClient } from './finp2p/oss.client';
 import { AssetCreationPolicy, DeploymentType } from "./services/tokens";
-import { createProviderAndSigner, ProviderType } from "../finp2p-contracts/src/contracts/config";
+import {
+  createProviderAndSigner,
+  FinP2PContractConfig,
+  ProviderType,
+  readConfig
+} from "../finp2p-contracts/src/contracts/config";
 
 
 const createAssetCreationPolicy = (deploymentType: DeploymentType): AssetCreationPolicy => {
@@ -30,14 +35,25 @@ const createRegulation = (ossUrl: string | undefined): RegulationChecker | undef
   return undefined;
 }
 
+
+
 const init = async () => {
   const port = process.env.PORT || '3000';
+  const configFile = process.env.CONFIG_FILE || '';
+  let finP2PContractAddress: string
+  if (configFile) {
+    const config = await readConfig<FinP2PContractConfig>(configFile);
+    finP2PContractAddress = config.finP2PContractAddress;
+
+  } else {
+    finP2PContractAddress = process.env.TOKEN_ADDRESS || '';
+    if (!finP2PContractAddress) {
+      throw new Error('FINP2P_CONTRACT_ADDRESS is not set');
+    }
+  }
   const providerType = (process.env.PROVIDER_TYPE || 'local') as ProviderType;
   const deploymentType = (process.env.DEPLOYMENT_TYPE || 'deploy-new-token') as DeploymentType;
-  const finP2PContractAddress = process.env.TOKEN_ADDRESS || '';
-  if (!finP2PContractAddress) {
-    throw new Error('FINP2P_CONTRACT_ADDRESS is not set');
-  }
+
   const ossUrl = process.env.OSS_URL;
 
   const { provider, signer } = await createProviderAndSigner(providerType);
