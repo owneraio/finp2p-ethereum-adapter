@@ -16,22 +16,10 @@ import CreateAssetResponse = Components.Schemas.CreateAssetResponse;
 import LedgerTokenId = Components.Schemas.LedgerTokenId;
 import { isEthereumAddress } from "../../finp2p-contracts/src/contracts/utils";
 
-export type DeploymentType =  'deploy-new-token' | 'reuse-existing-token' | 'no-deployment';
-
-export type DeployNewToken = {
-  type: 'deploy-new-token';
-};
-
-export type ReuseExistingToken = {
-  type: 'reuse-existing-token';
-  tokenAddress: string;
-};
-
-export type NoDeployment = {
-  type: 'no-deployment';
-};
-
-export type AssetCreationPolicy = DeployNewToken | ReuseExistingToken | NoDeployment;
+export type AssetCreationPolicy =
+  | { type: 'deploy-new-token' }
+  | { type: 'reuse-existing-token'; tokenAddress: string }
+  | { type: 'no-deployment' };
 
 export class TokenService extends CommonService {
 

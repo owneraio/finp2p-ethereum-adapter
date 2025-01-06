@@ -4,7 +4,7 @@ import * as process from 'process';
 import createApp from './app';
 import { RegulationChecker } from './finp2p/regulation';
 import { OssClient } from './finp2p/oss.client';
-import { AssetCreationPolicy, DeploymentType } from "./services/tokens";
+import { AssetCreationPolicy } from "./services/tokens";
 import {
   createProviderAndSigner,
   FinP2PContractConfig,
@@ -12,8 +12,9 @@ import {
   readConfig
 } from "../finp2p-contracts/src/contracts/config";
 
-const createAssetCreationPolicy = async (deploymentType: DeploymentType, contractManager: FinP2PContract | undefined): Promise<AssetCreationPolicy> => {
-  switch (deploymentType) {
+const createAssetCreationPolicy = async (contractManager: FinP2PContract | undefined): Promise<AssetCreationPolicy> => {
+  const type = (process.env.ASSET_CREATION_POLICY || 'deploy-new-token');
+  switch (type) {
     case 'deploy-new-token':
       return {type: 'deploy-new-token'};
     case 'reuse-existing-token':
@@ -22,6 +23,7 @@ const createAssetCreationPolicy = async (deploymentType: DeploymentType, contrac
         if (!contractManager) {
           throw new Error('Contract manager is not defined');
         }
+        logger.info('Deploying new ERC20 token to reuse it later');
         tokenAddress = await contractManager.deployERC20(`ERC20`, `ERC20`, contractManager.finP2PContractAddress);
       }
 
@@ -30,7 +32,9 @@ const createAssetCreationPolicy = async (deploymentType: DeploymentType, contrac
         tokenAddress,
       };
     case 'no-deployment':
-      return {type: 'no-deployment'};
+      return {type: 'no-deployment'}
+    default:
+      throw new Error(`Unknown asset creation policy: ${type}`);
   }
 }
 
@@ -41,7 +45,6 @@ const createRegulation = (ossUrl: string | undefined): RegulationChecker | undef
   }
   return undefined;
 }
-
 
 
 const init = async () => {
@@ -59,16 +62,16 @@ const init = async () => {
     }
   }
   const providerType = (process.env.PROVIDER_TYPE || 'local') as ProviderType;
-  const deploymentType = (process.env.DEPLOYMENT_TYPE || 'deploy-new-token') as DeploymentType;
 
   const ossUrl = process.env.OSS_URL;
 
   const { provider, signer } = await createProviderAndSigner(providerType);
   const finp2pContract = new FinP2PContract(provider, signer, finP2PContractAddress);
+  const assetCreationPolicy = await createAssetCreationPolicy(finp2pContract);
 
   createApp(
     finp2pContract,
-    await createAssetCreationPolicy(deploymentType, finp2pContract),
+    assetCreationPolicy,
     createRegulation(ossUrl)
   ).listen(port, () => {
     logger.info(`listening at http://localhost:${port}`);

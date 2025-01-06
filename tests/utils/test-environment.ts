@@ -10,7 +10,7 @@ import { ContractsManager } from "../../finp2p-contracts/src/contracts/manager";
 import { AdapterParameters, NetworkDetails, NetworkParameters } from "./models";
 import { randomPort } from "./utils";
 import { addressFromPrivateKey } from "../../finp2p-contracts/src/contracts/utils";
-import { DeployNewToken } from "../../src/services/tokens";
+import { AssetCreationPolicy } from "../../src/services/tokens";
 import { createProviderAndSigner, ProviderType } from "../../finp2p-contracts/src/contracts/config";
 
 const providerType: ProviderType = 'local';
@@ -104,7 +104,7 @@ class CustomTestEnvironment extends NodeEnvironment {
     const finP2PContract = new FinP2PContract(provider, signer, finP2PContractAddress);
 
     const port = randomPort();
-    const assetCreationPolicy = { type: 'deploy-new-token' } as DeployNewToken;
+    const assetCreationPolicy = { type: 'deploy-new-token' } as AssetCreationPolicy;
     const app = createApp(finP2PContract, assetCreationPolicy, undefined);
     console.log("App created successfully.");
 
