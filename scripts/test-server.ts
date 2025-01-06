@@ -11,9 +11,9 @@ import http from 'http';
 import { RegulationChecker } from '../src/finp2p/regulation';
 import { OssClient } from '../src/finp2p/oss.client';
 import { generateAuthorizationHeader } from './utils';
-import { ReuseExistingToken } from '../src/services/tokens';
 import { Provider, Signer } from "ethers";
 import { createProviderAndSigner, ProviderType } from "../finp2p-contracts/src/contracts/config";
+import { AssetCreationPolicy } from "../src/services/tokens";
 
 let ethereumNodeContainer: StartedTestContainer | undefined;
 let httpServer: http.Server | undefined;
@@ -63,7 +63,7 @@ const startApp = async (port: number, provider: Provider, signer: Signer, finP2P
   const assetCreationPolicy = {
     type: 'reuse-existing-token',
     tokenAddress,
-  } as ReuseExistingToken;
+  } as AssetCreationPolicy;
 
   const orgId = 'bank-us';
   const authTokenResolver = () => { return generateAuthorizationHeader(orgId); };
