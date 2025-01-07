@@ -172,12 +172,19 @@ export const transferParameterFromTemplate = (template: SignatureTemplate): {
 } => {
   switch (template.type) {
     case 'hashList':
-      return {
-        hashType: HashType.HashList,
-        settlementAsset: template.hashGroups[1].fields.find((field) => field.name === 'assetId')?.value || '',
-        settlementAmount: parseInt(template.hashGroups[1].fields.find((field) => field.name === 'amount')?.value || '')
-      };
-
+      if (template.hashGroups.length > 1) {
+        return {
+          hashType: HashType.HashList,
+          settlementAsset: template.hashGroups[1].fields.find((field) => field.name === 'assetId')?.value || '',
+          settlementAmount: parseInt(template.hashGroups[1].fields.find((field) => field.name === 'amount')?.value || '')
+        };
+      } else {
+        return {
+          hashType: HashType.HashList,
+          settlementAsset: '',
+          settlementAmount: 0
+        }
+      }
     case 'EIP712':
       const settlement = template.message.settlement as EIP712TypeObject;
       return {

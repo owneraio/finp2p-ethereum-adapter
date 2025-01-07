@@ -83,7 +83,7 @@ describe("FinP2P proxy contract test", function() {
         }
       } as EIP721IssuanceMessage, issueBuyer);
       await contract.issue(issueNonce, assetId, issueBuyerFinId, issuerFinId, issueAmount,
-        settlementAsset, issueSettlementAmount, HashType.EIP712, issueSignature, { from: operator });
+        settlementAsset, `${issueSettlementAmount}`, HashType.EIP712, issueSignature, { from: operator });
 
       expect(await contract.getBalance(assetId, issueBuyerFinId)).to.equal(0);
       expect(await contract.getBalance(assetId, issuerFinId)).to.equal(issueAmount);
@@ -115,7 +115,7 @@ describe("FinP2P proxy contract test", function() {
       } as EIP721TransferMessage, seller);
 
       await contract.transfer(transferNonce, assetId, sellerFinId, buyerFinId, transferAmount,
-        settlementAsset, transferSettlementAmount, HashType.EIP712, transferSignature, { from: operator });
+        settlementAsset, `${transferSettlementAmount}`, HashType.EIP712, transferSignature, { from: operator });
 
       expect(await contract.getBalance(assetId, sellerFinId)).to.equal(issueAmount - transferAmount);
       expect(await contract.getBalance(assetId, buyerFinId)).to.equal(transferAmount);
@@ -146,7 +146,7 @@ describe("FinP2P proxy contract test", function() {
         }
       } as EIP721RedeemMessage, owner);
       await contract.redeem(redeemNonce, assetId, ownerFinId, redeemBuyerFinId,
-        redeemAmount, settlementAsset, redeemSettlementAmount, HashType.EIP712, redeemSignature, { from: operator });
+        redeemAmount, settlementAsset, `${redeemSettlementAmount}`, HashType.EIP712, redeemSignature, { from: operator });
 
       expect(await contract.getBalance(assetId, ownerFinId)).to.equal(0);
       expect(await contract.getBalance(assetId, redeemBuyerFinId)).to.equal(0);
@@ -201,7 +201,7 @@ describe("FinP2P proxy contract test", function() {
       } as EIP721TransferMessage, buyer);
 
       await contract.hold(operationId, transferNonce, assetId, sellerFinId,
-        buyerFinId, transferAmount, settlementAsset, transferSettlementAmount, /*HashType.EIP712,*/ transferSignature, { from: operator });
+        buyerFinId, `${transferAmount}`, settlementAsset, transferSettlementAmount, /*HashType.EIP712,*/ transferSignature, { from: operator });
 
       expect(await contract.getBalance(settlementAsset, buyerFinId)).to.equal(issueSettlementAmount - transferSettlementAmount);
 

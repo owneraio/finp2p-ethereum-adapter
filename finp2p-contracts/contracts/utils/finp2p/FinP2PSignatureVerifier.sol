@@ -4,7 +4,6 @@ pragma solidity ^0.8.0;
 
 import "./Bytes.sol";
 import "./Signature.sol";
-import "@openzeppelin/contracts/utils/Strings.sol";
 import "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
 
 /**
@@ -50,9 +49,9 @@ contract FinP2PSignatureVerifier is EIP712 {
         string memory buyer,
         string memory issuer,
         string memory assetId,
-        uint256 amount,
+        string memory amount,
         string memory settlementAsset,
-        uint256 settlementAmount,
+        string memory settlementAmount,
         address signer,
         uint8 hashType,
         bytes memory signature
@@ -66,9 +65,9 @@ contract FinP2PSignatureVerifier is EIP712 {
         string memory seller,
         string memory buyer,
         string memory assetId,
-        uint256 amount,
+        string memory amount,
         string memory settlementAsset,
-        uint256 settlementAmount,
+        string memory settlementAmount,
         address signer,
         uint8 hashType,
         bytes memory signature
@@ -82,9 +81,9 @@ contract FinP2PSignatureVerifier is EIP712 {
         string memory owner,
         string memory buyer,
         string memory assetId,
-        uint256 amount,
+        string memory amount,
         string memory settlementAsset,
-        uint256 settlementAmount,
+        string memory settlementAmount,
         address signer,
         uint8 hashType,
         bytes memory signature
@@ -99,13 +98,12 @@ contract FinP2PSignatureVerifier is EIP712 {
         return keccak256(abi.encode(FINID_TYPE_HASH, keccak256(bytes(finId))));
     }
 
-    function hashTerm(string memory assetId, string memory assetType, uint256 amount) public pure returns (bytes32) {
-        string memory strAmount = Strings.toString(amount);
+    function hashTerm(string memory assetId, string memory assetType, string memory amount) public pure returns (bytes32) {
         return keccak256(abi.encode(
             TERM_TYPE_HASH,
             keccak256(bytes(assetId)),
             keccak256(bytes(assetType)),
-            keccak256(bytes(strAmount))
+            keccak256(bytes(amount))
         ));
     }
 
@@ -115,9 +113,9 @@ contract FinP2PSignatureVerifier is EIP712 {
         string memory buyer,
         string memory issuer,
         string memory assetId,
-        uint256 amount,
+        string memory amount,
         string memory settlementAsset,
-        uint256 settlementAmount
+        string memory settlementAmount
     ) public view returns (bytes32) {
         if (hashType == HASH_TYPE_HASHLIST) {
             return keccak256(abi.encodePacked(
@@ -128,7 +126,7 @@ contract FinP2PSignatureVerifier is EIP712 {
                     assetId,
                     DEFAULT_ACCOUNT_TYPE,
                     issuer,
-                    Strings.toString(amount)
+                    amount
                 )),
                 keccak256(abi.encodePacked(
                     "fiat",
@@ -137,7 +135,7 @@ contract FinP2PSignatureVerifier is EIP712 {
                     buyer,
                     DEFAULT_ACCOUNT_TYPE,
                     issuer,
-                    Strings.toString(settlementAmount)
+                    settlementAmount
                 ))
             ));
         } else if (hashType == HASH_TYPE_EIP712) {
@@ -161,34 +159,49 @@ contract FinP2PSignatureVerifier is EIP712 {
         string memory seller,
         string memory buyer,
         string memory assetId,
-        uint256 amount,
+        string memory amount,
         string memory settlementAsset,
-        uint256 settlementAmount
+        string memory settlementAmount
     ) public view returns (bytes32) {
         if (hashType == HASH_TYPE_HASHLIST) {
-            return keccak256(abi.encodePacked(
-                keccak256(abi.encodePacked(
-                    Bytes.fromHexToUint256(nonce),
-                    TRANSFER_ACTION,
-                    "finp2p",
-                    assetId,
-                    DEFAULT_ACCOUNT_TYPE,
-                    seller,
-                    DEFAULT_ACCOUNT_TYPE,
-                    buyer,
-                    Strings.toString(amount)
-                )),
-                keccak256(abi.encodePacked(
-                    "fiat",
-                    settlementAsset,
-                    DEFAULT_ACCOUNT_TYPE,
-                    buyer,
-                    DEFAULT_ACCOUNT_TYPE,
-                    seller,
-                    Strings.toString(settlementAmount)
-                ))
-            ));
-
+            if (bytes(settlementAsset).length == 0) {
+                return keccak256(abi.encodePacked(
+                    keccak256(abi.encodePacked(
+                        Bytes.fromHexToUint256(nonce),
+                        TRANSFER_ACTION,
+                        "finp2p",
+                        assetId,
+                        DEFAULT_ACCOUNT_TYPE,
+                        seller,
+                        DEFAULT_ACCOUNT_TYPE,
+                        buyer,
+                        amount
+                    ))
+                ));
+            } else {
+                return keccak256(abi.encodePacked(
+                    keccak256(abi.encodePacked(
+                        Bytes.fromHexToUint256(nonce),
+                        TRANSFER_ACTION,
+                        "finp2p",
+                        assetId,
+                        DEFAULT_ACCOUNT_TYPE,
+                        seller,
+                        DEFAULT_ACCOUNT_TYPE,
+                        buyer,
+                        amount
+                    )),
+                    keccak256(abi.encodePacked(
+                        "fiat",
+                        settlementAsset,
+                        DEFAULT_ACCOUNT_TYPE,
+                        buyer,
+                        DEFAULT_ACCOUNT_TYPE,
+                        seller,
+                        settlementAmount
+                    ))
+                ));
+            }
         } else if (hashType == HASH_TYPE_EIP712) {
             return _hashTypedDataV4(keccak256(abi.encode(
                 TRANSFER_TYPE_HASH,
@@ -209,9 +222,9 @@ contract FinP2PSignatureVerifier is EIP712 {
         string memory owner,
         string memory buyer,
         string memory assetId,
-        uint256 amount,
+        string memory amount,
         string memory settlementAsset,
-        uint256 settlementAmount
+        string memory settlementAmount
     ) public view returns (bytes32) {
         if (hashType == HASH_TYPE_HASHLIST) {
             return keccak256(abi.encodePacked(
@@ -222,7 +235,7 @@ contract FinP2PSignatureVerifier is EIP712 {
                     assetId,
                     DEFAULT_ACCOUNT_TYPE,
                     owner,
-                    Strings.toString(amount)
+                    amount
                 )),
                 keccak256(abi.encodePacked(
                     "fiat",
@@ -231,7 +244,7 @@ contract FinP2PSignatureVerifier is EIP712 {
                     buyer,
                     DEFAULT_ACCOUNT_TYPE,
                     owner,
-                    Strings.toString(settlementAmount)
+                    settlementAmount
                 ))
             ));
 

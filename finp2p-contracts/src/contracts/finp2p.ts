@@ -62,7 +62,7 @@ export class FinP2PContract extends ContractsManager {
     return this.safeExecuteTransaction(async (finP2P: FINP2POperatorERC20) => {
       return finP2P.issue(
         nonce, assetId, buyerFinId, issuerFinId, quantity,
-        settlementAsset, settlementAmount, hashType, `0x${signature}`);
+        settlementAsset, `${settlementAmount}`, hashType, `0x${signature}`);
     });
   }
 
@@ -71,7 +71,7 @@ export class FinP2PContract extends ContractsManager {
     return this.safeExecuteTransaction(async (finP2P: FINP2POperatorERC20) => {
       return finP2P.transfer(
         nonce, assetId, sellerFinId, buyerFinId, quantity,
-        settlementAsset, settlementAmount, hashType, `0x${signature}`);
+        settlementAsset, `${settlementAmount}`, hashType, `0x${signature}`);
     });
   }
 
@@ -79,7 +79,7 @@ export class FinP2PContract extends ContractsManager {
     settlementAsset: string, settlementAmount: number, hashType: HashType, signature: string) {
     return this.safeExecuteTransaction(async (finP2P: FINP2POperatorERC20) => {
       return finP2P.redeem(nonce, assetId, ownerFinId, buyerFinId, quantity,
-        settlementAsset, settlementAmount, hashType, `0x${signature}`);
+        settlementAsset, `${settlementAmount}`, hashType, `0x${signature}`);
     });
   }
 
@@ -87,7 +87,7 @@ export class FinP2PContract extends ContractsManager {
     settlementAsset: string, settlementAmount: number, /*hashType: HashType, */signature: string) {
     const opId = `0x${operationId.replaceAll('-', '')}`;
     return this.safeExecuteTransaction(async (finP2P: FINP2POperatorERC20) => {
-      return finP2P.hold(opId, nonce, assetId, sellerFinId, buyerFinId, quantity,
+      return finP2P.hold(opId, nonce, assetId, sellerFinId, buyerFinId, `${quantity}`,
         settlementAsset, settlementAmount, /*hashType,*/ `0x${signature}`);
     });
   }

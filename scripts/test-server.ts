@@ -65,10 +65,11 @@ const startApp = async (port: number, provider: Provider, signer: Signer, finP2P
     tokenAddress,
   } as AssetCreationPolicy;
 
-  const orgId = 'bank-us';
-  const authTokenResolver = () => { return generateAuthorizationHeader(orgId); };
-  const ossClient = new OssClient(`http://${orgId}.api.local.ownera.io/oss/query`, authTokenResolver);
-  const regChecker = new RegulationChecker(ossClient);
+  // const orgId = 'bank-il';
+  // const authTokenResolver = () => { return generateAuthorizationHeader(orgId); };
+  // const ossClient = new OssClient(`http://${orgId}.api.local.ownera.io/oss/query`, authTokenResolver);
+  // const regChecker = new RegulationChecker(ossClient);
+  const regChecker = undefined;
   const app = createApp(finP2PContract, assetCreationPolicy, regChecker);
   console.log('App created successfully.');
 

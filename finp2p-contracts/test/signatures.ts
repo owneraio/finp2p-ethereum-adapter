@@ -42,8 +42,8 @@ describe("Signing test", function() {
     const signature = await eip712Sign(chainId, verifyingContract, EIP721_ISSUANCE_TYPES, message, issuer);
     const signerAddress = await issuer.getAddress();
     expect(eip712Verify(chainId, verifyingContract, EIP721_ISSUANCE_TYPES, message, signerAddress, signature)).to.equal(true);
-    expect(await verifier.verifyPrimarySaleSignature(nonce, buyerFinId, issuerFinId, assetId, amount,
-      settlementAsset, settlementAmount, signerAddress, HashType.EIP712, signature)).to.equal(true);
+    expect(await verifier.verifyPrimarySaleSignature(nonce, buyerFinId, issuerFinId, assetId, `${amount}`,
+      settlementAsset, `${settlementAmount}`, signerAddress, HashType.EIP712, signature)).to.equal(true);
   });
 
   it("Secondary sale signature", async function() {
@@ -62,13 +62,13 @@ describe("Signing test", function() {
     const signerAddress = await seller.getAddress();
 
     const hlSignature = sign(seller.privateKey, buildTransferHash(nonce, sellerFinId, buyerFinId, assetId, 'finp2p', `${amount}`, settlementAsset, 'fiat', `${settlementAmount}`));
-    expect(await verifier.verifySecondarySaleSignature(nonce, sellerFinId, buyerFinId, assetId, amount, settlementAsset,
-      settlementAmount, signerAddress, HashType.HashList, hlSignature)).to.equal(true);
+    expect(await verifier.verifySecondarySaleSignature(nonce, sellerFinId, buyerFinId, assetId, `${amount}`, settlementAsset,
+      `${settlementAmount}`, signerAddress, HashType.HashList, hlSignature)).to.equal(true);
 
     const eip712signature = await eip712Sign(chainId, verifyingContract, EIP721_TRANSFER_TYPES,
       buildTransferMessage(nonce, sellerFinId, buyerFinId, assetId, 'finp2p', `${amount}`, settlementAsset, 'fiat', `${settlementAmount}`), seller);
-    expect(await verifier.verifySecondarySaleSignature(nonce, sellerFinId, buyerFinId, assetId, amount, settlementAsset,
-      settlementAmount, signerAddress, HashType.EIP712, eip712signature)).to.equal(true);
+    expect(await verifier.verifySecondarySaleSignature(nonce, sellerFinId, buyerFinId, assetId, `${amount}`, settlementAsset,
+      `${settlementAmount}`, signerAddress, HashType.EIP712, eip712signature)).to.equal(true);
   });
 
   it("Redemption signature", async function() {
@@ -90,8 +90,8 @@ describe("Signing test", function() {
     const signature = await eip712Sign(chainId, verifyingContract, EIP721_REDEEM_TYPES, message, owner);
     const signerAddress = await owner.getAddress();
     expect(eip712Verify(chainId, verifyingContract, EIP721_REDEEM_TYPES, message, signerAddress, signature)).to.equal(true);
-    expect(await verifier.verifyRedemptionSignature(nonce, ownerFinId, buyerFinId, assetId, amount,
-      settlementAsset, settlementAmount, signerAddress, HashType.EIP712, signature)).to.equal(true);
+    expect(await verifier.verifyRedemptionSignature(nonce, ownerFinId, buyerFinId, assetId, `${amount}`,
+      settlementAsset, `${settlementAmount}`, signerAddress, HashType.EIP712, signature)).to.equal(true);
   });
 
 });

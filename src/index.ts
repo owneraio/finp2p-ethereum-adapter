@@ -25,6 +25,7 @@ const createAssetCreationPolicy = async (contractManager: FinP2PContract | undef
         }
         logger.info('Deploying new ERC20 token to reuse it later');
         tokenAddress = await contractManager.deployERC20(`ERC20`, `ERC20`, contractManager.finP2PContractAddress);
+        logger.info(`Token deployed at address: ${tokenAddress}`);
       }
 
       return {

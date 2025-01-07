@@ -103,6 +103,7 @@ export class TokenService extends CommonService {
   }
 
   public async issue(request: Paths.IssueAssets.RequestBody): Promise<Paths.IssueAssets.Responses.$200> {
+    logger.info(`Issue asset request: ${JSON.stringify(request)}`);
     const assetId = extractAssetId(request.asset);
     const amount = parseInt(request.quantity);
     const issuerFinId = request.destination.finId;
@@ -119,12 +120,18 @@ export class TokenService extends CommonService {
 
     let txHash: string;
     try {
-      if (!request.signature || !request.signature.template) {
+      if (!request.signature || !request.signature.template || request.signature.signature === '') {
+        logger.info(`Issue asset ${assetId} to ${issuerFinId} with amount ${amount}, no signature`);
+
+        const assetAddress = await this.finP2PContract.getAssetAddress(assetId);
+        logger.info(`Asset address: ${assetAddress}`);
         txHash = await this.finP2PContract.issueWithoutSignature(assetId, issuerFinId, amount);
       } else {
         const { nonce } = request;
         const { signature, template } = request.signature;
+        logger.info(`signature: ${signature}, template: ${template}`);
         const { hashType, buyerFinId, settlementAmount, settlementAsset } = issueParameterFromTemplate(template);
+        logger.info(`Issue asset ${assetId} to ${buyerFinId} with amount ${amount} and settlement ${settlementAmount} ${settlementAsset}, hashType: ${template.type}, nonce: ${nonce}, signature: ${signature}`);
 
         txHash = await this.finP2PContract.issue(nonce, assetId, buyerFinId, issuerFinId, amount,
           settlementAsset, settlementAmount, hashType, signature);
@@ -164,6 +171,8 @@ export class TokenService extends CommonService {
     const { signature, template } = request.signature;
     try {
       const { hashType, settlementAmount, settlementAsset } = transferParameterFromTemplate(template);
+      logger.info(`Transfer asset ${assetId} from ${sellerFinId} to ${buyerFinId} with amount ${amount} and settlement ${settlementAmount} ${settlementAsset}, hashType: ${template.type}`);
+
       const txHash = await this.finP2PContract.transfer(nonce, assetId, sellerFinId, buyerFinId, amount,
         settlementAsset, settlementAmount, hashType, signature);
       return {
@@ -191,6 +200,8 @@ export class TokenService extends CommonService {
     const { signature, template } = request.signature;
     try {
       const { hashType, buyerFinId, settlementAmount, settlementAsset } = redeemParameterFromTemplate(template);
+      logger.info(`Redeem asset ${assetId} from ${ownerFinId} with amount ${amount} and settlement ${settlementAmount} ${settlementAsset}, hashType: ${hashType}`);
+
       const txHash = await this.finP2PContract.redeem(nonce, assetId, ownerFinId, buyerFinId, amount, settlementAsset, settlementAmount, hashType, signature);
       return {
         isCompleted: false,

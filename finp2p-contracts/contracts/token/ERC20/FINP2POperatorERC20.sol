@@ -10,6 +10,7 @@ import "../../utils/finp2p/Signature.sol";
 import "../../utils/finp2p/Bytes.sol";
 import "@openzeppelin/contracts/access/AccessControl.sol";
 import "../../utils/finp2p/FinP2PSignatureVerifier.sol";
+import "@openzeppelin/contracts/utils/Strings.sol";
 
 /**
  * @dev FINP2POperatorERC20
@@ -106,7 +107,7 @@ contract FINP2POperatorERC20 is IFinP2PAsset, IFinP2PEscrow, AccessControl, FinP
         string memory issuerFinId,
         uint256 quantity,
         string memory settlementAsset,
-        uint256 settlementAmount,
+        string memory settlementAmount,
         uint8 hashType,
         bytes memory signature
     ) public override virtual {
@@ -121,7 +122,7 @@ contract FINP2POperatorERC20 is IFinP2PAsset, IFinP2PEscrow, AccessControl, FinP
             buyerFinId,
             issuerFinId,
             assetId,
-            quantity,
+            Strings.toString(quantity),
             settlementAsset,
             settlementAmount,
             buyer,
@@ -142,7 +143,7 @@ contract FINP2POperatorERC20 is IFinP2PAsset, IFinP2PEscrow, AccessControl, FinP
         string memory buyerFinId,
         uint256 quantity,
         string memory settlementAsset,
-        uint256 settlementAmount,
+        string memory settlementAmount,
         uint8 hashType,
         bytes memory signature
     ) public override virtual {
@@ -157,7 +158,7 @@ contract FINP2POperatorERC20 is IFinP2PAsset, IFinP2PEscrow, AccessControl, FinP
             sellerFinId,
             buyerFinId,
             assetId,
-            quantity,
+            Strings.toString(quantity),
             settlementAsset,
             settlementAmount,
             seller,
@@ -181,7 +182,7 @@ contract FINP2POperatorERC20 is IFinP2PAsset, IFinP2PEscrow, AccessControl, FinP
         string memory buyerFinId,
         uint256 quantity,
         string memory settlementAsset,
-        uint256 settlementAmount,
+        string memory settlementAmount,
         uint8 hashType,
         bytes memory signature
     ) public override virtual {
@@ -196,7 +197,7 @@ contract FINP2POperatorERC20 is IFinP2PAsset, IFinP2PEscrow, AccessControl, FinP
             ownerFinId,
             buyerFinId,
             assetId,
-            quantity,
+            Strings.toString(quantity),
             settlementAsset,
             settlementAmount,
             owner,
@@ -219,7 +220,7 @@ contract FINP2POperatorERC20 is IFinP2PAsset, IFinP2PEscrow, AccessControl, FinP
         string memory assetId,
         string memory sellerFinId,
         string memory buyerFinId,
-        uint256 quantity,
+        string memory quantity,
         string memory settlementAsset,
         uint256 settlementAmount,
         bytes memory signature
@@ -229,15 +230,15 @@ contract FINP2POperatorERC20 is IFinP2PAsset, IFinP2PEscrow, AccessControl, FinP
         address buyer = Bytes.finIdToAddress(buyerFinId);
 
         require(verifySecondarySaleSignature(
-            nonce,
-            sellerFinId,
-            buyerFinId,
+             nonce,
+             sellerFinId,
+             buyerFinId,
             assetId,
             quantity,
             settlementAsset,
-            settlementAmount,
+            Strings.toString(settlementAmount),
             buyer,
-            /*HASH_TYPE_HASHLIST*/HASH_TYPE_EIP712, // todo: stack is to deep
+            /*HASH_TYPE_HASHLIST*/HASH_TYPE_EIP712, // todo: stack is too deep
             signature
         ), "Signature is not verified");
 
