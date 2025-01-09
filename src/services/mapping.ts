@@ -193,12 +193,22 @@ export const transferParameterFromTemplate = (template: SignatureTemplate): {
       }
 
     case 'EIP712':
-      const settlement = template.message.settlement as EIP712TypeObject;
-      return {
-        eip712PrimaryType: eip71212PrimaryTypeFromTemplate(template),
-        hashType: HashType.EIP712,
-        settlementAsset: settlement.assetId as EIP712TypeString,
-        settlementAmount: settlement.amount as EIP712TypeInteger
+      const eip712PrimaryType = eip71212PrimaryTypeFromTemplate(template);
+      if (eip712PrimaryType === EIP712PrimaryType.RequestForTransfer) {
+        return {
+          eip712PrimaryType,
+          hashType: HashType.EIP712,
+          settlementAsset: '',
+          settlementAmount: 0
+        }
+      } else {
+        const settlement = template.message.settlement as EIP712TypeObject;
+        return {
+          eip712PrimaryType,
+          hashType: HashType.EIP712,
+          settlementAsset: settlement.assetId as EIP712TypeString,
+          settlementAmount: settlement.amount as EIP712TypeInteger
+        }
       }
 
     default:

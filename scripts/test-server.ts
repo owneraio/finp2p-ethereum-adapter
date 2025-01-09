@@ -65,11 +65,11 @@ const startApp = async (port: number, provider: Provider, signer: Signer, finP2P
     tokenAddress,
   } as AssetCreationPolicy;
 
-  // const orgId = 'bank-il';
-  // const authTokenResolver = () => { return generateAuthorizationHeader(orgId); };
-  // const ossClient = new OssClient(`http://${orgId}.api.local.ownera.io/oss/query`, authTokenResolver);
-  // const regChecker = new RegulationChecker(ossClient);
-  const regChecker = undefined;
+  const orgId = 'bank-il';
+  const authTokenResolver = () => { return generateAuthorizationHeader(orgId); };
+  const ossClient = new OssClient(`http://${orgId}.api.local.ownera.io/oss/query`, authTokenResolver);
+  const regChecker = new RegulationChecker(ossClient);
+
   const app = createApp(finP2PContract, assetCreationPolicy, regChecker);
   console.log('App created successfully.');
 
@@ -92,6 +92,8 @@ const start = async () => {
 
   const operatorAddress = addressFromPrivateKey(operator);
   const { provider, signer } = await createProviderAndSigner(providerType);
+  const network = await provider.getNetwork();
+  console.log(`Connected to network: ${network.name} chainId: ${network.chainId}`);
   const finP2PContractAddress = await deployContract(provider, signer, operatorAddress);
   const tokenAddress = await deployERC20Contract(provider, signer, finP2PContractAddress);
   await startApp(port, provider, signer, finP2PContractAddress, tokenAddress);
