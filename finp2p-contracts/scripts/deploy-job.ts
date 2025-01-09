@@ -1,23 +1,38 @@
 import process from "process";
 import { ContractsManager } from "../src/contracts/manager";
-import { createProviderAndSigner, ProviderType, readConfig, writeConfig } from "../src/contracts/config";
+import {
+  ContractManagerConfig,
+  createProviderAndSigner,
+  ProviderType,
+  readConfig,
+  writeConfig
+} from "../src/contracts/config";
 import console from "console";
 
-type FinP2PDeployerConfig = {
+type FinP2PDeployerConfig = ContractManagerConfig & {
   providerType: ProviderType
   operatorAddress: string
   finP2PContractAddress: string | undefined
   paymentAssetCode: string | undefined
-}
+};
 
 const configFromEnv = (): FinP2PDeployerConfig => {
   const providerType = (process.env.PROVIDER_TYPE || 'local') as ProviderType;
+  const rpcURL = process.env.RPC_URL;
+  if (!rpcURL) {
+    throw new Error("RPC_URL is not set");
+  }
+  const signerPrivateKey = process.env.SIGNER_PRIVATE_KEY;
+  if (!signerPrivateKey) {
+    throw new Error("SIGNER_PRIVATE_KEY is not set");
+  }
   const operatorAddress = process.env.OPERATOR_ADDRESS;
   if (!operatorAddress) {
     throw new Error("OPERATOR_ADDRESS is not set");
   }
+  const finP2PContractAddress = undefined; // will be available after deployment
   const paymentAssetCode = process.env.PAYMENT_ASSET_CODE;
-  return { providerType, operatorAddress, finP2PContractAddress: undefined, paymentAssetCode };
+  return { rpcURL, signerPrivateKey, providerType, operatorAddress, finP2PContractAddress, paymentAssetCode };
 }
 
 const isAlreadyDeployed = async (config: FinP2PDeployerConfig): Promise<FinP2PDeployerConfig> => {
@@ -46,7 +61,7 @@ const deploy = async (config: FinP2PDeployerConfig): Promise<FinP2PDeployerConfi
 
   const finP2PContractAddress = await contractManger.deployFinP2PContract(operatorAddress, paymentAssetCode);
   console.log("Contract deployed successfully. FINP2P_CONTRACT_ADDRESS=", finP2PContractAddress);
-  return { providerType, operatorAddress, finP2PContractAddress, paymentAssetCode };
+  return { ...config, finP2PContractAddress };
 };
 
 const configFile = process.env.CONFIG_FILE;
