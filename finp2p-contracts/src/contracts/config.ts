@@ -19,6 +19,13 @@ export type FinP2PContractConfig = ContractManagerConfig & {
   finP2PContractAddress: string;
 };
 
+export const createLocalProviderFromConfig = async (config: ContractManagerConfig): Promise<ProviderAndSigner> => {
+  const {rpcURL, signerPrivateKey} = config;
+  const provider = new JsonRpcProvider(rpcURL);
+  const signer = new NonceManager(new Wallet(signerPrivateKey)).connect(provider);
+  return { provider, signer };
+}
+
 const createLocalProvider = async (): Promise<ProviderAndSigner> => {
   let ethereumRPCUrl: string;
   let operatorPrivateKey: string;
@@ -54,6 +61,7 @@ const createLocalProvider = async (): Promise<ProviderAndSigner> => {
 
   return { provider, signer };
 }
+
 
 const createFireblocksProvider = async (): Promise<ProviderAndSigner> => {
   const apiKey = process.env.FIREBLOCKS_API_KEY || '';

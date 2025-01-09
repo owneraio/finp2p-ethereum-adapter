@@ -1,23 +1,19 @@
 import process from "process";
 import { ContractsManager } from "../src/contracts/manager";
 import {
-  ContractManagerConfig,
-  createProviderAndSigner,
-  ProviderType,
+  ContractManagerConfig, createLocalProviderFromConfig,
   readConfig,
   writeConfig
 } from "../src/contracts/config";
 import console from "console";
 
 type FinP2PDeployerConfig = ContractManagerConfig & {
-  providerType: ProviderType
   operatorAddress: string
   finP2PContractAddress: string | undefined
   paymentAssetCode: string | undefined
 };
 
 const configFromEnv = (): FinP2PDeployerConfig => {
-  const providerType = (process.env.PROVIDER_TYPE || 'local') as ProviderType;
   const rpcURL = process.env.RPC_URL;
   if (!rpcURL) {
     throw new Error("RPC_URL is not set");
@@ -32,15 +28,15 @@ const configFromEnv = (): FinP2PDeployerConfig => {
   }
   const finP2PContractAddress = undefined; // will be available after deployment
   const paymentAssetCode = process.env.PAYMENT_ASSET_CODE;
-  return { rpcURL, signerPrivateKey, providerType, operatorAddress, finP2PContractAddress, paymentAssetCode };
+  return { rpcURL, signerPrivateKey, operatorAddress, finP2PContractAddress, paymentAssetCode };
 }
 
 const isAlreadyDeployed = async (config: FinP2PDeployerConfig): Promise<FinP2PDeployerConfig> => {
-  const { providerType, finP2PContractAddress } = config;
+  const { finP2PContractAddress } = config;
   if (finP2PContractAddress) {
     console.log(`Checking if contract ${finP2PContractAddress} is already deployed...`)
 
-    const { provider, signer } = await createProviderAndSigner(providerType);
+    const { provider, signer } = await createLocalProviderFromConfig(config);
     const contractManger = new ContractsManager(provider, signer);
     if (await contractManger.isFinP2PContractHealthy(finP2PContractAddress)) {
       console.log('Contract already deployed, skipping migration');
@@ -55,8 +51,8 @@ const isAlreadyDeployed = async (config: FinP2PDeployerConfig): Promise<FinP2PDe
 };
 
 const deploy = async (config: FinP2PDeployerConfig): Promise<FinP2PDeployerConfig> => {
-  const { providerType, operatorAddress, paymentAssetCode } = config;
-  const { provider, signer } = await createProviderAndSigner(providerType);
+  const { operatorAddress, paymentAssetCode } = config;
+  const { provider, signer } = await createLocalProviderFromConfig(config);
   const contractManger = new ContractsManager(provider, signer);
 
   const finP2PContractAddress = await contractManger.deployFinP2PContract(operatorAddress, paymentAssetCode);
