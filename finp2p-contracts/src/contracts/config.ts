@@ -2,6 +2,7 @@ import * as fs from 'fs';
 import { ApiBaseUrl, ChainId, FireblocksWeb3Provider } from "@fireblocks/fireblocks-web3-provider";
 import { BrowserProvider, JsonRpcProvider, NonceManager, Provider, Signer, Wallet } from "ethers";
 import process from "process";
+import console from "console";
 
 export type ProviderType =  'local' | 'fireblocks';
 
@@ -22,6 +23,8 @@ export type FinP2PContractConfig = ContractManagerConfig & {
 export const createLocalProviderFromConfig = async (config: ContractManagerConfig): Promise<ProviderAndSigner> => {
   const {rpcURL, signerPrivateKey} = config;
   const provider = new JsonRpcProvider(rpcURL);
+  const network = await provider.getNetwork();
+  console.log(`Connected to network: ${network.name} chainId: ${network.chainId}`);
   const signer = new NonceManager(new Wallet(signerPrivateKey)).connect(provider);
   return { provider, signer };
 }
