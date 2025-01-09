@@ -2,6 +2,10 @@ import { HDNodeWallet, Interface, TransactionReceipt, Wallet, isAddress } from '
 import { FinP2PReceipt } from './model';
 import * as secp256k1 from 'secp256k1';
 
+export const normalizeOperationId = (operationId: string): string => {
+  return `0x${operationId.replaceAll('-', '')}`;
+}
+
 export const privateKeyToFinId = (privateKey: string): string => {
   const privKeyBuffer = Buffer.from(privateKey.replace('0x', ''), 'hex');
   const pubKeyUInt8Array = secp256k1.publicKeyCreate(privKeyBuffer, true);
@@ -64,7 +68,7 @@ export const parseTransactionReceipt = (receipt: TransactionReceipt, contractInt
             assetId: parsedLog.args.assetId,
             assetType: 'finp2p',
             amount: parsedLog.args.quantity,
-            source: parsedLog.args.issuerFinId,
+            source: parsedLog.args.sellerFinId,
             timestamp: timestamp,
             operationType: 'redeem',
           };

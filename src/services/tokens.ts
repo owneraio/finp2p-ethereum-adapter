@@ -170,11 +170,11 @@ export class TokenService extends CommonService {
     }
     const { signature, template } = request.signature;
     try {
-      const { hashType, settlementAmount, settlementAsset } = transferParameterFromTemplate(template);
+      const { eip712PrimaryType, hashType, settlementAmount, settlementAsset } = transferParameterFromTemplate(template);
       logger.info(`Transfer asset ${assetId} from ${sellerFinId} to ${buyerFinId} with amount ${amount} and settlement ${settlementAmount} ${settlementAsset}, hashType: ${template.type}`);
 
       const txHash = await this.finP2PContract.transfer(nonce, assetId, sellerFinId, buyerFinId, amount,
-        settlementAsset, settlementAmount, hashType, signature);
+        settlementAsset, settlementAmount, hashType, eip712PrimaryType, signature);
       return {
         isCompleted: false,
         cid: txHash,
@@ -195,14 +195,14 @@ export class TokenService extends CommonService {
     const nonce = request.nonce;
     const assetId = request.asset.resourceId;
     const amount = parseInt(request.quantity);
-    const ownerFinId = request.source.finId;
+    const sellerFinId = request.source.finId;
 
     const { signature, template } = request.signature;
     try {
-      const { hashType, buyerFinId, settlementAmount, settlementAsset } = redeemParameterFromTemplate(template);
-      logger.info(`Redeem asset ${assetId} from ${ownerFinId} with amount ${amount} and settlement ${settlementAmount} ${settlementAsset}, hashType: ${hashType}`);
+      const { hashType, issuerFinId, settlementAmount, settlementAsset } = redeemParameterFromTemplate(template);
+      logger.info(`Redeem asset ${assetId} from ${sellerFinId} with amount ${amount} and settlement ${settlementAmount} ${settlementAsset}, hashType: ${hashType}`);
 
-      const txHash = await this.finP2PContract.redeem(nonce, assetId, ownerFinId, buyerFinId, amount, settlementAsset, settlementAmount, hashType, signature);
+      const txHash = await this.finP2PContract.redeem(nonce, assetId, sellerFinId, issuerFinId, amount, settlementAsset, settlementAmount, hashType, signature);
       return {
         isCompleted: false,
         cid: txHash,

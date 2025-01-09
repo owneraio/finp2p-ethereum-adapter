@@ -1,13 +1,17 @@
-import {
-  EIP721Message, eip712Hash, eip712SignWithPrivateKey, TypedDataField
-} from "../../finp2p-contracts/src/contracts/hash";
 
-export const eip721Signature = async (
+import {
+  eip712Hash,
+  EIP712Message,
+  eip712SignWithPrivateKey,
+  TypedDataField
+} from "../../finp2p-contracts/src/contracts/eip712";
+
+export const eip712Signature = async (
   chainId: number,
   verifyingContract: string,
   primaryType: string,
   types: Record<string, Array<TypedDataField>>,
-  message: EIP721Message,
+  message: EIP712Message,
   signerPrivateKey: string
 ) => {
   const hash = eip712Hash(chainId, verifyingContract, types, message)
@@ -43,7 +47,7 @@ const isPrimitive = (value: any) : boolean => {
   return value !== Object(value);
 }
 
-export const eip712MessageToAPI = (message: EIP721Message): {
+export const eip712MessageToAPI = (message: EIP712Message): {
   [name: string]: Components.Schemas.EIP712TypedValue;
 } => {
   const result: Record<string, Components.Schemas.EIP712TypedValue> = {}

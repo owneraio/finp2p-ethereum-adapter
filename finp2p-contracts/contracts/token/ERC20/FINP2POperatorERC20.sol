@@ -145,6 +145,7 @@ contract FINP2POperatorERC20 is IFinP2PAsset, IFinP2PEscrow, AccessControl, FinP
         string memory settlementAsset,
         string memory settlementAmount,
         uint8 hashType,
+        uint8 eip712PrimaryType,
         bytes memory signature
     ) public override virtual {
         require(hasRole(TRANSACTION_MANAGER, _msgSender()), "FINP2POperatorERC20: must have transaction manager role to transfer asset");
@@ -153,16 +154,17 @@ contract FINP2POperatorERC20 is IFinP2PAsset, IFinP2PEscrow, AccessControl, FinP
         address seller = Bytes.finIdToAddress(sellerFinId);
         address buyer = Bytes.finIdToAddress(buyerFinId);
 
-        require(verifySecondarySaleSignature(
+        require(verifyTransferSignature(
             nonce,
-            sellerFinId,
             buyerFinId,
+            sellerFinId,
             assetId,
             Strings.toString(quantity),
             settlementAsset,
             settlementAmount,
             seller,
             hashType,
+            eip712PrimaryType,
             signature
         ), "Signature is not verified");
 
@@ -178,8 +180,8 @@ contract FINP2POperatorERC20 is IFinP2PAsset, IFinP2PEscrow, AccessControl, FinP
     function redeem(
         string memory nonce,
         string memory assetId,
-        string memory ownerFinId,
-        string memory buyerFinId,
+        string memory sellerFinId,
+        string memory issuerFinId,
         uint256 quantity,
         string memory settlementAsset,
         string memory settlementAmount,
@@ -190,28 +192,28 @@ contract FINP2POperatorERC20 is IFinP2PAsset, IFinP2PEscrow, AccessControl, FinP
         require(haveAsset(assetId), "Asset not found");
         require(quantity > 0, "Amount should be greater than zero");
 
-        address owner = Bytes.finIdToAddress(ownerFinId);
+        address seller = Bytes.finIdToAddress(sellerFinId);
 
         require(verifyRedemptionSignature(
             nonce,
-            ownerFinId,
-            buyerFinId,
+            sellerFinId,
+            issuerFinId,
             assetId,
             Strings.toString(quantity),
             settlementAsset,
             settlementAmount,
-            owner,
+            seller,
             hashType,
             signature
         ), "Signature is not verified");
 
         Asset memory asset = assets[assetId];
-        uint256 balance = IERC20(asset.tokenAddress).balanceOf(owner);
+        uint256 balance = IERC20(asset.tokenAddress).balanceOf(seller);
         require(balance >= quantity, "Not sufficient balance to redeem");
 
-        ERC20WithOperator(asset.tokenAddress).burnFrom(owner, quantity);
+        ERC20WithOperator(asset.tokenAddress).burnFrom(seller, quantity);
 
-        emit Redeem(assetId, ownerFinId, quantity);
+        emit Redeem(assetId, sellerFinId, quantity);
     }
 
     function hold(
@@ -229,16 +231,17 @@ contract FINP2POperatorERC20 is IFinP2PAsset, IFinP2PEscrow, AccessControl, FinP
 
         address buyer = Bytes.finIdToAddress(buyerFinId);
 
-        require(verifySecondarySaleSignature(
+        require(verifyTransferSignature(
              nonce,
+            buyerFinId,
              sellerFinId,
-             buyerFinId,
             assetId,
             quantity,
             settlementAsset,
             Strings.toString(settlementAmount),
             buyer,
-            /*HASH_TYPE_HASHLIST*/HASH_TYPE_EIP712, // todo: stack is too deep
+            /*HASH_TYPE_HASHLIST*/HASH_TYPE_EIP712, // todo: pass hashType as a parameter
+            EIP712_PRIMARY_TYPE_SELLING, // todo: pass eip712PrimaryType as a parameter
             signature
         ), "Signature is not verified");
 

@@ -1,12 +1,14 @@
 import { ASSET, createCrypto, generateNonce, randomResourceId, transferSignature } from "./utils/utils";
 import { APIClient } from "./api/api";
 import { v4 as uuidv4 } from "uuid";
+import { eip712Signature } from "./api/mapper";
 import {
-  EIP721_ISSUANCE_TYPES, EIP721_REDEEM_TYPES, EIP721_TRANSFER_TYPES,
-  EIP721IssuanceMessage, EIP721RedeemMessage,
-  EIP721TransferMessage
-} from "../finp2p-contracts/src/contracts/hash";
-import { eip721Signature } from "./api/mapper";
+  EIP712_PRIMARY_SALE_TYPES,
+  EIP712_REDEMPTION_TYPES, EIP712_SELLING_TYPES,
+  EIP712PrimarySaleMessage,
+  EIP712RedemptionMessage,
+  EIP712SellingMessage
+} from "../finp2p-contracts/src/contracts/eip712";
 
 
 describe(`token service test (signature hash type: eip712)`, () => {
@@ -70,8 +72,8 @@ describe(`token service test (signature hash type: eip712)`, () => {
       destination: issuerSource.account,
       quantity: `${issueAmount}`,
       asset: asset as Components.Schemas.Finp2pAsset,
-      signature: await eip721Signature(chainId, verifyingContract,
-        'PrimarySale', EIP721_ISSUANCE_TYPES, {
+      signature: await eip712Signature(chainId, verifyingContract,
+        'PrimarySale', EIP712_PRIMARY_SALE_TYPES, {
           nonce: issueNonce,
           buyer: { idkey: issueBuyerFinId },
           issuer: { idkey: issuerFinId },
@@ -85,7 +87,7 @@ describe(`token service test (signature hash type: eip712)`, () => {
             assetType: 'fiat',
             amount: `${issueSettlementAmount}`
           }
-        } as EIP721IssuanceMessage, issueBuyerPrivateKey)
+        } as EIP712PrimarySaleMessage, issueBuyerPrivateKey)
     } as Paths.IssueAssets.RequestBody);
     expect(issueStatus.error).toBeUndefined();
     const issueReceipt = await client.expectReceipt(issueStatus);
@@ -122,8 +124,8 @@ describe(`token service test (signature hash type: eip712)`, () => {
       destination: buyerSource,
       quantity: `${transferAmount}`,
       asset,
-      signature: await eip721Signature(chainId, verifyingContract,
-        'SecondarySale', EIP721_TRANSFER_TYPES, {
+      signature: await eip712Signature(chainId, verifyingContract,
+        'Selling', EIP712_SELLING_TYPES, {
           nonce: transferNonce,
           seller: { idkey: sellerFinId },
           buyer: { idkey: buyerFinId },
@@ -137,7 +139,7 @@ describe(`token service test (signature hash type: eip712)`, () => {
             assetType: 'fiat',
             amount: `${transferSettlementAmount}`
           }
-        } as EIP721TransferMessage, sellerPrivateKey),
+        } as EIP712SellingMessage, sellerPrivateKey),
     } as Paths.TransferAsset.RequestBody));
     expect(transferReceipt.asset).toStrictEqual(asset);
     expect(parseInt(transferReceipt.quantity)).toBe(transferAmount);
@@ -150,11 +152,9 @@ describe(`token service test (signature hash type: eip712)`, () => {
 
     // -------------------------------------------
 
-    const redeemOwnerPrivateKey = buyerPrivateKey;
-    const redeemOwnerFinId = buyerFinId;
-    const redeemOwnerSource = buyerSource;
-    const { private: redeemBuyerPrivate, public: redeemBuyerPublic } = createCrypto();
-    const redeemBuyerFinId = redeemBuyerPublic.toString('hex');
+    const redeemSellerPrivateKey = buyerPrivateKey;
+    const redeemSellerFinId = buyerFinId;
+    const redeemSellerSource = buyerSource;
 
     const redeemNonce = generateNonce().toString('hex');
     const redeemAmount = 300;
@@ -162,14 +162,14 @@ describe(`token service test (signature hash type: eip712)`, () => {
 
     const redeemReceipt = await client.expectReceipt(await client.tokens.redeem({
       nonce: redeemNonce,
-      source: redeemOwnerSource.account as Components.Schemas.FinIdAccount,
+      source: redeemSellerSource.account as Components.Schemas.FinIdAccount,
       quantity: `${redeemAmount}`,
       asset: asset as Components.Schemas.Finp2pAsset,
-      signature: await eip721Signature(chainId, verifyingContract,
-        'Redemption', EIP721_REDEEM_TYPES, {
+      signature: await eip712Signature(chainId, verifyingContract,
+        'Redemption', EIP712_REDEMPTION_TYPES, {
           nonce: redeemNonce,
-          owner: { idkey: redeemOwnerFinId },
-          buyer: { idkey: redeemBuyerFinId },
+          seller: { idkey: redeemSellerFinId },
+          issuer: { idkey: issuerFinId },
           asset: {
             assetId,
             assetType: 'finp2p',
@@ -180,15 +180,15 @@ describe(`token service test (signature hash type: eip712)`, () => {
             assetType: 'fiat',
             amount: `${redeemSettlementAmount}`
           }
-        } as EIP721RedeemMessage, redeemOwnerPrivateKey)
+        } as EIP712RedemptionMessage, redeemSellerPrivateKey)
     } as Paths.RedeemAssets.RequestBody));
     expect(redeemReceipt.asset).toStrictEqual(asset);
     expect(parseFloat(redeemReceipt.quantity)).toBeCloseTo(redeemAmount, 4);
-    expect(redeemReceipt.source?.finId).toBe(redeemOwnerFinId);
+    expect(redeemReceipt.source?.finId).toBe(redeemSellerFinId);
     expect(redeemReceipt.destination).toBeUndefined();
     expect(redeemReceipt.operationType).toBe('redeem');
 
-    await client.expectBalance(redeemOwnerSource, asset, transferAmount - redeemAmount);
+    await client.expectBalance(redeemSellerSource, asset, transferAmount - redeemAmount);
   });
 
   test(`Scenario: escrow hold / release`, async () => {
@@ -259,8 +259,8 @@ describe(`token service test (signature hash type: eip712)`, () => {
       destination: sellerSource,
       quantity: `${transferSettlementAmount}`,
       asset: settlementAsset,
-      signature: await eip721Signature(chainId, verifyingContract,
-        'SecondarySale', EIP721_TRANSFER_TYPES, {
+      signature: await eip712Signature(chainId, verifyingContract,
+        'Selling', EIP712_SELLING_TYPES, {
           nonce: transferNonce,
           seller: { idkey: sellerFinId },
           buyer: { idkey: buyerFinId },
@@ -274,7 +274,7 @@ describe(`token service test (signature hash type: eip712)`, () => {
             assetType: 'fiat',
             amount: `${transferSettlementAmount}`
           }
-        } as EIP721TransferMessage, buyerPrivateKey),
+        } as EIP712SellingMessage, buyerPrivateKey),
     } as Paths.HoldOperation.RequestBody);
     expect(holdStatus.error).toBeUndefined();
     const holdReceipt = await client.expectReceipt(holdStatus);
