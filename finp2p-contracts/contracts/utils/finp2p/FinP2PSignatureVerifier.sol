@@ -127,7 +127,7 @@ contract FinP2PSignatureVerifier is EIP712 {
                 hash = eip712HashBuying(nonce, buyer, seller, assetId, amount, settlementAsset, settlementAmount);
 
             } else if (eip712PrimaryType == EIP712_PRIMARY_TYPE_REQUEST_FOR_TRANSFER) {
-                hash = eip712HashRequestForTransfer(nonce, buyer, seller, assetId, amount, settlementAsset, settlementAmount);
+                hash = eip712HashRequestForTransfer(nonce, buyer, seller, assetId, amount);
 
             } else if (eip712PrimaryType == EIP712_PRIMARY_TYPE_PRIVATE_OFFER) {
                 hash = eip712HashPrivateOffer(nonce, buyer,seller,  assetId, amount, settlementAsset, settlementAmount);
@@ -277,17 +277,14 @@ contract FinP2PSignatureVerifier is EIP712 {
         string memory buyer,
         string memory seller,
         string memory assetId,
-        string memory amount,
-        string memory settlementAsset,
-        string memory settlementAmount
+        string memory amount
     ) public view returns (bytes32) {
         return _hashTypedDataV4(keccak256(abi.encode(
             EIP712_REQUEST_FOR_TRANSFER_TYPE_HASH,
             keccak256(bytes(nonce)),
             eip712HashFinId(buyer),
             eip712HashFinId(seller),
-            eip712HashTerm(assetId, "finp2p", amount),
-            eip712HashTerm(settlementAsset, "fiat", settlementAmount)
+            eip712HashTerm(assetId, "finp2p", amount)
         )));
     }
 
