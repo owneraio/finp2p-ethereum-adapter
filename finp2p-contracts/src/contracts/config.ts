@@ -93,6 +93,7 @@ export const readConfig = async <T>(configPath: string): Promise<T> => {
   return new Promise((resolve, reject) => {
     fs.readFile(configPath, 'utf8', (err, data) => {
       if (err) {
+        console.error(`Error reading config file ${configPath}:`, err);
         reject(err);
         return;
       }
