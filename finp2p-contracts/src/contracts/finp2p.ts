@@ -50,20 +50,20 @@ export class FinP2PContract extends ContractsManager {
     });
   }
 
-  async issueWithoutSignature(assetId: string, issuerFinId: string, quantity: number) {
+  async issue(assetId: string, issuerFinId: string, quantity: number) {
     return this.safeExecuteTransaction(async (finP2P: FINP2POperatorERC20) => {
-      return finP2P.issueWithoutSignature(assetId, issuerFinId, quantity);
+      return finP2P.issue(assetId, issuerFinId, quantity);
     });
   }
 
-  async issue(nonce: string, assetId: string, buyerFinId: string, issuerFinId: string, quantity: number,
-    settlementAsset: string, settlementAmount: number, hashType: HashType, signature: string) {
-    return this.safeExecuteTransaction(async (finP2P: FINP2POperatorERC20) => {
-      return finP2P.issue(
-        nonce, assetId, buyerFinId, issuerFinId, quantity,
-        settlementAsset, `${settlementAmount}`, hashType, `0x${signature}`);
-    });
-  }
+  // async issue(nonce: string, assetId: string, buyerFinId: string, issuerFinId: string, quantity: number,
+  //   settlementAsset: string, settlementAmount: number, hashType: HashType, signature: string) {
+  //   return this.safeExecuteTransaction(async (finP2P: FINP2POperatorERC20) => {
+  //     return finP2P.issue(
+  //       nonce, assetId, buyerFinId, issuerFinId, quantity,
+  //       settlementAsset, `${settlementAmount}`, hashType, `0x${signature}`);
+  //   });
+  // }
 
   async transfer(nonce: string, assetId: string, sellerFinId: string, buyerFinId: string, quantity: number,
     settlementAsset: string, settlementAmount: number, hashType: HashType, eip712PrimaryType: number, signature: string) {

@@ -64,26 +64,27 @@ describe("FinP2P proxy contract test", function() {
       expect(await contract.getBalance(assetId, issueBuyerFinId)).to.equal(0);
 
       const issueAmount = 1000;
-      const issueSettlementAmount = 10000;
-      const issueNonce = `${generateNonce().toString('hex')}`;
-      const issueSignature = await eip712Sign(chainId, verifyingContract, EIP712_PRIMARY_SALE_TYPES, {
-        nonce: issueNonce,
-        buyer: { idkey: issueBuyerFinId },
-        issuer: { idkey: issuerFinId },
-        asset: {
-          assetId,
-          assetType: 'finp2p',
-          amount: `${issueAmount}`
-        },
-        settlement: {
-          assetId: settlementAsset,
-          assetType: 'fiat',
-          amount: `${issueSettlementAmount}`
-        }
-      } as EIP712PrimarySaleMessage, issueBuyer);
+      // const issueSettlementAmount = 10000;
+      // const issueNonce = `${generateNonce().toString('hex')}`;
+      // const issueSignature = await eip712Sign(chainId, verifyingContract, EIP712_PRIMARY_SALE_TYPES, {
+      //   nonce: issueNonce,
+      //   buyer: { idkey: issueBuyerFinId },
+      //   issuer: { idkey: issuerFinId },
+      //   asset: {
+      //     assetId,
+      //     assetType: 'finp2p',
+      //     amount: `${issueAmount}`
+      //   },
+      //   settlement: {
+      //     assetId: settlementAsset,
+      //     assetType: 'fiat',
+      //     amount: `${issueSettlementAmount}`
+      //   }
+      // } as EIP712PrimarySaleMessage, issueBuyer);
 
-      await contract.issue(issueNonce, assetId, issueBuyerFinId, issuerFinId, issueAmount,
-        settlementAsset, `${issueSettlementAmount}`, HashType.EIP712, issueSignature, { from: operator });
+      // await contract.issue(issueNonce, assetId, issueBuyerFinId, issuerFinId, issueAmount,
+      //   settlementAsset, `${issueSettlementAmount}`, HashType.EIP712, issueSignature, { from: operator });a
+      await contract.issue(assetId, issuerFinId, issueAmount, { from: operator });
 
       expect(await contract.getBalance(assetId, issueBuyerFinId)).to.equal(0);
       expect(await contract.getBalance(assetId, issuerFinId)).to.equal(issueAmount);
@@ -170,7 +171,7 @@ describe("FinP2P proxy contract test", function() {
 
       expect(await contract.getBalance(settlementAsset, issuerFinId)).to.equal(0);
       const issueSettlementAmount = 1000;
-      await contract.issueWithoutSignature(settlementAsset, issuerFinId, issueSettlementAmount, { from: operator });
+      await contract.issue(settlementAsset, issuerFinId, issueSettlementAmount, { from: operator });
       expect(await contract.getBalance(settlementAsset, issuerFinId)).to.equal(issueSettlementAmount);
 
       // -----------------------------
