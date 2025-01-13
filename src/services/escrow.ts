@@ -6,8 +6,6 @@ import { extractAssetId, failedTransaction, holdParameterFromTemplate, transferP
 export class EscrowService extends CommonService {
 
   public async hold(request: Paths.HoldOperation.RequestBody): Promise<Paths.HoldOperation.Responses.$200> {
-    logger.debug('hold', { request });
-   
     const { operationId, source,
       destination, nonce } = request;
     const settlementAsset = extractAssetId(request.asset);
@@ -40,13 +38,11 @@ export class EscrowService extends CommonService {
   }
 
   public async release(request: Paths.ReleaseOperation.RequestBody): Promise<Paths.ReleaseOperation.Responses.$200> {
-    logger.debug('release', { request });
-
     const operationId = request.operationId;
-    const destinationFinId = request.destination.finId;
+    const buyerFinId = request.destination.finId;
 
     try {
-      const txHash = await this.finP2PContract.release(operationId, destinationFinId);
+      const txHash = await this.finP2PContract.release(operationId, buyerFinId);
 
       return {
         isCompleted: false,
@@ -63,7 +59,6 @@ export class EscrowService extends CommonService {
   }
 
   public async rollback(request: Paths.RollbackOperation.RequestBody): Promise<Paths.RollbackOperation.Responses.$200> {
-    logger.debug('rollback', { request });
     const operationId = request.operationId;
 
     try {

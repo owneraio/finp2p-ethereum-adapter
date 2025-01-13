@@ -276,7 +276,7 @@ contract FINP2POperatorERC20 is IFinP2PAsset, IFinP2PEscrow, AccessControl, FinP
 
     function release(
         bytes16 operationId,
-        string memory sellerFinId
+        string memory buyerFinId
     ) public override virtual {
         require(hasRole(TRANSACTION_MANAGER, _msgSender()), "FINP2POperatorERC20: must have transaction manager role to release asset");
 
@@ -287,11 +287,11 @@ contract FINP2POperatorERC20 is IFinP2PAsset, IFinP2PEscrow, AccessControl, FinP
         uint256 balance = IERC20(lock.token).balanceOf(address(this));
         require(balance >= lock.amount, "No tokens to release");
 
-        address seller = Bytes.finIdToAddress(sellerFinId);
+        address buyer = Bytes.finIdToAddress(buyerFinId);
 
-        IERC20(lock.token).transfer(seller, lock.amount);
+        IERC20(lock.token).transfer(buyer, lock.amount);
 
-        emit Release(lock.assetId, lock.finId, sellerFinId, lock.amount, operationId);
+        emit Release(lock.assetId, lock.finId, buyerFinId, lock.amount, operationId);
 
         delete locks[operationId];
     }

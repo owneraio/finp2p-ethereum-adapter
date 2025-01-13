@@ -53,8 +53,8 @@ export class TokenService extends CommonService {
           return assetNotFoundResult(tokenAddress);
         } else {
           // TODO: just a lookup or actual associate here?
-          // const txHash = await this.finP2PContract.associateAsset(assetId, tokenAddress);
-          // await this.finP2PContract.waitForCompletion(txHash);
+          const txHash = await this.finP2PContract.associateAsset(assetId, tokenAddress);
+          await this.finP2PContract.waitForCompletion(txHash);
           return assetCreationResult(tokenAddress, tokenAddress, this.finP2PContract.finP2PContractAddress);
         }
 
@@ -103,7 +103,6 @@ export class TokenService extends CommonService {
   }
 
   public async issue(request: Paths.IssueAssets.RequestBody): Promise<Paths.IssueAssets.Responses.$200> {
-    logger.info(`Token issue request: ${JSON.stringify(request)}`);
     const assetId = extractAssetId(request.asset);
     const amount = parseInt(request.quantity);
     const issuerFinId = request.destination.finId;
@@ -121,26 +120,8 @@ export class TokenService extends CommonService {
     let txHash: string;
     try {
       logger.info(`Issue asset ${assetId} to ${issuerFinId} with amount ${amount}, no signature`);
-
-      const assetAddress = await this.finP2PContract.getAssetAddress(assetId);
-      logger.info(`Asset address: ${assetAddress}`);
       txHash = await this.finP2PContract.issue(assetId, issuerFinId, amount);
-      // if (!request.signature || !request.signature.template || request.signature.signature === '') {
-      //   logger.info(`Issue asset ${assetId} to ${issuerFinId} with amount ${amount}, no signature`);
-      //
-      //   const assetAddress = await this.finP2PContract.getAssetAddress(assetId);
-      //   logger.info(`Asset address: ${assetAddress}`);
-      //   txHash = await this.finP2PContract.issue(assetId, issuerFinId, amount);
-      // } else {
-      //   const { nonce } = request;
-      //   const { signature, template } = request.signature;
-      //   logger.info(`signature: ${signature}, template: ${template}`);
-      //   const { hashType, buyerFinId, settlementAmount, settlementAsset } = issueParameterFromTemplate(template);
-      //   logger.info(`Issue asset ${assetId} to ${buyerFinId} with amount ${amount} and settlement ${settlementAmount} ${settlementAsset}, hashType: ${template.type}, nonce: ${nonce}, signature: ${signature}`);
-      //
-      //   txHash = await this.finP2PContract.issue(nonce, assetId, buyerFinId, issuerFinId, amount,
-      //     settlementAsset, settlementAmount, hashType, signature);
-      // }
+
     } catch (e) {
       logger.error(`Error on asset issuance: ${e}`);
       if (e instanceof EthereumTransactionError) {
@@ -157,7 +138,6 @@ export class TokenService extends CommonService {
   }
 
   public async transfer(request: Paths.TransferAsset.RequestBody): Promise<Paths.TransferAsset.Responses.$200> {
-    logger.info(`Token transfer request: ${JSON.stringify(request)}`);
     const nonce = request.nonce;
     const assetId = extractAssetId(request.asset);
     const amount = parseInt(request.quantity);

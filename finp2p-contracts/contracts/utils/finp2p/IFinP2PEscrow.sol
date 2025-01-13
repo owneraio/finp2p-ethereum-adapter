@@ -23,7 +23,7 @@ interface IFinP2PEscrow is IFinP2PCommon {
 
     function getLockInfo(bytes16 operationId) external view returns (LockInfo memory);
 
-    function release(bytes16 operationId, string memory destinationFinId) external;
+    function release(bytes16 operationId, string memory buyerFinId) external;
 
     function rollback(bytes16 operationId) external;
 
