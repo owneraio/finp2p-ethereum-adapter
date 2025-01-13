@@ -538,7 +538,7 @@ declare namespace Components {
         }
         export interface PlanRejected {
             status: "rejected";
-            failure?: ValidationFailure | RegulationFailure;
+            failure?: ValidationFailure;
         }
         export interface Receipt {
             /**
@@ -577,7 +577,6 @@ declare namespace Components {
              */
             code: number; // uint32
             message: string;
-            regulationErrorDetails?: RegulationError[];
         }
         export interface RedeemAssetsRequest {
             nonce: /**
@@ -617,20 +616,6 @@ declare namespace Components {
             isCompleted: boolean;
             error?: ReceiptOperationErrorInformation;
             response?: Receipt;
-        }
-        export interface RegulationError {
-            /**
-             * the type of regulation
-             */
-            regulationType: string;
-            /**
-             * actionable details of the error
-             */
-            details: string;
-        }
-        export interface RegulationFailure {
-            failureType: "RegulationFailure";
-            errors: RegulationError[];
         }
         export interface ReleaseOperationRequest {
             /**

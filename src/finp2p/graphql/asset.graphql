@@ -11,9 +11,6 @@ query GetAsset($assetId: String!) {
             issuerId
             config
             allowedIntents
-            regulationVerifiers {
-                id, name, provider
-            }
             certificates {
                 nodes {
                     id

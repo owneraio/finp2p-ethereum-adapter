@@ -3,7 +3,6 @@ import { FinP2PContract } from '../finp2p-contracts/src/contracts/finp2p';
 import * as process from 'process';
 import createApp from './app';
 import { FinP2PContractConfig, readConfig } from '../finp2p-contracts/src/contracts/config';
-import { RegulationChecker } from './finp2p/regulation';
 import { OssClient } from './finp2p/oss.client';
 import { AssetCreationPolicy, DeployNewToken, ReuseExistingToken } from './services/tokens';
 
@@ -53,12 +52,6 @@ const init = async () => {
 
 
   const finP2PContract = new FinP2PContract(config);
-  let regulation: RegulationChecker | undefined;
-  const ossUrl = process.env.OSS_URL;
-  if (ossUrl) {
-    logger.info(`Turning on regulation checks with OSS URL: '${ossUrl}', no auth`);
-    regulation = new RegulationChecker(new OssClient(ossUrl, undefined));
-  }
   
   let policy: AssetCreationPolicy;
   switch (process.env.ASSET_CREATION_POLICY || 'deploy-new-token') {
@@ -79,7 +72,7 @@ const init = async () => {
       process.exit(1);
   }
   
-  const app = createApp(finP2PContract, policy, regulation);
+  const app = createApp(finP2PContract, policy);
   app.listen(port, () => {
     logger.info(`listening at http://localhost:${port}`);
   });

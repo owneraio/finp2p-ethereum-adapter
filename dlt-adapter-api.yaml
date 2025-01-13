@@ -1019,10 +1019,6 @@ components:
           description: 1 for failure in regApps validation, 4 failure in signature verification
         message:
           type: string
-        regulationErrorDetails:
-          type: array
-          items:
-            $ref: '#/components/schemas/RegulationError'
 
     executionOperationErrorInformation:
       type: object
@@ -1373,12 +1369,10 @@ components:
         failure:
           oneOf:
             - $ref: '#/components/schemas/ValidationFailure'
-            - $ref: '#/components/schemas/RegulationFailure'
           discriminator:
             propertyName: failureType
             mapping:
               validationFailure: '#/components/schemas/ValidationFailure'
-              regulationFailure: '#/components/schemas/RegulationFailure'
 
     ValidationFailure:
       type: object
@@ -1396,33 +1390,6 @@ components:
           description: ledger error code for validation
         message:
           type: string
-
-    RegulationFailure:
-      type: object
-      required:
-        - failureType
-        - errors
-      properties:
-        failureType:
-          type: string
-          enum: [ RegulationFailure ]
-        errors:
-          type: array
-          items:
-            $ref: '#/components/schemas/RegulationError'
-
-    RegulationError:
-      type: object
-      required:
-        - regulationType
-        - details
-      properties:
-        regulationType:
-          type: string
-          description: the type of regulation
-        details:
-          type: string
-          description: actionable details of the error
 
     OperationBase:
       type: object
