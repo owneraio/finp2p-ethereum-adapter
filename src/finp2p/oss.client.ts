@@ -3,7 +3,6 @@ import { DocumentNode } from 'graphql';
 import GET_OWNERS from './graphql/owners.graphql';
 import GET_ASSET from './graphql/asset.graphql';
 import * as axios from 'axios';
-import console from 'console';
 
 export class OssClient {
 
@@ -56,11 +55,6 @@ export class OssClient {
           issuerId: string,
           config: string,
           allowedIntents: string[],
-          regulationVerifiers: {
-            id: string,
-            name: string,
-            provider: string
-          }[]
           certificates: {
             nodes: {
               id: string,

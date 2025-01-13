@@ -3,7 +3,6 @@ import { assetCreationResult, extractAssetId, getRandomNumber } from "./mapping"
 import { EthereumTransactionError } from '../../finp2p-contracts/src/contracts/model';
 import { logger } from '../helpers/logger';
 import { FinP2PContract } from '../../finp2p-contracts/src/contracts/finp2p';
-import { RegulationChecker } from '../finp2p/regulation';
 import HashListTemplate = Components.Schemas.HashListTemplate;
 import LedgerTokenId = Components.Schemas.LedgerTokenId;
 import CreateAssetResponse = Components.Schemas.CreateAssetResponse;
@@ -22,12 +21,9 @@ export class TokenService extends CommonService {
 
   assetCreationPolicy: AssetCreationPolicy;
 
-  regulation: RegulationChecker | undefined;
-
-  constructor(finP2PContract: FinP2PContract, assetCreationPolicy: AssetCreationPolicy, regulation: RegulationChecker | undefined) {
+  constructor(finP2PContract: FinP2PContract, assetCreationPolicy: AssetCreationPolicy) {
     super(finP2PContract);
     this.assetCreationPolicy = assetCreationPolicy;
-    this.regulation = regulation;
   }
 
   public async createAsset(request: Paths.CreateAsset.RequestBody): Promise<Paths.CreateAsset.Responses.$200> {
@@ -101,15 +97,6 @@ export class TokenService extends CommonService {
     const assetId = extractAssetId(request.asset);
     const issuerFinId = request.destination.finId;
     const amount = parseInt(request.quantity);
-    if (this.regulation) {
-      const error = await this.regulation.doRegulationCheck(issuerFinId, assetId);
-      if (error) {
-        return {
-          isCompleted: true,
-          error,
-        } as Components.Schemas.ReceiptOperation;
-      }
-    }
     try {
       const txHash = await this.finP2PContract.issue(assetId, issuerFinId, amount);
       return {
@@ -151,16 +138,6 @@ export class TokenService extends CommonService {
     }
     const hash = request.signature.template.hash;
     const signature = request.signature.signature;
-
-    if (this.regulation) {
-      const error = await this.regulation.doRegulationCheck(destinationFinId, assetId);
-      if (error) {
-        return {
-          isCompleted: true,
-          error,
-        } as Components.Schemas.ReceiptOperation;
-      }
-    }
 
     try {
       const txHash = await this.finP2PContract.transfer(nonce, assetId, sourceFinId, destinationFinId, amount, settlementHash, hash, signature);

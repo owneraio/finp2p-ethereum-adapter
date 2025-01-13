@@ -79,8 +79,6 @@ export type Asset = Profile & {
   name: Scalars['String']['output'];
   /** Organization id to whom this profile is associated with. */
   organizationId: Scalars['String']['output'];
-  /** Regulation Verifiers associated with the Asset. */
-  regulationVerifiers?: Maybe<Array<Verifier>>;
   /** Type of Asset (Share, Debt etc..) */
   type: Scalars['String']['output'];
 };
@@ -1267,15 +1265,4 @@ export type Users = {
   nodes?: Maybe<Array<User>>;
   /** Keeps pagination info in-case limit input wes provided */
   pageInfo?: Maybe<PageInfo>;
-};
-
-/** Regulation Verifier */
-export type Verifier = {
-  __typename?: 'Verifier';
-  /** Verifier ID */
-  id?: Maybe<Scalars['String']['output']>;
-  /** Verifier Name */
-  name?: Maybe<Scalars['String']['output']>;
-  /** Provider type: REG_APP_STORE, OTHER */
-  provider?: Maybe<Scalars['String']['output']>;
 };
