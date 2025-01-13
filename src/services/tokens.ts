@@ -119,7 +119,7 @@ export class TokenService extends CommonService {
 
     let txHash: string;
     try {
-      logger.info(`Issue asset ${assetId} to ${issuerFinId} with amount ${amount}, no signature`);
+      logger.info(`Issue asset ${assetId} to ${issuerFinId} with amount ${amount}`);
       txHash = await this.finP2PContract.issue(assetId, issuerFinId, amount);
 
     } catch (e) {
