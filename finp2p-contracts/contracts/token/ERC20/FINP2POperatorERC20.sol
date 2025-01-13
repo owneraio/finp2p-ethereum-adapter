@@ -100,42 +100,6 @@ contract FINP2POperatorERC20 is IFinP2PAsset, IFinP2PEscrow, AccessControl, FinP
         emit Issue(assetId, issuerFinId, quantity);
     }
 
-//    function issue(
-//        string memory nonce,
-//        string memory assetId,
-//        string memory buyerFinId,
-//        string memory issuerFinId,
-//        uint256 quantity,
-//        string memory settlementAsset,
-//        string memory settlementAmount,
-//        uint8 hashType,
-//        bytes memory signature
-//    ) public override virtual {
-//        require(hasRole(TRANSACTION_MANAGER, _msgSender()), "FINP2POperatorERC20: must have transaction manager role to issue asset");
-//        require(haveAsset(assetId), "Asset not found");
-//
-//        address buyer = Bytes.finIdToAddress(buyerFinId);
-//        address issuer = Bytes.finIdToAddress(issuerFinId);
-//
-//        require(verifyPrimarySaleSignature(
-//            nonce,
-//            buyerFinId,
-//            issuerFinId,
-//            assetId,
-//            Strings.toString(quantity),
-//            settlementAsset,
-//            settlementAmount,
-//            buyer,
-//            hashType,
-//            signature
-//        ), "Signature is not verified");
-//
-//        Asset memory asset = assets[assetId];
-//        ERC20WithOperator(asset.tokenAddress).mint(issuer, quantity);
-//
-//        emit Issue(assetId, issuerFinId, quantity);
-//    }
-
     function transfer(
         string memory nonce,
         string memory assetId,

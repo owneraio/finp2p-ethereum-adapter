@@ -143,7 +143,7 @@ export const issueParameterFromTemplate = (template: SignatureTemplate) : {
   hashType: HashType,
   buyerFinId: string,
   settlementAsset: string
-  settlementAmount: number
+  settlementAmount: string
 } => {
   switch (template.type) {
     case 'hashList':
@@ -151,7 +151,7 @@ export const issueParameterFromTemplate = (template: SignatureTemplate) : {
         hashType: HashType.HashList,
         buyerFinId: template.hashGroups[1].fields.find((field) => field.name === 'srcAccount')?.value || '',
         settlementAsset: template.hashGroups[1].fields.find((field) => field.name === 'assetId')?.value || '',
-        settlementAmount: parseInt(template.hashGroups[1].fields.find((field) => field.name === 'amount')?.value || '')
+        settlementAmount: template.hashGroups[1].fields.find((field) => field.name === 'amount')?.value || ''
       }
 
     case 'EIP712':
@@ -161,7 +161,7 @@ export const issueParameterFromTemplate = (template: SignatureTemplate) : {
         hashType: HashType.EIP712,
         buyerFinId: buyer.idkey as EIP712TypeString,
         settlementAsset: settlement.assetId as EIP712TypeString,
-        settlementAmount: settlement.amount as EIP712TypeInteger
+        settlementAmount: settlement.amount as EIP712TypeString
       }
     default:
       throw new Error(`Unsupported signature template type: ${template}`);
@@ -172,7 +172,7 @@ export const transferParameterFromTemplate = (template: SignatureTemplate): {
   eip712PrimaryType: number,
   hashType: HashType,
   settlementAsset: string
-  settlementAmount: number
+  settlementAmount: string
 } => {
   switch (template.type) {
     case 'hashList':
@@ -181,14 +181,14 @@ export const transferParameterFromTemplate = (template: SignatureTemplate): {
           eip712PrimaryType: EIP712PrimaryType.Selling,
           hashType: HashType.HashList,
           settlementAsset: template.hashGroups[1].fields.find((field) => field.name === 'assetId')?.value || '',
-          settlementAmount: parseInt(template.hashGroups[1].fields.find((field) => field.name === 'amount')?.value || '')
+          settlementAmount: template.hashGroups[1].fields.find((field) => field.name === 'amount')?.value || '',
         };
       } else {
         return {
           eip712PrimaryType: EIP712PrimaryType.RequestForTransfer,
           hashType: HashType.HashList,
           settlementAsset: '',
-          settlementAmount: 0
+          settlementAmount: ''
         }
       }
 
@@ -199,7 +199,7 @@ export const transferParameterFromTemplate = (template: SignatureTemplate): {
           eip712PrimaryType,
           hashType: HashType.EIP712,
           settlementAsset: '',
-          settlementAmount: 0
+          settlementAmount: ''
         }
       } else {
         const settlement = template.message.settlement as EIP712TypeObject;
@@ -207,7 +207,7 @@ export const transferParameterFromTemplate = (template: SignatureTemplate): {
           eip712PrimaryType,
           hashType: HashType.EIP712,
           settlementAsset: settlement.assetId as EIP712TypeString,
-          settlementAmount: settlement.amount as EIP712TypeInteger
+          settlementAmount: settlement.amount as EIP712TypeString
         }
       }
 
@@ -220,7 +220,7 @@ export const redeemParameterFromTemplate = (template: SignatureTemplate): {
   hashType: HashType,
   issuerFinId: string
   settlementAsset: string
-  settlementAmount: number
+  settlementAmount: string
 } => {
   switch (template.type) {
     case 'hashList':
@@ -228,7 +228,7 @@ export const redeemParameterFromTemplate = (template: SignatureTemplate): {
         hashType: HashType.HashList,
         issuerFinId: template.hashGroups[1].fields.find((field) => field.name === 'srcAccount')?.value || '',
         settlementAsset: template.hashGroups[1].fields.find((field) => field.name === 'assetId')?.value || '',
-        settlementAmount: parseInt(template.hashGroups[1].fields.find((field) => field.name === 'amount')?.value || '')
+        settlementAmount: template.hashGroups[1].fields.find((field) => field.name === 'amount')?.value || ''
       };
 
     case 'EIP712':
@@ -238,7 +238,7 @@ export const redeemParameterFromTemplate = (template: SignatureTemplate): {
         hashType: HashType.EIP712,
         issuerFinId: issuer.idkey as EIP712TypeString,
         settlementAsset: settlement.assetId as EIP712TypeString,
-        settlementAmount: settlement.amount as EIP712TypeInteger
+        settlementAmount: settlement.amount as EIP712TypeString
       }
 
     default:
@@ -251,7 +251,7 @@ export const holdParameterFromTemplate = (template: SignatureTemplate): {
   buyerFinId: string
   sellerFinId: string
   asset: string
-  amount: number
+  amount: string
 } => {
   switch (template.type) {
     case 'hashList':
@@ -260,7 +260,7 @@ export const holdParameterFromTemplate = (template: SignatureTemplate): {
         buyerFinId: template.hashGroups[1].fields.find((field) => field.name === 'srcAccount')?.value || '',
         sellerFinId: template.hashGroups[1].fields.find((field) => field.name === 'dstAccount')?.value || '',
         asset: template.hashGroups[0].fields.find((field) => field.name === 'assetId')?.value || '',
-        amount: parseInt(template.hashGroups[0].fields.find((field) => field.name === 'amount')?.value || '')
+        amount: template.hashGroups[0].fields.find((field) => field.name === 'amount')?.value || ''
       };
 
     case 'EIP712':
@@ -272,7 +272,7 @@ export const holdParameterFromTemplate = (template: SignatureTemplate): {
         buyerFinId: buyer.idkey as EIP712TypeString,
         sellerFinId: seller.idkey as EIP712TypeString,
         asset: asset.assetId as EIP712TypeString,
-        amount: asset.amount as EIP712TypeInteger
+        amount: asset.amount as EIP712TypeString
       }
 
     default:
