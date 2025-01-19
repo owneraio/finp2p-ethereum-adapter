@@ -1,31 +1,21 @@
 import {
-  ContractFactory, ContractTransactionResponse,
-  JsonRpcProvider,
-  NonceManager,
-  Provider,
-  Signer,
-  Wallet,
-} from 'ethers';
+  ContractFactory, NonceManager, Provider, Signer
+} from "ethers";
 import FINP2P from '../../artifacts/contracts/token/ERC20/FINP2POperatorERC20.sol/FINP2POperatorERC20.json';
 import ERC20 from '../../artifacts/contracts/token/ERC20/ERC20WithOperator.sol/ERC20WithOperator.json';
 import { ERC20WithOperator, FINP2POperatorERC20 } from '../../typechain-types';
-import { ContractManagerConfig } from './config';
-import { detectError, EthereumTransactionError, NonceAlreadyBeenUsedError, NonceToHighError } from "./model";
 
 export class ContractsManager {
 
   provider: Provider;
-
   signer: Signer;
 
-  constructor(config: ContractManagerConfig) {
-    const { rpcURL, signerPrivateKey } = config;
-    this.provider = new JsonRpcProvider(rpcURL);
-    this.signer = new NonceManager(new Wallet(signerPrivateKey)).connect(this.provider);
+  constructor(provider: Provider, signer: Signer) {
+    this.provider = provider;
+    this.signer = signer;
   }
 
   async deployERC20(name: string, symbol: string, finP2PContractAddress: string) {
-     // console.log("Deploying ERC20 contract...");
     const factory = new ContractFactory<any[], ERC20WithOperator>(
       ERC20.abi,
       ERC20.bytecode,
@@ -33,9 +23,7 @@ export class ContractsManager {
     );
     const contract = await factory.deploy(name, symbol, finP2PContractAddress);
     await contract.waitForDeployment();
-    const address = await contract.getAddress();
-    // console.log("ERC20 contract deployed successfully at:", address);
-    return address;
+    return await contract.getAddress();
   }
 
   async deployFinP2PContract(signerAddress: string | undefined, paymentAssetCode: string | undefined = undefined) {
@@ -125,34 +113,6 @@ export class ContractsManager {
       await new Promise((r) => setTimeout(r, 500));
     }
     throw new Error(`no result after ${tries} retries`);
-  }
-
-  async safeExecuteTransaction(call: () => Promise<ContractTransactionResponse>, maxAttempts: number = 10) {
-    for (let i = 0; i < maxAttempts; i++) {
-      try {
-        const response = await call();
-        return response.hash;
-      } catch (e) {
-        const err = detectError(e);
-        if (err instanceof EthereumTransactionError) {
-          // console.log('Ethereum transaction error');
-          this.resetNonce();
-          throw err;
-
-        } else if (err instanceof NonceToHighError) {
-          // console.log('Nonce too high error, retrying');
-          this.resetNonce();
-          // continuing the loop
-        } else if (err instanceof NonceAlreadyBeenUsedError) {
-          // console.log('Nonce already been used error, retrying');
-          this.resetNonce();
-          // continuing the loop
-        } else {
-          throw err;
-        }
-      }
-    }
-    throw new Error(`Failed to execute transaction without nonce-too-high error after ${maxAttempts} attempts`);
   }
 
   protected resetNonce() {

@@ -1,11 +1,19 @@
-import { Interface, isAddress, TransactionReceipt, Wallet } from "ethers";
+import { HDNodeWallet, Interface, TransactionReceipt, Wallet, isAddress } from 'ethers';
 import { FinP2PReceipt } from './model';
 import * as secp256k1 from 'secp256k1';
+
+export const normalizeOperationId = (operationId: string): string => {
+  return `0x${operationId.replaceAll('-', '')}`;
+}
 
 export const privateKeyToFinId = (privateKey: string): string => {
   const privKeyBuffer = Buffer.from(privateKey.replace('0x', ''), 'hex');
   const pubKeyUInt8Array = secp256k1.publicKeyCreate(privKeyBuffer, true);
   return Buffer.from(pubKeyUInt8Array).toString('hex');
+};
+
+export const getFinId = (wallet: HDNodeWallet): string => {
+  return privateKeyToFinId(wallet.privateKey);
 };
 
 export const createAccount = () => {
@@ -60,7 +68,7 @@ export const parseTransactionReceipt = (receipt: TransactionReceipt, contractInt
             assetId: parsedLog.args.assetId,
             assetType: 'finp2p',
             amount: parsedLog.args.quantity,
-            source: parsedLog.args.issuerFinId,
+            source: parsedLog.args.sellerFinId,
             timestamp: timestamp,
             operationType: 'redeem',
           };
@@ -104,10 +112,6 @@ export const parseTransactionReceipt = (receipt: TransactionReceipt, contractInt
   return null;
 };
 
-
-export const stringToByte16 = (str: string): string => {
-  return '0x' + Buffer.from(str).slice(0, 16).toString('hex').padEnd(32, '0');
-};
 
 export const isEthereumAddress = (address: string): boolean => {
   return isAddress(address);

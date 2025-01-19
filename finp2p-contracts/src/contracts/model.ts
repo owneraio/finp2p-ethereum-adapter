@@ -48,6 +48,11 @@ export class NonceAlreadyBeenUsedError extends Error {
   }
 }
 
+export const enum HashType {
+  HashList = 1,
+  EIP712 = 2
+}
+
 export const detectError = (e: any) : EthereumTransactionError | NonceToHighError | Error => {
   if ('code' in e && 'action' in e && 'message' in e && 'reason' in e && 'data' in e) {
     return new EthereumTransactionError(e.reason);
@@ -60,4 +65,3 @@ export const detectError = (e: any) : EthereumTransactionError | NonceToHighErro
   }
   return e;
 };
-

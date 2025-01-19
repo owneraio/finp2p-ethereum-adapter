@@ -2,85 +2,79 @@ import { logger } from './helpers/logger';
 import { FinP2PContract } from '../finp2p-contracts/src/contracts/finp2p';
 import * as process from 'process';
 import createApp from './app';
-import { FinP2PContractConfig, readConfig } from '../finp2p-contracts/src/contracts/config';
 import { RegulationChecker } from './finp2p/regulation';
 import { OssClient } from './finp2p/oss.client';
-import { AssetCreationPolicy, DeployNewToken, ReuseExistingToken } from './services/tokens';
+import { AssetCreationPolicy } from "./services/tokens";
+import {
+  createProviderAndSigner,
+  FinP2PContractConfig,
+  ProviderType,
+  readConfig
+} from "../finp2p-contracts/src/contracts/config";
+
+const createAssetCreationPolicy = async (contractManager: FinP2PContract | undefined): Promise<AssetCreationPolicy> => {
+  const type = (process.env.ASSET_CREATION_POLICY || 'deploy-new-token');
+  switch (type) {
+    case 'deploy-new-token':
+      return {type: 'deploy-new-token'};
+    case 'reuse-existing-token':
+      let tokenAddress = process.env.TOKEN_ADDRESS;
+      if (!tokenAddress) {
+        if (!contractManager) {
+          throw new Error('Contract manager is not defined');
+        }
+        logger.info('Deploying new ERC20 token to reuse it later');
+        tokenAddress = await contractManager.deployERC20(`ERC20`, `ERC20`, contractManager.finP2PContractAddress);
+        logger.info(`Token deployed at address: ${tokenAddress}`);
+      }
+
+      return {
+        type: 'reuse-existing-token',
+        tokenAddress,
+      };
+    case 'no-deployment':
+      return {type: 'no-deployment'}
+    default:
+      throw new Error(`Unknown asset creation policy: ${type}`);
+  }
+}
+
+const createRegulation = (ossUrl: string | undefined): RegulationChecker | undefined => {
+  if (ossUrl) {
+    logger.info(`Turning on regulation checks with OSS URL: '${ossUrl}', no auth`);
+    return  new RegulationChecker(new OssClient(ossUrl, undefined));
+  }
+  return undefined;
+}
+
 
 const init = async () => {
   const port = process.env.PORT || '3000';
-
   const configFile = process.env.CONFIG_FILE || '';
-  let config: FinP2PContractConfig;
+  let finP2PContractAddress: string
   if (configFile) {
-    config = await readConfig<FinP2PContractConfig>(configFile);
-
-    // TODO: add config validation
+    const config = await readConfig<FinP2PContractConfig>(configFile);
+    finP2PContractAddress = config.finP2PContractAddress;
 
   } else {
-    let ethereumRPCUrl = process.env.NETWORK_HOST;
-    if (!ethereumRPCUrl) {
-      throw new Error('ETHEREUM_RPC_URL is not set');
-    }
-    const ethereumRPCAuth = process.env.NETWORK_AUTH;
-    if (ethereumRPCAuth) {
-      if (ethereumRPCUrl.startsWith('https://')) {
-        ethereumRPCUrl = 'https://' + ethereumRPCAuth + '@' + ethereumRPCUrl.replace('https://', '');
-      } else if (ethereumRPCUrl.startsWith('http://')) {
-        ethereumRPCUrl = 'http://' + ethereumRPCAuth + '@' + ethereumRPCUrl.replace('http://', '');
-      } else {
-        ethereumRPCUrl = ethereumRPCAuth + '@' + ethereumRPCUrl;
-      }
-    }
-
-    const operatorPrivateKey = process.env.OPERATOR_PRIVATE_KEY || '';
-    if (!operatorPrivateKey) {
-      throw new Error('OPERATOR_PRIVATE_KEY is not set');
-    }
-
-    const finP2PContractAddress = process.env.TOKEN_ADDRESS || '';
+    finP2PContractAddress = process.env.TOKEN_ADDRESS || '';
     if (!finP2PContractAddress) {
       throw new Error('FINP2P_CONTRACT_ADDRESS is not set');
     }
-    config = {
-      rpcURL: ethereumRPCUrl,
-      signerPrivateKey: operatorPrivateKey,
-      finP2PContractAddress,
-    };
-
-    logger.info(`Connecting to ethereum RPC URL: ${ethereumRPCUrl}`);
   }
+  const providerType = (process.env.PROVIDER_TYPE || 'local') as ProviderType;
 
-
-  const finP2PContract = new FinP2PContract(config);
-  let regulation: RegulationChecker | undefined;
   const ossUrl = process.env.OSS_URL;
-  if (ossUrl) {
-    logger.info(`Turning on regulation checks with OSS URL: '${ossUrl}', no auth`);
-    regulation = new RegulationChecker(new OssClient(ossUrl, undefined));
-  }
-  
-  let policy: AssetCreationPolicy;
-  switch (process.env.ASSET_CREATION_POLICY || 'deploy-new-token') {
-    case 'deploy-new-token':
-      policy = { type: 'deploy-new-token' } as DeployNewToken;
-      break;
-    case 'reuse-existing-token':
-      logger.debug('Deploying new token that will be reused for asset creation');
-      const tokenAddress = await finP2PContract.
-        deployERC20('ERC-20', 'ERC20', config.finP2PContractAddress);
-      policy = {
-        type: 'reuse-existing-token',
-        tokenAddress,
-      } as ReuseExistingToken;
-      break;
-    default:
-      logger.error('Invalid asset creation policy');
-      process.exit(1);
-  }
-  
-  const app = createApp(finP2PContract, policy, regulation);
-  app.listen(port, () => {
+
+  const { provider, signer } = await createProviderAndSigner(providerType);
+  const finp2pContract = new FinP2PContract(provider, signer, finP2PContractAddress);
+  const assetCreationPolicy = await createAssetCreationPolicy(finp2pContract);
+
+  createApp(
+    finp2pContract,
+    assetCreationPolicy,
+    createRegulation(ossUrl)
+  ).listen(port, () => {
     logger.info(`listening at http://localhost:${port}`);
   });
 };

@@ -1,11 +1,17 @@
-import { ContractFactory, ethers, Interface } from 'ethers';
+import { ContractFactory, ContractTransactionResponse, Interface, Provider, Signer } from "ethers";
 import FINP2P
   from '../../artifacts/contracts/token/ERC20/FINP2POperatorERC20.sol/FINP2POperatorERC20.json';
 import { FINP2POperatorERC20 } from '../../typechain-types';
-import { FinP2PReceipt, OperationStatus } from './model';
-import { parseTransactionReceipt, stringToByte16 } from './utils';
+import {
+  detectError,
+  EthereumTransactionError,
+  FinP2PReceipt, HashType,
+  NonceAlreadyBeenUsedError,
+  NonceToHighError,
+  OperationStatus
+} from "./model";
+import { normalizeOperationId, parseTransactionReceipt } from "./utils";
 import { ContractsManager } from './manager';
-import { FinP2PContractConfig } from './config';
 import console from 'console';
 
 export class FinP2PContract extends ContractsManager {
@@ -16,18 +22,22 @@ export class FinP2PContract extends ContractsManager {
 
   finP2PContractAddress: string;
 
-  constructor(config: FinP2PContractConfig) {
-    super(config);
+  constructor(provider: Provider, signer: Signer, finP2PContractAddress: string) {
+    super(provider, signer);
     const factory = new ContractFactory<any[], FINP2POperatorERC20>(
       FINP2P.abi, FINP2P.bytecode, this.signer,
     );
-    const contract = factory.attach(config.finP2PContractAddress);
+    const contract = factory.attach(finP2PContractAddress);
     this.contractInterface = contract.interface;
     this.finP2P = contract as FINP2POperatorERC20;
-    this.finP2PContractAddress = config.finP2PContractAddress;
+    this.finP2PContractAddress = finP2PContractAddress;
     this.signer.getNonce().then((nonce) => {
       console.log('Syncing nonce:', nonce);
     });
+  }
+
+  async eip712Domain() {
+    return this.finP2P.eip712Domain();
   }
 
   async getAssetAddress(assetId: string) {
@@ -35,59 +45,54 @@ export class FinP2PContract extends ContractsManager {
   }
 
   async associateAsset(assetId: string, tokenAddress: string) {
-    return this.safeExecuteTransaction(async () => {
-      return this.finP2P.associateAsset(assetId, tokenAddress);
+    return this.safeExecuteTransaction(async (finP2P: FINP2POperatorERC20) => {
+      return finP2P.associateAsset(assetId, tokenAddress);
     });
   }
 
   async issue(assetId: string, issuerFinId: string, quantity: number) {
-    return this.safeExecuteTransaction(async () => {
-      return this.finP2P.issue(assetId, issuerFinId, quantity);
+    return this.safeExecuteTransaction(async (finP2P: FINP2POperatorERC20) => {
+      return finP2P.issue(assetId, issuerFinId, quantity);
     });
   }
 
-  async transfer(nonce: string, assetId: string, sourceFinId: string, destinationFinId: string, quantity: number,
-    settlementHash: string, hash: string, signature: string) {
-    let encSettlementHash: string;
-    if (settlementHash.length === 0) {
-      encSettlementHash = ethers.encodeBytes32String('');
-    } else {
-      encSettlementHash = `0x${settlementHash}`;
-    }
-    return this.safeExecuteTransaction(async () => {
-      return this.finP2P.transfer(
-        `0x${nonce}`, assetId, sourceFinId, destinationFinId, quantity,
-        encSettlementHash, `0x${hash}`, `0x${signature}`);
+  async transfer(nonce: string, assetId: string, sellerFinId: string, buyerFinId: string, quantity: number,
+    settlementAsset: string, settlementAmount: string, hashType: HashType, eip712PrimaryType: number, signature: string) {
+    return this.safeExecuteTransaction(async (finP2P: FINP2POperatorERC20) => {
+      return finP2P.transfer(
+        nonce, assetId, sellerFinId, buyerFinId, quantity,
+        settlementAsset, settlementAmount, hashType, eip712PrimaryType, `0x${signature}`);
     });
   }
 
-
-  async redeem(nonce: string, assetId: string, finId: string, quantity: number,
-    settlementHash: string, hash: string, signature: string) {
-    return this.safeExecuteTransaction(async () => {
-      return this.finP2P.redeem(`0x${nonce}`, assetId, finId, quantity,
-        `0x${settlementHash}`, `0x${hash}`, `0x${signature}`);
+  async redeem(nonce: string, assetId: string, sellerFinId: string, issuerFinId: string, quantity: number,
+    settlementAsset: string, settlementAmount: string, hashType: HashType, signature: string) {
+    return this.safeExecuteTransaction(async (finP2P: FINP2POperatorERC20) => {
+      return finP2P.redeem(nonce, assetId, sellerFinId, issuerFinId, quantity,
+        settlementAsset, settlementAmount, hashType, `0x${signature}`);
     });
   }
 
-  async hold(operationId: string, assetId: string, sourceFinId: string, destinationFinId: string, quantity: number, expiry: number,
-    assetHash: string, hash: string, signature: string) {
-    let opId = stringToByte16(operationId);
-    return this.safeExecuteTransaction(async () => {
-      return this.finP2P.hold(opId, assetId, sourceFinId, destinationFinId, quantity, expiry,
-        `0x${assetHash}`, `0x${hash}`, `0x${signature}`);
+  async hold(operationId: string, nonce: string, assetId: string, sellerFinId: string, buyerFinId: string, quantity: string,
+    settlementAsset: string, settlementAmount: number, /*hashType: HashType, eip712PrimaryType: number,*/signature: string) {
+    const opId = normalizeOperationId(operationId);
+    return this.safeExecuteTransaction(async (finP2P: FINP2POperatorERC20) => {
+      return finP2P.hold(opId, nonce, assetId, sellerFinId, buyerFinId, quantity,
+        settlementAsset, settlementAmount, /*hashType, eip712PrimaryType,*/ `0x${signature}`);
     });
   }
 
-  async release(operationId: string, destinationFinId: string) {
-    return this.safeExecuteTransaction(async () => {
-      return this.finP2P.release(stringToByte16(operationId), destinationFinId);
+  async release(operationId: string, buyerFinId: string) {
+    const opId = normalizeOperationId(operationId);
+    return this.safeExecuteTransaction(async (finP2P: FINP2POperatorERC20) => {
+      return finP2P.release(opId, buyerFinId);
     });
   }
 
   async rollback(operationId: string) {
-    return this.safeExecuteTransaction(async () => {
-      return this.finP2P.rollback(stringToByte16(operationId));
+    const opId = normalizeOperationId(operationId);
+    return this.safeExecuteTransaction(async (finP2P: FINP2POperatorERC20) => {
+      return finP2P.rollback(opId);
     });
   }
 
@@ -140,4 +145,31 @@ export class FinP2PContract extends ContractsManager {
     return receipt;
   }
 
+  private async safeExecuteTransaction(call: (finp2p: FINP2POperatorERC20) => Promise<ContractTransactionResponse>, maxAttempts: number = 10) {
+    for (let i = 0; i < maxAttempts; i++) {
+      try {
+        const response = await call(this.finP2P);
+        return response.hash;
+      } catch (e) {
+        const err = detectError(e);
+        if (err instanceof EthereumTransactionError) {
+          // console.log('Ethereum transaction error');
+          this.resetNonce();
+          throw err;
+
+        } else if (err instanceof NonceToHighError) {
+          // console.log('Nonce too high error, retrying');
+          this.resetNonce();
+          // continuing the loop
+        } else if (err instanceof NonceAlreadyBeenUsedError) {
+          // console.log('Nonce already been used error, retrying');
+          this.resetNonce();
+          // continuing the loop
+        } else {
+          throw err;
+        }
+      }
+    }
+    throw new Error(`Failed to execute transaction without nonce-too-high error after ${maxAttempts} attempts`);
+  }
 }

@@ -1,22 +1,25 @@
 import { CommonService } from './common';
-import { assetCreationResult, extractAssetId, getRandomNumber } from "./mapping";
+import {
+  assetCreationResult,
+  assetNotFoundResult,
+  extractAssetId,
+  getRandomNumber,
+  failedAssetCreation,
+  failedTransaction,
+  redeemParameterFromTemplate, transferParameterFromTemplate
+} from "./mapping";
 import { EthereumTransactionError } from '../../finp2p-contracts/src/contracts/model';
 import { logger } from '../helpers/logger';
 import { FinP2PContract } from '../../finp2p-contracts/src/contracts/finp2p';
 import { RegulationChecker } from '../finp2p/regulation';
-import HashListTemplate = Components.Schemas.HashListTemplate;
-import LedgerTokenId = Components.Schemas.LedgerTokenId;
 import CreateAssetResponse = Components.Schemas.CreateAssetResponse;
+import LedgerTokenId = Components.Schemas.LedgerTokenId;
 import { isEthereumAddress } from "../../finp2p-contracts/src/contracts/utils";
 
-export type DeployNewToken = {
-  type: 'deploy-new-token';
-};
-export type ReuseExistingToken = {
-  type: 'reuse-existing-token';
-  tokenAddress: string;
-};
-export type AssetCreationPolicy = DeployNewToken | ReuseExistingToken;
+export type AssetCreationPolicy =
+  | { type: 'deploy-new-token' }
+  | { type: 'reuse-existing-token'; tokenAddress: string }
+  | { type: 'no-deployment' };
 
 export class TokenService extends CommonService {
 
@@ -35,21 +38,26 @@ export class TokenService extends CommonService {
     try {
 
       if (request.ledgerAssetBinding) {
-        const { tokenId } = request.ledgerAssetBinding as LedgerTokenId;
-        if (!isEthereumAddress(tokenId)) {
+        const { tokenId: tokenAddress  } = request.ledgerAssetBinding as LedgerTokenId;
+        if (!isEthereumAddress(tokenAddress)) {
           return {
             isCompleted: true,
             error: {
               code: 1,
-              message: `Token ${tokenId} does not exist`,
+              message: `Token ${tokenAddress} does not exist`,
             },
           } as CreateAssetResponse;
         }
-        const tokenAddress = tokenId;
-        const txHash = await this.finP2PContract.associateAsset(assetId, tokenAddress);
-        await this.finP2PContract.waitForCompletion(txHash);
+        const address = await this.finP2PContract.getAssetAddress(assetId)
+        if (address !== tokenAddress) {
+          return assetNotFoundResult(tokenAddress);
+        } else {
+          // TODO: just a lookup or actual associate here?
+          const txHash = await this.finP2PContract.associateAsset(assetId, tokenAddress);
+          await this.finP2PContract.waitForCompletion(txHash);
+          return assetCreationResult(tokenAddress, tokenAddress, this.finP2PContract.finP2PContractAddress);
+        }
 
-        return assetCreationResult(txHash, tokenId, tokenAddress, this.finP2PContract.finP2PContractAddress);
 
       } else {
 
@@ -67,31 +75,28 @@ export class TokenService extends CommonService {
             tokenAddress = this.assetCreationPolicy.tokenAddress;
             tokenId = `${getRandomNumber(10000, 100000)}-${tokenAddress}`;
             break;
+          case 'no-deployment':
+            return {
+              isCompleted: true,
+              error: {
+                code: 1,
+                message: 'Creation of new assets is not allowed by the policy',
+              },
+            } as CreateAssetResponse;
         }
 
         const txHash = await this.finP2PContract.associateAsset(assetId, tokenAddress);
         await this.finP2PContract.waitForCompletion(txHash);
-        return assetCreationResult(txHash, tokenId, tokenAddress, this.finP2PContract.finP2PContractAddress);
+        return assetCreationResult(tokenId, tokenAddress, this.finP2PContract.finP2PContractAddress);
       }
 
     } catch (e) {
       logger.error(`Error creating asset: ${e}`);
       if (e instanceof EthereumTransactionError) {
-        return {
-          isCompleted: true,
-          error: {
-            code: 1,
-            message: e.message,
-          },
-        } as CreateAssetResponse;
+        return failedAssetCreation(1, e.message);
+
       } else {
-        return {
-          isCompleted: true,
-          error: {
-            code: 1,
-            message: e,
-          },
-        } as Components.Schemas.CreateAssetResponse;
+        return failedAssetCreation(1, `${e}`);
       }
     }
 
@@ -99,10 +104,11 @@ export class TokenService extends CommonService {
 
   public async issue(request: Paths.IssueAssets.RequestBody): Promise<Paths.IssueAssets.Responses.$200> {
     const assetId = extractAssetId(request.asset);
-    const issuerFinId = request.destination.finId;
     const amount = parseInt(request.quantity);
+    const issuerFinId = request.destination.finId;
+
     if (this.regulation) {
-      const error = await this.regulation.doRegulationCheck(issuerFinId, assetId);
+      const error = await this.regulation.doRegulationCheck(request.destination.finId, assetId);
       if (error) {
         return {
           isCompleted: true,
@@ -110,50 +116,37 @@ export class TokenService extends CommonService {
         } as Components.Schemas.ReceiptOperation;
       }
     }
+
+    let txHash: string;
     try {
-      const txHash = await this.finP2PContract.issue(assetId, issuerFinId, amount);
-      return {
-        isCompleted: false,
-        cid: txHash,
-      } as Components.Schemas.ReceiptOperation;
+      logger.info(`Issue asset ${assetId} to ${issuerFinId} with amount ${amount}`);
+      txHash = await this.finP2PContract.issue(assetId, issuerFinId, amount);
+
     } catch (e) {
-      logger.error(`Error issuing asset: ${e}`);
+      logger.error(`Error on asset issuance: ${e}`);
       if (e instanceof EthereumTransactionError) {
-        return {
-          isCompleted: true,
-          error: {
-            code: 1,
-            message: e.message,
-          },
-        } as Components.Schemas.ReceiptOperation;
+        return failedTransaction(1, e.message);
+
       } else {
-        return {
-          isCompleted: true,
-          error: {
-            code: 1,
-            message: `${e}`,
-          },
-        } as Components.Schemas.ReceiptOperation;
+        return failedTransaction(1, `${e}`);
       }
     }
+    return {
+      isCompleted: false,
+      cid: txHash,
+    } as Components.Schemas.ReceiptOperation;
   }
 
   public async transfer(request: Paths.TransferAsset.RequestBody): Promise<Paths.TransferAsset.Responses.$200> {
     const nonce = request.nonce;
     const assetId = extractAssetId(request.asset);
-    const sourceFinId = request.source.finId;
-    const destinationFinId = request.destination.finId;
     const amount = parseInt(request.quantity);
-    let settlementHash = '';
-    const hashList = request.signature.template as HashListTemplate
-    if (hashList.hashGroups.length > 1) {
-      settlementHash = hashList.hashGroups[1].hash;
-    }
-    const hash = request.signature.template.hash;
-    const signature = request.signature.signature;
+    const sellerFinId = request.source.finId;
+    const buyerFinId = request.destination.finId;
 
     if (this.regulation) {
-      const error = await this.regulation.doRegulationCheck(destinationFinId, assetId);
+      const buyerFinId = request.destination.finId;
+      const error = await this.regulation.doRegulationCheck(buyerFinId, assetId);
       if (error) {
         return {
           isCompleted: true,
@@ -161,74 +154,52 @@ export class TokenService extends CommonService {
         } as Components.Schemas.ReceiptOperation;
       }
     }
-
+    const { signature, template } = request.signature;
     try {
-      const txHash = await this.finP2PContract.transfer(nonce, assetId, sourceFinId, destinationFinId, amount, settlementHash, hash, signature);
+      const { eip712PrimaryType, hashType, settlementAmount, settlementAsset } = transferParameterFromTemplate(template);
+      logger.info(`Transfer asset ${assetId} from ${sellerFinId} to ${buyerFinId} with amount ${amount} and settlement ${settlementAmount} ${settlementAsset}, hashType: ${template.type}`);
 
+      const txHash = await this.finP2PContract.transfer(nonce, assetId, sellerFinId, buyerFinId, amount,
+        settlementAsset, settlementAmount, hashType, eip712PrimaryType, signature);
       return {
         isCompleted: false,
         cid: txHash,
       } as Components.Schemas.ReceiptOperation;
     } catch (e) {
-      logger.error(`Error transferring asset: ${e}`);
+      logger.error(`Error on asset transfer: ${e}`);
       if (e instanceof EthereumTransactionError) {
-        return {
-          isCompleted: true,
-          error: {
-            code: 1,
-            message: e.message,
-          },
-        } as Components.Schemas.ReceiptOperation;
+        return failedTransaction(1, e.message);
+
       } else {
-        return {
-          isCompleted: true,
-          error: {
-            code: 1,
-            message: `${e}`,
-          },
-        } as Components.Schemas.ReceiptOperation;
+        return failedTransaction(1, `${e}`);
       }
     }
+
   }
 
   public async redeem(request: Paths.RedeemAssets.RequestBody): Promise<Paths.RedeemAssets.Responses.$200> {
-    if (request.asset.type !== 'finp2p') {
-      throw new Error(`Unsupported asset type: ${request.asset.type}`);
-    }
     const nonce = request.nonce;
     const assetId = request.asset.resourceId;
-    const finId = request.source.finId;
     const amount = parseInt(request.quantity);
-    const hashList = request.signature.template as HashListTemplate
-    const settlementHash = hashList.hashGroups[1].hash;
-    const hash = request.signature.template.hash;
-    const signature = request.signature.signature;
+    const sellerFinId = request.source.finId;
 
+    const { signature, template } = request.signature;
     try {
-      const txHash = await this.finP2PContract.redeem(nonce, assetId, finId, amount, settlementHash, hash, signature);
+      const { hashType, issuerFinId, settlementAmount, settlementAsset } = redeemParameterFromTemplate(template);
+      logger.info(`Redeem asset ${assetId} from ${sellerFinId} with amount ${amount} and settlement ${settlementAmount} ${settlementAsset}, hashType: ${hashType}`);
 
+      const txHash = await this.finP2PContract.redeem(nonce, assetId, sellerFinId, issuerFinId, amount, settlementAsset, settlementAmount, hashType, signature);
       return {
         isCompleted: false,
         cid: txHash,
       } as Components.Schemas.ReceiptOperation;
     } catch (e) {
-      logger.error(`Error redeeming asset: ${e}`);
+      logger.error(`Error asset redeem: ${e}`);
       if (e instanceof EthereumTransactionError) {
-        return {
-          isCompleted: true,
-          error: {
-            code: 1,
-            message: e.message,
-          },
-        } as Components.Schemas.ReceiptOperation;
+        return failedTransaction(1, e.message);
+
       } else {
-        return {
-          isCompleted: true,
-          error: {
-            code: 1,
-            message: `${e}`,
-          },
-        } as Components.Schemas.ReceiptOperation;
+        return failedTransaction(1, `${e}`);
       }
     }
   }
