@@ -1,5 +1,5 @@
 import {
-  ContractFactory, NonceManager, Provider, Signer
+  Network, ContractFactory, NonceManager, Provider, Signer
 } from "ethers";
 import FINP2P from '../../artifacts/contracts/token/ERC20/FINP2POperatorERC20.sol/FINP2POperatorERC20.json';
 import ERC20 from '../../artifacts/contracts/token/ERC20/ERC20WithOperator.sol/ERC20WithOperator.json';
@@ -13,6 +13,10 @@ export class ContractsManager {
   constructor(provider: Provider, signer: Signer) {
     this.provider = provider;
     this.signer = signer;
+  }
+
+  async getNetwork(): Promise<Network> {
+    return this.provider.getNetwork();
   }
 
   async deployERC20(name: string, symbol: string, finP2PContractAddress: string) {

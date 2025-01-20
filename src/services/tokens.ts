@@ -55,9 +55,12 @@ export class TokenService extends CommonService {
           // TODO: just a lookup or actual associate here?
           const txHash = await this.finP2PContract.associateAsset(assetId, tokenAddress);
           await this.finP2PContract.waitForCompletion(txHash);
-          return assetCreationResult(tokenAddress, tokenAddress, this.finP2PContract.finP2PContractAddress);
+          const tokenId = tokenAddress;
+          const { name: network, chainId } = await this.finP2PContract.getNetwork();
+          const operatorContract = this.finP2PContract.finP2PContractAddress;
+          const verifyingContract = this.finP2PContract.finP2PContractAddress;
+          return assetCreationResult(tokenId, network, Number(chainId), tokenAddress, operatorContract, verifyingContract);
         }
-
 
       } else {
 
@@ -87,7 +90,10 @@ export class TokenService extends CommonService {
 
         const txHash = await this.finP2PContract.associateAsset(assetId, tokenAddress);
         await this.finP2PContract.waitForCompletion(txHash);
-        return assetCreationResult(tokenId, tokenAddress, this.finP2PContract.finP2PContractAddress);
+        const { name: network, chainId } = await this.finP2PContract.getNetwork();
+        const operatorContract = this.finP2PContract.finP2PContractAddress;
+        const verifyingContract = this.finP2PContract.finP2PContractAddress;
+        return assetCreationResult(tokenId, network, Number(chainId), tokenAddress, operatorContract, verifyingContract);
       }
 
     } catch (e) {

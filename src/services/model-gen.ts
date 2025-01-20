@@ -43,6 +43,10 @@ declare namespace Components {
              */
             network: string;
             /**
+             * chain id of the network
+             */
+            chainId: number;
+            /**
              * the address
              */
             address: string;
@@ -302,6 +306,10 @@ declare namespace Components {
              * Indicates if allowance is required
              */
             allowanceRequired?: boolean;
+            /**
+             * EIP712 signature verifier
+             */
+            verifyingContractAddress?: string;
         }
         export interface Finp2pAsset {
             type: "finp2p";

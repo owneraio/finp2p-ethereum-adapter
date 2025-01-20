@@ -88,7 +88,7 @@ export const receiptToAPI = (receipt: FinP2PReceipt): Receipt => {
   };
 };
 
-export const assetCreationResult = (tokenId: string, tokenAddress: string, finp2pTokenAddress: string) => {
+export const assetCreationResult = (tokenId: string, network: string, chainId: number, tokenAddress: string, finp2pTokenAddress: string, verifyingTokenAddress: string) => {
   return {
     isCompleted: true,
     response: {
@@ -99,12 +99,14 @@ export const assetCreationResult = (tokenId: string, tokenAddress: string, finp2
         } as LedgerTokenId,
         ledgerReference: {
           type: 'contractDetails',
-          network: 'ethereum',
+          network: network,
+          chainId: chainId,
           address: tokenAddress,
           TokenStandard: 'TokenStandard_ERC20',
           additionalContractDetails: {
             FinP2POperatorContractAddress: finp2pTokenAddress,
-            allowanceRequired: true
+            allowanceRequired: true,
+            verifyingTokenAddress: verifyingTokenAddress,
           } as FinP2PEVMOperatorDetails
         } as ContractDetails
       } as LedgerAssetInfo,

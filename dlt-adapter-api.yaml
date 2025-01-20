@@ -1350,7 +1350,7 @@ components:
 
     contractDetails:
       type: object
-      required: [network, address, type]
+      required: [chainId, network, address, type]
       properties:
         type:
           type: string
@@ -1359,6 +1359,9 @@ components:
         network:
           type: string
           description: 'the network'
+        chainId:
+          type: number
+          description: 'chain id of the network'
         address:
           type: string
           description: 'the address'
@@ -1378,6 +1381,9 @@ components:
         allowanceRequired:
           type: boolean
           description: 'Indicates if allowance is required'
+        verifyingContractAddress:
+          type: string
+          description: 'EIP712 signature verifier'
 
     ledgerAssetBinding:
       type: object
