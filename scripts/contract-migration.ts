@@ -10,22 +10,36 @@ const startMigration = async (ossUrl: string, providerType: ProviderType, oldCon
   const assetIds = await ossClient.getAllAssetIds()
   console.log(`Got a list of ${assetIds.length} assets to migrate`);
 
+  if (assetIds.length === 0) {
+    console.log('No assets to migrate');
+    return;
+  }
+
   const { provider, signer } = await createProviderAndSigner(providerType);
   const oldContract = new FinP2PContract(provider, signer, oldContractAddress);
   const newContract = new FinP2PContract(provider, signer, newContractAddress);
 
+  let migrated = 0;
+  let skipped = 0;
   for (const assetId of assetIds) {
     try {
       const tokenAddress = await oldContract.getAssetAddress(assetId);
       console.log(`Migrating asset ${assetId} with token address ${tokenAddress}`);
       await newContract.associateAsset(assetId, tokenAddress);
       console.log('       [done]')
+      migrated++;
     } catch (e) {
-      console.log(e)
+      if (`${e}`.includes('Asset not found')) {
+        skipped++;
+        continue
+      }
+      throw e;
     }
   }
 
   console.log('Migration complete');
+  console.log(`Migrated ${migrated} of ${assetIds.length} assets`);
+  console.log(`Skipped ${skipped} assets`);
 }
 
 const ossUrl = process.env.OSS_URL;
