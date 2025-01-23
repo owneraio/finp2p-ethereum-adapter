@@ -26,6 +26,7 @@ const startMigration = async (ossUrl: string, providerType: ProviderType, oldCon
       const tokenAddress = await oldContract.getAssetAddress(assetId);
       console.log(`Migrating asset ${assetId} with token address ${tokenAddress}`);
       await newContract.associateAsset(assetId, tokenAddress);
+      await newContract.erc20GrantOperatorTo(tokenAddress, newContractAddress);
       console.log('       [done]')
       migrated++;
     } catch (e) {
