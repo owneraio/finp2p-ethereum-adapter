@@ -3,6 +3,7 @@ import process from "process";
 import { FinP2PContract } from "../finp2p-contracts/src/contracts/finp2p";
 import { createProviderAndSigner, ProviderType } from "../finp2p-contracts/src/contracts/config";
 import console from "console";
+import { EthereumTransactionError } from "../finp2p-contracts/src/contracts/model";
 
 
 const startMigration = async (ossUrl: string, providerType: ProviderType, oldContractAddress: string, newContractAddress: string) => {
@@ -30,9 +31,17 @@ const startMigration = async (ossUrl: string, providerType: ProviderType, oldCon
       console.log('       [done]')
       migrated++;
     } catch (e) {
-      if (`${e}`.includes('Asset not found')) {
-        skipped++;
-        continue
+      if (e instanceof EthereumTransactionError) {
+        if (e.reason.includes('Asset not found')) {
+          skipped++;
+          continue;
+        } else if (e.reason.includes('Asset already exists')) {
+          skipped++;
+          continue;
+        }
+      } else if (`${e}`.includes('must have admin role to grant')) {
+        console.log(`not an admin to grant roles for ${assetId}`)
+        continue;
       }
       throw e;
     }
