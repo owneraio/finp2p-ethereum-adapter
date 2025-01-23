@@ -38,7 +38,7 @@ contract ERC20WithOperator is Context, IERC20, IERC20Metadata, AccessControl {
      * construction.
      */
     constructor(string memory name_, string memory symbol_, address operator) {
-        _grantRole(DEFAULT_ADMIN_ROLE, operator);
+        _grantRole(DEFAULT_ADMIN_ROLE, _msgSender());
         _grantRole(MINTER_ROLE, operator);
         _grantRole(OPERATOR_ROLE, operator);
 
