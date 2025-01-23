@@ -31,11 +31,12 @@ const startMigration = async (ossUrl: string, providerType: ProviderType, oldCon
       console.log('       [done]')
       migrated++;
     } catch (e) {
-      if (e instanceof EthereumTransactionError) {
-        if (e.reason.includes('Asset not found')) {
-          skipped++;
-          continue;
-        } else if (e.reason.includes('Asset already exists')) {
+      if (`${e}`.includes('Asset not found')) {
+        console.log(`Asset ${assetId} not found on old contract`);
+        skipped++;
+        continue;
+      } else if (e instanceof EthereumTransactionError) {
+       if (e.reason.includes('Asset already exists')) {
           skipped++;
           continue;
         }
