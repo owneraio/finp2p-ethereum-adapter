@@ -15,13 +15,9 @@ const startMigration = async (ossUrl: string, providerType: ProviderType, oldCon
   const newContract = new FinP2PContract(provider, signer, newContractAddress);
 
   for (const assetId of assetIds) {
-    const tokenAddressOnOldContract = await oldContract.getAssetAddress(assetId);
-    const tokenAddressOnNewContract = await newContract.getAssetAddress(assetId);
-    if (tokenAddressOnOldContract === tokenAddressOnNewContract) {
-      continue
-    }
-    console.log(`Migrating asset ${assetId} with token address ${tokenAddressOnOldContract}`);
-    await newContract.associateAsset(assetId, tokenAddressOnOldContract);
+    const tokenAddress = await oldContract.getAssetAddress(assetId);
+    console.log(`Migrating asset ${assetId} with token address ${tokenAddress}`);
+    await newContract.associateAsset(assetId, tokenAddress);
     console.log('       [done]')
   }
 
