@@ -48,15 +48,10 @@ export class TokenService extends CommonService {
             },
           } as CreateAssetResponse;
         }
-        const address = await this.finP2PContract.getAssetAddress(assetId)
-        if (address !== tokenAddress) {
-          return assetNotFoundResult(tokenAddress);
-        } else {
-          // TODO: just a lookup or actual associate here?
-          const txHash = await this.finP2PContract.associateAsset(assetId, tokenAddress);
-          await this.finP2PContract.waitForCompletion(txHash);
-          return assetCreationResult(tokenAddress, tokenAddress, this.finP2PContract.finP2PContractAddress);
-        }
+
+        const txHash = await this.finP2PContract.associateAsset(assetId, tokenAddress);
+        await this.finP2PContract.waitForCompletion(txHash);
+        return assetCreationResult(tokenAddress, tokenAddress, this.finP2PContract.finP2PContractAddress);
 
 
       } else {
