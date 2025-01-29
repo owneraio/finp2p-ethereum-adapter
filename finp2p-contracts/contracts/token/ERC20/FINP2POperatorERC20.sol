@@ -2,14 +2,15 @@
 
 pragma solidity ^0.8.20;
 
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "./ERC20WithOperator.sol";
+import "../../utils/erc20/Mintable.sol";
+import "../../utils/erc20/Burnable.sol";
+import "../../utils/finp2p/Bytes.sol";
+import "../../utils/finp2p/FinP2PSignatureVerifier.sol";
 import "../../utils/finp2p/IFinP2PAsset.sol";
 import "../../utils/finp2p/IFinP2PEscrow.sol";
 import "../../utils/finp2p/Signature.sol";
-import "../../utils/finp2p/Bytes.sol";
 import "@openzeppelin/contracts/access/AccessControl.sol";
-import "../../utils/finp2p/FinP2PSignatureVerifier.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/utils/Strings.sol";
 
 /**
@@ -95,7 +96,7 @@ contract FINP2POperatorERC20 is IFinP2PAsset, IFinP2PEscrow, AccessControl, FinP
         address issuer = Bytes.finIdToAddress(issuerFinId);
 
         Asset memory asset = assets[assetId];
-        ERC20WithOperator(asset.tokenAddress).mint(issuer, quantity);
+        Mintable(asset.tokenAddress).mint(issuer, quantity);
 
         emit Issue(assetId, issuerFinId, quantity);
     }
@@ -175,7 +176,7 @@ contract FINP2POperatorERC20 is IFinP2PAsset, IFinP2PEscrow, AccessControl, FinP
         uint256 balance = IERC20(asset.tokenAddress).balanceOf(seller);
         require(balance >= quantity, "Not sufficient balance to redeem");
 
-        ERC20WithOperator(asset.tokenAddress).burnFrom(seller, quantity);
+        Burnable(asset.tokenAddress).burn(seller, quantity);
 
         emit Redeem(assetId, sellerFinId, quantity);
     }

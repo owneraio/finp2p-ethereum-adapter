@@ -2,10 +2,12 @@
 
 pragma solidity ^0.8.20;
 
+import "../../utils/erc20/Mintable.sol";
+import "../../utils/erc20/Burnable.sol";
+import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import "@openzeppelin/contracts/utils/Context.sol";
-import "@openzeppelin/contracts/access/AccessControl.sol";
 
 /**
  * @dev Implementation of the {IERC20} interface.
@@ -14,7 +16,7 @@ import "@openzeppelin/contracts/access/AccessControl.sol";
  * It also includes an operator role that allows operators to bypass the allowance check and act on behalf of the token owner.
  *
  */
-contract ERC20WithOperator is Context, IERC20, IERC20Metadata, AccessControl {
+contract ERC20WithOperator is Context, IERC20, IERC20Metadata, Mintable, Burnable, AccessControl {
 
     bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
     bytes32 public constant OPERATOR_ROLE = keccak256("OPERATOR_ROLE");
@@ -401,16 +403,6 @@ contract ERC20WithOperator is Context, IERC20, IERC20Metadata, AccessControl {
     }
 
     /**
-     * @dev Destroys `amount` tokens from the caller.
-     *
-     * See {ERC20-_burn}.
-     */
-    function burn(uint256 amount) public virtual {
-        require(hasRole(MINTER_ROLE, _msgSender()), "ERC20WithOperator: must have minter role to burn");
-        _burn(_msgSender(), amount);
-    }
-
-    /**
      * @dev Destroys `amount` tokens from `account`, deducting from the caller's
      * allowance.
      *
@@ -421,12 +413,11 @@ contract ERC20WithOperator is Context, IERC20, IERC20Metadata, AccessControl {
      * - the caller must have allowance for ``accounts``'s tokens of at least
      * `amount`.
      */
-    function burnFrom(address account, uint256 amount) public virtual {
+    function burn(address account, uint256 amount) public virtual {
         if (!hasRole(MINTER_ROLE, _msgSender())) {
             _spendAllowance(account, _msgSender(), amount);
         }
         _burn(account, amount);
     }
-
 
 }
