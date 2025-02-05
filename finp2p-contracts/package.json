@@ -14,6 +14,7 @@
     "grant-operator-roles": "node dist/scripts/grant.js",
     "associate-asset": "node dist/scripts/associate.js",
     "generate-wallet": "node dist/scripts/generate-wallet.js",
+    "erc20-approve": "ts-node scripts/erc20-approve.ts",
     "amend-asset": "ts-node scripts/amend-asset.ts"
   },
   "keywords": [],
