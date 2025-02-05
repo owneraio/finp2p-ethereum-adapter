@@ -1,4 +1,4 @@
-import { HDNodeWallet, Interface, TransactionReceipt, Wallet, isAddress } from 'ethers';
+import { HDNodeWallet, Interface, TransactionReceipt, Wallet, isAddress, keccak256 } from 'ethers';
 import { FinP2PReceipt } from './model';
 import * as secp256k1 from 'secp256k1';
 
@@ -117,3 +117,6 @@ export const isEthereumAddress = (address: string): boolean => {
   return isAddress(address);
 };
 
+export const finIdToEthereumAddress = (finId: string): string => {
+  return "0x" + keccak256(finId).slice(-40);
+}
