@@ -3,10 +3,9 @@ import console from "console";
 import { FinP2PContract } from "../src/contracts/finp2p";
 import { createProviderAndSigner, ProviderType } from "../src/contracts/config";
 import { ERC20Contract } from "../src/contracts/erc20";
-import { finIdToEthereumAddress } from "../src/contracts/utils";
 
 const erc20Approve = async (providerType: ProviderType, finp2pContractAddress: string,
-                              assetId: string, spenderFinId: string, amount: number) => {
+                              assetId: string, spender: string, amount: number) => {
 
   const { provider, signer } = await createProviderAndSigner(providerType);
   const network = await provider.getNetwork();
@@ -20,10 +19,9 @@ const erc20Approve = async (providerType: ProviderType, finp2pContractAddress: s
   console.log("ERC20 token details: ");
   console.log(`\tname: ${await erc20.name()}`);
 
-  const spender = finIdToEthereumAddress(`0x${spenderFinId}`);
   await erc20.approve(spender, amount)
 
-  console.log(`Approved ${amount} tokens for ${spenderFinId} (${spender})`);
+  console.log(`Approved ${amount} tokens for ${spender} (${spender})`);
 };
 
 const providerType = (process.env.PROVIDER_TYPE || 'local') as ProviderType;
@@ -36,9 +34,9 @@ const assetId = process.env.ASSET_ID;
 if (!assetId) {
   throw new Error("ASSET_ID is not set");
 }
-const spenderFinId = process.env.SPENDER_FIN_ID;
-if (!spenderFinId) {
-  throw new Error("SPENDER_FIN_ID is not set");
+const spender = process.env.SPENDER;
+if (!spender) {
+  throw new Error("SPENDER is not set");
 }
 const amountStr = process.env.AMOUNT;
 if (!amountStr) {
@@ -46,6 +44,6 @@ if (!amountStr) {
 }
 const amount = parseInt(amountStr);
 
-erc20Approve(providerType, finp2pContractAddress, assetId, spenderFinId, amount)
+erc20Approve(providerType, finp2pContractAddress, assetId, spender, amount)
   .then(() => {
   });
