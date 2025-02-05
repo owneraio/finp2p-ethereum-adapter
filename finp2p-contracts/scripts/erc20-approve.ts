@@ -4,8 +4,6 @@ import { FinP2PContract } from "../src/contracts/finp2p";
 import { createProviderAndSigner, ProviderType } from "../src/contracts/config";
 import { ERC20Contract } from "../src/contracts/erc20";
 import { finIdToEthereumAddress } from "../src/contracts/utils";
-import { hexlify, Wallet } from "ethers";
-
 
 const erc20Approve = async (providerType: ProviderType, finp2pContractAddress: string,
                               assetId: string, spenderFinId: string, amount: number) => {
