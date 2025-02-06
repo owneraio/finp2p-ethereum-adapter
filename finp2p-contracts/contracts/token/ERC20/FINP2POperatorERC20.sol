@@ -2,15 +2,17 @@
 
 pragma solidity ^0.8.20;
 
-import "../../utils/erc20/Mintable.sol";
 import "../../utils/erc20/Burnable.sol";
+import "../../utils/erc20/Mintable.sol";
 import "../../utils/finp2p/Bytes.sol";
 import "../../utils/finp2p/FinP2PSignatureVerifier.sol";
 import "../../utils/finp2p/IFinP2PAsset.sol";
 import "../../utils/finp2p/IFinP2PEscrow.sol";
 import "../../utils/finp2p/Signature.sol";
+import "../../utils/DecimalStringUtils.sol";
 import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import "@openzeppelin/contracts/utils/Strings.sol";
 
 /**
@@ -22,6 +24,7 @@ import "@openzeppelin/contracts/utils/Strings.sol";
  *
  */
 contract FINP2POperatorERC20 is IFinP2PAsset, IFinP2PEscrow, AccessControl, FinP2PSignatureVerifier {
+    using DecimalStringUtils for string;
 
     bytes32 private constant ASSET_MANAGER = keccak256("ASSET_MANAGER");
     bytes32 private constant TRANSACTION_MANAGER = keccak256("TRANSACTION_MANAGER");
@@ -88,7 +91,7 @@ contract FINP2POperatorERC20 is IFinP2PAsset, IFinP2PEscrow, AccessControl, FinP
     function issue(
         string memory assetId,
         string memory issuerFinId,
-        uint256 quantity
+        string memory quantity
     ) public override virtual {
         require(hasRole(TRANSACTION_MANAGER, _msgSender()), "FINP2POperatorERC20: must have transaction manager role to issue asset");
         require(haveAsset(assetId), "Asset not found");
@@ -96,7 +99,9 @@ contract FINP2POperatorERC20 is IFinP2PAsset, IFinP2PEscrow, AccessControl, FinP
         address issuer = Bytes.finIdToAddress(issuerFinId);
 
         Asset memory asset = assets[assetId];
-        Mintable(asset.tokenAddress).mint(issuer, quantity);
+        uint8 tokenDecimals = IERC20Metadata(asset.tokenAddress).decimals();
+        uint256 tokenAmount = quantity.stringToUint(tokenDecimals);
+        Mintable(asset.tokenAddress).mint(issuer, tokenAmount);
 
         emit Issue(assetId, issuerFinId, quantity);
     }
@@ -106,7 +111,7 @@ contract FINP2POperatorERC20 is IFinP2PAsset, IFinP2PEscrow, AccessControl, FinP
         string memory assetId,
         string memory sellerFinId,
         string memory buyerFinId,
-        uint256 quantity,
+        string memory quantity,
         string memory settlementAsset,
         string memory settlementAmount,
         uint8 hashType,
@@ -124,7 +129,7 @@ contract FINP2POperatorERC20 is IFinP2PAsset, IFinP2PEscrow, AccessControl, FinP
             buyerFinId,
             sellerFinId,
             assetId,
-            Strings.toString(quantity),
+            quantity,
             settlementAsset,
             settlementAmount,
             seller,
@@ -134,10 +139,13 @@ contract FINP2POperatorERC20 is IFinP2PAsset, IFinP2PEscrow, AccessControl, FinP
         ), "Signature is not verified");
 
         Asset memory asset = assets[assetId];
-        uint256 balance = IERC20(asset.tokenAddress).balanceOf(seller);
-        require(balance >= quantity, "Not sufficient balance to transfer");
 
-        IERC20(asset.tokenAddress).transferFrom(seller, buyer, quantity);
+        uint8 tokenDecimals = IERC20Metadata(asset.tokenAddress).decimals();
+        uint256 tokenAmount = quantity.stringToUint(tokenDecimals);
+        uint256 balance = IERC20(asset.tokenAddress).balanceOf(seller);
+        require(balance >= tokenAmount, "Not sufficient balance to transfer");
+
+        IERC20(asset.tokenAddress).transferFrom(seller, buyer, tokenAmount);
 
         emit Transfer(assetId, sellerFinId, buyerFinId, quantity);
     }
@@ -147,7 +155,7 @@ contract FINP2POperatorERC20 is IFinP2PAsset, IFinP2PEscrow, AccessControl, FinP
         string memory assetId,
         string memory sellerFinId,
         string memory issuerFinId,
-        uint256 quantity,
+        string memory quantity,
         string memory settlementAsset,
         string memory settlementAmount,
         uint8 hashType,
@@ -155,7 +163,6 @@ contract FINP2POperatorERC20 is IFinP2PAsset, IFinP2PEscrow, AccessControl, FinP
     ) public override virtual {
         require(hasRole(TRANSACTION_MANAGER, _msgSender()), "FINP2POperatorERC20: must have transaction manager role to redeem asset");
         require(haveAsset(assetId), "Asset not found");
-        require(quantity > 0, "Amount should be greater than zero");
 
         address seller = Bytes.finIdToAddress(sellerFinId);
 
@@ -164,7 +171,7 @@ contract FINP2POperatorERC20 is IFinP2PAsset, IFinP2PEscrow, AccessControl, FinP
             sellerFinId,
             issuerFinId,
             assetId,
-            Strings.toString(quantity),
+            quantity,
             settlementAsset,
             settlementAmount,
             seller,
@@ -173,10 +180,14 @@ contract FINP2POperatorERC20 is IFinP2PAsset, IFinP2PEscrow, AccessControl, FinP
         ), "Signature is not verified");
 
         Asset memory asset = assets[assetId];
-        uint256 balance = IERC20(asset.tokenAddress).balanceOf(seller);
-        require(balance >= quantity, "Not sufficient balance to redeem");
+        uint8 tokenDecimals = IERC20Metadata(asset.tokenAddress).decimals();
+        uint256 tokenAmount = quantity.stringToUint(tokenDecimals);
 
-        Burnable(asset.tokenAddress).burn(seller, quantity);
+        uint256 balance = IERC20(asset.tokenAddress).balanceOf(seller);
+        require(tokenAmount > 0, "Amount should be greater than zero");
+        require(balance >= tokenAmount, "Not sufficient balance to redeem");
+
+        Burnable(asset.tokenAddress).burn(seller, tokenAmount);
 
         emit Redeem(assetId, sellerFinId, quantity);
     }
