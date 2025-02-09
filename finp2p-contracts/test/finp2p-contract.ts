@@ -60,8 +60,8 @@ describe("FinP2P proxy contract test", function() {
 
       // ----------------------------------------------------------
 
-      expect(await contract.getBalance(assetId, issuerFinId)).to.equal(0);
-      expect(await contract.getBalance(assetId, issueBuyerFinId)).to.equal(0);
+      expect( await contract.getBalance(assetId, issuerFinId)).to.equal('0');
+      expect(await contract.getBalance(assetId, issueBuyerFinId)).to.equal('0');
 
       const issueAmount = 1000;
       // const issueSettlementAmount = 10000;
@@ -84,10 +84,10 @@ describe("FinP2P proxy contract test", function() {
 
       // await contract.issue(issueNonce, assetId, issueBuyerFinId, issuerFinId, issueAmount,
       //   settlementAsset, `${issueSettlementAmount}`, HashType.EIP712, issueSignature, { from: operator });a
-      await contract.issue(assetId, issuerFinId, issueAmount, { from: operator });
+      await contract.issue(assetId, issuerFinId, `${issueAmount}`, { from: operator });
 
-      expect(await contract.getBalance(assetId, issueBuyerFinId)).to.equal(0);
-      expect(await contract.getBalance(assetId, issuerFinId)).to.equal(issueAmount);
+      expect(await contract.getBalance(assetId, issueBuyerFinId)).to.equal('0');
+      expect(await contract.getBalance(assetId, issuerFinId)).to.equal(`${issueAmount}`);
 
       // ----------------------------------------------------------
 
@@ -115,11 +115,11 @@ describe("FinP2P proxy contract test", function() {
         }
       } as EIP712SellingMessage, seller);
 
-      await contract.transfer(transferNonce, assetId, sellerFinId, buyerFinId, transferAmount,
+      await contract.transfer(transferNonce, assetId, sellerFinId, buyerFinId, `${transferAmount}`,
         settlementAsset, `${transferSettlementAmount}`, HashType.EIP712, EIP712PrimaryType.Selling, transferSignature, { from: operator });
 
-      expect(await contract.getBalance(assetId, sellerFinId)).to.equal(issueAmount - transferAmount);
-      expect(await contract.getBalance(assetId, buyerFinId)).to.equal(transferAmount);
+      expect(await contract.getBalance(assetId, sellerFinId)).to.equal(`${issueAmount - transferAmount}`);
+      expect(await contract.getBalance(assetId, buyerFinId)).to.equal(`${transferAmount}`);
 
       // ----------------------------------------------------------
 

@@ -25,6 +25,7 @@ import "@openzeppelin/contracts/utils/Strings.sol";
  */
 contract FINP2POperatorERC20 is IFinP2PAsset, IFinP2PEscrow, AccessControl, FinP2PSignatureVerifier {
     using DecimalStringUtils for string;
+    using DecimalStringUtils for uint256;
 
     bytes32 private constant ASSET_MANAGER = keccak256("ASSET_MANAGER");
     bytes32 private constant TRANSACTION_MANAGER = keccak256("TRANSACTION_MANAGER");
@@ -81,11 +82,13 @@ contract FINP2POperatorERC20 is IFinP2PAsset, IFinP2PEscrow, AccessControl, FinP
     function getBalance(
         string memory assetId,
         string memory finId
-    ) public override view returns (uint256) {
+    ) public override view returns (string memory) {
         require(haveAsset(assetId), "Asset not found");
         address addr = Bytes.finIdToAddress(finId);
         Asset memory asset = assets[assetId];
-        return IERC20(asset.tokenAddress).balanceOf(addr);
+        uint8 tokenDecimals = IERC20Metadata(asset.tokenAddress).decimals();
+        uint256 tokenBalance = IERC20(asset.tokenAddress).balanceOf(addr);
+        return tokenBalance.uintToString(tokenDecimals);
     }
 
     function issue(

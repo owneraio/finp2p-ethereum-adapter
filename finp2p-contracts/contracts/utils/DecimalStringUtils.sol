@@ -31,7 +31,6 @@ library DecimalStringUtils {
             }
         }
 
-        // Adjust to match decimals precision
         if (decimalPlaces > decimals) {
             result /= (10 ** (decimalPlaces - decimals)); // Reduce precision
         } else if (decimalPlaces < decimals) {
@@ -50,6 +49,9 @@ library DecimalStringUtils {
         uint256 integerPart = value / factor;
         uint256 decimalPart = value % factor;
 
+        if (decimalPart == 0) {
+            return integerPart.toString();
+        }
         return string(abi.encodePacked(integerPart.toString(), ".", decimalPart.toString()));
     }
 }
