@@ -44,17 +44,6 @@ library DecimalStringUtils {
     /// @param value The integer representation.
     /// @param decimals The number of decimal places.
     /// @return The string representation.
-//    function uintToString(uint256 value, uint8 decimals) internal pure returns (string memory) {
-//        uint256 factor = 10 ** decimals;
-//        uint256 integerPart = value / factor;
-//        uint256 decimalPart = value % factor;
-//
-//        if (decimalPart == 0) {
-//            return integerPart.toString();
-//        }
-//        return string(abi.encodePacked(integerPart.toString(), ".", decimalPart.toString()));
-//    }
-
     function uintToString(uint256 value, uint8 decimals) internal pure returns (string memory) {
         if (decimals == 0) {
             return value.toString(); // No decimals, return integer as string
