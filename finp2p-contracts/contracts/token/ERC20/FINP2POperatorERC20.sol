@@ -13,7 +13,6 @@ import "../../utils/DecimalStringUtils.sol";
 import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
-import "@openzeppelin/contracts/utils/Strings.sol";
 
 /**
  * @dev FINP2POperatorERC20
@@ -203,7 +202,7 @@ contract FINP2POperatorERC20 is IFinP2PAsset, IFinP2PEscrow, AccessControl, FinP
         string memory buyerFinId,
         string memory quantity,
         string memory settlementAsset,
-        uint256 settlementAmount,
+        string memory settlementAmount,
         bytes memory signature
     ) public override virtual {
         require(hasRole(TRANSACTION_MANAGER, _msgSender()), "FINP2POperatorERC20: must have transaction manager role to hold asset");
@@ -217,31 +216,33 @@ contract FINP2POperatorERC20 is IFinP2PAsset, IFinP2PEscrow, AccessControl, FinP
             assetId,
             quantity,
             settlementAsset,
-            Strings.toString(settlementAmount),
+            settlementAmount,
             buyer,
             /*HASH_TYPE_HASHLIST*/HASH_TYPE_EIP712, // todo: pass hashType as a parameter
             EIP712_PRIMARY_TYPE_SELLING, // todo: pass eip712PrimaryType as a parameter
             signature
         ), "Signature is not verified");
 
-        require(settlementAmount > 0, "Amount should be greater than zero");
-        require(haveAsset(settlementAsset), "Asset not found");
-        Asset memory asset = assets[settlementAsset];
-
-        uint256 balance = IERC20(asset.tokenAddress).balanceOf(buyer);
-        require(balance >= settlementAmount, "Not sufficient balance to hold");
-
         if (haveContract(operationId))
             revert("Withheld contract already exists");
 
-        if (!IERC20(asset.tokenAddress).transferFrom(buyer, address(this), settlementAmount))
+        require(haveAsset(settlementAsset), "Asset not found");
+        Asset memory asset = assets[settlementAsset];
+
+        uint8 tokenDecimals = IERC20Metadata(asset.tokenAddress).decimals();
+        uint256 tokenAmount = settlementAmount.stringToUint(tokenDecimals);
+
+        uint256 balance = IERC20(asset.tokenAddress).balanceOf(buyer);
+        require(balance >= tokenAmount, "Not sufficient balance to hold");
+
+        if (!IERC20(asset.tokenAddress).transferFrom(buyer, address(this), tokenAmount))
             revert("Transfer failed");
 
         locks[operationId] = Lock(
             settlementAsset,
             buyerFinId,
             asset.tokenAddress,
-            settlementAmount
+            tokenAmount
         );
 
         emit Hold(settlementAsset, buyerFinId, settlementAmount, operationId);
@@ -250,7 +251,10 @@ contract FINP2POperatorERC20 is IFinP2PAsset, IFinP2PEscrow, AccessControl, FinP
     function getLockInfo(bytes16 operationId) public override view returns (LockInfo memory) {
         require(haveContract(operationId), "Contract not found");
         Lock storage l = locks[operationId];
-        return LockInfo(l.assetId, l.amount);
+        Asset memory asset = assets[l.assetId];
+        uint8 tokenDecimals = IERC20Metadata(asset.tokenAddress).decimals();
+        string memory amount = l.amount.uintToString(tokenDecimals);
+        return LockInfo(l.assetId, amount);
     }
 
     function release(
@@ -270,7 +274,10 @@ contract FINP2POperatorERC20 is IFinP2PAsset, IFinP2PEscrow, AccessControl, FinP
 
         IERC20(lock.token).transfer(buyer, lock.amount);
 
-        emit Release(lock.assetId, lock.finId, buyerFinId, lock.amount, operationId);
+        Asset memory asset = assets[lock.assetId];
+        uint8 tokenDecimals = IERC20Metadata(asset.tokenAddress).decimals();
+        string memory amount = lock.amount.uintToString(tokenDecimals);
+        emit Release(lock.assetId, lock.finId, buyerFinId, amount, operationId);
 
         delete locks[operationId];
     }
@@ -290,7 +297,10 @@ contract FINP2POperatorERC20 is IFinP2PAsset, IFinP2PEscrow, AccessControl, FinP
 
         IERC20(lock.token).transferFrom(address(this), owner, lock.amount);
 
-        emit Rollback(lock.assetId, lock.finId, lock.amount, operationId);
+        Asset memory asset = assets[lock.assetId];
+        uint8 tokenDecimals = IERC20Metadata(asset.tokenAddress).decimals();
+        string memory amount = lock.amount.uintToString(tokenDecimals);
+        emit Rollback(lock.assetId, lock.finId, amount, operationId);
 
         delete locks[operationId];
     }

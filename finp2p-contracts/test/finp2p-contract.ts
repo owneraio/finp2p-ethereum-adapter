@@ -147,10 +147,10 @@ describe("FinP2P proxy contract test", function() {
         }
       } as EIP712RedemptionMessage, owner);
       await contract.redeem(redeemNonce, assetId, redeemSellerFinId, redeemIssuerFinId,
-        redeemAmount, settlementAsset, `${redeemSettlementAmount}`, HashType.EIP712, redeemSignature, { from: operator });
+        `${redeemAmount}`, settlementAsset, `${redeemSettlementAmount}`, HashType.EIP712, redeemSignature, { from: operator });
 
-      expect(await contract.getBalance(assetId, redeemSellerFinId)).to.equal(0);
-      expect(await contract.getBalance(assetId, redeemIssuerFinId)).to.equal(0);
+      expect(await contract.getBalance(assetId, redeemSellerFinId)).to.equal('0');
+      expect(await contract.getBalance(assetId, redeemIssuerFinId)).to.equal('0');
     });
 
     it("hold/release/rollback operations", async function() {
@@ -202,7 +202,7 @@ describe("FinP2P proxy contract test", function() {
       } as EIP712SellingMessage, buyer);
 
       await contract.hold(operationId, transferNonce, assetId, sellerFinId,
-        buyerFinId, `${transferAmount}`, settlementAsset, transferSettlementAmount, /*HashType.EIP712,*/ transferSignature, { from: operator });
+        buyerFinId, `${transferAmount}`, settlementAsset, `${transferSettlementAmount}`, /*HashType.EIP712,*/ transferSignature, { from: operator });
 
       expect(await contract.getBalance(settlementAsset, buyerFinId)).to.equal(issueSettlementAmount - transferSettlementAmount);
 
