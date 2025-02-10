@@ -50,13 +50,13 @@ export class FinP2PContract extends ContractsManager {
     });
   }
 
-  async issue(assetId: string, issuerFinId: string, quantity: number) {
+  async issue(assetId: string, issuerFinId: string, quantity: string) {
     return this.safeExecuteTransaction(async (finP2P: FINP2POperatorERC20) => {
       return finP2P.issue(assetId, issuerFinId, quantity);
     });
   }
 
-  async transfer(nonce: string, assetId: string, sellerFinId: string, buyerFinId: string, quantity: number,
+  async transfer(nonce: string, assetId: string, sellerFinId: string, buyerFinId: string, quantity: string,
     settlementAsset: string, settlementAmount: string, hashType: HashType, eip712PrimaryType: number, signature: string) {
     return this.safeExecuteTransaction(async (finP2P: FINP2POperatorERC20) => {
       return finP2P.transfer(
@@ -65,7 +65,7 @@ export class FinP2PContract extends ContractsManager {
     });
   }
 
-  async redeem(nonce: string, assetId: string, sellerFinId: string, issuerFinId: string, quantity: number,
+  async redeem(nonce: string, assetId: string, sellerFinId: string, issuerFinId: string, quantity: string,
     settlementAsset: string, settlementAmount: string, hashType: HashType, signature: string) {
     return this.safeExecuteTransaction(async (finP2P: FINP2POperatorERC20) => {
       return finP2P.redeem(nonce, assetId, sellerFinId, issuerFinId, quantity,
@@ -74,7 +74,7 @@ export class FinP2PContract extends ContractsManager {
   }
 
   async hold(operationId: string, nonce: string, assetId: string, sellerFinId: string, buyerFinId: string, quantity: string,
-    settlementAsset: string, settlementAmount: number, /*hashType: HashType, eip712PrimaryType: number,*/signature: string) {
+    settlementAsset: string, settlementAmount: string, /*hashType: HashType, eip712PrimaryType: number,*/signature: string) {
     const opId = normalizeOperationId(operationId);
     return this.safeExecuteTransaction(async (finP2P: FINP2POperatorERC20) => {
       return finP2P.hold(opId, nonce, assetId, sellerFinId, buyerFinId, quantity,

@@ -1,24 +1,22 @@
 import { logger } from '../helpers/logger';
 import { CommonService } from './common';
 import { EthereumTransactionError } from '../../finp2p-contracts/src/contracts/model';
-import { extractAssetId, failedTransaction, holdParameterFromTemplate, transferParameterFromTemplate } from "./mapping";
+import { extractAssetId, failedTransaction, holdParameterFromTemplate } from "./mapping";
 
 export class EscrowService extends CommonService {
 
   public async hold(request: Paths.HoldOperation.RequestBody): Promise<Paths.HoldOperation.Responses.$200> {
-    const { operationId, source,
-      destination, nonce } = request;
-    const settlementAsset = extractAssetId(request.asset);
-    const settlementAmount = parseInt(request.quantity);
+    const { operationId, asset, source,
+      destination, quantity, nonce } = request;
+    const settlementAsset = extractAssetId(asset);
     const buyerFinId = source.finId;
     const sellerFinId = destination?.finId || '';
-
     const { signature, template } = request.signature;
 
     try {
       const {/* hashType,*/ amount, asset } = holdParameterFromTemplate(template);
       const txHash = await this.finP2PContract.hold(operationId, nonce, asset, sellerFinId, buyerFinId, amount,
-        settlementAsset, settlementAmount, /*hashType,*/ signature);
+        settlementAsset, quantity, /*hashType,*/ signature);
 
       return {
         isCompleted: false,

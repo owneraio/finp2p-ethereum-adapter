@@ -44,14 +44,40 @@ library DecimalStringUtils {
     /// @param value The integer representation.
     /// @param decimals The number of decimal places.
     /// @return The string representation.
+//    function uintToString(uint256 value, uint8 decimals) internal pure returns (string memory) {
+//        uint256 factor = 10 ** decimals;
+//        uint256 integerPart = value / factor;
+//        uint256 decimalPart = value % factor;
+//
+//        if (decimalPart == 0) {
+//            return integerPart.toString();
+//        }
+//        return string(abi.encodePacked(integerPart.toString(), ".", decimalPart.toString()));
+//    }
+
     function uintToString(uint256 value, uint8 decimals) internal pure returns (string memory) {
+        if (decimals == 0) {
+            return value.toString(); // No decimals, return integer as string
+        }
+
         uint256 factor = 10 ** decimals;
         uint256 integerPart = value / factor;
         uint256 decimalPart = value % factor;
 
-        if (decimalPart == 0) {
-            return integerPart.toString();
+        // Ensure decimalPart always has the correct number of leading zeros
+        string memory decimalStr = decimalPart.toString();
+        uint8 missingZeros = decimals - uint8(bytes(decimalStr).length);
+
+        // Prefix missing zeros if needed
+        if (missingZeros > 0) {
+            string memory zeroPadding = new string(missingZeros);
+            bytes memory zeroBytes = bytes(zeroPadding);
+            for (uint8 i = 0; i < missingZeros; i++) {
+                zeroBytes[i] = "0";
+            }
+            return string(abi.encodePacked(integerPart.toString(), ".", string(zeroBytes), decimalStr));
         }
-        return string(abi.encodePacked(integerPart.toString(), ".", decimalPart.toString()));
+
+        return string(abi.encodePacked(integerPart.toString(), ".", decimalStr));
     }
 }
