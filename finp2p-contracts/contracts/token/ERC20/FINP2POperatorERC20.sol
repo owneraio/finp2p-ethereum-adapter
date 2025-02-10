@@ -229,11 +229,10 @@ contract FINP2POperatorERC20 is IFinP2PAsset, IFinP2PEscrow, AccessControl, FinP
         require(haveAsset(settlementAsset), "Asset not found");
         Asset memory asset = assets[settlementAsset];
 
-        uint8 tokenDecimals = IERC20Metadata(asset.tokenAddress).decimals();
-        uint256 tokenAmount = settlementAmount.stringToUint(tokenDecimals);
+        uint256 tokenAmount = getTokenAmount(asset.tokenAddress, settlementAmount);
 
-        uint256 balance = IERC20(asset.tokenAddress).balanceOf(buyer);
-        require(balance >= tokenAmount, "Not sufficient balance to hold");
+//        uint256 balance = IERC20(asset.tokenAddress).balanceOf(buyer);
+//        require(balance >= tokenAmount, "Not sufficient balance to hold");
 
         if (!IERC20(asset.tokenAddress).transferFrom(buyer, address(this), tokenAmount))
             revert("Transfer failed");
@@ -246,6 +245,11 @@ contract FINP2POperatorERC20 is IFinP2PAsset, IFinP2PEscrow, AccessControl, FinP
         );
 
         emit Hold(settlementAsset, buyerFinId, settlementAmount, operationId);
+    }
+
+    function getTokenAmount(address tokenAddress, string memory amount) internal view returns (uint256) {
+        uint8 tokenDecimals = IERC20Metadata(tokenAddress).decimals();
+        return amount.stringToUint(tokenDecimals);
     }
 
     function getLockInfo(bytes16 operationId) public override view returns (LockInfo memory) {

@@ -12,9 +12,8 @@ import { getFinId } from "../src/contracts/utils";
 import { Wallet } from "ethers";
 import {  HashType } from "../src/contracts/model";
 import {
-  EIP712_PRIMARY_SALE_TYPES,
   EIP712_REDEMPTION_TYPES, EIP712_SELLING_TYPES,
-  EIP712PrimarySaleMessage, EIP712PrimaryType,
+  EIP712PrimaryType,
   EIP712RedemptionMessage,
   EIP712SellingMessage,
   eip712Sign
@@ -26,9 +25,9 @@ describe("FinP2P proxy contract test", function() {
   // We define a fixture to reuse the same setup in every test.
   // We use loadFixture to run this setup once, snapshot that state,
   // and reset Hardhat Network to that snapshot in every test.
-  async function deployERC20(name: string, symbol: string, operatorAddress: string) {
+  async function deployERC20(name: string, symbol: string, decimals: number, operatorAddress: string) {
     const deployer = await ethers.getContractFactory("ERC20WithOperator");
-    const contract = await deployer.deploy(name, symbol, operatorAddress);
+    const contract = await deployer.deploy(name, symbol, decimals, operatorAddress);
     return contract.getAddress();
   }
 
@@ -42,6 +41,7 @@ describe("FinP2P proxy contract test", function() {
   describe("FinP2PProxy operations", function() {
 
     it("issue/transfer/redeem operations", async function() {
+      const decimals = 0;
       const [operator] = await ethers.getSigners();
       const { contract, address: finP2PAddress } = await loadFixture(deployFinP2PProxyFixture);
       const { chainId, verifyingContract } = await contract.eip712Domain();
@@ -49,7 +49,7 @@ describe("FinP2P proxy contract test", function() {
       const assetId = `bank-us:102:${uuid()}`;
       const settlementAsset = "USD";
 
-      const erc20Address = await deployERC20("Tokenized asset owned by bank-us", "AST", finP2PAddress);
+      const erc20Address = await deployERC20("Tokenized asset owned by bank-us", "AST", decimals, finP2PAddress);
       await contract.associateAsset(assetId, erc20Address, { from: operator });
 
       const issuer = Wallet.createRandom();
@@ -154,6 +154,7 @@ describe("FinP2P proxy contract test", function() {
     });
 
     it("hold/release/rollback operations", async function() {
+      const decimals = 0;
       const [operator] = await ethers.getSigners();
       const { contract, address: finP2PAddress } = await loadFixture(deployFinP2PProxyFixture);
 
@@ -161,7 +162,7 @@ describe("FinP2P proxy contract test", function() {
 
       const settlementAsset = "USD";
 
-      const erc20Address = await deployERC20("Payment stable coin", "USDT", finP2PAddress);
+      const erc20Address = await deployERC20("Payment stable coin", "USDT", decimals, finP2PAddress);
       await contract.associateAsset(settlementAsset, erc20Address, { from: operator });
 
       const issuer = Wallet.createRandom();
@@ -169,10 +170,10 @@ describe("FinP2P proxy contract test", function() {
 
       // ----------------------------------------------------------
 
-      expect(await contract.getBalance(settlementAsset, issuerFinId)).to.equal(0);
+      expect(await contract.getBalance(settlementAsset, issuerFinId)).to.equal('0');
       const issueSettlementAmount = 1000;
-      await contract.issue(settlementAsset, issuerFinId, issueSettlementAmount, { from: operator });
-      expect(await contract.getBalance(settlementAsset, issuerFinId)).to.equal(issueSettlementAmount);
+      await contract.issue(settlementAsset, issuerFinId, `${issueSettlementAmount}`, { from: operator });
+      expect(await contract.getBalance(settlementAsset, issuerFinId)).to.equal(`${issueSettlementAmount}`);
 
       // -----------------------------
       const buyer = issuer;
@@ -204,14 +205,14 @@ describe("FinP2P proxy contract test", function() {
       await contract.hold(operationId, transferNonce, assetId, sellerFinId,
         buyerFinId, `${transferAmount}`, settlementAsset, `${transferSettlementAmount}`, /*HashType.EIP712,*/ transferSignature, { from: operator });
 
-      expect(await contract.getBalance(settlementAsset, buyerFinId)).to.equal(issueSettlementAmount - transferSettlementAmount);
+      expect(await contract.getBalance(settlementAsset, buyerFinId)).to.equal(`${issueSettlementAmount - transferSettlementAmount}`);
 
       // -----------------------------
 
       await contract.release(operationId, sellerFinId, { from: operator });
 
-      expect(await contract.getBalance(settlementAsset, sellerFinId)).to.equal(transferSettlementAmount);
-      expect(await contract.getBalance(settlementAsset, buyerFinId)).to.equal(issueSettlementAmount - transferSettlementAmount);
+      expect(await contract.getBalance(settlementAsset, sellerFinId)).to.equal(`${transferSettlementAmount}`);
+      expect(await contract.getBalance(settlementAsset, buyerFinId)).to.equal(`${issueSettlementAmount - transferSettlementAmount}`);
     });
 
   });

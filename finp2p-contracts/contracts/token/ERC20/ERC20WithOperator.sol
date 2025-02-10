@@ -29,6 +29,7 @@ contract ERC20WithOperator is Context, IERC20, IERC20Metadata, Mintable, Burnabl
 
     string private _name;
     string private _symbol;
+    uint8 private _decimals;
 
     /**
      * @dev Sets the values for {name} and {symbol}.
@@ -39,13 +40,14 @@ contract ERC20WithOperator is Context, IERC20, IERC20Metadata, Mintable, Burnabl
      * All two of these values are immutable: they can only be set once during
      * construction.
      */
-    constructor(string memory name_, string memory symbol_, address operator) {
+    constructor(string memory name_, string memory symbol_, uint8 decimals_, address operator) {
         _grantRole(DEFAULT_ADMIN_ROLE, operator);
         _grantRole(MINTER_ROLE, operator);
         _grantRole(OPERATOR_ROLE, operator);
 
         _name = name_;
         _symbol = symbol_;
+        _decimals = decimals_;
     }
 
     function grantMinterTo(address account) public {
@@ -87,7 +89,7 @@ contract ERC20WithOperator is Context, IERC20, IERC20Metadata, Mintable, Burnabl
      * {IERC20-balanceOf} and {IERC20-transfer}.
      */
     function decimals() public view virtual override returns (uint8) {
-        return 18;
+        return _decimals;
     }
 
     /**
