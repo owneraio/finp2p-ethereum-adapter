@@ -181,7 +181,7 @@ contract FINP2POperatorERC20 is IFinP2PAsset, IFinP2PEscrow, AccessControl, FinP
         emit Redeem(assetId, sellerFinId, quantity);
     }
 
-    function hold(
+    function holdPayments(
         bytes16 operationId,
         string memory nonce,
         string memory assetId,
@@ -231,6 +231,58 @@ contract FINP2POperatorERC20 is IFinP2PAsset, IFinP2PEscrow, AccessControl, FinP
         );
 
         emit Hold(settlementAsset, buyerFinId, settlementAmount, operationId);
+    }
+
+    function holdAssets(
+        bytes16 operationId,
+        string memory nonce,
+        string memory assetId,
+        string memory sellerFinId,
+        string memory buyerFinId,
+        uint256 quantity,
+        string memory settlementAsset,
+        string memory settlementAmount,
+        bytes memory signature
+    ) public override virtual {
+        require(hasRole(TRANSACTION_MANAGER, _msgSender()), "FINP2POperatorERC20: must have transaction manager role to hold asset");
+
+        address buyer = Bytes.finIdToAddress(buyerFinId);
+
+        require(verifyTransferSignature(
+             nonce,
+            buyerFinId,
+             sellerFinId,
+            assetId,
+            Strings.toString(quantity),
+            settlementAsset,
+            settlementAmount,
+            buyer,
+            /*HASH_TYPE_HASHLIST*/HASH_TYPE_EIP712, // todo: pass hashType as a parameter
+            EIP712_PRIMARY_TYPE_SELLING, // todo: pass eip712PrimaryType as a parameter
+            signature
+        ), "Signature is not verified");
+
+        require(quantity > 0, "Amount should be greater than zero");
+        require(haveAsset(assetId), "Asset not found");
+        Asset memory asset = assets[assetId];
+
+        uint256 balance = IERC20(asset.tokenAddress).balanceOf(buyer);
+        require(balance >= quantity, "Not sufficient balance to hold");
+
+        if (haveContract(operationId))
+            revert("Withheld contract already exists");
+
+        if (!IERC20(asset.tokenAddress).transferFrom(buyer, address(this), quantity))
+            revert("Transfer failed");
+
+        locks[operationId] = Lock(
+            assetId,
+            buyerFinId,
+            asset.tokenAddress,
+            quantity
+        );
+
+        emit Hold(assetId, buyerFinId, quantity, operationId);
     }
 
     function getLockInfo(bytes16 operationId) public override view returns (LockInfo memory) {

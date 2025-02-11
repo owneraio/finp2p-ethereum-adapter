@@ -1,7 +1,7 @@
 import { logger } from '../helpers/logger';
 import { CommonService } from './common';
 import { EthereumTransactionError } from '../../finp2p-contracts/src/contracts/model';
-import { extractAssetId, failedTransaction, holdParameterFromTemplate, transferParameterFromTemplate } from "./mapping";
+import { extractAssetId, failedTransaction, holdParameterFromTemplate } from "./mapping";
 
 export class EscrowService extends CommonService {
 
@@ -9,7 +9,7 @@ export class EscrowService extends CommonService {
     const { operationId, source,
       destination, nonce } = request;
     const settlementAsset = extractAssetId(request.asset);
-    const settlementAmount = parseInt(request.quantity);
+    const settlementAmount = request.quantity;
     const buyerFinId = source.finId;
     const sellerFinId = destination?.finId || '';
 
@@ -17,9 +17,18 @@ export class EscrowService extends CommonService {
 
     try {
       const {/* hashType,*/ amount, asset } = holdParameterFromTemplate(template);
-      const txHash = await this.finP2PContract.hold(operationId, nonce, asset, sellerFinId, buyerFinId, amount,
-        settlementAsset, settlementAmount, /*hashType,*/ signature);
+      let txHash: string;
+      switch (request.asset.type) {
+        case "finp2p":
+          txHash = await this.finP2PContract.holdAssets(operationId, nonce, asset, sellerFinId, buyerFinId, parseInt(amount),
+            settlementAsset, settlementAmount, /*hashType,*/ signature);
+          break
 
+        case 'cryptocurrency': case "fiat":
+          txHash = await this.finP2PContract.holdPayments(operationId, nonce, asset, sellerFinId, buyerFinId, amount,
+            settlementAsset, parseInt(settlementAmount), /*hashType,*/ signature);
+          break
+      }
       return {
         isCompleted: false,
         cid: txHash,

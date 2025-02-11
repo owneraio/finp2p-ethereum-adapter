@@ -201,7 +201,7 @@ describe("FinP2P proxy contract test", function() {
         }
       } as EIP712SellingMessage, buyer);
 
-      await contract.hold(operationId, transferNonce, assetId, sellerFinId,
+      await contract.holdPayments(operationId, transferNonce, assetId, sellerFinId,
         buyerFinId, `${transferAmount}`, settlementAsset, transferSettlementAmount, /*HashType.EIP712,*/ transferSignature, { from: operator });
 
       expect(await contract.getBalance(settlementAsset, buyerFinId)).to.equal(issueSettlementAmount - transferSettlementAmount);
