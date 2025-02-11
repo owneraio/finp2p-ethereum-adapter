@@ -26,6 +26,16 @@ export class ContractsManager {
     return await contract.getAddress();
   }
 
+  async erc20GrantOperatorTo(tokenAddress: string, operatorAddress: string) {
+    const factory = new ContractFactory<any[], ERC20WithOperator>(
+      ERC20.abi,
+      ERC20.bytecode,
+      this.signer,
+    );
+    const contract = factory.attach(tokenAddress);
+    await contract.grantOperatorTo(operatorAddress)
+  }
+
   async deployFinP2PContract(signerAddress: string | undefined, paymentAssetCode: string | undefined = undefined) {
     console.log('Deploying FinP2P contract...');
     const factory = new ContractFactory<any[], FINP2POperatorERC20>(
