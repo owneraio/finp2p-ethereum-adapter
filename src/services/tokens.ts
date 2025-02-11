@@ -16,7 +16,7 @@ import LedgerTokenId = Components.Schemas.LedgerTokenId;
 import { isEthereumAddress } from "../../finp2p-contracts/src/contracts/utils";
 
 export type AssetCreationPolicy =
-  | { type: 'deploy-new-token' }
+  | { type: 'deploy-new-token'; decimals: number }
   | { type: 'reuse-existing-token'; tokenAddress: string }
   | { type: 'no-deployment' };
 
@@ -61,7 +61,8 @@ export class TokenService extends CommonService {
         let tokenId, tokenAddress: string;
         switch (this.assetCreationPolicy.type) {
           case 'deploy-new-token':
-            tokenAddress = await this.finP2PContract.deployERC20(assetId, assetId,
+            const { decimals } = this.assetCreationPolicy;
+            tokenAddress = await this.finP2PContract.deployERC20(assetId, assetId, decimals,
               this.finP2PContract.finP2PContractAddress);
             tokenId = tokenAddress;
             break;

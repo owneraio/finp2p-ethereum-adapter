@@ -5,6 +5,8 @@ import FINP2P from '../../artifacts/contracts/token/ERC20/FINP2POperatorERC20.so
 import ERC20 from '../../artifacts/contracts/token/ERC20/ERC20WithOperator.sol/ERC20WithOperator.json';
 import { ERC20WithOperator, FINP2POperatorERC20 } from '../../typechain-types';
 
+const DefaultDecimalsCurrencies = 2;
+
 export class ContractsManager {
 
   provider: Provider;
@@ -15,13 +17,13 @@ export class ContractsManager {
     this.signer = signer;
   }
 
-  async deployERC20(name: string, symbol: string, finP2PContractAddress: string) {
+  async deployERC20(name: string, symbol: string, decimals: number, finP2PContractAddress: string) {
     const factory = new ContractFactory<any[], ERC20WithOperator>(
       ERC20.abi,
       ERC20.bytecode,
       this.signer,
     );
-    const contract = await factory.deploy(name, symbol, finP2PContractAddress);
+    const contract = await factory.deploy(name, symbol, decimals, finP2PContractAddress);
     await contract.waitForDeployment();
     return await contract.getAddress();
   }
@@ -43,7 +45,7 @@ export class ContractsManager {
     }
 
     if (paymentAssetCode) {
-      await this.preCreatePaymentAsset(factory, address, paymentAssetCode);
+      await this.preCreatePaymentAsset(factory, address, paymentAssetCode, DefaultDecimalsCurrencies);
     }
 
     return address;
@@ -68,9 +70,9 @@ export class ContractsManager {
     return true;
   }
 
-  async preCreatePaymentAsset(factory: ContractFactory<any[], FINP2POperatorERC20>, finP2PContractAddress: string, assetId: string): Promise<void> {
+  async preCreatePaymentAsset(factory: ContractFactory<any[], FINP2POperatorERC20>, finP2PContractAddress: string, assetId: string, decimals: number): Promise<void> {
     console.log(`Pre-creating payment asset ${assetId}...`);
-    const tokenAddress = await this.deployERC20(assetId, assetId, finP2PContractAddress);
+    const tokenAddress = await this.deployERC20(assetId, assetId, decimals, finP2PContractAddress);
 
     const contract = factory.attach(finP2PContractAddress);
 

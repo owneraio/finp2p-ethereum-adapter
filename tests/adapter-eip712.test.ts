@@ -28,7 +28,7 @@ describe(`token service test (signature hash type: eip712)`, () => {
     hashFunction = global.hashFunction;
   });
 
-  test(` Scenario: issue / transfer / redeem`, async () => {
+  test(`Scenario: issue / transfer / redeem`, async () => {
 
     const assetId = randomResourceId(orgId, ASSET);
     const asset = {
