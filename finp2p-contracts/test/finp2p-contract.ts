@@ -40,14 +40,14 @@ describe("FinP2P proxy contract test", function() {
 
   describe("FinP2PProxy operations", () => {
 
-    const testCases: [number, number, number, number][] = [ // [decimals, issueAmount, transferAmount, redeemAmount]
-      [0, 10, 5, 5],
-      [2, 10.13, 2.13, 1.13],
-      [4, 10.0001, 10.0001, 1.001],
-      [18, 1.01, 0.6, 0.4]
+    const testCases: [number, number, number][] = [ // [decimals, issueAmount, transferAmount, redeemAmount]
+      [0, 10, 5],
+      [2, 10.13, 2.13],
+      [4, 10.0001, 10.0001],
+      [18, 1.01, 0.6]
     ];
-    testCases.forEach(([decimals, issueAmount, transferAmount, redeemAmount]) => {
-      it(`issue/transfer/redeem operations (decimals: ${decimals}, issue amount: ${issueAmount}, transfer amount: ${transferAmount}, redeem amount: ${redeemAmount})`, async () => {
+    testCases.forEach(([decimals, issueAmount, transferAmount]) => {
+      it(`issue/transfer/redeem operations (decimals: ${decimals}, issue amount: ${issueAmount}, transfer amount: ${transferAmount}`, async () => {
         const [operator] = await ethers.getSigners();
         const { contract, address: finP2PAddress } = await loadFixture(deployFinP2PProxyFixture);
         const { chainId, verifyingContract } = await contract.eip712Domain();
@@ -106,40 +106,9 @@ describe("FinP2P proxy contract test", function() {
         expect(await contract.getBalance(assetId, sellerFinId)).to.equal(`${(issueAmount - transferAmount).toFixed(decimals)}`);
         expect(await contract.getBalance(assetId, buyerFinId)).to.equal(`${transferAmount.toFixed(decimals)}`);
 
-        // ----------------------------------------------------------
-
-        const owner = buyer;
-        const redeemSellerFinId = buyerFinId;
-        const redeemBuyer = Wallet.createRandom();
-        const redeemIssuerFinId = getFinId(redeemBuyer);
-
-        const redeemSettlementAmount = transferSettlementAmount;
-        const redeemNonce = `${generateNonce().toString('hex')}`;
-        const redeemSignature = await eip712Sign(chainId, verifyingContract, EIP712_REDEMPTION_TYPES, {
-          nonce: redeemNonce,
-          seller: { idkey: redeemSellerFinId },
-          issuer: { idkey: redeemIssuerFinId },
-          asset: {
-            assetId,
-            assetType: 'finp2p',
-            amount: `${redeemAmount.toFixed(decimals)}`
-          },
-          settlement: {
-            assetId: settlementAsset,
-            assetType: 'fiat',
-            amount: `${redeemSettlementAmount.toFixed(decimals)}`
-          }
-        } as EIP712RedemptionMessage, owner);
-        await contract.redeem(redeemNonce, assetId, redeemSellerFinId, redeemIssuerFinId,
-          `${redeemAmount.toFixed(decimals)}`, settlementAsset, `${redeemSettlementAmount.toFixed(decimals)}`, HashType.EIP712, redeemSignature, { from: operator });
-
-        expect(await contract.getBalance(assetId, redeemSellerFinId)).to.equal(`${(transferAmount - redeemAmount).toFixed(decimals)}`);
-        expect(await contract.getBalance(assetId, redeemIssuerFinId)).to.equal(`${(0).toFixed(decimals)}`);
-
       });
 
-      it(`hold/release/rollback operations (decimals: ${decimals}, issue amount: ${issueAmount}, transfer amount: ${transferAmount})`, async function() {
-        const decimals = 0;
+      it(`hold/release/rollback operations (decimals: ${decimals}, issue amount: ${issueAmount}, transfer amount: ${transferAmount})`, async () => {
         const [operator] = await ethers.getSigners();
         const { contract, address: finP2PAddress } = await loadFixture(deployFinP2PProxyFixture);
 
@@ -169,7 +138,7 @@ describe("FinP2P proxy contract test", function() {
         const assetId = `bank-us:102:${uuid()}`;
         const transferAssetAmount = 50;
         const transferNonce = `${generateNonce().toString('hex')}`;
-        const transferSignature = await eip712Sign(chainId, verifyingContract, EIP712_SELLING_TYPES, {
+        const sellingSignature = await eip712Sign(chainId, verifyingContract, EIP712_SELLING_TYPES, {
           nonce: transferNonce,
           seller: { idkey: sellerFinId },
           buyer: { idkey: buyerFinId },
@@ -186,6 +155,64 @@ describe("FinP2P proxy contract test", function() {
         } as EIP712SellingMessage, buyer);
 
         await contract.holdPayments(operationId, transferNonce, assetId, sellerFinId,
+          buyerFinId, `${transferAssetAmount.toFixed(decimals)}`, settlementAsset, `${transferAmount.toFixed(decimals)}`, /*HashType.EIP712,*/ sellingSignature, { from: operator });
+
+        expect(await contract.getBalance(settlementAsset, buyerFinId)).to.equal(`${(issueAmount - transferAmount).toFixed(decimals)}`);
+
+        // -----------------------------
+
+        await contract.release(operationId, sellerFinId, `${transferAmount.toFixed(decimals)}`, { from: operator });
+        expect(await contract.getBalance(settlementAsset, sellerFinId)).to.equal(`${transferAmount.toFixed(decimals)}`);
+        expect(await contract.getBalance(settlementAsset, buyerFinId)).to.equal(`${(issueAmount - transferAmount).toFixed(decimals)}`);
+      });
+
+      it(`hold/redeem/rollback operations (decimals: ${decimals}, issue amount: ${issueAmount}, transfer amount: ${transferAmount})`, async () => {
+        const [operator] = await ethers.getSigners();
+        const { contract, address: finP2PAddress } = await loadFixture(deployFinP2PProxyFixture);
+
+        const { chainId, verifyingContract } = await contract.eip712Domain();
+
+        const settlementAsset = 'USD';
+
+        const erc20Address = await deployERC20('Payment stable coin', 'USDT', decimals, finP2PAddress);
+        await contract.associateAsset(settlementAsset, erc20Address, { from: operator });
+
+        const issuer = Wallet.createRandom();
+        const issuerFinId = getFinId(issuer);
+
+        // ----------------------------------------------------------
+
+        expect(await contract.getBalance(settlementAsset, issuerFinId)).to.equal(`${(0).toFixed(decimals)}`);
+        await contract.issue(settlementAsset, issuerFinId, `${issueAmount.toFixed(decimals)}`, { from: operator });
+        expect(await contract.getBalance(settlementAsset, issuerFinId)).to.equal(`${issueAmount.toFixed(decimals)}`);
+
+        // -----------------------------
+        const buyer = issuer;
+        const buyerFinId = issuerFinId;
+        const seller = Wallet.createRandom();
+        const sellerFinId = getFinId(seller);
+
+        const operationId = `0x${uuidv4().replaceAll('-', '')}`;
+        const assetId = `bank-us:102:${uuid()}`;
+        const transferAssetAmount = 50;
+        const transferNonce = `${generateNonce().toString('hex')}`;
+        const redemptionSignature = await eip712Sign(chainId, verifyingContract, EIP712_REDEMPTION_TYPES, {
+          nonce: redeemNonce,
+          seller: { idkey: redeemSellerFinId },
+          issuer: { idkey: redeemIssuerFinId },
+          asset: {
+            assetId,
+            assetType: 'finp2p',
+            amount: `${redeemAmount.toFixed(decimals)}`
+          },
+          settlement: {
+            assetId: settlementAsset,
+            assetType: 'fiat',
+            amount: `${redeemSettlementAmount.toFixed(decimals)}`
+          }
+        } as EIP712RedemptionMessage, owner);
+
+        await contract.holdAssets(operationId, transferNonce, assetId, sellerFinId,
           buyerFinId, `${transferAssetAmount.toFixed(decimals)}`, settlementAsset, `${transferAmount.toFixed(decimals)}`, /*HashType.EIP712,*/ transferSignature, { from: operator });
 
         expect(await contract.getBalance(settlementAsset, buyerFinId)).to.equal(`${(issueAmount - transferAmount).toFixed(decimals)}`);

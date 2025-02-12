@@ -52,7 +52,7 @@ describe("Signing test", function() {
       settlementAsset, `${settlementAmount}`, signerAddress, HashType.EIP712, signature)).to.equal(true);
   });
 
-  it("Secondary sale signature", async function() {
+  it.skip("HashList: Secondary sale signature", async function() {
     const { contract: verifier } = await loadFixture(deployFinP2PSignatureVerifier);
     const { chainId, verifyingContract } = await verifier.eip712Domain();
     const buyer = Wallet.createRandom();

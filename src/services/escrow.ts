@@ -60,11 +60,10 @@ export class EscrowService extends CommonService {
   }
 
   public async release(request: Paths.ReleaseOperation.RequestBody): Promise<Paths.ReleaseOperation.Responses.$200> {
-    const operationId = request.operationId;
-    const buyerFinId = request.destination.finId;
+    const { operationId, destination, quantity} = request;
 
     try {
-      const txHash = await this.finP2PContract.release(operationId, buyerFinId);
+      const txHash = await this.finP2PContract.release(operationId, destination.finId, quantity);
 
       return {
         isCompleted: false,

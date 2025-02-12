@@ -16,6 +16,7 @@ interface IFinP2PEscrow is IFinP2PCommon {
 
     event Hold(string assetId, string finId, string quantity, bytes16 operationId);
     event Release(string assetId, string sourceFinId, string destinationFinId, string quantity, bytes16 operationId);
+    event Redeem(string assetId, string ownerFinId, string quantity, bytes16 operationId);
     event Rollback(string assetId, string finId, string quantity, bytes16 operationId);
 
     function holdAssets(bytes16 operationId, string memory nonce, string memory assetId, string memory sellerFinId,
@@ -26,7 +27,9 @@ interface IFinP2PEscrow is IFinP2PCommon {
 
     function getLockInfo(bytes16 operationId) external view returns (LockInfo memory);
 
-    function release(bytes16 operationId, string memory buyerFinId) external;
+    function release(bytes16 operationId, string memory buyerFinId, string memory quantity) external;
+
+    function redeem(bytes16 operationId, string memory ownerFinId, string memory quantity) external;
 
     function rollback(bytes16 operationId) external;
 
