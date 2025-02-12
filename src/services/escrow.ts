@@ -6,17 +6,41 @@ import { extractAssetId, failedTransaction, holdParameterFromTemplate } from "./
 export class EscrowService extends CommonService {
 
   public async hold(request: Paths.HoldOperation.RequestBody): Promise<Paths.HoldOperation.Responses.$200> {
-    const { operationId, asset, source,
-      destination, quantity, nonce } = request;
-    const settlementAsset = extractAssetId(asset);
+    const { operationId, asset, source, destination, quantity, nonce } = request;
     const buyerFinId = source.finId;
     const sellerFinId = destination?.finId || '';
     const { signature, template } = request.signature;
 
     try {
-      const {/* hashType,*/ amount, asset } = holdParameterFromTemplate(template);
-      const txHash = await this.finP2PContract.hold(operationId, nonce, asset, sellerFinId, buyerFinId, amount,
-        settlementAsset, quantity, /*hashType,*/ signature);
+      const {/* hashType,*/ assetId, assetAmount, settlementAsset, settlementAmount } = holdParameterFromTemplate(template);
+      let txHash: string;
+      switch (asset.type) {
+        case "finp2p":
+          if (asset.resourceId !== assetId) {
+            return failedTransaction(1, `Requested asset id for finp2p asset does not match the asset id in the template`);
+          }
+          if (assetAmount !== quantity) {
+            return failedTransaction(1, `Requested asset amount for finp2p asset does not match the asset amount in the template`);
+          }
+
+          txHash = await this.finP2PContract.holdAssets(operationId, nonce, assetId, sellerFinId, buyerFinId, assetAmount,
+            settlementAsset, settlementAmount, /*hashType,*/ signature);
+          break
+
+        case "fiat":
+        case "cryptocurrency":
+          if (asset.code !== settlementAsset) {
+            return failedTransaction(1, `Requested settlement asset code does not match the settlement asset code in the template`);
+          }
+          if (settlementAmount !== quantity) {
+            return failedTransaction(1, `Requested settlement amount does not match the settlement amount in the template`);
+          }
+
+          txHash = await this.finP2PContract.holdPayments(operationId, nonce, assetId, sellerFinId, buyerFinId, assetAmount,
+            settlementAsset, settlementAmount, /*hashType,*/ signature);
+
+          break
+      }
 
       return {
         isCompleted: false,

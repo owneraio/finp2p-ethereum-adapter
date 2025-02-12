@@ -250,8 +250,10 @@ export const holdParameterFromTemplate = (template: SignatureTemplate): {
   hashType: HashType,
   buyerFinId: string
   sellerFinId: string
-  asset: string
-  amount: string
+  assetId: string
+  assetAmount: string
+  settlementAsset: string
+  settlementAmount: string
 } => {
   switch (template.type) {
     case 'hashList':
@@ -259,20 +261,25 @@ export const holdParameterFromTemplate = (template: SignatureTemplate): {
         hashType: HashType.HashList,
         buyerFinId: template.hashGroups[1].fields.find((field) => field.name === 'srcAccount')?.value || '',
         sellerFinId: template.hashGroups[1].fields.find((field) => field.name === 'dstAccount')?.value || '',
-        asset: template.hashGroups[0].fields.find((field) => field.name === 'assetId')?.value || '',
-        amount: template.hashGroups[0].fields.find((field) => field.name === 'amount')?.value || ''
+        assetId: template.hashGroups[0].fields.find((field) => field.name === 'assetId')?.value || '',
+        assetAmount: template.hashGroups[0].fields.find((field) => field.name === 'amount')?.value || '',
+        settlementAsset: template.hashGroups[1].fields.find((field) => field.name === 'assetId')?.value || '',
+        settlementAmount: template.hashGroups[1].fields.find((field) => field.name === 'amount')?.value || '',
       };
 
     case 'EIP712':
       const asset = template.message.asset as EIP712TypeObject;
+      const settlement = template.message.settlement as EIP712TypeObject;
       const buyer = template.message.buyer as EIP712TypeObject;
       const seller = template.message.seller as EIP712TypeObject;
       return {
         hashType: HashType.EIP712,
         buyerFinId: buyer.idkey as EIP712TypeString,
         sellerFinId: seller.idkey as EIP712TypeString,
-        asset: asset.assetId as EIP712TypeString,
-        amount: asset.amount as EIP712TypeString
+        assetId: asset.assetId as EIP712TypeString,
+        assetAmount: asset.amount as EIP712TypeString,
+        settlementAsset: settlement.assetId as EIP712TypeString,
+        settlementAmount: settlement.amount as EIP712TypeString,
       }
 
     default:

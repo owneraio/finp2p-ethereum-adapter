@@ -73,11 +73,20 @@ export class FinP2PContract extends ContractsManager {
     });
   }
 
-  async hold(operationId: string, nonce: string, assetId: string, sellerFinId: string, buyerFinId: string, quantity: string,
+  async holdAssets(operationId: string, nonce: string, assetId: string, sellerFinId: string, buyerFinId: string, quantity: string,
     settlementAsset: string, settlementAmount: string, /*hashType: HashType, eip712PrimaryType: number,*/signature: string) {
     const opId = normalizeOperationId(operationId);
     return this.safeExecuteTransaction(async (finP2P: FINP2POperatorERC20) => {
-      return finP2P.hold(opId, nonce, assetId, sellerFinId, buyerFinId, quantity,
+      return finP2P.holdAssets(opId, nonce, assetId, sellerFinId, buyerFinId, quantity,
+        settlementAsset, settlementAmount, /*hashType, eip712PrimaryType,*/ `0x${signature}`);
+    });
+  }
+
+  async holdPayments(operationId: string, nonce: string, assetId: string, sellerFinId: string, buyerFinId: string, quantity: string,
+    settlementAsset: string, settlementAmount: string, /*hashType: HashType, eip712PrimaryType: number,*/signature: string) {
+    const opId = normalizeOperationId(operationId);
+    return this.safeExecuteTransaction(async (finP2P: FINP2POperatorERC20) => {
+      return finP2P.holdPayments(opId, nonce, assetId, sellerFinId, buyerFinId, quantity,
         settlementAsset, settlementAmount, /*hashType, eip712PrimaryType,*/ `0x${signature}`);
     });
   }
