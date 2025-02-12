@@ -9,9 +9,9 @@ import "./IFinP2PCommon.sol";
  */
 interface IFinP2PAsset is IFinP2PCommon {
 
-    event Issue(string assetId, string issuerFinId, uint256 quantity);
-    event Transfer(string assetId, string sourceFinId, string destinationFinId, uint256 quantity);
-    event Redeem(string assetId, string sellerFinId, uint256 quantity);
+    event Issue(string assetId, string issuerFinId, string quantity);
+    event Transfer(string assetId, string sourceFinId, string destinationFinId, string quantity);
+    event Redeem(string assetId, string sellerFinId, string quantity);
 
     function associateAsset(string memory assetId, address tokenAddress) external;
 
@@ -19,11 +19,11 @@ interface IFinP2PAsset is IFinP2PCommon {
 
     function getAssetAddress(string memory assetId) external view returns (address);
 
-    function issue(string memory assetId, string memory issuerFinId, uint256 quantity) external;
+    function issue(string memory assetId, string memory issuerFinId, string memory quantity) external;
 
     function transfer(string memory nonce, string memory assetId, string memory sellerFinId, string memory buyerFinId,
-        uint256 quantity, string memory settlementAsset, string memory settlementAmount, uint8 hashType, uint8 eip712PrimaryType, bytes memory signature) external;
+        string memory quantity, string memory settlementAsset, string memory settlementAmount, uint8 hashType, uint8 eip712PrimaryType, bytes memory signature) external;
 
-    function redeem(string memory nonce, string memory assetId, string memory sellerFinId, string memory issuerFinId, uint256 quantity,
+    function redeem(string memory nonce, string memory assetId, string memory sellerFinId, string memory issuerFinId, string memory quantity,
         string memory settlementAsset, string memory settlementAmount, uint8 hashType, bytes memory signature) external;
 }

@@ -16,7 +16,8 @@ const createAssetCreationPolicy = async (contractManager: FinP2PContract | undef
   const type = (process.env.ASSET_CREATION_POLICY || 'deploy-new-token');
   switch (type) {
     case 'deploy-new-token':
-      return {type: 'deploy-new-token'};
+      let decimals = parseInt(process.env.TOKEN_DECIMALS || '0');
+      return { type: 'deploy-new-token', decimals };
     case 'reuse-existing-token':
       let tokenAddress = process.env.TOKEN_ADDRESS;
       if (!tokenAddress) {
@@ -24,7 +25,7 @@ const createAssetCreationPolicy = async (contractManager: FinP2PContract | undef
           throw new Error('Contract manager is not defined');
         }
         logger.info('Deploying new ERC20 token to reuse it later');
-        tokenAddress = await contractManager.deployERC20(`ERC20`, `ERC20`, contractManager.finP2PContractAddress);
+        tokenAddress = await contractManager.deployERC20(`ERC20`, `ERC20`, 0, contractManager.finP2PContractAddress);
         logger.info(`Token deployed at address: ${tokenAddress}`);
       }
 
