@@ -1,34 +1,34 @@
 import { logger } from '../helpers/logger';
 import { CommonService } from './common';
 import { EthereumTransactionError } from '../../finp2p-contracts/src/contracts/model';
-import { extractAssetId, failedTransaction, holdParameterFromTemplate } from "./mapping";
+import { extractParameterFromSignatureTemplate, failedTransaction } from "./mapping";
+import { EIP712PrimaryType } from "../../finp2p-contracts/src/contracts/eip712";
 
 export class EscrowService extends CommonService {
 
   public async hold(request: Paths.HoldOperation.RequestBody): Promise<Paths.HoldOperation.Responses.$200> {
     const { operationId, asset, source, destination, quantity, nonce } = request;
-    const buyerFinId = source.finId;
-    const sellerFinId = destination?.finId || '';
+
     const { signature, template } = request.signature;
 
     try {
-      const {/* hashType,*/ assetId, assetAmount, settlementAsset, settlementAmount } = holdParameterFromTemplate(template);
+      const {eip712PrimaryType, /* hashType,*/ assetId, assetAmount, settlementAsset, settlementAmount, buyerFinId, sellerFinId } = extractParameterFromSignatureTemplate(template);
       let txHash: string;
-      switch (asset.type) {
-        case "finp2p":
-          if (asset.resourceId !== assetId) {
-            return failedTransaction(1, `Requested asset id for finp2p asset does not match the asset id in the template`);
+      switch (eip712PrimaryType) {
+        case EIP712PrimaryType.PrimarySale:
+        case EIP712PrimaryType.Buying:
+        case EIP712PrimaryType.Selling:
+        case EIP712PrimaryType.PrivateOffer:
+          if (asset.type !== 'fiat' && asset.type !== 'cryptocurrency') {
+            return failedTransaction(1, 'Payment hold is only supported for fiat and cryptocurrency assets');
           }
-          if (assetAmount !== quantity) {
-            return failedTransaction(1, `Requested asset amount for finp2p asset does not match the asset amount in the template`);
+          if (source.finId !== buyerFinId) {
+            return failedTransaction(1, `Requested buyer finId does not match the buyer finId in the template`);
+          }
+          if (destination && destination.finId !== sellerFinId) {
+            return failedTransaction(1, `Requested seller finId does not match the seller finId in the template`);
           }
 
-          txHash = await this.finP2PContract.holdAssets(operationId, nonce, assetId, sellerFinId, buyerFinId, assetAmount,
-            settlementAsset, settlementAmount, /*hashType,*/ signature);
-          break
-
-        case "fiat":
-        case "cryptocurrency":
           if (asset.code !== settlementAsset) {
             return failedTransaction(1, `Requested settlement asset code does not match the settlement asset code in the template`);
           }
@@ -38,8 +38,26 @@ export class EscrowService extends CommonService {
 
           txHash = await this.finP2PContract.holdPayments(operationId, nonce, assetId, sellerFinId, buyerFinId, assetAmount,
             settlementAsset, settlementAmount, /*hashType,*/ signature);
-
           break
+
+        case EIP712PrimaryType.Redemption:
+        case EIP712PrimaryType.Loan:
+
+          if (asset.type !== 'finp2p') {
+            return failedTransaction(1, 'Asset hold is only supported for finp2p assets');
+          }
+          if (asset.resourceId !== assetId) {
+            return failedTransaction(1, `Requested asset id for finp2p asset does not match the asset id in the template`);
+          }
+          if (assetAmount !== quantity) {
+            return failedTransaction(1, `Requested asset amount for finp2p asset does not match the asset amount in the template`);
+          }
+          txHash = await this.finP2PContract.holdAssets(operationId, nonce, assetId, buyerFinId, sellerFinId, assetAmount,
+            settlementAsset, settlementAmount, /*hashType,*/ signature);
+          break
+
+        default:
+          return failedTransaction(1, `Unsupported primary type: ${eip712PrimaryType}`);
       }
 
       return {

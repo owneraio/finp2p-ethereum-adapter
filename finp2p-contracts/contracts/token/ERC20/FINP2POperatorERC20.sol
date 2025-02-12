@@ -156,7 +156,7 @@ contract FINP2POperatorERC20 is IFinP2PAsset, IFinP2PEscrow, AccessControl, FinP
         string memory nonce,
         string memory assetId,
         string memory sellerFinId,
-        string memory buyerFinId,
+        string memory issuerFinId,
         string memory assetAmount,
         string memory settlementAsset,
         string memory settlementAmount,
@@ -173,7 +173,7 @@ contract FINP2POperatorERC20 is IFinP2PAsset, IFinP2PEscrow, AccessControl, FinP
 
         require(verifyTransferSignature(
              nonce,
-            buyerFinId,
+            issuerFinId,
              sellerFinId,
             assetId,
             assetAmount,
@@ -197,7 +197,7 @@ contract FINP2POperatorERC20 is IFinP2PAsset, IFinP2PEscrow, AccessControl, FinP
             tokenAmount
         );
 
-        emit Hold(assetId, buyerFinId, assetAmount, operationId);
+        emit Hold(assetId, sellerFinId, assetAmount, operationId);
     }
 
     function holdPayments(

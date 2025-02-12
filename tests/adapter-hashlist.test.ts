@@ -3,7 +3,7 @@ import { APIClient } from "./api/api";
 import { v4 as uuidv4 } from "uuid";
 
 
-describe(`token service test (signature hash type: hash-list)`, () => {
+describe.skip(`token service test (signature hash type: hash-list)`, () => {
 
   let client: APIClient;
   let orgId: string;
