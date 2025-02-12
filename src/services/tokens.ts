@@ -25,12 +25,9 @@ export class TokenService extends CommonService {
 
   assetCreationPolicy: AssetCreationPolicy;
 
-  regulation: RegulationChecker | undefined;
-
-  constructor(finP2PContract: FinP2PContract, assetCreationPolicy: AssetCreationPolicy, regulation: RegulationChecker | undefined) {
+  constructor(finP2PContract: FinP2PContract, assetCreationPolicy: AssetCreationPolicy) {
     super(finP2PContract);
     this.assetCreationPolicy = assetCreationPolicy;
-    this.regulation = regulation;
   }
 
   public async createAsset(request: Paths.CreateAsset.RequestBody): Promise<Paths.CreateAsset.Responses.$200> {
@@ -103,16 +100,6 @@ export class TokenService extends CommonService {
     const assetId = extractAssetId(asset);
     const issuerFinId = destination.finId;
 
-    if (this.regulation) {
-      const error = await this.regulation.doRegulationCheck(destination.finId, assetId);
-      if (error) {
-        return {
-          isCompleted: true,
-          error,
-        } as Components.Schemas.ReceiptOperation;
-      }
-    }
-
     let txHash: string;
     try {
       logger.info(`Issue asset ${assetId} to ${issuerFinId} with amount ${quantity}`);
@@ -135,21 +122,8 @@ export class TokenService extends CommonService {
 
   public async transfer(request: Paths.TransferAsset.RequestBody): Promise<Paths.TransferAsset.Responses.$200> {
     const { nonce, asset, quantity, source, destination } = request;
-    const assetId = extractAssetId(asset);
-    // const { finId : sellerFinId } = source;
-    // const { finId : buyerFinId } = destination;
     const { signature, template } = request.signature;
 
-    if (this.regulation) {
-      const buyerFinId = request.destination.finId;
-      const error = await this.regulation.doRegulationCheck(buyerFinId, assetId);
-      if (error) {
-        return {
-          isCompleted: true,
-          error,
-        } as Components.Schemas.ReceiptOperation;
-      }
-    }
     try {
       const { eip712PrimaryType, hashType, buyerFinId, sellerFinId, assetId, assetAmount, settlementAmount, settlementAsset } = extractParameterFromSignatureTemplate(template);
       if (buyerFinId !== destination.finId) {
