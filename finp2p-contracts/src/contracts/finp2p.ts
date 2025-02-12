@@ -65,8 +65,6 @@ export class FinP2PContract extends ContractsManager {
     });
   }
 
-
-
   async holdAssets(operationId: string, nonce: string, assetId: string, sellerFinId: string, buyerFinId: string, quantity: string,
     settlementAsset: string, settlementAmount: string, /*hashType: HashType, eip712PrimaryType: number,*/signature: string) {
     const opId = normalizeOperationId(operationId);

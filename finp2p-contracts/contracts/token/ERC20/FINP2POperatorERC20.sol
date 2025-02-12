@@ -193,7 +193,7 @@ contract FINP2POperatorERC20 is IFinP2PAsset, IFinP2PEscrow, AccessControl, FinP
 
         locks[operationId] = Lock(
             assetId,
-            buyerFinId,
+            sellerFinId,
             tokenAmount
         );
 
@@ -331,7 +331,7 @@ contract FINP2POperatorERC20 is IFinP2PAsset, IFinP2PEscrow, AccessControl, FinP
         Asset memory asset = assets[l.assetId];
         uint8 tokenDecimals = IERC20Metadata(asset.tokenAddress).decimals();
         string memory amount = l.amount.uintToString(tokenDecimals);
-        return LockInfo(l.assetId, amount);
+        return LockInfo(l.assetId, l.finId,amount);
     }
 
     function haveAsset(string memory assetId) internal view returns (bool exists) {

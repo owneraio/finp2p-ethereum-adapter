@@ -121,13 +121,16 @@ contract FinP2PSignatureVerifier is EIP712 {
     ) public view returns (bool) {
         bytes32 hash;
         if (hashType == HASH_TYPE_EIP712) {
-            if (eip712PrimaryType == EIP712_PRIMARY_TYPE_SELLING) {
-                hash = eip712HashSelling(nonce, buyer, seller,  assetId, amount, settlementAsset, settlementAmount);
-
-            } else if (eip712PrimaryType == EIP712_PRIMARY_TYPE_BUYING) {
+            if (eip712PrimaryType == EIP712_PRIMARY_TYPE_BUYING) {
                 hash = eip712HashBuying(nonce, buyer, seller, assetId, amount, settlementAsset, settlementAmount);
 
-            } else if (eip712PrimaryType == EIP712_PRIMARY_TYPE_REQUEST_FOR_TRANSFER) {
+            } else if (eip712PrimaryType == EIP712_PRIMARY_TYPE_SELLING) {
+                hash = eip712HashSelling(nonce, buyer, seller,  assetId, amount, settlementAsset, settlementAmount);
+
+            } else if (eip712PrimaryType == EIP712_PRIMARY_TYPE_REDEMPTION) {
+                hash = eip712HashRedemption(nonce, buyer, seller, assetId, amount, settlementAsset, settlementAmount);
+
+            }else if (eip712PrimaryType == EIP712_PRIMARY_TYPE_REQUEST_FOR_TRANSFER) {
                 hash = eip712HashRequestForTransfer(nonce, buyer, seller, assetId, amount);
 
             } else if (eip712PrimaryType == EIP712_PRIMARY_TYPE_PRIVATE_OFFER) {
@@ -138,7 +141,7 @@ contract FinP2PSignatureVerifier is EIP712 {
                 hash = eip712HashLoan(nonce, buyer, seller, assetId, amount, settlementAsset, settlementAmount, "0", "0", "0", "0");
 
             } else {
-                revert("Invalid transfer type");
+                revert("Invalid eip712 transfer signature type");
             }
 
         } else if (hashType == HASH_TYPE_HASHLIST) {
@@ -258,8 +261,8 @@ contract FinP2PSignatureVerifier is EIP712 {
 
     function eip712HashRedemption(
         string memory nonce,
-        string memory seller,
         string memory issuer,
+        string memory seller,
         string memory assetId,
         string memory amount,
         string memory settlementAsset,

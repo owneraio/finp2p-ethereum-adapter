@@ -324,21 +324,21 @@ export const newEIP712LoanMessage = (nonce: string, seller: string, buyer: strin
   };
 };
 
-export const eip712SignWithPrivateKey = <T extends EIP712Message>(chainId: number, verifyingContract: string, types: Record<string, Array<TypedDataField>>, message: T, signerPrivateKey: string) => {
+export const eip712SignWithPrivateKey = <T extends EIP712Message>(chainId: bigint | number, verifyingContract: string, types: Record<string, Array<TypedDataField>>, message: T, signerPrivateKey: string) => {
   return eip712Sign(chainId, verifyingContract, types, message, new Wallet(signerPrivateKey));
 };
 
-export const eip712Sign = <T extends EIP712Message>(chainId: number, verifyingContract: string, types: Record<string, Array<TypedDataField>>, message: T, signer: Signer) => {
+export const eip712Sign = <T extends EIP712Message>(chainId: bigint | number, verifyingContract: string, types: Record<string, Array<TypedDataField>>, message: T, signer: Signer) => {
   const domain = { ...EIP712_DOMAIN, chainId, verifyingContract };
   return signer.signTypedData(domain, types, message);
 };
 
-export const eip712Hash = <T extends EIP712Message>(chainId: number, verifyingContract: string, types: Record<string, Array<TypedDataField>>, message: T) => {
+export const eip712Hash = <T extends EIP712Message>(chainId: bigint | number, verifyingContract: string, types: Record<string, Array<TypedDataField>>, message: T) => {
   const domain = { ...EIP712_DOMAIN, chainId, verifyingContract };
   return TypedDataEncoder.hash(domain, types, message);
 };
 
-export const eip712Verify = <T extends EIP712Message>(chainId: number, verifyingContract: string, types: Record<string, Array<TypedDataField>>, message: T, signerAddress: string, signature: string) => {
+export const eip712Verify = <T extends EIP712Message>(chainId: bigint | number, verifyingContract: string, types: Record<string, Array<TypedDataField>>, message: T, signerAddress: string, signature: string) => {
   const domain = { ...EIP712_DOMAIN, chainId, verifyingContract };
   const address = verifyTypedData(domain, types, message, signature);
   return address.toLowerCase() === signerAddress.toLowerCase();

@@ -11,6 +11,7 @@ interface IFinP2PEscrow is IFinP2PCommon {
 
     struct LockInfo {
         string assetId;
+        string finId;
         string amount;
     }
 
