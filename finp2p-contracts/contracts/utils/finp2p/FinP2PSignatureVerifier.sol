@@ -97,7 +97,8 @@ contract FinP2PSignatureVerifier is EIP712 {
             hash = eip712HashPrimarySale(nonce, buyer, issuer, assetId, amount, settlementAsset, settlementAmount);
 
         } else if (hashType == HASH_TYPE_HASHLIST) {
-            hash = hashListHashIssue(nonce, buyer, issuer, assetId, amount, settlementAsset, settlementAmount);
+            revert("Hash lists are currently not supported, use EIP712 instead");
+//            hash = hashListHashIssue(nonce, buyer, issuer, assetId, amount, settlementAsset, settlementAmount);
 
         } else {
             revert("Invalid hash type");
@@ -120,13 +121,16 @@ contract FinP2PSignatureVerifier is EIP712 {
     ) public view returns (bool) {
         bytes32 hash;
         if (hashType == HASH_TYPE_EIP712) {
-            if (eip712PrimaryType == EIP712_PRIMARY_TYPE_SELLING) {
-                hash = eip712HashSelling(nonce, buyer, seller,  assetId, amount, settlementAsset, settlementAmount);
-
-            } else if (eip712PrimaryType == EIP712_PRIMARY_TYPE_BUYING) {
+            if (eip712PrimaryType == EIP712_PRIMARY_TYPE_BUYING) {
                 hash = eip712HashBuying(nonce, buyer, seller, assetId, amount, settlementAsset, settlementAmount);
 
-            } else if (eip712PrimaryType == EIP712_PRIMARY_TYPE_REQUEST_FOR_TRANSFER) {
+            } else if (eip712PrimaryType == EIP712_PRIMARY_TYPE_SELLING) {
+                hash = eip712HashSelling(nonce, buyer, seller,  assetId, amount, settlementAsset, settlementAmount);
+
+            } else if (eip712PrimaryType == EIP712_PRIMARY_TYPE_REDEMPTION) {
+                hash = eip712HashRedemption(nonce, buyer, seller, assetId, amount, settlementAsset, settlementAmount);
+
+            }else if (eip712PrimaryType == EIP712_PRIMARY_TYPE_REQUEST_FOR_TRANSFER) {
                 hash = eip712HashRequestForTransfer(nonce, buyer, seller, assetId, amount);
 
             } else if (eip712PrimaryType == EIP712_PRIMARY_TYPE_PRIVATE_OFFER) {
@@ -137,11 +141,12 @@ contract FinP2PSignatureVerifier is EIP712 {
                 hash = eip712HashLoan(nonce, buyer, seller, assetId, amount, settlementAsset, settlementAmount, "0", "0", "0", "0");
 
             } else {
-                revert("Invalid transfer type");
+                revert("Invalid eip712 transfer signature type");
             }
 
         } else if (hashType == HASH_TYPE_HASHLIST) {
-            hash = hashListHashTransfer(nonce, buyer, seller,  assetId, amount, settlementAsset, settlementAmount);
+            revert("Hash lists are currently not supported, use EIP712 instead");
+//            hash = hashListHashTransfer(nonce, buyer, seller,  assetId, amount, settlementAsset, settlementAmount);
         } else {
             revert("Invalid hash type");
         }
@@ -164,7 +169,8 @@ contract FinP2PSignatureVerifier is EIP712 {
         if (hashType == HASH_TYPE_EIP712) {
             hash = eip712HashRedemption(nonce, seller, issuer, assetId, amount, settlementAsset, settlementAmount);
         } else if (hashType == HASH_TYPE_HASHLIST) {
-            hash = hashListHashRedeem(nonce, seller, issuer, assetId, amount, settlementAsset, settlementAmount);
+//            hash = hashListHashRedeem(nonce, seller, issuer, assetId, amount, settlementAsset, settlementAmount);
+            revert("Hash lists are currently not supported, use EIP712 instead");
         } else {
             revert("Invalid hash type");
         }
@@ -255,8 +261,8 @@ contract FinP2PSignatureVerifier is EIP712 {
 
     function eip712HashRedemption(
         string memory nonce,
-        string memory seller,
         string memory issuer,
+        string memory seller,
         string memory assetId,
         string memory amount,
         string memory settlementAsset,
@@ -332,116 +338,116 @@ contract FinP2PSignatureVerifier is EIP712 {
     }
 
     // --------------------------------------------------------------------------------------
+//
+//    function hashListHashIssue(
+//        string memory nonce,
+//        string memory buyer,
+//        string memory issuer,
+//        string memory assetId,
+//        string memory amount,
+//        string memory settlementAsset,
+//        string memory settlementAmount
+//    ) public pure returns (bytes32) {
+//        return keccak256(abi.encodePacked(
+//            keccak256(abi.encodePacked(
+//                Bytes.fromHexToUint256(nonce),
+//                HASHLIST_OPERATION_ISSUE,
+//                "finp2p",
+//                assetId,
+//                DEFAULT_ACCOUNT_TYPE,
+//                issuer,
+//                amount
+//            )),
+//            keccak256(abi.encodePacked(
+//                "fiat",
+//                settlementAsset,
+//                DEFAULT_ACCOUNT_TYPE,
+//                buyer,
+//                DEFAULT_ACCOUNT_TYPE,
+//                issuer,
+//                settlementAmount
+//            ))
+//        ));
+//    }
 
-    function hashListHashIssue(
-        string memory nonce,
-        string memory buyer,
-        string memory issuer,
-        string memory assetId,
-        string memory amount,
-        string memory settlementAsset,
-        string memory settlementAmount
-    ) public pure returns (bytes32) {
-        return keccak256(abi.encodePacked(
-            keccak256(abi.encodePacked(
-                Bytes.fromHexToUint256(nonce),
-                HASHLIST_OPERATION_ISSUE,
-                "finp2p",
-                assetId,
-                DEFAULT_ACCOUNT_TYPE,
-                issuer,
-                amount
-            )),
-            keccak256(abi.encodePacked(
-                "fiat",
-                settlementAsset,
-                DEFAULT_ACCOUNT_TYPE,
-                buyer,
-                DEFAULT_ACCOUNT_TYPE,
-                issuer,
-                settlementAmount
-            ))
-        ));
-    }
+//    function hashListHashRedeem(
+//        string memory nonce,
+//        string memory owner,
+//        string memory buyer,
+//        string memory assetId,
+//        string memory amount,
+//        string memory settlementAsset,
+//        string memory settlementAmount
+//    ) public pure returns (bytes32) {
+//        return keccak256(abi.encodePacked(
+//            keccak256(abi.encodePacked(
+//                Bytes.fromHexToUint256(nonce),
+//                HASHLIST_OPERATION_REDEEM,
+//                "finp2p",
+//                assetId,
+//                DEFAULT_ACCOUNT_TYPE,
+//                owner,
+//                amount
+//            )),
+//            keccak256(abi.encodePacked(
+//                "fiat",
+//                settlementAsset,
+//                DEFAULT_ACCOUNT_TYPE,
+//                buyer,
+//                DEFAULT_ACCOUNT_TYPE,
+//                owner,
+//                settlementAmount
+//            ))
+//        ));
+//    }
 
-    function hashListHashRedeem(
-        string memory nonce,
-        string memory owner,
-        string memory buyer,
-        string memory assetId,
-        string memory amount,
-        string memory settlementAsset,
-        string memory settlementAmount
-    ) public pure returns (bytes32) {
-        return keccak256(abi.encodePacked(
-            keccak256(abi.encodePacked(
-                Bytes.fromHexToUint256(nonce),
-                HASHLIST_OPERATION_REDEEM,
-                "finp2p",
-                assetId,
-                DEFAULT_ACCOUNT_TYPE,
-                owner,
-                amount
-            )),
-            keccak256(abi.encodePacked(
-                "fiat",
-                settlementAsset,
-                DEFAULT_ACCOUNT_TYPE,
-                buyer,
-                DEFAULT_ACCOUNT_TYPE,
-                owner,
-                settlementAmount
-            ))
-        ));
-    }
-
-    function hashListHashTransfer(
-        string memory nonce,
-        string memory buyer,
-        string memory seller,
-        string memory assetId,
-        string memory amount,
-        string memory settlementAsset,
-        string memory settlementAmount
-    ) public pure returns (bytes32) {
-        if (bytes(settlementAsset).length == 0) {
-            return keccak256(abi.encodePacked(
-                keccak256(abi.encodePacked(
-                    Bytes.fromHexToUint256(nonce),
-                    HASHLIST_OPERATION_TRANSFER,
-                    "finp2p",
-                    assetId,
-                    DEFAULT_ACCOUNT_TYPE,
-                    seller,
-                    DEFAULT_ACCOUNT_TYPE,
-                    buyer,
-                    amount
-                ))
-            ));
-        } else {
-            return keccak256(abi.encodePacked(
-                keccak256(abi.encodePacked(
-                    Bytes.fromHexToUint256(nonce),
-                    HASHLIST_OPERATION_TRANSFER,
-                    "finp2p",
-                    assetId,
-                    DEFAULT_ACCOUNT_TYPE,
-                    seller,
-                    DEFAULT_ACCOUNT_TYPE,
-                    buyer,
-                    amount
-                )),
-                keccak256(abi.encodePacked(
-                    "fiat",
-                    settlementAsset,
-                    DEFAULT_ACCOUNT_TYPE,
-                    buyer,
-                    DEFAULT_ACCOUNT_TYPE,
-                    seller,
-                    settlementAmount
-                ))
-            ));
-        }
-    }
+//    function hashListHashTransfer(
+//        string memory nonce,
+//        string memory buyer,
+//        string memory seller,
+//        string memory assetId,
+//        string memory amount,
+//        string memory settlementAsset,
+//        string memory settlementAmount
+//    ) public pure returns (bytes32) {
+//        if (bytes(settlementAsset).length == 0) {
+//            return keccak256(abi.encodePacked(
+//                keccak256(abi.encodePacked(
+//                    Bytes.fromHexToUint256(nonce),
+//                    HASHLIST_OPERATION_TRANSFER,
+//                    "finp2p",
+//                    assetId,
+//                    DEFAULT_ACCOUNT_TYPE,
+//                    seller,
+//                    DEFAULT_ACCOUNT_TYPE,
+//                    buyer,
+//                    amount
+//                ))
+//            ));
+//        } else {
+//            return keccak256(abi.encodePacked(
+//                keccak256(abi.encodePacked(
+//                    Bytes.fromHexToUint256(nonce),
+//                    HASHLIST_OPERATION_TRANSFER,
+//                    "finp2p",
+//                    assetId,
+//                    DEFAULT_ACCOUNT_TYPE,
+//                    seller,
+//                    DEFAULT_ACCOUNT_TYPE,
+//                    buyer,
+//                    amount
+//                )),
+//                keccak256(abi.encodePacked(
+//                    "fiat",
+//                    settlementAsset,
+//                    DEFAULT_ACCOUNT_TYPE,
+//                    buyer,
+//                    DEFAULT_ACCOUNT_TYPE,
+//                    seller,
+//                    settlementAmount
+//                ))
+//            ));
+//        }
+//    }
 
 }

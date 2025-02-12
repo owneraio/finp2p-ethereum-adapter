@@ -3,8 +3,12 @@ pragma solidity ^0.8.0;
 
 import "@openzeppelin/contracts/utils/Strings.sol";
 
-library DecimalStringUtils {
+library StringUtils {
     using Strings for uint256;
+
+    function equals(string memory a, string memory b) internal pure returns (bool) {
+        return keccak256(abi.encodePacked(a)) == keccak256(abi.encodePacked(b));
+    }
 
     /// @notice Converts a decimal string (e.g., "12.34") to an integer with `decimals` precision.
     /// @param str The decimal string.
