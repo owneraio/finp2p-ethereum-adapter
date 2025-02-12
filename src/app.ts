@@ -40,14 +40,14 @@ function configureLogging(app: Application) {
   );
 }
 
-function createApp(finP2PContract: FinP2PContract, assetCreationPolicy: AssetCreationPolicy, regulation: RegulationChecker | undefined) {
+function createApp(finP2PContract: FinP2PContract, assetCreationPolicy: AssetCreationPolicy) {
   const app = express();
   app.use(express.json({ limit: '50mb' }));
   configureLogging(app);
 
   routes.register(
     app,
-    new TokenService(finP2PContract, assetCreationPolicy, regulation),
+    new TokenService(finP2PContract, assetCreationPolicy),
     new EscrowService(finP2PContract),
     new PaymentsService(finP2PContract),
     new PlanService(),
