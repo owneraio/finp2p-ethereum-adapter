@@ -1,7 +1,7 @@
 import { logger } from '../helpers/logger';
 import { CommonService } from './common';
 import { EthereumTransactionError } from '../../finp2p-contracts/src/contracts/model';
-import { extractParameterFromSignatureTemplate, failedTransaction } from "./mapping";
+import { extractParameterEIP712, failedTransaction } from "./mapping";
 import { EIP712PrimaryType } from "../../finp2p-contracts/src/contracts/eip712";
 
 export class EscrowService extends CommonService {
@@ -12,7 +12,7 @@ export class EscrowService extends CommonService {
     const { signature, template } = request.signature;
 
     try {
-      const {eip712PrimaryType, /* hashType,*/ assetId, assetAmount, settlementAsset, settlementAmount, buyerFinId, sellerFinId, issuerFinId } = extractParameterFromSignatureTemplate(template);
+      const {eip712PrimaryType, /* hashType,*/ assetId, assetAmount, settlementAsset, settlementAmount, buyerFinId, sellerFinId, issuerFinId } = extractParameterEIP712(template);
       let txHash: string;
       switch (eip712PrimaryType) {
         case EIP712PrimaryType.PrimarySale:

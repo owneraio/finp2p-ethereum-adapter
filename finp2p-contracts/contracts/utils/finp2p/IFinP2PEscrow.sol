@@ -2,6 +2,7 @@
 
 pragma solidity ^0.8.0;
 
+import "./FinP2PSignatureVerifier.sol";
 import "./IFinP2PCommon.sol";
 
 /**
@@ -9,29 +10,20 @@ import "./IFinP2PCommon.sol";
  */
 interface IFinP2PEscrow is IFinP2PCommon {
 
-    struct LockInfo {
-        string assetId;
-        string finId;
-        string amount;
-    }
 
-    event Hold(string assetId, string finId, string quantity, bytes16 operationId);
-    event Release(string assetId, string sourceFinId, string destinationFinId, string quantity, bytes16 operationId);
-    event Redeem(string assetId, string ownerFinId, string quantity, bytes16 operationId);
-    event Rollback(string assetId, string finId, string quantity, bytes16 operationId);
 
-    function holdAssets(bytes16 operationId, string memory nonce, string memory assetId, string memory sellerFinId,
-        string memory buyerFinId, string memory quantity, string memory settlementAsset, string memory settlementAmount, bytes memory signature) external;
-
-    function holdPayments(bytes16 operationId, string memory nonce, string memory assetId, string memory sellerFinId,
-        string memory buyerFinId, string memory quantity, string memory settlementAsset, string memory settlementAmount, bytes memory signature) external;
-
-    function getLockInfo(bytes16 operationId) external view returns (LockInfo memory);
-
-    function release(bytes16 operationId, string memory buyerFinId, string memory quantity) external;
-
-    function redeem(bytes16 operationId, string memory ownerFinId, string memory quantity) external;
-
-    function rollback(bytes16 operationId) external;
+//    function holdAssets(bytes16 operationId, string memory nonce, string memory sellerFinId,
+//        string memory buyerFinId, Term memory assetTerm, Term memory settlementTerm, bytes memory signature) external;
+//
+//    function holdPayments(bytes16 operationId, string memory nonce, string memory sellerFinId,
+//        string memory buyerFinId, Term memory assetTerm, Term memory settlementTerm, bytes memory signature) external;
+//
+//    function getLockInfo(bytes16 operationId) external view returns (LockInfo memory);
+//
+//    function release(bytes16 operationId, string memory buyerFinId, string memory quantity) external;
+//
+//    function redeem(bytes16 operationId, string memory ownerFinId, string memory quantity) external;
+//
+//    function rollback(bytes16 operationId) external;
 
 }

@@ -5,7 +5,7 @@ import {
   getRandomNumber,
   failedAssetCreation,
   failedTransaction,
-  extractParameterFromSignatureTemplate
+  extractParameterEIP712
 } from "./mapping";
 import { EthereumTransactionError } from '../../finp2p-contracts/src/contracts/model';
 import { logger } from '../helpers/logger';
@@ -125,7 +125,7 @@ export class TokenService extends CommonService {
     const { signature, template } = request.signature;
 
     try {
-      const { eip712PrimaryType, hashType, buyerFinId, sellerFinId, assetId, assetAmount, settlementAmount, settlementAsset } = extractParameterFromSignatureTemplate(template);
+      const { eip712PrimaryType, buyerFinId, sellerFinId, asset, settlement } = extractParameterEIP712(template);
       if (buyerFinId !== destination.finId) {
         return failedTransaction(1, `Buyer FinId in the signature does not match the destination FinId`);
       }
@@ -133,61 +133,7 @@ export class TokenService extends CommonService {
         return failedTransaction(1, `Seller FinId in the signature does not match the source FinId`);
       }
 
-      let txHash: string
-      switch (eip712PrimaryType) {
-        case EIP712PrimaryType.Buying:
-        case EIP712PrimaryType.Selling:
-        case EIP712PrimaryType.PrivateOffer:
-          if (asset.type !== 'finp2p') {
-            return failedTransaction(1, 'Asset transfer is only supported for finp2p assets');
-          }
-          if (asset.resourceId !== assetId) {
-            return failedTransaction(1, `Requested asset id for finp2p asset does not match the asset id in the template`);
-          }
-          if (assetAmount !== quantity) {
-            return failedTransaction(1, `Requested asset amount for finp2p asset does not match the asset amount in the template`);
-          }
-          if (source.finId !== sellerFinId) {
-            return failedTransaction(1, `Requested seller finId does not match the buyer finId in the template`);
-          }
-          if (destination.finId !== buyerFinId) {
-            return failedTransaction(1, `Requested buyer finId does not match the seller finId in the template`);
-          }
-
-          logger.info(`Transfer asset ${assetId} from ${sellerFinId} to ${buyerFinId} with amount ${quantity} and settlement ${settlementAmount} ${settlementAsset}, hashType: ${template.type}`);
-
-          txHash = await this.finP2PContract.transfer(nonce, assetId, sellerFinId, buyerFinId, quantity,
-            settlementAsset, settlementAmount, hashType, eip712PrimaryType, signature);
-          break
-
-        case EIP712PrimaryType.Redemption:
-        case EIP712PrimaryType.Loan:
-          if (asset.type !== 'fiat' && asset.type !== 'cryptocurrency') {
-            return failedTransaction(1, 'Payment transfer is only supported for fiat and cryptocurrency assets');
-          }
-          if (asset.code !== settlementAsset) {
-            return failedTransaction(1, `Requested settlement asset code does not match the settlement asset code in the template`);
-          }
-          if (settlementAmount !== quantity) {
-            return failedTransaction(1, `Requested settlement amount does not match the settlement amount in the template`);
-          }
-          if (source.finId !== buyerFinId) {
-            return failedTransaction(1, `Requested buyer finId does not match the buyer finId in the template`);
-          }
-          if (destination.finId !== sellerFinId) {
-            return failedTransaction(1, `Requested seller finId does not match the seller finId in the template`);
-          }
-          logger.info(`Transfer asset ${assetId} from ${buyerFinId} to ${sellerFinId} with amount ${quantity} and settlement ${settlementAmount} ${settlementAsset}, hashType: ${template.type}`);
-
-          txHash = await this.finP2PContract.transfer(nonce, assetId, buyerFinId, sellerFinId, quantity,
-            settlementAsset, settlementAmount, hashType, eip712PrimaryType, signature);
-          break
-
-        default:
-          return failedTransaction(1, `Unsupported primary type: ${eip712PrimaryType}`);
-      }
-
-
+      const txHash = await this.finP2PContract.transfer(nonce, sellerFinId, buyerFinId, asset, settlement, eip712PrimaryType, signature);
 
       return {
         isCompleted: false,

@@ -1,11 +1,11 @@
 import { ContractFactory, ContractTransactionResponse, Interface, Provider, Signer } from "ethers";
 import FINP2P
   from '../../artifacts/contracts/token/ERC20/FINP2POperatorERC20.sol/FINP2POperatorERC20.json';
-import { FINP2POperatorERC20 } from '../../typechain-types';
+import { FINP2POperatorERC20, FinP2PSignatureVerifier } from "../../typechain-types";
 import {
   detectError,
   EthereumTransactionError,
-  FinP2PReceipt, HashType,
+  FinP2PReceipt,
   NonceAlreadyBeenUsedError,
   NonceToHighError,
   OperationStatus
@@ -56,30 +56,22 @@ export class FinP2PContract extends ContractsManager {
     });
   }
 
-  async transfer(nonce: string, assetId: string, sellerFinId: string, buyerFinId: string, quantity: string,
-    settlementAsset: string, settlementAmount: string, hashType: HashType, eip712PrimaryType: number, signature: string) {
+  async transfer(nonce: string, sellerFinId: string, buyerFinId: string,
+                 asset: FinP2PSignatureVerifier.TermStruct,
+                 settlement: FinP2PSignatureVerifier.TermStruct,
+                 eip712PrimaryType: number, signature: string) {
     return this.safeExecuteTransaction(async (finP2P: FINP2POperatorERC20) => {
       return finP2P.transfer(
-        nonce, assetId, sellerFinId, buyerFinId, quantity,
-        settlementAsset, settlementAmount, hashType, eip712PrimaryType, `0x${signature}`);
+        nonce, sellerFinId, buyerFinId, asset, settlement, eip712PrimaryType, `0x${signature}`);
     });
   }
 
-  async holdAssets(operationId: string, nonce: string, assetId: string, sellerFinId: string, buyerFinId: string, quantity: string,
-    settlementAsset: string, settlementAmount: string, /*hashType: HashType, eip712PrimaryType: number,*/signature: string) {
+  async hold(operationId: string, nonce: string, sellerFinId: string, buyerFinId: string,
+                   asset: FinP2PSignatureVerifier.TermStruct,
+              settlement: FinP2PSignatureVerifier.TermStruct, eip712PrimaryType: number, signature: string) {
     const opId = normalizeOperationId(operationId);
     return this.safeExecuteTransaction(async (finP2P: FINP2POperatorERC20) => {
-      return finP2P.holdAssets(opId, nonce, assetId, sellerFinId, buyerFinId, quantity,
-        settlementAsset, settlementAmount, /*hashType, eip712PrimaryType,*/ `0x${signature}`);
-    });
-  }
-
-  async holdPayments(operationId: string, nonce: string, assetId: string, sellerFinId: string, buyerFinId: string, quantity: string,
-    settlementAsset: string, settlementAmount: string, /*hashType: HashType, eip712PrimaryType: number,*/signature: string) {
-    const opId = normalizeOperationId(operationId);
-    return this.safeExecuteTransaction(async (finP2P: FINP2POperatorERC20) => {
-      return finP2P.holdPayments(opId, nonce, assetId, sellerFinId, buyerFinId, quantity,
-        settlementAsset, settlementAmount, /*hashType, eip712PrimaryType,*/ `0x${signature}`);
+      return finP2P.hold(opId, nonce, sellerFinId, buyerFinId, asset, settlement, eip712PrimaryType, `0x${signature}`);
     });
   }
 
