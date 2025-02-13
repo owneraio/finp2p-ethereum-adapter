@@ -52,7 +52,7 @@ describe("Signing test", function() {
       settlementAsset, `${settlementAmount}`, signerAddress, HashType.EIP712, signature)).to.equal(true);
   });
 
-  it("Secondary sale signature", async function() {
+  it.skip("HashList: Secondary sale signature", async function() {
     const { contract: verifier } = await loadFixture(deployFinP2PSignatureVerifier);
     const { chainId, verifyingContract } = await verifier.eip712Domain();
     const buyer = Wallet.createRandom();
@@ -93,9 +93,10 @@ describe("Signing test", function() {
     const settlementAsset = 'USD';
     const settlementAmount = getRandomNumber(1, 100);
 
-    const message = newRedemptionMessage(nonce, ownerFinId, buyerFinId, assetId, "finp2p", `${amount}`, settlementAsset, "fiat", `${settlementAmount}`);
+    const message = newRedemptionMessage(nonce, ownerFinId, buyerFinId, assetId, 'finp2p', `${amount}`, settlementAsset, 'fiat', `${settlementAmount}`);
 
     const signature = await eip712Sign(chainId, verifyingContract, EIP712_REDEMPTION_TYPES, message, owner);
+
     const signerAddress = await owner.getAddress();
     expect(eip712Verify(chainId, verifyingContract, EIP712_REDEMPTION_TYPES, message, signerAddress, signature)).to.equal(true);
     expect(await verifier.verifyRedemptionSignature(nonce, ownerFinId, buyerFinId, assetId, `${amount}`,
