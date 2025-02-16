@@ -160,7 +160,7 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
         bytes16 operationId,
         string memory nonce,
         string memory sellerFinId,
-        string memory issuerFinId,
+        string memory buyerFinId,
         Term memory assetTerm,
         Term memory settlementTerm,
         uint8 eip712PrimaryType,
@@ -176,7 +176,7 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
 
         require(verifyTransferSignature(
             nonce,
-            issuerFinId,
+            buyerFinId,
             sellerFinId,
             assetTerm,
             settlementTerm,
