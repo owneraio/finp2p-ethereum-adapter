@@ -14,7 +14,7 @@ import EIP712TypeObject = Components.Schemas.EIP712TypeObject;
 import EIP712TypeString = Components.Schemas.EIP712TypeString;
 import EIP712TypeInteger = Components.Schemas.EIP712TypeInteger;
 import EIP712Template = Components.Schemas.EIP712Template;
-import { EIP712PrimaryType } from "../../finp2p-contracts/src/contracts/eip712";
+import { PrimaryType } from "../../finp2p-contracts/src/contracts/eip712";
 import { FinP2PSignatureVerifier } from "../../finp2p-contracts/typechain-types";
 
 export const extractAssetId = (asset: Components.Schemas.Asset): string => {
@@ -141,7 +141,7 @@ export const failedTransaction = (code: number, message: string) => {
 }
 
 export const extractParameterEIP712 = (template: SignatureTemplate): {
-  eip712PrimaryType: EIP712PrimaryType,
+  eip712PrimaryType: PrimaryType,
   buyerFinId: string,
   sellerFinId: string,
   issuerFinId: string,
@@ -226,22 +226,22 @@ export const extractParameterEIP712 = (template: SignatureTemplate): {
   }
 }
 
-export const eip71212PrimaryTypeFromTemplate = (template: EIP712Template): EIP712PrimaryType => {
+export const eip71212PrimaryTypeFromTemplate = (template: EIP712Template): PrimaryType => {
   switch (template.primaryType) {
     case 'PrimarySale':
-      return EIP712PrimaryType.PrimarySale;
+      return PrimaryType.PrimarySale;
     case 'Buying':
-      return EIP712PrimaryType.Buying;
+      return PrimaryType.Buying;
     case 'Selling':
-      return EIP712PrimaryType.Selling;
+      return PrimaryType.Selling;
     case 'Redemption':
-      return EIP712PrimaryType.Redemption;
+      return PrimaryType.Redemption;
     case 'RequestForTransfer':
-      return EIP712PrimaryType.RequestForTransfer;
+      return PrimaryType.RequestForTransfer;
     case 'PrivateOffer':
-      return EIP712PrimaryType.PrivateOffer;
+      return PrimaryType.PrivateOffer;
     case 'Loan':
-      return EIP712PrimaryType.Loan;
+      return PrimaryType.Loan;
     default:
       throw new Error(`Unsupported EIP712 primary type: ${template.primaryType}`);
   }

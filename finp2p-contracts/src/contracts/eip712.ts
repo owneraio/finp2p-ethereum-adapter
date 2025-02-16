@@ -1,6 +1,6 @@
 import { Signer, TypedDataEncoder, verifyTypedData, Wallet } from "ethers";
 
-export const enum EIP712PrimaryType {
+export const enum PrimaryType {
   PrimarySale = 1,
   Buying = 2,
   Selling = 3,
@@ -15,20 +15,20 @@ export type TypedDataField = {
   type: string;
 };
 
-export const EIP712_DOMAIN = {
+export const DOMAIN = {
   name: "FinP2P",
   version: "1",
   chainId: 1,
   verifyingContract: "0x0"
 };
 
-export const EIP712_FINID_TYPE = {
+export const FINID_TYPE = {
   FinId: [{
     name: "idkey", type: "string"
   }]
 };
 
-export const EIP712_TERM_TYPE = {
+export const TERM_TYPE = {
   Term: [
     { name: "assetId", type: "string" },
     { name: "assetType", type: "string" },
@@ -36,9 +36,9 @@ export const EIP712_TERM_TYPE = {
   ]
 };
 
-export const EIP712_PRIMARY_SALE_TYPES = {
-  ...EIP712_FINID_TYPE,
-  ...EIP712_TERM_TYPE,
+export const PRIMARY_SALE_TYPES = {
+  ...FINID_TYPE,
+  ...TERM_TYPE,
   PrimarySale: [
     { name: "nonce", type: "string" },
     { name: "buyer", type: "FinId" },
@@ -48,9 +48,9 @@ export const EIP712_PRIMARY_SALE_TYPES = {
   ]
 };
 
-export const EIP712_BUYING_TYPES = {
-  ...EIP712_FINID_TYPE,
-  ...EIP712_TERM_TYPE,
+export const BUYING_TYPES = {
+  ...FINID_TYPE,
+  ...TERM_TYPE,
   Buying: [
     { name: "nonce", type: "string" },
     { name: "buyer", type: "FinId" },
@@ -60,9 +60,9 @@ export const EIP712_BUYING_TYPES = {
   ]
 };
 
-export const EIP712_SELLING_TYPES = {
-  ...EIP712_FINID_TYPE,
-  ...EIP712_TERM_TYPE,
+export const SELLING_TYPES = {
+  ...FINID_TYPE,
+  ...TERM_TYPE,
   Selling: [
     { name: "nonce", type: "string" },
     { name: "buyer", type: "FinId" },
@@ -72,9 +72,9 @@ export const EIP712_SELLING_TYPES = {
   ]
 };
 
-export const EIP712_REDEMPTION_TYPES = {
-  ...EIP712_FINID_TYPE,
-  ...EIP712_TERM_TYPE,
+export const REDEMPTION_TYPES = {
+  ...FINID_TYPE,
+  ...TERM_TYPE,
   Redemption: [
     { name: "nonce", type: "string" },
     { name: "seller", type: "FinId" },
@@ -84,9 +84,9 @@ export const EIP712_REDEMPTION_TYPES = {
   ]
 };
 
-export const EIP712_REQUEST_FOR_TRANSFER_TYPES = {
-  ...EIP712_FINID_TYPE,
-  ...EIP712_TERM_TYPE,
+export const REQUEST_FOR_TRANSFER_TYPES = {
+  ...FINID_TYPE,
+  ...TERM_TYPE,
   RequestForTransfer: [
     { name: "nonce", type: "string" },
     { name: "buyer", type: "FinId" },
@@ -96,9 +96,9 @@ export const EIP712_REQUEST_FOR_TRANSFER_TYPES = {
   ]
 };
 
-export const EIP712_PRIVATE_OFFER_TYPES = {
-  ...EIP712_FINID_TYPE,
-  ...EIP712_TERM_TYPE,
+export const PRIVATE_OFFER_TYPES = {
+  ...FINID_TYPE,
+  ...TERM_TYPE,
   PrivateOffer: [
     { name: "nonce", type: "string" },
     { name: "buyer", type: "FinId" },
@@ -108,7 +108,7 @@ export const EIP712_PRIVATE_OFFER_TYPES = {
   ]
 };
 
-export const EIP712_LOAN_TERMS_TYPE = {
+export const LOAN_TERMS_TYPE = {
   Term: [
     { name: "openTime", type: "string" },
     { name: "closeTime", type: "string" },
@@ -117,10 +117,10 @@ export const EIP712_LOAN_TERMS_TYPE = {
   ]
 };
 
-export const EIP712_LOAN_TYPES = {
-  ...EIP712_FINID_TYPE,
-  ...EIP712_TERM_TYPE,
-  ...EIP712_LOAN_TERMS_TYPE,
+export const LOAN_TYPES = {
+  ...FINID_TYPE,
+  ...TERM_TYPE,
+  ...LOAN_TERMS_TYPE,
   Loan: [
     { name: "nonce", type: "string" },
     { name: "borrower", type: "FinId" },
@@ -134,212 +134,128 @@ export const EIP712_LOAN_TYPES = {
 export interface EIP712Message {
 }
 
+
+export interface Term {
+  assetId: string,
+  assetType: string,
+  amount: string
+}
+
+export interface FinId {
+  idkey: string
+}
+
+export const finId = (key: string): FinId => {
+  return { idkey: key };
+}
+
+export interface LoanTerms {
+  openTime: string
+  closeTime: string
+  borrowedMoneyAmount: string
+  returnedMoneyAmount: string
+}
+
 export interface EIP712PrimarySaleMessage extends EIP712Message {
   nonce: string,
-  buyer: { idkey: string },
-  issuer: { idkey: string },
-  asset: { assetId: string, assetType: string, amount: string },
-  settlement: { assetId: string, assetType: string, amount: string }
+  buyer: FinId,
+  issuer: FinId,
+  asset: Term,
+  settlement: Term
 }
 
 export interface EIP712BuyingMessage extends EIP712Message {
   nonce: string,
-  buyer: { idkey: string },
-  seller: { idkey: string },
-  asset: { assetId: string, assetType: string, amount: string },
-  settlement: { assetId: string, assetType: string, amount: string }
+  buyer: FinId,
+  seller: FinId,
+  asset: Term,
+  settlement: Term
 }
 
 export interface EIP712SellingMessage extends EIP712Message {
   nonce: string,
-  buyer: { idkey: string },
-  seller: { idkey: string },
-  asset: { assetId: string, assetType: string, amount: string },
-  settlement: { assetId: string, assetType: string, amount: string }
+  buyer: FinId,
+  seller: FinId,
+  asset: Term,
+  settlement: Term
 }
 
 export interface EIP712RedemptionMessage extends EIP712Message {
   nonce: string,
-  seller: { idkey: string },
-  issuer: { idkey: string },
-  asset: { assetId: string, assetType: string, amount: string },
-  settlement: { assetId: string, assetType: string, amount: string }
+  seller: FinId,
+  issuer: FinId,
+  asset: Term,
+  settlement: Term
 }
 
 export interface EIP712RequestForTransferMessage extends EIP712Message {
   nonce: string,
-  buyer: { idkey: string },
-  seller: { idkey: string },
-  asset: { assetId: string, assetType: string, amount: string },
+  buyer: FinId,
+  seller: FinId,
+  asset: Term,
 }
 
 export interface EIP712PrivateOfferMessage extends EIP712Message {
   nonce: string,
-  buyer: { idkey: string },
-  seller: { idkey: string },
-  asset: { assetId: string, assetType: string, amount: string },
-  settlement: { assetId: string, assetType: string, amount: string }
+  buyer: FinId,
+  seller: FinId,
+  asset: Term,
+  settlement: Term
 }
 
 export interface EIP712LoanMessage extends EIP712Message {
   nonce: string,
-  borrower: { idkey: string },
-  lender: { idkey: string },
-  asset: { assetId: string, assetType: string, amount: string },
-  settlement: { assetId: string, assetType: string, amount: string }
-  loanTerms: { openTime: string, closeTime: string, borrowedMoneyAmount: string, returnedMoneyAmount: string }
+  borrower: FinId,
+  lender: FinId,
+  asset: Term,
+  settlement: Term
+  loanTerms: LoanTerms
 }
 
-export const newEIP712PrimarySaleMessage = (nonce: string, buyer: string, issuer: string, assetId: string, assetType: string, amount: string,
-                                            settlementAsset: string, settlementAssetType: string, settlementAmount: string): EIP712PrimarySaleMessage => {
-  return {
-    nonce,
-    buyer: { idkey: buyer },
-    issuer: { idkey: issuer },
-    asset: {
-      assetId,
-      assetType,
-      amount
-    },
-    settlement: {
-      assetId: settlementAsset,
-      assetType: settlementAssetType,
-      amount: settlementAmount
-    }
-  };
+export const newPrimarySaleMessage = (nonce: string, buyer: FinId, issuer: FinId, asset: Term, settlement: Term): EIP712PrimarySaleMessage => {
+  return { nonce, buyer, issuer, asset, settlement };
 };
 
-export const newEIP712BuyingMessage = (nonce: string, seller: string, buyer: string, assetId: string, assetType: string, amount: string,
-                                       settlementAsset: string, settlementAssetType: string, settlementAmount: string): EIP712BuyingMessage => {
-  return {
-    nonce,
-    buyer: { idkey: buyer },
-    seller: { idkey: seller },
-    asset: {
-      assetId,
-      assetType,
-      amount
-    },
-    settlement: {
-      assetId: settlementAsset,
-      assetType: settlementAssetType,
-      amount: settlementAmount
-    }
-  };
+export const newBuyingMessage = (nonce: string, buyer: FinId, seller: FinId, asset: Term, settlement: Term): EIP712BuyingMessage => {
+  return { nonce, buyer, seller, asset, settlement };
 };
 
-export const newEIP712SellingMessage = (nonce: string, seller: string, buyer: string, assetId: string, assetType: string, amount: string,
-                                        settlementAsset: string, settlementAssetType: string, settlementAmount: string): EIP712SellingMessage => {
-  return {
-    nonce,
-    buyer: { idkey: buyer },
-    seller: { idkey: seller },
-    asset: {
-      assetId,
-      assetType,
-      amount
-    },
-    settlement: {
-      assetId: settlementAsset,
-      assetType: settlementAssetType,
-      amount: settlementAmount
-    }
-  };
+export const newSellingMessage = (nonce: string,  buyer: FinId, seller: FinId,asset: Term, settlement: Term): EIP712SellingMessage => {
+  return { nonce, buyer, seller, asset, settlement };
 };
 
-export const newRedemptionMessage = (nonce: string, seller: string, issuer: string, assetId: string, assetType: string, amount: string,
-                                     settlementAsset: string, settlementAssetType: string, settlementAmount: string): EIP712RedemptionMessage => {
-  return {
-    nonce,
-    seller: { idkey: seller },
-    issuer: { idkey: issuer },
-    asset: {
-      assetId,
-      assetType,
-      amount
-    },
-    settlement: {
-      assetId: settlementAsset,
-      assetType: settlementAssetType,
-      amount: settlementAmount
-    }
-  };
+export const newRedemptionMessage = (nonce: string, issuer: FinId, seller: FinId, asset: Term, settlement: Term): EIP712RedemptionMessage => {
+  return { nonce, issuer, seller, asset, settlement };
 };
 
-export const newEIP712RequestForTransferMessage = (nonce: string, seller: string, buyer: string, assetId: string, assetType: string, amount: string): EIP712RequestForTransferMessage => {
-  return {
-    nonce,
-    buyer: { idkey: buyer },
-    seller: { idkey: seller },
-    asset: {
-      assetId,
-      assetType,
-      amount
-    }
-  };
+export const newRequestForTransferMessage = (nonce: string, buyer: FinId, seller: FinId, asset: Term): EIP712RequestForTransferMessage => {
+  return { nonce, buyer, seller, asset };
 };
 
-export const newEIP712PrivateOfferMessage = (nonce: string, seller: string, buyer: string, assetId: string, assetType: string, amount: string,
-                                             settlementAsset: string, settlementAssetType: string, settlementAmount: string): EIP712PrivateOfferMessage => {
-  return {
-    nonce,
-    buyer: { idkey: buyer },
-    seller: { idkey: seller },
-    asset: {
-      assetId,
-      assetType,
-      amount
-    },
-    settlement: {
-      assetId: settlementAsset,
-      assetType: settlementAssetType,
-      amount: settlementAmount
-    }
-  };
+export const newPrivateOfferMessage = (nonce: string, buyer: FinId,  seller: FinId, asset: Term, settlement: Term): EIP712PrivateOfferMessage => {
+  return { nonce, buyer, seller, asset, settlement }
 };
 
-export const newEIP712LoanMessage = (nonce: string, seller: string, buyer: string, assetId: string, assetType: string, amount: string,
-                                     settlementAsset: string, settlementAssetType: string, settlementAmount: string,
-                                     openTime: string, closeTime: string, borrowedMoneyAmount: string, returnedMoneyAmount: string): EIP712LoanMessage => {
-  return {
-    nonce,
-    borrower: { idkey: buyer },
-    lender: { idkey: seller },
-    asset: {
-      assetId,
-      assetType,
-      amount
-    },
-    settlement: {
-      assetId: settlementAsset,
-      assetType: settlementAssetType,
-      amount: settlementAmount
-    },
-    loanTerms: {
-      openTime,
-      closeTime,
-      borrowedMoneyAmount,
-      returnedMoneyAmount
-    }
-  };
+export const newLoanMessage = (nonce: string, borrower: FinId, lender: FinId, asset: Term, settlement: Term, loanTerms: LoanTerms): EIP712LoanMessage => {
+  return { nonce, borrower, lender, asset, settlement, loanTerms };
 };
 
-export const eip712SignWithPrivateKey = <T extends EIP712Message>(chainId: bigint | number, verifyingContract: string, types: Record<string, Array<TypedDataField>>, message: T, signerPrivateKey: string) => {
-  return eip712Sign(chainId, verifyingContract, types, message, new Wallet(signerPrivateKey));
+export const signWithPrivateKey = <T extends EIP712Message>(chainId: bigint | number, verifyingContract: string, types: Record<string, Array<TypedDataField>>, message: T, signerPrivateKey: string) => {
+  return sign(chainId, verifyingContract, types, message, new Wallet(signerPrivateKey));
 };
 
-export const eip712Sign = <T extends EIP712Message>(chainId: bigint | number, verifyingContract: string, types: Record<string, Array<TypedDataField>>, message: T, signer: Signer) => {
-  const domain = { ...EIP712_DOMAIN, chainId, verifyingContract };
+export const sign = <T extends EIP712Message>(chainId: bigint | number, verifyingContract: string, types: Record<string, Array<TypedDataField>>, message: T, signer: Signer) => {
+  const domain = { ...DOMAIN, chainId, verifyingContract };
   return signer.signTypedData(domain, types, message);
 };
 
-export const eip712Hash = <T extends EIP712Message>(chainId: bigint | number, verifyingContract: string, types: Record<string, Array<TypedDataField>>, message: T) => {
-  const domain = { ...EIP712_DOMAIN, chainId, verifyingContract };
+export const hash = <T extends EIP712Message>(chainId: bigint | number, verifyingContract: string, types: Record<string, Array<TypedDataField>>, message: T) => {
+  const domain = { ...DOMAIN, chainId, verifyingContract };
   return TypedDataEncoder.hash(domain, types, message);
 };
 
-export const eip712Verify = <T extends EIP712Message>(chainId: bigint | number, verifyingContract: string, types: Record<string, Array<TypedDataField>>, message: T, signerAddress: string, signature: string) => {
-  const domain = { ...EIP712_DOMAIN, chainId, verifyingContract };
+export const verify = <T extends EIP712Message>(chainId: bigint | number, verifyingContract: string, types: Record<string, Array<TypedDataField>>, message: T, signerAddress: string, signature: string) => {
+  const domain = { ...DOMAIN, chainId, verifyingContract };
   const address = verifyTypedData(domain, types, message, signature);
   return address.toLowerCase() === signerAddress.toLowerCase();
 };

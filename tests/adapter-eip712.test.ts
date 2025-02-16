@@ -3,8 +3,8 @@ import { APIClient } from "./api/api";
 import { v4 as uuidv4 } from "uuid";
 import { eip712Signature } from "./api/mapper";
 import {
-  EIP712_PRIMARY_SALE_TYPES,
-  EIP712_REDEMPTION_TYPES, EIP712_SELLING_TYPES,
+  PRIMARY_SALE_TYPES,
+  REDEMPTION_TYPES, SELLING_TYPES,
   EIP712PrimarySaleMessage,
   EIP712RedemptionMessage,
   EIP712SellingMessage
@@ -73,7 +73,7 @@ describe(`token service test (signature hash type: eip712)`, () => {
       quantity: `${issueAmount}`,
       asset: asset as Components.Schemas.Finp2pAsset,
       signature: await eip712Signature(chainId, verifyingContract,
-        'PrimarySale', EIP712_PRIMARY_SALE_TYPES, {
+        'PrimarySale', PRIMARY_SALE_TYPES, {
           nonce: issueNonce,
           buyer: { idkey: issueBuyerFinId },
           issuer: { idkey: issuerFinId },
@@ -125,7 +125,7 @@ describe(`token service test (signature hash type: eip712)`, () => {
       quantity: `${transferAmount}`,
       asset,
       signature: await eip712Signature(chainId, verifyingContract,
-        'Selling', EIP712_SELLING_TYPES, {
+        'Selling', SELLING_TYPES, {
           nonce: transferNonce,
           seller: { idkey: sellerFinId },
           buyer: { idkey: buyerFinId },
@@ -220,7 +220,7 @@ describe(`token service test (signature hash type: eip712)`, () => {
       quantity: `${transferSettlementAmount}`,
       asset: settlementAsset,
       signature: await eip712Signature(chainId, verifyingContract,
-        'Selling', EIP712_SELLING_TYPES, {
+        'Selling', SELLING_TYPES, {
           nonce: transferNonce,
           seller: { idkey: sellerFinId },
           buyer: { idkey: buyerFinId },
@@ -319,7 +319,7 @@ describe(`token service test (signature hash type: eip712)`, () => {
 
     const transferNonce = generateNonce().toString('hex');
     const redemptionSignature = await eip712Signature(chainId, verifyingContract,
-      'Redemption', EIP712_REDEMPTION_TYPES, {
+      'Redemption', REDEMPTION_TYPES, {
         nonce: transferNonce,
         seller: { idkey: investorFinId },
         issuer: { idkey: issuerFinId },

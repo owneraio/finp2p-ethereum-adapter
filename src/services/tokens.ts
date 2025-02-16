@@ -14,7 +14,7 @@ import { RegulationChecker } from '../finp2p/regulation';
 import CreateAssetResponse = Components.Schemas.CreateAssetResponse;
 import LedgerTokenId = Components.Schemas.LedgerTokenId;
 import { isEthereumAddress } from "../../finp2p-contracts/src/contracts/utils";
-import { EIP712PrimaryType } from "../../finp2p-contracts/src/contracts/eip712";
+import { PrimaryType } from "../../finp2p-contracts/src/contracts/eip712";
 
 export type AssetCreationPolicy =
   | { type: 'deploy-new-token'; decimals: number }

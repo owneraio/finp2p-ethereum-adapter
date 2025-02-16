@@ -4,21 +4,18 @@ import {
 import { expect } from "chai";
 // @ts-ignore
 import { ethers } from "hardhat";
-import {
-  buildTransferHash, generateNonce, sign
-} from "./utils";
+import { generateNonce } from "./utils";
 import { v4 as uuidv4 } from "uuid";
 import { Wallet } from "ethers";
 import { getFinId } from "../src/contracts/utils";
-import { HashType } from "../src/contracts/model";
 import {
-  EIP712_PRIMARY_SALE_TYPES,
-  EIP712_REDEMPTION_TYPES, EIP712_SELLING_TYPES, EIP712PrimaryType,
-  eip712Sign,
-  eip712Verify,
-  newEIP712BuyingMessage,
-  newEIP712PrimarySaleMessage,
-  newRedemptionMessage
+  PRIMARY_SALE_TYPES,
+  REDEMPTION_TYPES, SELLING_TYPES, hash, PrimaryType,
+  sign,
+  verify, finId,
+  newBuyingMessage,
+  newPrimarySaleMessage,
+  newRedemptionMessage, Term
 } from "../src/contracts/eip712";
 
 
@@ -44,15 +41,31 @@ describe("Signing test", function() {
     const settlementAsset = 'USD';
     const settlementAmount = getRandomNumber(1, 100);
 
-    const message = newEIP712PrimarySaleMessage(nonce, buyerFinId, issuerFinId, assetId, 'finp2p', `${amount}`, settlementAsset, 'fiat', `${settlementAmount}`);
-    const signature = await eip712Sign(chainId, verifyingContract, EIP712_PRIMARY_SALE_TYPES, message, issuer);
+    const asset = {
+      assetId: assetId,
+      assetType: 'finp2p',
+      amount: `${amount}`
+    } as Term;
+
+    const settlement = {
+      assetId: settlementAsset,
+      assetType: 'fiat',
+      amount: `${settlementAmount}`
+    } as Term;
+
+    const message = newPrimarySaleMessage(nonce, finId(buyerFinId), finId(issuerFinId), asset, settlement);
+    const signature = await sign(chainId, verifyingContract, PRIMARY_SALE_TYPES, message, issuer);
     const signerAddress = await issuer.getAddress();
-    expect(eip712Verify(chainId, verifyingContract, EIP712_PRIMARY_SALE_TYPES, message, signerAddress, signature)).to.equal(true);
-    expect(await verifier.verifyPrimarySaleSignature(nonce, buyerFinId, issuerFinId, assetId, `${amount}`,
-      settlementAsset, `${settlementAmount}`, signerAddress, HashType.EIP712, signature)).to.equal(true);
+
+    const offChainHash = hash(chainId, verifyingContract, PRIMARY_SALE_TYPES, message);
+    const onChainHash = await verifier.hashPrimarySale(nonce, buyerFinId, issuerFinId, asset, settlement);
+    expect(offChainHash).to.equal(onChainHash);
+
+    expect(verify(chainId, verifyingContract, PRIMARY_SALE_TYPES, message, signerAddress, signature)).to.equal(true);
+    expect(await verifier.verifyPrimarySaleSignature(nonce, buyerFinId, issuerFinId, asset, settlement, signerAddress, signature)).to.equal(true);
   });
 
-  it.skip("HashList: Secondary sale signature", async function() {
+  it("Secondary sale signature", async function() {
     const { contract: verifier } = await loadFixture(deployFinP2PSignatureVerifier);
     const { chainId, verifyingContract } = await verifier.eip712Domain();
     const buyer = Wallet.createRandom();
@@ -67,16 +80,27 @@ describe("Signing test", function() {
     const settlementAmount = getRandomNumber(1, 100);
     const signerAddress = await seller.getAddress();
 
-    const hlSignature = sign(seller.privateKey, buildTransferHash(nonce, sellerFinId, buyerFinId, assetId, 'finp2p', `${amount}`, settlementAsset, 'fiat', `${settlementAmount}`));
+    const asset = {
+      assetId: assetId,
+      assetType: 'finp2p',
+      amount: `${amount}`
+    } as Term;
 
-    expect(await verifier.verifyTransferSignature(nonce, buyerFinId, sellerFinId, assetId, `${amount}`, settlementAsset,
-      `${settlementAmount}`, signerAddress, HashType.HashList, EIP712PrimaryType.Selling, hlSignature)).to.equal(true);
+    const settlement = {
+      assetId: settlementAsset,
+      assetType: 'fiat',
+      amount: `${settlementAmount}`
+    } as Term;
 
-    const eip712signature = await eip712Sign(chainId, verifyingContract, EIP712_SELLING_TYPES,
-      newEIP712BuyingMessage(nonce, sellerFinId, buyerFinId, assetId, 'finp2p', `${amount}`, settlementAsset, 'fiat', `${settlementAmount}`), seller);
+    const message = newBuyingMessage(nonce, finId(buyerFinId), finId(sellerFinId), asset, settlement);
+    const eip712signature = await sign(chainId, verifyingContract, SELLING_TYPES,
+      message, seller);
 
-    expect(await verifier.verifyTransferSignature(nonce, buyerFinId, sellerFinId, assetId, `${amount}`, settlementAsset,
-      `${settlementAmount}`, signerAddress, HashType.EIP712, EIP712PrimaryType.Selling, eip712signature)).to.equal(true);
+    const offChainHash = hash(chainId, verifyingContract, SELLING_TYPES, message);
+    const onChainHash = await verifier.hashSelling(nonce, buyerFinId, sellerFinId, asset, settlement);
+    expect(offChainHash).to.equal(onChainHash);
+
+    expect(await verifier.verifyTransferSignature(nonce, buyerFinId, sellerFinId, asset, settlement, signerAddress, PrimaryType.Selling, eip712signature)).to.equal(true);
   });
 
   it("Redemption signature", async function() {
@@ -95,12 +119,12 @@ describe("Signing test", function() {
 
     const message = newRedemptionMessage(nonce, ownerFinId, buyerFinId, assetId, 'finp2p', `${amount}`, settlementAsset, 'fiat', `${settlementAmount}`);
 
-    const signature = await eip712Sign(chainId, verifyingContract, EIP712_REDEMPTION_TYPES, message, owner);
+    const signature = await sign(chainId, verifyingContract, REDEMPTION_TYPES, message, owner);
 
     const signerAddress = await owner.getAddress();
-    expect(eip712Verify(chainId, verifyingContract, EIP712_REDEMPTION_TYPES, message, signerAddress, signature)).to.equal(true);
+    expect(verify(chainId, verifyingContract, REDEMPTION_TYPES, message, signerAddress, signature)).to.equal(true);
     expect(await verifier.verifyRedemptionSignature(nonce, ownerFinId, buyerFinId, assetId, `${amount}`,
-      settlementAsset, `${settlementAmount}`, signerAddress, HashType.EIP712, signature)).to.equal(true);
+      settlementAsset, `${settlementAmount}`, signerAddress, signature)).to.equal(true);
   });
 
 });

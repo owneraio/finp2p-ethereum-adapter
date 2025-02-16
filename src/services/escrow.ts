@@ -2,7 +2,7 @@ import { logger } from '../helpers/logger';
 import { CommonService } from './common';
 import { EthereumTransactionError } from '../../finp2p-contracts/src/contracts/model';
 import { extractParameterEIP712, failedTransaction } from "./mapping";
-import { EIP712PrimaryType } from "../../finp2p-contracts/src/contracts/eip712";
+import { PrimaryType } from "../../finp2p-contracts/src/contracts/eip712";
 
 export class EscrowService extends CommonService {
 
@@ -15,7 +15,7 @@ export class EscrowService extends CommonService {
       const {eip712PrimaryType, /* hashType,*/ assetId, assetAmount, settlementAsset, settlementAmount, buyerFinId, sellerFinId, issuerFinId } = extractParameterEIP712(template);
       let txHash: string;
       switch (eip712PrimaryType) {
-        case EIP712PrimaryType.PrimarySale:
+        case PrimaryType.PrimarySale:
           if (asset.type !== 'fiat' && asset.type !== 'cryptocurrency') {
             return failedTransaction(1, 'Payment hold is only supported for fiat and cryptocurrency assets');
           }
@@ -36,9 +36,9 @@ export class EscrowService extends CommonService {
           txHash = await this.finP2PContract.holdPayments(operationId, nonce, assetId, sellerFinId, buyerFinId, assetAmount,
             settlementAsset, settlementAmount, /*hashType,*/ signature);
           break
-        case EIP712PrimaryType.Buying:
-        case EIP712PrimaryType.Selling:
-        case EIP712PrimaryType.PrivateOffer:
+        case PrimaryType.Buying:
+        case PrimaryType.Selling:
+        case PrimaryType.PrivateOffer:
           if (asset.type !== 'fiat' && asset.type !== 'cryptocurrency') {
             return failedTransaction(1, 'Payment hold is only supported for fiat and cryptocurrency assets');
           }
@@ -60,7 +60,7 @@ export class EscrowService extends CommonService {
             settlementAsset, settlementAmount, /*hashType,*/ signature);
           break
 
-        case EIP712PrimaryType.Redemption:
+        case PrimaryType.Redemption:
           if (source.finId !== sellerFinId) {
             return failedTransaction(1, `Requested source finId does not match the seller finId in the template`);
           }
