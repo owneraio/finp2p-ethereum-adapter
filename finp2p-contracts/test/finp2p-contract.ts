@@ -10,15 +10,12 @@ import {
 } from "./utils";
 import { getFinId } from "../src/contracts/utils";
 import { Signer, Wallet } from "ethers";
-import {  HashType } from "../src/contracts/model";
 import {
   REDEMPTION_TYPES, SELLING_TYPES,
-  PrimaryType,
-  EIP712RedemptionMessage,
-  sign, finId, newSellingMessage, Leg, newRedemptionMessage, Term, term
+  Leg, PrimaryType,
+  sign, finId, newSellingMessage,  newRedemptionMessage, term
 } from "../src/contracts/eip712";
 import type { FINP2POperatorERC20 } from "../typechain-types";
-
 
 
 describe("FinP2P proxy contract test", function() {
@@ -126,6 +123,7 @@ describe("FinP2P proxy contract test", function() {
         expect(await contract.getBalance(settlementAsset, issuerFinId)).to.equal(`${issueAmount.toFixed(decimals)}`);
 
         // -----------------------------
+
         const buyer = issuer;
         const buyerFinId = issuerFinId;
         const seller = Wallet.createRandom();
@@ -146,6 +144,7 @@ describe("FinP2P proxy contract test", function() {
         expect(lock[0]).to.equal(settlementAsset);
         expect(lock[1]).to.equal(buyerFinId);
         expect(lock[2]).to.equal(`${transferAmount.toFixed(decimals)}`);
+
         // -----------------------------
 
         await contract.release(operationId, sellerFinId, `${transferAmount.toFixed(decimals)}`, { from: operator });
@@ -175,7 +174,6 @@ describe("FinP2P proxy contract test", function() {
         // -----------------------------
 
         const operationId = `0x${uuidv4().replaceAll('-', '')}`;
-
         const redeemAmount = transferAmount;
         const redeemSettlementAmount = 50;
         const redeemNonce = `${generateNonce().toString('hex')}`;

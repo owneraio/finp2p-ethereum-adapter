@@ -11,7 +11,7 @@ import {
 } from "../finp2p-contracts/src/contracts/eip712";
 
 
-describe(`token service test (signature hash type: eip712)`, () => {
+describe(`token service test`, () => {
 
   let client: APIClient;
   let orgId: string;

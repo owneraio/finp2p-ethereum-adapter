@@ -1,7 +1,7 @@
 import { ContractFactory, ContractTransactionResponse, Interface, Provider, Signer } from "ethers";
 import FINP2P
   from '../../artifacts/contracts/token/ERC20/FINP2POperatorERC20.sol/FINP2POperatorERC20.json';
-import { FINP2POperatorERC20, FinP2PSignatureVerifier } from "../../typechain-types";
+import { FINP2POperatorERC20 } from "../../typechain-types";
 import {
   detectError,
   EthereumTransactionError,
@@ -13,6 +13,7 @@ import {
 import { normalizeOperationId, parseTransactionReceipt } from "./utils";
 import { ContractsManager } from './manager';
 import console from 'console';
+import { Leg, PrimaryType, Term } from "./eip712";
 
 export class FinP2PContract extends ContractsManager {
 
@@ -57,21 +58,18 @@ export class FinP2PContract extends ContractsManager {
   }
 
   async transfer(nonce: string, sellerFinId: string, buyerFinId: string,
-                 asset: FinP2PSignatureVerifier.TermStruct,
-                 settlement: FinP2PSignatureVerifier.TermStruct,
-                 eip712PrimaryType: number, signature: string) {
+                 asset: Term, settlement: Term, leg: Leg, eip712PrimaryType: PrimaryType, signature: string) {
     return this.safeExecuteTransaction(async (finP2P: FINP2POperatorERC20) => {
       return finP2P.transfer(
-        nonce, sellerFinId, buyerFinId, asset, settlement, eip712PrimaryType, `0x${signature}`);
+        nonce, sellerFinId, buyerFinId, asset, settlement, leg, eip712PrimaryType, `0x${signature}`);
     });
   }
 
   async hold(operationId: string, nonce: string, sellerFinId: string, buyerFinId: string,
-                   asset: FinP2PSignatureVerifier.TermStruct,
-              settlement: FinP2PSignatureVerifier.TermStruct, eip712PrimaryType: number, signature: string) {
+                   asset: Term, settlement: Term, leg: Leg, eip712PrimaryType: PrimaryType, signature: string) {
     const opId = normalizeOperationId(operationId);
     return this.safeExecuteTransaction(async (finP2P: FINP2POperatorERC20) => {
-      return finP2P.hold(opId, nonce, sellerFinId, buyerFinId, asset, settlement, eip712PrimaryType, `0x${signature}`);
+      return finP2P.hold(opId, nonce, sellerFinId, buyerFinId, asset, settlement, leg, eip712PrimaryType, `0x${signature}`);
     });
   }
 
