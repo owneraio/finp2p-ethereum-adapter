@@ -11,19 +11,18 @@ import "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
  */
 contract FinP2PSignatureVerifier is EIP712 {
 
-    bytes private constant DEFAULT_ACCOUNT_TYPE = "finId";
-
-    // --------------------------------------------------------------------------------------
-
-    bytes private constant HASHLIST_OPERATION_ISSUE = "issue";
-    bytes private constant HASHLIST_OPERATION_TRANSFER = "transfer";
-    bytes private constant HASHLIST_OPERATION_REDEEM = "redeem";
-
-    // --------------------------------------------------------------------------------------
-
     string private constant SIGNING_DOMAIN = "FinP2P";
     string private constant SIGNATURE_VERSION = "1";
 
+    enum PrimaryType {
+        PRIMARY_SALE,
+        BUYING,
+        SELLING,
+        REDEMPTION,
+        REQUEST_FOR_TRANSFER,
+        PRIVATE_OFFER,
+        LOAN
+    }
     uint8 public constant PRIMARY_TYPE_PRIMARY_SALE = 1;
     uint8 public constant PRIMARY_TYPE_BUYING = 2;
     uint8 public constant PRIMARY_TYPE_SELLING = 3;

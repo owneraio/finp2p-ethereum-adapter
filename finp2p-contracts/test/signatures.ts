@@ -10,12 +10,12 @@ import { Wallet } from "ethers";
 import { getFinId } from "../src/contracts/utils";
 import {
   PRIMARY_SALE_TYPES,
-  REDEMPTION_TYPES, SELLING_TYPES, hash, PrimaryType,
+  REDEMPTION_TYPES, SELLING_TYPES, hash,
   sign,
   verify, finId,
   newBuyingMessage,
   newPrimarySaleMessage,
-  newRedemptionMessage, Term, newSellingMessage, BUYING_TYPES
+  newRedemptionMessage, Term, newSellingMessage, BUYING_TYPES, PrimaryType
 } from "../src/contracts/eip712";
 
 
