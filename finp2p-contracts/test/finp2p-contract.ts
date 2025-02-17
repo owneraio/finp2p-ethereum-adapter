@@ -184,12 +184,8 @@ describe("FinP2P proxy contract test", function() {
         const redemptionSignature = await sign(chainId, verifyingContract, REDEMPTION_TYPES,
           newRedemptionMessage(redeemNonce, finId(investorFinId), finId(issuerFinId), asset, settlement), investor);
 
-        try {
-          await contract.hold(operationId, redeemNonce, investorFinId, issuerFinId,
-            asset, settlement, Leg.Asset, PrimaryType.Redemption, redemptionSignature, { from: operator });
-        } catch (e) {
-          console.log(e);
-        }
+        await contract.hold(operationId, redeemNonce, investorFinId, issuerFinId,
+          asset, settlement, Leg.Asset, PrimaryType.Redemption, redemptionSignature, { from: operator });
         const lock = await contract.getLockInfo(operationId);
         expect(lock[0]).to.equal(assetId);
         expect(lock[1]).to.equal(investorFinId);
