@@ -45,7 +45,7 @@ export const parseTransactionReceipt = (receipt: TransactionReceipt, contractInt
           return {
             id: id,
             assetId: parsedLog.args.assetId,
-            assetType: 'finp2p',
+            assetType: parsedLog.args.assetType,
             amount: parsedLog.args.quantity,
             destination: parsedLog.args.issuerFinId,
             timestamp: timestamp,
@@ -55,7 +55,7 @@ export const parseTransactionReceipt = (receipt: TransactionReceipt, contractInt
           return {
             id: id,
             assetId: parsedLog.args.assetId,
-            assetType: 'finp2p',
+            assetType: parsedLog.args.assetType,
             amount: parsedLog.args.quantity,
             source: parsedLog.args.sourceFinId,
             destination: parsedLog.args.destinationFinId,
@@ -66,7 +66,7 @@ export const parseTransactionReceipt = (receipt: TransactionReceipt, contractInt
           return {
             id: id,
             assetId: parsedLog.args.assetId,
-            assetType: 'finp2p',
+            assetType: parsedLog.args.assetType,
             amount: parsedLog.args.quantity,
             source: parsedLog.args.sellerFinId,
             timestamp: timestamp,
@@ -76,7 +76,7 @@ export const parseTransactionReceipt = (receipt: TransactionReceipt, contractInt
           return {
             id: id,
             assetId: parsedLog.args.assetId,
-            assetType: 'fiat',
+            assetType: parsedLog.args.assetType,
             amount: parsedLog.args.quantity,
             source: parsedLog.args.finId,
             timestamp: timestamp,
@@ -86,7 +86,7 @@ export const parseTransactionReceipt = (receipt: TransactionReceipt, contractInt
           return {
             id: id,
             assetId: parsedLog.args.assetId,
-            assetType: 'fiat',
+            assetType: parsedLog.args.assetType,
             amount: parsedLog.args.quantity,
             source: parsedLog.args.sourceFinId,
             destination: parsedLog.args.destinationFinId,

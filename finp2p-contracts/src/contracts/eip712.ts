@@ -229,7 +229,7 @@ export const newBuyingMessage = (nonce: string, buyer: FinId, seller: FinId, ass
   return { nonce, buyer, seller, asset, settlement };
 };
 
-export const newSellingMessage = (nonce: string,  buyer: FinId, seller: FinId,asset: Term, settlement: Term): EIP712SellingMessage => {
+export const newSellingMessage = (nonce: string, buyer: FinId, seller: FinId,asset: Term, settlement: Term): EIP712SellingMessage => {
   return { nonce, buyer, seller, asset, settlement };
 };
 

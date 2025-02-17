@@ -6,8 +6,7 @@ import {
   PRIMARY_SALE_TYPES,
   REDEMPTION_TYPES, SELLING_TYPES,
   EIP712PrimarySaleMessage,
-  EIP712RedemptionMessage,
-  EIP712SellingMessage
+  EIP712SellingMessage, newRedemptionMessage, finId, term, newSellingMessage
 } from "../finp2p-contracts/src/contracts/eip712";
 
 
@@ -220,21 +219,9 @@ describe(`token service test`, () => {
       quantity: `${transferSettlementAmount}`,
       asset: settlementAsset,
       signature: await eip712Signature(chainId, verifyingContract,
-        'Selling', SELLING_TYPES, {
-          nonce: transferNonce,
-          seller: { idkey: sellerFinId },
-          buyer: { idkey: buyerFinId },
-          asset: {
-            assetId,
-            assetType: 'finp2p',
-            amount: `${transferAmount}`
-          },
-          settlement: {
-            assetId: settlementAssetId,
-            assetType: 'fiat',
-            amount: `${transferSettlementAmount}`
-          }
-        } as EIP712SellingMessage, buyerPrivateKey),
+        'Selling', SELLING_TYPES, newSellingMessage(transferNonce, finId(buyerFinId), finId(sellerFinId),
+          term(assetId, 'finp2p', `${transferAmount}`),
+          term(settlementAssetId, 'fiat', `${transferSettlementAmount}`)), buyerPrivateKey),
     } as Paths.HoldOperation.RequestBody);
     expect(holdStatus.error).toBeUndefined();
     const holdReceipt = await client.expectReceipt(holdStatus);
@@ -319,21 +306,10 @@ describe(`token service test`, () => {
 
     const transferNonce = generateNonce().toString('hex');
     const redemptionSignature = await eip712Signature(chainId, verifyingContract,
-      'Redemption', REDEMPTION_TYPES, {
-        nonce: transferNonce,
-        seller: { idkey: investorFinId },
-        issuer: { idkey: issuerFinId },
-        asset: {
-          assetId,
-          assetType: 'finp2p',
-          amount: `${redeemAmount}`
-        },
-        settlement: {
-          assetId: settlementAssetId,
-          assetType: 'fiat',
-          amount: `${redeemSettlementAmount}`
-        }
-      } as EIP712RedemptionMessage, investorPrivateKey);
+      'Redemption', REDEMPTION_TYPES, newRedemptionMessage(transferNonce, finId(issuerFinId), finId(investorFinId),
+        term(assetId, 'finp2p', `${redeemAmount}`), term(settlementAssetId, 'fiat', `${redeemSettlementAmount}`)),
+
+      investorPrivateKey);
 
     const holdStatus = await client.escrow.hold({
       operationId: operationId,

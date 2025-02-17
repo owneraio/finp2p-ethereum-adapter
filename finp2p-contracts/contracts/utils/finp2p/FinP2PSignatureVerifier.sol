@@ -119,7 +119,7 @@ contract FinP2PSignatureVerifier is EIP712 {
             hash = hashSelling(nonce, buyerFinId, sellerFinId,  asset, settlement);
 
         } else if (eip712PrimaryType == PRIMARY_TYPE_REDEMPTION) {
-            hash = hashRedemption(nonce, sellerFinId, buyerFinId, asset, settlement);
+            hash = hashRedemption(nonce, buyerFinId, sellerFinId, asset, settlement);
 
         } else if (eip712PrimaryType == PRIMARY_TYPE_REQUEST_FOR_TRANSFER) {
             hash = hashRequestForTransfer(nonce, buyerFinId, sellerFinId, asset);

@@ -1,7 +1,7 @@
 import { CommonService } from './common';
 import {
   assetCreationResult,
-  extractAssetId,
+  assetFromAPI,
   getRandomNumber,
   failedAssetCreation,
   failedTransaction,
@@ -10,11 +10,10 @@ import {
 import { EthereumTransactionError } from '../../finp2p-contracts/src/contracts/model';
 import { logger } from '../helpers/logger';
 import { FinP2PContract } from '../../finp2p-contracts/src/contracts/finp2p';
-import { RegulationChecker } from '../finp2p/regulation';
 import CreateAssetResponse = Components.Schemas.CreateAssetResponse;
 import LedgerTokenId = Components.Schemas.LedgerTokenId;
 import { isEthereumAddress } from "../../finp2p-contracts/src/contracts/utils";
-import { PrimaryType } from "../../finp2p-contracts/src/contracts/eip712";
+import { term } from "../../finp2p-contracts/src/contracts/eip712";
 
 export type AssetCreationPolicy =
   | { type: 'deploy-new-token'; decimals: number }
@@ -31,7 +30,7 @@ export class TokenService extends CommonService {
   }
 
   public async createAsset(request: Paths.CreateAsset.RequestBody): Promise<Paths.CreateAsset.Responses.$200> {
-    const assetId = extractAssetId(request.asset);
+    const { assetId } = assetFromAPI(request.asset);
     try {
 
       if (request.ledgerAssetBinding) {
@@ -97,13 +96,13 @@ export class TokenService extends CommonService {
 
   public async issue(request: Paths.IssueAssets.RequestBody): Promise<Paths.IssueAssets.Responses.$200> {
     const { asset, quantity, destination } = request;
-    const assetId = extractAssetId(asset);
+    const { assetId, assetType } = assetFromAPI(asset);
     const issuerFinId = destination.finId;
 
     let txHash: string;
     try {
       logger.info(`Issue asset ${assetId} to ${issuerFinId} with amount ${quantity}`);
-      txHash = await this.finP2PContract.issue(assetId, issuerFinId, quantity);
+      txHash = await this.finP2PContract.issue(issuerFinId, term(assetId, assetType, quantity));
 
     } catch (e) {
       logger.error(`Error on asset issuance: ${e}`);
@@ -121,7 +120,8 @@ export class TokenService extends CommonService {
   }
 
   public async transfer(request: Paths.TransferAsset.RequestBody): Promise<Paths.TransferAsset.Responses.$200> {
-    const { nonce, asset: reqAsset, quantity, source, destination } = request;
+    const { nonce, asset, quantity, source, destination } = request;
+    const reqAsset = assetFromAPI(asset);
     const { signature, template } = request.signature;
 
     try {

@@ -1,13 +1,13 @@
 import { logger } from '../helpers/logger';
 import { CommonService } from './common';
 import { EthereumTransactionError } from '../../finp2p-contracts/src/contracts/model';
-import { extractParameterEIP712, failedTransaction } from "./mapping";
+import { assetFromAPI, extractParameterEIP712, failedTransaction } from "./mapping";
 
 export class EscrowService extends CommonService {
 
   public async hold(request: Paths.HoldOperation.RequestBody): Promise<Paths.HoldOperation.Responses.$200> {
-    const { operationId, asset: reqAsset, source, destination, quantity, nonce } = request;
-
+    const { operationId, asset, source, destination, quantity, nonce } = request;
+    const reqAsset = assetFromAPI(asset)
     const { signature, template } = request.signature;
 
     try {

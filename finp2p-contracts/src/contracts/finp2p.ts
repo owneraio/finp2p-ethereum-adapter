@@ -51,9 +51,9 @@ export class FinP2PContract extends ContractsManager {
     });
   }
 
-  async issue(assetId: string, issuerFinId: string, quantity: string) {
+  async issue(issuerFinId: string, asset: Term) {
     return this.safeExecuteTransaction(async (finP2P: FINP2POperatorERC20) => {
-      return finP2P.issue(assetId, issuerFinId, quantity);
+      return finP2P.issue(issuerFinId, asset);
     });
   }
 

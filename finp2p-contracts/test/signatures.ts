@@ -106,7 +106,7 @@ describe("Signing test", function() {
     const offChainHash = hash(chainId, verifyingContract, REDEMPTION_TYPES, message);
     const onChainHash = await verifier.hashRedemption(nonce, issuerFinId, sellerFinId, asset, settlement);
     expect(offChainHash).to.equal(onChainHash);
-    expect(await verifier.verifyTransferSignature(nonce, sellerFinId, issuerFinId, asset, settlement, signerAddress, PrimaryType.Redemption, signature)).to.equal(true);
+    expect(await verifier.verifyTransferSignature(nonce, issuerFinId, sellerFinId, asset, settlement, signerAddress, PrimaryType.Redemption, signature)).to.equal(true);
   });
 
 });

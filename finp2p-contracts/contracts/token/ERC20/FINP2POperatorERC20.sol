@@ -32,16 +32,17 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
 
     struct LockInfo {
         string assetId;
+        string assetType;
         string finId;
         string amount;
     }
 
-    event Issue(string assetId, string issuerFinId, string quantity);
-    event Transfer(string assetId, string sourceFinId, string destinationFinId, string quantity);
-    event Hold(string assetId, string finId, string quantity, bytes16 operationId);
-    event Release(string assetId, string sourceFinId, string destinationFinId, string quantity, bytes16 operationId);
-    event Redeem(string assetId, string ownerFinId, string quantity, bytes16 operationId);
-    event Rollback(string assetId, string finId, string quantity, bytes16 operationId);
+    event Issue(string assetId, string assetType, string issuerFinId, string quantity);
+    event Transfer(string assetId, string assetType,  string sourceFinId, string destinationFinId, string quantity);
+    event Hold(string assetId, string assetType, string finId, string quantity, bytes16 operationId);
+    event Release(string assetId, string assetType, string sourceFinId, string destinationFinId, string quantity, bytes16 operationId);
+    event Redeem(string assetId, string assetType, string ownerFinId, string quantity, bytes16 operationId);
+    event Rollback(string assetId, string assetType, string finId, string quantity, bytes16 operationId);
 
     struct Asset {
         string id;
@@ -50,6 +51,7 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
 
     struct Lock {
         string assetId;
+        string assetType;
         string finId;
         string amount;
     }
@@ -110,13 +112,12 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
     }
 
     function issue(
-        string memory assetId,
         string memory issuerFinId,
-        string memory quantity
+        Term memory assetTerm
     ) public virtual {
         require(hasRole(TRANSACTION_MANAGER, _msgSender()), "FINP2POperatorERC20: must have transaction manager role to issue asset");
-        _mint(Bytes.finIdToAddress(issuerFinId), assetId, quantity);
-        emit Issue(assetId, issuerFinId, quantity);
+        _mint(Bytes.finIdToAddress(issuerFinId), assetTerm.assetId, assetTerm.amount);
+        emit Issue(assetTerm.assetId, assetTerm.assetType, issuerFinId, assetTerm.amount);
     }
 
     function transfer(
@@ -142,7 +143,7 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
                 signature
             ), "Signature is not verified");
             _transfer(Bytes.finIdToAddress(sellerFinId), Bytes.finIdToAddress(buyerFinId), assetTerm.assetId, assetTerm.amount);
-            emit Transfer(assetTerm.assetId, sellerFinId, buyerFinId, assetTerm.amount);
+            emit Transfer(assetTerm.assetId, assetTerm.assetType, sellerFinId, buyerFinId, assetTerm.amount);
 
         } else if (leg == LEG_SETTLEMENT) {
             require(verifyTransferSignature(
@@ -156,7 +157,7 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
                 signature
             ), "Signature is not verified");
             _transfer(Bytes.finIdToAddress(buyerFinId), Bytes.finIdToAddress(sellerFinId), settlementTerm.assetId, settlementTerm.amount);
-            emit Transfer(settlementTerm.assetId, buyerFinId, sellerFinId, settlementTerm.amount);
+            emit Transfer(settlementTerm.assetId, settlementTerm.assetType, buyerFinId, sellerFinId, settlementTerm.amount);
 
         } else {
             revert("Invalid leg");
@@ -187,8 +188,8 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
                 signature
             ), "Signature is not verified");
             _transfer( Bytes.finIdToAddress(sellerFinId), _getEscrow(),assetTerm.assetId, assetTerm.amount);
-            locks[operationId] = Lock(assetTerm.assetId,sellerFinId,assetTerm.amount);
-            emit Hold(assetTerm.assetId, sellerFinId, assetTerm.amount, operationId);
+            locks[operationId] = Lock(assetTerm.assetId, assetTerm.assetType, sellerFinId,assetTerm.amount);
+            emit Hold(assetTerm.assetId, assetTerm.assetType, sellerFinId, assetTerm.amount, operationId);
 
         } else if (leg == LEG_SETTLEMENT) {
             require(verifyTransferSignature(
@@ -202,8 +203,8 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
                 signature
             ), "Signature is not verified");
             _transfer( Bytes.finIdToAddress(buyerFinId), _getEscrow(), settlementTerm.assetId, settlementTerm.amount);
-            locks[operationId] = Lock(settlementTerm.assetId,buyerFinId,settlementTerm.amount);
-            emit Hold(settlementTerm.assetId, buyerFinId, settlementTerm.amount, operationId);
+            locks[operationId] = Lock(settlementTerm.assetId, settlementTerm.assetType, buyerFinId,settlementTerm.amount);
+            emit Hold(settlementTerm.assetId, settlementTerm.assetType, buyerFinId, settlementTerm.amount, operationId);
 
         } else {
             revert("Invalid leg");
@@ -216,7 +217,7 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
         Lock storage lock = locks[operationId];
         // TODO: take request quantity?
         _transfer(_getEscrow(), Bytes.finIdToAddress(toFinId), lock.assetId, lock.amount);
-        emit Release(lock.assetId, lock.finId, toFinId, quantity, operationId);
+        emit Release(lock.assetId, lock.assetType, lock.finId, toFinId, quantity, operationId);
         delete locks[operationId];
     }
 
@@ -227,7 +228,7 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
         require(lock.finId.equals(ownerFinId), "Trying to redeem asset with owner different from the one who held it");
         // TODO: take request quantity?
         _burn(_getEscrow(), lock.assetId, lock.amount);
-        emit Redeem(lock.assetId, ownerFinId,  quantity, operationId);
+        emit Redeem(lock.assetId, lock.assetType, ownerFinId,  quantity, operationId);
         delete locks[operationId];
     }
 
@@ -238,7 +239,7 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
         require(haveContract(operationId), "contract does not exists");
         Lock storage lock = locks[operationId];
         _transfer(_getEscrow(), Bytes.finIdToAddress(lock.finId), lock.assetId, lock.amount);
-        emit Rollback(lock.assetId, lock.finId, lock.amount, operationId);
+        emit Rollback(lock.assetId, lock.assetType, lock.finId, lock.amount, operationId);
         delete locks[operationId];
     }
 
@@ -250,7 +251,7 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
     function getLockInfo(bytes16 operationId) public view returns (LockInfo memory) {
         require(haveContract(operationId), "Contract not found");
         Lock storage l = locks[operationId];
-        return LockInfo(l.assetId, l.finId,l.amount);
+        return LockInfo(l.assetId, l.assetType, l.finId,l.amount);
     }
 
     function haveAsset(string memory assetId) internal view returns (bool exists) {

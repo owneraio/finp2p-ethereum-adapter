@@ -13,14 +13,26 @@ import EIP712TypeObject = Components.Schemas.EIP712TypeObject;
 import EIP712TypeString = Components.Schemas.EIP712TypeString;
 import EIP712Template = Components.Schemas.EIP712Template;
 
-export const extractAssetId = (asset: Components.Schemas.Asset): string => {
+export const assetFromAPI = (asset: Components.Schemas.Asset): {
+  assetId: string,
+  assetType: 'fiat' | 'finp2p' | 'cryptocurrency',
+} => {
   switch (asset.type) {
     case 'fiat':
-      return asset.code;
+      return {
+        assetId: asset.code,
+        assetType: 'fiat',
+      };
     case 'finp2p':
-      return asset.resourceId;
+      return {
+        assetId: asset.resourceId,
+        assetType: 'finp2p',
+      };
     case 'cryptocurrency':
-      return asset.code;
+      return {
+        assetId: asset.code,
+        assetType: 'cryptocurrency',
+      };
   }
 };
 
@@ -148,18 +160,18 @@ export const finIdFromAPI = (finId: Components.Schemas.EIP712TypeObject): string
 }
 
 
-const compareAssets = (eipAsset: EIP712TypeObject, reqAsset: Asset): boolean => {
-  switch (reqAsset.type) {
-    case 'finp2p':
-      return (eipAsset.assetId === reqAsset.resourceId && eipAsset.assetType === 'finp2p');
-    case 'fiat':
-      return (eipAsset.assetId === reqAsset.code && eipAsset.assetType === 'fiat');
-    case 'cryptocurrency':
-      return (eipAsset.assetId === reqAsset.code && eipAsset.assetType === 'cryptocurrency');
-  }
+const compareAssets = (eipAsset: EIP712TypeObject, reqAsset: {
+  assetId: string,
+  assetType: 'fiat' | 'finp2p' | 'cryptocurrency',
+}): boolean => {
+  return (eipAsset.assetId === reqAsset.assetId && eipAsset.assetType === reqAsset.assetType);
+
 }
 
-export const detectLeg = (template: SignatureTemplate, reqAsset: Asset) : Leg => {
+export const detectLeg = (template: SignatureTemplate, reqAsset: {
+  assetId: string,
+  assetType: 'fiat' | 'finp2p' | 'cryptocurrency',
+}) : Leg => {
   if (template.type != 'EIP712') {
     throw new Error(`Unsupported signature template type: ${template.type}`);
   }
@@ -172,7 +184,10 @@ export const detectLeg = (template: SignatureTemplate, reqAsset: Asset) : Leg =>
   }
 }
 
-export const extractParameterEIP712 = (template: SignatureTemplate, reqAsset: Asset): {
+export const extractParameterEIP712 = (template: SignatureTemplate, reqAsset: {
+  assetId: string,
+  assetType: 'fiat' | 'finp2p' | 'cryptocurrency',
+}): {
   buyerFinId: string,
   sellerFinId: string,
   asset: Term,
@@ -217,8 +232,10 @@ export const extractParameterEIP712 = (template: SignatureTemplate, reqAsset: As
     }
     case 'Redemption': {
       return {
-        buyerFinId: finIdFromAPI(template.message.seller as EIP712TypeObject),
-        sellerFinId: finIdFromAPI(template.message.issuer as EIP712TypeObject),
+        // buyerFinId: finIdFromAPI(template.message.seller as EIP712TypeObject),
+        // sellerFinId: finIdFromAPI(template.message.issuer as EIP712TypeObject),
+        buyerFinId: finIdFromAPI(template.message.issuer as EIP712TypeObject),
+        sellerFinId: finIdFromAPI(template.message.seller as EIP712TypeObject),
         asset: termFromAPI(template.message.asset as EIP712TypeObject),
         settlement: termFromAPI(template.message.settlement as EIP712TypeObject),
         leg, eip712PrimaryType,
