@@ -14,7 +14,7 @@ export const eip712Signature = async (
   message: EIP712Message,
   signerPrivateKey: string
 ) => {
-  const hash = hash(chainId, verifyingContract, types, message)
+  const hashVal = hash(chainId, verifyingContract, types, message)
   const signature = await signWithPrivateKey(chainId, verifyingContract, types, message, signerPrivateKey);
   return {
     signature: signature.replace('0x', ''),
@@ -29,8 +29,9 @@ export const eip712Signature = async (
       primaryType,
       types: eip712TypesToAPI(types),
       message: eip712MessageToAPI(message),
-      hash,
-    }
+      hash: hashVal,
+    },
+    hashFunc: 'keccak_256'
   } as Components.Schemas.Signature
 }
 
