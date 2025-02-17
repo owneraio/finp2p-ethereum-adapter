@@ -68,7 +68,7 @@ export const parseTransactionReceipt = (receipt: TransactionReceipt, contractInt
             assetId: parsedLog.args.assetId,
             assetType: parsedLog.args.assetType,
             amount: parsedLog.args.quantity,
-            source: parsedLog.args.sellerFinId,
+            source: parsedLog.args.ownerFinId,
             timestamp: timestamp,
             operationType: 'redeem',
           };

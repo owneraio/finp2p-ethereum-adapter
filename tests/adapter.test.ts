@@ -286,17 +286,17 @@ describe(`token service test`, () => {
       }
     } as Components.Schemas.Source;
 
-    const initialBalance = 100;
+    const issueAmount = 100;
     const setBalanceStatus = await client.tokens.issue({
       nonce: generateNonce().toString('hex'),
       destination: investorSource.account,
-      quantity: `${initialBalance}`,
+      quantity: `${issueAmount}`,
       asset: asset,
     } as Paths.IssueAssets.RequestBody);
     if (!setBalanceStatus.isCompleted) {
       await client.common.waitForReceipt(setBalanceStatus.cid);
     }
-    await client.expectBalance(investorSource, asset, initialBalance);
+    await client.expectBalance(investorSource, asset, issueAmount);
 
     await client.expectBalance(issuerSource, asset, 0);
 
@@ -328,7 +328,7 @@ describe(`token service test`, () => {
     expect(parseFloat(holdReceipt.quantity)).toBeCloseTo(redeemAmount, 4);
     expect(holdReceipt.operationType).toBe('hold');
 
-    await client.expectBalance(investorSource, asset, initialBalance - redeemAmount);
+    await client.expectBalance(investorSource, asset, issueAmount - redeemAmount);
 
     const redeemReceipt = await client.expectReceipt(await client.tokens.redeem({
       nonce: transferNonce,
@@ -345,7 +345,7 @@ describe(`token service test`, () => {
     expect(redeemReceipt.destination).toBeUndefined();
     expect(redeemReceipt.operationType).toBe('redeem');
 
-    await client.expectBalance(issuerSource, asset, redeemAmount);
+    await client.expectBalance(issuerSource, asset, issueAmount - redeemAmount);
   });
 
 

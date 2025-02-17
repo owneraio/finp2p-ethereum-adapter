@@ -158,7 +158,7 @@ export class TokenService extends CommonService {
     }
 
     try {
-      const txHash = await this.finP2PContract.release(operationId, source.finId, quantity);
+      const txHash = await this.finP2PContract.redeem(operationId, source.finId, quantity);
 
       return {
         isCompleted: false,
