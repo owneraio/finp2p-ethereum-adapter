@@ -1,5 +1,11 @@
 import { Signer, TypedDataEncoder, verifyTypedData, Wallet } from "ethers";
 
+
+export const enum Leg {
+  Asset = 1,
+  Settlement = 2
+}
+
 export const enum PrimaryType {
   PrimarySale = 1,
   Buying = 2,
@@ -134,6 +140,9 @@ export const LOAN_TYPES = {
 export interface EIP712Message {
 }
 
+export const term = (assetId: string, assetType: string, amount: string): Term => {
+  return { assetId, assetType, amount };
+}
 
 export interface Term {
   assetId: string,

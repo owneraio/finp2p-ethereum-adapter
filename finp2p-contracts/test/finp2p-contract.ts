@@ -15,8 +15,7 @@ import {
   REDEMPTION_TYPES, SELLING_TYPES,
   PrimaryType,
   EIP712RedemptionMessage,
-  EIP712SellingMessage,
-  sign, finId, newSellingMessage
+  sign, finId, newSellingMessage, Leg, newRedemptionMessage, Term, term
 } from "../src/contracts/eip712";
 import type { FINP2POperatorERC20 } from "../typechain-types";
 
@@ -61,7 +60,7 @@ describe("FinP2P proxy contract test", function() {
       [18, 1.01, 0.6]
     ];
     testCases.forEach(([decimals, issueAmount, transferAmount]) => {
-      it(`issue/transfer/redeem operations (decimals: ${decimals}, issue amount: ${issueAmount}, transfer amount: ${transferAmount}`, async () => {
+      it(`issue/transfer operations (decimals: ${decimals}, issue amount: ${issueAmount}, transfer amount: ${transferAmount}`, async () => {
 
         const assetId = `bank-us:102:${uuid()}`;
         const settlementAsset = "USD";
@@ -92,24 +91,16 @@ describe("FinP2P proxy contract test", function() {
         const buyer = Wallet.createRandom();
         const buyerFinId = getFinId(buyer);
 
-        // const transferAmount = 50;
         const transferSettlementAmount = 450;
         const transferNonce = `${generateNonce().toString('hex')}`;
 
-        const asset = {
-          assetId,
-          assetType: 'finp2p',
-          amount: `${transferAmount.toFixed(decimals)}`
-        };
-        const settlement = {
-          assetId: settlementAsset,
-          assetType: 'fiat',
-          amount: `${transferSettlementAmount.toFixed(decimals)}`
-        };
+        const asset = term(assetId, 'finp2p', `${transferAmount.toFixed(decimals)}`);
+        const settlement = term(settlementAsset, 'fiat', `${transferSettlementAmount.toFixed(decimals)}`);
+
         const transferSignature = await sign(chainId, verifyingContract, SELLING_TYPES,
           newSellingMessage(transferNonce, finId(buyerFinId), finId(sellerFinId), asset, settlement), seller);
 
-        await contract.transfer(transferNonce, sellerFinId, buyerFinId, asset, settlement, PrimaryType.Selling, transferSignature, { from: operator });
+        await contract.transfer(transferNonce, sellerFinId, buyerFinId, asset, settlement, Leg.Asset, PrimaryType.Selling, transferSignature, { from: operator });
         expect(await contract.getBalance(assetId, sellerFinId)).to.equal(`${(issueAmount - transferAmount).toFixed(decimals)}`);
         expect(await contract.getBalance(assetId, buyerFinId)).to.equal(`${transferAmount.toFixed(decimals)}`);
       });
@@ -141,27 +132,15 @@ describe("FinP2P proxy contract test", function() {
         const sellerFinId = getFinId(seller);
 
         const operationId = `0x${uuidv4().replaceAll('-', '')}`;
-        const assetId = `bank-us:102:${uuid()}`;
         const transferAssetAmount = 50;
         const transferNonce = `${generateNonce().toString('hex')}`;
-        const asset = {
-          assetId,
-          assetType: 'finp2p',
-          amount: `${transferAssetAmount.toFixed(decimals)}`
-        };
-        const settlement = {
-          assetId: settlementAsset,
-          assetType: 'fiat',
-          amount: `${transferAmount.toFixed(decimals)}`
-        };
+        const asset = term(`bank-us:102:${uuid()}`, 'finp2p', `${transferAssetAmount.toFixed(decimals)}`);
+        const settlement = term(settlementAsset, 'fiat', `${transferAmount.toFixed(decimals)}`);
         const sellingSignature = await sign(chainId, verifyingContract, SELLING_TYPES,
           newSellingMessage(transferNonce, finId(buyerFinId), finId(sellerFinId), asset, settlement), buyer);
 
-        try {
-          await contract.hold(operationId, transferNonce, sellerFinId, buyerFinId, asset, settlement, PrimaryType.Selling, sellingSignature, { from: operator });
-        } catch (e) {
-          console.log(e)
-        }
+        await contract.hold(operationId, transferNonce, sellerFinId, buyerFinId, asset, settlement, Leg.Settlement, PrimaryType.Selling, sellingSignature, { from: operator });
+
         expect(await contract.getBalance(settlementAsset, buyerFinId)).to.equal(`${(issueAmount - transferAmount).toFixed(decimals)}`);
         const lock = await contract.getLockInfo(operationId);
         expect(lock[0]).to.equal(settlementAsset);
@@ -196,38 +175,25 @@ describe("FinP2P proxy contract test", function() {
         // -----------------------------
 
         const operationId = `0x${uuidv4().replaceAll('-', '')}`;
-        const settlementAsset = 'USD';
 
         const redeemAmount = transferAmount;
         const redeemSettlementAmount = 50;
         const redeemNonce = `${generateNonce().toString('hex')}`;
-        const redemptionSignature = await sign(chainId, verifyingContract, REDEMPTION_TYPES, {
-          nonce: redeemNonce,
-          seller: { idkey: investorFinId },
-          issuer: { idkey: issuerFinId },
-          asset: {
-            assetId,
-            assetType: 'finp2p',
-            amount: `${redeemAmount.toFixed(decimals)}`
-          },
-          settlement: {
-            assetId: settlementAsset,
-            assetType: 'fiat',
-            amount: `${redeemSettlementAmount.toFixed(decimals)}`
-          }
-        } as EIP712RedemptionMessage, investor);
+        const asset = term(assetId, 'finp2p', `${redeemAmount.toFixed(decimals)}`);
+        const settlement = term('USD', 'fiat', `${redeemSettlementAmount.toFixed(decimals)}`);
+        const redemptionSignature = await sign(chainId, verifyingContract, REDEMPTION_TYPES,
+          newRedemptionMessage(redeemNonce, finId(investorFinId), finId(issuerFinId), asset, settlement), investor);
 
-        // await contract.holdAssets(operationId, redeemNonce, assetId, investorFinId, issuerFinId, `${redeemAmount.toFixed(decimals)}`,
-        //   settlementAsset, `${redeemSettlementAmount.toFixed(decimals)}`, /*HashType.EIP712,*/ redemptionSignature, { from: operator });
-        await contract.hold(operationId, redeemNonce, investorFinId, issuerFinId,
-          { assetId: assetId, assetType: 'finp2p', amount: `${redeemAmount.toFixed(decimals)}`},
-          { assetId: settlementAsset, assetType: 'fiat', amount: `${redeemSettlementAmount.toFixed(decimals)}`},
-          PrimaryType.Redemption,
-          redemptionSignature, { from: operator });
+        try {
+          await contract.hold(operationId, redeemNonce, investorFinId, issuerFinId,
+            asset, settlement, Leg.Asset, PrimaryType.Redemption, redemptionSignature, { from: operator });
+        } catch (e) {
+          console.log(e);
+        }
         const lock = await contract.getLockInfo(operationId);
         expect(lock[0]).to.equal(assetId);
         expect(lock[1]).to.equal(investorFinId);
-        expect(lock[2]).to.equal(`${redeemAmount.toFixed(decimals)}`);
+        expect(lock[2]).to.equal(`${transferAmount.toFixed(decimals)}`);
         expect(await contract.getBalance(assetId, investorFinId)).to.equal(`${(issueAmount - redeemAmount).toFixed(decimals)}`);
 
         // -----------------------------
