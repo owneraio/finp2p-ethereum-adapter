@@ -3,7 +3,12 @@ import { FinP2PReceipt } from './model';
 import * as secp256k1 from 'secp256k1';
 
 export const normalizeOperationId = (operationId: string): string => {
-  return `0x${operationId.replaceAll('-', '')}`;
+  // TODO: think about passing a string instead of bytes16 or a betting concatenation
+  if (operationId.includes(':') && operationId.includes('_')) {
+    return `0x${operationId.split(':')[2].split('_')[0].replaceAll('-', '')}`
+  } else {
+    return `0x${operationId.replaceAll('-', '')}`;
+  }
 }
 
 export const privateKeyToFinId = (privateKey: string): string => {
