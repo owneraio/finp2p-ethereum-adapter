@@ -2,8 +2,17 @@ import 'graphql-import-node';
 import { DocumentNode } from 'graphql';
 import GET_OWNERS from './graphql/owners.graphql';
 import GET_ASSET from './graphql/asset.graphql';
+import GET_PAYMENT_ASSET from './graphql/paymentAsset.graphql';
 import * as axios from 'axios';
 import console from 'console';
+
+export type Proof = {
+  type: 'NoProofPolicy'
+} | {
+  type: 'SignatureProofPolicy',
+  verifyingKey: string,
+  signatureTemplate: string
+}
 
 export class OssClient {
 
@@ -61,6 +70,9 @@ export class OssClient {
             name: string,
             provider: string
           }[]
+          policies: {
+            proof: Proof
+          }
           certificates: {
             nodes: {
               id: string,
@@ -73,6 +85,44 @@ export class OssClient {
         }[]
       }
     }>(GET_ASSET, { assetId });
+    return resp.assets.nodes[0];
+  }
+
+
+  async getPaymentAsset(orgId: string, assetCode: string) {
+    const resp = await this.queryOss<{
+      assets: {
+        nodes: {
+          id: string,
+          name: string,
+          type: string,
+          organizationId: string,
+          denomination: {
+            code: string
+          },
+          issuerId: string,
+          config: string,
+          allowedIntents: string[],
+          regulationVerifiers: {
+            id: string,
+            name: string,
+            provider: string
+          }[]
+          policies: {
+            proof: Proof
+          }
+          certificates: {
+            nodes: {
+              id: string,
+              profileId: string,
+              type: string,
+              data: string,
+              expiry: number
+            }[]
+          }
+        }[]
+      }
+    }>(GET_PAYMENT_ASSET, { orgId });
     return resp.assets.nodes[0];
   }
 
