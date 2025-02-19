@@ -2,13 +2,13 @@ import { logger } from '../helpers/logger';
 import { CommonService } from './common';
 import { EthereumTransactionError } from '../../finp2p-contracts/src/contracts/model';
 import { assetFromAPI, extractParameterEIP712, failedTransaction } from "./mapping";
+import { Leg } from "../../finp2p-contracts/src/contracts/eip712";
 
 export class EscrowService extends CommonService {
 
   public async hold(request: Paths.HoldOperation.RequestBody): Promise<Paths.HoldOperation.Responses.$200> {
-    const { operationId, asset, source, destination, quantity, nonce } = request;
+    const { operationId, asset, source, destination, quantity, signature: { signature, template }, nonce } = request;
     const reqAsset = assetFromAPI(asset)
-    const { signature, template } = request.signature;
 
     try {
       const { buyerFinId, sellerFinId, asset, settlement, leg, eip712PrimaryType } = extractParameterEIP712(template, reqAsset);
@@ -32,10 +32,11 @@ export class EscrowService extends CommonService {
   }
 
   public async release(request: Paths.ReleaseOperation.RequestBody): Promise<Paths.ReleaseOperation.Responses.$200> {
-    const { operationId, destination, quantity} = request;
+    const { operationId, destination, asset, quantity } = request;
+    const reqAsset = assetFromAPI(asset)
 
     try {
-      const txHash = await this.finP2PContract.release(operationId, destination.finId, quantity);
+      const txHash = await this.finP2PContract.release(operationId, destination.finId, quantity, Leg.Settlement /* TODO: identify the leg */);
 
       return {
         isCompleted: false,
@@ -55,7 +56,7 @@ export class EscrowService extends CommonService {
     const operationId = request.operationId;
 
     try {
-      const txHash = await this.finP2PContract.rollback(operationId);
+      const txHash = await this.finP2PContract.rollback(operationId, Leg.Settlement /* TODO: identify the leg */);
 
       return {
         isCompleted: false,

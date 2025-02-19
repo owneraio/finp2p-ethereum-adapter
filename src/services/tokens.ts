@@ -1,19 +1,19 @@
-import { CommonService } from './common';
+import { CommonService } from "./common";
 import {
   assetCreationResult,
   assetFromAPI,
-  getRandomNumber,
+  extractParameterEIP712,
   failedAssetCreation,
   failedTransaction,
-  extractParameterEIP712
+  getRandomNumber
 } from "./mapping";
-import { EthereumTransactionError } from '../../finp2p-contracts/src/contracts/model';
-import { logger } from '../helpers/logger';
-import { FinP2PContract } from '../../finp2p-contracts/src/contracts/finp2p';
+import { EthereumTransactionError } from "../../finp2p-contracts/src/contracts/model";
+import { logger } from "../helpers/logger";
+import { FinP2PContract } from "../../finp2p-contracts/src/contracts/finp2p";
+import { isEthereumAddress } from "../../finp2p-contracts/src/contracts/utils";
+import { Leg, term } from "../../finp2p-contracts/src/contracts/eip712";
 import CreateAssetResponse = Components.Schemas.CreateAssetResponse;
 import LedgerTokenId = Components.Schemas.LedgerTokenId;
-import { isEthereumAddress } from "../../finp2p-contracts/src/contracts/utils";
-import { term } from "../../finp2p-contracts/src/contracts/eip712";
 
 export type AssetCreationPolicy =
   | { type: 'deploy-new-token'; decimals: number }
@@ -95,9 +95,8 @@ export class TokenService extends CommonService {
   }
 
   public async issue(request: Paths.IssueAssets.RequestBody): Promise<Paths.IssueAssets.Responses.$200> {
-    const { asset, quantity, destination } = request;
+    const { asset, quantity, destination: { finId: issuerFinId } } = request;
     const { assetId, assetType } = assetFromAPI(asset);
-    const issuerFinId = destination.finId;
 
     let txHash: string;
     try {
@@ -120,21 +119,19 @@ export class TokenService extends CommonService {
   }
 
   public async transfer(request: Paths.TransferAsset.RequestBody): Promise<Paths.TransferAsset.Responses.$200> {
-    const { nonce, asset, quantity, source, destination } = request;
+    const { nonce, asset, quantity, source: { finId: sourceFinId }, destination: { finId: destFinId}, signature: { signature, template } } = request;
     const reqAsset = assetFromAPI(asset);
-    const { signature, template } = request.signature;
 
     try {
       const { buyerFinId, sellerFinId, asset, settlement, leg, eip712PrimaryType } = extractParameterEIP712(template, reqAsset);
-      if (buyerFinId !== destination.finId) {
+      if (buyerFinId !== destFinId) {
         return failedTransaction(1, `Buyer FinId in the signature does not match the destination FinId`);
       }
-      if (sellerFinId !== source.finId) {
+      if (sellerFinId !== sourceFinId) {
         return failedTransaction(1, `Seller FinId in the signature does not match the source FinId`);
       }
 
       const txHash = await this.finP2PContract.transfer(nonce, sellerFinId, buyerFinId, asset, settlement, leg, eip712PrimaryType, signature);
-
       return {
         isCompleted: false,
         cid: txHash,
@@ -152,13 +149,14 @@ export class TokenService extends CommonService {
   }
 
   public async redeem(request: Paths.RedeemAssets.RequestBody): Promise<Paths.RedeemAssets.Responses.$200> {
-    const { operationId, source, quantity} = request;
+    const { operationId, source, asset, quantity } = request;
     if (!operationId) {
       return failedTransaction(1, 'operationId is required');
     }
+    const reqAsset = assetFromAPI(asset);
 
     try {
-      const txHash = await this.finP2PContract.redeem(operationId, source.finId, quantity);
+      const txHash = await this.finP2PContract.redeem(operationId, source.finId, quantity, Leg.Asset /* TODO: identify the leg */);
 
       return {
         isCompleted: false,
