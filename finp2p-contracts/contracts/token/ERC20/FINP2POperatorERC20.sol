@@ -236,7 +236,6 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
         require(leg.source.equals(fromFinId), "Source does not match");
         require(leg.destination.equals(toFinId), "Destination does not match");
 
-//        emit Transfer(assetId, assetType, fromFinId, toFinId, quantity);
         _transfer( Bytes.finIdToAddress(fromFinId), _getEscrow(),assetId, quantity);
         emit Hold(assetId, assetType, fromFinId, quantity, operationId);
 
@@ -300,6 +299,46 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
         _transfer(_getEscrow(), Bytes.finIdToAddress(leg.destination), leg.assetId, leg.amount);
         emit Rollback(leg.assetId, leg.assetType, leg.destination, leg.amount, operationId);
         leg.status = LEG_STATUS_ROLLED_BACK; // TODO: will it change the value in the mapping?
+    }
+
+    function transferProof(
+        bytes16 contextId,
+        string memory id,
+        uint8 legType,
+        bytes memory proofSignature
+    )  public virtual {
+        Leg memory leg = getLeg(contextId, legType);
+        require(verifyReceiptProofSignature(
+            id,
+            leg.source,
+            leg.destination,
+            leg.assetType,
+            leg.assetId,
+            leg.amount,
+            Bytes.finIdToAddress(leg.source),
+            proofSignature
+        ), "Signature is not verified");
+        leg.status = LEG_STATUS_TRANSFERRED; // TODO: will it change the value in the mapping?
+    }
+
+    function holdProof(
+        bytes16 contextId,
+        string memory id,
+        uint8 legType,
+        bytes memory proofSignature
+    )  public virtual {
+        Leg memory leg = getLeg(contextId, legType);
+        require(verifyReceiptProofSignature(
+            id,
+            leg.source,
+            leg.destination,
+            leg.assetType,
+            leg.assetId,
+            leg.amount,
+            Bytes.finIdToAddress(leg.source),
+            proofSignature
+        ), "Signature is not verified");
+        leg.status = LEG_STATUS_WITHHELD; // TODO: will it change the value in the mapping?
     }
 
     function getTokenAmount(address tokenAddress, string memory amount) internal view returns (uint256) {

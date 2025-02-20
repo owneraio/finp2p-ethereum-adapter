@@ -36,6 +36,18 @@ contract FinP2PSignatureVerifier is EIP712 {
         "FinId(string idkey)"
     );
 
+    bytes32 private constant SOURCE_TYPE_HASH = keccak256(
+        "Source(string accountType,string finId)"
+    );
+
+    bytes32 private constant DESTINATION_TYPE_HASH = keccak256(
+        "Destination(string accountType,string finId)"
+    );
+
+    bytes32 private constant ASSET_TYPE_HASH = keccak256(
+        "Asset(string assetId,string assetType)"
+    );
+
     bytes32 private constant TERM_TYPE_HASH = keccak256(
         "Term(string assetId,string assetType,string amount)"
     );
@@ -73,6 +85,11 @@ contract FinP2PSignatureVerifier is EIP712 {
         "Loan(string nonce,FinId borrower,FinId lender,Term asset,Term settlement,LoanTerms loanTerms)FinId(string idkey)LoanTerms(string openTime,string closeTime,string borrowedMoneyAmount,string returnedMoneyAmount)Term(string assetId,string assetType,string amount)"
     );
 
+
+    bytes32 private constant RECEIPT_TYPE_HASH = keccak256(
+        "Receipt(string id,Source source,Destination destination,Asset asset,string quantity)Asset(string assetId,string assetType)Destination(string accountType,string finId)Source(string accountType,string finId)"
+    );
+
     struct Term {
         string assetId;
         string assetType;
@@ -87,19 +104,6 @@ contract FinP2PSignatureVerifier is EIP712 {
     }
 
     constructor() EIP712(SIGNING_DOMAIN, SIGNATURE_VERSION) {}
-
-    function verifyPrimarySaleSignature(
-        string memory nonce,
-        string memory buyerFinId,
-        string memory issuerFinId,
-        Term memory asset,
-        Term memory settlement,
-        address signer,
-        bytes memory signature
-    ) public view returns (bool) {
-        bytes32 hash = hashPrimarySale(nonce, buyerFinId, issuerFinId, asset, settlement);
-        return Signature.verify(signer, hash, signature);
-    }
 
     function verifyInvestorSignature(
         string memory nonce,
@@ -138,11 +142,49 @@ contract FinP2PSignatureVerifier is EIP712 {
         return Signature.verify(signer, hash, signature);
     }
 
+    function verifyReceiptProofSignature(
+        string memory id,
+        string memory source,
+        string memory destination,
+        string memory assetType,
+        string memory assetId,
+        string memory quantity,
+        address signer,
+        bytes memory signature
+    ) public view returns (bool) {
+        bytes32 hash = hashReceipt(id, source, destination, assetType, assetId, quantity);
+        return Signature.verify(signer, hash, signature);
+    }
+
 
     // --------------------------------------------------------------------------------------
 
     function hashFinId(string memory finId) public pure returns (bytes32) {
         return keccak256(abi.encode(FINID_TYPE_HASH, keccak256(bytes(finId))));
+    }
+
+    function hashSource(string memory accountType, string memory finId) public pure returns (bytes32) {
+        return keccak256(abi.encode(
+            SOURCE_TYPE_HASH,
+            keccak256(bytes(accountType)),
+            keccak256(bytes(finId))
+        ));
+    }
+
+    function hashDestination(string memory accountType, string memory finId) public pure returns (bytes32) {
+        return keccak256(abi.encode(
+            DESTINATION_TYPE_HASH,
+            keccak256(bytes(accountType)),
+            keccak256(bytes(finId))
+        ));
+    }
+
+    function hashAsset(string memory assetId, string memory assetType) public pure returns (bytes32) {
+        return keccak256(abi.encode(
+            TERM_TYPE_HASH,
+            keccak256(bytes(assetId)),
+            keccak256(bytes(assetType))
+        ));
     }
 
     function hashTerm(Term memory term) public pure returns (bytes32) {
@@ -283,5 +325,22 @@ contract FinP2PSignatureVerifier is EIP712 {
         )));
     }
 
+    function hashReceipt(
+        string memory id,
+        string memory source,
+        string memory destination,
+        string memory assetType,
+        string memory assetId,
+        string memory quantity
+    ) public view returns (bytes32) {
+        return _hashTypedDataV4(keccak256(abi.encode(
+            RECEIPT_TYPE_HASH,
+            keccak256(bytes(id)),
+            hashSource('finp2p', source),
+            hashDestination('finp2p', destination),
+            hashAsset(assetId, assetType),
+            keccak256(bytes(quantity))
+        )));
+    }
 
 }
