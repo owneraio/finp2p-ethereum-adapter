@@ -101,7 +101,7 @@ contract FinP2PSignatureVerifier is EIP712 {
         return Signature.verify(signer, hash, signature);
     }
 
-    function verifyTransferSignature(
+    function verifyInvestorSignature(
         string memory nonce,
         string memory buyerFinId,
         string memory sellerFinId,
