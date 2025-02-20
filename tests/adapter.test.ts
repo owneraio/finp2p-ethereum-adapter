@@ -15,8 +15,8 @@ describe(`token service test`, () => {
   let client: APIClient;
   let orgId: string;
   let hashFunction: string;
-  const chainId = 1337;
-  const verifyingContract = '0x5FbDB2315678afecb367f032d93F642f64180aa3';
+  const chainId = 1;
+  const  verifyingContract = '0xCcCCccccCCCCcCCCCCCcCcCccCcCCCcCcccccccC';
 
   beforeAll(async () => {
     // @ts-ignore
