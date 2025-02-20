@@ -12,10 +12,11 @@ import { getFinId } from "../src/contracts/utils";
 import { Signer, Wallet } from "ethers";
 import {
   REDEMPTION_TYPES, SELLING_TYPES,
-  Leg, PrimaryType,
-  sign, finId, newSellingMessage,  newRedemptionMessage, term
+  LegType, PrimaryType,
+  sign, finId, newSellingMessage, newRedemptionMessage, term, leg
 } from "../src/contracts/eip712";
 import type { FINP2POperatorERC20 } from "../typechain-types";
+import LegStruct = FINP2POperatorERC20.LegStruct;
 
 
 describe("FinP2P proxy contract test", function() {
@@ -76,7 +77,22 @@ describe("FinP2P proxy contract test", function() {
         expect(await contract.getBalance(assetId, issuerFinId)).to.equal(`${(0).toFixed(decimals)}`);
         expect(await contract.getBalance(assetId, issueBuyerFinId)).to.equal(`${(0).toFixed(decimals)}`);
 
-        await contract.issue(issuerFinId, term(assetId, 'finp2p', `${issueAmount.toFixed(decimals)}`), { from: operator });
+        const contextId = `0x${uuidv4().replaceAll('-', '')}`;
+        // bytes16 contextId,
+        //         uint8 legType,
+        //         string memory toFinId,
+        //         string memory assetId,
+        //         string memory assetType,
+        //         string memory quantity
+
+        await contract.createDVDContext(contextId,
+          leg(assetId, 'finp2p', '', issuerFinId, `${issueAmount.toFixed(decimals)}`),
+          leg(settlementAsset, 'fiat', issueBuyerFinId, issuerFinId, `${issueAmount.toFixed(decimals)}`), { from: operator }
+        );
+        // await contract.provideInvestorSignature()
+
+        await contract.issue(contextId, LegType.Asset, issuerFinId, assetId, 'finp2p', `${issueAmount.toFixed(decimals)}`, { from: operator });
+        // await contract.issue(contextId, Leg.Asset, issuerFinId, term(assetId, 'finp2p', `${issueAmount.toFixed(decimals)}`), { from: operator });
 
         expect(await contract.getBalance(assetId, issueBuyerFinId)).to.equal(`${(0).toFixed(decimals)}`);
         expect(await contract.getBalance(assetId, issuerFinId)).to.equal(`${issueAmount.toFixed(decimals)}`);
@@ -97,7 +113,7 @@ describe("FinP2P proxy contract test", function() {
         const transferSignature = await sign(chainId, verifyingContract, SELLING_TYPES,
           newSellingMessage(transferNonce, finId(buyerFinId), finId(sellerFinId), asset, settlement), seller);
 
-        await contract.transfer(transferNonce, sellerFinId, buyerFinId, asset, settlement, Leg.Asset, PrimaryType.Selling, transferSignature, { from: operator });
+        await contract.transfer(transferNonce, sellerFinId, buyerFinId, asset, settlement, LegType.Asset, PrimaryType.Selling, transferSignature, { from: operator });
         expect(await contract.getBalance(assetId, sellerFinId)).to.equal(`${(issueAmount - transferAmount).toFixed(decimals)}`);
         expect(await contract.getBalance(assetId, buyerFinId)).to.equal(`${transferAmount.toFixed(decimals)}`);
       });
@@ -137,7 +153,7 @@ describe("FinP2P proxy contract test", function() {
         const sellingSignature = await sign(chainId, verifyingContract, SELLING_TYPES,
           newSellingMessage(transferNonce, finId(buyerFinId), finId(sellerFinId), asset, settlement), buyer);
 
-        await contract.hold(operationId, transferNonce, sellerFinId, buyerFinId, asset, settlement, Leg.Settlement, PrimaryType.Selling, sellingSignature, { from: operator });
+        await contract.hold(operationId, transferNonce, sellerFinId, buyerFinId, asset, settlement, LegType.Settlement, PrimaryType.Selling, sellingSignature, { from: operator });
 
         expect(await contract.getBalance(settlementAsset, buyerFinId)).to.equal(`${(issueAmount - transferAmount).toFixed(decimals)}`);
         // const lock = await contract.getLockInfo(operationId);
@@ -148,7 +164,7 @@ describe("FinP2P proxy contract test", function() {
 
         // -----------------------------
 
-        await contract.release(operationId, sellerFinId, `${transferAmount.toFixed(decimals)}`, Leg.Settlement, { from: operator });
+        await contract.release(operationId, sellerFinId, `${transferAmount.toFixed(decimals)}`, LegType.Settlement, { from: operator });
         expect(await contract.getBalance(settlementAsset, sellerFinId)).to.equal(`${transferAmount.toFixed(decimals)}`);
         expect(await contract.getBalance(settlementAsset, buyerFinId)).to.equal(`${(issueAmount - transferAmount).toFixed(decimals)}`);
         // await expect(contract.getLockInfo(operationId)).to.be.revertedWith('Lock not found'); // TODO update chai
@@ -184,7 +200,7 @@ describe("FinP2P proxy contract test", function() {
           newRedemptionMessage(redeemNonce, finId(issuerFinId), finId(investorFinId), asset, settlement), investor);
 
         await contract.hold(operationId, redeemNonce, investorFinId, issuerFinId,
-          asset, settlement, Leg.Asset, PrimaryType.Redemption, redemptionSignature, { from: operator });
+          asset, settlement, LegType.Asset, PrimaryType.Redemption, redemptionSignature, { from: operator });
         // const lock = await contract.getLockInfo(operationId);
         // expect(lock[0]).to.equal(assetId);
         // expect(lock[1]).to.equal('finp2p');
@@ -193,7 +209,7 @@ describe("FinP2P proxy contract test", function() {
         expect(await contract.getBalance(assetId, investorFinId)).to.equal(`${(issueAmount - redeemAmount).toFixed(decimals)}`);
 
         // -----------------------------
-        await contract.redeem(operationId, investorFinId, `${redeemAmount.toFixed(decimals)}`, Leg.Asset, { from: operator });
+        await contract.redeem(operationId, investorFinId, `${redeemAmount.toFixed(decimals)}`, LegType.Asset, { from: operator });
         expect(await contract.getBalance(assetId, investorFinId)).to.equal(`${(issueAmount - redeemAmount).toFixed(decimals)}`);
         // await expect(contract.getLockInfo(operationId)).to.be.revertedWith('Lock not found'); // TODO update chai
       });

@@ -48,6 +48,14 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
     uint8 public constant LEG_STATUS_ROLLED_BACK = 3;
     uint8 public constant LEG_STATUS_TRANSFERRED = 4;
 
+    struct NewLeg {
+        string assetId;
+        string assetType;
+        string source;
+        string destination;
+        string amount;
+    }
+
     struct Leg {
         string assetId;
         string assetType;
@@ -121,9 +129,12 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
 
     function createDVDContext(
         bytes16 contextId,
-        Leg memory asset,
-        Leg memory settlement) public virtual {
-        contexts[contextId] = DVPContext(asset,settlement);
+        NewLeg memory asset,
+        NewLeg memory settlement) public virtual {
+        contexts[contextId] = DVPContext(
+            Leg(asset.assetId, asset.assetType, asset.source, asset.destination, asset.amount, LEG_STATUS_CREATED, false, 0),
+            Leg(settlement.assetId, settlement.assetType, settlement.source, settlement.destination, settlement.amount, LEG_STATUS_CREATED, false, 0)
+        );
     }
 
     function provideInvestorSignature(

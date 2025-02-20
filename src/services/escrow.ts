@@ -2,7 +2,7 @@ import { logger } from '../helpers/logger';
 import { CommonService } from './common';
 import { EthereumTransactionError } from '../../finp2p-contracts/src/contracts/model';
 import { assetFromAPI, extractParameterEIP712, failedTransaction } from "./mapping";
-import { Leg } from "../../finp2p-contracts/src/contracts/eip712";
+import { LegType } from "../../finp2p-contracts/src/contracts/eip712";
 
 export class EscrowService extends CommonService {
 
@@ -36,7 +36,7 @@ export class EscrowService extends CommonService {
     const reqAsset = assetFromAPI(asset)
 
     try {
-      const txHash = await this.finP2PContract.release(operationId, destination.finId, quantity, Leg.Settlement /* TODO: identify the leg */);
+      const txHash = await this.finP2PContract.release(operationId, destination.finId, quantity, LegType.Settlement /* TODO: identify the leg */);
 
       return {
         isCompleted: false,
@@ -56,7 +56,7 @@ export class EscrowService extends CommonService {
     const operationId = request.operationId;
 
     try {
-      const txHash = await this.finP2PContract.rollback(operationId, Leg.Settlement /* TODO: identify the leg */);
+      const txHash = await this.finP2PContract.rollback(operationId, LegType.Settlement /* TODO: identify the leg */);
 
       return {
         isCompleted: false,

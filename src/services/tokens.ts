@@ -11,7 +11,7 @@ import { EthereumTransactionError } from "../../finp2p-contracts/src/contracts/m
 import { logger } from "../helpers/logger";
 import { FinP2PContract } from "../../finp2p-contracts/src/contracts/finp2p";
 import { isEthereumAddress } from "../../finp2p-contracts/src/contracts/utils";
-import { Leg, term } from "../../finp2p-contracts/src/contracts/eip712";
+import { LegType, term } from "../../finp2p-contracts/src/contracts/eip712";
 import CreateAssetResponse = Components.Schemas.CreateAssetResponse;
 import LedgerTokenId = Components.Schemas.LedgerTokenId;
 
@@ -156,7 +156,7 @@ export class TokenService extends CommonService {
     const reqAsset = assetFromAPI(asset);
 
     try {
-      const txHash = await this.finP2PContract.redeem(operationId, source.finId, quantity, Leg.Asset /* TODO: identify the leg */);
+      const txHash = await this.finP2PContract.redeem(operationId, source.finId, quantity, LegType.Asset /* TODO: identify the leg */);
 
       return {
         isCompleted: false,
