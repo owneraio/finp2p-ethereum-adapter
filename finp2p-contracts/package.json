@@ -15,8 +15,7 @@
     "associate-asset": "node dist/scripts/associate.js",
     "generate-wallet": "node dist/scripts/generate-wallet.js",
     "erc20-approve": "node dist/scripts/erc20-approve.js",
-    "amend-asset": "node dist/scripts/amend-asset.js",
-    "dtcc": "ts-node scripts/dtcc.ts"
+    "amend-asset": "node dist/scripts/amend-asset.js"
   },
   "keywords": [],
   "author": "",
