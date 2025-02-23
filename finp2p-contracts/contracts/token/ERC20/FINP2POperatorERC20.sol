@@ -164,6 +164,17 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
         }
     }
 
+    function transferWithoutSignature(
+        string memory source,
+        string memory destination,
+        string memory assetId,
+        string memory assetType,
+        string memory amount
+    ) public virtual {
+        _transfer(Bytes.finIdToAddress(source), Bytes.finIdToAddress(destination), assetId, amount);
+        emit Transfer(assetId, assetType, source, destination, amount);
+    }
+
     function hold(
         bytes16 operationId,
         string memory nonce,
@@ -209,6 +220,18 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
         } else {
             revert("Invalid leg");
         }
+    }
+
+    function holdWithoutVerification(
+        bytes16 operationId,
+        string memory source,
+        string memory assetId,
+        string memory assetType,
+        string memory amount
+    ) public virtual {
+        _transfer( Bytes.finIdToAddress(source), _getEscrow(),assetId, amount);
+        locks[operationId] = Lock(assetId, assetType, source,amount);
+        emit Hold(assetId, assetType, source, amount, operationId);
     }
 
     function release(bytes16 operationId, string memory toFinId, string memory quantity) public virtual {

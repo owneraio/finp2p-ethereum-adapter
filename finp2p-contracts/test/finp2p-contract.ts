@@ -47,8 +47,7 @@ describe("FinP2P proxy contract test", function() {
     before(async () => {
       [operator] = await ethers.getSigners();
       ({ contract, address: finP2PAddress } = await loadFixture(deployFinP2PProxyFixture));
-      chainId = 1n;
-      verifyingContract = '0xCcCCccccCCCCcCCCCCCcCcCccCcCCCcCcccccccC';
+      ({ chainId, verifyingContract } = await contract.eip712Domain());
     });
 
     const testCases: [number, number, number][] = [ // [decimals, issueAmount, transferAmount, redeemAmount]
@@ -106,6 +105,8 @@ describe("FinP2P proxy contract test", function() {
       it(`hold/release/rollback operations (decimals: ${decimals}, issue amount: ${issueAmount}, transfer amount: ${transferAmount})`, async () => {
         const [operator] = await ethers.getSigners();
         const { contract, address: finP2PAddress } = await loadFixture(deployFinP2PProxyFixture);
+
+        const { chainId, verifyingContract } = await contract.eip712Domain();
 
         const settlementAsset = 'USD';
 
