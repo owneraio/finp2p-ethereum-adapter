@@ -111,6 +111,16 @@ export class FinP2PContract extends ContractsManager {
     return this.finP2P.getBalance(assetId, finId);
   }
 
+  async hasRole(role: string, address: string) {
+    return this.finP2P.hasRole(role, address);
+  }
+
+  async grantTransactionManagerRoleTo(to: string) {
+    await this.finP2P.grantTransactionManagerRole(to);
+  }
+
+
+
   async getOperationStatus(hash: string): Promise<OperationStatus> {
     const txReceipt = await this.provider.getTransactionReceipt(hash);
     if (txReceipt === null) {
