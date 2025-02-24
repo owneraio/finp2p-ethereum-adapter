@@ -41,7 +41,7 @@ contract ERC20WithOperator is Context, IERC20, IERC20Metadata, Mintable, Burnabl
      * construction.
      */
     constructor(string memory name_, string memory symbol_, uint8 decimals_, address operator) {
-        _grantRole(DEFAULT_ADMIN_ROLE, operator);
+        _grantRole(DEFAULT_ADMIN_ROLE, _msgSender()); // ERC20 deployer is a master admin
         _grantRole(MINTER_ROLE, operator);
         _grantRole(OPERATOR_ROLE, operator);
 

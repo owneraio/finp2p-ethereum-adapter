@@ -2,9 +2,9 @@ import 'graphql-import-node';
 import { DocumentNode } from 'graphql';
 import GET_OWNERS from './graphql/owners.graphql';
 import GET_ASSET from './graphql/asset.graphql';
+import GET_ALL_ASSETS from './graphql/all-assets.graphql';
 import GET_PAYMENT_ASSET from './graphql/paymentAsset.graphql';
 import * as axios from 'axios';
-import console from 'console';
 
 export type Proof = {
   type: 'NoProofPolicy'
@@ -124,6 +124,17 @@ export class OssClient {
       }
     }>(GET_PAYMENT_ASSET, { orgId });
     return resp.assets.nodes[0];
+  }
+
+  async getAllAssetIds() {
+    const resp = await this.queryOss<{
+      assets: {
+        nodes: {
+          id: string,
+        }[]
+      }
+    }>(GET_ALL_ASSETS, {});
+    return resp.assets.nodes.map(asset => asset.id);
   }
 
   async queryOss<T>(queryDoc: DocumentNode, variables: Record<string, any>): Promise<T> {

@@ -8,9 +8,6 @@ import createApp from '../src/app';
 import { addressFromPrivateKey } from '../finp2p-contracts/src/contracts/utils';
 import process from 'process';
 import http from 'http';
-import { RegulationChecker } from '../src/finp2p/regulation';
-import { OssClient } from '../src/finp2p/oss.client';
-import { generateAuthorizationHeader } from './utils';
 import { Provider, Signer } from "ethers";
 import { createProviderAndSigner, ProviderType } from "../finp2p-contracts/src/contracts/config";
 import { AssetCreationPolicy } from "../src/services/tokens";
@@ -65,12 +62,7 @@ const startApp = async (port: number, provider: Provider, signer: Signer, finP2P
     tokenAddress,
   } as AssetCreationPolicy;
 
-  const orgId = 'bank-il';
-  const authTokenResolver = () => { return generateAuthorizationHeader(orgId); };
-  const ossClient = new OssClient(`http://${orgId}.api.local.ownera.io/oss/query`, authTokenResolver);
-  const regChecker = new RegulationChecker(ossClient);
-
-  const app = createApp(finP2PContract, assetCreationPolicy, regChecker);
+  const app = createApp(finP2PContract, assetCreationPolicy);
   console.log('App created successfully.');
 
   httpServer = app.listen(port, () => {
