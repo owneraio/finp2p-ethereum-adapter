@@ -13,7 +13,7 @@ import {
 import { normalizeOperationId, parseTransactionReceipt } from "./utils";
 import { ContractsManager } from './manager';
 import console from 'console';
-import { Leg, PrimaryType, Term } from "./eip712";
+import { LegType, PrimaryType, Term } from "./eip712";
 
 export class FinP2PContract extends ContractsManager {
 
@@ -58,7 +58,7 @@ export class FinP2PContract extends ContractsManager {
   }
 
   async transfer(nonce: string, sellerFinId: string, buyerFinId: string,
-                 asset: Term, settlement: Term, leg: Leg, eip712PrimaryType: PrimaryType, signature: string) {
+                 asset: Term, settlement: Term, leg: LegType, eip712PrimaryType: PrimaryType, signature: string) {
     return this.safeExecuteTransaction(async (finP2P: FINP2POperatorERC20) => {
       return finP2P.transfer(
         nonce, sellerFinId, buyerFinId, asset, settlement, leg, eip712PrimaryType, `0x${signature}`);
@@ -66,31 +66,31 @@ export class FinP2PContract extends ContractsManager {
   }
 
   async hold(operationId: string, nonce: string, sellerFinId: string, buyerFinId: string,
-                   asset: Term, settlement: Term, leg: Leg, eip712PrimaryType: PrimaryType, signature: string) {
+             asset: Term, settlement: Term, leg: LegType, eip712PrimaryType: PrimaryType, signature: string) {
     const opId = normalizeOperationId(operationId);
     return this.safeExecuteTransaction(async (finP2P: FINP2POperatorERC20) => {
       return finP2P.hold(opId, nonce, sellerFinId, buyerFinId, asset, settlement, leg, eip712PrimaryType, `0x${signature}`);
     });
   }
 
-  async release(operationId: string, buyerFinId: string, quantity: string) {
+  async release(operationId: string, buyerFinId: string, quantity: string, leg: LegType) {
     const opId = normalizeOperationId(operationId);
     return this.safeExecuteTransaction(async (finP2P: FINP2POperatorERC20) => {
-      return finP2P.release(opId, buyerFinId, quantity);
+      return finP2P.release(opId, buyerFinId, quantity, leg);
     });
   }
 
-  async redeem(operationId: string, ownerFinId: string, quantity: string) {
+  async redeem(operationId: string, ownerFinId: string, quantity: string, leg: LegType) {
     const opId = normalizeOperationId(operationId);
     return this.safeExecuteTransaction(async (finP2P: FINP2POperatorERC20) => {
-      return finP2P.redeem(opId, ownerFinId, quantity);
+      return finP2P.redeem(opId, ownerFinId, quantity, leg);
     });
   }
 
-  async rollback(operationId: string) {
+  async rollback(operationId: string, leg: LegType) {
     const opId = normalizeOperationId(operationId);
     return this.safeExecuteTransaction(async (finP2P: FINP2POperatorERC20) => {
-      return finP2P.rollback(opId);
+      return finP2P.rollback(opId, leg);
     });
   }
 
