@@ -3,7 +3,12 @@ import { FinP2PReceipt } from './model';
 import * as secp256k1 from 'secp256k1';
 
 export const normalizeOperationId = (operationId: string): string => {
-  return `0x${operationId.replaceAll('-', '')}`;
+  // TODO: think about passing a string instead of bytes16 or a betting concatenation
+  if (operationId.includes(':') && operationId.includes('_')) {
+    return `0x${operationId.split(':')[2].split('_')[0].replaceAll('-', '')}`
+  } else {
+    return `0x${operationId.replaceAll('-', '')}`;
+  }
 }
 
 export const privateKeyToFinId = (privateKey: string): string => {
@@ -45,7 +50,7 @@ export const parseTransactionReceipt = (receipt: TransactionReceipt, contractInt
           return {
             id: id,
             assetId: parsedLog.args.assetId,
-            assetType: 'finp2p',
+            assetType: parsedLog.args.assetType,
             amount: parsedLog.args.quantity,
             destination: parsedLog.args.issuerFinId,
             timestamp: timestamp,
@@ -55,7 +60,7 @@ export const parseTransactionReceipt = (receipt: TransactionReceipt, contractInt
           return {
             id: id,
             assetId: parsedLog.args.assetId,
-            assetType: 'finp2p',
+            assetType: parsedLog.args.assetType,
             amount: parsedLog.args.quantity,
             source: parsedLog.args.sourceFinId,
             destination: parsedLog.args.destinationFinId,
@@ -66,9 +71,9 @@ export const parseTransactionReceipt = (receipt: TransactionReceipt, contractInt
           return {
             id: id,
             assetId: parsedLog.args.assetId,
-            assetType: 'finp2p',
+            assetType: parsedLog.args.assetType,
             amount: parsedLog.args.quantity,
-            source: parsedLog.args.sellerFinId,
+            source: parsedLog.args.ownerFinId,
             timestamp: timestamp,
             operationType: 'redeem',
           };
@@ -76,7 +81,7 @@ export const parseTransactionReceipt = (receipt: TransactionReceipt, contractInt
           return {
             id: id,
             assetId: parsedLog.args.assetId,
-            assetType: 'fiat',
+            assetType: parsedLog.args.assetType,
             amount: parsedLog.args.quantity,
             source: parsedLog.args.finId,
             timestamp: timestamp,
@@ -86,7 +91,7 @@ export const parseTransactionReceipt = (receipt: TransactionReceipt, contractInt
           return {
             id: id,
             assetId: parsedLog.args.assetId,
-            assetType: 'fiat',
+            assetType: parsedLog.args.assetType,
             amount: parsedLog.args.quantity,
             source: parsedLog.args.sourceFinId,
             destination: parsedLog.args.destinationFinId,

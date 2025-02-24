@@ -1,22 +1,19 @@
 import { logger } from '../helpers/logger';
 import { CommonService } from './common';
 import { EthereumTransactionError } from '../../finp2p-contracts/src/contracts/model';
-import { extractAssetId, failedTransaction, holdParameterFromTemplate } from "./mapping";
+import { assetFromAPI, extractParameterEIP712, failedTransaction } from "./mapping";
 
 export class EscrowService extends CommonService {
 
   public async hold(request: Paths.HoldOperation.RequestBody): Promise<Paths.HoldOperation.Responses.$200> {
-    const { operationId, asset, source,
-      destination, quantity, nonce } = request;
-    const settlementAsset = extractAssetId(asset);
-    const buyerFinId = source.finId;
-    const sellerFinId = destination?.finId || '';
+    const { operationId, asset, source, destination, quantity, nonce } = request;
+    const reqAsset = assetFromAPI(asset)
     const { signature, template } = request.signature;
 
     try {
-      const {/* hashType,*/ amount, asset } = holdParameterFromTemplate(template);
-      const txHash = await this.finP2PContract.hold(operationId, nonce, asset, sellerFinId, buyerFinId, amount,
-        settlementAsset, quantity, /*hashType,*/ signature);
+      const { buyerFinId, sellerFinId, asset, settlement, leg, eip712PrimaryType } = extractParameterEIP712(template, reqAsset);
+      const txHash =  await this.finP2PContract.hold(operationId, nonce,
+        sellerFinId, buyerFinId, asset, settlement, leg, eip712PrimaryType, signature);
 
       return {
         isCompleted: false,
@@ -32,15 +29,13 @@ export class EscrowService extends CommonService {
         return failedTransaction(1, `${e}`);
       }
     }
-
   }
 
   public async release(request: Paths.ReleaseOperation.RequestBody): Promise<Paths.ReleaseOperation.Responses.$200> {
-    const operationId = request.operationId;
-    const buyerFinId = request.destination.finId;
+    const { operationId, destination, quantity} = request;
 
     try {
-      const txHash = await this.finP2PContract.release(operationId, buyerFinId);
+      const txHash = await this.finP2PContract.release(operationId, destination.finId, quantity);
 
       return {
         isCompleted: false,

@@ -2,8 +2,6 @@ import { logger } from './helpers/logger';
 import { FinP2PContract } from '../finp2p-contracts/src/contracts/finp2p';
 import * as process from 'process';
 import createApp from './app';
-import { RegulationChecker } from './finp2p/regulation';
-import { OssClient } from './finp2p/oss.client';
 import { AssetCreationPolicy } from "./services/tokens";
 import {
   createProviderAndSigner,
@@ -40,14 +38,6 @@ const createAssetCreationPolicy = async (contractManager: FinP2PContract | undef
   }
 }
 
-const createRegulation = (ossUrl: string | undefined): RegulationChecker | undefined => {
-  if (ossUrl) {
-    logger.info(`Turning on regulation checks with OSS URL: '${ossUrl}', no auth`);
-    return  new RegulationChecker(new OssClient(ossUrl, undefined));
-  }
-  return undefined;
-}
-
 
 const init = async () => {
   const port = process.env.PORT || '3000';
@@ -65,16 +55,13 @@ const init = async () => {
   }
   const providerType = (process.env.PROVIDER_TYPE || 'local') as ProviderType;
 
-  const ossUrl = process.env.OSS_URL;
-
   const { provider, signer } = await createProviderAndSigner(providerType);
   const finp2pContract = new FinP2PContract(provider, signer, finP2PContractAddress);
   const assetCreationPolicy = await createAssetCreationPolicy(finp2pContract);
 
   createApp(
     finp2pContract,
-    assetCreationPolicy,
-    createRegulation(ossUrl)
+    assetCreationPolicy
   ).listen(port, () => {
     logger.info(`listening at http://localhost:${port}`);
   });

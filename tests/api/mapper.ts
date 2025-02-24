@@ -1,8 +1,8 @@
 
 import {
-  eip712Hash,
+  hash,
   EIP712Message,
-  eip712SignWithPrivateKey,
+  signWithPrivateKey,
   TypedDataField
 } from "../../finp2p-contracts/src/contracts/eip712";
 
@@ -14,8 +14,8 @@ export const eip712Signature = async (
   message: EIP712Message,
   signerPrivateKey: string
 ) => {
-  const hash = eip712Hash(chainId, verifyingContract, types, message)
-  const signature = await eip712SignWithPrivateKey(chainId, verifyingContract, types, message, signerPrivateKey);
+  const hashVal = hash(chainId, verifyingContract, types, message)
+  const signature = await signWithPrivateKey(chainId, verifyingContract, types, message, signerPrivateKey);
   return {
     signature: signature.replace('0x', ''),
     template: {
@@ -29,8 +29,9 @@ export const eip712Signature = async (
       primaryType,
       types: eip712TypesToAPI(types),
       message: eip712MessageToAPI(message),
-      hash,
-    }
+      hash: hashVal,
+    },
+    hashFunc: 'keccak_256'
   } as Components.Schemas.Signature
 }
 

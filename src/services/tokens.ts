@@ -1,19 +1,19 @@
 import { CommonService } from './common';
 import {
   assetCreationResult,
-  extractAssetId,
+  assetFromAPI,
   getRandomNumber,
   failedAssetCreation,
   failedTransaction,
-  redeemParameterFromTemplate, transferParameterFromTemplate
+  extractParameterEIP712
 } from "./mapping";
 import { EthereumTransactionError } from '../../finp2p-contracts/src/contracts/model';
 import { logger } from '../helpers/logger';
 import { FinP2PContract } from '../../finp2p-contracts/src/contracts/finp2p';
-import { RegulationChecker } from '../finp2p/regulation';
 import CreateAssetResponse = Components.Schemas.CreateAssetResponse;
 import LedgerTokenId = Components.Schemas.LedgerTokenId;
 import { isEthereumAddress } from "../../finp2p-contracts/src/contracts/utils";
+import { term } from "../../finp2p-contracts/src/contracts/eip712";
 
 export type AssetCreationPolicy =
   | { type: 'deploy-new-token'; decimals: number }
@@ -24,16 +24,13 @@ export class TokenService extends CommonService {
 
   assetCreationPolicy: AssetCreationPolicy;
 
-  regulation: RegulationChecker | undefined;
-
-  constructor(finP2PContract: FinP2PContract, assetCreationPolicy: AssetCreationPolicy, regulation: RegulationChecker | undefined) {
+  constructor(finP2PContract: FinP2PContract, assetCreationPolicy: AssetCreationPolicy) {
     super(finP2PContract);
     this.assetCreationPolicy = assetCreationPolicy;
-    this.regulation = regulation;
   }
 
   public async createAsset(request: Paths.CreateAsset.RequestBody): Promise<Paths.CreateAsset.Responses.$200> {
-    const assetId = extractAssetId(request.asset);
+    const { assetId } = assetFromAPI(request.asset);
     try {
 
       if (request.ledgerAssetBinding) {
@@ -99,23 +96,13 @@ export class TokenService extends CommonService {
 
   public async issue(request: Paths.IssueAssets.RequestBody): Promise<Paths.IssueAssets.Responses.$200> {
     const { asset, quantity, destination } = request;
-    const assetId = extractAssetId(asset);
+    const { assetId, assetType } = assetFromAPI(asset);
     const issuerFinId = destination.finId;
-
-    if (this.regulation) {
-      const error = await this.regulation.doRegulationCheck(destination.finId, assetId);
-      if (error) {
-        return {
-          isCompleted: true,
-          error,
-        } as Components.Schemas.ReceiptOperation;
-      }
-    }
 
     let txHash: string;
     try {
       logger.info(`Issue asset ${assetId} to ${issuerFinId} with amount ${quantity}`);
-      txHash = await this.finP2PContract.issue(assetId, issuerFinId, quantity);
+      txHash = await this.finP2PContract.issue(issuerFinId, term(assetId, assetType, quantity));
 
     } catch (e) {
       logger.error(`Error on asset issuance: ${e}`);
@@ -134,27 +121,20 @@ export class TokenService extends CommonService {
 
   public async transfer(request: Paths.TransferAsset.RequestBody): Promise<Paths.TransferAsset.Responses.$200> {
     const { nonce, asset, quantity, source, destination } = request;
-    const assetId = extractAssetId(asset);
-    const { finId : sellerFinId } = source;
-    const { finId : buyerFinId } = destination;
+    const reqAsset = assetFromAPI(asset);
     const { signature, template } = request.signature;
 
-    if (this.regulation) {
-      const buyerFinId = request.destination.finId;
-      const error = await this.regulation.doRegulationCheck(buyerFinId, assetId);
-      if (error) {
-        return {
-          isCompleted: true,
-          error,
-        } as Components.Schemas.ReceiptOperation;
-      }
-    }
     try {
-      const { eip712PrimaryType, hashType, settlementAmount, settlementAsset } = transferParameterFromTemplate(template);
-      logger.info(`Transfer asset ${assetId} from ${sellerFinId} to ${buyerFinId} with amount ${quantity} and settlement ${settlementAmount} ${settlementAsset}, hashType: ${template.type}`);
+      const { buyerFinId, sellerFinId, asset, settlement, leg, eip712PrimaryType } = extractParameterEIP712(template, reqAsset);
+      if (buyerFinId !== destination.finId) {
+        return failedTransaction(1, `Buyer FinId in the signature does not match the destination FinId`);
+      }
+      if (sellerFinId !== source.finId) {
+        return failedTransaction(1, `Seller FinId in the signature does not match the source FinId`);
+      }
 
-      const txHash = await this.finP2PContract.transfer(nonce, assetId, sellerFinId, buyerFinId, quantity,
-        settlementAsset, settlementAmount, hashType, eip712PrimaryType, signature);
+      const txHash = await this.finP2PContract.transfer(nonce, sellerFinId, buyerFinId, asset, settlement, leg, eip712PrimaryType, signature);
+
       return {
         isCompleted: false,
         cid: txHash,
@@ -172,24 +152,22 @@ export class TokenService extends CommonService {
   }
 
   public async redeem(request: Paths.RedeemAssets.RequestBody): Promise<Paths.RedeemAssets.Responses.$200> {
-    const { nonce, asset, quantity, source } = request;
-    const assetId = asset.resourceId;
-    const { finId : sellerFinId } = source;
-    const { signature, template } = request.signature;
-    try {
-      const { hashType, issuerFinId, settlementAmount, settlementAsset } = redeemParameterFromTemplate(template);
-      logger.info(`Redeem asset ${assetId} from ${sellerFinId} with amount ${quantity} and settlement ${settlementAmount} ${settlementAsset}, hashType: ${hashType}`);
+    const { operationId, source, quantity} = request;
+    if (!operationId) {
+      return failedTransaction(1, 'operationId is required');
+    }
 
-      const txHash = await this.finP2PContract.redeem(nonce, assetId, sellerFinId, issuerFinId, quantity, settlementAsset, settlementAmount, hashType, signature);
+    try {
+      const txHash = await this.finP2PContract.redeem(operationId, source.finId, quantity);
+
       return {
         isCompleted: false,
         cid: txHash,
       } as Components.Schemas.ReceiptOperation;
-    } catch (e) {
-      logger.error(`Error asset redeem: ${e}`);
+    }  catch (e) {
+      logger.error(`Error releasing asset: ${e}`);
       if (e instanceof EthereumTransactionError) {
         return failedTransaction(1, e.message);
-
       } else {
         return failedTransaction(1, `${e}`);
       }

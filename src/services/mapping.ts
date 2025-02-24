@@ -1,6 +1,5 @@
-import {
-  FinP2PReceipt, HashType
-} from "../../finp2p-contracts/src/contracts/model";
+import { FinP2PReceipt } from "../../finp2p-contracts/src/contracts/model";
+import { Leg, PrimaryType, term, Term } from "../../finp2p-contracts/src/contracts/eip712";
 import Asset = Components.Schemas.Asset;
 import Receipt = Components.Schemas.Receipt;
 import LedgerAssetInfo = Components.Schemas.LedgerAssetInfo;
@@ -12,18 +11,28 @@ import FinP2PEVMOperatorDetails = Components.Schemas.FinP2PEVMOperatorDetails;
 import SignatureTemplate = Components.Schemas.SignatureTemplate;
 import EIP712TypeObject = Components.Schemas.EIP712TypeObject;
 import EIP712TypeString = Components.Schemas.EIP712TypeString;
-import EIP712TypeInteger = Components.Schemas.EIP712TypeInteger;
 import EIP712Template = Components.Schemas.EIP712Template;
-import { EIP712PrimaryType } from "../../finp2p-contracts/src/contracts/eip712";
 
-export const extractAssetId = (asset: Components.Schemas.Asset): string => {
+export const assetFromAPI = (asset: Components.Schemas.Asset): {
+  assetId: string,
+  assetType: 'fiat' | 'finp2p' | 'cryptocurrency',
+} => {
   switch (asset.type) {
     case 'fiat':
-      return asset.code;
+      return {
+        assetId: asset.code,
+        assetType: 'fiat',
+      };
     case 'finp2p':
-      return asset.resourceId;
+      return {
+        assetId: asset.resourceId,
+        assetType: 'finp2p',
+      };
     case 'cryptocurrency':
-      return asset.code;
+      return {
+        assetId: asset.code,
+        assetType: 'cryptocurrency',
+      };
   }
 };
 
@@ -124,7 +133,6 @@ export const assetNotFoundResult = (tokenId: string) => {
   } as CreateAssetResponse;
 }
 
-
 export const failedAssetCreation = (code: number, message: string) => {
   return {
     isCompleted: true,
@@ -139,164 +147,121 @@ export const failedTransaction = (code: number, message: string) => {
   } as Components.Schemas.ReceiptOperation
 }
 
-export const issueParameterFromTemplate = (template: SignatureTemplate) : {
-  hashType: HashType,
+export const termFromAPI = (term: Components.Schemas.EIP712TypeObject): Term => {
+  return {
+    assetId: term.assetId as EIP712TypeString,
+    assetType: term.assetType as EIP712TypeString,
+    amount: term.amount as EIP712TypeString,
+  }
+}
+
+export const finIdFromAPI = (finId: Components.Schemas.EIP712TypeObject): string => {
+  return finId.idkey as EIP712TypeString;
+}
+
+
+const compareAssets = (eipAsset: EIP712TypeObject, reqAsset: {
+  assetId: string,
+  assetType: 'fiat' | 'finp2p' | 'cryptocurrency',
+}): boolean => {
+  return (eipAsset.assetId === reqAsset.assetId && eipAsset.assetType === reqAsset.assetType);
+
+}
+
+export const detectLeg = (template: SignatureTemplate, reqAsset: {
+  assetId: string,
+  assetType: 'fiat' | 'finp2p' | 'cryptocurrency',
+}) : Leg => {
+  if (template.type != 'EIP712') {
+    throw new Error(`Unsupported signature template type: ${template.type}`);
+  }
+  if (compareAssets(template.message.asset as EIP712TypeObject, reqAsset)) {
+    return Leg.Asset
+  } else if (compareAssets(template.message.settlement as EIP712TypeObject, reqAsset)) {
+    return Leg.Settlement
+  } else {
+    throw new Error(`Asset not found in EIP712 message`);
+  }
+}
+
+export const extractParameterEIP712 = (template: SignatureTemplate, reqAsset: {
+  assetId: string,
+  assetType: 'fiat' | 'finp2p' | 'cryptocurrency',
+}): {
   buyerFinId: string,
-  settlementAsset: string
-  settlementAmount: string
+  sellerFinId: string,
+  asset: Term,
+  settlement: Term,
+  leg: Leg,
+  eip712PrimaryType: PrimaryType,
 } => {
-  switch (template.type) {
-    case 'hashList':
-      return {
-        hashType: HashType.HashList,
-        buyerFinId: template.hashGroups[1].fields.find((field) => field.name === 'srcAccount')?.value || '',
-        settlementAsset: template.hashGroups[1].fields.find((field) => field.name === 'assetId')?.value || '',
-        settlementAmount: template.hashGroups[1].fields.find((field) => field.name === 'amount')?.value || ''
-      }
+  if (template.type != 'EIP712') {
+    throw new Error(`Unsupported signature template type: ${template.type}`);
+  }
 
-    case 'EIP712':
-      const buyer = template.message.buyer as EIP712TypeObject;
-      const settlement = template.message.settlement as EIP712TypeObject;
+  const leg = detectLeg(template, reqAsset);
+  const eip712PrimaryType = eip71212PrimaryTypeFromTemplate(template);
+  switch (template.primaryType) {
+    case 'PrimarySale': {
       return {
-        hashType: HashType.EIP712,
-        buyerFinId: buyer.idkey as EIP712TypeString,
-        settlementAsset: settlement.assetId as EIP712TypeString,
-        settlementAmount: settlement.amount as EIP712TypeString
+        buyerFinId: finIdFromAPI(template.message.buyer as EIP712TypeObject),
+        sellerFinId: finIdFromAPI(template.message.issuer as EIP712TypeObject),
+        asset: termFromAPI(template.message.asset as EIP712TypeObject),
+        settlement: termFromAPI(template.message.settlement as EIP712TypeObject),
+        leg, eip712PrimaryType,
       }
+    }
+    case 'Buying':
+    case 'Selling': {
+      return {
+        buyerFinId: finIdFromAPI(template.message.buyer as EIP712TypeObject),
+        sellerFinId: finIdFromAPI(template.message.seller as EIP712TypeObject),
+        asset: termFromAPI(template.message.asset as EIP712TypeObject),
+        settlement: termFromAPI(template.message.settlement as EIP712TypeObject),
+        leg, eip712PrimaryType,
+      }
+    }
+    case 'RequestForTransfer': {
+      return {
+        buyerFinId: finIdFromAPI(template.message.buyer as EIP712TypeObject),
+        sellerFinId: finIdFromAPI(template.message.seller as EIP712TypeObject),
+        asset: termFromAPI(template.message.asset as EIP712TypeObject),
+        settlement: term('', '', ''),
+        leg, eip712PrimaryType,
+      }
+    }
+    case 'Redemption': {
+      return {
+        // buyerFinId: finIdFromAPI(template.message.seller as EIP712TypeObject),
+        // sellerFinId: finIdFromAPI(template.message.issuer as EIP712TypeObject),
+        buyerFinId: finIdFromAPI(template.message.issuer as EIP712TypeObject),
+        sellerFinId: finIdFromAPI(template.message.seller as EIP712TypeObject),
+        asset: termFromAPI(template.message.asset as EIP712TypeObject),
+        settlement: termFromAPI(template.message.settlement as EIP712TypeObject),
+        leg, eip712PrimaryType,
+      }
+    }
     default:
-      throw new Error(`Unsupported signature template type: ${template}`);
+      throw new Error(`Unsupported signature template primary type: ${template.primaryType}`);
   }
 }
 
-export const transferParameterFromTemplate = (template: SignatureTemplate): {
-  eip712PrimaryType: number,
-  hashType: HashType,
-  settlementAsset: string
-  settlementAmount: string
-} => {
-  switch (template.type) {
-    case 'hashList':
-      if (template.hashGroups.length > 1) {
-        return {
-          eip712PrimaryType: EIP712PrimaryType.Selling,
-          hashType: HashType.HashList,
-          settlementAsset: template.hashGroups[1].fields.find((field) => field.name === 'assetId')?.value || '',
-          settlementAmount: template.hashGroups[1].fields.find((field) => field.name === 'amount')?.value || '',
-        };
-      } else {
-        return {
-          eip712PrimaryType: EIP712PrimaryType.RequestForTransfer,
-          hashType: HashType.HashList,
-          settlementAsset: '',
-          settlementAmount: ''
-        }
-      }
-
-    case 'EIP712':
-      const eip712PrimaryType = eip71212PrimaryTypeFromTemplate(template);
-      if (eip712PrimaryType === EIP712PrimaryType.RequestForTransfer) {
-        return {
-          eip712PrimaryType,
-          hashType: HashType.EIP712,
-          settlementAsset: '',
-          settlementAmount: ''
-        }
-      } else {
-        const settlement = template.message.settlement as EIP712TypeObject;
-        return {
-          eip712PrimaryType,
-          hashType: HashType.EIP712,
-          settlementAsset: settlement.assetId as EIP712TypeString,
-          settlementAmount: settlement.amount as EIP712TypeString
-        }
-      }
-
-    default:
-      throw new Error(`Unsupported signature template type: ${template}`);
-  }
-}
-
-export const redeemParameterFromTemplate = (template: SignatureTemplate): {
-  hashType: HashType,
-  issuerFinId: string
-  settlementAsset: string
-  settlementAmount: string
-} => {
-  switch (template.type) {
-    case 'hashList':
-      return {
-        hashType: HashType.HashList,
-        issuerFinId: template.hashGroups[1].fields.find((field) => field.name === 'srcAccount')?.value || '',
-        settlementAsset: template.hashGroups[1].fields.find((field) => field.name === 'assetId')?.value || '',
-        settlementAmount: template.hashGroups[1].fields.find((field) => field.name === 'amount')?.value || ''
-      };
-
-    case 'EIP712':
-      const issuer = template.message.issuer as EIP712TypeObject;
-      const settlement = template.message.settlement as EIP712TypeObject;
-      return {
-        hashType: HashType.EIP712,
-        issuerFinId: issuer.idkey as EIP712TypeString,
-        settlementAsset: settlement.assetId as EIP712TypeString,
-        settlementAmount: settlement.amount as EIP712TypeString
-      }
-
-    default:
-      throw new Error(`Unsupported signature template type: ${template}`);
-  }
-}
-
-export const holdParameterFromTemplate = (template: SignatureTemplate): {
-  hashType: HashType,
-  buyerFinId: string
-  sellerFinId: string
-  asset: string
-  amount: string
-} => {
-  switch (template.type) {
-    case 'hashList':
-      return {
-        hashType: HashType.HashList,
-        buyerFinId: template.hashGroups[1].fields.find((field) => field.name === 'srcAccount')?.value || '',
-        sellerFinId: template.hashGroups[1].fields.find((field) => field.name === 'dstAccount')?.value || '',
-        asset: template.hashGroups[0].fields.find((field) => field.name === 'assetId')?.value || '',
-        amount: template.hashGroups[0].fields.find((field) => field.name === 'amount')?.value || ''
-      };
-
-    case 'EIP712':
-      const asset = template.message.asset as EIP712TypeObject;
-      const buyer = template.message.buyer as EIP712TypeObject;
-      const seller = template.message.seller as EIP712TypeObject;
-      return {
-        hashType: HashType.EIP712,
-        buyerFinId: buyer.idkey as EIP712TypeString,
-        sellerFinId: seller.idkey as EIP712TypeString,
-        asset: asset.assetId as EIP712TypeString,
-        amount: asset.amount as EIP712TypeString
-      }
-
-    default:
-      throw new Error(`Unsupported signature template type: ${template}`);
-  }
-
-}
-
-export const eip71212PrimaryTypeFromTemplate = (template: EIP712Template): number => {
+export const eip71212PrimaryTypeFromTemplate = (template: EIP712Template): PrimaryType => {
   switch (template.primaryType) {
     case 'PrimarySale':
-      return EIP712PrimaryType.PrimarySale;
+      return PrimaryType.PrimarySale;
     case 'Buying':
-      return EIP712PrimaryType.Buying;
+      return PrimaryType.Buying;
     case 'Selling':
-      return EIP712PrimaryType.Selling;
+      return PrimaryType.Selling;
     case 'Redemption':
-      return EIP712PrimaryType.Redemption;
+      return PrimaryType.Redemption;
     case 'RequestForTransfer':
-      return EIP712PrimaryType.RequestForTransfer;
+      return PrimaryType.RequestForTransfer;
     case 'PrivateOffer':
-      return EIP712PrimaryType.PrivateOffer;
+      return PrimaryType.PrivateOffer;
     case 'Loan':
-      return EIP712PrimaryType.Loan;
+      return PrimaryType.Loan;
     default:
       throw new Error(`Unsupported EIP712 primary type: ${template.primaryType}`);
   }
