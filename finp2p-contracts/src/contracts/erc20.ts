@@ -64,4 +64,8 @@ export class ERC20Contract extends ContractsManager {
   async hasRole(role: string, address: string) {
     return this.erc20.hasRole(role, address);
   }
+
+  async grantOperatorTo(address: string) {
+    return this.erc20.grantOperatorTo(address);
+  }
 }
