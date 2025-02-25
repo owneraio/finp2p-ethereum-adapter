@@ -122,19 +122,19 @@ export class TokenService extends CommonService {
   public async transfer(request: Paths.TransferAsset.RequestBody): Promise<Paths.TransferAsset.Responses.$200> {
     const { nonce, asset, quantity, source, destination } = request;
     const reqAsset = assetFromAPI(asset);
-    const { signature, template } = request.signature;
+    // const { signature, template } = request.signature;
 
     try {
-      const { buyerFinId, sellerFinId, asset, settlement, leg, eip712PrimaryType } = extractParameterEIP712(template, reqAsset);
-      if (buyerFinId !== destination.finId) {
-        return failedTransaction(1, `Buyer FinId in the signature does not match the destination FinId`);
-      }
-      if (sellerFinId !== source.finId) {
-        return failedTransaction(1, `Seller FinId in the signature does not match the source FinId`);
-      }
-
-      const txHash = await this.finP2PContract.transfer(nonce, sellerFinId, buyerFinId, asset, settlement, leg, eip712PrimaryType, signature);
-
+      const txHash = await this.finP2PContract.transferWithoutSignature(source.finId, destination.finId, reqAsset.assetId, reqAsset.assetType, quantity);
+    //   const { buyerFinId, sellerFinId, asset, settlement, leg, eip712PrimaryType } = extractParameterEIP712(template, reqAsset);
+    //   if (buyerFinId !== destination.finId) {
+    //     return failedTransaction(1, `Buyer FinId in the signature does not match the destination FinId`);
+    //   }
+    //   if (sellerFinId !== source.finId) {
+    //     return failedTransaction(1, `Seller FinId in the signature does not match the source FinId`);
+    //   }
+    //
+    //   const txHash = await this.finP2PContract.transfer(nonce, sellerFinId, buyerFinId, asset, settlement, leg, eip712PrimaryType, signature);
       return {
         isCompleted: false,
         cid: txHash,

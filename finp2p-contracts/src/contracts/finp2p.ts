@@ -65,11 +65,24 @@ export class FinP2PContract extends ContractsManager {
     });
   }
 
+  async transferWithoutSignature(source: string, destination: string, assetId: string, assetType: string, amount: string) {
+    return this.safeExecuteTransaction(async (finP2P: FINP2POperatorERC20) => {
+      return finP2P.transferWithoutSignature(source, destination, assetId, assetType, amount);
+    });
+  }
+
   async hold(operationId: string, nonce: string, sellerFinId: string, buyerFinId: string,
                    asset: Term, settlement: Term, leg: Leg, eip712PrimaryType: PrimaryType, signature: string) {
     const opId = normalizeOperationId(operationId);
     return this.safeExecuteTransaction(async (finP2P: FINP2POperatorERC20) => {
       return finP2P.hold(opId, nonce, sellerFinId, buyerFinId, asset, settlement, leg, eip712PrimaryType, `0x${signature}`);
+    });
+  }
+
+  async holdWithoutSignature(operationId: string, source: string, assetId: string, assetType: string, amount: string) {
+    const opId = normalizeOperationId(operationId);
+    return this.safeExecuteTransaction(async (finP2P: FINP2POperatorERC20) => {
+      return finP2P.holdWithoutVerification(opId, source, assetId, assetType, amount);
     });
   }
 

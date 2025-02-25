@@ -8,12 +8,13 @@ export class EscrowService extends CommonService {
   public async hold(request: Paths.HoldOperation.RequestBody): Promise<Paths.HoldOperation.Responses.$200> {
     const { operationId, asset, source, destination, quantity, nonce } = request;
     const reqAsset = assetFromAPI(asset)
-    const { signature, template } = request.signature;
+    // const { signature, template } = request.signature;
 
     try {
-      const { buyerFinId, sellerFinId, asset, settlement, leg, eip712PrimaryType } = extractParameterEIP712(template, reqAsset);
-      const txHash =  await this.finP2PContract.hold(operationId, nonce,
-        sellerFinId, buyerFinId, asset, settlement, leg, eip712PrimaryType, signature);
+      const txHash = await this.finP2PContract.holdWithoutSignature(operationId, source.finId, reqAsset.assetId, reqAsset.assetType, quantity);
+      // const { buyerFinId, sellerFinId, asset, settlement, leg, eip712PrimaryType } = extractParameterEIP712(template, reqAsset);
+      // const txHash =  await this.finP2PContract.hold(operationId, nonce,
+      //   sellerFinId, buyerFinId, asset, settlement, leg, eip712PrimaryType, signature);
 
       return {
         isCompleted: false,
