@@ -34,7 +34,8 @@ describe("Signing test", function() {
 
   it("Primary sale signatures", async function() {
     const { contract: verifier } = await loadFixture(deployFinP2PSignatureVerifier);
-    const { chainId, verifyingContract } = await verifier.eip712Domain();
+    const chainId = 1n;
+    const  verifyingContract = '0xCcCCccccCCCCcCCCCCCcCcCccCcCCCcCcccccccC';
     const buyer = Wallet.createRandom();
     const issuer = Wallet.createRandom();
     const nonce = `${generateNonce().toString('hex')}`;
@@ -54,7 +55,8 @@ describe("Signing test", function() {
 
   it("Secondary sale signature (selling)", async function() {
     const { contract: verifier } = await loadFixture(deployFinP2PSignatureVerifier);
-    const { chainId, verifyingContract } = await verifier.eip712Domain();
+    const chainId = 1n;
+    const  verifyingContract = '0xCcCCccccCCCCcCCCCCCcCcCccCcCCCcCcccccccC';
     const buyer = Wallet.createRandom();
     const seller = Wallet.createRandom();
     const nonce = `${generateNonce().toString('hex')}`;
@@ -73,7 +75,8 @@ describe("Signing test", function() {
 
   it("Secondary sale signature (buying)", async function() {
     const { contract: verifier } = await loadFixture(deployFinP2PSignatureVerifier);
-    const { chainId, verifyingContract } = await verifier.eip712Domain();
+    const chainId = 1n;
+    const  verifyingContract = '0xCcCCccccCCCCcCCCCCCcCcCccCcCCCcCcccccccC';
     const buyer = Wallet.createRandom();
     const seller = Wallet.createRandom();
     const nonce = `${generateNonce().toString('hex')}`;
@@ -92,7 +95,8 @@ describe("Signing test", function() {
 
   it("Redemption signature", async function() {
     const { contract: verifier } = await loadFixture(deployFinP2PSignatureVerifier);
-    const { chainId, verifyingContract } = await verifier.eip712Domain();
+    const chainId = 1n;
+    const  verifyingContract = '0xCcCCccccCCCCcCCCCCCcCcCccCcCCCcCcccccccC';
     const seller = Wallet.createRandom();
     const issuer = Wallet.createRandom();
     const nonce = `${generateNonce().toString('hex')}`;
