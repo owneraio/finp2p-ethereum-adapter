@@ -9,7 +9,7 @@ export class PolicyGetter {
     this.ossClient = ossClient;
   }
 
-  async getPolicy(assetCode: string, assetType: 'cryptocurrency' | 'fiat' | 'finp2p') {
+  async getPolicy(assetCode: string, assetType: 'cryptocurrency' | 'fiat' | 'finp2p'): Promise<Proof> {
     let proof: Proof;
     switch (assetType) {
       case 'finp2p': {
@@ -23,16 +23,7 @@ export class PolicyGetter {
         break
       }
     }
-
-    switch (proof.type) {
-      case 'NoProofPolicy':
-
-        break
-      case 'SignatureProofPolicy':
-        proof.signatureTemplate
-        proof.verifyingKey
-        break
-    }
+    return proof;
   }
 
 

@@ -1,3 +1,5 @@
+import { TypedDataField } from "ethers/src.ts/hash";
+
 export type OperationStatus = PendingTransaction | SuccessfulTransaction | FailedTransaction;
 
 export type PendingTransaction = {
@@ -9,6 +11,28 @@ export type SuccessfulTransaction = {
   receipt: FinP2PReceipt
 };
 
+export type EIP712Domain = {
+  name: string,
+  version: string,
+  chainId: number,
+  verifyingContract: string
+}
+
+export type EIP712Template = {
+  primaryType: string
+  domain: EIP712Domain,
+  types: Record<string, Array<TypedDataField>>,
+  message: Record<string, any>
+}
+
+export type ReceiptProof = {
+  type: 'no-proof'
+} | {
+  type: 'signature-proof',
+  template: EIP712Template
+  signature: string
+}
+
 export type FinP2PReceipt = {
   id: string
   assetId: string
@@ -17,6 +41,7 @@ export type FinP2PReceipt = {
   source?: string
   destination?: string,
   timestamp: number,
+  proof: ReceiptProof,
   operationType: 'transfer' | 'redeem' | 'hold' | 'release' | 'issue'
 };
 

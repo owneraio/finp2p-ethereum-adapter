@@ -13,7 +13,8 @@ import {
 import { normalizeOperationId, parseTransactionReceipt } from "./utils";
 import { ContractsManager } from './manager';
 import console from 'console';
-import { Leg, PrimaryType, Term } from "./eip712";
+import { DOMAIN, Leg, PrimaryType, Term } from "./eip712";
+import type { TypedDataField } from "ethers/src.ts/hash";
 
 export class FinP2PContract extends ContractsManager {
 
@@ -106,7 +107,16 @@ export class FinP2PContract extends ContractsManager {
     await this.finP2P.grantTransactionManagerRole(to);
   }
 
+  async getEIP712Domain() {
+    return this.finP2P.eip712Domain();
+  }
 
+  async signEIP712(types: Record<string, Array<TypedDataField>>, message: Record<string, any>) {
+    const chainId = (await this.provider.getNetwork()).chainId;
+    const verifyingContract = this.finP2PContractAddress;
+    const domain = { ...DOMAIN, chainId, verifyingContract };
+    return this.signer.signTypedData(domain, types, message);
+  }
 
   async getOperationStatus(hash: string): Promise<OperationStatus> {
     const txReceipt = await this.provider.getTransactionReceipt(hash);

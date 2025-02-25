@@ -1,5 +1,6 @@
-import { FinP2PReceipt } from "../../finp2p-contracts/src/contracts/model";
-import { Leg, PrimaryType, term, Term } from "../../finp2p-contracts/src/contracts/eip712";
+import { EIP712Domain, EIP712Template, FinP2PReceipt, ReceiptProof } from "../../finp2p-contracts/src/contracts/model";
+import { EIP712ReceiptMessage, Leg, PrimaryType, term, Term } from "../../finp2p-contracts/src/contracts/eip712";
+import { TypedDataField } from "ethers";
 import Asset = Components.Schemas.Asset;
 import Receipt = Components.Schemas.Receipt;
 import LedgerAssetInfo = Components.Schemas.LedgerAssetInfo;
@@ -11,7 +12,7 @@ import FinP2PEVMOperatorDetails = Components.Schemas.FinP2PEVMOperatorDetails;
 import SignatureTemplate = Components.Schemas.SignatureTemplate;
 import EIP712TypeObject = Components.Schemas.EIP712TypeObject;
 import EIP712TypeString = Components.Schemas.EIP712TypeString;
-import EIP712Template = Components.Schemas.EIP712Template;
+import ProofPolicy = Components.Schemas.ProofPolicy;
 
 export const assetFromAPI = (asset: Components.Schemas.Asset): {
   assetId: string,
@@ -81,6 +82,54 @@ export const assetToAPI = (assetId: string, assetType: 'cryptocurrency' | 'fiat'
   }
 };
 
+export const eip712DomainToAPI = (domain: EIP712Domain): Components.Schemas.EIP712Domain => {
+  const { name, version, chainId, verifyingContract } = domain;
+  return { name, version, chainId, verifyingContract } as Components.Schemas.EIP712Domain;
+}
+
+export const eip712TypesToAPI = (types: Record<string, Array<TypedDataField>>): Components.Schemas.EIP712Types => {
+  return {
+
+  } as Components.Schemas.EIP712Types;
+}
+
+export const eip712MessageToAPI = (message: Record<string, any>): {
+  [name: string]: Components.Schemas.EIP712TypedValue;
+} => {
+  return {
+
+  }
+}
+
+export const eip712TemplateToAPI = (template: EIP712Template): Components.Schemas.EIP712Template => {
+  const { primaryType, domain, types, message } = template;
+  return {
+    primaryType,
+    type: 'EIP712',
+    types: eip712TypesToAPI(types),
+    message: eip712MessageToAPI(message),
+    domain: eip712DomainToAPI(domain)
+  } as Components.Schemas.EIP712Template;
+}
+
+export const proofToAPI = (proof: ReceiptProof): ProofPolicy => {
+  switch (proof.type) {
+    case "no-proof":
+      return {
+        type: 'noProofPolicy'
+      }
+    case "signature-proof":
+      return  {
+        type: 'signatureProofPolicy',
+        signature: {
+          template: eip712TemplateToAPI(proof.template),
+          hashFunc: 'keccak_256',
+          signature: proof.signature,
+        },
+      }
+  }
+}
+
 export const receiptToAPI = (receipt: FinP2PReceipt): Receipt => {
   return {
     id: receipt.id,
@@ -94,8 +143,20 @@ export const receiptToAPI = (receipt: FinP2PReceipt): Receipt => {
     timestamp: receipt.timestamp,
     tradeDetails: {},
     operationType: receipt.operationType,
+    proof: proofToAPI(receipt.proof)
   };
 };
+
+export const receiptToEIP712Message = (receipt: FinP2PReceipt): EIP712ReceiptMessage => {
+  return {
+    id: receipt.id,
+    source: receipt.source || '',
+    destination: receipt.destination || '',
+    assetId: receipt.assetId,
+    assetType: receipt.assetType,
+    quantity: `${receipt.amount}`,
+  }
+}
 
 export const assetCreationResult = (tokenId: string, tokenAddress: string, finp2pTokenAddress: string) => {
   return {
@@ -168,7 +229,7 @@ const compareAssets = (eipAsset: EIP712TypeObject, reqAsset: {
 
 }
 
-export const detectLeg = (template: SignatureTemplate, reqAsset: {
+export const detectLeg = (template: Components.Schemas.SignatureTemplate, reqAsset: {
   assetId: string,
   assetType: 'fiat' | 'finp2p' | 'cryptocurrency',
 }) : Leg => {
@@ -184,7 +245,7 @@ export const detectLeg = (template: SignatureTemplate, reqAsset: {
   }
 }
 
-export const extractParameterEIP712 = (template: SignatureTemplate, reqAsset: {
+export const extractParameterEIP712 = (template: Components.Schemas.SignatureTemplate, reqAsset: {
   assetId: string,
   assetType: 'fiat' | 'finp2p' | 'cryptocurrency',
 }): {
@@ -246,7 +307,7 @@ export const extractParameterEIP712 = (template: SignatureTemplate, reqAsset: {
   }
 }
 
-export const eip71212PrimaryTypeFromTemplate = (template: EIP712Template): PrimaryType => {
+export const eip71212PrimaryTypeFromTemplate = (template: Components.Schemas.EIP712Template): PrimaryType => {
   switch (template.primaryType) {
     case 'PrimarySale':
       return PrimaryType.PrimarySale;

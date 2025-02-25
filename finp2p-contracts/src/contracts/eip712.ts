@@ -137,6 +137,10 @@ export const LOAN_TYPES = {
   ]
 };
 
+export const RECEIPT_PROOF_TYPES = {
+
+}
+
 export interface EIP712Message {
 }
 
@@ -221,6 +225,15 @@ export interface EIP712LoanMessage extends EIP712Message {
   loanTerms: LoanTerms
 }
 
+export interface EIP712ReceiptMessage extends EIP712Message {
+  id: string,
+  source: string,
+  destination: string,
+  assetId: string,
+  assetType: string,
+  quantity: string,
+}
+
 export const newPrimarySaleMessage = (nonce: string, buyer: FinId, issuer: FinId, asset: Term, settlement: Term): EIP712PrimarySaleMessage => {
   return { nonce, buyer, issuer, asset, settlement };
 };
@@ -248,6 +261,10 @@ export const newPrivateOfferMessage = (nonce: string, buyer: FinId,  seller: Fin
 export const newLoanMessage = (nonce: string, borrower: FinId, lender: FinId, asset: Term, settlement: Term, loanTerms: LoanTerms): EIP712LoanMessage => {
   return { nonce, borrower, lender, asset, settlement, loanTerms };
 };
+
+export const newReceiptMessage = (id: string, source: string, destination: string, assetId: string, assetType: string, quantity: string): EIP712ReceiptMessage => {
+  return { id, source, destination, assetId, assetType, quantity };
+}
 
 export const signWithPrivateKey = <T extends EIP712Message>(chainId: bigint | number, verifyingContract: string, types: Record<string, Array<TypedDataField>>, message: T, signerPrivateKey: string) => {
   return sign(chainId, verifyingContract, types, message, new Wallet(signerPrivateKey));
