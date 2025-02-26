@@ -1,4 +1,4 @@
-import { ContractFactory, ContractTransactionResponse, Interface, Provider, Signer } from "ethers";
+import { ContractFactory, ContractTransactionResponse, Interface, Provider, Signer, TypedDataField } from "ethers";
 import FINP2P
   from '../../artifacts/contracts/token/ERC20/FINP2POperatorERC20.sol/FINP2POperatorERC20.json';
 import { FINP2POperatorERC20 } from "../../typechain-types";
@@ -14,7 +14,6 @@ import { normalizeOperationId, parseTransactionReceipt } from "./utils";
 import { ContractsManager } from './manager';
 import console from 'console';
 import { DOMAIN, Leg, PrimaryType, Term } from "./eip712";
-import type { TypedDataField } from "ethers/src.ts/hash";
 
 export class FinP2PContract extends ContractsManager {
 

@@ -112,7 +112,10 @@ export const eip712TemplateToAPI = (template: EIP712Template): Components.Schema
   } as Components.Schemas.EIP712Template;
 }
 
-export const proofToAPI = (proof: ReceiptProof): ProofPolicy => {
+export const proofToAPI = (proof: ReceiptProof | undefined): ProofPolicy | undefined => {
+  if (!proof) {
+    return undefined;
+  }
   switch (proof.type) {
     case "no-proof":
       return {

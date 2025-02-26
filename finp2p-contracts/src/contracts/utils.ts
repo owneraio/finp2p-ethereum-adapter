@@ -54,6 +54,7 @@ export const parseTransactionReceipt = (receipt: TransactionReceipt, contractInt
             amount: parsedLog.args.quantity,
             destination: parsedLog.args.issuerFinId,
             timestamp: timestamp,
+            proof: undefined,
             operationType: 'issue',
           };
         case 'Transfer':
@@ -65,6 +66,7 @@ export const parseTransactionReceipt = (receipt: TransactionReceipt, contractInt
             source: parsedLog.args.sourceFinId,
             destination: parsedLog.args.destinationFinId,
             timestamp: timestamp,
+            proof: undefined,
             operationType: 'transfer',
           };
         case 'Redeem':
@@ -75,6 +77,7 @@ export const parseTransactionReceipt = (receipt: TransactionReceipt, contractInt
             amount: parsedLog.args.quantity,
             source: parsedLog.args.ownerFinId,
             timestamp: timestamp,
+            proof: undefined,
             operationType: 'redeem',
           };
         case 'Hold':
@@ -85,6 +88,7 @@ export const parseTransactionReceipt = (receipt: TransactionReceipt, contractInt
             amount: parsedLog.args.quantity,
             source: parsedLog.args.finId,
             timestamp: timestamp,
+            proof: undefined,
             operationType: 'hold',
           };
         case 'Release':
@@ -96,6 +100,7 @@ export const parseTransactionReceipt = (receipt: TransactionReceipt, contractInt
             source: parsedLog.args.sourceFinId,
             destination: parsedLog.args.destinationFinId,
             timestamp: timestamp,
+            proof: undefined,
             operationType: 'release',
           };
         case 'Rollback':
@@ -106,6 +111,7 @@ export const parseTransactionReceipt = (receipt: TransactionReceipt, contractInt
             amount: parsedLog.args.quantity,
             destination: parsedLog.args.destinationFinId,
             timestamp: timestamp,
+            proof: undefined,
             operationType: 'release',
           };
       }

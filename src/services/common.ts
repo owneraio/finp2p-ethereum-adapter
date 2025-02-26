@@ -14,9 +14,9 @@ export class CommonService {
   finP2PContract: FinP2PContract;
   policyGetter: PolicyGetter
 
-  constructor(finP2PContract: FinP2PContract, ossClient: PolicyGetter) {
+  constructor(finP2PContract: FinP2PContract, policyGetter: PolicyGetter) {
     this.finP2PContract = finP2PContract;
-    this.policyGetter = ossClient;
+    this.policyGetter = policyGetter;
   }
 
   public async balance(request: Paths.GetAssetBalance.RequestBody): Promise<Paths.GetAssetBalance.Responses.$200> {
@@ -98,12 +98,17 @@ export class CommonService {
           throw new Error(`Unsupported signature template: ${signatureTemplate}`);
         }
         const message = receiptToEIP712Message(receipt);
-        const domain = await this.finP2PContract.eip712Domain();
+        // const domain = await this.finP2PContract.eip712Domain();
         receipt.proof = {
           type: 'signature-proof',
           template: {
             primaryType: '',
-            domain,
+            domain: {
+              name: 'FinP2P',
+              version: '1',
+              chainId: 0,
+              verifyingContract: ''
+            },
             message,
             types: RECEIPT_PROOF_TYPES
           },

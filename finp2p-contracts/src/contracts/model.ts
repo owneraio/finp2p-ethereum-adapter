@@ -1,4 +1,4 @@
-import { TypedDataField } from "ethers/src.ts/hash";
+import { TypedDataField } from 'ethers';
 
 export type OperationStatus = PendingTransaction | SuccessfulTransaction | FailedTransaction;
 
@@ -41,7 +41,7 @@ export type FinP2PReceipt = {
   source?: string
   destination?: string,
   timestamp: number,
-  proof: ReceiptProof,
+  proof: ReceiptProof | undefined,
   operationType: 'transfer' | 'redeem' | 'hold' | 'release' | 'issue'
 };
 
