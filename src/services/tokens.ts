@@ -14,6 +14,7 @@ import CreateAssetResponse = Components.Schemas.CreateAssetResponse;
 import LedgerTokenId = Components.Schemas.LedgerTokenId;
 import { isEthereumAddress } from "../../finp2p-contracts/src/contracts/utils";
 import { term } from "../../finp2p-contracts/src/contracts/eip712";
+import { PolicyGetter } from "../finp2p/policy";
 
 export type AssetCreationPolicy =
   | { type: 'deploy-new-token'; decimals: number }
@@ -24,8 +25,8 @@ export class TokenService extends CommonService {
 
   assetCreationPolicy: AssetCreationPolicy;
 
-  constructor(finP2PContract: FinP2PContract, assetCreationPolicy: AssetCreationPolicy) {
-    super(finP2PContract);
+  constructor(finP2PContract: FinP2PContract, assetCreationPolicy: AssetCreationPolicy, policyGetter: PolicyGetter) {
+    super(finP2PContract, policyGetter);
     this.assetCreationPolicy = assetCreationPolicy;
   }
 

@@ -8,7 +8,7 @@ import { EscrowService } from './services/escrow';
 import { PaymentsService } from './services/payments';
 import { PlanService } from './services/plans';
 import { FinP2PContract } from '../finp2p-contracts/src/contracts/finp2p';
-import { RegulationChecker } from './finp2p/regulation';
+import { PolicyGetter } from "./finp2p/policy";
 
 function configureLogging(app: Application) {
   app.use(
@@ -40,16 +40,16 @@ function configureLogging(app: Application) {
   );
 }
 
-function createApp(finP2PContract: FinP2PContract, assetCreationPolicy: AssetCreationPolicy) {
+function createApp(finP2PContract: FinP2PContract, assetCreationPolicy: AssetCreationPolicy, policyGetter: PolicyGetter) {
   const app = express();
   app.use(express.json({ limit: '50mb' }));
   configureLogging(app);
 
   routes.register(
     app,
-    new TokenService(finP2PContract, assetCreationPolicy),
-    new EscrowService(finP2PContract),
-    new PaymentsService(finP2PContract),
+    new TokenService(finP2PContract, assetCreationPolicy, policyGetter),
+    new EscrowService(finP2PContract, policyGetter),
+    new PaymentsService(finP2PContract, policyGetter),
     new PlanService(),
   );
 

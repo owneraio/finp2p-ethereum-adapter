@@ -12,6 +12,8 @@ import { randomPort } from "./utils";
 import { addressFromPrivateKey } from "../../finp2p-contracts/src/contracts/utils";
 import { AssetCreationPolicy } from "../../src/services/tokens";
 import { createProviderAndSigner, ProviderType } from "../../finp2p-contracts/src/contracts/config";
+import { PolicyGetter } from "../../src/finp2p/policy";
+import { OssClient } from "../../src/finp2p/oss.client";
 
 const providerType: ProviderType = 'local';
 
@@ -105,7 +107,7 @@ class CustomTestEnvironment extends NodeEnvironment {
 
     const port = randomPort();
     const assetCreationPolicy = { type: 'deploy-new-token' , decimals: 0 } as AssetCreationPolicy;
-    const app = createApp(finP2PContract, assetCreationPolicy);
+    const app = createApp(finP2PContract, assetCreationPolicy, new PolicyGetter(new OssClient("", undefined)));
     console.log("App created successfully.");
 
     this.httpServer = app.listen(port, () => {

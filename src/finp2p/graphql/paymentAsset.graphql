@@ -1,0 +1,23 @@
+query getPaymentAssets($orgId: String!) {
+    escrows (filter: [
+        { key: "orgId", operator: EQ, value: $orgId }
+    ]) {
+        nodes {
+            orgId
+            paymentAsset {
+                assets {
+                    code
+                    policies {
+                        proof {
+                            __typename
+                            ... on SignatureProofPolicy {
+                                verifyingKey
+                                signatureTemplate
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

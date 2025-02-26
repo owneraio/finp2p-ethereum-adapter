@@ -9,6 +9,8 @@ import {
   ProviderType,
   readConfig
 } from "../finp2p-contracts/src/contracts/config";
+import { PolicyGetter } from "./finp2p/policy";
+import { OssClient } from "./finp2p/oss.client";
 
 const createAssetCreationPolicy = async (contractManager: FinP2PContract | undefined): Promise<AssetCreationPolicy> => {
   const type = (process.env.ASSET_CREATION_POLICY || 'deploy-new-token');
@@ -55,13 +57,20 @@ const init = async () => {
   }
   const providerType = (process.env.PROVIDER_TYPE || 'local') as ProviderType;
 
+  const ossUrl = process.env.OSS_URL;
+  if (!ossUrl) {
+    throw new Error('OSS_URL is not set');
+  }
+
   const { provider, signer } = await createProviderAndSigner(providerType);
   const finp2pContract = new FinP2PContract(provider, signer, finP2PContractAddress);
   const assetCreationPolicy = await createAssetCreationPolicy(finp2pContract);
+  const policyGetter = new PolicyGetter(new OssClient(ossUrl, undefined));
 
   createApp(
     finp2pContract,
-    assetCreationPolicy
+    assetCreationPolicy,
+    policyGetter
   ).listen(port, () => {
     logger.info(`listening at http://localhost:${port}`);
   });

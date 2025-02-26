@@ -1,14 +1,20 @@
 import { logger } from '../helpers/logger';
 import { FinP2PContract } from '../../finp2p-contracts/src/contracts/finp2p';
-import { assetFromAPI, receiptToAPI } from './mapping';
+import { assetFromAPI, receiptToAPI, receiptToEIP712Message } from "./mapping";
+import { FinP2PReceipt } from "../../finp2p-contracts/src/contracts/model";
+import { PolicyGetter } from "../finp2p/policy";
+import { DOMAIN, DOMAIN_TYPE, RECEIPT_PROOF_TYPES } from "../../finp2p-contracts/src/contracts/eip712";
+import { TypedDataDomain } from "ethers";
 
 
 export class CommonService {
 
   finP2PContract: FinP2PContract;
+  policyGetter: PolicyGetter
 
-  constructor(finP2PContract: FinP2PContract) {
+  constructor(finP2PContract: FinP2PContract, policyGetter: PolicyGetter) {
     this.finP2PContract = finP2PContract;
+    this.policyGetter = policyGetter;
   }
 
   public async balance(request: Paths.GetAssetBalance.RequestBody): Promise<Paths.GetAssetBalance.Responses.$200> {
@@ -46,7 +52,8 @@ export class CommonService {
     const status = await this.finP2PContract.getOperationStatus(cid);
     switch (status.status) {
       case 'completed':
-        let receipt = receiptToAPI(status.receipt);
+        const receipt = receiptToAPI(await this.ledgerProof(status.receipt));
+
         return {
           type: 'receipt',
           operation: {
@@ -73,5 +80,41 @@ export class CommonService {
           },
         } as Components.Schemas.OperationStatus;
     }
+  }
+
+  private async ledgerProof(receipt: FinP2PReceipt): Promise<FinP2PReceipt> {
+    const policy = await this.policyGetter.getPolicy(receipt.assetId, receipt.assetType)
+    switch (policy.type) {
+      case 'NoProofPolicy':
+        receipt.proof = {
+          type: 'no-proof'
+        }
+        return receipt;
+      case 'SignatureProofPolicy':
+        const { signatureTemplate } = policy;
+        if (signatureTemplate !== 'EIP712') {
+          throw new Error(`Unsupported signature template: ${signatureTemplate}`);
+        }
+        const domain = await this.getDomain();
+        const types = RECEIPT_PROOF_TYPES;
+        const message = receiptToEIP712Message(receipt);
+        const primaryType = 'Receipt';
+        const signature = await this.finP2PContract.signEIP712(
+          domain.chainId, domain.verifyingContract, types, message);
+        receipt.proof = {
+          type: 'signature-proof',
+          template: { primaryType, domain, types: { ...DOMAIN_TYPE, ...types }, message },
+          signature
+        }
+
+        return receipt;
+    }
+  }
+
+  private async getDomain(): Promise<{ chainId: number, verifyingContract: string, name: string, version: string }> {
+    const domain = await this.finP2PContract.eip712Domain();
+    const chainId = parseInt(process.env.LEDGER_PROOF_EIP712_CHAIN_ID || `${domain[3]}`);
+    const verifyingContract = process.env.LEDGER_PROOF_EIP712_VERIFYING_CONTRACT || domain[4];
+    return { name: "FinP2P", version: "1", chainId, verifyingContract };
   }
 }

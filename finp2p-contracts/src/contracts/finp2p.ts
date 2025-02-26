@@ -1,4 +1,11 @@
-import { ContractFactory, ContractTransactionResponse, Interface, Provider, Signer } from "ethers";
+import {
+  ContractFactory,
+  ContractTransactionResponse,
+  Interface,
+  Provider,
+  Signer,
+  TypedDataField
+} from "ethers";
 import FINP2P
   from '../../artifacts/contracts/token/ERC20/FINP2POperatorERC20.sol/FINP2POperatorERC20.json';
 import { FINP2POperatorERC20 } from "../../typechain-types";
@@ -10,10 +17,10 @@ import {
   NonceToHighError,
   OperationStatus
 } from "./model";
-import { normalizeOperationId, parseTransactionReceipt } from "./utils";
+import { compactSerialize, normalizeOperationId, parseTransactionReceipt } from "./utils";
 import { ContractsManager } from './manager';
 import console from 'console';
-import { Leg, PrimaryType, Term } from "./eip712";
+import { DOMAIN, Leg, PrimaryType, sign, Term } from "./eip712";
 
 export class FinP2PContract extends ContractsManager {
 
@@ -106,7 +113,14 @@ export class FinP2PContract extends ContractsManager {
     await this.finP2P.grantTransactionManagerRole(to);
   }
 
+  async getEIP712Domain() {
+    return this.finP2P.eip712Domain();
+  }
 
+  async signEIP712(chainId: bigint | number, verifyingContract: string, types: Record<string, Array<TypedDataField>>, message: Record<string, any>) {
+    const signature = await sign(chainId, verifyingContract, types, message, this.signer);
+    return compactSerialize(signature);
+  }
 
   async getOperationStatus(hash: string): Promise<OperationStatus> {
     const txReceipt = await this.provider.getTransactionReceipt(hash);
