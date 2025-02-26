@@ -1,4 +1,4 @@
-import { EIP712Domain, EIP712Template, FinP2PReceipt, ReceiptProof } from "../../finp2p-contracts/src/contracts/model";
+import { EIP712Template, FinP2PReceipt, ReceiptProof } from "../../finp2p-contracts/src/contracts/model";
 import {
   asset,
   destination,
@@ -9,7 +9,7 @@ import {
   term,
   Term, tradeDetails, transactionDetails
 } from "../../finp2p-contracts/src/contracts/eip712";
-import { TypedDataField } from "ethers";
+import { TypedDataDomain, TypedDataField } from "ethers";
 import Asset = Components.Schemas.Asset;
 import Receipt = Components.Schemas.Receipt;
 import LedgerAssetInfo = Components.Schemas.LedgerAssetInfo;
@@ -91,7 +91,7 @@ export const assetToAPI = (assetId: string, assetType: 'cryptocurrency' | 'fiat'
   }
 };
 
-export const eip712DomainToAPI = (domain: EIP712Domain): Components.Schemas.EIP712Domain => {
+export const eip712DomainToAPI = (domain: TypedDataDomain): Components.Schemas.EIP712Domain => {
   const { name, version, chainId, verifyingContract } = domain;
   return { name, version, chainId, verifyingContract } as Components.Schemas.EIP712Domain;
 }
@@ -192,10 +192,10 @@ export const receiptToEIP712Message = (receipt: FinP2PReceipt): EIP712ReceiptMes
     operationType: receipt.operationType,
     source: source( receipt.source ? 'finp2p' : '', receipt.source || ''),
     destination: destination(receipt.destination ? 'finp2p' : '', receipt.destination || ''),
+    // quantity: `${receipt.amount}`,
     asset: asset(receipt.assetId, receipt.assetType),
     tradeDetails: tradeDetails(executionContext('', '')),
     transactionDetails: transactionDetails('', receipt.id),
-    quantity: `${receipt.amount}`,
   }
 }
 

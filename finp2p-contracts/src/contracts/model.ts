@@ -1,4 +1,4 @@
-import { TypedDataField } from 'ethers';
+import { TypedDataDomain, TypedDataField } from "ethers";
 
 export type OperationStatus = PendingTransaction | SuccessfulTransaction | FailedTransaction;
 
@@ -11,16 +11,9 @@ export type SuccessfulTransaction = {
   receipt: FinP2PReceipt
 };
 
-export type EIP712Domain = {
-  name: string,
-  version: string,
-  chainId: number,
-  verifyingContract: string
-}
-
 export type EIP712Template = {
   primaryType: string
-  domain: EIP712Domain,
+  domain: TypedDataDomain,
   types: Record<string, Array<TypedDataField>>,
   message: Record<string, any>
 }

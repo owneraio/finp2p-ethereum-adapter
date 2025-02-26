@@ -1,4 +1,12 @@
-import { ContractFactory, ContractTransactionResponse, Interface, Provider, Signer, TypedDataField } from "ethers";
+import {
+  ContractFactory,
+  ContractTransactionResponse,
+  Interface,
+  Provider,
+  Signer,
+  TypedDataDomain,
+  TypedDataField
+} from "ethers";
 import FINP2P
   from '../../artifacts/contracts/token/ERC20/FINP2POperatorERC20.sol/FINP2POperatorERC20.json';
 import { FINP2POperatorERC20 } from "../../typechain-types";
@@ -110,11 +118,9 @@ export class FinP2PContract extends ContractsManager {
     return this.finP2P.eip712Domain();
   }
 
-  async signEIP712(types: Record<string, Array<TypedDataField>>, message: Record<string, any>) {
-    const chainId = (await this.provider.getNetwork()).chainId;
-    const verifyingContract = this.finP2PContractAddress;
-    const domain = { ...DOMAIN, chainId, verifyingContract };
-    return compactSerialize(await this.signer.signTypedData(domain, types, message));
+  async signEIP712(domain: TypedDataDomain, types: Record<string, Array<TypedDataField>>, message: Record<string, any>) {
+    const signature = await this.signer.signTypedData(domain, types, message);
+    return compactSerialize(signature);
   }
 
   async getOperationStatus(hash: string): Promise<OperationStatus> {

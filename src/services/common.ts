@@ -1,12 +1,10 @@
 import { logger } from '../helpers/logger';
 import { FinP2PContract } from '../../finp2p-contracts/src/contracts/finp2p';
 import { assetFromAPI, receiptToAPI, receiptToEIP712Message } from "./mapping";
-import { Receipt } from "../finp2p/graphql";
 import { FinP2PReceipt } from "../../finp2p-contracts/src/contracts/model";
-import { OssClient } from "../finp2p/oss.client";
-import process from "process";
 import { PolicyGetter } from "../finp2p/policy";
-import { newReceiptMessage, RECEIPT_PROOF_TYPES } from "../../finp2p-contracts/src/contracts/eip712";
+import { DOMAIN, RECEIPT_PROOF_TYPES } from "../../finp2p-contracts/src/contracts/eip712";
+import { TypedDataDomain } from "ethers";
 
 
 export class CommonService {
@@ -97,35 +95,25 @@ export class CommonService {
         if (signatureTemplate !== 'EIP712') {
           throw new Error(`Unsupported signature template: ${signatureTemplate}`);
         }
-        const domain = await this.finP2PContract.eip712Domain();
-        const chainId = parseInt(process.env.LEDGER_PROOF_EIP712_CHAIN_ID || `${domain[3]}`);
-        const verifyingContract = process.env.LEDGER_PROOF_EIP712_VERIFYING_CONTRACT || domain[4];
-        try {
-          const message = receiptToEIP712Message(receipt);
-          const signature = await this.finP2PContract.signEIP712(
-            RECEIPT_PROOF_TYPES,
-            message
-          );
-          receipt.proof = {
-            type: 'signature-proof',
-            template: {
-              primaryType: 'Receipt',
-              domain: {
-                name: 'FinP2P',
-                version: '1',
-                chainId,
-                verifyingContract
-              },
-              message,
-              types: RECEIPT_PROOF_TYPES
-            },
-            signature
-          }
-        } catch (e) {
-          console.log(e)
+        const domain = await this.getDomain();
+        const types = RECEIPT_PROOF_TYPES;
+        const message = receiptToEIP712Message(receipt);
+        const primaryType = 'Receipt';
+        const signature = await this.finP2PContract.signEIP712(domain, types, message);
+        receipt.proof = {
+          type: 'signature-proof',
+          template: { primaryType, domain, types, message },
+          signature
         }
 
         return receipt;
     }
+  }
+
+  private async getDomain(): Promise<TypedDataDomain> {
+    const domain = await this.finP2PContract.eip712Domain();
+    const chainId = parseInt(process.env.LEDGER_PROOF_EIP712_CHAIN_ID || `${domain[3]}`);
+    const verifyingContract = process.env.LEDGER_PROOF_EIP712_VERIFYING_CONTRACT || domain[4];
+    return { ...DOMAIN, chainId, verifyingContract };
   }
 }

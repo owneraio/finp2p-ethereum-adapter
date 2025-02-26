@@ -344,7 +344,7 @@ export interface EIP712ReceiptMessage extends EIP712Message {
   source: Source,
   destination: Destination,
   asset: Asset,
-  quantity: string,
+  // quantity: string,
   tradeDetails: TradeDetails,
   transactionDetails: TransactionDetails
 }
@@ -378,7 +378,7 @@ export const newLoanMessage = (nonce: string, borrower: FinId, lender: FinId, as
 };
 
 export const newReceiptMessage = (id: string, operationType: string, source: Source, destination: Destination, asset: Asset, quantity: string, tradeDetails: TradeDetails, transactionDetails: TransactionDetails): EIP712ReceiptMessage => {
-  return { id, operationType, source, destination, asset, quantity, tradeDetails, transactionDetails };
+  return { id, operationType, source, destination, asset,/* quantity, */ tradeDetails, transactionDetails };
 }
 
 export const signWithPrivateKey = <T extends EIP712Message>(chainId: bigint | number, verifyingContract: string, types: Record<string, Array<TypedDataField>>, message: T, signerPrivateKey: string) => {
