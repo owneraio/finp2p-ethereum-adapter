@@ -28,6 +28,15 @@ export const DOMAIN = {
   verifyingContract: "0x0"
 };
 
+export const DOMAIN_TYPE = {
+  EIP712Domain: [
+    { name: "name", type: "string" },
+    { name: "version", type: "string" },
+    { name: "chainId", type: "uint256" },
+    { name: "verifyingContract", type: "address" }
+  ],
+}
+
 export const FINID_TYPE = {
   FinId: [{
     name: "idkey", type: "string"

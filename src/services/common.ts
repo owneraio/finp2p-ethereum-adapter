@@ -3,7 +3,7 @@ import { FinP2PContract } from '../../finp2p-contracts/src/contracts/finp2p';
 import { assetFromAPI, receiptToAPI, receiptToEIP712Message } from "./mapping";
 import { FinP2PReceipt } from "../../finp2p-contracts/src/contracts/model";
 import { PolicyGetter } from "../finp2p/policy";
-import { DOMAIN, RECEIPT_PROOF_TYPES } from "../../finp2p-contracts/src/contracts/eip712";
+import { DOMAIN, DOMAIN_TYPE, RECEIPT_PROOF_TYPES } from "../../finp2p-contracts/src/contracts/eip712";
 import { TypedDataDomain } from "ethers";
 
 
@@ -99,10 +99,11 @@ export class CommonService {
         const types = RECEIPT_PROOF_TYPES;
         const message = receiptToEIP712Message(receipt);
         const primaryType = 'Receipt';
-        const signature = await this.finP2PContract.signEIP712(domain, types, message);
+        const signature = await this.finP2PContract.signEIP712(
+          domain.chainId, domain.verifyingContract, types, message);
         receipt.proof = {
           type: 'signature-proof',
-          template: { primaryType, domain, types, message },
+          template: { primaryType, domain, types: { ...DOMAIN_TYPE, ...types }, message },
           signature
         }
 
@@ -110,10 +111,10 @@ export class CommonService {
     }
   }
 
-  private async getDomain(): Promise<TypedDataDomain> {
+  private async getDomain(): Promise<{ chainId: number, verifyingContract: string, name: string, version: string }> {
     const domain = await this.finP2PContract.eip712Domain();
     const chainId = parseInt(process.env.LEDGER_PROOF_EIP712_CHAIN_ID || `${domain[3]}`);
     const verifyingContract = process.env.LEDGER_PROOF_EIP712_VERIFYING_CONTRACT || domain[4];
-    return { ...DOMAIN, chainId, verifyingContract };
+    return { name: "FinP2P", version: "1", chainId, verifyingContract };
   }
 }
