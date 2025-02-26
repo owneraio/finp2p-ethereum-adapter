@@ -137,8 +137,67 @@ export const LOAN_TYPES = {
   ]
 };
 
-export const RECEIPT_PROOF_TYPES = {
 
+export const SOURCE_TYPE = {
+  Source: [
+    { name: "accountType", type: "string" },
+    { name: "finId", type: "string" },
+  ]
+};
+
+export const DESTINATION_TYPE = {
+  Destination: [
+    { name: "accountType", type: "string" },
+    { name: "finId", type: "string" },
+  ]
+};
+
+export const ASSET_TYPE = {
+  Asset: [
+    { name: "assetId", type: "string" },
+    { name: "assetType", type: "string" },
+  ]
+};
+
+
+export const EXECUTION_CONTEXT_TYPE = {
+  ExecutionContext: [
+    { name: "executionPlanId", type: "string" },
+    { name: "instructionSequenceNumber", type: "string" },
+  ]
+};
+
+export const TRADE_DETAILS_TYPE = {
+  TradeDetails: [
+    { name: "executionContext", type: "ExecutionContext" },
+  ]
+};
+
+export const TRANSACTION_DETAILS_TYPE = {
+  TransactionDetails: [
+    { name: "operationId", type: "string" },
+    { name: "transactionId", type: "string" },
+  ]
+};
+
+
+export const RECEIPT_PROOF_TYPES = {
+  ...SOURCE_TYPE,
+  ...DESTINATION_TYPE,
+  ...ASSET_TYPE,
+  ...EXECUTION_CONTEXT_TYPE,
+  ...TRADE_DETAILS_TYPE,
+  ...TRANSACTION_DETAILS_TYPE,
+  Receipt: [
+    { name: "id", type: "string" },
+    { name: "operationType", type: "string" },
+    { name: "source", type: "Source" },
+    { name: "destination", type: "Destination" },
+    { name: "asset", type: "Asset" },
+    // { name: "quantity", type: "string" },
+    { name: "tradeDetails", type: "TradeDetails" },
+    { name: "transactionDetails", type: "TransactionDetails" },
+  ]
 }
 
 export interface EIP712Message {
@@ -225,13 +284,69 @@ export interface EIP712LoanMessage extends EIP712Message {
   loanTerms: LoanTerms
 }
 
+export interface Source {
+  accountType: string
+  finId: string
+}
+
+export const source = (accountType: string, finId: string): Source => {
+  return { accountType, finId };
+}
+
+export interface Destination {
+  accountType: string
+  finId: string
+}
+
+export const destination = (accountType: string, finId: string): Destination => {
+  return { accountType, finId };
+}
+
+export interface Asset {
+  assetId: string
+  assetType: string
+}
+
+export const asset = (assetId: string, assetType: string): Asset => {
+  return { assetId, assetType };
+}
+
+export interface ExecutionContext {
+  executionPlanId: string
+  instructionSequenceNumber: string
+}
+
+export const executionContext = (executionPlanId: string, instructionSequenceNumber: string): ExecutionContext => {
+  return { executionPlanId, instructionSequenceNumber };
+}
+
+export interface TradeDetails {
+  executionContext: ExecutionContext
+}
+
+export const tradeDetails = (executionContext: ExecutionContext): TradeDetails => {
+  return { executionContext };
+}
+
+export interface TransactionDetails {
+  operationId: string
+  transactionId: string
+}
+
+export const transactionDetails = (operationId: string, transactionId: string): TransactionDetails => {
+  return { operationId, transactionId };
+}
+
+
 export interface EIP712ReceiptMessage extends EIP712Message {
   id: string,
-  source: string,
-  destination: string,
-  assetId: string,
-  assetType: string,
+  operationType: string,
+  source: Source,
+  destination: Destination,
+  asset: Asset,
   quantity: string,
+  tradeDetails: TradeDetails,
+  transactionDetails: TransactionDetails
 }
 
 export const newPrimarySaleMessage = (nonce: string, buyer: FinId, issuer: FinId, asset: Term, settlement: Term): EIP712PrimarySaleMessage => {
@@ -262,8 +377,8 @@ export const newLoanMessage = (nonce: string, borrower: FinId, lender: FinId, as
   return { nonce, borrower, lender, asset, settlement, loanTerms };
 };
 
-export const newReceiptMessage = (id: string, source: string, destination: string, assetId: string, assetType: string, quantity: string): EIP712ReceiptMessage => {
-  return { id, source, destination, assetId, assetType, quantity };
+export const newReceiptMessage = (id: string, operationType: string, source: Source, destination: Destination, asset: Asset, quantity: string, tradeDetails: TradeDetails, transactionDetails: TransactionDetails): EIP712ReceiptMessage => {
+  return { id, operationType, source, destination, asset, quantity, tradeDetails, transactionDetails };
 }
 
 export const signWithPrivateKey = <T extends EIP712Message>(chainId: bigint | number, verifyingContract: string, types: Record<string, Array<TypedDataField>>, message: T, signerPrivateKey: string) => {

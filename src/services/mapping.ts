@@ -1,5 +1,14 @@
 import { EIP712Domain, EIP712Template, FinP2PReceipt, ReceiptProof } from "../../finp2p-contracts/src/contracts/model";
-import { EIP712ReceiptMessage, Leg, PrimaryType, term, Term } from "../../finp2p-contracts/src/contracts/eip712";
+import {
+  asset,
+  destination,
+  EIP712ReceiptMessage, executionContext,
+  Leg,
+  PrimaryType,
+  source,
+  term,
+  Term, tradeDetails, transactionDetails
+} from "../../finp2p-contracts/src/contracts/eip712";
 import { TypedDataField } from "ethers";
 import Asset = Components.Schemas.Asset;
 import Receipt = Components.Schemas.Receipt;
@@ -89,16 +98,43 @@ export const eip712DomainToAPI = (domain: EIP712Domain): Components.Schemas.EIP7
 
 export const eip712TypesToAPI = (types: Record<string, Array<TypedDataField>>): Components.Schemas.EIP712Types => {
   return {
-
+    definitions: Object.entries(types).map(([typeName, fields]) => ({
+      name: typeName,
+      fields: fields.map(field => ({
+        name: field.name,
+        type: field.type
+      }))
+    }))
   } as Components.Schemas.EIP712Types;
 }
 
 export const eip712MessageToAPI = (message: Record<string, any>): {
   [name: string]: Components.Schemas.EIP712TypedValue;
 } => {
-  return {
+  const convertValue = (value: any): Components.Schemas.EIP712TypedValue => {
+    if (typeof value === "string") {
+      return /^0x[0-9a-fA-F]+$/.test(value) ? (value as Components.Schemas.EIP712TypeByte) : (value as EIP712TypeString);
+    }
+    if (typeof value === "number") {
+      return value as Components.Schemas.EIP712TypeInteger;
+    }
+    if (typeof value === "boolean") {
+      return value as Components.Schemas.EIP712TypeBool;
+    }
+    if (Array.isArray(value)) {
+      return value.map(convertValue) as Components.Schemas.EIP712TypeArray;
+    }
+    if (typeof value === "object" && value !== null) {
+      return Object.fromEntries(
+        Object.entries(value).map(([key, val]) => [key, convertValue(val)])
+      ) as Components.Schemas.EIP712TypeObject;
+    }
+    throw new Error("Unsupported EIP712 message value type");
+  };
 
-  }
+  return Object.fromEntries(
+    Object.entries(message).map(([key, val]) => [key, convertValue(val)])
+  ) as Components.Schemas.EIP712TypeObject;
 }
 
 export const eip712TemplateToAPI = (template: EIP712Template): Components.Schemas.EIP712Template => {
@@ -153,10 +189,12 @@ export const receiptToAPI = (receipt: FinP2PReceipt): Receipt => {
 export const receiptToEIP712Message = (receipt: FinP2PReceipt): EIP712ReceiptMessage => {
   return {
     id: receipt.id,
-    source: receipt.source || '',
-    destination: receipt.destination || '',
-    assetId: receipt.assetId,
-    assetType: receipt.assetType,
+    operationType: receipt.operationType,
+    source: source( receipt.source ? 'finp2p' : '', receipt.source || ''),
+    destination: destination(receipt.destination ? 'finp2p' : '', receipt.destination || ''),
+    asset: asset(receipt.assetId, receipt.assetType),
+    tradeDetails: tradeDetails(executionContext('', '')),
+    transactionDetails: transactionDetails('', receipt.id),
     quantity: `${receipt.amount}`,
   }
 }

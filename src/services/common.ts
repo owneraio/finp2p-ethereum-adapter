@@ -94,29 +94,37 @@ export class CommonService {
         return receipt;
       case 'SignatureProofPolicy':
         const { signatureTemplate } = policy;
-        if (signatureTemplate !== 'eip712') {
+        if (signatureTemplate !== 'EIP712') {
           throw new Error(`Unsupported signature template: ${signatureTemplate}`);
         }
-        const message = receiptToEIP712Message(receipt);
-        // const domain = await this.finP2PContract.eip712Domain();
-        receipt.proof = {
-          type: 'signature-proof',
-          template: {
-            primaryType: '',
-            domain: {
-              name: 'FinP2P',
-              version: '1',
-              chainId: 0,
-              verifyingContract: ''
-            },
-            message,
-            types: RECEIPT_PROOF_TYPES
-          },
-          signature: await this.finP2PContract.signEIP712(
+        const domain = await this.finP2PContract.eip712Domain();
+        const chainId = parseInt(process.env.LEDGER_PROOF_EIP712_CHAIN_ID || `${domain[3]}`);
+        const verifyingContract = process.env.LEDGER_PROOF_EIP712_VERIFYING_CONTRACT || domain[4];
+        try {
+          const message = receiptToEIP712Message(receipt);
+          const signature = await this.finP2PContract.signEIP712(
             RECEIPT_PROOF_TYPES,
             message
-          )
+          );
+          receipt.proof = {
+            type: 'signature-proof',
+            template: {
+              primaryType: 'Receipt',
+              domain: {
+                name: 'FinP2P',
+                version: '1',
+                chainId,
+                verifyingContract
+              },
+              message,
+              types: RECEIPT_PROOF_TYPES
+            },
+            signature
+          }
+        } catch (e) {
+          console.log(e)
         }
+
         return receipt;
     }
   }
