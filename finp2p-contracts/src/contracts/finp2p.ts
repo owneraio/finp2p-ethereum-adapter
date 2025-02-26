@@ -10,7 +10,7 @@ import {
   NonceToHighError,
   OperationStatus
 } from "./model";
-import { normalizeOperationId, parseTransactionReceipt } from "./utils";
+import { compactSerialize, normalizeOperationId, parseTransactionReceipt } from "./utils";
 import { ContractsManager } from './manager';
 import console from 'console';
 import { DOMAIN, Leg, PrimaryType, Term } from "./eip712";
@@ -114,7 +114,7 @@ export class FinP2PContract extends ContractsManager {
     const chainId = (await this.provider.getNetwork()).chainId;
     const verifyingContract = this.finP2PContractAddress;
     const domain = { ...DOMAIN, chainId, verifyingContract };
-    return this.signer.signTypedData(domain, types, message);
+    return compactSerialize(await this.signer.signTypedData(domain, types, message));
   }
 
   async getOperationStatus(hash: string): Promise<OperationStatus> {

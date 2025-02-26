@@ -5,7 +5,7 @@ import { NetworkDetails } from '../tests/utils/models';
 import { ContractsManager } from '../finp2p-contracts/src/contracts/manager';
 import { FinP2PContract } from '../finp2p-contracts/src/contracts/finp2p';
 import createApp from '../src/app';
-import { addressFromPrivateKey } from '../finp2p-contracts/src/contracts/utils';
+import { addressFromPrivateKey, privateKeyToFinId } from "../finp2p-contracts/src/contracts/utils";
 import process from 'process';
 import http from 'http';
 import { Provider, Signer } from "ethers";
@@ -84,6 +84,8 @@ const start = async () => {
 
   process.env.OPERATOR_PRIVATE_KEY = deployer;
   process.env.NETWORK_HOST = details.rpcUrl;
+
+  console.log(`Operator public key: ${privateKeyToFinId(deployer)}`);
 
   const operatorAddress = addressFromPrivateKey(operator);
   const { provider, signer } = await createProviderAndSigner(providerType);
