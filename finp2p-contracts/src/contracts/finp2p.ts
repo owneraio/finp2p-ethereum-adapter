@@ -118,7 +118,8 @@ export class FinP2PContract extends ContractsManager {
   }
 
   async signEIP712(chainId: bigint | number, verifyingContract: string, types: Record<string, Array<TypedDataField>>, message: Record<string, any>) {
-    return sign(chainId, verifyingContract, types, message, this.signer);
+    const signature = await sign(chainId, verifyingContract, types, message, this.signer);
+    return compactSerialize(signature);
   }
 
   async getOperationStatus(hash: string): Promise<OperationStatus> {
