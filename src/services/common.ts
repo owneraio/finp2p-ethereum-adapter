@@ -3,16 +3,15 @@ import { FinP2PContract } from '../../finp2p-contracts/src/contracts/finp2p';
 import { assetFromAPI, receiptToAPI, receiptToEIP712Message } from "./mapping";
 import { FinP2PReceipt } from "../../finp2p-contracts/src/contracts/model";
 import { PolicyGetter } from "../finp2p/policy";
-import { DOMAIN, DOMAIN_TYPE, RECEIPT_PROOF_TYPES } from "../../finp2p-contracts/src/contracts/eip712";
-import { TypedDataDomain } from "ethers";
+import { DOMAIN_TYPE, RECEIPT_PROOF_TYPES } from "../../finp2p-contracts/src/contracts/eip712";
 
 
 export class CommonService {
 
   finP2PContract: FinP2PContract;
-  policyGetter: PolicyGetter
+  policyGetter: PolicyGetter | undefined;
 
-  constructor(finP2PContract: FinP2PContract, policyGetter: PolicyGetter) {
+  constructor(finP2PContract: FinP2PContract, policyGetter: PolicyGetter | undefined) {
     this.finP2PContract = finP2PContract;
     this.policyGetter = policyGetter;
   }
@@ -83,6 +82,9 @@ export class CommonService {
   }
 
   private async ledgerProof(receipt: FinP2PReceipt): Promise<FinP2PReceipt> {
+    if (this.policyGetter === undefined) {
+      return receipt;
+    }
     const policy = await this.policyGetter.getPolicy(receipt.assetId, receipt.assetType)
     switch (policy.type) {
       case 'NoProofPolicy':
