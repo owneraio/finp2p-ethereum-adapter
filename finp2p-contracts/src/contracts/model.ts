@@ -11,6 +11,14 @@ export type SuccessfulTransaction = {
   receipt: FinP2PReceipt
 };
 
+// similar to TypedDataDomain
+export type EIP712Domain = {
+  chainId: number
+  verifyingContract: string
+  name: string
+  version: string
+}
+
 export type EIP712Template = {
   primaryType: string
   domain: TypedDataDomain,

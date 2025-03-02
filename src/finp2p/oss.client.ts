@@ -5,14 +5,10 @@ import GET_ASSET from './graphql/asset.graphql';
 import GET_ALL_ASSETS from './graphql/all-assets.graphql';
 import GET_PAYMENT_ASSET from './graphql/paymentAsset.graphql';
 import * as axios from 'axios';
+import { Proof } from "./model";
 
-export type Proof = {
-  type: 'NoProofPolicy'
-} | {
-  type: 'SignatureProofPolicy',
-  verifyingKey: string,
-  signatureTemplate: string
-}
+
+
 
 export class OssClient {
 

@@ -1,5 +1,7 @@
-import { OssClient, Proof } from "./oss.client";
+import { OssClient } from "./oss.client";
+import { Proof, ProofDomain, parseProofDomain, ProofPolicy } from "./model";
 import process from "process";
+
 
 
 export class PolicyGetter {
@@ -9,11 +11,14 @@ export class PolicyGetter {
     this.ossClient = ossClient;
   }
 
-  async getPolicy(assetCode: string, assetType: 'cryptocurrency' | 'fiat' | 'finp2p'): Promise<Proof> {
+  async getPolicy(assetCode: string, assetType: 'cryptocurrency' | 'fiat' | 'finp2p'): Promise<ProofPolicy> {
     let proof: Proof;
+    let domain: ProofDomain | null = null;
+    let configRaw: string
     switch (assetType) {
       case 'finp2p': {
-        ({ policies: { proof } } = await this.ossClient.getAsset(assetCode));
+        ({ policies: { proof }, config: configRaw } = await this.ossClient.getAsset(assetCode));
+        domain = parseProofDomain(configRaw);
         break
       }
       case 'cryptocurrency':
@@ -23,7 +28,14 @@ export class PolicyGetter {
         break
       }
     }
-    return proof;
+
+    switch (proof.type) {
+      case 'NoProofPolicy':
+        return { type: 'NoProofPolicy' }
+      case 'SignatureProofPolicy': {
+        return { ...proof, domain }
+      }
+    }
   }
 
 

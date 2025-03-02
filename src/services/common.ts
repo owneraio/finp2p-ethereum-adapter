@@ -1,9 +1,11 @@
 import { logger } from '../helpers/logger';
 import { FinP2PContract } from '../../finp2p-contracts/src/contracts/finp2p';
+import { EIP712Domain } from '../../finp2p-contracts/src/contracts/model';
 import { assetFromAPI, receiptToAPI, receiptToEIP712Message } from "./mapping";
 import { FinP2PReceipt } from "../../finp2p-contracts/src/contracts/model";
 import { PolicyGetter } from "../finp2p/policy";
 import { DOMAIN_TYPE, RECEIPT_PROOF_TYPES } from "../../finp2p-contracts/src/contracts/eip712";
+import { ProofDomain } from "../finp2p/model";
 
 
 export class CommonService {
@@ -97,7 +99,7 @@ export class CommonService {
         if (signatureTemplate !== 'EIP712') {
           throw new Error(`Unsupported signature template: ${signatureTemplate}`);
         }
-        const domain = await this.getDomain();
+        const domain = await this.getDomain(policy.domain);
         const types = RECEIPT_PROOF_TYPES;
         const message = receiptToEIP712Message(receipt);
         const primaryType = 'Receipt';
@@ -113,10 +115,11 @@ export class CommonService {
     }
   }
 
-  private async getDomain(): Promise<{ chainId: number, verifyingContract: string, name: string, version: string }> {
+  private async getDomain(policyDomain: ProofDomain | null): Promise<EIP712Domain> {
     const domain = await this.finP2PContract.eip712Domain();
-    const chainId = parseInt(process.env.LEDGER_PROOF_EIP712_CHAIN_ID || `${domain[3]}`);
-    const verifyingContract = process.env.LEDGER_PROOF_EIP712_VERIFYING_CONTRACT || domain[4];
-    return { name: "FinP2P", version: "1", chainId, verifyingContract };
+    if (policyDomain !== null) {
+      return { ...domain, ...policyDomain }; // merge domains
+    }
+    return domain;
   }
 }
