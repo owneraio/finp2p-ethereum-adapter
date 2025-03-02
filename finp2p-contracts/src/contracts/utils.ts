@@ -1,6 +1,11 @@
-import { HDNodeWallet, Interface, TransactionReceipt, Wallet, isAddress, keccak256 } from 'ethers';
+import { HDNodeWallet, Interface, TransactionReceipt, Wallet, Signature, isAddress, keccak256, concat } from 'ethers';
 import { FinP2PReceipt } from './model';
 import * as secp256k1 from 'secp256k1';
+
+export const compactSerialize = (signature : string): string =>  {
+  const { r, s } = Signature.from(signature)
+  return concat([ r, s ]).substring(2)
+}
 
 export const normalizeOperationId = (operationId: string): string => {
   // TODO: think about passing a string instead of bytes16 or a betting concatenation
@@ -31,9 +36,8 @@ export const createAccount = () => {
 };
 
 export const addressFromPrivateKey = (privateKey: string): string => {
-  return  new Wallet(privateKey).address;
+  return new Wallet(privateKey).address;
 };
-
 
 export const parseTransactionReceipt = (receipt: TransactionReceipt, contractInterface: Interface): FinP2PReceipt | null => {
   const id = receipt.hash;
@@ -54,6 +58,7 @@ export const parseTransactionReceipt = (receipt: TransactionReceipt, contractInt
             amount: parsedLog.args.quantity,
             destination: parsedLog.args.issuerFinId,
             timestamp: timestamp,
+            proof: undefined,
             operationType: 'issue',
           };
         case 'Transfer':
@@ -65,6 +70,7 @@ export const parseTransactionReceipt = (receipt: TransactionReceipt, contractInt
             source: parsedLog.args.sourceFinId,
             destination: parsedLog.args.destinationFinId,
             timestamp: timestamp,
+            proof: undefined,
             operationType: 'transfer',
           };
         case 'Redeem':
@@ -75,6 +81,7 @@ export const parseTransactionReceipt = (receipt: TransactionReceipt, contractInt
             amount: parsedLog.args.quantity,
             source: parsedLog.args.ownerFinId,
             timestamp: timestamp,
+            proof: undefined,
             operationType: 'redeem',
           };
         case 'Hold':
@@ -85,6 +92,7 @@ export const parseTransactionReceipt = (receipt: TransactionReceipt, contractInt
             amount: parsedLog.args.quantity,
             source: parsedLog.args.finId,
             timestamp: timestamp,
+            proof: undefined,
             operationType: 'hold',
           };
         case 'Release':
@@ -96,6 +104,7 @@ export const parseTransactionReceipt = (receipt: TransactionReceipt, contractInt
             source: parsedLog.args.sourceFinId,
             destination: parsedLog.args.destinationFinId,
             timestamp: timestamp,
+            proof: undefined,
             operationType: 'release',
           };
         case 'Rollback':
@@ -106,6 +115,7 @@ export const parseTransactionReceipt = (receipt: TransactionReceipt, contractInt
             amount: parsedLog.args.quantity,
             destination: parsedLog.args.destinationFinId,
             timestamp: timestamp,
+            proof: undefined,
             operationType: 'release',
           };
       }

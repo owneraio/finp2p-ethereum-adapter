@@ -11,9 +11,6 @@ query GetAsset($assetId: String!) {
             issuerId
             config
             allowedIntents
-            regulationVerifiers {
-                id, name, provider
-            }
             certificates {
                 nodes {
                     id
@@ -22,6 +19,26 @@ query GetAsset($assetId: String!) {
                     data
                     expiry
                 }
+            }
+            regulationVerifiers {
+                id,
+                name,
+                provider
+            }
+            policies {
+                proof {
+                    ... on NoProofPolicy {
+                        type: __typename
+                    }
+                    ... on SignatureProofPolicy {
+                        type: __typename
+                        verifyingKey
+                        signatureTemplate
+                    }
+                }
+            }
+            ledgerAssetInfo {
+                tokenId
             }
         }
     }

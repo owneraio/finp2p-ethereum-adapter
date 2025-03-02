@@ -5,12 +5,14 @@ import { NetworkDetails } from '../tests/utils/models';
 import { ContractsManager } from '../finp2p-contracts/src/contracts/manager';
 import { FinP2PContract } from '../finp2p-contracts/src/contracts/finp2p';
 import createApp from '../src/app';
-import { addressFromPrivateKey } from '../finp2p-contracts/src/contracts/utils';
+import { addressFromPrivateKey, privateKeyToFinId } from "../finp2p-contracts/src/contracts/utils";
 import process from 'process';
 import http from 'http';
 import { Provider, Signer } from "ethers";
 import { createProviderAndSigner, ProviderType } from "../finp2p-contracts/src/contracts/config";
 import { AssetCreationPolicy } from "../src/services/tokens";
+import { PolicyGetter } from "../src/finp2p/policy";
+import { OssClient } from "../src/finp2p/oss.client";
 
 let ethereumNodeContainer: StartedTestContainer | undefined;
 let httpServer: http.Server | undefined;
@@ -54,7 +56,8 @@ const deployERC20Contract = async (provider: Provider, signer: Signer, finp2pTok
   return contractManger.deployERC20('ERC-20', 'ERC20', 0, finp2pTokenAddress);
 };
 
-const startApp = async (port: number, provider: Provider, signer: Signer, finP2PContractAddress: string, tokenAddress: string) => {
+const startApp = async (port: number, provider: Provider, signer: Signer,
+                        finP2PContractAddress: string, tokenAddress: string, policyGetter: PolicyGetter | undefined) => {
   const finP2PContract = new FinP2PContract(provider, signer, finP2PContractAddress);
 
   const assetCreationPolicy = {
@@ -62,7 +65,8 @@ const startApp = async (port: number, provider: Provider, signer: Signer, finP2P
     tokenAddress,
   } as AssetCreationPolicy;
 
-  const app = createApp(finP2PContract, assetCreationPolicy);
+
+  const app = createApp(finP2PContract, assetCreationPolicy, policyGetter);
   console.log('App created successfully.');
 
   httpServer = app.listen(port, () => {
@@ -82,13 +86,22 @@ const start = async () => {
   process.env.OPERATOR_PRIVATE_KEY = deployer;
   process.env.NETWORK_HOST = details.rpcUrl;
 
+  console.log(`Operator public key: ${privateKeyToFinId(deployer)}`);
+
   const operatorAddress = addressFromPrivateKey(operator);
   const { provider, signer } = await createProviderAndSigner(providerType);
   const network = await provider.getNetwork();
   console.log(`Connected to network: ${network.name} chainId: ${network.chainId}`);
   const finP2PContractAddress = await deployContract(provider, signer, operatorAddress);
   const tokenAddress = await deployERC20Contract(provider, signer, finP2PContractAddress);
-  await startApp(port, provider, signer, finP2PContractAddress, tokenAddress);
+
+  let policyGetter: PolicyGetter | undefined;
+  const ossUrl = process.env.OSS_URL;
+  if (ossUrl) {
+     policyGetter = new PolicyGetter(new OssClient(ossUrl, undefined));
+  }
+
+  await startApp(port, provider, signer, finP2PContractAddress, tokenAddress, policyGetter);
 };
 
 

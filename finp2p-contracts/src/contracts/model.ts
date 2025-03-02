@@ -1,3 +1,5 @@
+import { TypedDataDomain, TypedDataField } from "ethers";
+
 export type OperationStatus = PendingTransaction | SuccessfulTransaction | FailedTransaction;
 
 export type PendingTransaction = {
@@ -9,6 +11,29 @@ export type SuccessfulTransaction = {
   receipt: FinP2PReceipt
 };
 
+// similar to TypedDataDomain
+export type EIP712Domain = {
+  chainId: number
+  verifyingContract: string
+  name: string
+  version: string
+}
+
+export type EIP712Template = {
+  primaryType: string
+  domain: TypedDataDomain,
+  types: Record<string, Array<TypedDataField>>,
+  message: Record<string, any>
+}
+
+export type ReceiptProof = {
+  type: 'no-proof'
+} | {
+  type: 'signature-proof',
+  template: EIP712Template
+  signature: string
+}
+
 export type FinP2PReceipt = {
   id: string
   assetId: string
@@ -17,6 +42,7 @@ export type FinP2PReceipt = {
   source?: string
   destination?: string,
   timestamp: number,
+  proof: ReceiptProof | undefined,
   operationType: 'transfer' | 'redeem' | 'hold' | 'release' | 'issue'
 };
 

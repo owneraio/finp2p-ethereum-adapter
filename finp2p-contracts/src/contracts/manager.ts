@@ -4,6 +4,7 @@ import {
 import FINP2P from '../../artifacts/contracts/token/ERC20/FINP2POperatorERC20.sol/FINP2POperatorERC20.json';
 import ERC20 from '../../artifacts/contracts/token/ERC20/ERC20WithOperator.sol/ERC20WithOperator.json';
 import { ERC20WithOperator, FINP2POperatorERC20 } from '../../typechain-types';
+import { DOMAIN } from "./eip712";
 
 const DefaultDecimalsCurrencies = 2;
 
