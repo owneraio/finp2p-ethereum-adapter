@@ -21,12 +21,11 @@ export type ProofPolicy = {
   domain: ProofDomain | null
 }
 
-
 export const parseProofDomain = (jsonString: string): ProofDomain | null => {
     const rawObject: unknown = JSON.parse(jsonString);
 
     if (typeof rawObject !== "object" || rawObject === null) {
-      throw new Error("Invalid JSON structure");
+      return null
     }
 
     const obj: Record<string, unknown> = {};
@@ -41,7 +40,7 @@ export const parseProofDomain = (jsonString: string): ProofDomain | null => {
       typeof obj["chainid"] !== "number" ||
       typeof obj["verifyingcontract"] !== "string"
     ) {
-      throw new Error("Missing or invalid fields");
+      return null
     }
 
     return {
