@@ -103,6 +103,7 @@ export class CommonService {
         const types = RECEIPT_PROOF_TYPES;
         const message = receiptToEIP712Message(receipt);
         const primaryType = 'Receipt';
+        logger.debug('Signing receipt with EIP712', { domain, types, message });
         const signature = await this.finP2PContract.signEIP712(
           domain.chainId, domain.verifyingContract, types, message);
         receipt.proof = {
