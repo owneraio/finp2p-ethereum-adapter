@@ -94,12 +94,16 @@ export class CommonService {
           type: 'no-proof'
         }
         return receipt;
+
       case 'SignatureProofPolicy':
-        const { signatureTemplate } = policy;
+        const { signatureTemplate, domain: policyDomain } = policy;
         if (signatureTemplate !== 'EIP712') {
           throw new Error(`Unsupported signature template: ${signatureTemplate}`);
         }
-        const domain = await this.getDomain(policy.domain);
+        if (policyDomain !== null) {
+          logger.info('Using domain from asset metadata: ', policyDomain);
+        }
+        const domain = await this.getDomain(policyDomain);
         const types = RECEIPT_PROOF_TYPES;
         const message = receiptToEIP712Message(receipt);
         const primaryType = 'Receipt';
