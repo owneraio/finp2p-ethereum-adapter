@@ -19,8 +19,8 @@ import {
 } from "./model";
 import { compactSerialize, normalizeOperationId, parseTransactionReceipt } from "./utils";
 import { ContractsManager } from './manager';
-import console from 'console';
-import { DOMAIN, Leg, PrimaryType, sign, hash as typedHash, Term } from "./eip712";
+import { Leg, PrimaryType, sign, hash as typedHash, Term } from "./eip712";
+import winston from "winston";
 
 export class FinP2PContract extends ContractsManager {
 
@@ -30,8 +30,8 @@ export class FinP2PContract extends ContractsManager {
 
   finP2PContractAddress: string;
 
-  constructor(provider: Provider, signer: Signer, finP2PContractAddress: string) {
-    super(provider, signer);
+  constructor(provider: Provider, signer: Signer, finP2PContractAddress: string, logger: winston.Logger) {
+    super(provider, signer, logger);
     const factory = new ContractFactory<any[], FINP2POperatorERC20>(
       FINP2P.abi, FINP2P.bytecode, this.signer,
     );
@@ -40,7 +40,7 @@ export class FinP2PContract extends ContractsManager {
     this.finP2P = contract as FINP2POperatorERC20;
     this.finP2PContractAddress = finP2PContractAddress;
     this.signer.getNonce().then((nonce) => {
-      console.log('Syncing nonce:', nonce);
+      this.logger.info('Syncing nonce:', nonce);
     });
   }
 
@@ -143,7 +143,7 @@ export class FinP2PContract extends ContractsManager {
     } else if (txReceipt?.status === 1) {
       let receipt = parseTransactionReceipt(txReceipt, this.contractInterface);
       if (receipt === null) {
-        console.log('Failed to parse receipt');
+        this.logger.error('Failed to parse receipt');
         return {
           status: 'failed',
           error: {

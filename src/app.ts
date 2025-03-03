@@ -1,7 +1,6 @@
-import express, { Application } from 'express';
+import express from 'express';
 import { logger as expressLogger } from 'express-winston';
-import { format, transports } from 'winston';
-import process from 'process';
+import winston from 'winston';
 import * as routes from './routes';
 import { AssetCreationPolicy, TokenService } from './services/tokens';
 import { EscrowService } from './services/escrow';
@@ -10,26 +9,16 @@ import { PlanService } from './services/plans';
 import { FinP2PContract } from '../finp2p-contracts/src/contracts/finp2p';
 import { PolicyGetter } from "./finp2p/policy";
 
-function configureLogging(app: Application) {
+
+function createApp(finP2PContract: FinP2PContract,
+                   assetCreationPolicy: AssetCreationPolicy,
+                   policyGetter: PolicyGetter | undefined,
+                   logger: winston.Logger) {
+  const app = express();
+  app.use(express.json({ limit: '50mb' }));
   app.use(
     expressLogger({
-      transports: [new transports.Console({ level: process.env.LOG_LEVEL || 'info' })],
-      format: format.combine(
-        format.timestamp(),
-        format(function dynamicContent(info) {
-          if (info.timestamp) {
-            info.time = info.timestamp;
-            delete info.timestamp;
-          }
-          if (info.message) {
-            info.msg = info.message;
-            // @ts-ignore
-            delete info.message;
-          }
-          return info;
-        })(),
-        format.json(),
-      ),
+      winstonInstance: logger,
       meta: true,
       expressFormat: true,
       statusLevels: true,
@@ -38,12 +27,6 @@ function configureLogging(app: Application) {
         req.url.toLowerCase() === '/liveness',
     }),
   );
-}
-
-function createApp(finP2PContract: FinP2PContract, assetCreationPolicy: AssetCreationPolicy, policyGetter: PolicyGetter | undefined) {
-  const app = express();
-  app.use(express.json({ limit: '50mb' }));
-  configureLogging(app);
 
   routes.register(
     app,

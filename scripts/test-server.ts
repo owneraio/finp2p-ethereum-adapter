@@ -13,13 +13,36 @@ import { createProviderAndSigner, ProviderType } from "../finp2p-contracts/src/c
 import { AssetCreationPolicy } from "../src/services/tokens";
 import { PolicyGetter } from "../src/finp2p/policy";
 import { OssClient } from "../src/finp2p/oss.client";
+import winston, { format, transports } from "winston";
 
 let ethereumNodeContainer: StartedTestContainer | undefined;
 let httpServer: http.Server | undefined;
 const providerType: ProviderType = 'local';
 
+
+const level = 'INFO';
+const logger = winston.createLogger({
+  transports: [new transports.Console(/*{ level }*/)],
+  format: format.combine(
+    format.timestamp(),
+    format(function dynamicContent(info) {
+      if (info.timestamp) {
+        info.time = info.timestamp;
+        delete info.timestamp;
+      }
+      if (info.message) {
+        info.msg = info.message;
+        // @ts-ignore
+        delete info.message;
+      }
+      return info;
+    })(),
+    format.json(),
+  ),
+});
+
 const startHardhatContainer = async () => {
-  console.log('Starting hardhat node container...');
+  logger.info('Starting hardhat node container...');
   const logExtractor = new HardhatLogExtractor();
   const containerPort = 8545;
   const startedContainer = await new GenericContainer('ghcr.io/owneraio/hardhat:task-fix-docker-build')
@@ -28,7 +51,7 @@ const startHardhatContainer = async () => {
     .start();
 
   await logExtractor.started();
-  console.log('Hardhat node started successfully.');
+  logger.info('Hardhat node started successfully.');
 
   let accounts = [
     '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80',
@@ -47,18 +70,19 @@ const startHardhatContainer = async () => {
 const deployContract = async (provider: Provider, signer: Signer,
                               operatorAddress: string | undefined,
                               paymentAssetCode: string | undefined = undefined) => {
-  const contractManger = new ContractsManager(provider, signer);
+  const contractManger = new ContractsManager(provider, signer, logger);
   return contractManger.deployFinP2PContract(operatorAddress, paymentAssetCode);
 };
 
 const deployERC20Contract = async (provider: Provider, signer: Signer, finp2pTokenAddress: string) => {
-  const contractManger = new ContractsManager(provider, signer);
+  const contractManger = new ContractsManager(provider, signer, logger);
   return contractManger.deployERC20('ERC-20', 'ERC20', 0, finp2pTokenAddress);
 };
 
 const startApp = async (port: number, provider: Provider, signer: Signer,
-                        finP2PContractAddress: string, tokenAddress: string, policyGetter: PolicyGetter | undefined) => {
-  const finP2PContract = new FinP2PContract(provider, signer, finP2PContractAddress);
+                        finP2PContractAddress: string, tokenAddress: string, policyGetter: PolicyGetter | undefined,
+                        logger: winston.Logger) => {
+  const finP2PContract = new FinP2PContract(provider, signer, finP2PContractAddress, logger);
 
   const assetCreationPolicy = {
     type: 'reuse-existing-token',
@@ -66,15 +90,16 @@ const startApp = async (port: number, provider: Provider, signer: Signer,
   } as AssetCreationPolicy;
 
 
-  const app = createApp(finP2PContract, assetCreationPolicy, policyGetter);
-  console.log('App created successfully.');
+  const app = createApp(finP2PContract, assetCreationPolicy, policyGetter, logger);
+  logger.info('App created successfully.');
 
   httpServer = app.listen(port, () => {
-    console.log(`Server listening on port ${port}`);
+    logger.info(`Server listening on port ${port}`);
   });
 
   return `http://localhost:${port}/api`;
 };
+
 
 const start = async () => {
   const port = parseInt(process.env.PORT || '3000');
@@ -86,12 +111,13 @@ const start = async () => {
   process.env.OPERATOR_PRIVATE_KEY = deployer;
   process.env.NETWORK_HOST = details.rpcUrl;
 
-  console.log(`Operator public key: ${privateKeyToFinId(deployer)}`);
+
+  logger.info(`Operator public key: ${privateKeyToFinId(deployer)}`);
 
   const operatorAddress = addressFromPrivateKey(operator);
-  const { provider, signer } = await createProviderAndSigner(providerType);
+  const { provider, signer } = await createProviderAndSigner(providerType, logger);
   const network = await provider.getNetwork();
-  console.log(`Connected to network: ${network.name} chainId: ${network.chainId}`);
+  logger.info(`Connected to network: ${network.name} chainId: ${network.chainId}`);
   const finP2PContractAddress = await deployContract(provider, signer, operatorAddress);
   const tokenAddress = await deployERC20Contract(provider, signer, finP2PContractAddress);
 
@@ -101,21 +127,21 @@ const start = async () => {
      policyGetter = new PolicyGetter(new OssClient(ossUrl, undefined));
   }
 
-  await startApp(port, provider, signer, finP2PContractAddress, tokenAddress, policyGetter);
+  await startApp(port, provider, signer, finP2PContractAddress, tokenAddress, policyGetter, logger);
 };
 
 
 process.on('exit', (code) => {
-  console.log(`Process exiting with code: ${code}`);
+  logger.info(`Process exiting with code: ${code}`);
   try {
     httpServer?.close();
   } catch (e) {
-    console.error('Error stopping http server:', e);
+    logger.error('Error stopping http server:', e);
   }
   try {
     ethereumNodeContainer?.stop();
   } catch (e) {
-    console.error('Error stopping Ganache container:', e);
+    logger.error('Error stopping Ganache container:', e);
   }
 });
 

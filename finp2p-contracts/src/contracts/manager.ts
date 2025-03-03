@@ -5,6 +5,7 @@ import FINP2P from '../../artifacts/contracts/token/ERC20/FINP2POperatorERC20.so
 import ERC20 from '../../artifacts/contracts/token/ERC20/ERC20WithOperator.sol/ERC20WithOperator.json';
 import { ERC20WithOperator, FINP2POperatorERC20 } from '../../typechain-types';
 import { DOMAIN } from "./eip712";
+import winston from "winston";
 
 const DefaultDecimalsCurrencies = 2;
 
@@ -12,10 +13,12 @@ export class ContractsManager {
 
   provider: Provider;
   signer: Signer;
+  logger: winston.Logger
 
-  constructor(provider: Provider, signer: Signer) {
+  constructor(provider: Provider, signer: Signer, logger: winston.Logger) {
     this.provider = provider;
     this.signer = signer;
+    this.logger = logger;
   }
 
   async deployERC20(name: string, symbol: string, decimals: number, finP2PContractAddress: string) {
@@ -30,7 +33,7 @@ export class ContractsManager {
   }
 
   async deployFinP2PContract(signerAddress: string | undefined, paymentAssetCode: string | undefined = undefined) {
-    console.log('Deploying FinP2P contract...');
+    this.logger.info('Deploying FinP2P contract...');
     const factory = new ContractFactory<any[], FINP2POperatorERC20>(
       FINP2P.abi, FINP2P.bytecode, this.signer,
     );
@@ -38,7 +41,7 @@ export class ContractsManager {
     await contract.waitForDeployment();
 
     const address = await contract.getAddress();
-    console.log('FinP2P contract deployed successfully at:', address);
+    this.logger.info('FinP2P contract deployed successfully at:', address);
 
     if (signerAddress) {
       await this.grantAssetManagerRole(address, signerAddress);
@@ -53,7 +56,7 @@ export class ContractsManager {
   }
 
   async isFinP2PContractHealthy(finP2PContractAddress: string): Promise<boolean> {
-    // console.log(`Check FinP2P contract at ${finP2PContractAddress} on chain`);
+    // logger.info(`Check FinP2P contract at ${finP2PContractAddress} on chain`);
     const factory = new ContractFactory<any[], FINP2POperatorERC20>(
       FINP2P.abi, FINP2P.bytecode, this.signer,
     );
@@ -72,18 +75,18 @@ export class ContractsManager {
   }
 
   async preCreatePaymentAsset(factory: ContractFactory<any[], FINP2POperatorERC20>, finP2PContractAddress: string, assetId: string, decimals: number): Promise<void> {
-    console.log(`Pre-creating payment asset ${assetId}...`);
+    this.logger.info(`Pre-creating payment asset ${assetId}...`);
     const tokenAddress = await this.deployERC20(assetId, assetId, decimals, finP2PContractAddress);
 
     const contract = factory.attach(finP2PContractAddress);
 
-    console.log(`Associating asset ${assetId} with token ${tokenAddress}...`);
+    this.logger.info(`Associating asset ${assetId} with token ${tokenAddress}...`);
     const tx = await contract.associateAsset(assetId, tokenAddress);
     await this.waitForCompletion(tx.hash);
   }
 
   async grantAssetManagerRole(finP2PContractAddress: string, to: string) {
-    console.log(`Granting asset manager role to ${to}...`);
+    this.logger.info(`Granting asset manager role to ${to}...`);
     const factory = new ContractFactory<any[], FINP2POperatorERC20>(
       FINP2P.abi, FINP2P.bytecode, this.signer,
     );
@@ -93,7 +96,7 @@ export class ContractsManager {
   }
 
   async grantTransactionManagerRole(finP2PContractAddress: string, to: string) {
-    console.log(`Granting transaction manager role to ${to}...`);
+    this.logger.info(`Granting transaction manager role to ${to}...`);
     const factory = new ContractFactory<any[], FINP2POperatorERC20>(
       FINP2P.abi, FINP2P.bytecode, this.signer,
     );
