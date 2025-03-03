@@ -20,7 +20,7 @@ import {
 import { compactSerialize, normalizeOperationId, parseTransactionReceipt } from "./utils";
 import { ContractsManager } from './manager';
 import console from 'console';
-import { DOMAIN, Leg, PrimaryType, sign, Term } from "./eip712";
+import { DOMAIN, Leg, PrimaryType, sign, hash as typedHash, Term } from "./eip712";
 
 export class FinP2PContract extends ContractsManager {
 
@@ -128,9 +128,10 @@ export class FinP2PContract extends ContractsManager {
     return this.finP2P.eip712Domain();
   }
 
-  async signEIP712(chainId: bigint | number, verifyingContract: string, types: Record<string, Array<TypedDataField>>, message: Record<string, any>) {
-    const signature = await sign(chainId, verifyingContract, types, message, this.signer);
-    return compactSerialize(signature);
+  async signEIP712(chainId: bigint | number, verifyingContract: string, types: Record<string, Array<TypedDataField>>, message: Record<string, any>) : Promise<{ hash: string, signature: string}> {
+    const hash = typedHash(chainId, verifyingContract, types, message).substring(2);
+    const signature = compactSerialize(await sign(chainId, verifyingContract, types, message, this.signer));
+    return { hash, signature };
   }
 
   async getOperationStatus(hash: string): Promise<OperationStatus> {

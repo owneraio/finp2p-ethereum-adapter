@@ -103,12 +103,18 @@ export class CommonService {
         const types = RECEIPT_PROOF_TYPES;
         const message = receiptToEIP712Message(receipt);
         const primaryType = 'Receipt';
-        logger.debug('Signing receipt with EIP712', { domain, types, message });
-        const signature = await this.finP2PContract.signEIP712(
+
+        logger.info('Signing receipt with EIP712', { primaryType, domain, types, message });
+        const { hash, signature } = await this.finP2PContract.signEIP712(
           domain.chainId, domain.verifyingContract, types, message);
+
+        logger.info('Receipt signed', { hash, signature });
+
+        // ethers doesn't allow to pass an eip712 domain in a list of types, but the domain is required on a router side
+        const extendedType = { ...DOMAIN_TYPE, ...types };
         receipt.proof = {
           type: 'signature-proof',
-          template: { primaryType, domain, types: { ...DOMAIN_TYPE, ...types }, message },
+          template: { primaryType, domain, types: extendedType, hash, message },
           signature
         }
 

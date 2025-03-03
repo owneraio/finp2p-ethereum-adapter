@@ -138,13 +138,14 @@ export const eip712MessageToAPI = (message: Record<string, any>): {
 }
 
 export const eip712TemplateToAPI = (template: EIP712Template): Components.Schemas.EIP712Template => {
-  const { primaryType, domain, types, message } = template;
+  const { primaryType, domain, types, message, hash } = template;
   return {
     primaryType,
     type: 'EIP712',
     types: eip712TypesToAPI(types),
     message: eip712MessageToAPI(message),
-    domain: eip712DomainToAPI(domain)
+    domain: eip712DomainToAPI(domain),
+    hash,
   } as Components.Schemas.EIP712Template;
 }
 

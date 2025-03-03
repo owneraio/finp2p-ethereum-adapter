@@ -24,6 +24,7 @@ export type EIP712Template = {
   domain: TypedDataDomain,
   types: Record<string, Array<TypedDataField>>,
   message: Record<string, any>
+  hash: string
 }
 
 export type ReceiptProof = {

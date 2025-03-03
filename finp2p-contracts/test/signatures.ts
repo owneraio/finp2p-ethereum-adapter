@@ -7,10 +7,12 @@ import { ethers } from "hardhat";
 import { generateNonce } from "./utils";
 import { v4 as uuidv4 } from "uuid";
 import { Wallet } from "ethers";
-import { getFinId } from "../src/contracts/utils";
+import { compactSerialize, getFinId, privateKeyToFinId } from "../src/contracts/utils";
 import {
   PRIMARY_SALE_TYPES,
-  REDEMPTION_TYPES, SELLING_TYPES,BUYING_TYPES,
+  REDEMPTION_TYPES,
+  SELLING_TYPES,
+  BUYING_TYPES,
   PrimaryType,
   finId,
   term,
@@ -21,6 +23,14 @@ import {
   newPrimarySaleMessage,
   newRedemptionMessage,
   newSellingMessage,
+  newReceiptMessage,
+  source,
+  destination,
+  asset,
+  tradeDetails,
+  transactionDetails,
+  executionContext,
+  RECEIPT_PROOF_TYPES
 } from "../src/contracts/eip712";
 
 
@@ -108,6 +118,32 @@ describe("Signing test", function() {
     expect(offChainHash).to.equal(onChainHash);
     expect(await verifier.verifyTransferSignature(nonce, issuerFinId, sellerFinId, asset, settlement, signerAddress, PrimaryType.Redemption, signature)).to.equal(true);
   });
+
+  it("Receipt proof signature", async function() {
+    const { contract: verifier } = await loadFixture(deployFinP2PSignatureVerifier);
+    const { chainId, verifyingContract } = await verifier.eip712Domain();
+    const id = uuidv4();
+    const operationType = 'issue';
+    const singerWallet = Wallet.createRandom();
+    const sourceWallet = Wallet.createRandom();
+    const destinationWallet = Wallet.createRandom();
+    const sourceFinId = getFinId(sourceWallet);
+    const destinationFinId = getFinId(destinationWallet);
+    const message = newReceiptMessage(id, operationType,
+      source('finId', sourceFinId),
+      destination('finId', destinationFinId),
+      asset(`bank-us:102:${uuidv4()}`, 'finp2p'),
+      '100.00',
+      tradeDetails(executionContext('', '')),
+      transactionDetails('', id)
+    );
+
+    const offChainHash = hash(chainId, verifyingContract, RECEIPT_PROOF_TYPES, message);
+    const signature = await sign(chainId, verifyingContract, RECEIPT_PROOF_TYPES, message, singerWallet);
+    console.log('Receipt hash', offChainHash);
+    console.log('Receipt signature', compactSerialize(signature));
+  });
+
 
 });
 
