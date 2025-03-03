@@ -3,6 +3,7 @@ import { ApiBaseUrl, ChainId, FireblocksWeb3Provider } from "@fireblocks/fireblo
 import { BrowserProvider, JsonRpcProvider, NonceManager, Provider, Signer, Wallet } from "ethers";
 import process from "process";
 import console from "console";
+import { privateKeyToFinId } from "./utils";
 
 export type ProviderType =  'local' | 'fireblocks';
 
@@ -59,8 +60,12 @@ const createLocalProvider = async (): Promise<ProviderAndSigner> => {
     }
   }
 
+
   const provider = new JsonRpcProvider(ethereumRPCUrl);
   const signer = new NonceManager(new Wallet(operatorPrivateKey)).connect(provider);
+
+  console.log(`Operator public key: ${privateKeyToFinId(operatorPrivateKey)}`);
+  console.log(`Operator address: ${await signer.getAddress()}`);
 
   return { provider, signer };
 }
