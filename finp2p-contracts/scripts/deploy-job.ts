@@ -65,7 +65,7 @@ const deploy = async (config: FinP2PDeployerConfig): Promise<FinP2PDeployerConfi
   const contractManger = new ContractsManager(provider, signer, logger);
 
   const finP2PContractAddress = await contractManger.deployFinP2PContract(operatorAddress, paymentAssetCode);
-  logger.info("Contract deployed successfully. FINP2P_CONTRACT_ADDRESS=", finP2PContractAddress);
+  logger.info(`Contract deployed successfully. FINP2P_CONTRACT_ADDRESS=${finP2PContractAddress}`);
   return { ...config, finP2PContractAddress };
 };
 

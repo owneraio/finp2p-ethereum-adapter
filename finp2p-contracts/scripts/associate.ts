@@ -14,7 +14,7 @@ const associateAsset = async (providerType: ProviderType, deployerPrivateKey: st
   if (!deployerPrivateKey) {
     throw new Error("DEPLOYER_PRIVATE_KEY is not set");
   }
-  logger.info("Granting asset manager and transaction manager roles finP2P contract", finp2pContractAddress);
+  logger.info(`Granting asset manager and transaction manager roles finP2P contract ${finp2pContractAddress}`);
   const { provider, signer } = await createProviderAndSigner(providerType, logger);
   const manager = new FinP2PContract(provider, signer, finp2pContractAddress, logger);
   await manager.associateAsset(assetId, erc20Address);

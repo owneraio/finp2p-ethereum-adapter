@@ -10,7 +10,7 @@ const logger = winston.createLogger({
 });
 
 const grant = async (providerType: ProviderType, finp2pContractAddress: string, operatorAddress: string) => {
-  logger.info("Granting asset manager and transaction manager roles finP2P contract", finp2pContractAddress);
+  logger.info(`Granting asset manager and transaction manager roles finP2P contract: ${finp2pContractAddress}`);
   const { provider, signer } = await createProviderAndSigner(providerType, logger);
   const contractManger = new ContractsManager(provider, signer, logger);
   await contractManger.grantAssetManagerRole(finp2pContractAddress, operatorAddress);

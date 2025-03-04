@@ -40,7 +40,7 @@ export class FinP2PContract extends ContractsManager {
     this.finP2P = contract as FINP2POperatorERC20;
     this.finP2PContractAddress = finP2PContractAddress;
     this.signer.getNonce().then((nonce) => {
-      this.logger.info('Syncing nonce:', nonce);
+      this.logger.info(`Syncing nonce: ${nonce}`);
     });
   }
 

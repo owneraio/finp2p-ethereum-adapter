@@ -41,7 +41,7 @@ export class ContractsManager {
     await contract.waitForDeployment();
 
     const address = await contract.getAddress();
-    this.logger.info('FinP2P contract deployed successfully at:', address);
+    this.logger.info(`FinP2P contract deployed successfully at: ${address}`);
 
     if (signerAddress) {
       await this.grantAssetManagerRole(address, signerAddress);
