@@ -6,7 +6,7 @@ import { ERC20Contract } from "../src/contracts/erc20";
 import winston, { format, transports } from "winston";
 
 const logger = winston.createLogger({
-  level: 'INFO',
+  level: 'info',
   transports: [new transports.Console()],
   format: format.json(),
 });

@@ -10,7 +10,7 @@ import winston, { format, transports } from "winston";
 
 
 const logger = winston.createLogger({
-  level: 'INFO',
+  level: 'info',
   transports: [new transports.Console()],
   format: format.json(),
 });
