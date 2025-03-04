@@ -66,7 +66,7 @@ const init = async () => {
   const level = process.env.LOG_LEVEL || 'info';
   const logger = winston.createLogger({
     level,
-    transports: [new transports.Console({ level })],
+    transports: [new transports.Console()],
     format: format.combine(
       format.timestamp(),
       format(function dynamicContent(info) {

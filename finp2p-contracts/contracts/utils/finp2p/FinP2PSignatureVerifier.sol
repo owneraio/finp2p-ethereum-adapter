@@ -112,7 +112,10 @@ contract FinP2PSignatureVerifier is EIP712 {
         bytes memory signature
     ) public view returns (bool) {
         bytes32 hash;
-        if (eip712PrimaryType == PRIMARY_TYPE_BUYING) {
+        if (eip712PrimaryType == PRIMARY_TYPE_PRIMARY_SALE) {
+            hash = hashPrimarySale(nonce, buyerFinId, sellerFinId, asset, settlement);
+
+        } else if (eip712PrimaryType == PRIMARY_TYPE_BUYING) {
             hash = hashBuying(nonce, buyerFinId, sellerFinId, asset, settlement);
 
         } else if (eip712PrimaryType == PRIMARY_TYPE_SELLING) {

@@ -1,19 +1,24 @@
-import {
-  loadFixture
-} from "@nomicfoundation/hardhat-toolbox/network-helpers";
+import { loadFixture } from "@nomicfoundation/hardhat-toolbox/network-helpers";
 import { expect } from "chai";
 // @ts-ignore
 import { ethers } from "hardhat";
 import { v4 as uuidv4, v4 as uuid } from "uuid";
-import {
-  generateNonce
-} from "./utils";
+import { generateNonce } from "./utils";
 import { getFinId } from "../src/contracts/utils";
 import { Signer, Wallet } from "ethers";
 import {
-  REDEMPTION_TYPES, SELLING_TYPES,
-  Leg, PrimaryType,
-  sign, finId, newSellingMessage,  newRedemptionMessage, term
+  BUYING_TYPES,
+  finId,
+  Leg, newBuyingMessage,
+  newPrimarySaleMessage,
+  newRedemptionMessage,
+  newSellingMessage,
+  PRIMARY_SALE_TYPES,
+  PrimaryType,
+  REDEMPTION_TYPES,
+  SELLING_TYPES,
+  sign,
+  term
 } from "../src/contracts/eip712";
 import type { FINP2POperatorERC20 } from "../typechain-types";
 
@@ -50,13 +55,13 @@ describe("FinP2P proxy contract test", function() {
       ({ chainId, verifyingContract } = await contract.eip712Domain());
     });
 
-    const testCases: [number, number, number][] = [ // [decimals, issueAmount, transferAmount, redeemAmount]
-      [0, 10, 5],
-      [2, 10.13, 2.13],
-      [4, 10.0001, 10.0001],
-      [18, 1.01, 0.6]
+    const testCases: [number, number, number, PrimaryType, Leg][] = [ // [decimals, issueAmount, transferAmount, redeemAmount]
+      [0, 10, 5, PrimaryType.PrimarySale, Leg.Settlement],
+      [2, 10.13, 2.13, PrimaryType.Selling, Leg.Settlement],
+      [4, 10.0001, 10.0001, PrimaryType.Buying, Leg.Settlement],
+      [18, 1.01, 0.6, PrimaryType.Selling, Leg.Settlement]
     ];
-    testCases.forEach(([decimals, issueAmount, transferAmount]) => {
+    testCases.forEach(([decimals, issueAmount, transferAmount, primaryType, leg]) => {
       it(`issue/transfer operations (decimals: ${decimals}, issue amount: ${issueAmount}, transfer amount: ${transferAmount}`, async () => {
 
         const assetId = `bank-us:102:${uuid()}`;
@@ -102,7 +107,7 @@ describe("FinP2P proxy contract test", function() {
         expect(await contract.getBalance(assetId, buyerFinId)).to.equal(`${transferAmount.toFixed(decimals)}`);
       });
 
-      it(`hold/release/rollback operations (decimals: ${decimals}, issue amount: ${issueAmount}, transfer amount: ${transferAmount})`, async () => {
+      it(`hold/release operations (decimals: ${decimals}, issue amount: ${issueAmount}, transfer amount: ${transferAmount}, primaryType: ${primaryType}, leg: ${leg})`, async () => {
         const [operator] = await ethers.getSigners();
         const { contract, address: finP2PAddress } = await loadFixture(deployFinP2PProxyFixture);
 
@@ -130,14 +135,42 @@ describe("FinP2P proxy contract test", function() {
         const sellerFinId = getFinId(seller);
 
         const operationId = `0x${uuidv4().replaceAll('-', '')}`;
-        const transferAssetAmount = 50;
-        const transferNonce = `${generateNonce().toString('hex')}`;
-        const asset = term(`bank-us:102:${uuid()}`, 'finp2p', `${transferAssetAmount.toFixed(decimals)}`);
+        const assetAmount = 50;
+        const nonce = `${generateNonce().toString('hex')}`;
+        const asset = term(`bank-us:102:${uuid()}`, 'finp2p', `${assetAmount.toFixed(decimals)}`);
         const settlement = term(settlementAsset, 'fiat', `${transferAmount.toFixed(decimals)}`);
-        const sellingSignature = await sign(chainId, verifyingContract, SELLING_TYPES,
-          newSellingMessage(transferNonce, finId(buyerFinId), finId(sellerFinId), asset, settlement), buyer);
 
-        await contract.hold(operationId, transferNonce, sellerFinId, buyerFinId, asset, settlement, Leg.Settlement, PrimaryType.Selling, sellingSignature, { from: operator });
+        let signer: Signer;
+        switch (leg) {
+          case Leg.Asset:
+            signer = seller;
+            break
+          case Leg.Settlement:
+            signer = buyer;
+            break
+          default:
+            throw new Error('Invalid leg')
+        }
+
+        let signature: string;
+        switch (primaryType) {
+          case PrimaryType.PrimarySale:
+            signature = await sign(chainId, verifyingContract, PRIMARY_SALE_TYPES,
+              newPrimarySaleMessage(nonce, finId(buyerFinId), finId(sellerFinId), asset, settlement), signer);
+            break
+          case PrimaryType.Buying:
+            signature = await sign(chainId, verifyingContract, BUYING_TYPES,
+              newBuyingMessage(nonce, finId(buyerFinId), finId(sellerFinId), asset, settlement), signer);
+            break
+          case PrimaryType.Selling:
+            signature = await sign(chainId, verifyingContract, SELLING_TYPES,
+              newSellingMessage(nonce, finId(buyerFinId), finId(sellerFinId), asset, settlement), signer);
+            break
+          default:
+            throw new Error('Invalid primary type')
+        }
+
+        await contract.hold(operationId, nonce, sellerFinId, buyerFinId, asset, settlement, leg, primaryType, signature, { from: operator });
 
         expect(await contract.getBalance(settlementAsset, buyerFinId)).to.equal(`${(issueAmount - transferAmount).toFixed(decimals)}`);
         const lock = await contract.getLockInfo(operationId);

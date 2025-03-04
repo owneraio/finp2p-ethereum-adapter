@@ -20,9 +20,9 @@ let httpServer: http.Server | undefined;
 const providerType: ProviderType = 'local';
 
 
-const level = 'INFO';
 const logger = winston.createLogger({
-  transports: [new transports.Console(/*{ level }*/)],
+  level: 'info',
+  transports: [new transports.Console()],
   format: format.combine(
     format.timestamp(),
     format(function dynamicContent(info) {
