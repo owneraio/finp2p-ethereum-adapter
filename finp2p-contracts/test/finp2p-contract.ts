@@ -57,6 +57,7 @@ describe("FinP2P proxy contract test", function() {
 
     const testCases: [number, number, number, PrimaryType, Leg][] = [ // [decimals, issueAmount, transferAmount, redeemAmount]
       [0, 10, 5, PrimaryType.PrimarySale, Leg.Settlement],
+      [0, 10, 5, PrimaryType.PrimarySale, Leg.Asset],
       [2, 10.13, 2.13, PrimaryType.Selling, Leg.Settlement],
       [4, 10.0001, 10.0001, PrimaryType.Buying, Leg.Settlement],
       [18, 1.01, 0.6, PrimaryType.Selling, Leg.Settlement]
@@ -113,21 +114,11 @@ describe("FinP2P proxy contract test", function() {
 
         const { chainId, verifyingContract } = await contract.eip712Domain();
 
+        const assetId = `bank-us:102:${uuid()}`;
         const settlementAsset = 'USD';
-
-        const erc20Address = await deployERC20('Payment stable coin', 'USDT', decimals, finP2PAddress);
-        await contract.associateAsset(settlementAsset, erc20Address, { from: operator });
 
         const issuer = Wallet.createRandom();
         const issuerFinId = getFinId(issuer);
-
-        // ----------------------------------------------------------
-
-        expect(await contract.getBalance(settlementAsset, issuerFinId)).to.equal(`${(0).toFixed(decimals)}`);
-        await contract.issue(issuerFinId, term(settlementAsset, 'fiat',  `${issueAmount.toFixed(decimals)}`), { from: operator });
-        expect(await contract.getBalance(settlementAsset, issuerFinId)).to.equal(`${issueAmount.toFixed(decimals)}`);
-
-        // -----------------------------
 
         const buyer = issuer;
         const buyerFinId = issuerFinId;
@@ -137,16 +128,24 @@ describe("FinP2P proxy contract test", function() {
         const operationId = `0x${uuidv4().replaceAll('-', '')}`;
         const assetAmount = 50;
         const nonce = `${generateNonce().toString('hex')}`;
-        const asset = term(`bank-us:102:${uuid()}`, 'finp2p', `${assetAmount.toFixed(decimals)}`);
+        const asset = term(assetId, 'finp2p', `${assetAmount.toFixed(decimals)}`);
         const settlement = term(settlementAsset, 'fiat', `${transferAmount.toFixed(decimals)}`);
 
         let signer: Signer;
         switch (leg) {
           case Leg.Asset:
             signer = seller;
+            await contract.associateAsset(assetId, await deployERC20('Asset coin', 'USDT', decimals, finP2PAddress), { from: operator });
+            expect(await contract.getBalance(assetId, sellerFinId)).to.equal(`${(0).toFixed(decimals)}`);
+            await contract.issue(sellerFinId, term(assetId, 'finp2p',  `${assetAmount.toFixed(decimals)}`), { from: operator });
+            expect(await contract.getBalance(assetId, sellerFinId)).to.equal(`${assetAmount.toFixed(decimals)}`);
             break
           case Leg.Settlement:
             signer = buyer;
+            await contract.associateAsset(settlementAsset, await deployERC20('Payment stable coin', 'USDT', decimals, finP2PAddress), { from: operator });
+            expect(await contract.getBalance(settlementAsset, issuerFinId)).to.equal(`${(0).toFixed(decimals)}`);
+            await contract.issue(issuerFinId, term(settlementAsset, 'fiat',  `${issueAmount.toFixed(decimals)}`), { from: operator });
+            expect(await contract.getBalance(settlementAsset, issuerFinId)).to.equal(`${issueAmount.toFixed(decimals)}`);
             break
           default:
             throw new Error('Invalid leg')
@@ -172,19 +171,45 @@ describe("FinP2P proxy contract test", function() {
 
         await contract.hold(operationId, nonce, sellerFinId, buyerFinId, asset, settlement, leg, primaryType, signature, { from: operator });
 
-        expect(await contract.getBalance(settlementAsset, buyerFinId)).to.equal(`${(issueAmount - transferAmount).toFixed(decimals)}`);
-        const lock = await contract.getLockInfo(operationId);
-        expect(lock[0]).to.equal(settlementAsset);
-        expect(lock[1]).to.equal('fiat');
-        expect(lock[2]).to.equal(buyerFinId);
-        expect(lock[3]).to.equal(`${transferAmount.toFixed(decimals)}`);
+        switch (leg) {
+          case Leg.Asset: {
+            expect(await contract.getBalance(assetId, sellerFinId)).to.equal(`${(0).toFixed(decimals)}`);
+            const lock = await contract.getLockInfo(operationId);
+            expect(lock[0]).to.equal(assetId);
+            expect(lock[1]).to.equal('finp2p');
+            expect(lock[2]).to.equal(sellerFinId);
+            expect(lock[3]).to.equal(`${assetAmount.toFixed(decimals)}`);
+            break
+          }
+          case Leg.Settlement: {
+            expect(await contract.getBalance(settlementAsset, buyerFinId)).to.equal(`${(issueAmount - transferAmount).toFixed(decimals)}`);
+            const lock = await contract.getLockInfo(operationId);
+            expect(lock[0]).to.equal(settlementAsset);
+            expect(lock[1]).to.equal('fiat');
+            expect(lock[2]).to.equal(buyerFinId);
+            expect(lock[3]).to.equal(`${transferAmount.toFixed(decimals)}`);
+            break
+          }
+        }
+
 
         // -----------------------------
 
         await contract.release(operationId, sellerFinId, `${transferAmount.toFixed(decimals)}`, { from: operator });
-        expect(await contract.getBalance(settlementAsset, sellerFinId)).to.equal(`${transferAmount.toFixed(decimals)}`);
-        expect(await contract.getBalance(settlementAsset, buyerFinId)).to.equal(`${(issueAmount - transferAmount).toFixed(decimals)}`);
+        switch (leg) {
+          case Leg.Asset: {
+            expect(await contract.getBalance(assetId, sellerFinId)).to.equal(`${assetAmount.toFixed(decimals)}`);
+            expect(await contract.getBalance(assetId, buyerFinId)).to.equal(`${(0).toFixed(decimals)}`);
+            break
+          }
+          case Leg.Settlement: {
+            expect(await contract.getBalance(settlementAsset, sellerFinId)).to.equal(`${transferAmount.toFixed(decimals)}`);
+            expect(await contract.getBalance(settlementAsset, buyerFinId)).to.equal(`${(issueAmount - transferAmount).toFixed(decimals)}`);
+            break
+          }
+        }
         // await expect(contract.getLockInfo(operationId)).to.be.revertedWith('Lock not found'); // TODO update chai
+
       });
 
       it(`hold/redeem operations (decimals: ${decimals}, issue amount: ${issueAmount}, transfer amount: ${transferAmount})`, async () => {
