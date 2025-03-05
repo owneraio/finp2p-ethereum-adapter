@@ -13,7 +13,7 @@ import { FinP2PContract } from '../../finp2p-contracts/src/contracts/finp2p';
 import CreateAssetResponse = Components.Schemas.CreateAssetResponse;
 import LedgerTokenId = Components.Schemas.LedgerTokenId;
 import { isEthereumAddress } from "../../finp2p-contracts/src/contracts/utils";
-import { term } from "../../finp2p-contracts/src/contracts/eip712";
+import { Leg, term } from "../../finp2p-contracts/src/contracts/eip712";
 import { PolicyGetter } from "../finp2p/policy";
 
 export type AssetCreationPolicy =
@@ -127,11 +127,23 @@ export class TokenService extends CommonService {
 
     try {
       const { buyerFinId, sellerFinId, asset, settlement, leg, eip712PrimaryType } = extractParameterEIP712(template, reqAsset);
-      if (buyerFinId !== destination.finId) {
-        return failedTransaction(1, `Buyer FinId in the signature does not match the destination FinId`);
-      }
-      if (sellerFinId !== source.finId) {
-        return failedTransaction(1, `Seller FinId in the signature does not match the source FinId`);
+      switch (leg) {
+        case Leg.Asset:
+          if (buyerFinId !== destination.finId) {
+            return failedTransaction(1, `Buyer FinId in the signature does not match the destination FinId`);
+          }
+          if (sellerFinId !== source.finId) {
+            return failedTransaction(1, `Seller FinId in the signature does not match the source FinId`);
+          }
+          break
+        case Leg.Settlement:
+          if (sellerFinId !== destination.finId) {
+            return failedTransaction(1, `Seller FinId in the signature does not match the destination FinId`);
+          }
+          if (buyerFinId !== source.finId) {
+            return failedTransaction(1, `Buyer FinId in the signature does not match the source FinId`);
+          }
+          break
       }
 
       const txHash = await this.finP2PContract.transfer(nonce, sellerFinId, buyerFinId, asset, settlement, leg, eip712PrimaryType, signature);

@@ -335,8 +335,6 @@ export const extractParameterEIP712 = (template: Components.Schemas.SignatureTem
     }
     case 'Redemption': {
       return {
-        // buyerFinId: finIdFromAPI(template.message.seller as EIP712TypeObject),
-        // sellerFinId: finIdFromAPI(template.message.issuer as EIP712TypeObject),
         buyerFinId: finIdFromAPI(template.message.issuer as EIP712TypeObject),
         sellerFinId: finIdFromAPI(template.message.seller as EIP712TypeObject),
         asset: termFromAPI(template.message.asset as EIP712TypeObject),
