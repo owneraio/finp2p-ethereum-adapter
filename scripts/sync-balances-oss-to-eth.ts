@@ -52,6 +52,12 @@ const syncBalanceFromOssToEthereum = async (ossUrl: string, providerType: Provid
         logger.info(`Issuing ${balance} asset ${assetId} for finId ${finId}`);
         const issueTx = await contract.issue(finId, term(assetId, 'finp2p', `${balance}`));
         await contract.waitForCompletion(issueTx);
+
+      } else if (balance < 0) {
+
+        logger.info(`Redeeming ${-balance} asset ${assetId} for finId ${finId}`);
+        const issueTx = await contract.redeem(finId, term(assetId, 'finp2p', `${-balance}`));
+        await contract.waitForCompletion(issueTx);
       } else {
         logger.info(`FinId ${finId} already has enough balance for asset ${assetId}: ${balance}`);
       }

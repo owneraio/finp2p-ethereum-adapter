@@ -4,6 +4,7 @@ import { TokenService } from '../services/tokens';
 import { EscrowService } from '../services/escrow';
 import { PaymentsService } from '../services/payments';
 import { PlanService } from '../services/plans';
+import e from "express";
 
 
 export const register = (app: express.Application,
@@ -61,7 +62,7 @@ export const register = (app: express.Application,
   app.post(
     '/api/assets/redeem',
     asyncMiddleware(async (req, res) => {
-      const receipt = await tokenService.redeem(req.body);
+      const receipt = await escrowService.withholdRedeem(req.body);
       res.json(receipt);
     }),
   );

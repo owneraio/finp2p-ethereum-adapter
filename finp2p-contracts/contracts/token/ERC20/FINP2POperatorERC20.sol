@@ -166,6 +166,12 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
         }
     }
 
+    function redeem(string memory ownerFinId, Term memory term) external {
+        require(hasRole(TRANSACTION_MANAGER, _msgSender()), "FINP2POperatorERC20: must have transaction manager role to release asset");
+        _burn(Bytes.finIdToAddress(ownerFinId), term.assetId, term.amount);
+        emit Redeem(term.assetId, term.assetType, ownerFinId,  term.amount, '');
+    }
+
     function hold(
         bytes16 operationId,
         string memory nonce,
@@ -223,7 +229,7 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
         delete locks[operationId];
     }
 
-    function redeem(bytes16 operationId, string memory ownerFinId, string memory quantity) external {
+    function withholdRedeem(bytes16 operationId, string memory ownerFinId, string memory quantity) external {
         require(hasRole(TRANSACTION_MANAGER, _msgSender()), "FINP2POperatorERC20: must have transaction manager role to release asset");
         require(haveContract(operationId), "Contract does not exists");
         Lock storage lock = locks[operationId];

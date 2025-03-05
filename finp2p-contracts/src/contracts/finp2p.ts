@@ -83,6 +83,12 @@ export class FinP2PContract extends ContractsManager {
     });
   }
 
+  async redeem(ownerFinId: string, asset: Term) {
+    return this.safeExecuteTransaction(async (finP2P: FINP2POperatorERC20) => {
+      return finP2P.redeem(ownerFinId, asset);
+    });
+  }
+
   async hold(operationId: string, nonce: string, sellerFinId: string, buyerFinId: string,
                    asset: Term, settlement: Term, leg: Leg, eip712PrimaryType: PrimaryType, signature: string) {
     const opId = normalizeOperationId(operationId);
@@ -98,10 +104,10 @@ export class FinP2PContract extends ContractsManager {
     });
   }
 
-  async redeem(operationId: string, ownerFinId: string, quantity: string) {
+  async withholdRedeem(operationId: string, ownerFinId: string, quantity: string) {
     const opId = normalizeOperationId(operationId);
     return this.safeExecuteTransaction(async (finP2P: FINP2POperatorERC20) => {
-      return finP2P.redeem(opId, ownerFinId, quantity);
+      return finP2P.withholdRedeem(opId, ownerFinId, quantity);
     });
   }
 

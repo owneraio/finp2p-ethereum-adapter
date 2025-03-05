@@ -152,28 +152,5 @@ export class TokenService extends CommonService {
 
   }
 
-  public async redeem(request: Paths.RedeemAssets.RequestBody): Promise<Paths.RedeemAssets.Responses.$200> {
-    const { operationId, source, quantity} = request;
-    if (!operationId) {
-      return failedTransaction(1, 'operationId is required');
-    }
-
-    try {
-      const txHash = await this.finP2PContract.redeem(operationId, source.finId, quantity);
-
-      return {
-        isCompleted: false,
-        cid: txHash,
-      } as Components.Schemas.ReceiptOperation;
-    }  catch (e) {
-      logger.error(`Error releasing asset: ${e}`);
-      if (e instanceof EthereumTransactionError) {
-        return failedTransaction(1, e.message);
-      } else {
-        return failedTransaction(1, `${e}`);
-      }
-    }
-  }
-
 }
 
