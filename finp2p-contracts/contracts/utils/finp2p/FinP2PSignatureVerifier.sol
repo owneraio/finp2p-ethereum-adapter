@@ -88,56 +88,17 @@ contract FinP2PSignatureVerifier is EIP712 {
 
     constructor() EIP712(SIGNING_DOMAIN, SIGNATURE_VERSION) {}
 
-    function verifyPrimarySaleSignature(
-        string memory nonce,
-        string memory buyerFinId,
-        string memory issuerFinId,
-        Term memory asset,
-        Term memory settlement,
-        address signer,
-        bytes memory signature
-    ) public view returns (bool) {
-        bytes32 hash = hashPrimarySale(nonce, buyerFinId, issuerFinId, asset, settlement);
-        return Signature.verify(signer, hash, signature);
-    }
-
-    function verifyTransferSignature(
+    function verifyInvestmentSignature(
+        uint8 primaryType,
         string memory nonce,
         string memory buyerFinId,
         string memory sellerFinId,
         Term memory asset,
         Term memory settlement,
         address signer,
-        uint8 eip712PrimaryType,
         bytes memory signature
     ) public view returns (bool) {
-        bytes32 hash;
-        if (eip712PrimaryType == PRIMARY_TYPE_PRIMARY_SALE) {
-            hash = hashPrimarySale(nonce, buyerFinId, sellerFinId, asset, settlement);
-
-        } else if (eip712PrimaryType == PRIMARY_TYPE_BUYING) {
-            hash = hashBuying(nonce, buyerFinId, sellerFinId, asset, settlement);
-
-        } else if (eip712PrimaryType == PRIMARY_TYPE_SELLING) {
-            hash = hashSelling(nonce, buyerFinId, sellerFinId,  asset, settlement);
-
-        } else if (eip712PrimaryType == PRIMARY_TYPE_REDEMPTION) {
-            hash = hashRedemption(nonce, buyerFinId, sellerFinId, asset, settlement);
-
-        } else if (eip712PrimaryType == PRIMARY_TYPE_REQUEST_FOR_TRANSFER) {
-            hash = hashRequestForTransfer(nonce, buyerFinId, sellerFinId, asset);
-
-        } else if (eip712PrimaryType == PRIMARY_TYPE_PRIVATE_OFFER) {
-            hash = hashPrivateOffer(nonce, buyerFinId, sellerFinId,  asset, settlement);
-
-        } else if (eip712PrimaryType == PRIMARY_TYPE_LOAN) {
-            // TODO: pass loan terms
-            hash = hashLoan(nonce, buyerFinId, sellerFinId, asset, settlement, LoanTerm("0", "0", "0", "0"));
-
-        } else {
-            revert("Invalid eip712 transfer signature type");
-        }
-
+        bytes32 hash = hashInvestment(primaryType, nonce, buyerFinId, sellerFinId, asset, settlement);
         return Signature.verify(signer, hash, signature);
     }
 
@@ -165,6 +126,41 @@ contract FinP2PSignatureVerifier is EIP712 {
             keccak256(bytes(loan.borrowedMoneyAmount)),
             keccak256(bytes(loan.returnedMoneyAmount))
         ));
+    }
+
+    function hashInvestment(
+        uint8 primaryType,
+        string memory nonce,
+        string memory buyerFinId,
+        string memory sellerFinId,
+        Term memory asset,
+        Term memory settlement
+    ) public view returns (bytes32) {
+        if (primaryType == PRIMARY_TYPE_PRIMARY_SALE) {
+            return hashPrimarySale(nonce, buyerFinId, sellerFinId, asset, settlement);
+
+        } else if (primaryType == PRIMARY_TYPE_BUYING) {
+            return hashBuying(nonce, buyerFinId, sellerFinId, asset, settlement);
+
+        } else if (primaryType == PRIMARY_TYPE_SELLING) {
+            return hashSelling(nonce, buyerFinId, sellerFinId,  asset, settlement);
+
+        } else if (primaryType == PRIMARY_TYPE_REDEMPTION) {
+            return hashRedemption(nonce, buyerFinId, sellerFinId, asset, settlement);
+
+        } else if (primaryType == PRIMARY_TYPE_REQUEST_FOR_TRANSFER) {
+            return hashRequestForTransfer(nonce, buyerFinId, sellerFinId, asset);
+
+        } else if (primaryType == PRIMARY_TYPE_PRIVATE_OFFER) {
+            return hashPrivateOffer(nonce, buyerFinId, sellerFinId,  asset, settlement);
+
+        } else if (primaryType == PRIMARY_TYPE_LOAN) {
+            // TODO: pass loan terms
+            return hashLoan(nonce, buyerFinId, sellerFinId, asset, settlement, LoanTerm("0", "0", "0", "0"));
+
+        } else {
+            revert("Invalid eip712 transfer signature type");
+        }
     }
 
     function hashPrimarySale(

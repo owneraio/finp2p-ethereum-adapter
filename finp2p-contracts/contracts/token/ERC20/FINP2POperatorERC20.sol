@@ -134,28 +134,28 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
     ) public virtual {
         require(hasRole(TRANSACTION_MANAGER, _msgSender()), "FINP2POperatorERC20: must have transaction manager role to transfer asset");
         if (leg == LEG_ASSET) {
-            require(verifyTransferSignature(
+            require(verifyInvestmentSignature(
+                eip712PrimaryType,
                 nonce,
                 buyerFinId,
                 sellerFinId,
                 assetTerm,
                 settlementTerm,
                 Bytes.finIdToAddress(sellerFinId),
-                eip712PrimaryType,
                 signature
             ), "Signature is not verified");
             _transfer(Bytes.finIdToAddress(sellerFinId), Bytes.finIdToAddress(buyerFinId), assetTerm.assetId, assetTerm.amount);
             emit Transfer(assetTerm.assetId, assetTerm.assetType, sellerFinId, buyerFinId, assetTerm.amount);
 
         } else if (leg == LEG_SETTLEMENT) {
-            require(verifyTransferSignature(
+            require(verifyInvestmentSignature(
+                eip712PrimaryType,
                 nonce,
                 buyerFinId,
                 sellerFinId,
                 assetTerm,
                 settlementTerm,
                 Bytes.finIdToAddress(buyerFinId),
-                eip712PrimaryType,
                 signature
             ), "Signature is not verified");
             _transfer(Bytes.finIdToAddress(buyerFinId), Bytes.finIdToAddress(sellerFinId), settlementTerm.assetId, settlementTerm.amount);
@@ -179,14 +179,14 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
     ) public virtual {
         require(hasRole(TRANSACTION_MANAGER, _msgSender()), "FINP2POperatorERC20: must have transaction manager role to hold asset");
         if (leg == LEG_ASSET) {
-            require(verifyTransferSignature(
+            require(verifyInvestmentSignature(
+                eip712PrimaryType,
                 nonce,
                 buyerFinId,
                 sellerFinId,
                 assetTerm,
                 settlementTerm,
                 Bytes.finIdToAddress(sellerFinId),
-                eip712PrimaryType,
                 signature
             ), "Signature is not verified");
             _transfer( Bytes.finIdToAddress(sellerFinId), _getEscrow(),assetTerm.assetId, assetTerm.amount);
@@ -194,14 +194,14 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
             emit Hold(assetTerm.assetId, assetTerm.assetType, sellerFinId, assetTerm.amount, operationId);
 
         } else if (leg == LEG_SETTLEMENT) {
-            require(verifyTransferSignature(
+            require(verifyInvestmentSignature(
+                eip712PrimaryType,
                 nonce,
                 buyerFinId,
                 sellerFinId,
                 assetTerm,
                 settlementTerm,
                 Bytes.finIdToAddress(buyerFinId),
-                eip712PrimaryType,
                 signature
             ), "Signature is not verified");
             _transfer( Bytes.finIdToAddress(buyerFinId), _getEscrow(), settlementTerm.assetId, settlementTerm.amount);

@@ -107,7 +107,6 @@ export const REQUEST_FOR_TRANSFER_TYPES = {
     { name: "buyer", type: "FinId" },
     { name: "seller", type: "FinId" },
     { name: "asset", type: "Term" },
-    { name: "settlement", type: "Term" }
   ]
 };
 
@@ -356,6 +355,51 @@ export interface EIP712ReceiptMessage extends EIP712Message {
   // quantity: string,
   tradeDetails: TradeDetails,
   transactionDetails: TransactionDetails
+}
+
+export const newInvestmentMessage = (
+  primaryType: PrimaryType,
+  nonce: string,
+  buyerFinId: string,
+  sellerFinId: string,
+  asset: Term,
+  settlement: Term,
+): { message: EIP712Message, types: Record<string, Array<TypedDataField>> } => {
+  let message: EIP712Message
+  let types: Record<string, Array<TypedDataField>>
+  switch (primaryType) {
+    case PrimaryType.PrimarySale:
+      types = PRIMARY_SALE_TYPES
+      message = newPrimarySaleMessage(nonce, finId(buyerFinId), finId(sellerFinId), asset, settlement);
+      break
+    case PrimaryType.Buying:
+      types = BUYING_TYPES
+      message = newBuyingMessage(nonce, finId(buyerFinId), finId(sellerFinId), asset, settlement);
+      break
+    case PrimaryType.Selling:
+      types = SELLING_TYPES
+      message = newSellingMessage(nonce, finId(buyerFinId), finId(sellerFinId), asset, settlement);
+      break
+    case PrimaryType.Redemption:
+      types = REDEMPTION_TYPES
+      message = newRedemptionMessage(nonce, finId(buyerFinId), finId(sellerFinId), asset, settlement);
+      break
+    case PrimaryType.RequestForTransfer:
+      types = REQUEST_FOR_TRANSFER_TYPES
+      message = newRequestForTransferMessage(nonce, finId(buyerFinId), finId(sellerFinId), asset);
+      break
+    case PrimaryType.PrivateOffer:
+      types = PRIVATE_OFFER_TYPES
+      message = newPrivateOfferMessage(nonce, finId(buyerFinId), finId(sellerFinId), asset, settlement);
+      break
+    case PrimaryType.Loan:
+      types = LOAN_TERMS_TYPE
+      message = newLoanMessage(nonce, finId(buyerFinId), finId(sellerFinId), asset, settlement, {} as LoanTerms);
+      break
+    default:
+      throw new Error(`Unknown primary type: ${primaryType}`);
+  }
+  return { message, types };
 }
 
 export const newPrimarySaleMessage = (nonce: string, buyer: FinId, issuer: FinId, asset: Term, settlement: Term): EIP712PrimarySaleMessage => {
