@@ -141,7 +141,7 @@ contract FinP2PSignatureVerifier is EIP712 {
                 PRIMARY_SALE_TYPE_HASH,
                 keccak256(bytes(nonce)),
                 hashFinId(buyerFinId),
-                hashFinId(sellerFinId),
+                hashFinId(sellerFinId), // issuer
                 hashTerm(asset),
                 hashTerm(settlement)
             )));
@@ -171,17 +171,18 @@ contract FinP2PSignatureVerifier is EIP712 {
                 REDEMPTION_TYPE_HASH,
                 keccak256(bytes(nonce)),
                 hashFinId(sellerFinId),
-                hashFinId(buyerFinId),
+                hashFinId(buyerFinId), // issuer
                 hashTerm(asset),
                 hashTerm(settlement)
             )));
+
         } else if (primaryType == PRIMARY_TYPE_REQUEST_FOR_TRANSFER) {
             return _hashTypedDataV4(keccak256(abi.encode(
                 REQUEST_FOR_TRANSFER_TYPE_HASH,
                 keccak256(bytes(nonce)),
                 hashFinId(buyerFinId),
                 hashFinId(sellerFinId),
-                hashTerm(asset)
+                hashTerm(asset)  // only asset, no settlement
             )));
 
         } else if (primaryType == PRIMARY_TYPE_PRIVATE_OFFER) {

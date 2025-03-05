@@ -111,7 +111,7 @@ export const parseTransactionReceipt = (receipt: TransactionReceipt, contractInt
           return {
             id: id,
             assetId: parsedLog.args.assetId,
-            assetType: 'fiat',
+            assetType: parsedLog.args.assetType,
             amount: parsedLog.args.quantity,
             destination: parsedLog.args.destinationFinId,
             timestamp: timestamp,
