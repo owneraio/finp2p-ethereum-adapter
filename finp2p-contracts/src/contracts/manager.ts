@@ -1,10 +1,7 @@
-import {
-  ContractFactory, NonceManager, Provider, Signer
-} from "ethers";
-import FINP2P from '../../artifacts/contracts/token/ERC20/FINP2POperatorERC20.sol/FINP2POperatorERC20.json';
-import ERC20 from '../../artifacts/contracts/token/ERC20/ERC20WithOperator.sol/ERC20WithOperator.json';
-import { ERC20WithOperator, FINP2POperatorERC20 } from '../../typechain-types';
-import { DOMAIN } from "./eip712";
+import { ContractFactory, NonceManager, parseUnits, Provider, Signer, toBigInt } from "ethers";
+import FINP2P from "../../artifacts/contracts/token/ERC20/FINP2POperatorERC20.sol/FINP2POperatorERC20.json";
+import ERC20 from "../../artifacts/contracts/token/ERC20/ERC20WithOperator.sol/ERC20WithOperator.json";
+import { ERC20WithOperator, FINP2POperatorERC20 } from "../../typechain-types";
 import winston from "winston";
 
 const DefaultDecimalsCurrencies = 2;
@@ -30,6 +27,14 @@ export class ContractsManager {
     const contract = await factory.deploy(name, symbol, decimals, finP2PContractAddress);
     await contract.waitForDeployment();
     return await contract.getAddress();
+  }
+
+  async getPendingTransactionCount() {
+    return await this.provider.getTransactionCount(this.signer.getAddress(), 'pending');
+  }
+
+  async getLatestTransactionCount() {
+    return await this.provider.getTransactionCount(this.signer.getAddress(), 'latest');
   }
 
   async deployFinP2PContract(signerAddress: string | undefined, paymentAssetCode: string | undefined = undefined) {

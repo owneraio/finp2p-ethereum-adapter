@@ -13,6 +13,7 @@
     "test": "jest",
     "test-server": "tsc && node ./dist/scripts/test-server.js",
     "migration": "tsc && node ./dist/scripts/migration.js",
+    "sync-balances-oss-to-eth": "tsc && node ./dist/scripts/sync-balances-oss-to-eth.js",
     "start": "node ."
   },
   "keywords": [],

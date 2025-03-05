@@ -1,3 +1,71 @@
+export type OssAsset = {
+  id: string,
+  name: string,
+  type: string,
+  organizationId: string,
+  denomination: {
+    code: string
+  },
+  issuerId: string,
+  config: string,
+  allowedIntents: string[],
+  regulationVerifiers: {
+    id: string,
+    name: string,
+    provider: string
+  }[]
+  policies: {
+    proof: Proof
+  }
+  certificates: {
+    nodes: {
+      id: string,
+      profileId: string,
+      type: string,
+      data: string,
+      expiry: number
+    }[]
+  }
+};
+
+export type OssAssetNodes = {
+  assets: {
+    nodes: OssAsset[]
+  }
+};
+
+export type OssOwner = {
+  id: string,
+  name: string,
+  finIds: string[]
+  organizationId: string,
+  certificates: {
+    nodes: {
+      id: string,
+      profileId: string,
+      type: string,
+      data: string,
+      expiry: number
+    }[]
+  }
+  holdings:  {
+    nodes: {
+      assetType: string,
+      asset: { resourceId: string },
+      // asset: { symbol: string } | { code: string } | { resourceId: string },
+      balance: string,
+    }[]
+  }
+  metadata: {
+    acl: string[]
+  }
+};
+
+export type OssOwnerNodes = {
+  users: {
+    nodes: OssOwner[]
+  }
+};
 
 export type ProofDomain = {
   chainId: number,

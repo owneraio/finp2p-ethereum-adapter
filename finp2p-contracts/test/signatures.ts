@@ -7,7 +7,7 @@ import { ethers } from "hardhat";
 import { generateNonce } from "./utils";
 import { v4 as uuidv4 } from "uuid";
 import { Signer, Wallet } from "ethers";
-import { compactSerialize, getFinId } from "../src/contracts/utils";
+import { getFinId } from "../src/contracts/utils";
 import {
   PrimaryType,
   term,
