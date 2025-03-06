@@ -135,6 +135,9 @@ export class TokenService extends CommonService {
           if (sellerFinId !== source.finId) {
             return failedTransaction(1, `Seller FinId in the signature does not match the source FinId`);
           }
+          if (quantity !== asset.amount) {
+            return failedTransaction(1, `Quantity in the signature does not match the requested quantity`);
+          }
           break
         case Leg.Settlement:
           if (sellerFinId !== destination.finId) {
@@ -142,6 +145,9 @@ export class TokenService extends CommonService {
           }
           if (buyerFinId !== source.finId) {
             return failedTransaction(1, `Buyer FinId in the signature does not match the source FinId`);
+          }
+          if (quantity !== settlement.amount) {
+            return failedTransaction(1, `Quantity in the signature does not match the requested quantity`);
           }
           break
       }

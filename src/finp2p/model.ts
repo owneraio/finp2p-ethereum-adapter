@@ -104,15 +104,16 @@ export const parseProofDomain = (jsonString: string): ProofDomain | null => {
       }
     }
 
-    if (
-      typeof obj["chainid"] !== "number" ||
-      typeof obj["verifyingcontract"] !== "string"
-    ) {
-      return null
+    const verifyingContract = obj["verifyingcontract"] as string;
+    let chainId: number
+    const chainIdVal = obj["chainid"];
+    if (typeof chainIdVal !== "number") {
+      chainId = parseInt(chainIdVal as string);
+    } else {
+      chainId = chainIdVal;
     }
-
     return {
-      chainId: obj["chainid"],
-      verifyingContract: obj["verifyingcontract"],
+      chainId,
+      verifyingContract,
     };
 }

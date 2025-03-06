@@ -2,6 +2,7 @@ import { logger } from '../helpers/logger';
 import { CommonService } from './common';
 import { EthereumTransactionError } from '../../finp2p-contracts/src/contracts/model';
 import { assetFromAPI, extractParameterEIP712, failedTransaction } from "./mapping";
+import { Leg } from "../../finp2p-contracts/src/contracts/eip712";
 
 export class EscrowService extends CommonService {
 
@@ -12,6 +13,31 @@ export class EscrowService extends CommonService {
 
     try {
       const { buyerFinId, sellerFinId, asset, settlement, leg, eip712PrimaryType } = extractParameterEIP712(template, reqAsset);
+      switch (leg) {
+        case Leg.Asset:
+          if (destination && buyerFinId !== destination.finId) {
+            return failedTransaction(1, `Buyer FinId in the signature does not match the destination FinId`);
+          }
+          if (sellerFinId !== source.finId) {
+            return failedTransaction(1, `Seller FinId in the signature does not match the source FinId`);
+          }
+          if (quantity !== asset.amount) {
+            return failedTransaction(1, `Quantity in the signature does not match the requested quantity`);
+          }
+          break
+        case Leg.Settlement:
+          if (destination && sellerFinId !== destination.finId) {
+            return failedTransaction(1, `Seller FinId in the signature does not match the destination FinId`);
+          }
+          if (buyerFinId !== source.finId) {
+            return failedTransaction(1, `Buyer FinId in the signature does not match the source FinId`);
+          }
+          if (quantity !== settlement.amount) {
+            return failedTransaction(1, `Quantity in the signature does not match the requested quantity`);
+          }
+          break
+      }
+
       const txHash =  await this.finP2PContract.hold(operationId, nonce,
         sellerFinId, buyerFinId, asset, settlement, leg, eip712PrimaryType, signature);
 
