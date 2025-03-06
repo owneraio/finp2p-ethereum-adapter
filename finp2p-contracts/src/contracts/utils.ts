@@ -105,7 +105,7 @@ export const parseTransactionReceipt = (receipt: TransactionReceipt, contractInt
           };
       }
     } catch (e) {
-      // do nothing
+      console.error(e);
     }
   }
 

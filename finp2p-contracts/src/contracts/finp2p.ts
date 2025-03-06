@@ -114,7 +114,7 @@ export class FinP2PContract extends ContractsManager {
           status: 'failed',
           error: {
             code: 1,
-            message: 'Operation failed',
+            message: 'Operation failed: failed to parse receipt',
           },
         };
       }
