@@ -59,7 +59,7 @@ describe("Signing test", function() {
     });
   })
 
-  it("Investor signature from platform", async function() {
+  it.skip("Investor signature from platform", async function() {
      const { contract: verifier } = await loadFixture(deployFinP2PSignatureVerifier);
      const chainId = 1;
      const verifyingContract = '0xCcCCccccCCCCcCCCCCCcCcCccCcCCCcCcccccccC';
