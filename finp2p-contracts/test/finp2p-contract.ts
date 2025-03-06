@@ -2,7 +2,7 @@ import { loadFixture } from "@nomicfoundation/hardhat-toolbox/network-helpers";
 import { expect } from "chai";
 // @ts-ignore
 import { ethers } from "hardhat";
-import { v4 as uuidv4, v4 as uuid } from "uuid";
+import { v4 as uuid } from "uuid";
 import { generateNonce, toFixedDecimals } from "./utils";
 import { getFinId } from "../src/contracts/utils";
 import { Signer, Wallet } from "ethers";
@@ -133,7 +133,7 @@ describe("FinP2P proxy contract test", function() {
               .to.emit(contract, 'Issue').withArgs(assetId, assetType, from, amount);
             expect(await contract.getBalance(assetId, from)).to.equal(toFixedDecimals(amount, decimals));
 
-            const operationId = `0x${uuidv4().replaceAll('-', '')}`;
+            const operationId = `0x${uuid().replaceAll('-', '')}`;
             const nonce = `${generateNonce().toString('hex')}`;
             const { types, message } = newInvestmentMessage(primaryType, nonce, buyer.finId, seller.finId, asset, settlement);
             const signature = await sign(chainId, verifyingContract, types, message, signer);
@@ -187,7 +187,7 @@ describe("FinP2P proxy contract test", function() {
               .to.emit(contract, 'Issue').withArgs(assetId, assetType, from, amount);
             expect(await contract.getBalance(assetId, from)).to.equal(toFixedDecimals(amount, decimals));
 
-            const operationId = `0x${uuidv4().replaceAll('-', '')}`;
+            const operationId = `0x${uuid().replaceAll('-', '')}`;
             const nonce = `${generateNonce().toString('hex')}`;
             const { types, message } = newInvestmentMessage(primaryType, nonce, buyerFinId, sellerFinId, asset, settlement);
             const signature = await sign(chainId, verifyingContract, types, message, signer);
@@ -245,7 +245,7 @@ describe("FinP2P proxy contract test", function() {
 
           // -----------------------------
 
-          const operationId = `0x${uuidv4().replaceAll('-', '')}`;
+          const operationId = `0x${uuid().replaceAll('-', '')}`;
           const nonce = `${generateNonce().toString('hex')}`;
           const { types, message } = newInvestmentMessage(PrimaryType.Redemption, nonce, issuerFinId, investorFinId, asset, settlement);
           const signature = await sign(chainId, verifyingContract, types, message, signer);
