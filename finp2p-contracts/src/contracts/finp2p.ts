@@ -100,21 +100,21 @@ export class FinP2PContract extends ContractsManager {
   async release(operationId: string, buyerFinId: string, quantity: string) {
     const opId = normalizeOperationId(operationId);
     return this.safeExecuteTransaction(async (finP2P: FINP2POperatorERC20) => {
-      return finP2P.release(opId, buyerFinId, quantity);
+      return finP2P.releaseTo(opId, buyerFinId, quantity);
     });
   }
 
   async withholdRedeem(operationId: string, ownerFinId: string, quantity: string) {
     const opId = normalizeOperationId(operationId);
     return this.safeExecuteTransaction(async (finP2P: FINP2POperatorERC20) => {
-      return finP2P.withholdRedeem(opId, ownerFinId, quantity);
+      return finP2P.releaseAndRedeem(opId, ownerFinId, quantity);
     });
   }
 
   async rollback(operationId: string) {
     const opId = normalizeOperationId(operationId);
     return this.safeExecuteTransaction(async (finP2P: FINP2POperatorERC20) => {
-      return finP2P.rollback(opId);
+      return finP2P.releaseBack(opId);
     });
   }
 

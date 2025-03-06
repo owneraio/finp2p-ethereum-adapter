@@ -44,7 +44,6 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
     event Hold(string assetId, string assetType, string finId, string quantity, bytes16 operationId);
     event Release(string assetId, string assetType, string sourceFinId, string destinationFinId, string quantity, bytes16 operationId);
     event Redeem(string assetId, string assetType, string ownerFinId, string quantity, bytes16 operationId);
-    event Rollback(string assetId, string assetType, string finId, string quantity, bytes16 operationId);
 
     struct Asset {
         string id;
@@ -219,7 +218,7 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
         }
     }
 
-    function release(bytes16 operationId, string memory toFinId, string memory quantity) public virtual {
+    function releaseTo(bytes16 operationId, string memory toFinId, string memory quantity) public virtual {
         require(hasRole(TRANSACTION_MANAGER, _msgSender()), "FINP2POperatorERC20: must have transaction manager role to release asset");
         require(haveContract(operationId), "Contract does not exists");
         Lock storage lock = locks[operationId];
@@ -229,7 +228,7 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
         delete locks[operationId];
     }
 
-    function withholdRedeem(bytes16 operationId, string memory ownerFinId, string memory quantity) external {
+    function releaseAndRedeem(bytes16 operationId, string memory ownerFinId, string memory quantity) external {
         require(hasRole(TRANSACTION_MANAGER, _msgSender()), "FINP2POperatorERC20: must have transaction manager role to release asset");
         require(haveContract(operationId), "Contract does not exists");
         Lock storage lock = locks[operationId];
@@ -240,14 +239,14 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
         delete locks[operationId];
     }
 
-    function rollback(
+    function releaseBack(
         bytes16 operationId
     ) public virtual {
         require(hasRole(TRANSACTION_MANAGER, _msgSender()), "FINP2POperatorERC20: must have transaction manager role to rollback asset");
         require(haveContract(operationId), "contract does not exists");
         Lock storage lock = locks[operationId];
         _transfer(_getEscrow(), Bytes.finIdToAddress(lock.finId), lock.assetId, lock.amount);
-        emit Rollback(lock.assetId, lock.assetType, lock.finId, lock.amount, operationId);
+        emit Release(lock.assetId, lock.assetType, lock.finId, "", lock.amount, operationId);
         delete locks[operationId];
     }
 

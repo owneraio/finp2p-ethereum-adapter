@@ -147,7 +147,7 @@ describe("FinP2P proxy contract test", function() {
             expect(lock[2]).to.equal(from);
             expect(lock[3]).to.equal(amount);
 
-            await expect(contract.release(operationId, to, amount, { from: operator }))
+            await expect(contract.releaseTo(operationId, to, amount, { from: operator }))
               .to.emit(contract, 'Release').withArgs(assetId, assetType, from, to, amount, operationId);
 
             expect(await contract.getBalance(assetId, from)).to.equal(`${(0).toFixed(decimals)}`);
@@ -201,8 +201,8 @@ describe("FinP2P proxy contract test", function() {
             expect(lock[2]).to.equal(from);
             expect(lock[3]).to.equal(amount);
 
-            await expect(contract.rollback(operationId, { from: operator }))
-              .to.emit(contract, 'Rollback').withArgs(assetId, assetType, from, amount, operationId);
+            await expect(contract.releaseBack(operationId, { from: operator }))
+              .to.emit(contract, 'Release').withArgs(assetId, assetType, from, "", amount, operationId);
 
             expect(await contract.getBalance(assetId, from)).to.equal(toFixedDecimals(amount, decimals));
             expect(await contract.getBalance(assetId, to)).to.equal(`${(0).toFixed(decimals)}`);
@@ -260,7 +260,7 @@ describe("FinP2P proxy contract test", function() {
           expect(await contract.getBalance(assetId, investorFinId)).to.equal(`${(0).toFixed(decimals)}`);
 
           // -----------------------------
-          await expect(contract.withholdRedeem(operationId, investorFinId, amount, { from: operator }))
+          await expect(contract.releaseAndRedeem(operationId, investorFinId, amount, { from: operator }))
             .to.emit(contract, 'Redeem').withArgs(assetId, assetType, investorFinId, amount, operationId);
 
           expect(await contract.getBalance(assetId, investorFinId)).to.equal(`${(0).toFixed(decimals)}`);

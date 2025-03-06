@@ -107,17 +107,6 @@ export const parseTransactionReceipt = (receipt: TransactionReceipt, contractInt
             proof: undefined,
             operationType: 'release',
           };
-        case 'Rollback':
-          return {
-            id: id,
-            assetId: parsedLog.args.assetId,
-            assetType: parsedLog.args.assetType,
-            amount: parsedLog.args.quantity,
-            destination: parsedLog.args.destinationFinId,
-            timestamp: timestamp,
-            proof: undefined,
-            operationType: 'release',
-          };
       }
     } catch (e) {
       // do nothing
