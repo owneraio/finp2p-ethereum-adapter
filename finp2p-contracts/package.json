@@ -9,7 +9,7 @@
     "test": "hardhat test",
     "build": "tsc",
     "lint": "eslint ./src --ext .ts --fix",
-    "deploy-contract": "node dist/scripts/deploy.js",
+    "deploy-contract": "ts-node scripts/deploy.ts",
     "deploy-contract-job": "node dist/scripts/deploy-job.js",
     "grant-operator-roles": "node dist/scripts/grant.js",
     "associate-asset": "node dist/scripts/associate.js",
@@ -29,6 +29,7 @@
   "devDependencies": {
     "@nomicfoundation/edr": "^0.3.2",
     "@nomicfoundation/hardhat-toolbox": "^4.0.0",
+    "@nomicfoundation/hardhat-chai-matchers": "^2.0.8",
     "@openzeppelin/contracts": "^5.0.2",
     "@typechain/hardhat": "^9.1.0",
     "@types/jest": "^29.2.0",
