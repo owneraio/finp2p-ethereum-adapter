@@ -1,12 +1,18 @@
 import process from "process";
 import { ContractsManager } from "../src/contracts/manager";
-import console from "console";
 import { createProviderAndSigner, ProviderType } from "../src/contracts/config";
+import winston, { format, transports } from "winston";
+
+const logger = winston.createLogger({
+  level: 'info',
+  transports: [new transports.Console()],
+  format: format.json(),
+});
 
 const grant = async (providerType: ProviderType, finp2pContractAddress: string, operatorAddress: string) => {
-  console.log("Granting asset manager and transaction manager roles finP2P contract", finp2pContractAddress);
-  const { provider, signer } = await createProviderAndSigner(providerType);
-  const contractManger = new ContractsManager(provider, signer);
+  logger.info(`Granting asset manager and transaction manager roles finP2P contract: ${finp2pContractAddress}`);
+  const { provider, signer } = await createProviderAndSigner(providerType, logger);
+  const contractManger = new ContractsManager(provider, signer, logger);
   await contractManger.grantAssetManagerRole(finp2pContractAddress, operatorAddress);
   await contractManger.grantTransactionManagerRole(finp2pContractAddress, operatorAddress);
 };

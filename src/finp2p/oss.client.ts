@@ -2,8 +2,10 @@ import 'graphql-import-node';
 import { DocumentNode } from 'graphql';
 import GET_OWNERS from './graphql/owners.graphql';
 import GET_ASSET from './graphql/asset.graphql';
+import GET_ALL_ASSETS from './graphql/all-assets.graphql';
+import GET_PAYMENT_ASSET from './graphql/paymentAsset.graphql';
 import * as axios from 'axios';
-import console from 'console';
+import { OssAssetNodes, OssOwnerNodes } from "./model";
 
 export class OssClient {
 
@@ -16,64 +18,30 @@ export class OssClient {
     this.authTokenResolver = authTokenResolver;
   }
 
+  async getOwnerBalances(assetId: string) {
+    const resp = await this.queryOss<OssOwnerNodes>(GET_OWNERS, { userFilter: undefined, includeCerts: false, includeHoldings: true });
+    return resp.users.nodes.filter((o) => o.holdings.nodes.some(n => n.asset.resourceId === assetId))
+      .map(o => ({ finId: o.finIds[0], balance: o.holdings.nodes.find(n => n.asset.resourceId === assetId)!.balance}));
+  }
+
   async getOwnerByFinId(finId: string) {
-    const resp = await this.queryOss<{
-      users: {
-        nodes: {
-          id: string,
-          name: string,
-          finIds: string[]
-          organizationId: string,
-          certificates: {
-            nodes: {
-              id: string,
-              profileId: string,
-              type: string,
-              data: string,
-              expiry: number
-            }[]
-          }
-          metadata: {
-            acl: string[]
-          }
-        }[]
-      }
-    }>(GET_OWNERS, { userFilter: { key: 'finIds', operator: 'CONTAINS', value: finId }, includeCerts: true, includeHoldings: false });
+    const resp = await this.queryOss<OssOwnerNodes>(GET_OWNERS, { userFilter: { key: 'finIds', operator: 'CONTAINS', value: finId }, includeCerts: true, includeHoldings: false });
     return resp.users.nodes[0];
   }
 
   async getAsset(assetId: string) {
-    const resp = await this.queryOss<{
-      assets: {
-        nodes: {
-          id: string,
-          name: string,
-          type: string,
-          organizationId: string,
-          denomination: {
-            code: string
-          },
-          issuerId: string,
-          config: string,
-          allowedIntents: string[],
-          regulationVerifiers: {
-            id: string,
-            name: string,
-            provider: string
-          }[]
-          certificates: {
-            nodes: {
-              id: string,
-              profileId: string,
-              type: string,
-              data: string,
-              expiry: number
-            }[]
-          }
-        }[]
-      }
-    }>(GET_ASSET, { assetId });
+    const resp = await this.queryOss<OssAssetNodes>(GET_ASSET, { assetId });
     return resp.assets.nodes[0];
+  }
+
+  async getPaymentAsset(orgId: string, assetCode: string) {
+    const resp = await this.queryOss<OssAssetNodes>(GET_PAYMENT_ASSET, { orgId });
+    return resp.assets.nodes[0];
+  }
+
+  async getAllAssetIds() {
+    const resp = await this.queryOss<OssAssetNodes>(GET_ALL_ASSETS, {});
+    return resp.assets.nodes.map(asset => asset.id);
   }
 
   async queryOss<T>(queryDoc: DocumentNode, variables: Record<string, any>): Promise<T> {

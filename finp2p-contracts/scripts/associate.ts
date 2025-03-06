@@ -1,18 +1,24 @@
 import process from "process";
-import console from "console";
 import { FinP2PContract } from "../src/contracts/finp2p";
 import { createProviderAndSigner, ProviderType } from "../src/contracts/config";
+import winston, { format, transports } from "winston";
+
+const logger = winston.createLogger({
+  level: 'info',
+  transports: [new transports.Console()],
+  format: format.json(),
+});
 
 const associateAsset = async (providerType: ProviderType, deployerPrivateKey: string, finp2pContractAddress: string,
                               assetId: string, erc20Address: string) => {
   if (!deployerPrivateKey) {
     throw new Error("DEPLOYER_PRIVATE_KEY is not set");
   }
-  console.log("Granting asset manager and transaction manager roles finP2P contract", finp2pContractAddress);
-  const { provider, signer } = await createProviderAndSigner(providerType);
-  const manager = new FinP2PContract(provider, signer, finp2pContractAddress);
+  logger.info(`Granting asset manager and transaction manager roles finP2P contract ${finp2pContractAddress}`);
+  const { provider, signer } = await createProviderAndSigner(providerType, logger);
+  const manager = new FinP2PContract(provider, signer, finp2pContractAddress, logger);
   await manager.associateAsset(assetId, erc20Address);
-  console.log("Asset associated successfully");
+  logger.info("Asset associated successfully");
 };
 
 const providerType = (process.env.PROVIDER_TYPE || 'local') as ProviderType;

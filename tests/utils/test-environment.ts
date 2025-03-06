@@ -12,8 +12,16 @@ import { randomPort } from "./utils";
 import { addressFromPrivateKey } from "../../finp2p-contracts/src/contracts/utils";
 import { AssetCreationPolicy } from "../../src/services/tokens";
 import { createProviderAndSigner, ProviderType } from "../../finp2p-contracts/src/contracts/config";
+import winston, { format, transports } from "winston";
 
 const providerType: ProviderType = 'local';
+
+const level = 'INFO';
+const logger = winston.createLogger({
+  level,
+  transports: [new transports.Console({ level })],
+  format: format.json(),
+});
 
 class CustomTestEnvironment extends NodeEnvironment {
 
@@ -94,18 +102,19 @@ class CustomTestEnvironment extends NodeEnvironment {
   }
 
   private async deployContract(operatorAddress: string) {
-    const { provider, signer } = await createProviderAndSigner(providerType);
-    const contractManger = new ContractsManager(provider, signer);
+    const { provider, signer } = await createProviderAndSigner(providerType, logger);
+    const contractManger = new ContractsManager(provider, signer, logger);
     return await contractManger.deployFinP2PContract(operatorAddress);
   }
 
   private async startApp(finP2PContractAddress: string) {
-    const { provider, signer } = await createProviderAndSigner(providerType);
-    const finP2PContract = new FinP2PContract(provider, signer, finP2PContractAddress);
+    const { provider, signer } = await createProviderAndSigner(providerType, logger);
+    const finP2PContract = new FinP2PContract(provider, signer, finP2PContractAddress, logger);
 
     const port = randomPort();
     const assetCreationPolicy = { type: 'deploy-new-token' , decimals: 0 } as AssetCreationPolicy;
-    const app = createApp(finP2PContract, assetCreationPolicy);
+
+    const app = createApp(finP2PContract, assetCreationPolicy, undefined, logger);
     console.log("App created successfully.");
 
     this.httpServer = app.listen(port, () => {

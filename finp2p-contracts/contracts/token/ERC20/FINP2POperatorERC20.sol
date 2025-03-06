@@ -27,6 +27,8 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
     uint8 public constant LEG_ASSET = 1;
     uint8 public constant LEG_SETTLEMENT = 2;
 
+    string public constant VERSION = "0.22.1";
+
     bytes32 private constant ASSET_MANAGER = keccak256("ASSET_MANAGER");
     bytes32 private constant TRANSACTION_MANAGER = keccak256("TRANSACTION_MANAGER");
 
@@ -158,15 +160,15 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
         } else {
             revert("Invalid leg");
         }
-        require(verifyInvestorSignature(
+        require(verifyInvestmentSignature(
+            eip712PrimaryType,
             nonce,
             buyerFinId,
             sellerFinId,
             assetTerm,
             settlementTerm,
-            signer,
-            eip712PrimaryType,
-            investorSignature
+            sellerFinId,
+            signature
         ), "Signature is not verified");
         if (leg == LEG_ASSET) {
             contexts[contextId].asset.hasInvestorSignature = true;
@@ -275,7 +277,7 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
         leg.status = LEG_STATUS_RELEASED; // TODO: will it change the value in the mapping?
     }
 
-    function redeem(
+    function withholdRedeem(
         bytes16 contextId,
         string memory fromFinId,
         string memory quantity,
@@ -378,8 +380,8 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
         } else {
             revert("Invalid leg");
         }
-    } 
-    
+    }
+
     function getCounterLeg(bytes16 contextId, uint8 legType) public view returns (Leg memory) {
         require(haveContext(contextId), "Context not found");
         if (legType == LEG_ASSET) {

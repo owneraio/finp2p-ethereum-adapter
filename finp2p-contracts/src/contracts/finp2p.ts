@@ -1,19 +1,26 @@
-import { ContractFactory, ContractTransactionResponse, Interface, Provider, Signer } from "ethers";
+import {
+  ContractFactory,
+  ContractTransactionResponse,
+  Interface,
+  Provider,
+  Signer,
+  TypedDataField
+} from "ethers";
 import FINP2P
   from '../../artifacts/contracts/token/ERC20/FINP2POperatorERC20.sol/FINP2POperatorERC20.json';
 import { FINP2POperatorERC20 } from "../../typechain-types";
 import {
-  detectError,
+  detectError, EIP712Domain,
   EthereumTransactionError,
   FinP2PReceipt,
   NonceAlreadyBeenUsedError,
   NonceToHighError,
   OperationStatus
 } from "./model";
-import { normalizeOperationId, parseTransactionReceipt } from "./utils";
+import { compactSerialize, normalizeOperationId, parseTransactionReceipt } from "./utils";
 import { ContractsManager } from './manager';
-import console from 'console';
-import { LegType, PrimaryType, Term } from "./eip712";
+import { LegType, PrimaryType, sign, hash as typedHash, Term } from "./eip712";
+import winston from "winston";
 
 export class FinP2PContract extends ContractsManager {
 
@@ -23,8 +30,8 @@ export class FinP2PContract extends ContractsManager {
 
   finP2PContractAddress: string;
 
-  constructor(provider: Provider, signer: Signer, finP2PContractAddress: string) {
-    super(provider, signer);
+  constructor(provider: Provider, signer: Signer, finP2PContractAddress: string, logger: winston.Logger) {
+    super(provider, signer, logger);
     const factory = new ContractFactory<any[], FINP2POperatorERC20>(
       FINP2P.abi, FINP2P.bytecode, this.signer,
     );
@@ -33,12 +40,23 @@ export class FinP2PContract extends ContractsManager {
     this.finP2P = contract as FINP2POperatorERC20;
     this.finP2PContractAddress = finP2PContractAddress;
     this.signer.getNonce().then((nonce) => {
-      console.log('Syncing nonce:', nonce);
+      this.logger.info(`Syncing nonce: ${nonce}`);
     });
   }
 
-  async eip712Domain() {
-    return this.finP2P.eip712Domain();
+  async eip712Domain(): Promise<EIP712Domain> {
+    const domain = await this.finP2P.eip712Domain();
+    if (domain === null) {
+      throw new Error('Failed to get EIP712 domain');
+    }
+    if (domain.length < 5) {
+      throw new Error('Invalid EIP712 domain');
+    }
+    const name = domain[1];
+    const version = domain[2];
+    const chainId = parseInt(`${domain[3]}`);
+    const verifyingContract = domain[4];
+    return { name, version, chainId, verifyingContract };
   }
 
   async getAssetAddress(assetId: string) {
@@ -65,6 +83,12 @@ export class FinP2PContract extends ContractsManager {
     });
   }
 
+  async redeem(ownerFinId: string, asset: Term) {
+    return this.safeExecuteTransaction(async (finP2P: FINP2POperatorERC20) => {
+      return finP2P.redeem(ownerFinId, asset);
+    });
+  }
+
   async hold(operationId: string, nonce: string, sellerFinId: string, buyerFinId: string,
              asset: Term, settlement: Term, leg: LegType, eip712PrimaryType: PrimaryType, signature: string) {
     const opId = normalizeOperationId(operationId);
@@ -80,10 +104,10 @@ export class FinP2PContract extends ContractsManager {
     });
   }
 
-  async redeem(operationId: string, ownerFinId: string, quantity: string, leg: LegType) {
+  async withholdRedeem(operationId: string, ownerFinId: string, quantity: string, leg: LegType) {
     const opId = normalizeOperationId(operationId);
     return this.safeExecuteTransaction(async (finP2P: FINP2POperatorERC20) => {
-      return finP2P.redeem(opId, ownerFinId, quantity, leg);
+      return finP2P.withholdRedeem(opId, ownerFinId, quantity, leg);
     });
   }
 
@@ -98,6 +122,24 @@ export class FinP2PContract extends ContractsManager {
     return this.finP2P.getBalance(assetId, finId);
   }
 
+  async hasRole(role: string, address: string) {
+    return this.finP2P.hasRole(role, address);
+  }
+
+  async grantTransactionManagerRoleTo(to: string) {
+    await this.finP2P.grantTransactionManagerRole(to);
+  }
+
+  async getEIP712Domain() {
+    return this.finP2P.eip712Domain();
+  }
+
+  async signEIP712(chainId: bigint | number, verifyingContract: string, types: Record<string, Array<TypedDataField>>, message: Record<string, any>) : Promise<{ hash: string, signature: string}> {
+    const hash = typedHash(chainId, verifyingContract, types, message).substring(2);
+    const signature = compactSerialize(await sign(chainId, verifyingContract, types, message, this.signer));
+    return { hash, signature };
+  }
+
   async getOperationStatus(hash: string): Promise<OperationStatus> {
     const txReceipt = await this.provider.getTransactionReceipt(hash);
     if (txReceipt === null) {
@@ -107,7 +149,7 @@ export class FinP2PContract extends ContractsManager {
     } else if (txReceipt?.status === 1) {
       let receipt = parseTransactionReceipt(txReceipt, this.contractInterface);
       if (receipt === null) {
-        console.log('Failed to parse receipt');
+        this.logger.error('Failed to parse receipt');
         return {
           status: 'failed',
           error: {

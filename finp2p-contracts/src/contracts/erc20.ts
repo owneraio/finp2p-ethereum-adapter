@@ -1,9 +1,8 @@
 import { ContractsManager } from "./manager";
 import { ContractFactory, Interface, Provider, Signer } from "ethers";
-import { ERC20WithOperator, FINP2POperatorERC20 } from "../../typechain-types";
-import console from "console";
+import { ERC20WithOperator } from "../../typechain-types";
 import ERC20 from "../../artifacts/contracts/token/ERC20/ERC20WithOperator.sol/ERC20WithOperator.json";
-import { HashType } from "./model";
+import winston from "winston";
 
 
 export class ERC20Contract extends ContractsManager {
@@ -14,8 +13,8 @@ export class ERC20Contract extends ContractsManager {
 
   tokenAddress: string;
 
-  constructor(provider: Provider, signer: Signer, tokenAddress: string) {
-    super(provider, signer);
+  constructor(provider: Provider, signer: Signer, tokenAddress: string, logger: winston.Logger) {
+    super(provider, signer, logger);
     this.tokenAddress = tokenAddress;
     const factory = new ContractFactory<any[], ERC20WithOperator>(
       ERC20.abi, ERC20.bytecode, this.signer,
@@ -59,5 +58,13 @@ export class ERC20Contract extends ContractsManager {
 
   async burn(fromAddress: string, quantity: number) {
     return this.erc20.burn(fromAddress, quantity);
+  }
+
+  async hasRole(role: string, address: string) {
+    return this.erc20.hasRole(role, address);
+  }
+
+  async grantOperatorTo(address: string) {
+    return this.erc20.grantOperatorTo(address);
   }
 }
