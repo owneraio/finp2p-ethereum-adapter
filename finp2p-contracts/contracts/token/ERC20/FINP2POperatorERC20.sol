@@ -152,11 +152,11 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
     ) public virtual {
         require(hasRole(TRANSACTION_MANAGER, _msgSender()), "FINP2POperatorERC20: must have transaction manager role to transfer asset");
         require(haveContext(contextId), "Contract does not exists");
-        address signer;
+        string memory signer;
         if (leg == LEG_ASSET) {
-            signer = Bytes.finIdToAddress(sellerFinId);
+            signer = sellerFinId;
         } else if (leg == LEG_SETTLEMENT) {
-            signer = Bytes.finIdToAddress(buyerFinId);
+            signer = buyerFinId;
         } else {
             revert("Invalid leg");
         }
@@ -168,7 +168,7 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
             assetTerm,
             settlementTerm,
             sellerFinId,
-            signature
+            investorSignature
         ), "Signature is not verified");
         if (leg == LEG_ASSET) {
             contexts[contextId].asset.hasInvestorSignature = true;
@@ -328,7 +328,7 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
             leg.assetType,
             leg.assetId,
             leg.amount,
-            Bytes.finIdToAddress(leg.source),
+            leg.source,
             proofSignature
         ), "Signature is not verified");
         leg.status = LEG_STATUS_TRANSFERRED; // TODO: will it change the value in the mapping?
@@ -348,7 +348,7 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
             leg.assetType,
             leg.assetId,
             leg.amount,
-            Bytes.finIdToAddress(leg.source),
+            leg.source,
             proofSignature
         ), "Signature is not verified");
         leg.status = LEG_STATUS_WITHHELD; // TODO: will it change the value in the mapping?

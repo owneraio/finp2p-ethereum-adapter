@@ -6,7 +6,7 @@ import { v4 as uuid } from "uuid";
 import { generateNonce, toFixedDecimals } from "./utils";
 import { getFinId } from "../src/contracts/utils";
 import { Signer, Wallet } from "ethers";
-import { Leg, newInvestmentMessage, PrimaryType, sign, Term, term } from "../src/contracts/eip712";
+import { Leg, LegType, newInvestmentMessage, PrimaryType, sign, Term, term } from "../src/contracts/eip712";
 import type { FINP2POperatorERC20 } from "../typechain-types";
 
 
@@ -39,24 +39,24 @@ describe("FinP2P proxy contract test", function() {
     return { signer, finId }
   }
 
-  function extractInvestors(buyer: { signer: Signer, finId: string}, seller: { signer: Signer, finId: string},  leg: Leg):
+  function extractInvestors(buyer: { signer: Signer, finId: string}, seller: { signer: Signer, finId: string},  leg: LegType):
     { from: string, to: string, signer: Signer }
   {
     switch (leg) {
-      case Leg.Asset:
+      case LegType.Asset:
         return { from: seller.finId, to: buyer.finId, signer: seller.signer }
-      case Leg.Settlement:
+      case LegType.Settlement:
         return { from: buyer.finId, to: seller.finId, signer: buyer.signer }
       default:
         throw new Error('Invalid leg')
     }
   }
 
-  function extractAsset(asset: Term, settlement: Term, leg: Leg): Term {
+  function extractAsset(asset: Term, settlement: Term, leg: LegType): Term {
     switch (leg) {
-      case Leg.Asset:
+      case LegType.Asset:
        return asset
-      case Leg.Settlement:
+      case LegType.Settlement:
         return settlement
       default:
         throw new Error('Invalid leg')
@@ -72,7 +72,7 @@ describe("FinP2P proxy contract test", function() {
     let verifyingContract: string;
 
     const primaryTypes = [PrimaryType.PrimarySale, PrimaryType.Buying, PrimaryType.Selling]
-    const legs = [Leg.Asset, Leg.Settlement]
+    const legs = [LegType.Asset, LegType.Settlement]
     const terms: {asset: Term, settlement: Term, decimals: number}[] = [
       {asset: term(generateAssetId(), 'finp2p', '10'), settlement: term('USD', 'fiat', '100'), decimals: 0},
       {asset: term(generateAssetId(), 'finp2p', '10.13'), settlement: term('GBP', 'fiat', '10.13'), decimals: 2},
@@ -166,13 +166,13 @@ describe("FinP2P proxy contract test", function() {
             let from: string, to: string
             let signer: Signer;
             switch (leg) {
-              case Leg.Asset:
+              case LegType.Asset:
                 ({assetId, assetType, amount} = asset);
                 signer = seller;
                 from = sellerFinId;
                 to = buyerFinId;
                 break
-              case Leg.Settlement:
+              case LegType.Settlement:
                 ({assetId, assetType, amount} = settlement);
                 signer = buyer;
                 from = buyerFinId;
@@ -222,12 +222,12 @@ describe("FinP2P proxy contract test", function() {
           let investorFinId: string
           let signer: Signer;
           switch (leg) {
-            case Leg.Asset:
+            case LegType.Asset:
               ({assetId, assetType, amount} = asset);
               signer = owner;
               investorFinId = ownerFinId;
               break
-            case Leg.Settlement:
+            case LegType.Settlement:
               ({assetId, assetType, amount} = settlement);
               signer = issuer
               investorFinId = issuerFinId;

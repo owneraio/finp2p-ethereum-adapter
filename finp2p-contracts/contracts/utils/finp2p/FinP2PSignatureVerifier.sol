@@ -119,6 +119,20 @@ contract FinP2PSignatureVerifier is EIP712 {
         return Signature.verify(Bytes.finIdToAddress(signerFinId), hash, signature);
     }
 
+    function verifyReceiptProofSignature(
+        string memory id,
+        string memory source,
+        string memory destination,
+        string memory assetType,
+        string memory assetId,
+        string memory quantity,
+        string memory signerFinId,
+        bytes memory signature
+    ) public view returns (bool) {
+        bytes32 hash = hashReceipt(id, source, destination, assetType, assetId, quantity);
+        return Signature.verify(Bytes.finIdToAddress(signerFinId), hash, signature);
+    }
+
 
     // --------------------------------------------------------------------------------------
 
