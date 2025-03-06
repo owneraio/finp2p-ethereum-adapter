@@ -141,7 +141,7 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
                 sellerFinId,
                 assetTerm,
                 settlementTerm,
-                Bytes.finIdToAddress(sellerFinId),
+                sellerFinId,
                 signature
             ), "Signature is not verified");
             _transfer(Bytes.finIdToAddress(sellerFinId), Bytes.finIdToAddress(buyerFinId), assetTerm.assetId, assetTerm.amount);
@@ -155,7 +155,7 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
                 sellerFinId,
                 assetTerm,
                 settlementTerm,
-                Bytes.finIdToAddress(buyerFinId),
+                buyerFinId,
                 signature
             ), "Signature is not verified");
             _transfer(Bytes.finIdToAddress(buyerFinId), Bytes.finIdToAddress(sellerFinId), settlementTerm.assetId, settlementTerm.amount);
@@ -192,7 +192,7 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
                 sellerFinId,
                 assetTerm,
                 settlementTerm,
-                Bytes.finIdToAddress(sellerFinId),
+                sellerFinId,
                 signature
             ), "Signature is not verified");
             _transfer( Bytes.finIdToAddress(sellerFinId), _getEscrow(),assetTerm.assetId, assetTerm.amount);
@@ -207,7 +207,7 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
                 sellerFinId,
                 assetTerm,
                 settlementTerm,
-                Bytes.finIdToAddress(buyerFinId),
+                buyerFinId,
                 signature
             ), "Signature is not verified");
             _transfer( Bytes.finIdToAddress(buyerFinId), _getEscrow(), settlementTerm.assetId, settlementTerm.amount);

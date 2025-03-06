@@ -133,5 +133,5 @@ export const isEthereumAddress = (address: string): boolean => {
 };
 
 export const finIdToEthereumAddress = (finId: string): string => {
-  return "0x" + keccak256(finId).slice(-40);
+  return "0x" + keccak256(`0x${finId}`).slice(-40);
 }

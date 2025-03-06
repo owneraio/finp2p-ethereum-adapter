@@ -95,11 +95,11 @@ contract FinP2PSignatureVerifier is EIP712 {
         string memory sellerFinId,
         Term memory asset,
         Term memory settlement,
-        address signer,
+        string memory signerFinId,
         bytes memory signature
     ) public view returns (bool) {
         bytes32 hash = hashInvestment(primaryType, nonce, buyerFinId, sellerFinId, asset, settlement);
-        return Signature.verify(signer, hash, signature);
+        return Signature.verify(Bytes.finIdToAddress(signerFinId), hash, signature);
     }
 
 
