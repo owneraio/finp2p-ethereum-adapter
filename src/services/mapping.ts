@@ -274,14 +274,14 @@ const compareAssets = (eipAsset: EIP712TypeObject, reqAsset: {
 export const detectLeg = (template: Components.Schemas.SignatureTemplate, reqAsset: {
   assetId: string,
   assetType: 'fiat' | 'finp2p' | 'cryptocurrency',
-}) : Leg => {
+}) : LegType => {
   if (template.type != 'EIP712') {
     throw new Error(`Unsupported signature template type: ${template.type}`);
   }
   if (compareAssets(template.message.asset as EIP712TypeObject, reqAsset)) {
-    return Leg.Asset
+    return LegType.Asset
   } else if (compareAssets(template.message.settlement as EIP712TypeObject, reqAsset)) {
-    return Leg.Settlement
+    return LegType.Settlement
   } else {
     throw new Error(`Asset not found in EIP712 message`);
   }
@@ -295,7 +295,7 @@ export const extractParameterEIP712 = (template: Components.Schemas.SignatureTem
   sellerFinId: string,
   asset: Term,
   settlement: Term,
-  leg: Leg,
+  leg: LegType,
   eip712PrimaryType: PrimaryType,
 } => {
   if (template.type != 'EIP712') {

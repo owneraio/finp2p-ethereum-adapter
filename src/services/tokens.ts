@@ -96,9 +96,8 @@ export class TokenService extends CommonService {
   }
 
   public async issue(request: Paths.IssueAssets.RequestBody): Promise<Paths.IssueAssets.Responses.$200> {
-    const { asset, quantity, destination } = request;
+    const { asset, quantity, destination: { finId: issuerFinId } } = request;
     const { assetId, assetType } = assetFromAPI(asset);
-    const issuerFinId = destination.finId;
 
     let txHash: string;
     try {
@@ -123,12 +122,11 @@ export class TokenService extends CommonService {
   public async transfer(request: Paths.TransferAsset.RequestBody): Promise<Paths.TransferAsset.Responses.$200> {
     const { nonce, asset, quantity, source, destination } = request;
     const reqAsset = assetFromAPI(asset);
-    const { signature, template } = request.signature;
 
     try {
       const { buyerFinId, sellerFinId, asset, settlement, leg, eip712PrimaryType } = extractParameterEIP712(template, reqAsset);
       switch (leg) {
-        case Leg.Asset:
+        case LegType.Asset:
           if (buyerFinId !== destination.finId) {
             return failedTransaction(1, `Buyer FinId in the signature does not match the destination FinId`);
           }
@@ -136,7 +134,7 @@ export class TokenService extends CommonService {
             return failedTransaction(1, `Seller FinId in the signature does not match the source FinId`);
           }
           break
-        case Leg.Settlement:
+        case LegType.Settlement:
           if (sellerFinId !== destination.finId) {
             return failedTransaction(1, `Seller FinId in the signature does not match the destination FinId`);
           }
@@ -147,7 +145,6 @@ export class TokenService extends CommonService {
       }
 
       const txHash = await this.finP2PContract.transfer(nonce, sellerFinId, buyerFinId, asset, settlement, leg, eip712PrimaryType, signature);
-
       return {
         isCompleted: false,
         cid: txHash,

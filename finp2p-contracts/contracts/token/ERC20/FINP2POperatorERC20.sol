@@ -32,13 +32,6 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
     bytes32 private constant ASSET_MANAGER = keccak256("ASSET_MANAGER");
     bytes32 private constant TRANSACTION_MANAGER = keccak256("TRANSACTION_MANAGER");
 
-    struct LockInfo {
-        string assetId;
-        string assetType;
-        string finId;
-        string amount;
-    }
-
     event Issue(string assetId, string assetType, string issuerFinId, string quantity);
     event Transfer(string assetId, string assetType,  string sourceFinId, string destinationFinId, string quantity);
     event Hold(string assetId, string assetType, string finId, string quantity, bytes16 operationId);
@@ -51,16 +44,39 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
         address tokenAddress;
     }
 
-    struct Lock {
+    uint8 public constant LEG_STATUS_CREATED = 0;
+    uint8 public constant LEG_STATUS_WITHHELD = 1;
+    uint8 public constant LEG_STATUS_RELEASED = 2;
+    uint8 public constant LEG_STATUS_ROLLED_BACK = 3;
+    uint8 public constant LEG_STATUS_TRANSFERRED = 4;
+
+    struct NewLeg {
         string assetId;
         string assetType;
-        string finId;
+        string source;
+        string destination;
         string amount;
+    }
+
+    struct Leg {
+        string assetId;
+        string assetType;
+        string source;
+        string destination;
+        string amount;
+        uint8 status;
+        bool hasInvestorSignature;
+        bytes16 operationId;
+    }
+
+    struct DVPContext {
+        Leg asset;
+        Leg settlement;
     }
 
     address escrowWalletAddress;
     mapping(string => Asset) assets;
-    mapping(bytes16 => Lock) private locks;
+    mapping(bytes16 => DVPContext) private contexts;
 
     constructor() {
         _grantRole(DEFAULT_ADMIN_ROLE, _msgSender());
@@ -113,142 +129,229 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
         return tokenBalance.uintToString(tokenDecimals);
     }
 
-    function issue(
-        string memory issuerFinId,
-        Term memory assetTerm
+    function createDVDContext(
+        bytes16 contextId,
+        NewLeg memory asset,
+        NewLeg memory settlement) public virtual {
+        contexts[contextId] = DVPContext(
+            Leg(asset.assetId, asset.assetType, asset.source, asset.destination, asset.amount, LEG_STATUS_CREATED, false, 0),
+            Leg(settlement.assetId, settlement.assetType, settlement.source, settlement.destination, settlement.amount, LEG_STATUS_CREATED, false, 0)
+        );
+    }
+
+    function provideInvestorSignature(
+        bytes16 contextId,
+        string memory nonce,
+        string memory sellerFinId,
+        string memory buyerFinId,
+        Term memory assetTerm,
+        Term memory settlementTerm,
+        uint8 eip712PrimaryType,
+        uint8 leg,
+        bytes memory investorSignature
     ) public virtual {
-        require(hasRole(TRANSACTION_MANAGER, _msgSender()), "FINP2POperatorERC20: must have transaction manager role to issue asset");
-        _mint(Bytes.finIdToAddress(issuerFinId), assetTerm.assetId, assetTerm.amount);
-        emit Issue(assetTerm.assetId, assetTerm.assetType, issuerFinId, assetTerm.amount);
+        require(hasRole(TRANSACTION_MANAGER, _msgSender()), "FINP2POperatorERC20: must have transaction manager role to transfer asset");
+        require(haveContext(contextId), "Contract does not exists");
+        string memory signer;
+        if (leg == LEG_ASSET) {
+            signer = sellerFinId;
+        } else if (leg == LEG_SETTLEMENT) {
+            signer = buyerFinId;
+        } else {
+            revert("Invalid leg");
+        }
+        require(verifyInvestmentSignature(
+            eip712PrimaryType,
+            nonce,
+            buyerFinId,
+            sellerFinId,
+            assetTerm,
+            settlementTerm,
+            sellerFinId,
+            investorSignature
+        ), "Signature is not verified");
+        if (leg == LEG_ASSET) {
+            contexts[contextId].asset.hasInvestorSignature = true;
+        }  else if (leg == LEG_SETTLEMENT) {
+            contexts[contextId].settlement.hasInvestorSignature = true;
+        }
+    }
+
+    function issue(
+        bytes16 contextId,
+        uint8 legType,
+        string memory toFinId,
+        string memory assetId,
+        string memory assetType,
+        string memory quantity
+    )  public virtual {
+        Leg memory leg = getLeg(contextId, legType);
+        require(leg.status == LEG_STATUS_CREATED, "Leg is not in created status");
+        require(leg.hasInvestorSignature, "Investor signature is missing");
+        require(leg.assetId.equals(assetId), "Asset id does not match");
+        require(leg.assetType.equals(assetType), "Asset type does not match");
+        require(leg.amount.equals(quantity), "Quantity does not match");
+        require(leg.destination.equals(toFinId), "Destination does not match");
+
+        Leg memory counterLeg = getCounterLeg(contextId, legType);
+        require(counterLeg.status == LEG_STATUS_WITHHELD ||
+        counterLeg.status == LEG_STATUS_TRANSFERRED, "Counter leg should be withheld or transferred");
+
+        _mint(Bytes.finIdToAddress(toFinId), assetId, quantity);
+        emit Issue(assetId, assetType, toFinId, quantity);
+        leg.status = LEG_STATUS_TRANSFERRED; // TODO: will it change the value in the mapping?
     }
 
     function transfer(
-        string memory nonce,
-        string memory sellerFinId,
-        string memory buyerFinId,
-        Term memory assetTerm,
-        Term memory settlementTerm,
-        uint8 leg,
-        uint8 eip712PrimaryType,
-        bytes memory signature
-    ) public virtual {
-        require(hasRole(TRANSACTION_MANAGER, _msgSender()), "FINP2POperatorERC20: must have transaction manager role to transfer asset");
-        if (leg == LEG_ASSET) {
-            require(verifyInvestmentSignature(
-                eip712PrimaryType,
-                nonce,
-                buyerFinId,
-                sellerFinId,
-                assetTerm,
-                settlementTerm,
-                sellerFinId,
-                signature
-            ), "Signature is not verified");
-            _transfer(Bytes.finIdToAddress(sellerFinId), Bytes.finIdToAddress(buyerFinId), assetTerm.assetId, assetTerm.amount);
-            emit Transfer(assetTerm.assetId, assetTerm.assetType, sellerFinId, buyerFinId, assetTerm.amount);
+        bytes16 contextId,
+        uint8 legType,
+        string memory fromFinId,
+        string memory toFinId,
+        string memory assetId,
+        string memory assetType,
+        string memory quantity
+    )  public virtual {
+        Leg memory leg = getLeg(contextId, legType);
+        require(leg.status == LEG_STATUS_CREATED, "Leg is not in created status");
+        require(leg.hasInvestorSignature, "Investor signature is missing");
+        require(leg.assetId.equals(assetId), "Asset id does not match");
+        require(leg.assetType.equals(assetType), "Asset type does not match");
+        require(leg.amount.equals(quantity), "Quantity does not match");
+        require(leg.source.equals(fromFinId), "Source does not match");
+        require(leg.destination.equals(toFinId), "Destination does not match");
 
-        } else if (leg == LEG_SETTLEMENT) {
-            require(verifyInvestmentSignature(
-                eip712PrimaryType,
-                nonce,
-                buyerFinId,
-                sellerFinId,
-                assetTerm,
-                settlementTerm,
-                buyerFinId,
-                signature
-            ), "Signature is not verified");
-            _transfer(Bytes.finIdToAddress(buyerFinId), Bytes.finIdToAddress(sellerFinId), settlementTerm.assetId, settlementTerm.amount);
-            emit Transfer(settlementTerm.assetId, settlementTerm.assetType, buyerFinId, sellerFinId, settlementTerm.amount);
+        Leg memory counterLeg = getCounterLeg(contextId, legType);
+        require(counterLeg.status == LEG_STATUS_WITHHELD ||
+                counterLeg.status == LEG_STATUS_TRANSFERRED, "Counter leg should be withheld or transferred");
 
-        } else {
-            revert("Invalid leg");
-        }
+        _transfer(Bytes.finIdToAddress(fromFinId), Bytes.finIdToAddress(toFinId), assetId, quantity);
+        emit Transfer(assetId, assetType, fromFinId, toFinId, quantity);
+        leg.status = LEG_STATUS_TRANSFERRED; // TODO: will it change the value in the mapping?
     }
 
-    function redeem(string memory ownerFinId, Term memory term) external {
-        require(hasRole(TRANSACTION_MANAGER, _msgSender()), "FINP2POperatorERC20: must have transaction manager role to release asset");
-        _burn(Bytes.finIdToAddress(ownerFinId), term.assetId, term.amount);
-        emit Redeem(term.assetId, term.assetType, ownerFinId,  term.amount, '');
-    }
 
     function hold(
-        bytes16 operationId,
-        string memory nonce,
-        string memory sellerFinId,
-        string memory buyerFinId,
-        Term memory assetTerm,
-        Term memory settlementTerm,
-        uint8 leg,
-        uint8 eip712PrimaryType,
-        bytes memory signature
-    ) public virtual {
-        require(hasRole(TRANSACTION_MANAGER, _msgSender()), "FINP2POperatorERC20: must have transaction manager role to hold asset");
-        if (leg == LEG_ASSET) {
-            require(verifyInvestmentSignature(
-                eip712PrimaryType,
-                nonce,
-                buyerFinId,
-                sellerFinId,
-                assetTerm,
-                settlementTerm,
-                sellerFinId,
-                signature
-            ), "Signature is not verified");
-            _transfer( Bytes.finIdToAddress(sellerFinId), _getEscrow(),assetTerm.assetId, assetTerm.amount);
-            locks[operationId] = Lock(assetTerm.assetId, assetTerm.assetType, sellerFinId,assetTerm.amount);
-            emit Hold(assetTerm.assetId, assetTerm.assetType, sellerFinId, assetTerm.amount, operationId);
+        bytes16 contextId,
+        uint8 legType,
+        string memory fromFinId,
+        string memory toFinId,
+        string memory assetId,
+        string memory assetType,
+        string memory quantity,
+        bytes16 operationId
+    )  public virtual {
+        Leg memory leg = getLeg(contextId, legType);
+        require(leg.status == LEG_STATUS_CREATED, "Leg is not in created status");
+        require(leg.hasInvestorSignature, "Investor signature is missing");
+        require(leg.assetId.equals(assetId), "Asset id does not match");
+        require(leg.assetType.equals(assetType), "Asset type does not match");
+        require(leg.amount.equals(quantity), "Quantity does not match");
+        require(leg.source.equals(fromFinId), "Source does not match");
+        require(leg.destination.equals(toFinId), "Destination does not match");
 
-        } else if (leg == LEG_SETTLEMENT) {
-            require(verifyInvestmentSignature(
-                eip712PrimaryType,
-                nonce,
-                buyerFinId,
-                sellerFinId,
-                assetTerm,
-                settlementTerm,
-                buyerFinId,
-                signature
-            ), "Signature is not verified");
-            _transfer( Bytes.finIdToAddress(buyerFinId), _getEscrow(), settlementTerm.assetId, settlementTerm.amount);
-            locks[operationId] = Lock(settlementTerm.assetId, settlementTerm.assetType, buyerFinId,settlementTerm.amount);
-            emit Hold(settlementTerm.assetId, settlementTerm.assetType, buyerFinId, settlementTerm.amount, operationId);
+        _transfer( Bytes.finIdToAddress(fromFinId), _getEscrow(),assetId, quantity);
+        emit Hold(assetId, assetType, fromFinId, quantity, operationId);
 
-        } else {
-            revert("Invalid leg");
-        }
+        leg.status = LEG_STATUS_WITHHELD; // TODO: will it change the value in the mapping?
+        leg.operationId = operationId;
     }
 
-    function release(bytes16 operationId, string memory toFinId, string memory quantity) public virtual {
-        require(hasRole(TRANSACTION_MANAGER, _msgSender()), "FINP2POperatorERC20: must have transaction manager role to release asset");
-        require(haveContract(operationId), "Contract does not exists");
-        Lock storage lock = locks[operationId];
-        // TODO: take request quantity?
-        _transfer(_getEscrow(), Bytes.finIdToAddress(toFinId), lock.assetId, lock.amount);
-        emit Release(lock.assetId, lock.assetType, lock.finId, toFinId, quantity, operationId);
-        delete locks[operationId];
+    function release(
+        bytes16 contextId,
+        string memory toFinId,
+        string memory quantity,
+        bytes16 operationId
+    )  public virtual {
+        Leg memory leg = getLegByOperationId(contextId, operationId);
+        require(leg.status == LEG_STATUS_WITHHELD, "Leg is not in withheld status");
+        require(leg.hasInvestorSignature, "Investor signature is missing");
+        require(leg.amount.equals(quantity), "Quantity does not match");
+        require(leg.destination.equals(toFinId), "Destination does not match");
+
+        Leg memory counterLeg = getCounterLegByOperationId(contextId, operationId);
+        require(counterLeg.status == LEG_STATUS_WITHHELD ||
+        counterLeg.status == LEG_STATUS_TRANSFERRED, "Counter leg should be withheld or transferred");
+
+        _transfer(_getEscrow(), Bytes.finIdToAddress(toFinId), leg.assetId, leg.amount);
+        emit Release(leg.assetId, leg.assetType, leg.source, leg.destination, leg.amount, operationId);
+        leg.status = LEG_STATUS_RELEASED; // TODO: will it change the value in the mapping?
     }
 
-    function withholdRedeem(bytes16 operationId, string memory ownerFinId, string memory quantity) external {
-        require(hasRole(TRANSACTION_MANAGER, _msgSender()), "FINP2POperatorERC20: must have transaction manager role to release asset");
-        require(haveContract(operationId), "Contract does not exists");
-        Lock storage lock = locks[operationId];
-        require(lock.finId.equals(ownerFinId), "Trying to redeem asset with owner different from the one who held it");
-        // TODO: take request quantity?
-        _burn(_getEscrow(), lock.assetId, lock.amount);
-        emit Redeem(lock.assetId, lock.assetType, ownerFinId,  quantity, operationId);
-        delete locks[operationId];
+    function withholdRedeem(
+        bytes16 contextId,
+        string memory fromFinId,
+        string memory quantity,
+        bytes16 operationId
+    )  public virtual {
+        Leg memory leg = getLegByOperationId(contextId, operationId);
+        require(leg.status == LEG_STATUS_WITHHELD, "Leg is not in withheld status");
+        require(leg.hasInvestorSignature, "Investor signature is missing");
+        require(leg.amount.equals(quantity), "Quantity does not match");
+        require(leg.source.equals(fromFinId), "Destination does not match");
+
+        Leg memory counterLeg = getCounterLegByOperationId(contextId, operationId);
+        require(counterLeg.status == LEG_STATUS_WITHHELD ||
+        counterLeg.status == LEG_STATUS_TRANSFERRED, "Counter leg should be withheld or transferred");
+
+        _burn(_getEscrow(), leg.assetId, leg.amount);
+        emit Redeem(leg.assetId, leg.assetType, fromFinId,  leg.amount, operationId);
+        leg.status = LEG_STATUS_TRANSFERRED; // TODO: will it change the value in the mapping?
     }
 
     function rollback(
+        bytes16 contextId,
         bytes16 operationId
-    ) public virtual {
-        require(hasRole(TRANSACTION_MANAGER, _msgSender()), "FINP2POperatorERC20: must have transaction manager role to rollback asset");
-        require(haveContract(operationId), "contract does not exists");
-        Lock storage lock = locks[operationId];
-        _transfer(_getEscrow(), Bytes.finIdToAddress(lock.finId), lock.assetId, lock.amount);
-        emit Rollback(lock.assetId, lock.assetType, lock.finId, lock.amount, operationId);
-        delete locks[operationId];
+    )  public virtual {
+        Leg memory leg = getLegByOperationId(contextId, operationId);
+        require(leg.status == LEG_STATUS_WITHHELD, "Leg is not in withheld status");
+        require(leg.hasInvestorSignature, "Investor signature is missing");
+
+        // Leg memory counterLeg = getCounterLegByOperationId(contextId, operationId);
+        // require(counterLeg.status == LEG_STATUS_FAILED || LEG_STATUS_EXPIRED, "Counter leg should be failed or expired");
+
+        _transfer(_getEscrow(), Bytes.finIdToAddress(leg.destination), leg.assetId, leg.amount);
+        emit Rollback(leg.assetId, leg.assetType, leg.destination, leg.amount, operationId);
+        leg.status = LEG_STATUS_ROLLED_BACK; // TODO: will it change the value in the mapping?
+    }
+
+    function transferProof(
+        bytes16 contextId,
+        string memory id,
+        uint8 legType,
+        bytes memory proofSignature
+    )  public virtual {
+        Leg memory leg = getLeg(contextId, legType);
+        require(verifyReceiptProofSignature(
+            id,
+            leg.source,
+            leg.destination,
+            leg.assetType,
+            leg.assetId,
+            leg.amount,
+            leg.source,
+            proofSignature
+        ), "Signature is not verified");
+        leg.status = LEG_STATUS_TRANSFERRED; // TODO: will it change the value in the mapping?
+    }
+
+    function holdProof(
+        bytes16 contextId,
+        string memory id,
+        uint8 legType,
+        bytes memory proofSignature
+    )  public virtual {
+        Leg memory leg = getLeg(contextId, legType);
+        require(verifyReceiptProofSignature(
+            id,
+            leg.source,
+            leg.destination,
+            leg.assetType,
+            leg.assetId,
+            leg.amount,
+            leg.source,
+            proofSignature
+        ), "Signature is not verified");
+        leg.status = LEG_STATUS_WITHHELD; // TODO: will it change the value in the mapping?
     }
 
     function getTokenAmount(address tokenAddress, string memory amount) internal view returns (uint256) {
@@ -256,18 +359,70 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
         return amount.stringToUint(tokenDecimals);
     }
 
-    function getLockInfo(bytes16 operationId) public view returns (LockInfo memory) {
-        require(haveContract(operationId), "Contract not found");
-        Lock storage l = locks[operationId];
-        return LockInfo(l.assetId, l.assetType, l.finId,l.amount);
-    }
+//    function getDVPContext(bytes16 operationId) public view returns (DVPContext memory) {
+//        require(haveContext(operationId), "Contract not found");
+//        DVPContext storage dvp = contexts[operationId];
+//        return LockInfo(l.assetId, l.assetType, l.finId,l.amount);
+//    }
 
     function haveAsset(string memory assetId) internal view returns (bool exists) {
         exists = (assets[assetId].tokenAddress != address(0));
     }
 
-    function haveContract(bytes16 operationId) internal view returns (bool exists) {
-        exists = (bytes(locks[operationId].amount).length > 0);
+    function getLeg(bytes16 contextId, uint8 legType) public view returns (Leg memory) {
+        require(haveContext(contextId), "Context not found");
+        if (legType == LEG_ASSET) {
+            return contexts[contextId].asset;
+
+        } else if (legType == LEG_SETTLEMENT) {
+            return contexts[contextId].settlement;
+
+        } else {
+            revert("Invalid leg");
+        }
+    }
+
+    function getCounterLeg(bytes16 contextId, uint8 legType) public view returns (Leg memory) {
+        require(haveContext(contextId), "Context not found");
+        if (legType == LEG_ASSET) {
+            return contexts[contextId].settlement;
+
+        } else if (legType == LEG_SETTLEMENT) {
+            return contexts[contextId].asset;
+
+        } else {
+            revert("Invalid leg");
+        }
+    }
+
+    function getLegByOperationId(bytes16 contextId, bytes16 operationId) public view returns (Leg memory) {
+        require(haveContext(contextId), "Context not found");
+        if (contexts[contextId].asset.operationId == operationId) {
+            return contexts[contextId].asset;
+
+        } else if (contexts[contextId].settlement.operationId == operationId) {
+            return contexts[contextId].settlement;
+
+        } else {
+            revert("Invalid operationId");
+        }
+    }
+
+    function getCounterLegByOperationId(bytes16 contextId, bytes16 operationId) public view returns (Leg memory) {
+        require(haveContext(contextId), "Context not found");
+        if (contexts[contextId].asset.operationId == operationId) {
+            return contexts[contextId].settlement;
+
+        } else if (contexts[contextId].settlement.operationId == operationId) {
+            return contexts[contextId].asset;
+
+        } else {
+            revert("Invalid operationId");
+        }
+    }
+
+    function haveContext(bytes16 operationId) internal view returns (bool exists) {
+        exists = (bytes(contexts[operationId].asset.amount).length > 0);
     }
 
     // ------------------------------------------------------------------------------------------
