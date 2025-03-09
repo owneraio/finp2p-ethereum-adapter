@@ -14,7 +14,7 @@ const logger = winston.createLogger({
   format: format.json(),
 });
 
-const syncBalanceFromOssToEthereum = async (ossUrl: string, providerType: ProviderType, contractAddress: string) => {
+const syncAssets = async (ossUrl: string, providerType: ProviderType, contractAddress: string) => {
   const ossClient = new OssClient(ossUrl, undefined);
   const assetIds = await ossClient.getAllAssetIds()
   logger.info(`Got a list of ${assetIds.length} assets to migrate`);
@@ -42,27 +42,6 @@ const syncBalanceFromOssToEthereum = async (ossUrl: string, providerType: Provid
         logger.error(`Error migrating asset ${assetId}: ${e}`);
       }
     }
-
-    const owners = await ossClient.getOwnerBalances(assetId);
-    for (const { finId, balance: expectedBalance } of owners) {
-      const actualBalance = await contract.balance(assetId, finId);
-      const balance = parseFloat(expectedBalance) - parseFloat(actualBalance);
-      if (balance > 0) {
-
-        logger.info(`Issuing ${balance} asset ${assetId} for finId ${finId}`);
-        const issueTx = await contract.issue(finId, term(assetId, 'finp2p', `${balance}`));
-        await contract.waitForCompletion(issueTx);
-
-      } else if (balance < 0) {
-
-        logger.info(`Redeeming ${-balance} asset ${assetId} for finId ${finId}`);
-        const issueTx = await contract.redeem(finId, term(assetId, 'finp2p', `${-balance}`));
-        await contract.waitForCompletion(issueTx);
-      } else {
-        logger.info(`FinId ${finId} already has enough balance for asset ${assetId}: ${balance}`);
-      }
-    }
-
   }
 
   logger.info('Migration complete');
@@ -74,7 +53,7 @@ if (!ossUrl) {
   process.exit(1);
 }
 
-const providerType = (process.env.PROVIDER_TYPE || 'local')  as ProviderType;
+const providerType = (process.env.PROVIDER_TYPE || 'local') as ProviderType;
 if (!providerType) {
   console.error('Env variable PROVIDER_TYPE was not set');
   process.exit(1);
@@ -85,4 +64,4 @@ if (!contractAddress) {
   console.error('Env variable CONTRACT_ADDRESS was not set');
   process.exit(1);
 }
-syncBalanceFromOssToEthereum(ossUrl, providerType, contractAddress).then(() => {});
+syncAssets(ossUrl, providerType, contractAddress).then(() => {});
