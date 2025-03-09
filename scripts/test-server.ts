@@ -45,7 +45,7 @@ const startHardhatContainer = async () => {
   logger.info('Starting hardhat node container...');
   const logExtractor = new HardhatLogExtractor();
   const containerPort = 8545;
-  const startedContainer = await new GenericContainer('ghcr.io/owneraio/hardhat:task-fix-docker-build')
+  const startedContainer = await new GenericContainer('ghcr.io/owneraio/hardhat:master')
     .withLogConsumer((stream) => logExtractor.consume(stream))
     .withExposedPorts(containerPort)
     .start();

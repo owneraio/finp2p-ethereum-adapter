@@ -12,7 +12,7 @@ const logger = winston.createLogger({
 });
 
 const erc20Approve = async (providerType: ProviderType, finp2pContractAddress: string,
-                              assetId: string, spender: string, amount: number) => {
+                              assetId: string, spender: string, amount: bigint) => {
 
   const { provider, signer } = await createProviderAndSigner(providerType, logger);
   const network = await provider.getNetwork();
@@ -49,7 +49,7 @@ const amountStr = process.env.AMOUNT;
 if (!amountStr) {
   throw new Error("AMOUNT is not set");
 }
-const amount = parseInt(amountStr);
+const amount = BigInt(amountStr);
 
 erc20Approve(providerType, finp2pContractAddress, assetId, spender, amount)
   .then(() => {
