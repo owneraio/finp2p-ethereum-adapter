@@ -13,9 +13,8 @@
     "test": "jest",
     "test-server": "tsc && node ./dist/scripts/test-server.js",
     "migration": "tsc && node ./dist/scripts/migration.js",
-    "sync-balances-oss-to-eth": "tsc && node ./dist/scripts/sync-balances-oss-to-eth.js",
-    "sync-assets": "tsc && node ./dist/scripts/sync-assets.js",
-    "approve-all-assets": "tsc && node ./dist/scripts/approve-all-assets.js",
+    "sync-balances": "tsc && node ./dist/scripts/sync-balances.js",
+    "mass-approve": "tsc && node ./dist/scripts/mass-approve.js",
     "start": "node ."
   },
   "keywords": [],

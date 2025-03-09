@@ -3,8 +3,6 @@ import process from "process";
 import { FinP2PContract } from "../finp2p-contracts/src/contracts/finp2p";
 import { createProviderAndSigner, ProviderType } from "../finp2p-contracts/src/contracts/config";
 import console from "console";
-import { EthereumTransactionError } from "../finp2p-contracts/src/contracts/model";
-import { ERC20Contract } from "../finp2p-contracts/src/contracts/erc20";
 import winston, { format, transports } from "winston";
 import { term } from "../finp2p-contracts/src/contracts/eip712";
 
@@ -14,27 +12,27 @@ const logger = winston.createLogger({
   format: format.json(),
 });
 
-const syncBalanceFromOssToEthereum = async (ossUrl: string, providerType: ProviderType, contractAddress: string) => {
+const syncBalanceFromOssToEthereum = async (ossUrl: string, providerType: ProviderType, finp2pContractAddress: string) => {
   const ossClient = new OssClient(ossUrl, undefined);
-  const assetIds = await ossClient.getAllAssetIds()
-  logger.info(`Got a list of ${assetIds.length} assets to migrate`);
+  const assets = await ossClient.getAssetsWithTokens()
+  logger.info(`Got a list of ${assets.length} assets to migrate`);
 
-  if (assetIds.length === 0) {
+  if (assets.length === 0) {
     logger.info('No assets to migrate');
     return;
   }
 
   const { provider, signer } = await createProviderAndSigner(providerType, logger);
-  const contract = new FinP2PContract(provider, signer, contractAddress, logger);
+  const contract = new FinP2PContract(provider, signer, finp2pContractAddress, logger);
 
-  for (const assetId of assetIds) {
+  for (const { assetId } of assets) {
     try {
       const erc20Address =  await contract.getAssetAddress(assetId);
       logger.info(`Found asset ${assetId} with token address ${erc20Address}`);
     } catch (e) {
       if (`${e}`.includes('Asset not found')) {
         logger.info(`Deploying new token for asset ${assetId}`);
-        const erc20Address = await contract.deployERC20(assetId, assetId, 0, contractAddress);
+        const erc20Address = await contract.deployERC20(assetId, assetId, 0, finp2pContractAddress);
         logger.info(`Associating asset ${assetId} with token ${erc20Address}`);
         const associateTxHash = await contract.associateAsset(assetId, erc20Address);
         await contract.waitForCompletion(associateTxHash);
@@ -80,9 +78,9 @@ if (!providerType) {
   process.exit(1);
 }
 
-const contractAddress = process.env.CONTRACT_ADDRESS;
-if (!contractAddress) {
-  console.error('Env variable CONTRACT_ADDRESS was not set');
+const finp2pContractAddress = process.env.FINP2P_CONTRACT_ADDRESS;
+if (!finp2pContractAddress) {
+  console.error('Env variable FINP2P_CONTRACT_ADDRESS was not set');
   process.exit(1);
 }
-syncBalanceFromOssToEthereum(ossUrl, providerType, contractAddress).then(() => {});
+syncBalanceFromOssToEthereum(ossUrl, providerType, finp2pContractAddress).then(() => {});

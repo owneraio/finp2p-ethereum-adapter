@@ -2,6 +2,9 @@
     assets {
         nodes {
             id
+            ledgerAssetInfo {
+                tokenId
+            }
         }
     }
 }

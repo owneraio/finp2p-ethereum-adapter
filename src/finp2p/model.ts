@@ -26,6 +26,9 @@ export type OssAsset = {
       expiry: number
     }[]
   }
+  ledgerAssetInfo: {
+    tokenId: string
+  }
 };
 
 export type OssAssetNodes = {

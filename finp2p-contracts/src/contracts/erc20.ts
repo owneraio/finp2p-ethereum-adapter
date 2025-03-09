@@ -48,7 +48,7 @@ export class ERC20Contract extends ContractsManager {
     return this.erc20.allowance(owner, spender);
   }
 
-  async approve(spender: string, quantity: number) {
+  async approve(spender: string, quantity: bigint) {
       return this.erc20.approve(spender, quantity);
   }
 

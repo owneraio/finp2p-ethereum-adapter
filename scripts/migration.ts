@@ -14,31 +14,32 @@ const logger = winston.createLogger({
 });
 
 
-const startMigration = async (ossUrl: string, providerType: ProviderType, oldContractAddress: string, newContractAddress: string) => {
+const startMigration = async (ossUrl: string, providerType: ProviderType, finp2pContractAddress: string, grantOperator: boolean) => {
   const ossClient = new OssClient(ossUrl, undefined);
-  const assetIds = await ossClient.getAllAssetIds()
-  logger.info(`Got a list of ${assetIds.length} assets to migrate`);
+  const assets = await ossClient.getAssetsWithTokens()
+  logger.info(`Got a list of ${assets.length} assets to migrate`);
 
-  if (assetIds.length === 0) {
+  if (assets.length === 0) {
     logger.info('No assets to migrate');
     return;
   }
 
   const { provider, signer } = await createProviderAndSigner(providerType, logger);
-  const oldContract = new FinP2PContract(provider, signer, oldContractAddress, logger);
-  const newContract = new FinP2PContract(provider, signer, newContractAddress, logger);
+  const finP2PContract = new FinP2PContract(provider, signer, finp2pContractAddress, logger);
 
   let migrated = 0;
   let skipped = 0;
-  for (const assetId of assetIds) {
+  for (const { assetId, tokenAddress } of assets) {
     try {
-      const tokenAddress = await oldContract.getAssetAddress(assetId);
       logger.info(`Migrating asset ${assetId} with token address ${tokenAddress}`);
-      await newContract.associateAsset(assetId, tokenAddress);
+      const txHash = await finP2PContract.associateAsset(assetId, tokenAddress);
+      await finP2PContract.waitForCompletion(txHash)
       logger.info('       asset association [done]')
-      const erc20 = new ERC20Contract(provider, signer, tokenAddress, logger)
-      await erc20.grantOperatorTo(newContractAddress);
-      logger.info('       granting new operator [done]')
+      if (grantOperator) {
+        const erc20 = new ERC20Contract(provider, signer, tokenAddress, logger)
+        await erc20.grantOperatorTo(finp2pContractAddress);
+        logger.info('       granting new operator [done]')
+      }
       migrated++;
     } catch (e) {
       if (`${e}`.includes('Asset not found')) {
@@ -59,7 +60,7 @@ const startMigration = async (ossUrl: string, providerType: ProviderType, oldCon
   }
 
   logger.info('Migration complete');
-  logger.info(`Migrated ${migrated} of ${assetIds.length} assets`);
+  logger.info(`Migrated ${migrated} of ${assets.length} assets`);
   logger.info(`Skipped ${skipped} assets`);
 }
 
@@ -75,16 +76,12 @@ if (!providerType) {
   process.exit(1);
 }
 
-const oldContractAddress = process.env.OLD_CONTRACT_ADDRESS;
-if (!oldContractAddress) {
-  console.error('Env variable OLD_CONTRACT_ADDRESS was not set');
+const contractAddress = process.env.FINP2P_CONTRACT_ADDRESS;
+if (!contractAddress) {
+  console.error('Env variable FINP2P_CONTRACT_ADDRESS was not set');
   process.exit(1);
 }
 
-const newContractAddress = process.env.NEW_CONTRACT_ADDRESS;
-if (!newContractAddress) {
-  console.error('Env variable NEW_CONTRACT_ADDRESS was not set');
-  process.exit(1);
-}
+const grantOperator = process.env.GRANT_OPERATOR === 'yes';
 
-startMigration(ossUrl, providerType, oldContractAddress, newContractAddress).then(() => {});
+startMigration(ossUrl, providerType, contractAddress, grantOperator).then(() => {});
