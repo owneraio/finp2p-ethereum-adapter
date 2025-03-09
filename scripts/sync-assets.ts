@@ -14,7 +14,7 @@ const logger = winston.createLogger({
   format: format.json(),
 });
 
-const syncAssets = async (ossUrl: string, providerType: ProviderType, contractAddress: string) => {
+const syncAssets = async (ossUrl: string, providerType: ProviderType, oldContractAddress: string, newContractAddress: string) => {
   const ossClient = new OssClient(ossUrl, undefined);
   const assetIds = await ossClient.getAllAssetIds()
   logger.info(`Got a list of ${assetIds.length} assets to migrate`);
@@ -25,19 +25,18 @@ const syncAssets = async (ossUrl: string, providerType: ProviderType, contractAd
   }
 
   const { provider, signer } = await createProviderAndSigner(providerType, logger);
-  const contract = new FinP2PContract(provider, signer, contractAddress, logger);
+  const oldContract = new FinP2PContract(provider, signer, oldContractAddress, logger);
+  const newContract = new FinP2PContract(provider, signer, newContractAddress, logger);
 
   for (const assetId of assetIds) {
     try {
-      const erc20Address =  await contract.getAssetAddress(assetId);
+      const erc20Address =  await oldContract.getAssetAddress(assetId);
       logger.info(`Found asset ${assetId} with token address ${erc20Address}`);
+      const associateTxHash = await newContract.associateAsset(assetId, erc20Address);
+      await newContract.waitForCompletion(associateTxHash);
     } catch (e) {
       if (`${e}`.includes('Asset not found')) {
-        logger.info(`Deploying new token for asset ${assetId}`);
-        const erc20Address = await contract.deployERC20(assetId, assetId, 0, contractAddress);
-        logger.info(`Associating asset ${assetId} with token ${erc20Address}`);
-        const associateTxHash = await contract.associateAsset(assetId, erc20Address);
-        await contract.waitForCompletion(associateTxHash);
+        logger.info(`Asset ${assetId} not found on old contract`);
       } else {
         logger.error(`Error migrating asset ${assetId}: ${e}`);
       }
@@ -59,9 +58,15 @@ if (!providerType) {
   process.exit(1);
 }
 
-const contractAddress = process.env.CONTRACT_ADDRESS;
-if (!contractAddress) {
-  console.error('Env variable CONTRACT_ADDRESS was not set');
+const oldContractAddress = process.env.OLD_CONTRACT_ADDRESS;
+if (!oldContractAddress) {
+  console.error('Env variable OLD_CONTRACT_ADDRESS was not set');
   process.exit(1);
 }
-syncAssets(ossUrl, providerType, contractAddress).then(() => {});
+
+const newContractAddress = process.env.NEW_CONTRACT_ADDRESS;
+if (!newContractAddress) {
+  console.error('Env variable NEW_CONTRACT_ADDRESS was not set');
+  process.exit(1);
+}
+syncAssets(ossUrl, providerType, oldContractAddress, newContractAddress).then(() => {});
