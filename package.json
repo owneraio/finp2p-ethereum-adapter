@@ -15,6 +15,7 @@
     "migration": "tsc && node ./dist/scripts/migration.js",
     "sync-balances-oss-to-eth": "tsc && node ./dist/scripts/sync-balances-oss-to-eth.js",
     "sync-assets": "tsc && node ./dist/scripts/sync-assets.js",
+    "approve-all-assets": "tsc && node ./dist/scripts/approve-all-assets.js",
     "start": "node ."
   },
   "keywords": [],
