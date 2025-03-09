@@ -47,7 +47,7 @@ if (!spender) {
 }
 const amountStr = process.env.AMOUNT;
 if (!amountStr) {
-  throw new Error("SPENDER_FIN_ID is not set");
+  throw new Error("AMOUNT is not set");
 }
 const amount = parseInt(amountStr);
 
