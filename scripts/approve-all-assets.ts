@@ -30,8 +30,9 @@ const approveAllAssets = async (ossUrl: string, providerType: ProviderType, cont
       const erc20Address =  await contract.getAssetAddress(assetId);
       logger.info(`Found asset ${assetId} with token address ${erc20Address}`);
       const erc20 = new ERC20Contract(provider, signer, erc20Address, logger);
-      // const decimals = await erc20.decimals()
-      // const amount = 10n ** decimals;
+      const decimals = await erc20.decimals()
+      const name = await erc20.name();
+      logger.info(`asset ${assetId} (${name}) has ${decimals} decimals`);
       const allowed = await erc20.allowance(signerAddress, contractAddress);
       if (allowed < amount) {
         logger.info(`Approving ${amount} tokens for ${contractAddress} (${contractAddress})`);
