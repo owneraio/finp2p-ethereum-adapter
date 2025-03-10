@@ -18,7 +18,6 @@ import LedgerTokenId = Components.Schemas.LedgerTokenId;
 import ContractDetails = Components.Schemas.ContractDetails;
 import AssetCreateResponse = Components.Schemas.AssetCreateResponse;
 import FinP2PEVMOperatorDetails = Components.Schemas.FinP2PEVMOperatorDetails;
-import SignatureTemplate = Components.Schemas.SignatureTemplate;
 import EIP712TypeObject = Components.Schemas.EIP712TypeObject;
 import EIP712TypeString = Components.Schemas.EIP712TypeString;
 import ProofPolicy = Components.Schemas.ProofPolicy;
@@ -174,11 +173,12 @@ export const receiptToAPI = (receipt: FinP2PReceipt): Receipt => {
   return {
     id: receipt.id,
     asset: assetToAPI(receipt.assetId, receipt.assetType),
-    quantity: `${receipt.amount}`,
+    quantity: `${receipt.quantity}`,
     source: finIdSource(receipt.source),
     destination: finIdDestination(receipt.destination),
     transactionDetails: {
       transactionId: receipt.id,
+      operationId: receipt.operationId,
     },
     timestamp: receipt.timestamp,
     tradeDetails: {},
@@ -196,7 +196,7 @@ export const receiptToEIP712Message = (receipt: FinP2PReceipt): EIP712ReceiptMes
     // quantity: `${receipt.amount}`,
     asset: asset(receipt.assetId, receipt.assetType),
     tradeDetails: tradeDetails(executionContext('', '')),
-    transactionDetails: transactionDetails('', receipt.id),
+    transactionDetails: transactionDetails(receipt.operationId || '', receipt.id),
   }
 }
 

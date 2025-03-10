@@ -10,17 +10,21 @@ import FINP2P
   from '../../artifacts/contracts/token/ERC20/FINP2POperatorERC20.sol/FINP2POperatorERC20.json';
 import { FINP2POperatorERC20 } from "../../typechain-types";
 import {
+  completedOperation,
   detectError, EIP712Domain,
-  EthereumTransactionError,
+  EthereumTransactionError, failedOperation,
   FinP2PReceipt,
   NonceAlreadyBeenUsedError,
   NonceToHighError,
-  OperationStatus
+  OperationStatus, pendingOperation
 } from "./model";
 import { compactSerialize, normalizeOperationId, parseTransactionReceipt } from "./utils";
 import { ContractsManager } from './manager';
 import { Leg, PrimaryType, sign, hash as typedHash, Term } from "./eip712";
 import winston from "winston";
+
+
+const ETH_COMPLETED_TRANSACTION_STATUS = 1;
 
 export class FinP2PContract extends ContractsManager {
 
@@ -143,33 +147,20 @@ export class FinP2PContract extends ContractsManager {
   async getOperationStatus(hash: string): Promise<OperationStatus> {
     const txReceipt = await this.provider.getTransactionReceipt(hash);
     if (txReceipt === null) {
-      return {
-        status: 'pending',
-      };
-    } else if (txReceipt?.status === 1) {
-      let receipt = parseTransactionReceipt(txReceipt, this.contractInterface);
-      if (receipt === null) {
-        this.logger.error('Failed to parse receipt');
-        return {
-          status: 'failed',
-          error: {
-            code: 1,
-            message: 'Operation failed',
-          },
-        };
-      }
-      return {
-        status: 'completed',
-        receipt: receipt,
-      };
+      return pendingOperation();
     } else {
-      return {
-        status: 'failed',
-        error: {
-          code: 1,
-          message: 'Operation failed',
-        },
-      };
+      if (txReceipt?.status === ETH_COMPLETED_TRANSACTION_STATUS) {
+            const block = await this.provider.getBlock(txReceipt.blockNumber)
+            const timestamp = block?.timestamp || 0;
+            const receipt = parseTransactionReceipt(txReceipt, this.contractInterface, timestamp);
+            if (receipt === null) {
+              this.logger.error('Failed to parse receipt');
+              return failedOperation('Failed to parse receipt', 1);
+            }
+            return completedOperation(receipt);
+          } else {
+            return failedOperation(`Transaction failed with status: ${txReceipt.status}`, 1);
+          }
     }
   }
 
@@ -178,7 +169,9 @@ export class FinP2PContract extends ContractsManager {
     if (txReceipt === null) {
       throw new Error('Transaction not found');
     }
-    const receipt = parseTransactionReceipt(txReceipt, this.contractInterface);
+    const block = await this.provider.getBlock(txReceipt.blockNumber)
+    const timestamp = block?.timestamp || 0;
+    const receipt = parseTransactionReceipt(txReceipt, this.contractInterface, timestamp);
     if (receipt === null) {
       throw new Error('Failed to parse receipt');
     }

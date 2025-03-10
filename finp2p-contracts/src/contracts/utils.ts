@@ -39,9 +39,12 @@ export const addressFromPrivateKey = (privateKey: string): string => {
   return new Wallet(privateKey).address;
 };
 
-export const parseTransactionReceipt = (receipt: TransactionReceipt, contractInterface: Interface): FinP2PReceipt | null => {
+export const parseTransactionReceipt = (
+  receipt: TransactionReceipt,
+  contractInterface: Interface,
+  timestamp: number
+): FinP2PReceipt | null => {
   const id = receipt.hash;
-  const timestamp = 0;
 
   for (const log of receipt.logs) {
     try {
@@ -50,63 +53,26 @@ export const parseTransactionReceipt = (receipt: TransactionReceipt, contractInt
         continue;
       }
       switch (parsedLog.name) {
-        case 'Issue':
-          return {
-            id: id,
-            assetId: parsedLog.args.assetId,
-            assetType: parsedLog.args.assetType,
-            amount: parsedLog.args.quantity,
-            destination: parsedLog.args.issuerFinId,
-            timestamp: timestamp,
-            proof: undefined,
-            operationType: 'issue',
-          };
-        case 'Transfer':
-          return {
-            id: id,
-            assetId: parsedLog.args.assetId,
-            assetType: parsedLog.args.assetType,
-            amount: parsedLog.args.quantity,
-            source: parsedLog.args.sourceFinId,
-            destination: parsedLog.args.destinationFinId,
-            timestamp: timestamp,
-            proof: undefined,
-            operationType: 'transfer',
-          };
-        case 'Redeem':
-          return {
-            id: id,
-            assetId: parsedLog.args.assetId,
-            assetType: parsedLog.args.assetType,
-            amount: parsedLog.args.quantity,
-            source: parsedLog.args.ownerFinId,
-            timestamp: timestamp,
-            proof: undefined,
-            operationType: 'redeem',
-          };
-        case 'Hold':
-          return {
-            id: id,
-            assetId: parsedLog.args.assetId,
-            assetType: parsedLog.args.assetType,
-            amount: parsedLog.args.quantity,
-            source: parsedLog.args.finId,
-            timestamp: timestamp,
-            proof: undefined,
-            operationType: 'hold',
-          };
-        case 'Release':
-          return {
-            id: id,
-            assetId: parsedLog.args.assetId,
-            assetType: parsedLog.args.assetType,
-            amount: parsedLog.args.quantity,
-            source: parsedLog.args.sourceFinId,
-            destination: parsedLog.args.destinationFinId,
-            timestamp: timestamp,
-            proof: undefined,
-            operationType: 'release',
-          };
+        case 'Issue': {
+          const { id, assetId, assetType, quantity, issuerFinId } = parsedLog.args;
+          return { id, assetId, assetType, quantity, source: issuerFinId, timestamp, operationType: 'issue' };
+        }
+        case 'Transfer': {
+          const { assetId, assetType, quantity, sourceFinId, destinationFinId } = parsedLog.args;
+          return { id, assetId, assetType, quantity, source: sourceFinId, destination: destinationFinId, timestamp, operationType: 'transfer' };
+        }
+        case 'Redeem': {
+          const { assetId, assetType, quantity, ownerFinId } = parsedLog.args;
+          return { id, assetId, assetType, quantity, source: ownerFinId, timestamp, operationType: 'redeem' };
+        }
+        case 'Hold': {
+          const { assetId, assetType, quantity, finId, operationId } = parsedLog.args;
+          return { id, assetId, assetType, quantity, source: finId, timestamp, operationType: 'hold', operationId };
+        }
+        case 'Release': {
+          const { assetId, assetType, quantity, sourceFinId, destinationFinId, operationId } = parsedLog.args;
+          return { id, assetId, assetType, quantity, source: sourceFinId, destination: destinationFinId, timestamp, operationType: 'release', operationId };
+        }
       }
     } catch (e) {
       // do nothing
@@ -123,4 +89,8 @@ export const isEthereumAddress = (address: string): boolean => {
 
 export const finIdToEthereumAddress = (finId: string): string => {
   return "0x" + keccak256(`0x${finId}`).slice(-40);
+}
+
+const undefinedIfEmpty = (value: string): string | undefined => {
+  return value === '' ? undefined : value;
 }

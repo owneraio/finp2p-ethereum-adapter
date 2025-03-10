@@ -32,7 +32,7 @@ export class CommonService {
 
   public async getReceipt(id: Paths.GetReceipt.Parameters.TransactionId): Promise<Paths.GetReceipt.Responses.$200> {
     try {
-      const receipt = await this.finP2PContract.getReceipt(id);
+      const receipt = await this.ledgerProof(await this.finP2PContract.getReceipt(id));
       return {
         isCompleted: true,
         response: receiptToAPI(receipt),

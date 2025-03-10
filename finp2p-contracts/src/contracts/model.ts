@@ -11,6 +11,26 @@ export type SuccessfulTransaction = {
   receipt: FinP2PReceipt
 };
 
+export const pendingOperation = (): PendingTransaction => {
+  return {
+    status: 'pending',
+  };
+}
+
+export const completedOperation = (receipt: FinP2PReceipt): SuccessfulTransaction => {
+  return {
+    status: 'completed',
+    receipt,
+  };
+}
+
+export const failedOperation = (message: string, code: number): FailedTransaction => {
+  return {
+    status: 'failed',
+    error: { code, message },
+  };
+}
+
 // similar to TypedDataDomain
 export type EIP712Domain = {
   chainId: number
@@ -39,12 +59,13 @@ export type FinP2PReceipt = {
   id: string
   assetId: string
   assetType: 'cryptocurrency' | 'fiat' | 'finp2p'
-  amount: number
+  quantity: number
   source?: string
-  destination?: string,
-  timestamp: number,
-  proof: ReceiptProof | undefined,
+  destination?: string
+  timestamp: number
   operationType: 'transfer' | 'redeem' | 'hold' | 'release' | 'issue'
+  operationId?: string
+  proof?: ReceiptProof
 };
 
 export type FailedTransaction = {
