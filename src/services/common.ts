@@ -54,7 +54,6 @@ export class CommonService {
     switch (status.status) {
       case 'completed':
         const receipt = receiptToAPI(await this.ledgerProof(status.receipt));
-
         return {
           type: 'receipt',
           operation: {

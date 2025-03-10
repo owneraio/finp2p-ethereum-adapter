@@ -1,4 +1,14 @@
-import { HDNodeWallet, Interface, TransactionReceipt, Wallet, Signature, isAddress, keccak256, concat } from 'ethers';
+import {
+  HDNodeWallet,
+  Interface,
+  TransactionReceipt,
+  Wallet,
+  Signature,
+  isAddress,
+  keccak256,
+  concat,
+  toUtf8Bytes, hexlify
+} from "ethers";
 import { FinP2PReceipt } from './model';
 import * as secp256k1 from 'secp256k1';
 
@@ -7,13 +17,8 @@ export const compactSerialize = (signature : string): string =>  {
   return concat([ r, s ]).substring(2)
 }
 
-export const normalizeOperationId = (operationId: string): string => {
-  // TODO: think about passing a string instead of bytes16 or a betting concatenation
-  if (operationId.includes(':') && operationId.includes('_')) {
-    return `0x${operationId.split(':')[2].split('_')[0].replaceAll('-', '')}`
-  } else {
-    return `0x${operationId.replaceAll('-', '')}`;
-  }
+export const hashToBytes16 = (val: string): string => {
+  return hexlify(keccak256(toUtf8Bytes(val))).slice(0, 34);
 }
 
 export const privateKeyToFinId = (privateKey: string): string => {
@@ -55,7 +60,7 @@ export const parseTransactionReceipt = (
       switch (parsedLog.name) {
         case 'Issue': {
           const { id, assetId, assetType, quantity, issuerFinId } = parsedLog.args;
-          return { id, assetId, assetType, quantity, source: issuerFinId, timestamp, operationType: 'issue' };
+          return { id, assetId, assetType, quantity, destination: issuerFinId, timestamp, operationType: 'issue' };
         }
         case 'Transfer': {
           const { assetId, assetType, quantity, sourceFinId, destinationFinId } = parsedLog.args;

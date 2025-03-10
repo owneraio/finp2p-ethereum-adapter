@@ -18,7 +18,7 @@ import {
   NonceToHighError,
   OperationStatus, pendingOperation
 } from "./model";
-import { compactSerialize, normalizeOperationId, parseTransactionReceipt } from "./utils";
+import { compactSerialize, hashToBytes16, parseTransactionReceipt } from "./utils";
 import { ContractsManager } from './manager';
 import { Leg, PrimaryType, sign, hash as typedHash, Term } from "./eip712";
 import winston from "winston";
@@ -95,28 +95,28 @@ export class FinP2PContract extends ContractsManager {
 
   async hold(operationId: string, nonce: string, sellerFinId: string, buyerFinId: string,
                    asset: Term, settlement: Term, leg: Leg, eip712PrimaryType: PrimaryType, signature: string) {
-    const opId = normalizeOperationId(operationId);
+    const opId = hashToBytes16(operationId);
     return this.safeExecuteTransaction(async (finP2P: FINP2POperatorERC20) => {
       return finP2P.hold(opId, nonce, sellerFinId, buyerFinId, asset, settlement, leg, eip712PrimaryType, `0x${signature}`);
     });
   }
 
   async release(operationId: string, buyerFinId: string, quantity: string) {
-    const opId = normalizeOperationId(operationId);
+    const opId = hashToBytes16(operationId);
     return this.safeExecuteTransaction(async (finP2P: FINP2POperatorERC20) => {
       return finP2P.releaseTo(opId, buyerFinId, quantity);
     });
   }
 
   async withholdRedeem(operationId: string, ownerFinId: string, quantity: string) {
-    const opId = normalizeOperationId(operationId);
+    const opId = hashToBytes16(operationId);
     return this.safeExecuteTransaction(async (finP2P: FINP2POperatorERC20) => {
       return finP2P.releaseAndRedeem(opId, ownerFinId, quantity);
     });
   }
 
   async rollback(operationId: string) {
-    const opId = normalizeOperationId(operationId);
+    const opId = hashToBytes16(operationId);
     return this.safeExecuteTransaction(async (finP2P: FINP2POperatorERC20) => {
       return finP2P.releaseBack(opId);
     });

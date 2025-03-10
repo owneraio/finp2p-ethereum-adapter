@@ -59,7 +59,7 @@ export type FinP2PReceipt = {
   id: string
   assetId: string
   assetType: 'cryptocurrency' | 'fiat' | 'finp2p'
-  quantity: number
+  quantity: string
   source?: string
   destination?: string
   timestamp: number

@@ -170,20 +170,21 @@ export const proofToAPI = (proof: ReceiptProof | undefined): ProofPolicy | undef
 }
 
 export const receiptToAPI = (receipt: FinP2PReceipt): Receipt => {
+  const { id, assetId, assetType, quantity, source, destination, timestamp, operationId, operationType, proof } = receipt;
   return {
-    id: receipt.id,
-    asset: assetToAPI(receipt.assetId, receipt.assetType),
-    quantity: `${receipt.quantity}`,
-    source: finIdSource(receipt.source),
-    destination: finIdDestination(receipt.destination),
+    id,
+    asset: assetToAPI(assetId, assetType),
+    quantity,
+    source: finIdSource(source),
+    destination: finIdDestination(destination),
     transactionDetails: {
-      transactionId: receipt.id,
-      operationId: receipt.operationId,
+      transactionId: id,
+      operationId,
     },
-    timestamp: receipt.timestamp,
+    timestamp,
     tradeDetails: {},
-    operationType: receipt.operationType,
-    proof: proofToAPI(receipt.proof)
+    operationType,
+    proof: proofToAPI(proof)
   };
 };
 
@@ -191,9 +192,9 @@ export const receiptToEIP712Message = (receipt: FinP2PReceipt): EIP712ReceiptMes
   return {
     id: receipt.id,
     operationType: receipt.operationType,
-    source: source( receipt.source ? 'finp2p' : '', receipt.source || ''),
+    source: source(receipt.source ? 'finp2p' : '', receipt.source || ''),
     destination: destination(receipt.destination ? 'finp2p' : '', receipt.destination || ''),
-    // quantity: `${receipt.amount}`,
+    // quantity,
     asset: asset(receipt.assetId, receipt.assetType),
     tradeDetails: tradeDetails(executionContext('', '')),
     transactionDetails: transactionDetails(receipt.operationId || '', receipt.id),
