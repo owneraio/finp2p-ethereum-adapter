@@ -11,6 +11,18 @@ import {
 } from "ethers";
 import { FinP2PReceipt } from './model';
 import * as secp256k1 from 'secp256k1';
+import {
+  FINP2POperatorERC20Interface,
+  HoldEvent,
+  IssueEvent,
+  RedeemEvent,
+  ReleaseEvent,
+  TransferEvent
+} from "../../typechain-types/contracts/token/ERC20/FINP2POperatorERC20";
+import {
+  ERC20WithOperatorInterface,
+  TransferEvent as ERC20TransferEvent
+} from "../../typechain-types/contracts/token/ERC20/ERC20WithOperator";
 
 export const compactSerialize = (signature : string): string =>  {
   const { r, s } = Signature.from(signature)
@@ -46,7 +58,7 @@ export const addressFromPrivateKey = (privateKey: string): string => {
 
 export const parseTransactionReceipt = (
   receipt: TransactionReceipt,
-  contractInterface: Interface,
+  contractInterface: FINP2POperatorERC20Interface,
   timestamp: number
 ): FinP2PReceipt | null => {
   const id = receipt.hash;
@@ -57,26 +69,28 @@ export const parseTransactionReceipt = (
       if (parsedLog === null) {
         continue;
       }
-      switch (parsedLog.name) {
-        case 'Issue': {
-          const { id, assetId, assetType, quantity, issuerFinId } = parsedLog.args;
+
+      switch (parsedLog.signature) {
+        case 'Issue(string,string,string,string)': {
+          const { assetId, assetType, quantity, issuerFinId } = parsedLog.args as unknown as IssueEvent.OutputObject;
           return { id, assetId, assetType, quantity, destination: issuerFinId, timestamp, operationType: 'issue' };
         }
-        case 'Transfer': {
-          const { assetId, assetType, quantity, sourceFinId, destinationFinId } = parsedLog.args;
-          return { id, assetId, assetType, quantity, source: sourceFinId, destination: destinationFinId, timestamp, operationType: 'transfer' };
+        case 'Transfer(string,string,string,string,string)': {
+            const { assetId, assetType, quantity, sourceFinId, destinationFinId } = parsedLog.args as unknown as TransferEvent.OutputObject;
+            return { id, assetId, assetType, quantity, source: sourceFinId, destination: destinationFinId, timestamp, operationType: 'transfer' };
         }
-        case 'Redeem': {
-          const { assetId, assetType, quantity, ownerFinId } = parsedLog.args;
+        case 'Redeem(string,string,string,string,bytes16)': {
+          const { assetId, assetType, quantity, ownerFinId } = parsedLog.args  as unknown as RedeemEvent.OutputObject;
           return { id, assetId, assetType, quantity, source: ownerFinId, timestamp, operationType: 'redeem' };
         }
-        case 'Hold': {
-          const { assetId, assetType, quantity, finId, operationId } = parsedLog.args;
+        case 'Hold(string,string,string,string,bytes16)': {
+          const { assetId, assetType, quantity, finId, operationId } = parsedLog.args as unknown as HoldEvent.OutputObject;
           return { id, assetId, assetType, quantity, source: finId, timestamp, operationType: 'hold', operationId };
         }
-        case 'Release': {
-          const { assetId, assetType, quantity, sourceFinId, destinationFinId, operationId } = parsedLog.args;
-          return { id, assetId, assetType, quantity, source: sourceFinId, destination: destinationFinId, timestamp, operationType: 'release', operationId };
+        case 'Release(string,string,string,string,string,bytes16)': {
+          const { assetId, assetType, quantity, sourceFinId, destinationFinId, operationId } = parsedLog.args as unknown as ReleaseEvent.OutputObject;
+          return { id, assetId, assetType, quantity, source: sourceFinId, destination: destinationFinId, timestamp,
+            operationType: 'release', operationId };
         }
       }
     } catch (e) {
@@ -87,6 +101,24 @@ export const parseTransactionReceipt = (
   return null;
 };
 
+export const parseERC20Transfer = (receipt: TransactionReceipt,
+                                   contractInterface: ERC20WithOperatorInterface): {  from: string, to: string, value: bigint } | undefined => {
+  for (const log of receipt.logs) {
+    try {
+      const parsedLog = contractInterface.parseLog(log);
+      if (parsedLog === null) {
+        continue;
+      }
+
+      if (parsedLog.signature === 'Transfer(address,address,uint256)') {
+        const { from, to, value } = parsedLog.args as unknown as ERC20TransferEvent.OutputObject;
+        return { from, to, value };
+      }
+    } catch (e) {
+      // do nothing
+    }
+  }
+}
 
 export const isEthereumAddress = (address: string): boolean => {
   return isAddress(address);

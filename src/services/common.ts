@@ -86,7 +86,8 @@ export class CommonService {
     if (this.policyGetter === undefined) {
       return receipt;
     }
-    const policy = await this.policyGetter.getPolicy(receipt.assetId, receipt.assetType)
+    const { assetId, assetType } = receipt;
+    const policy = await this.policyGetter.getPolicy(assetId, assetType)
     switch (policy.type) {
       case 'NoProofPolicy':
         receipt.proof = {

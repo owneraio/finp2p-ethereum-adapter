@@ -1,7 +1,6 @@
 import {
   ContractFactory,
   ContractTransactionResponse,
-  Interface,
   Provider,
   Signer,
   TypedDataField
@@ -18,17 +17,19 @@ import {
   NonceToHighError,
   OperationStatus, pendingOperation
 } from "./model";
-import { compactSerialize, hashToBytes16, parseTransactionReceipt } from "./utils";
+import { compactSerialize, hashToBytes16, parseERC20Transfer, parseTransactionReceipt } from "./utils";
 import { ContractsManager } from './manager';
 import { Leg, PrimaryType, sign, hash as typedHash, Term } from "./eip712";
 import winston from "winston";
+import { FINP2POperatorERC20Interface } from "../../typechain-types/contracts/token/ERC20/FINP2POperatorERC20";
+
 
 
 const ETH_COMPLETED_TRANSACTION_STATUS = 1;
 
 export class FinP2PContract extends ContractsManager {
 
-  contractInterface: Interface;
+  contractInterface: FINP2POperatorERC20Interface;
 
   finP2P: FINP2POperatorERC20;
 
@@ -40,7 +41,7 @@ export class FinP2PContract extends ContractsManager {
       FINP2P.abi, FINP2P.bytecode, this.signer,
     );
     const contract = factory.attach(finP2PContractAddress);
-    this.contractInterface = contract.interface;
+    this.contractInterface = contract.interface as FINP2POperatorERC20Interface;
     this.finP2P = contract as FINP2POperatorERC20;
     this.finP2PContractAddress = finP2PContractAddress;
     this.signer.getNonce().then((nonce) => {
@@ -157,6 +158,8 @@ export class FinP2PContract extends ContractsManager {
               this.logger.error('Failed to parse receipt');
               return failedOperation('Failed to parse receipt', 1);
             }
+            // const erc20Transfer = parseERC20Transfer(txReceipt, );
+            // this.logger.info('ERC20 transfer event', erc20Transfer);
             return completedOperation(receipt);
           } else {
             return failedOperation(`Transaction failed with status: ${txReceipt.status}`, 1);

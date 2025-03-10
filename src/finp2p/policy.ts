@@ -11,7 +11,7 @@ export class PolicyGetter {
     this.ossClient = ossClient;
   }
 
-  async getPolicy(assetCode: string, assetType: 'cryptocurrency' | 'fiat' | 'finp2p'): Promise<ProofPolicy> {
+  async getPolicy(assetCode: string, assetType: string): Promise<ProofPolicy> {
     let proof: Proof;
     let domain: ProofDomain | null = null;
     let configRaw: string
@@ -27,6 +27,8 @@ export class PolicyGetter {
         ({ policies: { proof } } = await this.ossClient.getPaymentAsset(orgId, assetCode));
         break
       }
+      default:
+        throw new Error(`Unknown asset type: ${assetType}`);
     }
 
     switch (proof.type) {

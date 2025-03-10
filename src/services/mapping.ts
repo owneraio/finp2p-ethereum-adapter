@@ -70,7 +70,7 @@ const finIdDestination = (finId?: string): Components.Schemas.Destination | unde
   };
 };
 
-export const assetToAPI = (assetId: string, assetType: 'cryptocurrency' | 'fiat' | 'finp2p'): Asset => {
+export const assetToAPI = (assetId: string, assetType: string): Asset => {
   switch (assetType) {
     case 'fiat':
       return {
@@ -87,6 +87,8 @@ export const assetToAPI = (assetId: string, assetType: 'cryptocurrency' | 'fiat'
         type: 'cryptocurrency',
         code: assetId,
       };
+    default:
+      throw new Error(`Unsupported asset type: ${assetType}`);
   }
 };
 

@@ -58,7 +58,7 @@ export type ReceiptProof = {
 export type FinP2PReceipt = {
   id: string
   assetId: string
-  assetType: 'cryptocurrency' | 'fiat' | 'finp2p'
+  assetType: string
   quantity: string
   source?: string
   destination?: string
@@ -67,6 +67,13 @@ export type FinP2PReceipt = {
   operationId?: string
   proof?: ReceiptProof
 };
+
+export type ERC20Transfer = {
+  tokenAddress: string
+  from: string
+  to: string
+  amount: number
+}
 
 export type FailedTransaction = {
   status: 'failed'
