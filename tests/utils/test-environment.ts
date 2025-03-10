@@ -108,7 +108,7 @@ class CustomTestEnvironment extends NodeEnvironment {
   }
 
   private async startApp(finP2PContractAddress: string) {
-    const { provider, signer } = await createProviderAndSigner(providerType, logger);
+    const { provider, signer } = await createProviderAndSigner(providerType, logger, false);
     const finP2PContract = new FinP2PContract(provider, signer, finP2PContractAddress, logger);
 
     const port = randomPort();

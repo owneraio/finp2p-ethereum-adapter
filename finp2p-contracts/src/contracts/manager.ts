@@ -127,6 +127,8 @@ export class ContractsManager {
   }
 
   protected resetNonce() {
-    (this.signer as NonceManager).reset();
+    if (this.signer instanceof NonceManager) {
+      (this.signer as NonceManager).reset();
+    }
   }
 }

@@ -85,7 +85,8 @@ const init = async () => {
     ),
   });
 
-  const { provider, signer } = await createProviderAndSigner(providerType, logger);
+  const useNonceManager = process.env.NONCE_POLICY === 'fast'
+  const { provider, signer } = await createProviderAndSigner(providerType, logger, useNonceManager);
   const finp2pContract = new FinP2PContract(provider, signer, finP2PContractAddress, logger);
   const assetCreationPolicy = await createAssetCreationPolicy(finp2pContract);
   const policyGetter = new PolicyGetter(new OssClient(ossUrl, undefined));

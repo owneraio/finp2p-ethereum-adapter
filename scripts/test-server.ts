@@ -115,7 +115,7 @@ const start = async () => {
   logger.info(`Operator public key: ${privateKeyToFinId(deployer)}`);
 
   const operatorAddress = addressFromPrivateKey(operator);
-  const { provider, signer } = await createProviderAndSigner(providerType, logger);
+  const { provider, signer } = await createProviderAndSigner(providerType, logger, false);
   const network = await provider.getNetwork();
   logger.info(`Connected to network: ${network.name} chainId: ${network.chainId}`);
   const finP2PContractAddress = await deployContract(provider, signer, operatorAddress);

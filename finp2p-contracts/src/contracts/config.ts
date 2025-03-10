@@ -31,7 +31,7 @@ export const createLocalProviderFromConfig = async (config: ContractManagerConfi
   return { provider, signer };
 }
 
-const createLocalProvider = async (logger: winston.Logger): Promise<ProviderAndSigner> => {
+const createLocalProvider = async (logger: winston.Logger, userNonceManager: boolean = true): Promise<ProviderAndSigner> => {
   let ethereumRPCUrl: string;
   let operatorPrivateKey: string;
   const configFile = process.env.CONFIG_FILE || '';
@@ -62,7 +62,12 @@ const createLocalProvider = async (logger: winston.Logger): Promise<ProviderAndS
   }
 
   const provider = new JsonRpcProvider(ethereumRPCUrl);
-  const signer = new NonceManager(new Wallet(operatorPrivateKey)).connect(provider);
+  let signer: Signer
+  if (userNonceManager) {
+    signer = new NonceManager(new Wallet(operatorPrivateKey)).connect(provider);
+  } else {
+    signer = new Wallet(operatorPrivateKey).connect(provider);
+  }
 
   logger.info(`Operator public key: ${privateKeyToFinId(operatorPrivateKey)}`);
   logger.info(`Operator address: ${await signer.getAddress()}`);
@@ -96,10 +101,11 @@ const createFireblocksProvider = async (): Promise<ProviderAndSigner> => {
   return {provider, signer};
 }
 
-export const createProviderAndSigner = async (providerType: ProviderType, logger: winston.Logger): Promise<ProviderAndSigner> => {
+export const createProviderAndSigner = async (providerType: ProviderType, logger: winston.Logger,
+                                              useNonceManager: boolean = true): Promise<ProviderAndSigner> => {
   switch (providerType) {
     case 'local':
-      return createLocalProvider(logger);
+      return createLocalProvider(logger, useNonceManager);
     case 'fireblocks':
       return createFireblocksProvider();
   }
