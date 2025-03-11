@@ -83,55 +83,54 @@ describe("FinP2P proxy contract test", function() {
     let chainId: bigint;
     let verifyingContract: string;
 
-    // const legs = [Leg.Asset, Leg.Settlement];
-    const terms: {
+    const testCases: {
+      primaryTypes: PrimaryType[],
+      legs: Leg[],
       asset: Term,
       settlement: Term,
       loan: LoanTerms,
-      primaryTypes: PrimaryType[],
-      legs: Leg[],
       decimals: number
     }[] = [{
+      primaryTypes: [PrimaryType.PrimarySale, PrimaryType.Buying, PrimaryType.Selling, PrimaryType.PrivateOffer],
+      legs: [Leg.Asset, Leg.Settlement],
       asset: term(generateAssetId(), "finp2p", "10"),
       settlement: term("USD", "fiat", "100"),
       loan: emptyLoanTerms(),
-      primaryTypes: [PrimaryType.PrimarySale, PrimaryType.Buying, PrimaryType.Selling, PrimaryType.PrivateOffer],
-      legs: [Leg.Asset, Leg.Settlement],
       decimals: 0
     }, {
+      primaryTypes: [PrimaryType.PrimarySale, PrimaryType.Buying, PrimaryType.Selling, PrimaryType.PrivateOffer],
+      legs: [Leg.Asset, Leg.Settlement],
       asset: term(generateAssetId(), "finp2p", "10.13"),
       settlement: term("GBP", "fiat", "10.13"),
       loan: emptyLoanTerms(),
-      primaryTypes: [PrimaryType.PrimarySale, PrimaryType.Buying, PrimaryType.Selling, PrimaryType.PrivateOffer],
-      legs: [Leg.Asset, Leg.Settlement],
       decimals: 2
     }, {
+      primaryTypes: [PrimaryType.PrimarySale, PrimaryType.Buying, PrimaryType.Selling, PrimaryType.PrivateOffer],
+      legs: [Leg.Asset, Leg.Settlement],
       asset: term(generateAssetId(), "finp2p", "10.0001"),
       settlement: term(generateAssetId(), "finp2p", "10"),
       loan: emptyLoanTerms(),
-      primaryTypes: [PrimaryType.PrimarySale, PrimaryType.Buying, PrimaryType.Selling, PrimaryType.PrivateOffer],
-      legs: [Leg.Asset, Leg.Settlement],
       decimals: 4
     }, {
+      primaryTypes: [PrimaryType.RequestForTransfer],
+      legs: [Leg.Asset],
       asset: term(generateAssetId(), "finp2p", "30"),
       settlement: emptyTerm(),
       loan: emptyLoanTerms(),
-      primaryTypes: [PrimaryType.RequestForTransfer],
-      legs: [Leg.Asset],
       decimals: 2
     }, {
+      primaryTypes: [PrimaryType.Redemption],
+      legs: [Leg.Asset, Leg.Settlement],
       asset: term(generateAssetId(), "finp2p", "30"),
       settlement: term(generateAssetId(), "fiat", "10"),
       loan: emptyLoanTerms(),
-      primaryTypes: [PrimaryType.Redemption],
-      legs: [Leg.Asset, Leg.Settlement],
       decimals: 2
     }, {
+      primaryTypes: [PrimaryType.Loan],
+      legs: [Leg.Asset, Leg.Settlement],
       asset: term(generateAssetId(), "finp2p", "1.01"),
       settlement: term("EUR", "fiat", "10000"),
       loan: loanTerms("2025-02-01", "2025-02-01", "10000000.00", "10000030.00"),
-      primaryTypes: [PrimaryType.Loan],
-      legs: [Leg.Asset, Leg.Settlement],
       decimals: 18
     }];
 
@@ -139,7 +138,7 @@ describe("FinP2P proxy contract test", function() {
       [operator] = await ethers.getSigners();
       ({ contract, address: finP2PAddress } = await loadFixture(deployFinP2PProxyFixture));
       ({ chainId, verifyingContract } = await contract.eip712Domain());
-      for (const term of terms) {
+      for (const term of testCases) {
         const asset = await deployERC20(term.asset.assetId, term.asset.assetId, term.decimals, finP2PAddress);
         await contract.associateAsset(term.asset.assetId, asset, { from: operator });
 
@@ -148,7 +147,7 @@ describe("FinP2P proxy contract test", function() {
       }
     });
 
-    terms.forEach(({ decimals, asset, settlement, loan, primaryTypes, legs }) => {
+    testCases.forEach(({ decimals, asset, settlement, loan, primaryTypes, legs }) => {
       primaryTypes.forEach((primaryType) => {
         legs.forEach((leg) => {
           it(`issue/transfer/redeem operations (asset: ${asset}, settlement ${settlement}, primaryType: ${primaryType}, leg: ${leg}, decimals: ${decimals}`, async () => {
