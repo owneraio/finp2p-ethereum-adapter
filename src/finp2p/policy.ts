@@ -1,6 +1,7 @@
 import { OssClient } from "./oss.client";
 import { Proof, ProofDomain, parseProofDomain, ProofPolicy } from "./model";
 import process from "process";
+import console from "console";
 
 
 
@@ -17,9 +18,13 @@ export class PolicyGetter {
     let configRaw: string
     switch (assetType) {
       case 'finp2p': {
-        ({ policies: { proof }, config: configRaw } = await this.ossClient.getAsset(assetCode));
-        domain = parseProofDomain(configRaw);
-        break
+        try {
+          ({ policies: { proof }, config: configRaw } = await this.ossClient.getAsset(assetCode));
+          domain = parseProofDomain(configRaw);
+          break
+        } catch (e) {
+          console.log(e)
+        }
       }
       case 'cryptocurrency':
       case 'fiat': {

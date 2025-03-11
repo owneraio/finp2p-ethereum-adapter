@@ -1,8 +1,7 @@
-import { logger } from '../helpers/logger';
-import { FinP2PContract } from '../../finp2p-contracts/src/contracts/finp2p';
-import { EIP712Domain } from '../../finp2p-contracts/src/contracts/model';
+import { logger } from "../helpers/logger";
+import { FinP2PContract } from "../../finp2p-contracts/src/contracts/finp2p";
+import { EIP712Domain, FinP2PReceipt } from "../../finp2p-contracts/src/contracts/model";
 import { assetFromAPI, receiptToAPI, receiptToEIP712Message } from "./mapping";
-import { FinP2PReceipt } from "../../finp2p-contracts/src/contracts/model";
 import { PolicyGetter } from "../finp2p/policy";
 import { DOMAIN_TYPE, RECEIPT_PROOF_TYPES } from "../../finp2p-contracts/src/contracts/eip712";
 import { ProofDomain } from "../finp2p/model";
@@ -19,14 +18,13 @@ export class CommonService {
   }
 
   public async balance(request: Paths.GetAssetBalance.RequestBody): Promise<Paths.GetAssetBalance.Responses.$200> {
-    logger.debug('balance', { request });
+    logger.debug("balance", { request });
 
     const { assetId } = assetFromAPI(request.asset);
     const balance = await this.finP2PContract.balance(assetId, request.owner.finId);
 
     return {
-      asset: request.asset,
-      balance: `${balance}`,
+      asset: request.asset, balance: `${balance}`
     } as Components.Schemas.Balance;
   }
 
@@ -34,17 +32,14 @@ export class CommonService {
     try {
       const receipt = await this.ledgerProof(await this.finP2PContract.getReceipt(id));
       return {
-        isCompleted: true,
-        response: receiptToAPI(receipt),
+        isCompleted: true, response: receiptToAPI(receipt)
       } as Components.Schemas.ReceiptOperation;
 
     } catch (e) {
       return {
-        isCompleted: true,
-        error: {
-          code: 1,
-          message: e,
-        },
+        isCompleted: true, error: {
+          code: 1, message: e
+        }
       } as Components.Schemas.ReceiptOperation;
     }
   }
@@ -52,32 +47,26 @@ export class CommonService {
   public async operationStatus(cid: string): Promise<Paths.GetOperation.Responses.$200> {
     const status = await this.finP2PContract.getOperationStatus(cid);
     switch (status.status) {
-      case 'completed':
+      case "completed":
         const receipt = receiptToAPI(await this.ledgerProof(status.receipt));
         return {
-          type: 'receipt',
-          operation: {
-            isCompleted: true,
-            response: receipt,
-          },
+          type: "receipt", operation: {
+            isCompleted: true, response: receipt
+          }
         } as Components.Schemas.OperationStatus;
 
-      case 'pending':
+      case "pending":
         return {
-          type: 'receipt',
-          operation: {
-            isCompleted: false,
-            cid: cid,
-          },
+          type: "receipt", operation: {
+            isCompleted: false, cid: cid
+          }
         } as Components.Schemas.OperationStatus;
 
-      case 'failed':
+      case "failed":
         return {
-          type: 'receipt',
-          operation: {
-            isCompleted: true,
-            error: status.error,
-          },
+          type: "receipt", operation: {
+            isCompleted: true, error: status.error
+          }
         } as Components.Schemas.OperationStatus;
     }
   }
@@ -87,40 +76,40 @@ export class CommonService {
       return receipt;
     }
     const { assetId, assetType } = receipt;
-    const policy = await this.policyGetter.getPolicy(assetId, assetType)
+    const policy = await this.policyGetter.getPolicy(assetId, assetType);
     switch (policy.type) {
-      case 'NoProofPolicy':
+      case "NoProofPolicy":
         receipt.proof = {
-          type: 'no-proof'
-        }
+          type: "no-proof"
+        };
         return receipt;
 
-      case 'SignatureProofPolicy':
+      case "SignatureProofPolicy":
         const { signatureTemplate, domain: policyDomain } = policy;
-        if (signatureTemplate !== 'EIP712') {
+        if (signatureTemplate !== "EIP712") {
           throw new Error(`Unsupported signature template: ${signatureTemplate}`);
         }
         if (policyDomain !== null) {
-          logger.info('Using domain from asset metadata: ', policyDomain);
+          logger.info("Using domain from asset metadata: ", policyDomain);
         }
         const domain = await this.getDomain(policyDomain);
         const types = RECEIPT_PROOF_TYPES;
         const message = receiptToEIP712Message(receipt);
-        const primaryType = 'Receipt';
+        const primaryType = "Receipt";
 
-        logger.info('Signing receipt with EIP712', { primaryType, domain, types, message });
-        const { hash, signature } = await this.finP2PContract.signEIP712(
-          domain.chainId, domain.verifyingContract, types, message);
+        logger.info("Signing receipt with EIP712", { primaryType, domain, types, message });
+        const {
+          hash,
+          signature
+        } = await this.finP2PContract.signEIP712(domain.chainId, domain.verifyingContract, types, message);
 
-        logger.info('Receipt signed', { hash, signature });
+        logger.info("Receipt signed", { hash, signature });
 
         // ethers doesn't allow to pass an eip712 domain in a list of types, but the domain is required on a router side
         const extendedType = { ...DOMAIN_TYPE, ...types };
         receipt.proof = {
-          type: 'signature-proof',
-          template: { primaryType, domain, types: extendedType, hash, message },
-          signature
-        }
+          type: "signature-proof", template: { primaryType, domain, types: extendedType, hash, message }, signature
+        };
 
         return receipt;
     }

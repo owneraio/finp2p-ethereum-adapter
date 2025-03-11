@@ -2,12 +2,15 @@ import { EIP712Template, FinP2PReceipt, ReceiptProof } from "../../finp2p-contra
 import {
   asset,
   destination,
-  EIP712ReceiptMessage, executionContext,
+  EIP712ReceiptMessage,
+  executionContext,
   Leg,
   PrimaryType,
   source,
   term,
-  Term, tradeDetails, transactionDetails
+  Term,
+  tradeDetails,
+  transactionDetails
 } from "../../finp2p-contracts/src/contracts/eip712";
 import { TypedDataDomain, TypedDataField } from "ethers";
 import Asset = Components.Schemas.Asset;
@@ -23,24 +26,20 @@ import EIP712TypeString = Components.Schemas.EIP712TypeString;
 import ProofPolicy = Components.Schemas.ProofPolicy;
 
 export const assetFromAPI = (asset: Components.Schemas.Asset): {
-  assetId: string,
-  assetType: 'fiat' | 'finp2p' | 'cryptocurrency',
+  assetId: string, assetType: "fiat" | "finp2p" | "cryptocurrency",
 } => {
   switch (asset.type) {
-    case 'fiat':
+    case "fiat":
       return {
-        assetId: asset.code,
-        assetType: 'fiat',
+        assetId: asset.code, assetType: "fiat"
       };
-    case 'finp2p':
+    case "finp2p":
       return {
-        assetId: asset.resourceId,
-        assetType: 'finp2p',
+        assetId: asset.resourceId, assetType: "finp2p"
       };
-    case 'cryptocurrency':
+    case "cryptocurrency":
       return {
-        assetId: asset.code,
-        assetType: 'cryptocurrency',
+        assetId: asset.code, assetType: "cryptocurrency"
       };
   }
 };
@@ -50,11 +49,9 @@ const finIdSource = (finId?: string): Components.Schemas.Source | undefined => {
     return undefined;
   }
   return {
-    finId: finId,
-    account: {
-      type: 'finId',
-      finId: finId,
-    },
+    finId: finId, account: {
+      type: "finId", finId: finId
+    }
   };
 };
 const finIdDestination = (finId?: string): Components.Schemas.Destination | undefined => {
@@ -62,30 +59,25 @@ const finIdDestination = (finId?: string): Components.Schemas.Destination | unde
     return undefined;
   }
   return {
-    finId: finId,
-    account: {
-      type: 'finId',
-      finId: finId,
-    },
+    finId: finId, account: {
+      type: "finId", finId: finId
+    }
   };
 };
 
 export const assetToAPI = (assetId: string, assetType: string): Asset => {
   switch (assetType) {
-    case 'fiat':
+    case "fiat":
       return {
-        type: 'fiat',
-        code: assetId,
+        type: "fiat", code: assetId
       };
-    case 'finp2p':
+    case "finp2p":
       return {
-        type: 'finp2p',
-        resourceId: assetId,
+        type: "finp2p", resourceId: assetId
       };
-    case 'cryptocurrency':
+    case "cryptocurrency":
       return {
-        type: 'cryptocurrency',
-        code: assetId,
+        type: "cryptocurrency", code: assetId
       };
     default:
       throw new Error(`Unsupported asset type: ${assetType}`);
@@ -95,19 +87,17 @@ export const assetToAPI = (assetId: string, assetType: string): Asset => {
 export const eip712DomainToAPI = (domain: TypedDataDomain): Components.Schemas.EIP712Domain => {
   const { name, version, chainId, verifyingContract } = domain;
   return { name, version, chainId, verifyingContract } as Components.Schemas.EIP712Domain;
-}
+};
 
 export const eip712TypesToAPI = (types: Record<string, Array<TypedDataField>>): Components.Schemas.EIP712Types => {
   return {
     definitions: Object.entries(types).map(([typeName, fields]) => ({
-      name: typeName,
-      fields: fields.map(field => ({
-        name: field.name,
-        type: field.type
+      name: typeName, fields: fields.map(field => ({
+        name: field.name, type: field.type
       }))
     }))
   } as Components.Schemas.EIP712Types;
-}
+};
 
 export const eip712MessageToAPI = (message: Record<string, any>): {
   [name: string]: Components.Schemas.EIP712TypedValue;
@@ -126,29 +116,25 @@ export const eip712MessageToAPI = (message: Record<string, any>): {
       return value.map(convertValue) as Components.Schemas.EIP712TypeArray;
     }
     if (typeof value === "object" && value !== null) {
-      return Object.fromEntries(
-        Object.entries(value).map(([key, val]) => [key, convertValue(val)])
-      ) as Components.Schemas.EIP712TypeObject;
+      return Object.fromEntries(Object.entries(value).map(([key, val]) => [key, convertValue(val)])) as Components.Schemas.EIP712TypeObject;
     }
     throw new Error("Unsupported EIP712 message value type");
   };
 
-  return Object.fromEntries(
-    Object.entries(message).map(([key, val]) => [key, convertValue(val)])
-  ) as Components.Schemas.EIP712TypeObject;
-}
+  return Object.fromEntries(Object.entries(message).map(([key, val]) => [key, convertValue(val)])) as Components.Schemas.EIP712TypeObject;
+};
 
 export const eip712TemplateToAPI = (template: EIP712Template): Components.Schemas.EIP712Template => {
   const { primaryType, domain, types, message, hash } = template;
   return {
     primaryType,
-    type: 'EIP712',
+    type: "EIP712",
     types: eip712TypesToAPI(types),
     message: eip712MessageToAPI(message),
     domain: eip712DomainToAPI(domain),
-    hash,
+    hash
   } as Components.Schemas.EIP712Template;
-}
+};
 
 export const proofToAPI = (proof: ReceiptProof | undefined): ProofPolicy | undefined => {
   if (!proof) {
@@ -157,22 +143,30 @@ export const proofToAPI = (proof: ReceiptProof | undefined): ProofPolicy | undef
   switch (proof.type) {
     case "no-proof":
       return {
-        type: 'noProofPolicy'
-      }
+        type: "noProofPolicy"
+      };
     case "signature-proof":
-      return  {
-        type: 'signatureProofPolicy',
-        signature: {
-          template: eip712TemplateToAPI(proof.template),
-          hashFunc: 'keccak_256',
-          signature: proof.signature,
-        },
-      }
+      return {
+        type: "signatureProofPolicy", signature: {
+          template: eip712TemplateToAPI(proof.template), hashFunc: "keccak_256", signature: proof.signature
+        }
+      };
   }
-}
+};
 
 export const receiptToAPI = (receipt: FinP2PReceipt): Receipt => {
-  const { id, assetId, assetType, quantity, source, destination, timestamp, operationId, operationType, proof } = receipt;
+  const {
+    id,
+    assetId,
+    assetType,
+    quantity,
+    source,
+    destination,
+    timestamp,
+    operationId,
+    operationType,
+    proof
+  } = receipt;
   return {
     id,
     asset: assetToAPI(assetId, assetType),
@@ -180,8 +174,7 @@ export const receiptToAPI = (receipt: FinP2PReceipt): Receipt => {
     source: finIdSource(source),
     destination: finIdDestination(destination),
     transactionDetails: {
-      transactionId: id,
-      operationId,
+      transactionId: id, operationId
     },
     timestamp,
     tradeDetails: {},
@@ -194,182 +187,169 @@ export const receiptToEIP712Message = (receipt: FinP2PReceipt): EIP712ReceiptMes
   return {
     id: receipt.id,
     operationType: receipt.operationType,
-    source: source(receipt.source ? 'finp2p' : '', receipt.source || ''),
-    destination: destination(receipt.destination ? 'finp2p' : '', receipt.destination || ''),
-    // quantity,
+    source: source(receipt.source ? "finp2p" : "", receipt.source || ""),
+    destination: destination(receipt.destination ? "finp2p" : "", receipt.destination || ""), // quantity,
     asset: asset(receipt.assetId, receipt.assetType),
-    tradeDetails: tradeDetails(executionContext('', '')),
-    transactionDetails: transactionDetails(receipt.operationId || '', receipt.id),
-  }
-}
+    tradeDetails: tradeDetails(executionContext("", "")),
+    transactionDetails: transactionDetails(receipt.operationId || "", receipt.id)
+  };
+};
 
 export const assetCreationResult = (tokenId: string, tokenAddress: string, finp2pTokenAddress: string) => {
   return {
-    isCompleted: true,
-    response: {
+    isCompleted: true, response: {
       ledgerAssetInfo: {
         ledgerTokenId: {
-          type: 'tokenId',
-          tokenId: tokenId,
-        } as LedgerTokenId,
-        ledgerReference: {
-          type: 'contractDetails',
-          network: 'ethereum',
+          type: "tokenId", tokenId: tokenId
+        } as LedgerTokenId, ledgerReference: {
+          type: "contractDetails",
+          network: "ethereum",
           address: tokenAddress,
-          TokenStandard: 'TokenStandard_ERC20',
+          TokenStandard: "TokenStandard_ERC20",
           additionalContractDetails: {
-            FinP2POperatorContractAddress: finp2pTokenAddress,
-            allowanceRequired: true
+            FinP2POperatorContractAddress: finp2pTokenAddress, allowanceRequired: true
           } as FinP2PEVMOperatorDetails
         } as ContractDetails
-      } as LedgerAssetInfo,
+      } as LedgerAssetInfo
     } as AssetCreateResponse
   } as CreateAssetResponse;
-}
+};
 
 export const notFoundErrorCode = 5;
 
 export const assetNotFoundResult = (tokenId: string) => {
   return {
-    isCompleted: true,
-    error: {
-      code: notFoundErrorCode,
-      message: `Asset not found for token id ${tokenId}`,
+    isCompleted: true, error: {
+      code: notFoundErrorCode, message: `Asset not found for token id ${tokenId}`
     }
   } as CreateAssetResponse;
-}
+};
 
 export const failedAssetCreation = (code: number, message: string) => {
   return {
-    isCompleted: true,
-    error: { code, message }
-  } as Components.Schemas.CreateAssetResponse
-}
+    isCompleted: true, error: { code, message }
+  } as Components.Schemas.CreateAssetResponse;
+};
 
 export const failedTransaction = (code: number, message: string) => {
   return {
-    isCompleted: true,
-    error: { code, message }
-  } as Components.Schemas.ReceiptOperation
-}
+    isCompleted: true, error: { code, message }
+  } as Components.Schemas.ReceiptOperation;
+};
 
 export const termFromAPI = (term: Components.Schemas.EIP712TypeObject): Term => {
   return {
     assetId: term.assetId as EIP712TypeString,
     assetType: term.assetType as EIP712TypeString,
-    amount: term.amount as EIP712TypeString,
-  }
-}
+    amount: term.amount as EIP712TypeString
+  };
+};
 
 export const finIdFromAPI = (finId: Components.Schemas.EIP712TypeObject): string => {
   return finId.idkey as EIP712TypeString;
-}
+};
 
 
 const compareAssets = (eipAsset: EIP712TypeObject, reqAsset: {
-  assetId: string,
-  assetType: 'fiat' | 'finp2p' | 'cryptocurrency',
+  assetId: string, assetType: "fiat" | "finp2p" | "cryptocurrency",
 }): boolean => {
   return (eipAsset.assetId === reqAsset.assetId && eipAsset.assetType === reqAsset.assetType);
 
-}
+};
 
 export const detectLeg = (template: Components.Schemas.SignatureTemplate, reqAsset: {
-  assetId: string,
-  assetType: 'fiat' | 'finp2p' | 'cryptocurrency',
-}) : Leg => {
-  if (template.type != 'EIP712') {
+  assetId: string, assetType: "fiat" | "finp2p" | "cryptocurrency",
+}): Leg => {
+  if (template.type != "EIP712") {
     throw new Error(`Unsupported signature template type: ${template.type}`);
   }
   if (compareAssets(template.message.asset as EIP712TypeObject, reqAsset)) {
-    return Leg.Asset
+    return Leg.Asset;
   } else if (compareAssets(template.message.settlement as EIP712TypeObject, reqAsset)) {
-    return Leg.Settlement
+    return Leg.Settlement;
   } else {
     throw new Error(`Asset not found in EIP712 message`);
   }
-}
+};
 
 export const extractParameterEIP712 = (template: Components.Schemas.SignatureTemplate, reqAsset: {
-  assetId: string,
-  assetType: 'fiat' | 'finp2p' | 'cryptocurrency',
+  assetId: string, assetType: "fiat" | "finp2p" | "cryptocurrency",
 }): {
-  buyerFinId: string,
-  sellerFinId: string,
-  asset: Term,
-  settlement: Term,
-  leg: Leg,
-  eip712PrimaryType: PrimaryType,
+  buyerFinId: string, sellerFinId: string, asset: Term, settlement: Term, leg: Leg, eip712PrimaryType: PrimaryType,
 } => {
-  if (template.type != 'EIP712') {
+  if (template.type != "EIP712") {
     throw new Error(`Unsupported signature template type: ${template.type}`);
   }
 
   const leg = detectLeg(template, reqAsset);
   const eip712PrimaryType = eip71212PrimaryTypeFromTemplate(template);
   switch (template.primaryType) {
-    case 'PrimarySale': {
+    case "PrimarySale": {
       return {
         buyerFinId: finIdFromAPI(template.message.buyer as EIP712TypeObject),
         sellerFinId: finIdFromAPI(template.message.issuer as EIP712TypeObject),
         asset: termFromAPI(template.message.asset as EIP712TypeObject),
         settlement: termFromAPI(template.message.settlement as EIP712TypeObject),
-        leg, eip712PrimaryType,
-      }
+        leg,
+        eip712PrimaryType
+      };
     }
-    case 'Buying':
-    case 'Selling': {
+    case "Buying":
+    case "Selling": {
       return {
         buyerFinId: finIdFromAPI(template.message.buyer as EIP712TypeObject),
         sellerFinId: finIdFromAPI(template.message.seller as EIP712TypeObject),
         asset: termFromAPI(template.message.asset as EIP712TypeObject),
         settlement: termFromAPI(template.message.settlement as EIP712TypeObject),
-        leg, eip712PrimaryType,
-      }
+        leg,
+        eip712PrimaryType
+      };
     }
-    case 'RequestForTransfer': {
+    case "RequestForTransfer": {
       return {
         buyerFinId: finIdFromAPI(template.message.buyer as EIP712TypeObject),
         sellerFinId: finIdFromAPI(template.message.seller as EIP712TypeObject),
         asset: termFromAPI(template.message.asset as EIP712TypeObject),
-        settlement: term('', '', ''),
-        leg, eip712PrimaryType,
-      }
+        settlement: term("", "", ""),
+        leg,
+        eip712PrimaryType
+      };
     }
-    case 'Redemption': {
+    case "Redemption": {
       return {
         buyerFinId: finIdFromAPI(template.message.issuer as EIP712TypeObject),
         sellerFinId: finIdFromAPI(template.message.seller as EIP712TypeObject),
         asset: termFromAPI(template.message.asset as EIP712TypeObject),
         settlement: termFromAPI(template.message.settlement as EIP712TypeObject),
-        leg, eip712PrimaryType,
-      }
+        leg,
+        eip712PrimaryType
+      };
     }
     default:
       throw new Error(`Unsupported signature template primary type: ${template.primaryType}`);
   }
-}
+};
 
 export const eip71212PrimaryTypeFromTemplate = (template: Components.Schemas.EIP712Template): PrimaryType => {
   switch (template.primaryType) {
-    case 'PrimarySale':
+    case "PrimarySale":
       return PrimaryType.PrimarySale;
-    case 'Buying':
+    case "Buying":
       return PrimaryType.Buying;
-    case 'Selling':
+    case "Selling":
       return PrimaryType.Selling;
-    case 'Redemption':
+    case "Redemption":
       return PrimaryType.Redemption;
-    case 'RequestForTransfer':
+    case "RequestForTransfer":
       return PrimaryType.RequestForTransfer;
-    case 'PrivateOffer':
+    case "PrivateOffer":
       return PrimaryType.PrivateOffer;
-    case 'Loan':
+    case "Loan":
       return PrimaryType.Loan;
     default:
       throw new Error(`Unsupported EIP712 primary type: ${template.primaryType}`);
   }
-}
+};
 
 
 export function getRandomNumber(min: number, max: number): number {

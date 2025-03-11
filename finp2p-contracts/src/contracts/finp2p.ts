@@ -2,7 +2,6 @@ import {
   ContractFactory,
   Provider,
   Signer,
-  TypedDataField
 } from "ethers";
 import FINP2P
   from '../../artifacts/contracts/token/ERC20/FINP2POperatorERC20.sol/FINP2POperatorERC20.json';
@@ -14,9 +13,9 @@ import {
   FinP2PReceipt,
   OperationStatus, pendingOperation
 } from "./model";
-import { compactSerialize, hashToBytes16, parseTransactionReceipt } from "./utils";
+import { hashToBytes16, parseTransactionReceipt } from "./utils";
 import { ContractsManager } from './manager';
-import { Leg, PrimaryType, sign, hash as typedHash, Term } from "./eip712";
+import { Leg, PrimaryType, Term } from "./eip712";
 import winston from "winston";
 import { FINP2POperatorERC20Interface } from "../../typechain-types/contracts/token/ERC20/FINP2POperatorERC20";
 import { PayableOverrides } from "../../typechain-types/common";
@@ -42,9 +41,7 @@ export class FinP2PContract extends ContractsManager {
     this.contractInterface = contract.interface as FINP2POperatorERC20Interface;
     this.finP2P = contract as FINP2POperatorERC20;
     this.finP2PContractAddress = finP2PContractAddress;
-    this.signer.getNonce().then((nonce) => {
-      this.logger.info(`Syncing nonce: ${nonce}`);
-    });
+
   }
 
   async eip712Domain(): Promise<EIP712Domain> {
@@ -125,41 +122,25 @@ export class FinP2PContract extends ContractsManager {
     return this.finP2P.hasRole(role, address);
   }
 
-  async grantTransactionManagerRoleTo(to: string) {
-    return this.safeExecuteTransaction(this.finP2P, async (finP2P: FINP2POperatorERC20, txParams: PayableOverrides) => {
-      return finP2P.grantTransactionManagerRole(to, txParams);
-    })
-  }
-
-  async getEIP712Domain() {
-    return this.finP2P.eip712Domain();
-  }
-
-  async signEIP712(chainId: bigint | number, verifyingContract: string, types: Record<string, Array<TypedDataField>>, message: Record<string, any>) : Promise<{ hash: string, signature: string}> {
-    const hash = typedHash(chainId, verifyingContract, types, message).substring(2);
-    const signature = compactSerialize(await sign(chainId, verifyingContract, types, message, this.signer));
-    return { hash, signature };
-  }
-
   async getOperationStatus(hash: string): Promise<OperationStatus> {
     const txReceipt = await this.provider.getTransactionReceipt(hash);
     if (txReceipt === null) {
       return pendingOperation();
     } else {
       if (txReceipt?.status === ETH_COMPLETED_TRANSACTION_STATUS) {
-            const block = await this.provider.getBlock(txReceipt.blockNumber)
-            const timestamp = block?.timestamp || 0;
-            const receipt = parseTransactionReceipt(txReceipt, this.contractInterface, timestamp);
-            if (receipt === null) {
-              this.logger.error('Failed to parse receipt');
-              return failedOperation('Failed to parse receipt', 1);
-            }
-            // const erc20Transfer = parseERC20Transfer(txReceipt, );
-            // this.logger.info('ERC20 transfer event', erc20Transfer);
-            return completedOperation(receipt);
-          } else {
-            return failedOperation(`Transaction failed with status: ${txReceipt.status}`, 1);
-          }
+        const block = await this.provider.getBlock(txReceipt.blockNumber)
+        const timestamp = block?.timestamp || 0;
+        const receipt = parseTransactionReceipt(txReceipt, this.contractInterface, timestamp);
+        if (receipt === null) {
+          this.logger.error('Failed to parse receipt');
+          return failedOperation('Failed to parse receipt', 1);
+        }
+        // const erc20Transfer = parseERC20Transfer(txReceipt, );
+        // this.logger.info('ERC20 transfer event', erc20Transfer);
+        return completedOperation(receipt);
+      } else {
+        return failedOperation(`Transaction failed with status: ${txReceipt.status}`, 1);
+      }
     }
   }
 

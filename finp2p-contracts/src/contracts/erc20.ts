@@ -17,7 +17,7 @@ export class ERC20Contract extends ContractsManager {
     super(provider, signer, logger);
     this.tokenAddress = tokenAddress;
     const factory = new ContractFactory<any[], ERC20WithOperator>(
-      ERC20.abi, ERC20.bytecode, this.signer,
+      ERC20.abi, ERC20.bytecode, this.signer
     );
     const contract = factory.attach(tokenAddress);
     this.contractInterface = contract.interface;
@@ -49,11 +49,11 @@ export class ERC20Contract extends ContractsManager {
   }
 
   async approve(spender: string, quantity: bigint) {
-      return this.erc20.approve(spender, quantity);
+    return this.erc20.approve(spender, quantity);
   }
 
   async mint(toAddress: string, quantity: number) {
-      return this.erc20.mint(toAddress, quantity);
+    return this.erc20.mint(toAddress, quantity);
   }
 
   async transfer(fromAddress: string, toAddress: string, quantity: number) {

@@ -1,18 +1,11 @@
 import process from "process";
 import { ContractsManager } from "../src/contracts/manager";
-import {
-  ContractManagerConfig, createLocalProviderFromConfig,
-  readConfig,
-  writeConfig
-} from "../src/contracts/config";
-import console from "console";
+import { ContractManagerConfig, createLocalProviderFromConfig, readConfig, writeConfig } from "../src/contracts/config";
 import winston, { format, transports } from "winston";
 
 
 const logger = winston.createLogger({
-  level: 'info',
-  transports: [new transports.Console()],
-  format: format.json(),
+  level: "info", transports: [new transports.Console()], format: format.json()
 });
 
 
@@ -38,23 +31,23 @@ const configFromEnv = (): FinP2PDeployerConfig => {
   const finP2PContractAddress = undefined; // will be available after deployment
   const paymentAssetCode = process.env.PAYMENT_ASSET_CODE;
   return { rpcURL, signerPrivateKey, operatorAddress, finP2PContractAddress, paymentAssetCode };
-}
+};
 
 const isAlreadyDeployed = async (config: FinP2PDeployerConfig): Promise<FinP2PDeployerConfig> => {
   const { finP2PContractAddress } = config;
   if (finP2PContractAddress) {
-    logger.info(`Checking if contract ${finP2PContractAddress} is already deployed...`)
+    logger.info(`Checking if contract ${finP2PContractAddress} is already deployed...`);
 
     const { provider, signer } = await createLocalProviderFromConfig(config);
     const contractManger = new ContractsManager(provider, signer, logger);
     if (await contractManger.isFinP2PContractHealthy(finP2PContractAddress)) {
-      logger.info('Contract already deployed, skipping migration');
-      throw new Error('Contract already deployed');
+      logger.info("Contract already deployed, skipping migration");
+      throw new Error("Contract already deployed");
     } else {
-      logger.info('Contract is not healthy, deploying a new one')
+      logger.info("Contract is not healthy, deploying a new one");
     }
   } else {
-    logger.info('Contract not deployed yet, deploying a new one');
+    logger.info("Contract not deployed yet, deploying a new one");
   }
   return config;
 };
@@ -75,25 +68,25 @@ if (!configFile) {
   process.exit(1);
 }
 
-logger.info(`Reading config from ${configFile}...`)
+logger.info(`Reading config from ${configFile}...`);
 
 readConfig<FinP2PDeployerConfig>(configFile)
   .catch(e => {
-    logger.error(`Config file ${configFile} wasn't found:`, e)
-    return configFromEnv()
+    logger.error(`Config file ${configFile} wasn't found:`, e);
+    return configFromEnv();
   })
   .then((config) => isAlreadyDeployed(config))
   .then((config) => deploy(config))
   .catch(e => {
-    if (`${e}`.includes('Contract already deployed')) {
-      process.exit(1)
+    if (`${e}`.includes("Contract already deployed")) {
+      process.exit(1);
     } else {
-      logger.error("Error deploying contract:", e)
-      process.exit(1)
+      logger.error("Error deploying contract:", e);
+      process.exit(1);
     }
   })
   .then((config) => {
-    logger.info(`Writing config to ${configFile}...`)
-    logger.info(JSON.stringify(config))
-    return writeConfig(config, configFile)
+    logger.info(`Writing config to ${configFile}...`);
+    logger.info(JSON.stringify(config));
+    return writeConfig(config, configFile);
   });

@@ -34,8 +34,8 @@ export const DOMAIN_TYPE = {
     { name: "version", type: "string" },
     { name: "chainId", type: "uint256" },
     { name: "verifyingContract", type: "address" }
-  ],
-}
+  ]
+};
 
 export const FINID_TYPE = {
   FinId: [{
@@ -106,7 +106,7 @@ export const REQUEST_FOR_TRANSFER_TYPES = {
     { name: "nonce", type: "string" },
     { name: "buyer", type: "FinId" },
     { name: "seller", type: "FinId" },
-    { name: "asset", type: "Term" },
+    { name: "asset", type: "Term" }
   ]
 };
 
@@ -149,21 +149,21 @@ export const LOAN_TYPES = {
 export const SOURCE_TYPE = {
   Source: [
     { name: "accountType", type: "string" },
-    { name: "finId", type: "string" },
+    { name: "finId", type: "string" }
   ]
 };
 
 export const DESTINATION_TYPE = {
   Destination: [
     { name: "accountType", type: "string" },
-    { name: "finId", type: "string" },
+    { name: "finId", type: "string" }
   ]
 };
 
 export const ASSET_TYPE = {
   Asset: [
     { name: "assetId", type: "string" },
-    { name: "assetType", type: "string" },
+    { name: "assetType", type: "string" }
   ]
 };
 
@@ -171,20 +171,20 @@ export const ASSET_TYPE = {
 export const EXECUTION_CONTEXT_TYPE = {
   ExecutionContext: [
     { name: "executionPlanId", type: "string" },
-    { name: "instructionSequenceNumber", type: "string" },
+    { name: "instructionSequenceNumber", type: "string" }
   ]
 };
 
 export const TRADE_DETAILS_TYPE = {
   TradeDetails: [
-    { name: "executionContext", type: "ExecutionContext" },
+    { name: "executionContext", type: "ExecutionContext" }
   ]
 };
 
 export const TRANSACTION_DETAILS_TYPE = {
   TransactionDetails: [
     { name: "operationId", type: "string" },
-    { name: "transactionId", type: "string" },
+    { name: "transactionId", type: "string" }
   ]
 };
 
@@ -204,16 +204,16 @@ export const RECEIPT_PROOF_TYPES = {
     { name: "asset", type: "Asset" },
     // { name: "quantity", type: "string" },
     { name: "tradeDetails", type: "TradeDetails" },
-    { name: "transactionDetails", type: "TransactionDetails" },
+    { name: "transactionDetails", type: "TransactionDetails" }
   ]
-}
+};
 
 export interface EIP712Message {
 }
 
 export const term = (assetId: string, assetType: string, amount: string): Term => {
   return { assetId, assetType, amount };
-}
+};
 
 export interface Term {
   assetId: string,
@@ -222,18 +222,18 @@ export interface Term {
 }
 
 export interface FinId {
-  idkey: string
+  idkey: string;
 }
 
 export const finId = (key: string): FinId => {
   return { idkey: key };
-}
+};
 
 export interface LoanTerms {
-  openTime: string
-  closeTime: string
-  borrowedMoneyAmount: string
-  returnedMoneyAmount: string
+  openTime: string;
+  closeTime: string;
+  borrowedMoneyAmount: string;
+  returnedMoneyAmount: string;
 }
 
 export interface EIP712PrimarySaleMessage extends EIP712Message {
@@ -293,57 +293,57 @@ export interface EIP712LoanMessage extends EIP712Message {
 }
 
 export interface Source {
-  accountType: string
-  finId: string
+  accountType: string;
+  finId: string;
 }
 
 export const source = (accountType: string, finId: string): Source => {
   return { accountType, finId };
-}
+};
 
 export interface Destination {
-  accountType: string
-  finId: string
+  accountType: string;
+  finId: string;
 }
 
 export const destination = (accountType: string, finId: string): Destination => {
   return { accountType, finId };
-}
+};
 
 export interface Asset {
-  assetId: string
-  assetType: string
+  assetId: string;
+  assetType: string;
 }
 
 export const asset = (assetId: string, assetType: string): Asset => {
   return { assetId, assetType };
-}
+};
 
 export interface ExecutionContext {
-  executionPlanId: string
-  instructionSequenceNumber: string
+  executionPlanId: string;
+  instructionSequenceNumber: string;
 }
 
 export const executionContext = (executionPlanId: string, instructionSequenceNumber: string): ExecutionContext => {
   return { executionPlanId, instructionSequenceNumber };
-}
+};
 
 export interface TradeDetails {
-  executionContext: ExecutionContext
+  executionContext: ExecutionContext;
 }
 
 export const tradeDetails = (executionContext: ExecutionContext): TradeDetails => {
   return { executionContext };
-}
+};
 
 export interface TransactionDetails {
-  operationId: string
-  transactionId: string
+  operationId: string;
+  transactionId: string;
 }
 
 export const transactionDetails = (operationId: string, transactionId: string): TransactionDetails => {
   return { operationId, transactionId };
-}
+};
 
 
 export interface EIP712ReceiptMessage extends EIP712Message {
@@ -363,44 +363,44 @@ export const newInvestmentMessage = (
   buyerFinId: string,
   sellerFinId: string,
   asset: Term,
-  settlement: Term,
+  settlement: Term
 ): { message: EIP712Message, types: Record<string, Array<TypedDataField>> } => {
-  let message: EIP712Message
-  let types: Record<string, Array<TypedDataField>>
+  let message: EIP712Message;
+  let types: Record<string, Array<TypedDataField>>;
   switch (primaryType) {
     case PrimaryType.PrimarySale:
-      types = PRIMARY_SALE_TYPES
+      types = PRIMARY_SALE_TYPES;
       message = newPrimarySaleMessage(nonce, finId(buyerFinId), finId(sellerFinId), asset, settlement);
-      break
+      break;
     case PrimaryType.Buying:
-      types = BUYING_TYPES
+      types = BUYING_TYPES;
       message = newBuyingMessage(nonce, finId(buyerFinId), finId(sellerFinId), asset, settlement);
-      break
+      break;
     case PrimaryType.Selling:
-      types = SELLING_TYPES
+      types = SELLING_TYPES;
       message = newSellingMessage(nonce, finId(buyerFinId), finId(sellerFinId), asset, settlement);
-      break
+      break;
     case PrimaryType.Redemption:
-      types = REDEMPTION_TYPES
+      types = REDEMPTION_TYPES;
       message = newRedemptionMessage(nonce, finId(buyerFinId), finId(sellerFinId), asset, settlement);
-      break
+      break;
     case PrimaryType.RequestForTransfer:
-      types = REQUEST_FOR_TRANSFER_TYPES
+      types = REQUEST_FOR_TRANSFER_TYPES;
       message = newRequestForTransferMessage(nonce, finId(buyerFinId), finId(sellerFinId), asset);
-      break
+      break;
     case PrimaryType.PrivateOffer:
-      types = PRIVATE_OFFER_TYPES
+      types = PRIVATE_OFFER_TYPES;
       message = newPrivateOfferMessage(nonce, finId(buyerFinId), finId(sellerFinId), asset, settlement);
-      break
+      break;
     case PrimaryType.Loan:
-      types = LOAN_TERMS_TYPE
+      types = LOAN_TERMS_TYPE;
       message = newLoanMessage(nonce, finId(buyerFinId), finId(sellerFinId), asset, settlement, {} as LoanTerms);
-      break
+      break;
     default:
       throw new Error(`Unknown primary type: ${primaryType}`);
   }
   return { message, types };
-}
+};
 
 export const newPrimarySaleMessage = (nonce: string, buyer: FinId, issuer: FinId, asset: Term, settlement: Term): EIP712PrimarySaleMessage => {
   return { nonce, buyer, issuer, asset, settlement };
@@ -410,7 +410,7 @@ export const newBuyingMessage = (nonce: string, buyer: FinId, seller: FinId, ass
   return { nonce, buyer, seller, asset, settlement };
 };
 
-export const newSellingMessage = (nonce: string, buyer: FinId, seller: FinId,asset: Term, settlement: Term): EIP712SellingMessage => {
+export const newSellingMessage = (nonce: string, buyer: FinId, seller: FinId, asset: Term, settlement: Term): EIP712SellingMessage => {
   return { nonce, buyer, seller, asset, settlement };
 };
 
@@ -422,8 +422,8 @@ export const newRequestForTransferMessage = (nonce: string, buyer: FinId, seller
   return { nonce, buyer, seller, asset };
 };
 
-export const newPrivateOfferMessage = (nonce: string, buyer: FinId,  seller: FinId, asset: Term, settlement: Term): EIP712PrivateOfferMessage => {
-  return { nonce, buyer, seller, asset, settlement }
+export const newPrivateOfferMessage = (nonce: string, buyer: FinId, seller: FinId, asset: Term, settlement: Term): EIP712PrivateOfferMessage => {
+  return { nonce, buyer, seller, asset, settlement };
 };
 
 export const newLoanMessage = (nonce: string, borrower: FinId, lender: FinId, asset: Term, settlement: Term, loanTerms: LoanTerms): EIP712LoanMessage => {
@@ -432,7 +432,7 @@ export const newLoanMessage = (nonce: string, borrower: FinId, lender: FinId, as
 
 export const newReceiptMessage = (id: string, operationType: string, source: Source, destination: Destination, asset: Asset, quantity: string, tradeDetails: TradeDetails, transactionDetails: TransactionDetails): EIP712ReceiptMessage => {
   return { id, operationType, source, destination, asset,/* quantity, */ tradeDetails, transactionDetails };
-}
+};
 
 export const signWithPrivateKey = <T extends EIP712Message>(chainId: bigint | number, verifyingContract: string, types: Record<string, Array<TypedDataField>>, message: T, signerPrivateKey: string) => {
   return sign(chainId, verifyingContract, types, message, new Wallet(signerPrivateKey));

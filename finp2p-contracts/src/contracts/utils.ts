@@ -1,16 +1,16 @@
 import {
+  concat,
   HDNodeWallet,
-  Interface,
-  TransactionReceipt,
-  Wallet,
-  Signature,
+  hexlify,
   isAddress,
   keccak256,
-  concat,
-  toUtf8Bytes, hexlify
+  Signature,
+  toUtf8Bytes,
+  TransactionReceipt,
+  Wallet
 } from "ethers";
-import { FinP2PReceipt } from './model';
-import * as secp256k1 from 'secp256k1';
+import { FinP2PReceipt } from "./model";
+import * as secp256k1 from "secp256k1";
 import {
   FINP2POperatorERC20Interface,
   HoldEvent,
@@ -24,19 +24,19 @@ import {
   TransferEvent as ERC20TransferEvent
 } from "../../typechain-types/contracts/token/ERC20/ERC20WithOperator";
 
-export const compactSerialize = (signature : string): string =>  {
-  const { r, s } = Signature.from(signature)
-  return concat([ r, s ]).substring(2)
-}
+export const compactSerialize = (signature: string): string => {
+  const { r, s } = Signature.from(signature);
+  return concat([r, s]).substring(2);
+};
 
 export const hashToBytes16 = (val: string): string => {
   return hexlify(keccak256(toUtf8Bytes(val))).slice(0, 34);
-}
+};
 
 export const privateKeyToFinId = (privateKey: string): string => {
-  const privKeyBuffer = Buffer.from(privateKey.replace('0x', ''), 'hex');
+  const privKeyBuffer = Buffer.from(privateKey.replace("0x", ""), "hex");
   const pubKeyUInt8Array = secp256k1.publicKeyCreate(privKeyBuffer, true);
-  return Buffer.from(pubKeyUInt8Array).toString('hex');
+  return Buffer.from(pubKeyUInt8Array).toString("hex");
 };
 
 export const getFinId = (wallet: HDNodeWallet): string => {
@@ -48,7 +48,7 @@ export const createAccount = () => {
   return {
     address: account.address,
     privateKey: account.privateKey,
-    finId: privateKeyToFinId(account.privateKey),
+    finId: privateKeyToFinId(account.privateKey)
   };
 };
 
@@ -71,26 +71,56 @@ export const parseTransactionReceipt = (
       }
 
       switch (parsedLog.signature) {
-        case 'Issue(string,string,string,string)': {
+        case "Issue(string,string,string,string)": {
           const { assetId, assetType, quantity, issuerFinId } = parsedLog.args as unknown as IssueEvent.OutputObject;
-          return { id, assetId, assetType, quantity, destination: issuerFinId, timestamp, operationType: 'issue' };
+          return { id, assetId, assetType, quantity, destination: issuerFinId, timestamp, operationType: "issue" };
         }
-        case 'Transfer(string,string,string,string,string)': {
-            const { assetId, assetType, quantity, sourceFinId, destinationFinId } = parsedLog.args as unknown as TransferEvent.OutputObject;
-            return { id, assetId, assetType, quantity, source: sourceFinId, destination: destinationFinId, timestamp, operationType: 'transfer' };
+        case "Transfer(string,string,string,string,string)": {
+          const {
+            assetId,
+            assetType,
+            quantity,
+            sourceFinId,
+            destinationFinId
+          } = parsedLog.args as unknown as TransferEvent.OutputObject;
+          return {
+            id,
+            assetId,
+            assetType,
+            quantity,
+            source: sourceFinId,
+            destination: destinationFinId,
+            timestamp,
+            operationType: "transfer"
+          };
         }
-        case 'Redeem(string,string,string,string,bytes16)': {
-          const { assetId, assetType, quantity, ownerFinId } = parsedLog.args  as unknown as RedeemEvent.OutputObject;
-          return { id, assetId, assetType, quantity, source: ownerFinId, timestamp, operationType: 'redeem' };
+        case "Redeem(string,string,string,string,bytes16)": {
+          const { assetId, assetType, quantity, ownerFinId } = parsedLog.args as unknown as RedeemEvent.OutputObject;
+          return { id, assetId, assetType, quantity, source: ownerFinId, timestamp, operationType: "redeem" };
         }
-        case 'Hold(string,string,string,string,bytes16)': {
-          const { assetId, assetType, quantity, finId, operationId } = parsedLog.args as unknown as HoldEvent.OutputObject;
-          return { id, assetId, assetType, quantity, source: finId, timestamp, operationType: 'hold', operationId };
+        case "Hold(string,string,string,string,bytes16)": {
+          const {
+            assetId,
+            assetType,
+            quantity,
+            finId,
+            operationId
+          } = parsedLog.args as unknown as HoldEvent.OutputObject;
+          return { id, assetId, assetType, quantity, source: finId, timestamp, operationType: "hold", operationId };
         }
-        case 'Release(string,string,string,string,string,bytes16)': {
-          const { assetId, assetType, quantity, sourceFinId, destinationFinId, operationId } = parsedLog.args as unknown as ReleaseEvent.OutputObject;
-          return { id, assetId, assetType, quantity, source: sourceFinId, destination: destinationFinId, timestamp,
-            operationType: 'release', operationId };
+        case "Release(string,string,string,string,string,bytes16)": {
+          const {
+            assetId,
+            assetType,
+            quantity,
+            sourceFinId,
+            destinationFinId,
+            operationId
+          } = parsedLog.args as unknown as ReleaseEvent.OutputObject;
+          return {
+            id, assetId, assetType, quantity, source: sourceFinId, destination: destinationFinId, timestamp,
+            operationType: "release", operationId
+          };
         }
       }
     } catch (e) {
@@ -102,7 +132,11 @@ export const parseTransactionReceipt = (
 };
 
 export const parseERC20Transfer = (receipt: TransactionReceipt,
-                                   contractInterface: ERC20WithOperatorInterface): {  from: string, to: string, value: bigint } | undefined => {
+                                   contractInterface: ERC20WithOperatorInterface): {
+  from: string,
+  to: string,
+  value: bigint
+} | undefined => {
   for (const log of receipt.logs) {
     try {
       const parsedLog = contractInterface.parseLog(log);
@@ -110,7 +144,7 @@ export const parseERC20Transfer = (receipt: TransactionReceipt,
         continue;
       }
 
-      if (parsedLog.signature === 'Transfer(address,address,uint256)') {
+      if (parsedLog.signature === "Transfer(address,address,uint256)") {
         const { from, to, value } = parsedLog.args as unknown as ERC20TransferEvent.OutputObject;
         return { from, to, value };
       }
@@ -118,7 +152,7 @@ export const parseERC20Transfer = (receipt: TransactionReceipt,
       // do nothing
     }
   }
-}
+};
 
 export const isEthereumAddress = (address: string): boolean => {
   return isAddress(address);
@@ -126,8 +160,8 @@ export const isEthereumAddress = (address: string): boolean => {
 
 export const finIdToEthereumAddress = (finId: string): string => {
   return "0x" + keccak256(`0x${finId}`).slice(-40);
-}
+};
 
 const undefinedIfEmpty = (value: string): string | undefined => {
-  return value === '' ? undefined : value;
-}
+  return value === "" ? undefined : value;
+};

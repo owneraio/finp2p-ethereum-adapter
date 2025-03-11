@@ -1,6 +1,6 @@
-import { logger } from '../helpers/logger';
-import { CommonService } from './common';
-import { EthereumTransactionError } from '../../finp2p-contracts/src/contracts/model';
+import { logger } from "../helpers/logger";
+import { CommonService } from "./common";
+import { EthereumTransactionError } from "../../finp2p-contracts/src/contracts/model";
 import { assetFromAPI, extractParameterEIP712, failedTransaction } from "./mapping";
 import { Leg } from "../../finp2p-contracts/src/contracts/eip712";
 
@@ -8,11 +8,18 @@ export class EscrowService extends CommonService {
 
   public async hold(request: Paths.HoldOperation.RequestBody): Promise<Paths.HoldOperation.Responses.$200> {
     const { operationId, asset, source, destination, quantity, nonce } = request;
-    const reqAsset = assetFromAPI(asset)
+    const reqAsset = assetFromAPI(asset);
     const { signature, template } = request.signature;
 
     try {
-      const { buyerFinId, sellerFinId, asset, settlement, leg, eip712PrimaryType } = extractParameterEIP712(template, reqAsset);
+      const {
+        buyerFinId,
+        sellerFinId,
+        asset,
+        settlement,
+        leg,
+        eip712PrimaryType
+      } = extractParameterEIP712(template, reqAsset);
       switch (leg) {
         case Leg.Asset:
           if (destination && buyerFinId !== destination.finId) {
@@ -24,7 +31,7 @@ export class EscrowService extends CommonService {
           if (quantity !== asset.amount) {
             return failedTransaction(1, `Quantity in the signature does not match the requested quantity`);
           }
-          break
+          break;
         case Leg.Settlement:
           if (destination && sellerFinId !== destination.finId) {
             return failedTransaction(1, `Seller FinId in the signature does not match the destination FinId`);
@@ -35,15 +42,13 @@ export class EscrowService extends CommonService {
           if (quantity !== settlement.amount) {
             return failedTransaction(1, `Quantity in the signature does not match the requested quantity`);
           }
-          break
+          break;
       }
 
-      const txHash =  await this.finP2PContract.hold(operationId, nonce,
-        sellerFinId, buyerFinId, asset, settlement, leg, eip712PrimaryType, signature);
+      const txHash = await this.finP2PContract.hold(operationId, nonce, sellerFinId, buyerFinId, asset, settlement, leg, eip712PrimaryType, signature);
 
       return {
-        isCompleted: false,
-        cid: txHash,
+        isCompleted: false, cid: txHash
       } as Components.Schemas.ReceiptOperation;
 
     } catch (e) {
@@ -58,16 +63,15 @@ export class EscrowService extends CommonService {
   }
 
   public async releaseTo(request: Paths.ReleaseOperation.RequestBody): Promise<Paths.ReleaseOperation.Responses.$200> {
-    const { operationId, destination, quantity} = request;
+    const { operationId, destination, quantity } = request;
 
     try {
       const txHash = await this.finP2PContract.releaseTo(operationId, destination.finId, quantity);
 
       return {
-        isCompleted: false,
-        cid: txHash,
+        isCompleted: false, cid: txHash
       } as Components.Schemas.ReceiptOperation;
-    }  catch (e) {
+    } catch (e) {
       logger.error(`Error releasing asset: ${e}`);
       if (e instanceof EthereumTransactionError) {
         return failedTransaction(1, e.message);
@@ -84,8 +88,7 @@ export class EscrowService extends CommonService {
       const txHash = await this.finP2PContract.releaseBack(operationId);
 
       return {
-        isCompleted: false,
-        cid: txHash,
+        isCompleted: false, cid: txHash
       } as Components.Schemas.ReceiptOperation;
     } catch (e) {
       logger.error(`Error rolling-back asset: ${e}`);
@@ -99,19 +102,18 @@ export class EscrowService extends CommonService {
   }
 
   public async releaseAndRedeem(request: Paths.RedeemAssets.RequestBody): Promise<Paths.RedeemAssets.Responses.$200> {
-    const { operationId, source, quantity} = request;
+    const { operationId, source, quantity } = request;
     if (!operationId) {
-      return failedTransaction(1, 'operationId is required');
+      return failedTransaction(1, "operationId is required");
     }
 
     try {
       const txHash = await this.finP2PContract.releaseAndRedeem(operationId, source.finId, quantity);
 
       return {
-        isCompleted: false,
-        cid: txHash,
+        isCompleted: false, cid: txHash
       } as Components.Schemas.ReceiptOperation;
-    }  catch (e) {
+    } catch (e) {
       logger.error(`Error releasing asset: ${e}`);
       if (e instanceof EthereumTransactionError) {
         return failedTransaction(1, e.message);

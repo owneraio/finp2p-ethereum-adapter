@@ -4,13 +4,10 @@ import { createProviderAndSigner, ProviderType } from "../src/contracts/config";
 import winston, { format, transports } from "winston";
 
 const logger = winston.createLogger({
-  level: 'info',
-  transports: [new transports.Console()],
-  format: format.json(),
+  level: "info", transports: [new transports.Console()], format: format.json()
 });
 
-const associateAsset = async (providerType: ProviderType, deployerPrivateKey: string, finp2pContractAddress: string,
-                              assetId: string, erc20Address: string) => {
+const associateAsset = async (providerType: ProviderType, deployerPrivateKey: string, finp2pContractAddress: string, assetId: string, erc20Address: string) => {
   if (!deployerPrivateKey) {
     throw new Error("DEPLOYER_PRIVATE_KEY is not set");
   }
@@ -21,7 +18,7 @@ const associateAsset = async (providerType: ProviderType, deployerPrivateKey: st
   logger.info("Asset associated successfully");
 };
 
-const providerType = (process.env.PROVIDER_TYPE || 'local') as ProviderType;
+const providerType = (process.env.PROVIDER_TYPE || "local") as ProviderType;
 const operatorAddress = process.env.OPERATOR_ADDRESS;
 if (!operatorAddress) {
   throw new Error("OPERATOR_ADDRESS is not set");

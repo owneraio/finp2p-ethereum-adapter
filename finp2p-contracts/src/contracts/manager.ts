@@ -3,10 +3,8 @@ import {
   ContractFactory,
   ContractTransactionResponse,
   NonceManager,
-  parseUnits,
   Provider,
-  Signer,
-  toBigInt
+  Signer, TypedDataField
 } from "ethers";
 import FINP2P from "../../artifacts/contracts/token/ERC20/FINP2POperatorERC20.sol/FINP2POperatorERC20.json";
 import ERC20 from "../../artifacts/contracts/token/ERC20/ERC20WithOperator.sol/ERC20WithOperator.json";
@@ -14,6 +12,8 @@ import { ERC20WithOperator, FINP2POperatorERC20 } from "../../typechain-types";
 import winston from "winston";
 import { PayableOverrides } from "../../typechain-types/common";
 import { detectError, EthereumTransactionError, NonceAlreadyBeenUsedError, NonceToHighError } from "./model";
+import { hash as typedHash, sign } from "./eip712";
+import { compactSerialize } from "./utils";
 
 const DefaultDecimalsCurrencies = 2;
 
@@ -27,6 +27,11 @@ export class ContractsManager {
     this.provider = provider;
     this.signer = signer;
     this.logger = logger;
+    if (this.signer instanceof NonceManager) {
+      this.signer.getNonce().then((nonce) => {
+        this.logger.info(`Using nonce-manager, current nonce: ${nonce}`);
+      });
+    }
   }
 
   async deployERC20(name: string, symbol: string, decimals: number, finP2PContractAddress: string) {
@@ -124,6 +129,12 @@ export class ContractsManager {
       return finP2P.grantTransactionManagerRole(to, txParams);
     })
     await this.waitForCompletion(txHash);
+  }
+
+  async signEIP712(chainId: bigint | number, verifyingContract: string, types: Record<string, Array<TypedDataField>>, message: Record<string, any>) : Promise<{ hash: string, signature: string}> {
+    const hash = typedHash(chainId, verifyingContract, types, message).substring(2);
+    const signature = compactSerialize(await sign(chainId, verifyingContract, types, message, this.signer));
+    return { hash, signature };
   }
 
   public async waitForCompletion(txHash: string, tries: number = 300) {

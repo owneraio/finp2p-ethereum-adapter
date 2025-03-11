@@ -3,33 +3,33 @@ import { TypedDataDomain, TypedDataField } from "ethers";
 export type OperationStatus = PendingTransaction | SuccessfulTransaction | FailedTransaction;
 
 export type PendingTransaction = {
-  status: 'pending'
+  status: "pending"
 };
 
 export type SuccessfulTransaction = {
-  status: 'completed'
+  status: "completed"
   receipt: FinP2PReceipt
 };
 
 export const pendingOperation = (): PendingTransaction => {
   return {
-    status: 'pending',
+    status: "pending"
   };
-}
+};
 
 export const completedOperation = (receipt: FinP2PReceipt): SuccessfulTransaction => {
   return {
-    status: 'completed',
-    receipt,
+    status: "completed",
+    receipt
   };
-}
+};
 
 export const failedOperation = (message: string, code: number): FailedTransaction => {
   return {
-    status: 'failed',
-    error: { code, message },
+    status: "failed",
+    error: { code, message }
   };
-}
+};
 
 // similar to TypedDataDomain
 export type EIP712Domain = {
@@ -48,9 +48,9 @@ export type EIP712Template = {
 }
 
 export type ReceiptProof = {
-  type: 'no-proof'
+  type: "no-proof"
 } | {
-  type: 'signature-proof',
+  type: "signature-proof",
   template: EIP712Template
   signature: string
 }
@@ -63,7 +63,7 @@ export type FinP2PReceipt = {
   source?: string
   destination?: string
   timestamp: number
-  operationType: 'transfer' | 'redeem' | 'hold' | 'release' | 'issue'
+  operationType: "transfer" | "redeem" | "hold" | "release" | "issue"
   operationId?: string
   proof?: ReceiptProof
 };
@@ -76,7 +76,7 @@ export type ERC20Transfer = {
 }
 
 export type FailedTransaction = {
-  status: 'failed'
+  status: "failed"
   error: TransactionError
 };
 
@@ -108,15 +108,15 @@ export const enum HashType {
   EIP712 = 2
 }
 
-export const detectError = (e: any) : EthereumTransactionError | NonceToHighError | Error => {
-  if ('code' in e && 'action' in e && 'message' in e && 'reason' in e && 'data' in e && e.reason !== undefined && e.reason !== null) {
+export const detectError = (e: any): EthereumTransactionError | NonceToHighError | Error => {
+  if ("code" in e && "action" in e && "message" in e && "reason" in e && "data" in e && e.reason !== undefined && e.reason !== null) {
     return new EthereumTransactionError(e.reason);
-  } else if ('code' in e && 'error' in e && 'code' in e.error && 'message' in e.error) {
-    if (e.error.code === -32000 || e.error.message.startsWith('Nonce too high')) {
+  } else if ("code" in e && "error" in e && "code" in e.error && "message" in e.error) {
+    if (e.error.code === -32000 || e.error.message.startsWith("Nonce too high")) {
       return new NonceToHighError(e.error.message);
     }
-  } else if (`${e}`.includes('nonce has already been used')) {
-      return new NonceAlreadyBeenUsedError(`${e}`);
+  } else if (`${e}`.includes("nonce has already been used")) {
+    return new NonceAlreadyBeenUsedError(`${e}`);
   }
   return e;
 };
