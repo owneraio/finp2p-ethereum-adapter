@@ -57,11 +57,11 @@ export class EscrowService extends CommonService {
     }
   }
 
-  public async release(request: Paths.ReleaseOperation.RequestBody): Promise<Paths.ReleaseOperation.Responses.$200> {
+  public async releaseTo(request: Paths.ReleaseOperation.RequestBody): Promise<Paths.ReleaseOperation.Responses.$200> {
     const { operationId, destination, quantity} = request;
 
     try {
-      const txHash = await this.finP2PContract.release(operationId, destination.finId, quantity);
+      const txHash = await this.finP2PContract.releaseTo(operationId, destination.finId, quantity);
 
       return {
         isCompleted: false,
@@ -77,11 +77,11 @@ export class EscrowService extends CommonService {
     }
   }
 
-  public async rollback(request: Paths.RollbackOperation.RequestBody): Promise<Paths.RollbackOperation.Responses.$200> {
-    const operationId = request.operationId;
+  public async releaseBack(request: Paths.RollbackOperation.RequestBody): Promise<Paths.RollbackOperation.Responses.$200> {
+    const { operationId } = request;
 
     try {
-      const txHash = await this.finP2PContract.rollback(operationId);
+      const txHash = await this.finP2PContract.releaseBack(operationId);
 
       return {
         isCompleted: false,
@@ -98,14 +98,14 @@ export class EscrowService extends CommonService {
     }
   }
 
-  public async withholdRedeem(request: Paths.RedeemAssets.RequestBody): Promise<Paths.RedeemAssets.Responses.$200> {
+  public async releaseAndRedeem(request: Paths.RedeemAssets.RequestBody): Promise<Paths.RedeemAssets.Responses.$200> {
     const { operationId, source, quantity} = request;
     if (!operationId) {
       return failedTransaction(1, 'operationId is required');
     }
 
     try {
-      const txHash = await this.finP2PContract.withholdRedeem(operationId, source.finId, quantity);
+      const txHash = await this.finP2PContract.releaseAndRedeem(operationId, source.finId, quantity);
 
       return {
         isCompleted: false,

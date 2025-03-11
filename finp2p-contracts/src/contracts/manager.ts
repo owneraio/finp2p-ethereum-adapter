@@ -1,8 +1,19 @@
-import { ContractFactory, NonceManager, parseUnits, Provider, Signer, toBigInt } from "ethers";
+import {
+  BaseContract,
+  ContractFactory,
+  ContractTransactionResponse,
+  NonceManager,
+  parseUnits,
+  Provider,
+  Signer,
+  toBigInt
+} from "ethers";
 import FINP2P from "../../artifacts/contracts/token/ERC20/FINP2POperatorERC20.sol/FINP2POperatorERC20.json";
 import ERC20 from "../../artifacts/contracts/token/ERC20/ERC20WithOperator.sol/ERC20WithOperator.json";
 import { ERC20WithOperator, FINP2POperatorERC20 } from "../../typechain-types";
 import winston from "winston";
+import { PayableOverrides } from "../../typechain-types/common";
+import { detectError, EthereumTransactionError, NonceAlreadyBeenUsedError, NonceToHighError } from "./model";
 
 const DefaultDecimalsCurrencies = 2;
 
@@ -83,11 +94,12 @@ export class ContractsManager {
     this.logger.info(`Pre-creating payment asset ${assetId}...`);
     const tokenAddress = await this.deployERC20(assetId, assetId, decimals, finP2PContractAddress);
 
-    const contract = factory.attach(finP2PContractAddress);
-
+    const contract = factory.attach(finP2PContractAddress) as FINP2POperatorERC20;
     this.logger.info(`Associating asset ${assetId} with token ${tokenAddress}...`);
-    const tx = await contract.associateAsset(assetId, tokenAddress);
-    await this.waitForCompletion(tx.hash);
+    const txHash = await this.safeExecuteTransaction(contract, async (finP2P: FINP2POperatorERC20, txParams: PayableOverrides) => {
+      return finP2P.associateAsset(assetId, tokenAddress, txParams);
+    });
+    await this.waitForCompletion(txHash);
   }
 
   async grantAssetManagerRole(finP2PContractAddress: string, to: string) {
@@ -95,9 +107,11 @@ export class ContractsManager {
     const factory = new ContractFactory<any[], FINP2POperatorERC20>(
       FINP2P.abi, FINP2P.bytecode, this.signer,
     );
-    const contract = factory.attach(finP2PContractAddress);
-    const tx = await contract.grantAssetManagerRole(to);
-    await this.waitForCompletion(tx.hash);
+    const contract = factory.attach(finP2PContractAddress) as FINP2POperatorERC20;
+    const txHash = await this.safeExecuteTransaction(contract, async (finP2P: FINP2POperatorERC20, txParams: PayableOverrides) => {
+      return finP2P.grantAssetManagerRole(to, txParams);
+    })
+    await this.waitForCompletion(txHash);
   }
 
   async grantTransactionManagerRole(finP2PContractAddress: string, to: string) {
@@ -105,9 +119,11 @@ export class ContractsManager {
     const factory = new ContractFactory<any[], FINP2POperatorERC20>(
       FINP2P.abi, FINP2P.bytecode, this.signer,
     );
-    const contract = factory.attach(finP2PContractAddress);
-    const tx = await contract.grantTransactionManagerRole(to);
-    await this.waitForCompletion(tx.hash);
+    const contract = factory.attach(finP2PContractAddress) as FINP2POperatorERC20;
+    const txHash = await this.safeExecuteTransaction(contract, async (finP2P: FINP2POperatorERC20, txParams: PayableOverrides) => {
+      return finP2P.grantTransactionManagerRole(to, txParams);
+    })
+    await this.waitForCompletion(txHash);
   }
 
   public async waitForCompletion(txHash: string, tries: number = 300) {
@@ -126,7 +142,41 @@ export class ContractsManager {
     throw new Error(`no result after ${tries} retries`);
   }
 
-  protected resetNonce() {
+  protected async safeExecuteTransaction<C extends BaseContract>(contract: C, call: (contract: C, overrides: PayableOverrides) => Promise<ContractTransactionResponse>, maxAttempts: number = 10) {
+    for (let i = 0; i < maxAttempts; i++) {
+      try {
+        let nonce: number
+        if (this.signer instanceof NonceManager) {
+          nonce = await (this.signer as NonceManager).getNonce()
+        } else {
+          nonce = await this.getLatestTransactionCount();
+        }
+        const response = await call(contract, { nonce });
+        return response.hash;
+      } catch (e) {
+        const err = detectError(e);
+        if (err instanceof EthereumTransactionError) {
+          // console.log('Ethereum transaction error');
+          this.resetNonce();
+          throw err;
+
+        } else if (err instanceof NonceToHighError) {
+          // console.log('Nonce too high error, retrying');
+          this.resetNonce();
+          // continuing the loop
+        } else if (err instanceof NonceAlreadyBeenUsedError) {
+          // console.log('Nonce already been used error, retrying');
+          this.resetNonce();
+          // continuing the loop
+        } else {
+          throw err;
+        }
+      }
+    }
+    throw new Error(`Failed to execute transaction without nonce-too-high error after ${maxAttempts} attempts`);
+  }
+
+  private resetNonce() {
     if (this.signer instanceof NonceManager) {
       (this.signer as NonceManager).reset();
     }
