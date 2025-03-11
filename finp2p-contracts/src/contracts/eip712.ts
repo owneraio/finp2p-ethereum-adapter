@@ -215,6 +215,10 @@ export const term = (assetId: string, assetType: string, amount: string): Term =
   return { assetId, assetType, amount };
 };
 
+export const emptyTerm = (): Term => {
+  return term('', '', '');
+}
+
 export interface Term {
   assetId: string,
   assetType: string,

@@ -3,11 +3,13 @@ import {
   asset,
   destination,
   EIP712ReceiptMessage,
+  emptyLoanTerms,
+  emptyTerm,
   executionContext,
   Leg,
+  LoanTerms,
   PrimaryType,
   source,
-  term,
   Term,
   tradeDetails,
   transactionDetails
@@ -245,10 +247,21 @@ export const termFromAPI = (term: Components.Schemas.EIP712TypeObject): Term => 
   };
 };
 
+export const loanTermFromAPI = (loanTerms: Components.Schemas.EIP712TypeObject | undefined): LoanTerms => {
+  if (!loanTerms) {
+    return emptyLoanTerms();
+  }
+  return {
+    openTime: loanTerms.openTime as EIP712TypeString,
+    closeTime: loanTerms.closeTime as EIP712TypeString,
+    borrowedMoneyAmount: loanTerms.borrowedMoneyAmount as EIP712TypeString,
+    returnedMoneyAmount: loanTerms.returnedMoneyAmount as EIP712TypeString
+  } as LoanTerms;
+};
+
 export const finIdFromAPI = (finId: Components.Schemas.EIP712TypeObject): string => {
   return finId.idkey as EIP712TypeString;
 };
-
 
 const compareAssets = (eipAsset: EIP712TypeObject, reqAsset: {
   assetId: string, assetType: "fiat" | "finp2p" | "cryptocurrency",
@@ -272,11 +285,19 @@ export const detectLeg = (template: Components.Schemas.SignatureTemplate, reqAss
   }
 };
 
+type EIP712Params = {
+  buyerFinId: string,
+  sellerFinId: string,
+  asset: Term,
+  settlement: Term,
+  loan: LoanTerms,
+  leg: Leg,
+  eip712PrimaryType: PrimaryType,
+};
+
 export const extractParameterEIP712 = (template: Components.Schemas.SignatureTemplate, reqAsset: {
   assetId: string, assetType: "fiat" | "finp2p" | "cryptocurrency",
-}): {
-  buyerFinId: string, sellerFinId: string, asset: Term, settlement: Term, leg: Leg, eip712PrimaryType: PrimaryType,
-} => {
+}): EIP712Params => {
   if (template.type != "EIP712") {
     throw new Error(`Unsupported signature template type: ${template.type}`);
   }
@@ -290,6 +311,7 @@ export const extractParameterEIP712 = (template: Components.Schemas.SignatureTem
         sellerFinId: finIdFromAPI(template.message.issuer as EIP712TypeObject),
         asset: termFromAPI(template.message.asset as EIP712TypeObject),
         settlement: termFromAPI(template.message.settlement as EIP712TypeObject),
+        loan: emptyLoanTerms(),
         leg,
         eip712PrimaryType
       };
@@ -301,6 +323,7 @@ export const extractParameterEIP712 = (template: Components.Schemas.SignatureTem
         sellerFinId: finIdFromAPI(template.message.seller as EIP712TypeObject),
         asset: termFromAPI(template.message.asset as EIP712TypeObject),
         settlement: termFromAPI(template.message.settlement as EIP712TypeObject),
+        loan: emptyLoanTerms(),
         leg,
         eip712PrimaryType
       };
@@ -310,7 +333,8 @@ export const extractParameterEIP712 = (template: Components.Schemas.SignatureTem
         buyerFinId: finIdFromAPI(template.message.buyer as EIP712TypeObject),
         sellerFinId: finIdFromAPI(template.message.seller as EIP712TypeObject),
         asset: termFromAPI(template.message.asset as EIP712TypeObject),
-        settlement: term("", "", ""),
+        settlement: emptyTerm(),
+        loan: emptyLoanTerms(),
         leg,
         eip712PrimaryType
       };
@@ -321,6 +345,18 @@ export const extractParameterEIP712 = (template: Components.Schemas.SignatureTem
         sellerFinId: finIdFromAPI(template.message.seller as EIP712TypeObject),
         asset: termFromAPI(template.message.asset as EIP712TypeObject),
         settlement: termFromAPI(template.message.settlement as EIP712TypeObject),
+        loan: emptyLoanTerms(),
+        leg,
+        eip712PrimaryType
+      };
+    }
+    case "Loan": {
+      return {
+        buyerFinId: finIdFromAPI(template.message.borrower as EIP712TypeObject),
+        sellerFinId: finIdFromAPI(template.message.lender as EIP712TypeObject),
+        asset: termFromAPI(template.message.asset as EIP712TypeObject),
+        settlement: emptyTerm(),
+        loan: loanTermFromAPI(template.message.loan as EIP712TypeObject),
         leg,
         eip712PrimaryType
       };

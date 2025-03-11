@@ -223,7 +223,6 @@ describe(`token service test`, () => {
   });
 
   test(`Scenario: escrow hold / redeem`, async () => {
-
     const assetId = randomResourceId(orgId, ASSET);
     const settlementAssetId = "USD";
 

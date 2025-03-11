@@ -17,6 +17,7 @@ export class EscrowService extends CommonService {
         sellerFinId,
         asset,
         settlement,
+        loan,
         leg,
         eip712PrimaryType
       } = extractParameterEIP712(template, reqAsset);
@@ -45,7 +46,8 @@ export class EscrowService extends CommonService {
           break;
       }
 
-      const txHash = await this.finP2PContract.hold(operationId, nonce, sellerFinId, buyerFinId, asset, settlement, leg, eip712PrimaryType, signature);
+      const txHash = await this.finP2PContract.hold(operationId, nonce, sellerFinId, buyerFinId,
+        asset, settlement, loan, leg, eip712PrimaryType, signature);
 
       return {
         isCompleted: false, cid: txHash
