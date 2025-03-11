@@ -86,10 +86,6 @@ contract FinP2PSignatureVerifier is EIP712 {
         string returnedMoneyAmount;
     }
 
-    function emptyLoanTerm() public pure returns (LoanTerm memory) {
-        return LoanTerm("", "", "", "");
-    }
-
     constructor() EIP712(SIGNING_DOMAIN, SIGNATURE_VERSION) {}
 
     function verifyInvestmentSignature(

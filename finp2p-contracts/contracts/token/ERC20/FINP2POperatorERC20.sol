@@ -220,7 +220,7 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
                 sellerFinId,
                 assetTerm,
                 settlementTerm,
-                emptyLoanTerm(),
+                loanTerm,
                 buyerFinId,
                 signature
             ), "Signature is not verified");
@@ -292,7 +292,7 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
                 sellerFinId,
                 assetTerm,
                 settlementTerm,
-                emptyLoanTerm(),
+                loanTerm,
                 buyerFinId,
                 signature
             ), "Signature is not verified");
