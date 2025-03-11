@@ -2,9 +2,9 @@
 
 pragma solidity ^0.8.0;
 
-import "./Bytes.sol";
-import "./Signature.sol";
-import "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
+import {Bytes} from "./Bytes.sol";
+import {Signature} from "./Signature.sol";
+import {EIP712} from "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
 
 /**
  * @dev Library for FinP2P protocol signature verification.
@@ -86,6 +86,10 @@ contract FinP2PSignatureVerifier is EIP712 {
         string returnedMoneyAmount;
     }
 
+    function emptyLoanTerm() public pure returns (LoanTerm memory) {
+        return LoanTerm("", "", "", "");
+    }
+
     constructor() EIP712(SIGNING_DOMAIN, SIGNATURE_VERSION) {}
 
     function verifyInvestmentSignature(
@@ -95,13 +99,13 @@ contract FinP2PSignatureVerifier is EIP712 {
         string memory sellerFinId,
         Term memory asset,
         Term memory settlement,
+        LoanTerm memory loan,
         string memory signerFinId,
         bytes memory signature
     ) public view returns (bool) {
-        bytes32 hash = hashInvestment(primaryType, nonce, buyerFinId, sellerFinId, asset, settlement);
+        bytes32 hash = hashInvestment(primaryType, nonce, buyerFinId, sellerFinId, asset, settlement, loan);
         return Signature.verify(Bytes.finIdToAddress(signerFinId), hash, signature);
     }
-
 
     // --------------------------------------------------------------------------------------
 
@@ -120,7 +124,7 @@ contract FinP2PSignatureVerifier is EIP712 {
 
     function hashLoanTerms(LoanTerm memory loan) public pure returns (bytes32) {
         return keccak256(abi.encode(
-            TERM_TYPE_HASH,
+            LOAN_TERMS_TYPE_HASH,
             keccak256(bytes(loan.openTime)),
             keccak256(bytes(loan.closeTime)),
             keccak256(bytes(loan.borrowedMoneyAmount)),
@@ -134,7 +138,8 @@ contract FinP2PSignatureVerifier is EIP712 {
         string memory buyerFinId,
         string memory sellerFinId,
         Term memory asset,
-        Term memory settlement
+        Term memory settlement,
+        LoanTerm memory loan
     ) public view returns (bytes32) {
         if (primaryType == PRIMARY_TYPE_PRIMARY_SALE) {
             return _hashTypedDataV4(keccak256(abi.encode(
@@ -196,7 +201,6 @@ contract FinP2PSignatureVerifier is EIP712 {
             )));
 
         } else if (primaryType == PRIMARY_TYPE_LOAN) {
-            // TODO: pass loan terms
             return _hashTypedDataV4(keccak256(abi.encode(
                 LOAN_TYPE_HASH,
                 keccak256(bytes(nonce)),
@@ -204,7 +208,7 @@ contract FinP2PSignatureVerifier is EIP712 {
                 hashFinId(sellerFinId),
                 hashTerm(asset),
                 hashTerm(settlement),
-                hashLoanTerms(LoanTerm("0", "0", "0", "0"))
+                hashLoanTerms(loan)
             )));
         } else {
             revert("Invalid eip712 transfer signature type");

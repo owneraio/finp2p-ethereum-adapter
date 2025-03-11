@@ -6,7 +6,16 @@ import { v4 as uuid } from "uuid";
 import { generateNonce, toFixedDecimals } from "./utils";
 import { getFinId } from "../src/contracts/utils";
 import { Signer, Wallet } from "ethers";
-import { Leg, newInvestmentMessage, PrimaryType, sign, Term, term } from "../src/contracts/eip712";
+import {
+  emptyLoanTerms,
+  Leg, loanTerms,
+  LoanTerms,
+  newInvestmentMessage,
+  PrimaryType,
+  sign,
+  Term,
+  term
+} from "../src/contracts/eip712";
 import type { FINP2POperatorERC20 } from "../typechain-types";
 
 
@@ -77,20 +86,29 @@ describe("FinP2P proxy contract test", function() {
     const terms: {
       asset: Term,
       settlement: Term,
+      loan: LoanTerms,
       decimals: number
     }[] = [{
       asset: term(generateAssetId(), "finp2p", "10"),
       settlement: term("USD", "fiat", "100"),
+      loan: emptyLoanTerms(),
       decimals: 0
     }, {
       asset: term(generateAssetId(), "finp2p", "10.13"),
       settlement: term("GBP", "fiat", "10.13"),
+      loan: emptyLoanTerms(),
       decimals: 2
     }, {
       asset: term(generateAssetId(), "finp2p", "10.0001"),
       settlement: term(generateAssetId(), "finp2p", "10"),
+      loan: emptyLoanTerms(),
       decimals: 4
-    }, { asset: term(generateAssetId(), "finp2p", "1.01"), settlement: term("EUR", "fiat", "10000"), decimals: 18 }];
+    }, {
+      asset: term(generateAssetId(), "finp2p", "1.01"),
+      settlement: term("EUR", "fiat", "10000"),
+      loan: loanTerms("2025-02-01", "2025-02-01", "10000000.00", "10000030.00"),
+      decimals: 18
+    }];
 
     before(async () => {
       [operator] = await ethers.getSigners();
@@ -106,7 +124,7 @@ describe("FinP2P proxy contract test", function() {
     });
 
 
-    terms.forEach(({ decimals, asset, settlement }) => {
+    terms.forEach(({ decimals, asset, settlement, loan }) => {
       legs.forEach((leg) => {
 
         primaryTypes.forEach((primaryType) => {
@@ -127,7 +145,7 @@ describe("FinP2P proxy contract test", function() {
               message
             } = newInvestmentMessage(primaryType, nonce, buyer.finId, seller.finId, asset, settlement);
             const signature = await sign(chainId, verifyingContract, types, message, signer);
-            await expect(contract.transfer(nonce, seller.finId, buyer.finId, asset, settlement, leg, primaryType, signature, { from: operator }))
+            await expect(contract.transfer(nonce, seller.finId, buyer.finId, asset, settlement, loan, leg, primaryType, signature, { from: operator }))
               .to.emit(contract, "Transfer").withArgs(assetId, assetType, from, to, amount);
 
             expect(await contract.getBalance(assetId, from)).to.equal(`${(0).toFixed(decimals)}`);
@@ -155,7 +173,7 @@ describe("FinP2P proxy contract test", function() {
               message
             } = newInvestmentMessage(primaryType, nonce, buyer.finId, seller.finId, asset, settlement);
             const signature = await sign(chainId, verifyingContract, types, message, signer);
-            await expect(contract.hold(operationId, nonce, seller.finId, buyer.finId, asset, settlement, leg, primaryType, signature, { from: operator }))
+            await expect(contract.hold(operationId, nonce, seller.finId, buyer.finId, asset, settlement, loan, leg, primaryType, signature, { from: operator }))
               .to.emit(contract, "Hold").withArgs(assetId, assetType, from, amount, operationId);
 
             expect(await contract.getBalance(assetId, from)).to.equal(`${(0).toFixed(decimals)}`);
@@ -212,7 +230,7 @@ describe("FinP2P proxy contract test", function() {
               message
             } = newInvestmentMessage(primaryType, nonce, buyerFinId, sellerFinId, asset, settlement);
             const signature = await sign(chainId, verifyingContract, types, message, signer);
-            await expect(contract.hold(operationId, nonce, sellerFinId, buyerFinId, asset, settlement, leg, primaryType, signature, { from: operator }))
+            await expect(contract.hold(operationId, nonce, sellerFinId, buyerFinId, asset, settlement, loan, leg, primaryType, signature, { from: operator }))
               .to.emit(contract, "Hold").withArgs(assetId, assetType, from, amount, operationId);
 
             expect(await contract.getBalance(assetId, from)).to.equal(`${(0).toFixed(decimals)}`);
@@ -274,7 +292,7 @@ describe("FinP2P proxy contract test", function() {
           } = newInvestmentMessage(PrimaryType.Redemption, nonce, issuerFinId, investorFinId, asset, settlement);
           const signature = await sign(chainId, verifyingContract, types, message, signer);
 
-          await expect(contract.hold(operationId, nonce, investorFinId, issuerFinId, asset, settlement, leg, PrimaryType.Redemption, signature, { from: operator }))
+          await expect(contract.hold(operationId, nonce, investorFinId, issuerFinId, asset, settlement, loan, leg, PrimaryType.Redemption, signature, { from: operator }))
             .to.emit(contract, "Hold").withArgs(assetId, assetType, investorFinId, amount, operationId);
           const lock = await contract.getLockInfo(operationId);
           expect(lock[0]).to.equal(assetId);

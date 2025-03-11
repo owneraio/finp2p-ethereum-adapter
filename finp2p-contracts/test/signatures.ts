@@ -9,8 +9,11 @@ import { getFinId } from "../src/contracts/utils";
 import {
   asset,
   destination,
+  emptyLoanTerms,
   executionContext,
   hash,
+  loanTerms,
+  LoanTerms,
   newInvestmentMessage,
   newReceiptMessage,
   PrimaryType,
@@ -43,6 +46,7 @@ describe("Signing test", function() {
     sellerFinId: string,
     asset: Term,
     settlement: Term,
+    loan: LoanTerms,
     signer: HDNodeWallet
   }[] = [{
     primaryType: PrimaryType.PrimarySale,
@@ -51,6 +55,7 @@ describe("Signing test", function() {
     sellerFinId: getFinId(seller),
     asset: term(`bank-us:102:${uuidv4()}`, "finp2p", `${getRandomNumber(1, 100)}`),
     settlement: term("USD", "fiat", `${getRandomNumber(1, 100)}`),
+    loan: emptyLoanTerms(),
     signer: seller
   }, {
     primaryType: PrimaryType.Buying,
@@ -59,6 +64,7 @@ describe("Signing test", function() {
     sellerFinId: getFinId(seller),
     asset: term(`bank-us:102:${uuidv4()}`, "finp2p", `${getRandomNumber(1, 100)}`),
     settlement: term("USD", "fiat", `${getRandomNumber(1, 100)}`),
+    loan: emptyLoanTerms(),
     signer: seller
   }, {
     primaryType: PrimaryType.Selling,
@@ -67,6 +73,7 @@ describe("Signing test", function() {
     sellerFinId: getFinId(seller),
     asset: term(`bank-us:102:${uuidv4()}`, "finp2p", `${getRandomNumber(1, 100)}`),
     settlement: term("USD", "fiat", `${getRandomNumber(1, 100)}`),
+    loan: emptyLoanTerms(),
     signer: seller
   }, {
     primaryType: PrimaryType.Redemption,
@@ -75,6 +82,7 @@ describe("Signing test", function() {
     sellerFinId: getFinId(seller),
     asset: term(`bank-us:102:${uuidv4()}`, "finp2p", `${getRandomNumber(1, 100)}`),
     settlement: term("USD", "fiat", `${getRandomNumber(1, 100)}`),
+    loan: emptyLoanTerms(),
     signer: seller
   }, {
     primaryType: PrimaryType.RequestForTransfer,
@@ -83,6 +91,7 @@ describe("Signing test", function() {
     sellerFinId: getFinId(seller),
     asset: term(`bank-us:102:${uuidv4()}`, "finp2p", `${getRandomNumber(1, 100)}`),
     settlement: term("USD", "fiat", `${getRandomNumber(1, 100)}`),
+    loan: emptyLoanTerms(),
     signer: seller
   }, {
     primaryType: PrimaryType.PrivateOffer,
@@ -91,20 +100,33 @@ describe("Signing test", function() {
     sellerFinId: getFinId(seller),
     asset: term(`bank-us:102:${uuidv4()}`, "finp2p", `${getRandomNumber(1, 100)}`),
     settlement: term("USD", "fiat", `${getRandomNumber(1, 100)}`),
+    loan: emptyLoanTerms(),
+    signer: seller
+  }, {
+    primaryType: PrimaryType.Loan,
+    nonce: `${generateNonce().toString("hex")}`,
+    buyerFinId: getFinId(buyer),
+    sellerFinId: getFinId(seller),
+    asset: term(`bank-us:102:${uuidv4()}`, "finp2p", `${getRandomNumber(1, 100)}`),
+    settlement: term("USD", "fiat", `${getRandomNumber(1, 100)}`),
+    loan: loanTerms("2025-01-01", "2025-01-02", "1000000.00", "1000123.71"),
     signer: seller
   }];
-  testCases.forEach(({ primaryType, nonce, buyerFinId, sellerFinId, asset, settlement, signer }) => {
+  testCases.forEach(({ primaryType, nonce, buyerFinId, sellerFinId, asset, settlement, loan, signer }) => {
     it(`Investor signatures (primary type: ${primaryType})`, async function() {
       const { contract: verifier } = await loadFixture(deployFinP2PSignatureVerifier);
       const { chainId, verifyingContract } = await verifier.eip712Domain();
       const signerAddress = await signer.getAddress();
-      const { types, message } = newInvestmentMessage(primaryType, nonce, buyerFinId, sellerFinId, asset, settlement);
+      const {
+        types,
+        message
+      } = newInvestmentMessage(primaryType, nonce, buyerFinId, sellerFinId, asset, settlement, loan);
       const signature = await sign(chainId, verifyingContract, types, message, signer);
       const offChainHash = hash(chainId, verifyingContract, types, message);
       expect(verify(chainId, verifyingContract, types, message, signerAddress, signature)).to.equal(true);
-      const onChainHash = await verifier.hashInvestment(primaryType, nonce, buyerFinId, sellerFinId, asset, settlement);
-      expect(await verifier.verifyInvestmentSignature(primaryType, nonce, buyerFinId, sellerFinId, asset, settlement, getFinId(signer), signature)).to.equal(true);
+      const onChainHash = await verifier.hashInvestment(primaryType, nonce, buyerFinId, sellerFinId, asset, settlement, loan);
       expect(offChainHash).to.equal(onChainHash);
+      expect(await verifier.verifyInvestmentSignature(primaryType, nonce, buyerFinId, sellerFinId, asset, settlement, loan, getFinId(signer), signature)).to.equal(true);
     });
   });
 

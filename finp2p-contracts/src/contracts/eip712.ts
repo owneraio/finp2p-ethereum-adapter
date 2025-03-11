@@ -123,7 +123,7 @@ export const PRIVATE_OFFER_TYPES = {
 };
 
 export const LOAN_TERMS_TYPE = {
-  Term: [
+  LoanTerms: [
     { name: "openTime", type: "string" },
     { name: "closeTime", type: "string" },
     { name: "borrowedMoneyAmount", type: "string" },
@@ -227,6 +227,14 @@ export interface FinId {
 
 export const finId = (key: string): FinId => {
   return { idkey: key };
+};
+
+export const emptyLoanTerms = (): LoanTerms => {
+  return loanTerms('', '', '', '');
+}
+
+export const loanTerms = (openTime: string, closeTime: string, borrowedMoneyAmount: string, returnedMoneyAmount: string): LoanTerms => {
+  return { openTime, closeTime, borrowedMoneyAmount, returnedMoneyAmount };
 };
 
 export interface LoanTerms {
@@ -363,7 +371,8 @@ export const newInvestmentMessage = (
   buyerFinId: string,
   sellerFinId: string,
   asset: Term,
-  settlement: Term
+  settlement: Term,
+  loan: LoanTerms | undefined = undefined
 ): { message: EIP712Message, types: Record<string, Array<TypedDataField>> } => {
   let message: EIP712Message;
   let types: Record<string, Array<TypedDataField>>;
@@ -393,8 +402,11 @@ export const newInvestmentMessage = (
       message = newPrivateOfferMessage(nonce, finId(buyerFinId), finId(sellerFinId), asset, settlement);
       break;
     case PrimaryType.Loan:
-      types = LOAN_TERMS_TYPE;
-      message = newLoanMessage(nonce, finId(buyerFinId), finId(sellerFinId), asset, settlement, {} as LoanTerms);
+      types = LOAN_TYPES;
+      if (!loan) {
+        throw new Error("Loan terms are required for loan intent");
+      }
+      message = newLoanMessage(nonce, finId(buyerFinId), finId(sellerFinId), asset, settlement, loan);
       break;
     default:
       throw new Error(`Unknown primary type: ${primaryType}`);
