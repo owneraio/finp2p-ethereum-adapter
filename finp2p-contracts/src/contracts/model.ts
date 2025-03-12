@@ -47,11 +47,27 @@ export type ReceiptProof = {
   signature: string
 }
 
+export const operationTypeToEIP712 = (operationType: "transfer" | "redeem" | "hold" | "release" | "issue"):
+  "Transfer" | "Redeem" | "Hold" | "Release" | "Issue" => {
+  switch (operationType) {
+    case "transfer":
+      return "Transfer";
+    case "redeem":
+      return "Redeem";
+    case "hold":
+      return "Hold";
+    case "release":
+      return "Release";
+    case "issue":
+      return "Issue";
+  }
+};
+
 export const receiptToEIP712Message = (receipt: FinP2PReceipt): EIP712ReceiptMessage => {
   const { id, operationType, assetId, assetType, quantity, source, destination, operationId } = receipt;
   return {
     id,
-    operationType,
+    operationType: operationTypeToEIP712(operationType),
     source: { accountType: source ? "finId" : "", finId: source || "" },
     destination: { accountType: destination ? "finId" : "", finId: destination || "" },
     quantity,
