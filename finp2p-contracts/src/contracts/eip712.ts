@@ -16,12 +16,14 @@ export const enum PrimaryType {
   Loan = 7
 }
 
-export type TypedDataField = {
-  name: string;
-  type: string;
-};
+export type EIP712Domain = {
+  name: string
+  version: string
+  chainId: number
+  verifyingContract: string
+}
 
-export const DOMAIN = {
+export const DOMAIN: EIP712Domain = {
   name: "FinP2P",
   version: "1",
   chainId: 1,
@@ -192,21 +194,31 @@ export const TRANSACTION_DETAILS_TYPE = {
 export const RECEIPT_PROOF_TYPES = {
   ...SOURCE_TYPE,
   ...DESTINATION_TYPE,
+  ...TRANSACTION_DETAILS_TYPE,
   ...ASSET_TYPE,
   ...EXECUTION_CONTEXT_TYPE,
   ...TRADE_DETAILS_TYPE,
-  ...TRANSACTION_DETAILS_TYPE,
   Receipt: [
     { name: "id", type: "string" },
     { name: "operationType", type: "string" },
     { name: "source", type: "Source" },
     { name: "destination", type: "Destination" },
     { name: "asset", type: "Asset" },
-    // { name: "quantity", type: "string" },
     { name: "tradeDetails", type: "TradeDetails" },
-    { name: "transactionDetails", type: "TransactionDetails" }
+    { name: "transactionDetails", type: "TransactionDetails" },
+    { name: "quantity", type: "string" }
   ]
 };
+
+export type EIP712Template = {
+  primaryType: string
+  domain: EIP712Domain,
+  types: EIP712Types,
+  message: EIP712Message
+  hash: string
+}
+
+export type EIP712Types = Record<string, Array<{ name: string; type: string }>>
 
 export interface EIP712Message {
 }
@@ -216,8 +228,8 @@ export const term = (assetId: string, assetType: string, amount: string): Term =
 };
 
 export const emptyTerm = (): Term => {
-  return term('', '', '');
-}
+  return term("", "", "");
+};
 
 export interface Term {
   assetId: string,
@@ -234,8 +246,8 @@ export const finId = (key: string): FinId => {
 };
 
 export const emptyLoanTerms = (): LoanTerms => {
-  return loanTerms('', '', '', '');
-}
+  return loanTerms("", "", "", "");
+};
 
 export const loanTerms = (openTime: string, closeTime: string, borrowedMoneyAmount: string, returnedMoneyAmount: string): LoanTerms => {
   return { openTime, closeTime, borrowedMoneyAmount, returnedMoneyAmount };
@@ -364,7 +376,7 @@ export interface EIP712ReceiptMessage extends EIP712Message {
   source: Source,
   destination: Destination,
   asset: Asset,
-  // quantity: string,
+  quantity: string,
   tradeDetails: TradeDetails,
   transactionDetails: TransactionDetails
 }
@@ -377,9 +389,9 @@ export const newInvestmentMessage = (
   asset: Term,
   settlement: Term,
   loan: LoanTerms | undefined = undefined
-): { message: EIP712Message, types: Record<string, Array<TypedDataField>> } => {
+): { message: EIP712Message, types: EIP712Types } => {
   let message: EIP712Message;
-  let types: Record<string, Array<TypedDataField>>;
+  let types: EIP712Types;
   switch (primaryType) {
     case PrimaryType.PrimarySale:
       types = PRIMARY_SALE_TYPES;
@@ -447,24 +459,24 @@ export const newLoanMessage = (nonce: string, borrower: FinId, lender: FinId, as
 };
 
 export const newReceiptMessage = (id: string, operationType: string, source: Source, destination: Destination, asset: Asset, quantity: string, tradeDetails: TradeDetails, transactionDetails: TransactionDetails): EIP712ReceiptMessage => {
-  return { id, operationType, source, destination, asset,/* quantity, */ tradeDetails, transactionDetails };
+  return { id, operationType, source, destination, asset, quantity, tradeDetails, transactionDetails };
 };
 
-export const signWithPrivateKey = <T extends EIP712Message>(chainId: bigint | number, verifyingContract: string, types: Record<string, Array<TypedDataField>>, message: T, signerPrivateKey: string) => {
+export const signWithPrivateKey = <T extends EIP712Message>(chainId: bigint | number, verifyingContract: string, types: EIP712Types, message: T, signerPrivateKey: string) => {
   return sign(chainId, verifyingContract, types, message, new Wallet(signerPrivateKey));
 };
 
-export const sign = <T extends EIP712Message>(chainId: bigint | number, verifyingContract: string, types: Record<string, Array<TypedDataField>>, message: T, signer: Signer) => {
+export const sign = <T extends EIP712Message>(chainId: bigint | number, verifyingContract: string, types: EIP712Types, message: T, signer: Signer) => {
   const domain = { ...DOMAIN, chainId, verifyingContract };
   return signer.signTypedData(domain, types, message);
 };
 
-export const hash = <T extends EIP712Message>(chainId: bigint | number, verifyingContract: string, types: Record<string, Array<TypedDataField>>, message: T) => {
+export const hash = <T extends EIP712Message>(chainId: bigint | number, verifyingContract: string, types: EIP712Types, message: T) => {
   const domain = { ...DOMAIN, chainId, verifyingContract };
   return TypedDataEncoder.hash(domain, types, message);
 };
 
-export const verify = <T extends EIP712Message>(chainId: bigint | number, verifyingContract: string, types: Record<string, Array<TypedDataField>>, message: T, signerAddress: string, signature: string) => {
+export const verify = <T extends EIP712Message>(chainId: bigint | number, verifyingContract: string, types: EIP712Types, message: T, signerAddress: string, signature: string) => {
   const domain = { ...DOMAIN, chainId, verifyingContract };
   const address = verifyTypedData(domain, types, message, signature);
   return address.toLowerCase() === signerAddress.toLowerCase();

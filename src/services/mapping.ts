@@ -1,20 +1,16 @@
-import { EIP712Template, FinP2PReceipt, ReceiptProof } from "../../finp2p-contracts/src/contracts/model";
+import { FinP2PReceipt, ReceiptProof } from "../../finp2p-contracts/src/contracts/model";
 import {
-  asset,
-  destination,
-  EIP712ReceiptMessage,
+  EIP712Domain,
+  EIP712Message,
+  EIP712Template,
+  EIP712Types,
   emptyLoanTerms,
   emptyTerm,
-  executionContext,
   Leg,
   LoanTerms,
   PrimaryType,
-  source,
-  Term,
-  tradeDetails,
-  transactionDetails
+  Term
 } from "../../finp2p-contracts/src/contracts/eip712";
-import { TypedDataDomain, TypedDataField } from "ethers";
 import Asset = Components.Schemas.Asset;
 import Receipt = Components.Schemas.Receipt;
 import LedgerAssetInfo = Components.Schemas.LedgerAssetInfo;
@@ -86,22 +82,24 @@ export const assetToAPI = (assetId: string, assetType: string): Asset => {
   }
 };
 
-export const eip712DomainToAPI = (domain: TypedDataDomain): Components.Schemas.EIP712Domain => {
+export const eip712DomainToAPI = (domain: EIP712Domain): Components.Schemas.EIP712Domain => {
   const { name, version, chainId, verifyingContract } = domain;
   return { name, version, chainId, verifyingContract } as Components.Schemas.EIP712Domain;
 };
 
-export const eip712TypesToAPI = (types: Record<string, Array<TypedDataField>>): Components.Schemas.EIP712Types => {
+export const eip712TypesToAPI = (types: EIP712Types): Components.Schemas.EIP712Types => {
   return {
-    definitions: Object.entries(types).map(([typeName, fields]) => ({
-      name: typeName, fields: fields.map(field => ({
-        name: field.name, type: field.type
+    definitions: Object.entries(types).map(([name, fields]) => ({
+      name,
+      fields: fields.map(field => ({
+        name: field.name,
+        type: field.type
       }))
     }))
   } as Components.Schemas.EIP712Types;
 };
 
-export const eip712MessageToAPI = (message: Record<string, any>): {
+export const eip712MessageToAPI = (message: EIP712Message): {
   [name: string]: Components.Schemas.EIP712TypedValue;
 } => {
   const convertValue = (value: any): Components.Schemas.EIP712TypedValue => {
@@ -118,12 +116,14 @@ export const eip712MessageToAPI = (message: Record<string, any>): {
       return value.map(convertValue) as Components.Schemas.EIP712TypeArray;
     }
     if (typeof value === "object" && value !== null) {
-      return Object.fromEntries(Object.entries(value).map(([key, val]) => [key, convertValue(val)])) as Components.Schemas.EIP712TypeObject;
+      return Object.fromEntries(Object.entries(value)
+        .map(([key, val]) => [key, convertValue(val)])) as Components.Schemas.EIP712TypeObject;
     }
     throw new Error("Unsupported EIP712 message value type");
   };
 
-  return Object.fromEntries(Object.entries(message).map(([key, val]) => [key, convertValue(val)])) as Components.Schemas.EIP712TypeObject;
+  return Object.fromEntries(Object.entries(message)
+    .map(([key, val]) => [key, convertValue(val)])) as Components.Schemas.EIP712TypeObject;
 };
 
 export const eip712TemplateToAPI = (template: EIP712Template): Components.Schemas.EIP712Template => {
@@ -149,8 +149,11 @@ export const proofToAPI = (proof: ReceiptProof | undefined): ProofPolicy | undef
       };
     case "signature-proof":
       return {
-        type: "signatureProofPolicy", signature: {
-          template: eip712TemplateToAPI(proof.template), hashFunc: "keccak_256", signature: proof.signature
+        type: "signatureProofPolicy",
+        signature: {
+          template: eip712TemplateToAPI(proof.template),
+          hashFunc: "keccak_256",
+          signature: proof.signature
         }
       };
   }
@@ -182,18 +185,6 @@ export const receiptToAPI = (receipt: FinP2PReceipt): Receipt => {
     tradeDetails: {},
     operationType,
     proof: proofToAPI(proof)
-  };
-};
-
-export const receiptToEIP712Message = (receipt: FinP2PReceipt): EIP712ReceiptMessage => {
-  return {
-    id: receipt.id,
-    operationType: receipt.operationType,
-    source: source(receipt.source ? "finp2p" : "", receipt.source || ""),
-    destination: destination(receipt.destination ? "finp2p" : "", receipt.destination || ""), // quantity,
-    asset: asset(receipt.assetId, receipt.assetType),
-    tradeDetails: tradeDetails(executionContext("", "")),
-    transactionDetails: transactionDetails(receipt.operationId || "", receipt.id)
   };
 };
 

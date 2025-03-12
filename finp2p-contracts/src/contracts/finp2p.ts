@@ -3,7 +3,6 @@ import FINP2P from "../../artifacts/contracts/token/ERC20/FINP2POperatorERC20.so
 import { FINP2POperatorERC20 } from "../../typechain-types";
 import {
   completedOperation,
-  EIP712Domain,
   failedOperation,
   FinP2PReceipt,
   OperationStatus,
@@ -11,7 +10,7 @@ import {
 } from "./model";
 import { hashToBytes16, parseTransactionReceipt } from "./utils";
 import { ContractsManager } from "./manager";
-import { Leg, LoanTerms, PrimaryType, Term } from "./eip712";
+import { EIP712Domain, Leg, LoanTerms, PrimaryType, Term } from "./eip712";
 import winston from "winston";
 import { FINP2POperatorERC20Interface } from "../../typechain-types/contracts/token/ERC20/FINP2POperatorERC20";
 import { PayableOverrides } from "../../typechain-types/common";

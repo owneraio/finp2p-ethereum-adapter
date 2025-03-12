@@ -1,4 +1,11 @@
-import { TypedDataDomain, TypedDataField } from "ethers";
+import {
+  asset,
+  EIP712ReceiptMessage,
+  EIP712Template,
+  executionContext,
+  tradeDetails,
+  transactionDetails
+} from "./eip712";
 
 export type OperationStatus = PendingTransaction | SuccessfulTransaction | FailedTransaction;
 
@@ -31,21 +38,6 @@ export const failedOperation = (message: string, code: number): FailedTransactio
   };
 };
 
-// similar to TypedDataDomain
-export type EIP712Domain = {
-  chainId: number
-  verifyingContract: string
-  name: string
-  version: string
-}
-
-export type EIP712Template = {
-  primaryType: string
-  domain: TypedDataDomain,
-  types: Record<string, Array<TypedDataField>>,
-  message: Record<string, any>
-  hash: string
-}
 
 export type ReceiptProof = {
   type: "no-proof"
@@ -54,6 +46,20 @@ export type ReceiptProof = {
   template: EIP712Template
   signature: string
 }
+
+export const receiptToEIP712Message = (receipt: FinP2PReceipt): EIP712ReceiptMessage => {
+  const { id, operationType, assetId, assetType, quantity, source, destination, operationId } = receipt;
+  return {
+    id,
+    operationType,
+    source: { accountType: source ? "finId" : "", finId: source || "" },
+    destination: { accountType: destination ? "finId" : "", finId: destination || "" },
+    quantity,
+    asset: asset(assetId, assetType),
+    tradeDetails: tradeDetails(executionContext("", "")),
+    transactionDetails: transactionDetails(operationId || "", id)
+  };
+};
 
 export type FinP2PReceipt = {
   id: string

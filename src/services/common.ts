@@ -1,9 +1,13 @@
 import { logger } from "../helpers/logger";
 import { FinP2PContract } from "../../finp2p-contracts/src/contracts/finp2p";
-import { EIP712Domain, FinP2PReceipt } from "../../finp2p-contracts/src/contracts/model";
-import { assetFromAPI, receiptToAPI, receiptToEIP712Message } from "./mapping";
+import { FinP2PReceipt, receiptToEIP712Message } from "../../finp2p-contracts/src/contracts/model";
+import { assetFromAPI, receiptToAPI } from "./mapping";
 import { PolicyGetter } from "../finp2p/policy";
-import { DOMAIN_TYPE, RECEIPT_PROOF_TYPES } from "../../finp2p-contracts/src/contracts/eip712";
+import {
+  DOMAIN_TYPE,
+  EIP712Domain,
+  RECEIPT_PROOF_TYPES,
+} from "../../finp2p-contracts/src/contracts/eip712";
 import { ProofDomain } from "../finp2p/model";
 
 
@@ -108,7 +112,9 @@ export class CommonService {
         // ethers doesn't allow to pass an eip712 domain in a list of types, but the domain is required on a router side
         const extendedType = { ...DOMAIN_TYPE, ...types };
         receipt.proof = {
-          type: "signature-proof", template: { primaryType, domain, types: extendedType, hash, message }, signature
+          type: "signature-proof",
+          template: { primaryType, domain, types: extendedType, hash, message },
+          signature
         };
 
         return receipt;
