@@ -200,8 +200,8 @@ contract FinP2PSignatureVerifier is EIP712 {
             return _hashTypedDataV4(keccak256(abi.encode(
                 LOAN_TYPE_HASH,
                 keccak256(bytes(nonce)),
-                hashFinId(buyerFinId),
                 hashFinId(sellerFinId),
+                hashFinId(buyerFinId),
                 hashTerm(asset),
                 hashTerm(settlement),
                 hashLoanTerms(loan)

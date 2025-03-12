@@ -343,11 +343,11 @@ export const extractParameterEIP712 = (template: Components.Schemas.SignatureTem
     }
     case "Loan": {
       return {
-        buyerFinId: finIdFromAPI(template.message.borrower as EIP712TypeObject),
-        sellerFinId: finIdFromAPI(template.message.lender as EIP712TypeObject),
+        sellerFinId: finIdFromAPI(template.message.borrower as EIP712TypeObject),
+        buyerFinId : finIdFromAPI(template.message.lender as EIP712TypeObject),
         asset: termFromAPI(template.message.asset as EIP712TypeObject),
         settlement: emptyTerm(),
-        loan: loanTermFromAPI(template.message.loan as EIP712TypeObject),
+        loan: loanTermFromAPI(template.message.loanTerms as EIP712TypeObject),
         leg,
         eip712PrimaryType
       };

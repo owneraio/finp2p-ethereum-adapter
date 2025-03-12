@@ -422,7 +422,7 @@ export const newInvestmentMessage = (
       if (!loan) {
         throw new Error("Loan terms are required for loan intent");
       }
-      message = newLoanMessage(nonce, finId(buyerFinId), finId(sellerFinId), asset, settlement, loan);
+      message = newLoanMessage(nonce, finId(sellerFinId), finId(buyerFinId), asset, settlement, loan);
       break;
     default:
       throw new Error(`Unknown primary type: ${primaryType}`);
