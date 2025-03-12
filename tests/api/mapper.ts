@@ -1,4 +1,4 @@
-import { EIP712Message, hash, signWithPrivateKey, TypedDataField } from "../../finp2p-contracts/src/contracts/eip712";
+import { EIP712Message, EIP712Types, hash, signWithPrivateKey } from "../../finp2p-contracts/src/contracts/eip712";
 
 export const eip712Signature = async (chainId: number, verifyingContract: string, primaryType: string, types: Record<string, Array<TypedDataField>>, message: EIP712Message, signerPrivateKey: string) => {
   const hashVal = hash(chainId, verifyingContract, types, message);
@@ -13,7 +13,7 @@ export const eip712Signature = async (chainId: number, verifyingContract: string
 };
 
 
-export const eip712TypesToAPI = (types: Record<string, Array<TypedDataField>>): Components.Schemas.EIP712Types => {
+export const eip712TypesToAPI = (types: EIP712Types): Components.Schemas.EIP712Types => {
   return {
     definitions: Object.entries(types)
       .map(([name, fields]) => {
