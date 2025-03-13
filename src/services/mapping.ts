@@ -17,6 +17,7 @@ import {
   PrimaryType,
   Term
 } from "../../finp2p-contracts/src/contracts/eip712";
+import { hashToBytes16 } from "../../finp2p-contracts/src/contracts/utils";
 import Asset = Components.Schemas.Asset;
 import Receipt = Components.Schemas.Receipt;
 import LedgerAssetInfo = Components.Schemas.LedgerAssetInfo;
@@ -28,7 +29,6 @@ import FinP2PEVMOperatorDetails = Components.Schemas.FinP2PEVMOperatorDetails;
 import EIP712TypeObject = Components.Schemas.EIP712TypeObject;
 import EIP712TypeString = Components.Schemas.EIP712TypeString;
 import ProofPolicy = Components.Schemas.ProofPolicy;
-import { hashToBytes16 } from "../../finp2p-contracts/src/contracts/utils";
 
 export const assetFromAPI = (asset: Components.Schemas.Asset): {
   assetId: string, assetType: "fiat" | "finp2p" | "cryptocurrency",
@@ -292,10 +292,18 @@ type EIP712Params = {
   params: OperationParams
 };
 
-export const extractParameterEIP712 = (template: Components.Schemas.SignatureTemplate, reqAsset: {
-  assetId: string,
-  assetType: "fiat" | "finp2p" | "cryptocurrency",
-}, operationId: string = ''): EIP712Params => {
+export const extractParameterEIP712 = (
+  template: Components.Schemas.SignatureTemplate,
+  reqAsset: {
+    assetId: string,
+    assetType: "fiat" | "finp2p" | "cryptocurrency",
+  },
+  operationId: string = "",
+  executionContext: {
+    executionPlanId: string,
+    instructionSequenceNumber: number
+  } | undefined
+): EIP712Params => {
   if (template.type != "EIP712") {
     throw new Error(`Unsupported signature template type: ${template.type}`);
   }
@@ -345,13 +353,17 @@ export const extractParameterEIP712 = (template: Components.Schemas.SignatureTem
       };
     }
     case "Loan": {
+      let phase: Phase = Phase.Initiate
+      if (executionContext && executionContext.instructionSequenceNumber > 3) {
+          phase = Phase.Close;
+      }
       return {
         sellerFinId: finIdFromAPI(template.message.borrower as EIP712TypeObject),
-        buyerFinId : finIdFromAPI(template.message.lender as EIP712TypeObject),
+        buyerFinId: finIdFromAPI(template.message.lender as EIP712TypeObject),
         asset: termFromAPI(template.message.asset as EIP712TypeObject),
         settlement: termFromAPI(template.message.settlement as EIP712TypeObject),
         loan: loanTermFromAPI(template.message.loanTerms as EIP712TypeObject),
-        params: operationParams(leg, eip712PrimaryType, Phase.Initiate, hashToBytes16(operationId))
+        params: operationParams(leg, eip712PrimaryType, phase, hashToBytes16(operationId))
       };
     }
     default:

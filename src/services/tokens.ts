@@ -110,7 +110,7 @@ export class TokenService extends CommonService {
   }
 
   public async transfer(request: Paths.TransferAsset.RequestBody): Promise<Paths.TransferAsset.Responses.$200> {
-    const { nonce, asset, quantity, source, destination } = request;
+    const { nonce, asset, quantity, source, destination, executionContext } = request;
     const reqAsset = assetFromAPI(asset);
     const { signature, template } = request.signature;
 
