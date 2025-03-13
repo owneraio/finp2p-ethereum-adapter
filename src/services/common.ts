@@ -59,7 +59,7 @@ export class CommonService {
         if (executionContext) {
           receipt = { ...receipt, tradeDetails: { executionContext } }
         }
-        const receiptResponse = receiptToAPI(await this.ledgerProof(status.receipt));
+        const receiptResponse = receiptToAPI(await this.ledgerProof(receipt));
         return {
           type: 'receipt',
           operation: {
