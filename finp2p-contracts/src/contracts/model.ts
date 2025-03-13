@@ -96,7 +96,7 @@ export const receiptToEIP712Message = (receipt: FinP2PReceipt): EIP712ReceiptMes
     asset: asset(receipt.assetId, receipt.assetType),
     tradeDetails: tradeDetails(executionContext(
       receipt?.tradeDetails?.executionContext.executionPlanId || '',
-      `${receipt?.tradeDetails?.executionContext.instructionSequenceNumber || ''} `)),
+      `${receipt?.tradeDetails?.executionContext.instructionSequenceNumber || ''}`)),
     transactionDetails: transactionDetails(receipt.operationId || '', receipt.id),
   }
 }
