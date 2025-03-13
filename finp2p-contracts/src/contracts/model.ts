@@ -6,11 +6,11 @@ import {
   tradeDetails,
   transactionDetails
 } from "./eip712";
-import { BigNumberish, BytesLike, zeroPadBytes } from "ethers";
+import { zeroPadBytes } from "ethers";
 
 export const enum Phase {
-  Initiate = 1,
-  Close = 2
+  Initiate = 0,
+  Close = 1
 }
 
 export interface OperationParams {

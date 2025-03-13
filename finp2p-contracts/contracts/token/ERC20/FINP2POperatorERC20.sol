@@ -23,12 +23,10 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
     using StringUtils for string;
     using StringUtils for uint256;
 
-    uint8 public constant LEG_ASSET = 1;
-    uint8 public constant LEG_SETTLEMENT = 2;
-
-    uint8 public constant PHASE_INITIATE = 1;
-    uint8 public constant PHASE_CLOSE = 2;
-
+    enum Phase {
+        INITIATE,
+        CLOSE
+    }
 
     string public constant VERSION = "0.22.1";
 
@@ -36,9 +34,9 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
     bytes32 private constant TRANSACTION_MANAGER = keccak256("TRANSACTION_MANAGER");
 
     struct OperationParams {
-        uint8 leg;
-        uint8 phase;
-        uint8 eip712PrimaryType;
+        LegType leg;
+        Phase phase;
+        PrimaryType eip712PrimaryType;
         bytes16 operationId;
     }
 
@@ -211,7 +209,7 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
             string memory assetId,
             string memory assetType,
             string memory amount) = _extractDirection(sellerFinId, buyerFinId, assetTerm, settlementTerm, op);
-        if (op.phase == PHASE_INITIATE) {
+        if (op.phase == Phase.INITIATE) {
             require(verifyInvestmentSignature(
                 op.eip712PrimaryType,
                 nonce,
@@ -223,7 +221,7 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
                 source,
                 signature
             ), "Signature is not verified");
-        } else if (op.phase == PHASE_CLOSE) {
+        } else if (op.phase == Phase.CLOSE) {
             require(verifyInvestmentSignature(
                 op.eip712PrimaryType,
                 nonce,
@@ -273,7 +271,7 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
     ) external {
         require(hasRole(TRANSACTION_MANAGER, _msgSender()), "FINP2POperatorERC20: must have transaction manager role to hold asset");
         (string memory source, string memory destination, string memory assetId, string memory assetType, string memory amount) = _extractDirection(sellerFinId, buyerFinId, assetTerm, settlementTerm, op);
-        if (op.phase == PHASE_INITIATE) {
+        if (op.phase == Phase.INITIATE) {
             require(verifyInvestmentSignature(
                 op.eip712PrimaryType,
                 nonce,
@@ -285,7 +283,7 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
                 source,
                 signature
             ), "Signature is not verified");
-        } else if (op.phase == PHASE_CLOSE) {
+        } else if (op.phase == Phase.CLOSE) {
             require(verifyInvestmentSignature(
                 op.eip712PrimaryType,
                 nonce,
@@ -424,18 +422,18 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
         Term memory settlementTerm,
         OperationParams memory op
     ) internal pure returns (string memory, string memory, string memory, string memory, string memory) {
-        if (op.leg == LEG_ASSET) {
-            if (op.phase == PHASE_INITIATE) {
+        if (op.leg == LegType.ASSET) {
+            if (op.phase == Phase.INITIATE) {
                 return (sellerFinId, buyerFinId, assetTerm.assetId, assetTerm.assetType, assetTerm.amount);
-            } else if (op.phase == PHASE_CLOSE) {
+            } else if (op.phase == Phase.CLOSE) {
                 return (buyerFinId, sellerFinId, assetTerm.assetId, assetTerm.assetType, assetTerm.amount);
             } else {
                 revert("Invalid phase");
             }
-        } else if (op.leg == LEG_SETTLEMENT) {
-            if (op.phase == PHASE_INITIATE) {
+        } else if (op.leg == LegType.SETTLEMENT) {
+            if (op.phase == Phase.INITIATE) {
                 return (buyerFinId, sellerFinId, settlementTerm.assetId, settlementTerm.assetType, settlementTerm.amount);
-            } else if (op.phase == PHASE_CLOSE) {
+            } else if (op.phase == Phase.CLOSE) {
                 return (sellerFinId, buyerFinId, settlementTerm.assetId, settlementTerm.assetType, settlementTerm.amount);
             } else {
                 revert("Invalid phase");

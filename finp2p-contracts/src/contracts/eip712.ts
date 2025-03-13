@@ -2,18 +2,18 @@ import { Signer, TypedDataEncoder, verifyTypedData, Wallet } from "ethers";
 
 
 export const enum LegType {
-  Asset = 1,
-  Settlement = 2
+  Asset = 0,
+  Settlement = 1
 }
 
 export const enum PrimaryType {
-  PrimarySale = 1,
-  Buying = 2,
-  Selling = 3,
-  Redemption = 4,
-  RequestForTransfer = 5,
-  PrivateOffer = 6,
-  Loan = 7
+  PrimarySale = 0,
+  Buying = 1,
+  Selling = 2,
+  Redemption = 3,
+  RequestForTransfer = 4,
+  PrivateOffer = 5,
+  Loan = 6
 }
 
 export type EIP712Domain = {
