@@ -1,4 +1,4 @@
-import { CommonService } from './common';
+import { CommonService, ExecDetailsStore } from "./common";
 import {
   assetCreationResult,
   assetFromAPI,
@@ -15,7 +15,6 @@ import LedgerTokenId = Components.Schemas.LedgerTokenId;
 import { isEthereumAddress } from "../../finp2p-contracts/src/contracts/utils";
 import { Leg, term } from "../../finp2p-contracts/src/contracts/eip712";
 import { PolicyGetter } from "../finp2p/policy";
-import { ExecDetailsStore } from "./exec-details-store";
 
 export type AssetCreationPolicy =
   | { type: 'deploy-new-token'; decimals: number }
@@ -26,7 +25,8 @@ export class TokenService extends CommonService {
 
   assetCreationPolicy: AssetCreationPolicy;
 
-  constructor(finP2PContract: FinP2PContract, assetCreationPolicy: AssetCreationPolicy, policyGetter: PolicyGetter | undefined, execDetailsStore: ExecDetailsStore | undefined) {
+  constructor(finP2PContract: FinP2PContract, assetCreationPolicy: AssetCreationPolicy, policyGetter: PolicyGetter | undefined,
+              execDetailsStore: ExecDetailsStore | undefined) {
     super(finP2PContract, policyGetter, execDetailsStore);
     this.assetCreationPolicy = assetCreationPolicy;
   }
