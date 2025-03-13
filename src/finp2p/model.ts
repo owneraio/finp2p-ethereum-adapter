@@ -110,6 +110,9 @@ export const parseProofDomain = (jsonString: string): ProofDomain | null => {
     const verifyingContract = obj["verifyingcontract"] as string;
     let chainId: number
     const chainIdVal = obj["chainid"];
+    if (!verifyingContract || !chainIdVal) {
+      return null;
+    }
     if (typeof chainIdVal !== "number") {
       chainId = parseInt(chainIdVal as string);
     } else {
