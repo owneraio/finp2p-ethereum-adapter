@@ -41,7 +41,7 @@ export class EscrowService extends CommonService {
       const txHash =  await this.finP2PContract.hold(operationId, nonce,
         sellerFinId, buyerFinId, asset, settlement, leg, eip712PrimaryType, signature);
       if (executionContext) {
-        this.addTradeDetails(txHash, executionContext.executionPlanId, executionContext.instructionSequenceNumber)
+        this.addExecutionContext(txHash, executionContext.executionPlanId, executionContext.instructionSequenceNumber)
       }
 
       return {
@@ -66,7 +66,7 @@ export class EscrowService extends CommonService {
     try {
       const txHash = await this.finP2PContract.releaseTo(operationId, destination.finId, quantity);
       if (executionContext) {
-        this.addTradeDetails(txHash, executionContext.executionPlanId, executionContext.instructionSequenceNumber)
+        this.addExecutionContext(txHash, executionContext.executionPlanId, executionContext.instructionSequenceNumber)
       }
 
       return {
@@ -89,7 +89,7 @@ export class EscrowService extends CommonService {
     try {
       const txHash = await this.finP2PContract.releaseBack(operationId);
       if (executionContext) {
-        this.addTradeDetails(txHash, executionContext.executionPlanId, executionContext.instructionSequenceNumber)
+        this.addExecutionContext(txHash, executionContext.executionPlanId, executionContext.instructionSequenceNumber)
       }
       return {
         isCompleted: false,
@@ -115,7 +115,7 @@ export class EscrowService extends CommonService {
     try {
       const txHash = await this.finP2PContract.releaseAndRedeem(operationId, source.finId, quantity);
       if (executionContext) {
-        this.addTradeDetails(txHash, executionContext.executionPlanId, executionContext.instructionSequenceNumber)
+        this.addExecutionContext(txHash, executionContext.executionPlanId, executionContext.instructionSequenceNumber)
       }
       return {
         isCompleted: false,

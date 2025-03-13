@@ -105,7 +105,7 @@ export class TokenService extends CommonService {
       logger.info(`Issue asset ${assetId} to ${issuerFinId} with amount ${quantity}`);
       txHash = await this.finP2PContract.issue(issuerFinId, term(assetId, assetType, quantity));
       if (executionContext) {
-        this.addTradeDetails(txHash, executionContext.executionPlanId, executionContext.instructionSequenceNumber)
+        this.addExecutionContext(txHash, executionContext.executionPlanId, executionContext.instructionSequenceNumber)
       }
 
     } catch (e) {
@@ -157,7 +157,7 @@ export class TokenService extends CommonService {
 
       const txHash = await this.finP2PContract.transfer(nonce, sellerFinId, buyerFinId, asset, settlement, leg, eip712PrimaryType, signature);
       if (executionContext) {
-        this.addTradeDetails(txHash, executionContext.executionPlanId, executionContext.instructionSequenceNumber)
+        this.addExecutionContext(txHash, executionContext.executionPlanId, executionContext.instructionSequenceNumber)
       }
       return {
         isCompleted: false,

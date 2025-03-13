@@ -1,6 +1,6 @@
 import { logger } from '../helpers/logger';
 import { FinP2PContract } from '../../finp2p-contracts/src/contracts/finp2p';
-import { EIP712Domain, TradeDetails } from '../../finp2p-contracts/src/contracts/model';
+import { EIP712Domain, ExecutionContext } from '../../finp2p-contracts/src/contracts/model';
 import { assetFromAPI, receiptToAPI } from "./mapping";
 import { FinP2PReceipt, receiptToEIP712Message } from "../../finp2p-contracts/src/contracts/model";
 import { PolicyGetter } from "../finp2p/policy";
@@ -12,7 +12,7 @@ export class CommonService {
 
   finP2PContract: FinP2PContract;
   policyGetter: PolicyGetter | undefined;
-  tradeDetails: Record<string, TradeDetails> = {};
+  executionContexts: Record<string, ExecutionContext> = {};
 
   constructor(finP2PContract: FinP2PContract, policyGetter: PolicyGetter | undefined) {
     this.finP2PContract = finP2PContract;
@@ -55,9 +55,9 @@ export class CommonService {
     switch (status.status) {
       case 'completed':
         let { receipt } = status;
-        const tradeDetails = this.getTradeDetails(receipt.id)
-        if (tradeDetails) {
-          receipt = { ...receipt, tradeDetails }
+        const executionContext = this.getExecutionContext(receipt.id)
+        if (executionContext) {
+          receipt = { ...receipt, tradeDetails: { executionContext } }
         }
         const receiptResponse = receiptToAPI(await this.ledgerProof(status.receipt));
         return {
@@ -132,12 +132,12 @@ export class CommonService {
     }
   }
 
-  protected addTradeDetails(txHash: string, executionPlanId: string, instructionSequenceNumber: number) {
-    this.tradeDetails[txHash] = { executionPlanId, instructionSequenceNumber };
+  protected addExecutionContext(txHash: string, executionPlanId: string, instructionSequenceNumber: number) {
+    this.executionContexts[txHash] = { executionPlanId, instructionSequenceNumber };
   }
 
-  protected getTradeDetails(txHash: string) {
-    return this.tradeDetails[txHash];
+  protected getExecutionContext(txHash: string) {
+    return this.executionContexts[txHash];
   }
 
   private async getDomain(policyDomain: ProofDomain | null): Promise<EIP712Domain> {

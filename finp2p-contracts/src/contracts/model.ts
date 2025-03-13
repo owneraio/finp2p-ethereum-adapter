@@ -55,8 +55,11 @@ export type EIP712Template = {
   message: Record<string, any>
   hash: string
 }
-
 export type TradeDetails = {
+  executionContext: ExecutionContext
+}
+
+export type ExecutionContext = {
   executionPlanId: string
   instructionSequenceNumber: number
 }
@@ -92,8 +95,8 @@ export const receiptToEIP712Message = (receipt: FinP2PReceipt): EIP712ReceiptMes
     // quantity,
     asset: asset(receipt.assetId, receipt.assetType),
     tradeDetails: tradeDetails(executionContext(
-      receipt?.tradeDetails?.executionPlanId || '',
-      `${receipt?.tradeDetails?.instructionSequenceNumber || ''} `)),
+      receipt?.tradeDetails?.executionContext.executionPlanId || '',
+      `${receipt?.tradeDetails?.executionContext.instructionSequenceNumber || ''} `)),
     transactionDetails: transactionDetails(receipt.operationId || '', receipt.id),
   }
 }
