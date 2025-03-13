@@ -6,7 +6,7 @@ import { EthereumTransactionError } from "../../finp2p-contracts/src/contracts/m
 import { logger } from "../helpers/logger";
 import { FinP2PContract } from "../../finp2p-contracts/src/contracts/finp2p";
 import { isEthereumAddress } from "../../finp2p-contracts/src/contracts/utils";
-import { Leg, term } from "../../finp2p-contracts/src/contracts/eip712";
+import { LegType, term } from "../../finp2p-contracts/src/contracts/eip712";
 import { PolicyGetter } from "../finp2p/policy";
 import CreateAssetResponse = Components.Schemas.CreateAssetResponse;
 import LedgerTokenId = Components.Schemas.LedgerTokenId;
@@ -121,11 +121,10 @@ export class TokenService extends CommonService {
         asset,
         settlement,
         loan,
-        leg,
-        eip712PrimaryType
+        params
       } = extractParameterEIP712(template, reqAsset);
-      switch (leg) {
-        case Leg.Asset:
+      switch (params.leg) {
+        case LegType.Asset:
           if (buyerFinId !== destination.finId) {
             return failedTransaction(1, `Buyer FinId in the signature does not match the destination FinId`);
           }
@@ -136,7 +135,7 @@ export class TokenService extends CommonService {
             return failedTransaction(1, `Quantity in the signature does not match the requested quantity`);
           }
           break;
-        case Leg.Settlement:
+        case LegType.Settlement:
           if (sellerFinId !== destination.finId) {
             return failedTransaction(1, `Seller FinId in the signature does not match the destination FinId`);
           }
@@ -149,7 +148,7 @@ export class TokenService extends CommonService {
           break;
       }
 
-      const txHash = await this.finP2PContract.transfer(nonce, sellerFinId, buyerFinId, asset, settlement, loan, leg, eip712PrimaryType, signature);
+      const txHash = await this.finP2PContract.transfer(nonce, sellerFinId, buyerFinId, asset, settlement, loan, params, signature);
 
       return {
         isCompleted: false, cid: txHash

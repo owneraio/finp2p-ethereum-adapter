@@ -86,6 +86,8 @@ contract FinP2PSignatureVerifier is EIP712 {
         string returnedMoneyAmount;
     }
 
+
+
     constructor() EIP712(SIGNING_DOMAIN, SIGNATURE_VERSION) {}
 
     function verifyInvestmentSignature(

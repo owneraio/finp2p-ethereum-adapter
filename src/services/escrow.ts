@@ -2,7 +2,7 @@ import { logger } from "../helpers/logger";
 import { CommonService } from "./common";
 import { EthereumTransactionError } from "../../finp2p-contracts/src/contracts/model";
 import { assetFromAPI, extractParameterEIP712, failedTransaction } from "./mapping";
-import { Leg } from "../../finp2p-contracts/src/contracts/eip712";
+import { LegType } from "../../finp2p-contracts/src/contracts/eip712";
 
 export class EscrowService extends CommonService {
 
@@ -18,11 +18,10 @@ export class EscrowService extends CommonService {
         asset,
         settlement,
         loan,
-        leg,
-        eip712PrimaryType
-      } = extractParameterEIP712(template, reqAsset);
-      switch (leg) {
-        case Leg.Asset:
+        params
+      } = extractParameterEIP712(template, reqAsset, operationId);
+      switch (params.leg) {
+        case LegType.Asset:
           if (destination && buyerFinId !== destination.finId) {
             return failedTransaction(1, `Buyer FinId in the signature does not match the destination FinId`);
           }
@@ -33,7 +32,7 @@ export class EscrowService extends CommonService {
             return failedTransaction(1, `Quantity in the signature does not match the requested quantity`);
           }
           break;
-        case Leg.Settlement:
+        case LegType.Settlement:
           if (destination && sellerFinId !== destination.finId) {
             return failedTransaction(1, `Seller FinId in the signature does not match the destination FinId`);
           }
@@ -46,8 +45,8 @@ export class EscrowService extends CommonService {
           break;
       }
 
-      const txHash = await this.finP2PContract.hold(operationId, nonce, sellerFinId, buyerFinId,
-        asset, settlement, loan, leg, eip712PrimaryType, signature);
+      const txHash = await this.finP2PContract.hold(nonce, sellerFinId, buyerFinId,
+        asset, settlement, loan, params, signature);
 
       return {
         isCompleted: false, cid: txHash

@@ -2,10 +2,36 @@ import {
   asset,
   EIP712ReceiptMessage,
   EIP712Template,
-  executionContext,
+  executionContext, LegType, PrimaryType,
   tradeDetails,
   transactionDetails
 } from "./eip712";
+import { BigNumberish, BytesLike, zeroPadBytes } from "ethers";
+
+export const enum Phase {
+  Initiate = 1,
+  Close = 2
+}
+
+export interface OperationParams {
+  leg: LegType;
+  eip712PrimaryType: PrimaryType;
+  phase: Phase;
+  operationId: string;
+}
+
+export const operationParams = (
+  leg: LegType,
+  eip712PrimaryType: PrimaryType,
+  phase: Phase = Phase.Initiate,
+  operationId: string = zeroPadBytes("0x", 16)): OperationParams => {
+  return {
+    leg,
+    eip712PrimaryType,
+    phase,
+    operationId
+  };
+};
 
 export type OperationStatus = PendingTransaction | SuccessfulTransaction | FailedTransaction;
 

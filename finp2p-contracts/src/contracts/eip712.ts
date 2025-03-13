@@ -1,7 +1,7 @@
 import { Signer, TypedDataEncoder, verifyTypedData, Wallet } from "ethers";
 
 
-export const enum Leg {
+export const enum LegType {
   Asset = 1,
   Settlement = 2
 }

@@ -26,10 +26,21 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
     uint8 public constant LEG_ASSET = 1;
     uint8 public constant LEG_SETTLEMENT = 2;
 
+    uint8 public constant PHASE_INITIATE = 1;
+    uint8 public constant PHASE_CLOSE = 2;
+
+
     string public constant VERSION = "0.22.1";
 
     bytes32 private constant ASSET_MANAGER = keccak256("ASSET_MANAGER");
     bytes32 private constant TRANSACTION_MANAGER = keccak256("TRANSACTION_MANAGER");
+
+    struct OperationParams {
+        uint8 leg;
+        uint8 phase;
+        uint8 eip712PrimaryType;
+        bytes16 operationId;
+    }
 
     struct LockInfo {
         string assetId;
@@ -182,8 +193,7 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
     /// @param assetTerm The asset term to transfer
     /// @param settlementTerm The settlement term to transfer
     /// @param loanTerm The loan term to transfer, could be empty
-    /// @param leg The leg of the transaction, could be LEG_ASSET or LEG_SETTLEMENT
-    /// @param eip712PrimaryType The EIP712 primary type
+    /// @param op The operation parameters
     /// @param signature The investor signature
     function transfer(
         string memory nonce,
@@ -192,44 +202,42 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
         Term memory assetTerm,
         Term memory settlementTerm,
         LoanTerm memory loanTerm,
-        uint8 leg,
-        uint8 eip712PrimaryType,
+        OperationParams memory op,
         bytes memory signature
     ) external {
         require(hasRole(TRANSACTION_MANAGER, _msgSender()), "FINP2POperatorERC20: must have transaction manager role to transfer asset");
-        if (leg == LEG_ASSET) {
+        (string memory source,
+            string memory destination,
+            string memory assetId,
+            string memory assetType,
+            string memory amount) = _extractDirection(sellerFinId, buyerFinId, assetTerm, settlementTerm, op);
+        if (op.phase == PHASE_INITIATE) {
             require(verifyInvestmentSignature(
-                eip712PrimaryType,
+                op.eip712PrimaryType,
                 nonce,
                 buyerFinId,
                 sellerFinId,
                 assetTerm,
                 settlementTerm,
                 loanTerm,
-                sellerFinId,
+                source,
                 signature
             ), "Signature is not verified");
-            _transfer(Bytes.finIdToAddress(sellerFinId), Bytes.finIdToAddress(buyerFinId), assetTerm.assetId, assetTerm.amount);
-            emit Transfer(assetTerm.assetId, assetTerm.assetType, sellerFinId, buyerFinId, assetTerm.amount);
-
-        } else if (leg == LEG_SETTLEMENT) {
+        } else if (op.phase == PHASE_CLOSE) {
             require(verifyInvestmentSignature(
-                eip712PrimaryType,
+                op.eip712PrimaryType,
                 nonce,
                 buyerFinId,
                 sellerFinId,
                 assetTerm,
                 settlementTerm,
                 loanTerm,
-                buyerFinId,
+                destination,
                 signature
             ), "Signature is not verified");
-            _transfer(Bytes.finIdToAddress(buyerFinId), Bytes.finIdToAddress(sellerFinId), settlementTerm.assetId, settlementTerm.amount);
-            emit Transfer(settlementTerm.assetId, settlementTerm.assetType, buyerFinId, sellerFinId, settlementTerm.amount);
-
-        } else {
-            revert("Invalid leg");
         }
+        _transfer(Bytes.finIdToAddress(source), Bytes.finIdToAddress(destination), assetId, amount);
+        emit Transfer(assetId, assetType, source, destination, amount);
     }
 
     /// @notice Redeem asset from the owner
@@ -245,64 +253,54 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
     }
 
     /// @notice Hold asset in escrow
-    /// @param operationId The operation id, a connection between hold and release
     /// @param nonce The investor signature nonce
     /// @param sellerFinId The FinID of the seller
     /// @param buyerFinId The FinID of the buyer
     /// @param assetTerm The asset term to hold
     /// @param settlementTerm The settlement term to hold
     /// @param loanTerm The loan term to hold, could be empty
-    /// @param leg The leg of the transaction, could be LEG_ASSET or LEG_SETTLEMENT
-    /// @param eip712PrimaryType The EIP712 primary type
+    /// @param op The operation parameters
     /// @param signature The investor signature
     function hold(
-        bytes16 operationId,
         string memory nonce,
         string memory sellerFinId,
         string memory buyerFinId,
         Term memory assetTerm,
         Term memory settlementTerm,
         LoanTerm memory loanTerm,
-        uint8 leg,
-        uint8 eip712PrimaryType,
+        OperationParams memory op,
         bytes memory signature
     ) external {
         require(hasRole(TRANSACTION_MANAGER, _msgSender()), "FINP2POperatorERC20: must have transaction manager role to hold asset");
-        if (leg == LEG_ASSET) {
+        (string memory source, string memory destination, string memory assetId, string memory assetType, string memory amount) = _extractDirection(sellerFinId, buyerFinId, assetTerm, settlementTerm, op);
+        if (op.phase == PHASE_INITIATE) {
             require(verifyInvestmentSignature(
-                eip712PrimaryType,
+                op.eip712PrimaryType,
                 nonce,
                 buyerFinId,
                 sellerFinId,
                 assetTerm,
                 settlementTerm,
                 loanTerm,
-                sellerFinId,
+                source,
                 signature
             ), "Signature is not verified");
-            _transfer(Bytes.finIdToAddress(sellerFinId), _getEscrow(), assetTerm.assetId, assetTerm.amount);
-            locks[operationId] = Lock(assetTerm.assetId, assetTerm.assetType, sellerFinId, assetTerm.amount);
-            emit Hold(assetTerm.assetId, assetTerm.assetType, sellerFinId, assetTerm.amount, operationId);
-
-        } else if (leg == LEG_SETTLEMENT) {
+        } else if (op.phase == PHASE_CLOSE) {
             require(verifyInvestmentSignature(
-                eip712PrimaryType,
+                op.eip712PrimaryType,
                 nonce,
                 buyerFinId,
                 sellerFinId,
                 assetTerm,
                 settlementTerm,
                 loanTerm,
-                buyerFinId,
+                destination,
                 signature
             ), "Signature is not verified");
-            _transfer(Bytes.finIdToAddress(buyerFinId), _getEscrow(), settlementTerm.assetId, settlementTerm.amount);
-            locks[operationId] = Lock(settlementTerm.assetId, settlementTerm.assetType, buyerFinId, settlementTerm.amount);
-            emit Hold(settlementTerm.assetId, settlementTerm.assetType, buyerFinId, settlementTerm.amount, operationId);
-
-        } else {
-            revert("Invalid leg");
         }
+        _transfer(Bytes.finIdToAddress(source), _getEscrow(), assetId, amount);
+        locks[op.operationId] = Lock(assetId, assetType, source, amount);
+        emit Hold(assetId, assetType, source, amount, op.operationId);
     }
 
     /// @notice Release asset from escrow to the destination
@@ -410,6 +408,41 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
         uint256 balance = IERC20(asset.tokenAddress).balanceOf(from);
         require(balance >= tokenAmount, "Not sufficient balance to burn");
         Burnable(asset.tokenAddress).burn(from, tokenAmount);
+    }
+
+    /// @notice Extract the direction of the operation
+    /// @param sellerFinId The FinID of the seller
+    /// @param buyerFinId The FinID of the buyer
+    /// @param assetTerm The asset term
+    /// @param settlementTerm The settlement term
+    /// @param op The operation parameters
+    /// @return The source FinID, the destination FinID, the asset id, the asset type, the amount
+    function _extractDirection(
+        string memory sellerFinId,
+        string memory buyerFinId,
+        Term memory assetTerm,
+        Term memory settlementTerm,
+        OperationParams memory op
+    ) internal pure returns (string memory, string memory, string memory, string memory, string memory) {
+        if (op.leg == LEG_ASSET) {
+            if (op.phase == PHASE_INITIATE) {
+                return (sellerFinId, buyerFinId, assetTerm.assetId, assetTerm.assetType, assetTerm.amount);
+            } else if (op.phase == PHASE_CLOSE) {
+                return (buyerFinId, sellerFinId, assetTerm.assetId, assetTerm.assetType, assetTerm.amount);
+            } else {
+                revert("Invalid phase");
+            }
+        } else if (op.leg == LEG_SETTLEMENT) {
+            if (op.phase == PHASE_INITIATE) {
+                return (buyerFinId, sellerFinId, settlementTerm.assetId, settlementTerm.assetType, settlementTerm.amount);
+            } else if (op.phase == PHASE_CLOSE) {
+                return (sellerFinId, buyerFinId, settlementTerm.assetId, settlementTerm.assetType, settlementTerm.amount);
+            } else {
+                revert("Invalid phase");
+            }
+        } else {
+            revert("Invalid leg");
+        }
     }
 
     function _getEscrow() public view returns (address) {

@@ -1,4 +1,10 @@
-import { FinP2PReceipt, ReceiptProof } from "../../finp2p-contracts/src/contracts/model";
+import {
+  FinP2PReceipt,
+  operationParams,
+  OperationParams,
+  Phase,
+  ReceiptProof
+} from "../../finp2p-contracts/src/contracts/model";
 import {
   EIP712Domain,
   EIP712Message,
@@ -6,7 +12,7 @@ import {
   EIP712Types,
   emptyLoanTerms,
   emptyTerm,
-  Leg,
+  LegType,
   LoanTerms,
   PrimaryType,
   Term
@@ -22,6 +28,7 @@ import FinP2PEVMOperatorDetails = Components.Schemas.FinP2PEVMOperatorDetails;
 import EIP712TypeObject = Components.Schemas.EIP712TypeObject;
 import EIP712TypeString = Components.Schemas.EIP712TypeString;
 import ProofPolicy = Components.Schemas.ProofPolicy;
+import { hashToBytes16 } from "../../finp2p-contracts/src/contracts/utils";
 
 export const assetFromAPI = (asset: Components.Schemas.Asset): {
   assetId: string, assetType: "fiat" | "finp2p" | "cryptocurrency",
@@ -263,14 +270,14 @@ const compareAssets = (eipAsset: EIP712TypeObject, reqAsset: {
 
 export const detectLeg = (template: Components.Schemas.SignatureTemplate, reqAsset: {
   assetId: string, assetType: "fiat" | "finp2p" | "cryptocurrency",
-}): Leg => {
+}): LegType => {
   if (template.type != "EIP712") {
     throw new Error(`Unsupported signature template type: ${template.type}`);
   }
   if (compareAssets(template.message.asset as EIP712TypeObject, reqAsset)) {
-    return Leg.Asset;
+    return LegType.Asset;
   } else if (compareAssets(template.message.settlement as EIP712TypeObject, reqAsset)) {
-    return Leg.Settlement;
+    return LegType.Settlement;
   } else {
     throw new Error(`Asset not found in EIP712 message`);
   }
@@ -282,13 +289,13 @@ type EIP712Params = {
   asset: Term,
   settlement: Term,
   loan: LoanTerms,
-  leg: Leg,
-  eip712PrimaryType: PrimaryType,
+  params: OperationParams
 };
 
 export const extractParameterEIP712 = (template: Components.Schemas.SignatureTemplate, reqAsset: {
-  assetId: string, assetType: "fiat" | "finp2p" | "cryptocurrency",
-}): EIP712Params => {
+  assetId: string,
+  assetType: "fiat" | "finp2p" | "cryptocurrency",
+}, operationId: string = ''): EIP712Params => {
   if (template.type != "EIP712") {
     throw new Error(`Unsupported signature template type: ${template.type}`);
   }
@@ -303,8 +310,7 @@ export const extractParameterEIP712 = (template: Components.Schemas.SignatureTem
         asset: termFromAPI(template.message.asset as EIP712TypeObject),
         settlement: termFromAPI(template.message.settlement as EIP712TypeObject),
         loan: emptyLoanTerms(),
-        leg,
-        eip712PrimaryType
+        params: operationParams(leg, eip712PrimaryType, Phase.Initiate, hashToBytes16(operationId))
       };
     }
     case "Buying":
@@ -315,8 +321,7 @@ export const extractParameterEIP712 = (template: Components.Schemas.SignatureTem
         asset: termFromAPI(template.message.asset as EIP712TypeObject),
         settlement: termFromAPI(template.message.settlement as EIP712TypeObject),
         loan: emptyLoanTerms(),
-        leg,
-        eip712PrimaryType
+        params: operationParams(leg, eip712PrimaryType, Phase.Initiate, hashToBytes16(operationId))
       };
     }
     case "RequestForTransfer": {
@@ -326,8 +331,7 @@ export const extractParameterEIP712 = (template: Components.Schemas.SignatureTem
         asset: termFromAPI(template.message.asset as EIP712TypeObject),
         settlement: emptyTerm(),
         loan: emptyLoanTerms(),
-        leg,
-        eip712PrimaryType
+        params: operationParams(leg, eip712PrimaryType, Phase.Initiate, hashToBytes16(operationId))
       };
     }
     case "Redemption": {
@@ -337,8 +341,7 @@ export const extractParameterEIP712 = (template: Components.Schemas.SignatureTem
         asset: termFromAPI(template.message.asset as EIP712TypeObject),
         settlement: termFromAPI(template.message.settlement as EIP712TypeObject),
         loan: emptyLoanTerms(),
-        leg,
-        eip712PrimaryType
+        params: operationParams(leg, eip712PrimaryType, Phase.Initiate, hashToBytes16(operationId))
       };
     }
     case "Loan": {
@@ -348,8 +351,7 @@ export const extractParameterEIP712 = (template: Components.Schemas.SignatureTem
         asset: termFromAPI(template.message.asset as EIP712TypeObject),
         settlement: termFromAPI(template.message.settlement as EIP712TypeObject),
         loan: loanTermFromAPI(template.message.loanTerms as EIP712TypeObject),
-        leg,
-        eip712PrimaryType
+        params: operationParams(leg, eip712PrimaryType, Phase.Initiate, hashToBytes16(operationId))
       };
     }
     default:

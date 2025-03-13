@@ -4,13 +4,13 @@ import { FINP2POperatorERC20 } from "../../typechain-types";
 import {
   completedOperation,
   failedOperation,
-  FinP2PReceipt,
+  FinP2PReceipt, OperationParams,
   OperationStatus,
   pendingOperation
 } from "./model";
 import { hashToBytes16, parseTransactionReceipt } from "./utils";
 import { ContractsManager } from "./manager";
-import { EIP712Domain, Leg, LoanTerms, PrimaryType, Term } from "./eip712";
+import { EIP712Domain, LoanTerms, Term } from "./eip712";
 import winston from "winston";
 import { FINP2POperatorERC20Interface } from "../../typechain-types/contracts/token/ERC20/FINP2POperatorERC20";
 import { PayableOverrides } from "../../typechain-types/common";
@@ -69,10 +69,10 @@ export class FinP2PContract extends ContractsManager {
   }
 
   async transfer(nonce: string, sellerFinId: string, buyerFinId: string,
-                 asset: Term, settlement: Term, loan: LoanTerms, leg: Leg, eip712PrimaryType: PrimaryType, signature: string) {
+                 asset: Term, settlement: Term, loan: LoanTerms, params: OperationParams, signature: string) {
     return this.safeExecuteTransaction(this.finP2P, async (finP2P: FINP2POperatorERC20, txParams: PayableOverrides) => {
       return finP2P.transfer(
-        nonce, sellerFinId, buyerFinId, asset, settlement, loan, leg, eip712PrimaryType, `0x${signature}`, txParams);
+        nonce, sellerFinId, buyerFinId, asset, settlement, loan, params, `0x${signature}`, txParams);
     });
   }
 
@@ -82,10 +82,10 @@ export class FinP2PContract extends ContractsManager {
     });
   }
 
-  async hold(operationId: string, nonce: string, sellerFinId: string, buyerFinId: string,
-             asset: Term, settlement: Term, loan: LoanTerms, leg: Leg, eip712PrimaryType: PrimaryType, signature: string) {
+  async hold(nonce: string, sellerFinId: string, buyerFinId: string,
+             asset: Term, settlement: Term, loan: LoanTerms, params: OperationParams, signature: string) {
     return this.safeExecuteTransaction(this.finP2P, async (finP2P: FINP2POperatorERC20, txParams: PayableOverrides) => {
-      return finP2P.hold(hashToBytes16(operationId), nonce, sellerFinId, buyerFinId, asset, settlement, loan, leg, eip712PrimaryType, `0x${signature}`, txParams);
+      return finP2P.hold(nonce, sellerFinId, buyerFinId, asset, settlement, loan, params, `0x${signature}`, txParams);
     });
   }
 
