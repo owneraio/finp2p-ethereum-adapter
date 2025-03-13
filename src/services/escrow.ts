@@ -7,7 +7,7 @@ import { Leg } from "../../finp2p-contracts/src/contracts/eip712";
 export class EscrowService extends CommonService {
 
   public async hold(request: Paths.HoldOperation.RequestBody): Promise<Paths.HoldOperation.Responses.$200> {
-    const { operationId, asset, source, destination, quantity, nonce } = request;
+    const { operationId, asset, source, destination, quantity, nonce, executionContext } = request;
     const reqAsset = assetFromAPI(asset)
     const { signature, template } = request.signature;
 
@@ -40,6 +40,9 @@ export class EscrowService extends CommonService {
 
       const txHash =  await this.finP2PContract.hold(operationId, nonce,
         sellerFinId, buyerFinId, asset, settlement, leg, eip712PrimaryType, signature);
+      if (executionContext) {
+        this.addTradeDetails(txHash, executionContext.executionPlanId, executionContext.instructionSequenceNumber)
+      }
 
       return {
         isCompleted: false,
@@ -58,10 +61,13 @@ export class EscrowService extends CommonService {
   }
 
   public async releaseTo(request: Paths.ReleaseOperation.RequestBody): Promise<Paths.ReleaseOperation.Responses.$200> {
-    const { operationId, destination, quantity} = request;
+    const { operationId, destination, quantity, executionContext } = request;
 
     try {
       const txHash = await this.finP2PContract.releaseTo(operationId, destination.finId, quantity);
+      if (executionContext) {
+        this.addTradeDetails(txHash, executionContext.executionPlanId, executionContext.instructionSequenceNumber)
+      }
 
       return {
         isCompleted: false,
@@ -78,11 +84,13 @@ export class EscrowService extends CommonService {
   }
 
   public async releaseBack(request: Paths.RollbackOperation.RequestBody): Promise<Paths.RollbackOperation.Responses.$200> {
-    const { operationId } = request;
+    const { operationId, executionContext } = request;
 
     try {
       const txHash = await this.finP2PContract.releaseBack(operationId);
-
+      if (executionContext) {
+        this.addTradeDetails(txHash, executionContext.executionPlanId, executionContext.instructionSequenceNumber)
+      }
       return {
         isCompleted: false,
         cid: txHash,
@@ -99,14 +107,16 @@ export class EscrowService extends CommonService {
   }
 
   public async releaseAndRedeem(request: Paths.RedeemAssets.RequestBody): Promise<Paths.RedeemAssets.Responses.$200> {
-    const { operationId, source, quantity} = request;
+    const { operationId, source, quantity, executionContext } = request;
     if (!operationId) {
       return failedTransaction(1, 'operationId is required');
     }
 
     try {
       const txHash = await this.finP2PContract.releaseAndRedeem(operationId, source.finId, quantity);
-
+      if (executionContext) {
+        this.addTradeDetails(txHash, executionContext.executionPlanId, executionContext.instructionSequenceNumber)
+      }
       return {
         isCompleted: false,
         cid: txHash,

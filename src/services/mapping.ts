@@ -190,18 +190,7 @@ export const receiptToAPI = (receipt: FinP2PReceipt): Receipt => {
   };
 };
 
-export const receiptToEIP712Message = (receipt: FinP2PReceipt): EIP712ReceiptMessage => {
-  return {
-    id: receipt.id,
-    operationType: receipt.operationType,
-    source: source(receipt.source ? 'finp2p' : '', receipt.source || ''),
-    destination: destination(receipt.destination ? 'finp2p' : '', receipt.destination || ''),
-    // quantity,
-    asset: asset(receipt.assetId, receipt.assetType),
-    tradeDetails: tradeDetails(executionContext('', '')),
-    transactionDetails: transactionDetails(receipt.operationId || '', receipt.id),
-  }
-}
+
 
 export const assetCreationResult = (tokenId: string, tokenAddress: string, finp2pTokenAddress: string) => {
   return {

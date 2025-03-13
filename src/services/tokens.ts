@@ -96,7 +96,7 @@ export class TokenService extends CommonService {
   }
 
   public async issue(request: Paths.IssueAssets.RequestBody): Promise<Paths.IssueAssets.Responses.$200> {
-    const { asset, quantity, destination } = request;
+    const { asset, quantity, destination, executionContext } = request;
     const { assetId, assetType } = assetFromAPI(asset);
     const issuerFinId = destination.finId;
 
@@ -104,6 +104,9 @@ export class TokenService extends CommonService {
     try {
       logger.info(`Issue asset ${assetId} to ${issuerFinId} with amount ${quantity}`);
       txHash = await this.finP2PContract.issue(issuerFinId, term(assetId, assetType, quantity));
+      if (executionContext) {
+        this.addTradeDetails(txHash, executionContext.executionPlanId, executionContext.instructionSequenceNumber)
+      }
 
     } catch (e) {
       logger.error(`Error on asset issuance: ${e}`);
@@ -121,7 +124,7 @@ export class TokenService extends CommonService {
   }
 
   public async transfer(request: Paths.TransferAsset.RequestBody): Promise<Paths.TransferAsset.Responses.$200> {
-    const { nonce, asset, quantity, source, destination } = request;
+    const { nonce, asset, quantity, source, destination, executionContext } = request;
     const reqAsset = assetFromAPI(asset);
     const { signature, template } = request.signature;
 
@@ -153,7 +156,9 @@ export class TokenService extends CommonService {
       }
 
       const txHash = await this.finP2PContract.transfer(nonce, sellerFinId, buyerFinId, asset, settlement, leg, eip712PrimaryType, signature);
-
+      if (executionContext) {
+        this.addTradeDetails(txHash, executionContext.executionPlanId, executionContext.instructionSequenceNumber)
+      }
       return {
         isCompleted: false,
         cid: txHash,

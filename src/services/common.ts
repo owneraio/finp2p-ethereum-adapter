@@ -1,8 +1,8 @@
 import { logger } from '../helpers/logger';
 import { FinP2PContract } from '../../finp2p-contracts/src/contracts/finp2p';
-import { EIP712Domain } from '../../finp2p-contracts/src/contracts/model';
-import { assetFromAPI, receiptToAPI, receiptToEIP712Message } from "./mapping";
-import { FinP2PReceipt } from "../../finp2p-contracts/src/contracts/model";
+import { EIP712Domain, TradeDetails } from '../../finp2p-contracts/src/contracts/model';
+import { assetFromAPI, receiptToAPI } from "./mapping";
+import { FinP2PReceipt, receiptToEIP712Message } from "../../finp2p-contracts/src/contracts/model";
 import { PolicyGetter } from "../finp2p/policy";
 import { DOMAIN_TYPE, RECEIPT_PROOF_TYPES } from "../../finp2p-contracts/src/contracts/eip712";
 import { ProofDomain } from "../finp2p/model";
@@ -12,6 +12,7 @@ export class CommonService {
 
   finP2PContract: FinP2PContract;
   policyGetter: PolicyGetter | undefined;
+  tradeDetails: Record<string, TradeDetails> = {};
 
   constructor(finP2PContract: FinP2PContract, policyGetter: PolicyGetter | undefined) {
     this.finP2PContract = finP2PContract;
@@ -53,12 +54,17 @@ export class CommonService {
     const status = await this.finP2PContract.getOperationStatus(cid);
     switch (status.status) {
       case 'completed':
-        const receipt = receiptToAPI(await this.ledgerProof(status.receipt));
+        let { receipt } = status;
+        const tradeDetails = this.getTradeDetails(receipt.id)
+        if (tradeDetails) {
+          receipt = { ...receipt, tradeDetails }
+        }
+        const receiptResponse = receiptToAPI(await this.ledgerProof(status.receipt));
         return {
           type: 'receipt',
           operation: {
             isCompleted: true,
-            response: receipt,
+            response: receiptResponse,
           },
         } as Components.Schemas.OperationStatus;
 
@@ -124,6 +130,14 @@ export class CommonService {
 
         return receipt;
     }
+  }
+
+  protected addTradeDetails(txHash: string, executionPlanId: string, instructionSequenceNumber: number) {
+    this.tradeDetails[txHash] = { executionPlanId, instructionSequenceNumber };
+  }
+
+  protected getTradeDetails(txHash: string) {
+    return this.tradeDetails[txHash];
   }
 
   private async getDomain(policyDomain: ProofDomain | null): Promise<EIP712Domain> {
