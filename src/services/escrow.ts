@@ -41,10 +41,7 @@ export class EscrowService extends CommonService {
       const txHash =  await this.finP2PContract.hold(operationId, nonce,
         sellerFinId, buyerFinId, asset, settlement, leg, eip712PrimaryType, signature);
       if (executionContext) {
-        logger.info(`Storing execution context for hold receipt ${txHash}`, executionContext);
-        this.addExecutionContext(txHash, executionContext.executionPlanId, executionContext.instructionSequenceNumber)
-      } else {
-        logger.info('No execution context provided for hold receipt', { txHash });
+        this.execDetailsStore?.addExecutionContext(txHash, executionContext.executionPlanId, executionContext.instructionSequenceNumber)
       }
 
       return {
@@ -69,7 +66,7 @@ export class EscrowService extends CommonService {
     try {
       const txHash = await this.finP2PContract.releaseTo(operationId, destination.finId, quantity);
       if (executionContext) {
-        this.addExecutionContext(txHash, executionContext.executionPlanId, executionContext.instructionSequenceNumber)
+        this.execDetailsStore?.addExecutionContext(txHash, executionContext.executionPlanId, executionContext.instructionSequenceNumber)
       }
 
       return {
@@ -92,7 +89,7 @@ export class EscrowService extends CommonService {
     try {
       const txHash = await this.finP2PContract.releaseBack(operationId);
       if (executionContext) {
-        this.addExecutionContext(txHash, executionContext.executionPlanId, executionContext.instructionSequenceNumber)
+        this.execDetailsStore?.addExecutionContext(txHash, executionContext.executionPlanId, executionContext.instructionSequenceNumber)
       }
       return {
         isCompleted: false,
@@ -118,7 +115,7 @@ export class EscrowService extends CommonService {
     try {
       const txHash = await this.finP2PContract.releaseAndRedeem(operationId, source.finId, quantity);
       if (executionContext) {
-        this.addExecutionContext(txHash, executionContext.executionPlanId, executionContext.instructionSequenceNumber)
+        this.execDetailsStore?.addExecutionContext(txHash, executionContext.executionPlanId, executionContext.instructionSequenceNumber)
       }
       return {
         isCompleted: false,

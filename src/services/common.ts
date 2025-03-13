@@ -1,22 +1,27 @@
 import { logger } from '../helpers/logger';
 import { FinP2PContract } from '../../finp2p-contracts/src/contracts/finp2p';
-import { EIP712Domain, ExecutionContext } from '../../finp2p-contracts/src/contracts/model';
+import { EIP712Domain, ExecutionContext } from "../../finp2p-contracts/src/contracts/model";
 import { assetFromAPI, receiptToAPI } from "./mapping";
 import { FinP2PReceipt, receiptToEIP712Message } from "../../finp2p-contracts/src/contracts/model";
 import { PolicyGetter } from "../finp2p/policy";
 import { DOMAIN_TYPE, RECEIPT_PROOF_TYPES } from "../../finp2p-contracts/src/contracts/eip712";
 import { ProofDomain } from "../finp2p/model";
 
+export interface ExecDetailsStore {
+  addExecutionContext(txHash: string, executionPlanId: string, instructionSequenceNumber: number): void;
+  getExecutionContext(txHash: string): ExecutionContext;
+}
 
 export class CommonService {
 
   finP2PContract: FinP2PContract;
   policyGetter: PolicyGetter | undefined;
-  executionContexts: Record<string, ExecutionContext> = {};
+  execDetailsStore: ExecDetailsStore  | undefined;
 
-  constructor(finP2PContract: FinP2PContract, policyGetter: PolicyGetter | undefined) {
+  constructor(finP2PContract: FinP2PContract, policyGetter: PolicyGetter | undefined, execDetailsStore: ExecDetailsStore  | undefined) {
     this.finP2PContract = finP2PContract;
     this.policyGetter = policyGetter;
+    this.execDetailsStore = execDetailsStore;
   }
 
   public async balance(request: Paths.GetAssetBalance.RequestBody): Promise<Paths.GetAssetBalance.Responses.$200> {
@@ -55,7 +60,7 @@ export class CommonService {
     switch (status.status) {
       case 'completed':
         let { receipt } = status;
-        const executionContext = this.getExecutionContext(receipt.id)
+        const executionContext = this.execDetailsStore?.getExecutionContext(receipt.id)
         if (executionContext) {
           logger.info('Found execution context for receipt', executionContext)
           receipt = { ...receipt, tradeDetails: { executionContext } }
@@ -133,14 +138,6 @@ export class CommonService {
 
         return receipt;
     }
-  }
-
-  protected addExecutionContext(txHash: string, executionPlanId: string, instructionSequenceNumber: number) {
-    this.executionContexts[txHash] = { executionPlanId, instructionSequenceNumber };
-  }
-
-  protected getExecutionContext(txHash: string) {
-    return this.executionContexts[txHash];
   }
 
   private async getDomain(policyDomain: ProofDomain | null): Promise<EIP712Domain> {
