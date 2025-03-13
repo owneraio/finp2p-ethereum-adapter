@@ -57,7 +57,10 @@ export class CommonService {
         let { receipt } = status;
         const executionContext = this.getExecutionContext(receipt.id)
         if (executionContext) {
+          logger.info('Found execution context for receipt', executionContext)
           receipt = { ...receipt, tradeDetails: { executionContext } }
+        } else {
+          logger.info('No execution context found for receipt', { receiptId: receipt.id })
         }
         const receiptResponse = receiptToAPI(await this.ledgerProof(receipt));
         return {
