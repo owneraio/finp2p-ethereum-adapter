@@ -42,7 +42,7 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
 
     struct LockInfo {
         string assetId;
-        string assetType;
+        AssetType assetType;
         string finId;
         string amount;
     }
@@ -52,7 +52,7 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
     /// @param assetType The asset type
     /// @param issuerFinId The FinID of the issuer
     /// @param quantity The quantity issued
-    event Issue(string assetId, string assetType, string issuerFinId, string quantity);
+    event Issue(string assetId, AssetType assetType, string issuerFinId, string quantity);
 
     /// @notice Transfer event
     /// @param assetId The asset id
@@ -60,7 +60,7 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
     /// @param sourceFinId The FinID of the source
     /// @param destinationFinId The FinID of the destination
     /// @param quantity The quantity transferred
-    event Transfer(string assetId, string assetType, string sourceFinId, string destinationFinId, string quantity);
+    event Transfer(string assetId, AssetType assetType, string sourceFinId, string destinationFinId, string quantity);
 
     /// @notice Hold event
     /// @param assetId The asset id
@@ -68,7 +68,7 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
     /// @param finId The FinID of the holder
     /// @param quantity The quantity held
     /// @param operationId The operation id
-    event Hold(string assetId, string assetType, string finId, string quantity, bytes16 operationId);
+    event Hold(string assetId, AssetType assetType, string finId, string quantity, bytes16 operationId);
 
     /// @notice Release event
     /// @param assetId The asset id
@@ -77,7 +77,7 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
     /// @param destinationFinId The FinID of the destination
     /// @param quantity The quantity released
     /// @param operationId The operation id
-    event Release(string assetId, string assetType, string sourceFinId, string destinationFinId, string quantity, bytes16 operationId);
+    event Release(string assetId, AssetType assetType, string sourceFinId, string destinationFinId, string quantity, bytes16 operationId);
 
     /// @notice Redeem event
     /// @param assetId The asset id
@@ -85,7 +85,7 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
     /// @param ownerFinId The FinID of the owner
     /// @param quantity The quantity redeemed
     /// @param operationId The operation id
-    event Redeem(string assetId, string assetType, string ownerFinId, string quantity, bytes16 operationId);
+    event Redeem(string assetId, AssetType assetType, string ownerFinId, string quantity, bytes16 operationId);
 
     struct Asset {
         string id;
@@ -94,7 +94,7 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
 
     struct Lock {
         string assetId;
-        string assetType;
+        AssetType assetType;
         string finId;
         string amount;
     }
@@ -207,7 +207,7 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
         (string memory source,
             string memory destination,
             string memory assetId,
-            string memory assetType,
+            AssetType assetType,
             string memory amount) = _extractDirection(sellerFinId, buyerFinId, assetTerm, settlementTerm, op);
         if (op.phase == Phase.INITIATE) {
             require(verifyInvestmentSignature(
@@ -270,7 +270,7 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
         bytes memory signature
     ) external {
         require(hasRole(TRANSACTION_MANAGER, _msgSender()), "FINP2POperatorERC20: must have transaction manager role to hold asset");
-        (string memory source, string memory destination, string memory assetId, string memory assetType, string memory amount) = _extractDirection(sellerFinId, buyerFinId, assetTerm, settlementTerm, op);
+        (string memory source, string memory destination, string memory assetId, AssetType assetType, string memory amount) = _extractDirection(sellerFinId, buyerFinId, assetTerm, settlementTerm, op);
         if (op.phase == Phase.INITIATE) {
             require(verifyInvestmentSignature(
                 op.eip712PrimaryType,
@@ -421,7 +421,7 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
         Term memory assetTerm,
         Term memory settlementTerm,
         OperationParams memory op
-    ) internal pure returns (string memory, string memory, string memory, string memory, string memory) {
+    ) internal pure returns (string memory, string memory, string memory, AssetType, string memory) {
         if (op.leg == LegType.ASSET) {
             if (op.phase == Phase.INITIATE) {
                 return (sellerFinId, buyerFinId, assetTerm.assetId, assetTerm.assetType, assetTerm.amount);

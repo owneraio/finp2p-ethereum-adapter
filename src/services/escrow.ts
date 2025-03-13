@@ -7,7 +7,7 @@ import { LegType } from "../../finp2p-contracts/src/contracts/eip712";
 export class EscrowService extends CommonService {
 
   public async hold(request: Paths.HoldOperation.RequestBody): Promise<Paths.HoldOperation.Responses.$200> {
-    const { operationId, asset, source, destination, quantity, nonce } = request;
+    const { operationId, asset, source, destination, quantity, nonce, executionContext } = request;
     const reqAsset = assetFromAPI(asset);
     const { signature, template } = request.signature;
 
@@ -19,7 +19,7 @@ export class EscrowService extends CommonService {
         settlement,
         loan,
         params
-      } = extractParameterEIP712(template, reqAsset, operationId);
+      } = extractParameterEIP712(template, reqAsset, operationId, executionContext);
       switch (params.leg) {
         case LegType.Asset:
           if (destination && buyerFinId !== destination.finId) {

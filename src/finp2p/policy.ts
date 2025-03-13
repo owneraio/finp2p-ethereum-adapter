@@ -1,9 +1,8 @@
 import { OssClient } from "./oss.client";
-import { Proof, ProofDomain, parseProofDomain, ProofPolicy } from "./model";
+import { parseProofDomain, Proof, ProofDomain, ProofPolicy } from "./model";
 import process from "process";
 import console from "console";
-
-
+import { AssetType } from "../../finp2p-contracts/src/contracts/model";
 
 export class PolicyGetter {
   ossClient: OssClient;
@@ -12,12 +11,12 @@ export class PolicyGetter {
     this.ossClient = ossClient;
   }
 
-  async getPolicy(assetCode: string, assetType: string): Promise<ProofPolicy> {
+  async getPolicy(assetCode: string, assetType: AssetType): Promise<ProofPolicy> {
     let proof: Proof;
     let domain: ProofDomain | null = null;
     let configRaw: string
     switch (assetType) {
-      case 'finp2p': {
+      case AssetType.FinP2P: {
         try {
           ({ policies: { proof }, config: configRaw } = await this.ossClient.getAsset(assetCode));
           domain = parseProofDomain(configRaw);
@@ -26,8 +25,7 @@ export class PolicyGetter {
           console.log(e)
         }
       }
-      case 'cryptocurrency':
-      case 'fiat': {
+      case AssetType.Cryptocurrency: case AssetType.Fiat: {
         const orgId = process.env.ORGANIZATION_ID || '';
         ({ policies: { proof } } = await this.ossClient.getPaymentAsset(orgId, assetCode));
         break

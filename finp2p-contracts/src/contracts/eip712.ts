@@ -1,6 +1,7 @@
 import { Signer, TypedDataEncoder, verifyTypedData, Wallet } from "ethers";
 
 
+
 export const enum LegType {
   Asset = 0,
   Settlement = 1
@@ -223,37 +224,35 @@ export type EIP712Types = Record<string, Array<{ name: string; type: string }>>
 export interface EIP712Message {
 }
 
-export const term = (assetId: string, assetType: string, amount: string): Term => {
+export type EIP712AssetType = "finp2p" | "fiat" | "cryptocurrency";
+export const eip712Term = (assetId: string, assetType: EIP712AssetType, amount: string): EIP712Term => {
   return { assetId, assetType, amount };
-};
+}
 
-export const emptyTerm = (): Term => {
-  return term("", "", "");
-};
 
-export interface Term {
+export interface EIP712Term {
   assetId: string,
   assetType: string,
   amount: string
 }
 
-export interface FinId {
+export interface EIP712FinId {
   idkey: string;
 }
 
-export const finId = (key: string): FinId => {
+export const finId = (key: string): EIP712FinId => {
   return { idkey: key };
 };
 
-export const emptyLoanTerms = (): LoanTerms => {
+export const emptyLoanTerms = (): EIP712LoanTerms => {
   return loanTerms("", "", "", "");
 };
 
-export const loanTerms = (openTime: string, closeTime: string, borrowedMoneyAmount: string, returnedMoneyAmount: string): LoanTerms => {
+export const loanTerms = (openTime: string, closeTime: string, borrowedMoneyAmount: string, returnedMoneyAmount: string): EIP712LoanTerms => {
   return { openTime, closeTime, borrowedMoneyAmount, returnedMoneyAmount };
 };
 
-export interface LoanTerms {
+export interface EIP712LoanTerms {
   openTime: string;
   closeTime: string;
   borrowedMoneyAmount: string;
@@ -262,110 +261,112 @@ export interface LoanTerms {
 
 export interface EIP712PrimarySaleMessage extends EIP712Message {
   nonce: string,
-  buyer: FinId,
-  issuer: FinId,
-  asset: Term,
-  settlement: Term
+  buyer: EIP712FinId,
+  issuer: EIP712FinId,
+  asset: EIP712Term,
+  settlement: EIP712Term
 }
 
 export interface EIP712BuyingMessage extends EIP712Message {
   nonce: string,
-  buyer: FinId,
-  seller: FinId,
-  asset: Term,
-  settlement: Term
+  buyer: EIP712FinId,
+  seller: EIP712FinId,
+  asset: EIP712Term,
+  settlement: EIP712Term
 }
 
 export interface EIP712SellingMessage extends EIP712Message {
   nonce: string,
-  buyer: FinId,
-  seller: FinId,
-  asset: Term,
-  settlement: Term
+  buyer: EIP712FinId,
+  seller: EIP712FinId,
+  asset: EIP712Term,
+  settlement: EIP712Term
 }
 
 export interface EIP712RedemptionMessage extends EIP712Message {
   nonce: string,
-  seller: FinId,
-  issuer: FinId,
-  asset: Term,
-  settlement: Term
+  seller: EIP712FinId,
+  issuer: EIP712FinId,
+  asset: EIP712Term,
+  settlement: EIP712Term
 }
 
 export interface EIP712RequestForTransferMessage extends EIP712Message {
   nonce: string,
-  buyer: FinId,
-  seller: FinId,
-  asset: Term,
+  buyer: EIP712FinId,
+  seller: EIP712FinId,
+  asset: EIP712Term,
 }
 
 export interface EIP712PrivateOfferMessage extends EIP712Message {
   nonce: string,
-  buyer: FinId,
-  seller: FinId,
-  asset: Term,
-  settlement: Term
+  buyer: EIP712FinId,
+  seller: EIP712FinId,
+  asset: EIP712Term,
+  settlement: EIP712Term
 }
 
 export interface EIP712LoanMessage extends EIP712Message {
   nonce: string,
-  borrower: FinId,
-  lender: FinId,
-  asset: Term,
-  settlement: Term
-  loanTerms: LoanTerms
+  borrower: EIP712FinId,
+  lender: EIP712FinId,
+  asset: EIP712Term,
+  settlement: EIP712Term
+  loanTerms: EIP712LoanTerms
 }
 
-export interface Source {
-  accountType: string;
+export type EIP712AccountType = 'finId' | 'iban' | 'cryptoWallet';
+
+export interface EIP712Source {
+  accountType: EIP712AccountType | '';
   finId: string;
 }
 
-export const source = (accountType: string, finId: string): Source => {
+export const eip712Source = (accountType: EIP712AccountType, finId: string): EIP712Source => {
   return { accountType, finId };
 };
 
-export interface Destination {
-  accountType: string;
+export interface EIP712Destination {
+  accountType: EIP712AccountType | '';
   finId: string;
 }
 
-export const destination = (accountType: string, finId: string): Destination => {
+export const eip712Destination = (accountType: EIP712AccountType, finId: string): EIP712Destination => {
   return { accountType, finId };
 };
 
-export interface Asset {
+export interface EIP712Asset {
   assetId: string;
-  assetType: string;
+  assetType: EIP712AssetType;
 }
 
-export const asset = (assetId: string, assetType: string): Asset => {
+export const eip712Asset = (assetId: string, assetType: EIP712AssetType): EIP712Asset => {
   return { assetId, assetType };
 };
 
-export interface ExecutionContext {
+export interface EIP712ExecutionContext {
   executionPlanId: string;
   instructionSequenceNumber: string;
 }
 
-export const executionContext = (executionPlanId: string, instructionSequenceNumber: string): ExecutionContext => {
+export const eip712ExecutionContext = (executionPlanId: string, instructionSequenceNumber: string): EIP712ExecutionContext => {
   return { executionPlanId, instructionSequenceNumber };
 };
 
-export interface TradeDetails {
-  executionContext: ExecutionContext;
+export interface EIP7127TradeDetails {
+  executionContext: EIP712ExecutionContext;
 }
 
-export const tradeDetails = (executionContext: ExecutionContext): TradeDetails => {
+export const eip712TradeDetails = (executionContext: EIP712ExecutionContext): EIP7127TradeDetails => {
   return { executionContext };
 };
 
-export interface TransactionDetails {
+export interface EIP712TransactionDetails {
   operationId: string;
   transactionId: string;
 }
 
-export const transactionDetails = (operationId: string, transactionId: string): TransactionDetails => {
+export const eip712TransactionDetails = (operationId: string, transactionId: string): EIP712TransactionDetails => {
   return { operationId, transactionId };
 };
 
@@ -373,12 +374,12 @@ export const transactionDetails = (operationId: string, transactionId: string): 
 export interface EIP712ReceiptMessage extends EIP712Message {
   id: string,
   operationType: string,
-  source: Source,
-  destination: Destination,
-  asset: Asset,
+  source: EIP712Source,
+  destination: EIP712Destination,
+  asset: EIP712Asset,
   quantity: string,
-  tradeDetails: TradeDetails,
-  transactionDetails: TransactionDetails
+  tradeDetails: EIP7127TradeDetails,
+  transactionDetails: EIP712TransactionDetails
 }
 
 export const newInvestmentMessage = (
@@ -386,9 +387,9 @@ export const newInvestmentMessage = (
   nonce: string,
   buyerFinId: string,
   sellerFinId: string,
-  asset: Term,
-  settlement: Term,
-  loan: LoanTerms | undefined = undefined
+  asset: EIP712Term,
+  settlement: EIP712Term,
+  loan: EIP712LoanTerms | undefined = undefined
 ): { message: EIP712Message, types: EIP712Types } => {
   let message: EIP712Message;
   let types: EIP712Types;
@@ -430,35 +431,35 @@ export const newInvestmentMessage = (
   return { message, types };
 };
 
-export const newPrimarySaleMessage = (nonce: string, buyer: FinId, issuer: FinId, asset: Term, settlement: Term): EIP712PrimarySaleMessage => {
+export const newPrimarySaleMessage = (nonce: string, buyer: EIP712FinId, issuer: EIP712FinId, asset: EIP712Term, settlement: EIP712Term): EIP712PrimarySaleMessage => {
   return { nonce, buyer, issuer, asset, settlement };
 };
 
-export const newBuyingMessage = (nonce: string, buyer: FinId, seller: FinId, asset: Term, settlement: Term): EIP712BuyingMessage => {
+export const newBuyingMessage = (nonce: string, buyer: EIP712FinId, seller: EIP712FinId, asset: EIP712Term, settlement: EIP712Term): EIP712BuyingMessage => {
   return { nonce, buyer, seller, asset, settlement };
 };
 
-export const newSellingMessage = (nonce: string, buyer: FinId, seller: FinId, asset: Term, settlement: Term): EIP712SellingMessage => {
+export const newSellingMessage = (nonce: string, buyer: EIP712FinId, seller: EIP712FinId, asset: EIP712Term, settlement: EIP712Term): EIP712SellingMessage => {
   return { nonce, buyer, seller, asset, settlement };
 };
 
-export const newRedemptionMessage = (nonce: string, issuer: FinId, seller: FinId, asset: Term, settlement: Term): EIP712RedemptionMessage => {
+export const newRedemptionMessage = (nonce: string, issuer: EIP712FinId, seller: EIP712FinId, asset: EIP712Term, settlement: EIP712Term): EIP712RedemptionMessage => {
   return { nonce, issuer, seller, asset, settlement };
 };
 
-export const newRequestForTransferMessage = (nonce: string, buyer: FinId, seller: FinId, asset: Term): EIP712RequestForTransferMessage => {
+export const newRequestForTransferMessage = (nonce: string, buyer: EIP712FinId, seller: EIP712FinId, asset: EIP712Term): EIP712RequestForTransferMessage => {
   return { nonce, buyer, seller, asset };
 };
 
-export const newPrivateOfferMessage = (nonce: string, buyer: FinId, seller: FinId, asset: Term, settlement: Term): EIP712PrivateOfferMessage => {
+export const newPrivateOfferMessage = (nonce: string, buyer: EIP712FinId, seller: EIP712FinId, asset: EIP712Term, settlement: EIP712Term): EIP712PrivateOfferMessage => {
   return { nonce, buyer, seller, asset, settlement };
 };
 
-export const newLoanMessage = (nonce: string, borrower: FinId, lender: FinId, asset: Term, settlement: Term, loanTerms: LoanTerms): EIP712LoanMessage => {
+export const newLoanMessage = (nonce: string, borrower: EIP712FinId, lender: EIP712FinId, asset: EIP712Term, settlement: EIP712Term, loanTerms: EIP712LoanTerms): EIP712LoanMessage => {
   return { nonce, borrower, lender, asset, settlement, loanTerms };
 };
 
-export const newReceiptMessage = (id: string, operationType: string, source: Source, destination: Destination, asset: Asset, quantity: string, tradeDetails: TradeDetails, transactionDetails: TransactionDetails): EIP712ReceiptMessage => {
+export const newReceiptMessage = (id: string, operationType: string, source: EIP712Source, destination: EIP712Destination, asset: EIP712Asset, quantity: string, tradeDetails: EIP7127TradeDetails, transactionDetails: EIP712TransactionDetails): EIP712ReceiptMessage => {
   return { id, operationType, source, destination, asset, quantity, tradeDetails, transactionDetails };
 };
 

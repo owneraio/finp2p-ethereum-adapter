@@ -1,12 +1,77 @@
 import {
-  asset,
+  eip712Asset,
   EIP712ReceiptMessage,
   EIP712Template,
-  executionContext, LegType, PrimaryType,
-  tradeDetails,
-  transactionDetails
+  eip712ExecutionContext, LegType, PrimaryType,
+  eip712TradeDetails,
+  eip712TransactionDetails, EIP712Term, EIP712AssetType
 } from "./eip712";
 import { zeroPadBytes } from "ethers";
+
+export interface Term {
+  assetId: string,
+  assetType: AssetType,
+  amount: string
+}
+
+export const enum AssetType {
+  FinP2P = 0,
+  Fiat = 1,
+  Cryptocurrency = 2
+}
+
+export const assetTypeFromNumber = (assetType: bigint): AssetType => {
+  switch (assetType) {
+    case 0n:
+      return AssetType.FinP2P;
+    case 1n:
+      return AssetType.Fiat;
+    case 2n:
+      return AssetType.Cryptocurrency;
+    default:
+      throw new Error("Invalid asset type");
+  }
+}
+
+export const assetTypeFromString = (assetType: string): AssetType => {
+  switch (assetType) {
+    case "finp2p":
+      return AssetType.FinP2P;
+    case "fiat":
+      return AssetType.Fiat;
+    case "cryptocurrency":
+      return AssetType.Cryptocurrency;
+    default:
+      throw new Error("Invalid asset type");
+  }
+}
+
+export const term = (assetId: string, assetType: AssetType, amount: string): Term => {
+  return { assetId, assetType, amount };
+};
+
+export const emptyTerm = (): Term => {
+  return term("", 0, "");
+};
+
+export const assetTypeToEIP712 = (assetType: AssetType): EIP712AssetType => {
+  switch (assetType) {
+    case AssetType.FinP2P:
+      return "finp2p";
+    case AssetType.Fiat:
+      return "fiat";
+    case AssetType.Cryptocurrency:
+      return "cryptocurrency";
+  }
+}
+
+export const termToEIP712 = (term: Term): EIP712Term => {
+  return {
+    assetId: term.assetId,
+    assetType: assetTypeToEIP712(term.assetType),
+    amount: term.amount
+  };
+}
 
 export const enum Phase {
   Initiate = 0,
@@ -97,21 +162,23 @@ export const receiptToEIP712Message = (receipt: FinP2PReceipt): EIP712ReceiptMes
     source: { accountType: source ? "finId" : "", finId: source || "" },
     destination: { accountType: destination ? "finId" : "", finId: destination || "" },
     quantity,
-    asset: asset(assetId, assetType),
-    tradeDetails: tradeDetails(executionContext("", "")),
-    transactionDetails: transactionDetails(operationId || "", id)
+    asset: eip712Asset(assetId, assetTypeToEIP712(assetType)),
+    tradeDetails: eip712TradeDetails(eip712ExecutionContext("", "")),
+    transactionDetails: eip712TransactionDetails(operationId || "", id)
   };
 };
+
+export type OperationType = "transfer" | "redeem" | "hold" | "release" | "issue";
 
 export type FinP2PReceipt = {
   id: string
   assetId: string
-  assetType: string
+  assetType: AssetType
   quantity: string
   source?: string
   destination?: string
   timestamp: number
-  operationType: "transfer" | "redeem" | "hold" | "release" | "issue"
+  operationType: OperationType
   operationId?: string
   proof?: ReceiptProof
 };

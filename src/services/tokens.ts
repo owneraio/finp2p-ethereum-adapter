@@ -2,11 +2,11 @@ import { CommonService } from "./common";
 import {
   assetCreationResult, assetFromAPI, extractParameterEIP712, failedAssetCreation, failedTransaction, getRandomNumber
 } from "./mapping";
-import { EthereumTransactionError } from "../../finp2p-contracts/src/contracts/model";
+import { assetTypeFromString, EthereumTransactionError, term } from "../../finp2p-contracts/src/contracts/model";
 import { logger } from "../helpers/logger";
 import { FinP2PContract } from "../../finp2p-contracts/src/contracts/finp2p";
 import { isEthereumAddress } from "../../finp2p-contracts/src/contracts/utils";
-import { LegType, term } from "../../finp2p-contracts/src/contracts/eip712";
+import { LegType } from "../../finp2p-contracts/src/contracts/eip712";
 import { PolicyGetter } from "../finp2p/policy";
 import CreateAssetResponse = Components.Schemas.CreateAssetResponse;
 import LedgerTokenId = Components.Schemas.LedgerTokenId;
@@ -93,7 +93,7 @@ export class TokenService extends CommonService {
     let txHash: string;
     try {
       logger.info(`Issue asset ${assetId} to ${issuerFinId} with amount ${quantity}`);
-      txHash = await this.finP2PContract.issue(issuerFinId, term(assetId, assetType, quantity));
+      txHash = await this.finP2PContract.issue(issuerFinId, term(assetId, assetTypeFromString(assetType), quantity));
 
     } catch (e) {
       logger.error(`Error on asset issuance: ${e}`);
@@ -122,7 +122,7 @@ export class TokenService extends CommonService {
         settlement,
         loan,
         params
-      } = extractParameterEIP712(template, reqAsset);
+      } = extractParameterEIP712(template, reqAsset, '', executionContext);
       switch (params.leg) {
         case LegType.Asset:
           if (buyerFinId !== destination.finId) {

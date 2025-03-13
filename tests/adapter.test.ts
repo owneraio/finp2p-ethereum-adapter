@@ -4,14 +4,13 @@ import { v4 as uuidv4 } from "uuid";
 import { eip712Signature } from "./api/mapper";
 import {
   EIP712PrimarySaleMessage,
-  EIP712SellingMessage,
+  EIP712SellingMessage, eip712Term,
   finId,
   newRedemptionMessage,
   newSellingMessage,
   PRIMARY_SALE_TYPES,
   REDEMPTION_TYPES,
-  SELLING_TYPES,
-  term
+  SELLING_TYPES
 } from "../finp2p-contracts/src/contracts/eip712";
 
 
@@ -194,7 +193,7 @@ describe(`token service test`, () => {
       destination: sellerSource,
       quantity: `${transferSettlementAmount}`,
       asset: settlementAsset,
-      signature: await eip712Signature(chainId, verifyingContract, "Selling", SELLING_TYPES, newSellingMessage(transferNonce, finId(buyerFinId), finId(sellerFinId), term(assetId, "finp2p", `${transferAmount}`), term(settlementAssetId, "fiat", `${transferSettlementAmount}`)), buyerPrivateKey)
+      signature: await eip712Signature(chainId, verifyingContract, "Selling", SELLING_TYPES, newSellingMessage(transferNonce, finId(buyerFinId), finId(sellerFinId), eip712Term(assetId, "finp2p", `${transferAmount}`), eip712Term(settlementAssetId, "fiat", `${transferSettlementAmount}`)), buyerPrivateKey)
     } as Paths.HoldOperation.RequestBody);
     expect(holdStatus.error).toBeUndefined();
     const holdReceipt = await client.expectReceipt(holdStatus);
@@ -272,7 +271,7 @@ describe(`token service test`, () => {
     const redeemSettlementAmount = 1000;
 
     const transferNonce = generateNonce().toString("hex");
-    const redemptionSignature = await eip712Signature(chainId, verifyingContract, "Redemption", REDEMPTION_TYPES, newRedemptionMessage(transferNonce, finId(issuerFinId), finId(investorFinId), term(assetId, "finp2p", `${redeemAmount}`), term(settlementAssetId, "fiat", `${redeemSettlementAmount}`)),
+    const redemptionSignature = await eip712Signature(chainId, verifyingContract, "Redemption", REDEMPTION_TYPES, newRedemptionMessage(transferNonce, finId(issuerFinId), finId(investorFinId), eip712Term(assetId, "finp2p", `${redeemAmount}`), eip712Term(settlementAssetId, "fiat", `${redeemSettlementAmount}`)),
 
       investorPrivateKey);
 

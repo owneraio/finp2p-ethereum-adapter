@@ -9,7 +9,7 @@ import {
   TransactionReceipt,
   Wallet
 } from "ethers";
-import { FinP2PReceipt } from "./model";
+import { assetTypeFromNumber, FinP2PReceipt } from "./model";
 import * as secp256k1 from "secp256k1";
 import {
   FINP2POperatorERC20Interface,
@@ -73,7 +73,15 @@ export const parseTransactionReceipt = (
       switch (parsedLog.signature) {
         case "Issue(string,string,string,string)": {
           const { assetId, assetType, quantity, issuerFinId } = parsedLog.args as unknown as IssueEvent.OutputObject;
-          return { id, assetId, assetType, quantity, destination: issuerFinId, timestamp, operationType: "issue" };
+          return {
+            id,
+            assetId,
+            assetType: assetTypeFromNumber(assetType),
+            quantity,
+            destination: issuerFinId,
+            timestamp,
+            operationType: "issue"
+          };
         }
         case "Transfer(string,string,string,string,string)": {
           const {
@@ -86,7 +94,7 @@ export const parseTransactionReceipt = (
           return {
             id,
             assetId,
-            assetType,
+            assetType: assetTypeFromNumber(assetType),
             quantity,
             source: sourceFinId,
             destination: destinationFinId,
@@ -96,7 +104,15 @@ export const parseTransactionReceipt = (
         }
         case "Redeem(string,string,string,string,bytes16)": {
           const { assetId, assetType, quantity, ownerFinId } = parsedLog.args as unknown as RedeemEvent.OutputObject;
-          return { id, assetId, assetType, quantity, source: ownerFinId, timestamp, operationType: "redeem" };
+          return {
+            id,
+            assetId,
+            assetType: assetTypeFromNumber(assetType),
+            quantity,
+            source: ownerFinId,
+            timestamp,
+            operationType: "redeem"
+          };
         }
         case "Hold(string,string,string,string,bytes16)": {
           const {
@@ -106,7 +122,16 @@ export const parseTransactionReceipt = (
             finId,
             operationId
           } = parsedLog.args as unknown as HoldEvent.OutputObject;
-          return { id, assetId, assetType, quantity, source: finId, timestamp, operationType: "hold", operationId };
+          return {
+            id,
+            assetId,
+            assetType: assetTypeFromNumber(assetType),
+            quantity,
+            source: finId,
+            timestamp,
+            operationType: "hold",
+            operationId
+          };
         }
         case "Release(string,string,string,string,string,bytes16)": {
           const {
@@ -118,8 +143,15 @@ export const parseTransactionReceipt = (
             operationId
           } = parsedLog.args as unknown as ReleaseEvent.OutputObject;
           return {
-            id, assetId, assetType, quantity, source: sourceFinId, destination: destinationFinId, timestamp,
-            operationType: "release", operationId
+            id,
+            assetId,
+            assetType: assetTypeFromNumber(assetType),
+            quantity,
+            source: sourceFinId,
+            destination: destinationFinId,
+            timestamp,
+            operationType: "release",
+            operationId
           };
         }
       }

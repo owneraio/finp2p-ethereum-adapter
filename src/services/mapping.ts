@@ -1,21 +1,21 @@
 import {
+  emptyTerm,
   FinP2PReceipt,
   operationParams,
   OperationParams,
+  AssetType,
   Phase,
-  ReceiptProof
+  ReceiptProof, Term, assetTypeFromString
 } from "../../finp2p-contracts/src/contracts/model";
 import {
   EIP712Domain,
+  EIP712LoanTerms,
   EIP712Message,
   EIP712Template,
   EIP712Types,
   emptyLoanTerms,
-  emptyTerm,
   LegType,
-  LoanTerms,
   PrimaryType,
-  Term
 } from "../../finp2p-contracts/src/contracts/eip712";
 import { hashToBytes16 } from "../../finp2p-contracts/src/contracts/utils";
 import Asset = Components.Schemas.Asset;
@@ -70,17 +70,17 @@ const finIdDestination = (finId?: string): Components.Schemas.Destination | unde
   };
 };
 
-export const assetToAPI = (assetId: string, assetType: string): Asset => {
+export const assetToAPI = (assetId: string, assetType: AssetType): Asset => {
   switch (assetType) {
-    case "fiat":
+    case AssetType.Fiat:
       return {
         type: "fiat", code: assetId
       };
-    case "finp2p":
+    case AssetType.FinP2P:
       return {
         type: "finp2p", resourceId: assetId
       };
-    case "cryptocurrency":
+    case AssetType.Cryptocurrency:
       return {
         type: "cryptocurrency", code: assetId
       };
@@ -240,12 +240,12 @@ export const failedTransaction = (code: number, message: string) => {
 export const termFromAPI = (term: Components.Schemas.EIP712TypeObject): Term => {
   return {
     assetId: term.assetId as EIP712TypeString,
-    assetType: term.assetType as EIP712TypeString,
+    assetType: assetTypeFromString(term.assetType as EIP712TypeString),
     amount: term.amount as EIP712TypeString
   };
 };
 
-export const loanTermFromAPI = (loanTerms: Components.Schemas.EIP712TypeObject | undefined): LoanTerms => {
+export const loanTermFromAPI = (loanTerms: Components.Schemas.EIP712TypeObject | undefined): EIP712LoanTerms => {
   if (!loanTerms) {
     return emptyLoanTerms();
   }
@@ -254,7 +254,7 @@ export const loanTermFromAPI = (loanTerms: Components.Schemas.EIP712TypeObject |
     closeTime: loanTerms.closeTime as EIP712TypeString,
     borrowedMoneyAmount: loanTerms.borrowedMoneyAmount as EIP712TypeString,
     returnedMoneyAmount: loanTerms.returnedMoneyAmount as EIP712TypeString
-  } as LoanTerms;
+  } as EIP712LoanTerms;
 };
 
 export const finIdFromAPI = (finId: Components.Schemas.EIP712TypeObject): string => {
@@ -288,7 +288,7 @@ type EIP712Params = {
   sellerFinId: string,
   asset: Term,
   settlement: Term,
-  loan: LoanTerms,
+  loan: EIP712LoanTerms,
   params: OperationParams
 };
 

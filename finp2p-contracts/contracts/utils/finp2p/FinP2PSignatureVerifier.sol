@@ -14,6 +14,12 @@ contract FinP2PSignatureVerifier is EIP712 {
     string private constant SIGNING_DOMAIN = "FinP2P";
     string private constant SIGNATURE_VERSION = "1";
 
+    enum AssetType {
+        FINP2P,
+        FIAT,
+        CRYPTOCURRENCY
+    }
+
     enum LegType {
         ASSET,
         SETTLEMENT
@@ -28,6 +34,10 @@ contract FinP2PSignatureVerifier is EIP712 {
         PRIVATE_OFFER,
         LOAN
     }
+
+    bytes32 private constant ASSET_TYPE_FINP2P_HASH = keccak256("finp2p");
+    bytes32 private constant ASSET_TYPE_FIAT_HASH = keccak256("fiat");
+    bytes32 private constant ASSET_TYPE_CRYPTOCURRENCY_HASH = keccak256("cryptocurrency");
 
     bytes32 private constant FINID_TYPE_HASH = keccak256(
         "FinId(string idkey)"
@@ -72,7 +82,7 @@ contract FinP2PSignatureVerifier is EIP712 {
 
     struct Term {
         string assetId;
-        string assetType;
+        AssetType assetType;
         string amount;
     }
 
@@ -82,7 +92,6 @@ contract FinP2PSignatureVerifier is EIP712 {
         string borrowedMoneyAmount;
         string returnedMoneyAmount;
     }
-
 
 
     constructor() EIP712(SIGNING_DOMAIN, SIGNATURE_VERSION) {}
@@ -108,11 +117,23 @@ contract FinP2PSignatureVerifier is EIP712 {
         return keccak256(abi.encode(FINID_TYPE_HASH, keccak256(bytes(finId))));
     }
 
+    function hashAssetType(AssetType assetType) public pure returns (bytes32) {
+        if (assetType == AssetType.FINP2P) {
+            return ASSET_TYPE_FINP2P_HASH;
+        } else if (assetType == AssetType.FIAT) {
+            return ASSET_TYPE_FIAT_HASH;
+        } else if (assetType == AssetType.CRYPTOCURRENCY) {
+            return ASSET_TYPE_CRYPTOCURRENCY_HASH;
+        } else {
+            revert("Invalid asset type");
+        }
+    }
+
     function hashTerm(Term memory term) public pure returns (bytes32) {
         return keccak256(abi.encode(
             TERM_TYPE_HASH,
             keccak256(bytes(term.assetId)),
-            keccak256(bytes(term.assetType)),
+            hashAssetType(term.assetType),
             keccak256(bytes(term.amount))
         ));
     }
