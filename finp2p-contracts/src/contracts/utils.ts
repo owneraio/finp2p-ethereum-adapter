@@ -71,7 +71,7 @@ export const parseTransactionReceipt = (
       }
 
       switch (parsedLog.signature) {
-        case "Issue(string,string,string,string)": {
+        case "Issue(string,uint8,string,string)": {
           const { assetId, assetType, quantity, issuerFinId } = parsedLog.args as unknown as IssueEvent.OutputObject;
           return {
             id,
@@ -83,7 +83,7 @@ export const parseTransactionReceipt = (
             operationType: "issue"
           };
         }
-        case "Transfer(string,string,string,string,string)": {
+        case "Transfer(string,uint8,string,string,string)": {
           const {
             assetId,
             assetType,
@@ -102,7 +102,7 @@ export const parseTransactionReceipt = (
             operationType: "transfer"
           };
         }
-        case "Redeem(string,string,string,string,bytes16)": {
+        case "Redeem(string,uint8,string,string,bytes16)": {
           const { assetId, assetType, quantity, ownerFinId } = parsedLog.args as unknown as RedeemEvent.OutputObject;
           return {
             id,
@@ -114,7 +114,7 @@ export const parseTransactionReceipt = (
             operationType: "redeem"
           };
         }
-        case "Hold(string,string,string,string,bytes16)": {
+        case "Hold(string,uint8,string,string,bytes16)": {
           const {
             assetId,
             assetType,
@@ -133,7 +133,7 @@ export const parseTransactionReceipt = (
             operationId
           };
         }
-        case "Release(string,string,string,string,string,bytes16)": {
+        case "Release(string,uint8,string,string,string,bytes16)": {
           const {
             assetId,
             assetType,
