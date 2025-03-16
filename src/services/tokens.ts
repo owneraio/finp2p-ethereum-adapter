@@ -7,11 +7,10 @@ import {
   failedTransaction,
   getRandomNumber, RequestValidationError
 } from "./mapping";
-import { assetTypeFromString, EthereumTransactionError, Phase, term } from "../../finp2p-contracts/src/contracts/model";
+import { assetTypeFromString, EthereumTransactionError, term } from "../../finp2p-contracts/src/contracts/model";
 import { logger } from "../helpers/logger";
 import { FinP2PContract } from "../../finp2p-contracts/src/contracts/finp2p";
 import { isEthereumAddress } from "../../finp2p-contracts/src/contracts/utils";
-import { LegType } from "../../finp2p-contracts/src/contracts/eip712";
 import { PolicyGetter } from "../finp2p/policy";
 import CreateAssetResponse = Components.Schemas.CreateAssetResponse;
 import LedgerTokenId = Components.Schemas.LedgerTokenId;
@@ -91,15 +90,13 @@ export class TokenService extends CommonService {
   }
 
   public async issue(request: Paths.IssueAssets.RequestBody): Promise<Paths.IssueAssets.Responses.$200> {
-    const { asset, quantity, destination } = request;
+    const { asset, quantity, destination: { finId: issuerFinId } } = request;
     const { assetId, assetType } = assetFromAPI(asset);
-    const issuerFinId = destination.finId;
 
     let txHash: string;
     try {
       logger.info(`Issue asset ${assetId} to ${issuerFinId} with amount ${quantity}`);
       txHash = await this.finP2PContract.issue(issuerFinId, term(assetId, assetTypeFromString(assetType), quantity));
-
     } catch (e) {
       logger.error(`Error on asset issuance: ${e}`);
       if (e instanceof EthereumTransactionError) {
@@ -115,16 +112,16 @@ export class TokenService extends CommonService {
   }
 
   public async transfer(request: Paths.TransferAsset.RequestBody): Promise<Paths.TransferAsset.Responses.$200> {
-    const erip712Params = extractEIP712Params(request);
+    const eip712Params = extractEIP712Params(request);
     try {
-      this.validateRequest(request, erip712Params);
+      this.validateRequest(request, eip712Params);
     } catch (e) {
       if (e instanceof RequestValidationError) {
-        logger.info(`Validation error: ${e.reason}`);
+        logger.error(`Validation error: ${e.reason}`);
         return failedTransaction(1, e.reason);
       }
     }
-    const { buyerFinId, sellerFinId, asset, settlement, loan, params } = erip712Params;
+    const { buyerFinId, sellerFinId, asset, settlement, loan, params } = eip712Params;
     const { nonce, signature: { signature } } = request;
 
     try {
