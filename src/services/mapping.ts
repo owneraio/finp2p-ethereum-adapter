@@ -1,11 +1,14 @@
 import {
+  AssetType,
+  assetTypeFromString,
   emptyTerm,
   FinP2PReceipt,
   operationParams,
   OperationParams,
-  AssetType,
   Phase,
-  ReceiptProof, Term, assetTypeFromString
+  ReceiptProof,
+  ReleaseType,
+  Term
 } from "../../finp2p-contracts/src/contracts/model";
 import {
   EIP712Domain,
@@ -260,20 +263,10 @@ const compareAssets = (reqAsset: Components.Schemas.Asset, eipAsset: EIP712TypeO
 
 };
 
-export const detectLeg = (asset: Components.Schemas.Asset, template: Components.Schemas.SignatureTemplate): LegType => {
-  if (template.type != "EIP712") {
-    throw new Error(`Unsupported signature template type: ${template.type}`);
-  }
-  if (compareAssets(asset, template.message.asset as EIP712TypeObject)) {
-    return LegType.Asset;
-  } else if (compareAssets(asset, template.message.settlement as EIP712TypeObject)) {
-    return LegType.Settlement;
-  } else {
-    throw new Error(`Asset not found in EIP712 message`);
-  }
-};
+export type RequestType = 'issue' | 'transfer' | 'redeem' | 'hold' | 'release' | 'rollback';
 
 export type RequestParams = {
+  type: RequestType
   source: Source;
   destination?: Destination;
   asset: Asset;
@@ -292,14 +285,41 @@ export type EIP712Params = {
   params: OperationParams
 };
 
+
+export const detectLeg = (request: RequestParams): LegType => {
+  const { signature: { template }, asset } = request
+  if (template.type != "EIP712") {
+    throw new Error(`Unsupported signature template type: ${template.type}`);
+  }
+  if (compareAssets(asset, template.message.asset as EIP712TypeObject)) {
+    return LegType.Asset;
+  } else if (compareAssets(asset, template.message.settlement as EIP712TypeObject)) {
+    return LegType.Settlement;
+  } else {
+    throw new Error(`Asset not found in EIP712 message`);
+  }
+};
+
+export const detectReleaseType = (request: RequestParams): ReleaseType => {
+  const { type, destination } = request
+  switch (type) {
+    case "hold":
+      return destination ? ReleaseType.Release : ReleaseType.Redeem;
+    default:
+      return ReleaseType.Release;
+  }
+}
+
 export const extractEIP712Params = (request: RequestParams): EIP712Params => {
-  const { signature: { template }, asset, operationId ,executionContext } = request
+  const { signature: { template }, operationId, executionContext } = request
   if (template.type != "EIP712") {
     throw new Error(`Unsupported signature template type: ${template.type}`);
   }
 
-  const leg = detectLeg(asset, template);
+  const leg = detectLeg(request);
   const eip712PrimaryType = eip71212PrimaryTypeFromTemplate(template);
+  const releaseType = detectReleaseType(request);
+
   switch (template.primaryType) {
     case "PrimarySale": {
       return {
@@ -308,7 +328,7 @@ export const extractEIP712Params = (request: RequestParams): EIP712Params => {
         asset: termFromAPI(template.message.asset as EIP712TypeObject),
         settlement: termFromAPI(template.message.settlement as EIP712TypeObject),
         loan: emptyLoanTerms(),
-        params: operationParams(leg, eip712PrimaryType, Phase.Initiate, operationId)
+        params: operationParams(leg, eip712PrimaryType, Phase.Initiate, operationId, releaseType)
       };
     }
     case "Buying":
@@ -319,7 +339,7 @@ export const extractEIP712Params = (request: RequestParams): EIP712Params => {
         asset: termFromAPI(template.message.asset as EIP712TypeObject),
         settlement: termFromAPI(template.message.settlement as EIP712TypeObject),
         loan: emptyLoanTerms(),
-        params: operationParams(leg, eip712PrimaryType, Phase.Initiate, operationId)
+        params: operationParams(leg, eip712PrimaryType, Phase.Initiate, operationId, releaseType)
       };
     }
     case "RequestForTransfer": {
@@ -329,7 +349,7 @@ export const extractEIP712Params = (request: RequestParams): EIP712Params => {
         asset: termFromAPI(template.message.asset as EIP712TypeObject),
         settlement: emptyTerm(),
         loan: emptyLoanTerms(),
-        params: operationParams(leg, eip712PrimaryType, Phase.Initiate, operationId)
+        params: operationParams(leg, eip712PrimaryType, Phase.Initiate, operationId, releaseType)
       };
     }
     case "Redemption": {
@@ -339,7 +359,7 @@ export const extractEIP712Params = (request: RequestParams): EIP712Params => {
         asset: termFromAPI(template.message.asset as EIP712TypeObject),
         settlement: termFromAPI(template.message.settlement as EIP712TypeObject),
         loan: emptyLoanTerms(),
-        params: operationParams(leg, eip712PrimaryType, Phase.Initiate, operationId)
+        params: operationParams(leg, eip712PrimaryType, Phase.Initiate, operationId, releaseType)
       };
     }
     case "Loan": {
@@ -353,7 +373,7 @@ export const extractEIP712Params = (request: RequestParams): EIP712Params => {
         asset: termFromAPI(template.message.asset as EIP712TypeObject),
         settlement: termFromAPI(template.message.settlement as EIP712TypeObject),
         loan: loanTermFromAPI(template.message.loanTerms as EIP712TypeObject),
-        params: operationParams(leg, eip712PrimaryType, phase, operationId)
+        params: operationParams(leg, eip712PrimaryType, phase, operationId, releaseType)
       };
     }
     default:

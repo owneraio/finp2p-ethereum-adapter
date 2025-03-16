@@ -29,6 +29,11 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
         CLOSE
     }
 
+    enum ReleaseType {
+        RELEASE,
+        REDEEM
+    }
+
     string public constant VERSION = "0.22.2";
 
     bytes32 private constant ASSET_MANAGER = keccak256("ASSET_MANAGER");
@@ -39,6 +44,7 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
         Phase phase;
         PrimaryType eip712PrimaryType;
         string operationId;
+        ReleaseType releaseType;
     }
 
     struct LockInfo {
@@ -303,7 +309,13 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
             ), "Signature is not verified");
         }
         _transfer(source.toAddress(), _getEscrow(), assetId, amount);
-        locks[op.operationId] = Lock(assetId, assetType, source, destination, amount);
+        if (op.releaseType == ReleaseType.RELEASE) {
+            locks[op.operationId] = Lock(assetId, assetType, source, destination, amount);
+        } else if (op.releaseType == ReleaseType.REDEEM) {
+            locks[op.operationId] = Lock(assetId, assetType, source, '', amount);
+        } else {
+            revert("Invalid release type");
+        }
         emit Hold(assetId, assetType, source, amount, op.operationId);
     }
 
@@ -340,6 +352,7 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
         require(_haveContract(operationId), "Contract does not exists");
         Lock storage lock = locks[operationId];
         require(lock.source.equals(ownerFinId), "Trying to redeem asset with owner different from the one who held it");
+        require(bytes(lock.destination).length == 0, "Trying to redeem asset with non-empty destination");
         require(lock.amount.equals(quantity), "Trying to redeem amount different from the one held");
         _burn(_getEscrow(), lock.assetId, lock.amount);
         emit Redeem(lock.assetId, lock.assetType, ownerFinId, quantity, operationId);

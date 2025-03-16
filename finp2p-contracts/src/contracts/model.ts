@@ -78,23 +78,31 @@ export const enum Phase {
   Close = 1
 }
 
+export const enum ReleaseType {
+  Release = 0,
+  Redeem = 1
+}
+
 export interface OperationParams {
   leg: LegType;
   eip712PrimaryType: PrimaryType;
   phase: Phase;
   operationId: string;
+  releaseType: ReleaseType
 }
 
 export const operationParams = (
   leg: LegType,
   eip712PrimaryType: PrimaryType,
   phase: Phase = Phase.Initiate,
-  operationId: string = zeroPadBytes("0x", 16)): OperationParams => {
+  operationId: string = '',
+  releaseType: ReleaseType = ReleaseType.Release): OperationParams => {
   return {
     leg,
     eip712PrimaryType,
     phase,
-    operationId
+    operationId,
+    releaseType
   };
 };
 

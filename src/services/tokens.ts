@@ -5,7 +5,7 @@ import {
   extractEIP712Params,
   failedAssetCreation,
   failedTransaction,
-  getRandomNumber, RequestValidationError
+  getRandomNumber, RequestParams, RequestValidationError
 } from "./mapping";
 import { assetTypeFromString, EthereumTransactionError, term } from "../../finp2p-contracts/src/contracts/model";
 import { logger } from "../helpers/logger";
@@ -112,9 +112,10 @@ export class TokenService extends CommonService {
   }
 
   public async transfer(request: Paths.TransferAsset.RequestBody): Promise<Paths.TransferAsset.Responses.$200> {
-    const eip712Params = extractEIP712Params(request);
+    const requestParams: RequestParams = {...request, type: 'transfer'};
+    const eip712Params = extractEIP712Params(requestParams);
     try {
-      this.validateRequest(request, eip712Params);
+      this.validateRequest(requestParams, eip712Params);
     } catch (e) {
       if (e instanceof RequestValidationError) {
         logger.error(`Validation error: ${e.reason}`);
