@@ -17,7 +17,6 @@ import {
   LegType,
   PrimaryType,
 } from "../../finp2p-contracts/src/contracts/eip712";
-import { hashToBytes16 } from "../../finp2p-contracts/src/contracts/utils";
 import Asset = Components.Schemas.Asset;
 import Receipt = Components.Schemas.Receipt;
 import LedgerAssetInfo = Components.Schemas.LedgerAssetInfo;
@@ -318,7 +317,7 @@ export const extractParameterEIP712 = (
         asset: termFromAPI(template.message.asset as EIP712TypeObject),
         settlement: termFromAPI(template.message.settlement as EIP712TypeObject),
         loan: emptyLoanTerms(),
-        params: operationParams(leg, eip712PrimaryType, Phase.Initiate, hashToBytes16(operationId))
+        params: operationParams(leg, eip712PrimaryType, Phase.Initiate, operationId)
       };
     }
     case "Buying":
@@ -329,7 +328,7 @@ export const extractParameterEIP712 = (
         asset: termFromAPI(template.message.asset as EIP712TypeObject),
         settlement: termFromAPI(template.message.settlement as EIP712TypeObject),
         loan: emptyLoanTerms(),
-        params: operationParams(leg, eip712PrimaryType, Phase.Initiate, hashToBytes16(operationId))
+        params: operationParams(leg, eip712PrimaryType, Phase.Initiate, operationId)
       };
     }
     case "RequestForTransfer": {
@@ -339,7 +338,7 @@ export const extractParameterEIP712 = (
         asset: termFromAPI(template.message.asset as EIP712TypeObject),
         settlement: emptyTerm(),
         loan: emptyLoanTerms(),
-        params: operationParams(leg, eip712PrimaryType, Phase.Initiate, hashToBytes16(operationId))
+        params: operationParams(leg, eip712PrimaryType, Phase.Initiate, operationId)
       };
     }
     case "Redemption": {
@@ -349,7 +348,7 @@ export const extractParameterEIP712 = (
         asset: termFromAPI(template.message.asset as EIP712TypeObject),
         settlement: termFromAPI(template.message.settlement as EIP712TypeObject),
         loan: emptyLoanTerms(),
-        params: operationParams(leg, eip712PrimaryType, Phase.Initiate, hashToBytes16(operationId))
+        params: operationParams(leg, eip712PrimaryType, Phase.Initiate, operationId)
       };
     }
     case "Loan": {
@@ -363,7 +362,7 @@ export const extractParameterEIP712 = (
         asset: termFromAPI(template.message.asset as EIP712TypeObject),
         settlement: termFromAPI(template.message.settlement as EIP712TypeObject),
         loan: loanTermFromAPI(template.message.loanTerms as EIP712TypeObject),
-        params: operationParams(leg, eip712PrimaryType, phase, hashToBytes16(operationId))
+        params: operationParams(leg, eip712PrimaryType, phase, operationId)
       };
     }
     default:
