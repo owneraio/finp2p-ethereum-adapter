@@ -1,12 +1,12 @@
 import { logger } from "../helpers/logger";
 import { FinP2PContract } from "../../finp2p-contracts/src/contracts/finp2p";
-import { FinP2PReceipt, receiptToEIP712Message } from "../../finp2p-contracts/src/contracts/model";
-import { assetFromAPI, receiptToAPI } from "./mapping";
+import { FinP2PReceipt, Phase, receiptToEIP712Message } from "../../finp2p-contracts/src/contracts/model";
+import { assetFromAPI, EIP712Params, receiptToAPI, RequestParams, RequestValidationError } from "./mapping";
 import { PolicyGetter } from "../finp2p/policy";
 import {
   DOMAIN_TYPE,
-  EIP712Domain,
-  RECEIPT_PROOF_TYPES,
+  EIP712Domain, LegType,
+  RECEIPT_PROOF_TYPES
 } from "../../finp2p-contracts/src/contracts/eip712";
 import { ProofDomain } from "../finp2p/model";
 
@@ -74,6 +74,67 @@ export class CommonService {
         } as Components.Schemas.OperationStatus;
     }
   }
+
+  protected validateRequestParams(
+    requestParams: RequestParams,
+    eip712Params: EIP712Params): void {
+    const { source, destination, quantity } = requestParams;
+    const { buyerFinId, sellerFinId, asset, settlement, params } = eip712Params;
+    switch (params.phase) {
+      case Phase.Initiate:
+        switch (params.leg) {
+          case LegType.Asset:
+            if (destination && buyerFinId !== destination.finId) {
+              throw new RequestValidationError(`Buyer FinId in the signature does not match the destination FinId`);
+            }
+            if (sellerFinId !== source.finId) {
+              throw new RequestValidationError(`Seller FinId in the signature does not match the source FinId`);
+            }
+            if (quantity !== asset.amount) {
+              throw new RequestValidationError(`Quantity in the signature does not match the requested quantity`);
+            }
+            break;
+          case LegType.Settlement:
+            if (destination && sellerFinId !== destination.finId) {
+              throw new RequestValidationError(`Seller FinId in the signature does not match the destination FinId`);
+            }
+            if (buyerFinId !== source.finId) {
+              throw new RequestValidationError(`Buyer FinId in the signature does not match the source FinId`);
+            }
+            if (quantity !== settlement.amount) {
+              throw new RequestValidationError(`Quantity in the signature does not match the requested quantity`);
+            }
+            break;
+        }
+        break;
+      case Phase.Close:
+        switch (params.leg) {
+          case LegType.Asset:
+            if (destination && sellerFinId !== destination.finId) {
+              throw new RequestValidationError(`Seller FinId in the signature does not match the destination FinId`);
+            }
+            if (buyerFinId !== source.finId) {
+              throw new RequestValidationError(`Buyer FinId in the signature does not match the source FinId`);
+            }
+            if (quantity !== asset.amount) {
+              throw new RequestValidationError(`Quantity in the signature does not match the requested quantity`);
+            }
+            break;
+          case LegType.Settlement:
+            if (destination && buyerFinId !== destination.finId) {
+              throw new RequestValidationError(`Buyer FinId in the signature does not match the destination FinId`);
+            }
+            if (sellerFinId !== source.finId) {
+              throw new RequestValidationError(`Seller FinId in the signature does not match the source FinId`);
+            }
+            if (quantity !== settlement.amount) {
+              throw new RequestValidationError(`Quantity in the signature does not match the requested quantity`);
+            }
+            break;
+        }
+    }
+  }
+
 
   private async ledgerProof(receipt: FinP2PReceipt): Promise<FinP2PReceipt> {
     if (this.policyGetter === undefined) {

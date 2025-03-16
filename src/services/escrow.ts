@@ -1,50 +1,25 @@
 import { logger } from "../helpers/logger";
 import { CommonService } from "./common";
 import { EthereumTransactionError } from "../../finp2p-contracts/src/contracts/model";
-import { assetFromAPI, extractParameterEIP712, failedTransaction } from "./mapping";
-import { LegType } from "../../finp2p-contracts/src/contracts/eip712";
+import { extractParameterEIP712, failedTransaction, RequestValidationError } from "./mapping";
 
 export class EscrowService extends CommonService {
 
   public async hold(request: Paths.HoldOperation.RequestBody): Promise<Paths.HoldOperation.Responses.$200> {
-    const { operationId, asset, source, destination, quantity, nonce, executionContext } = request;
-    const reqAsset = assetFromAPI(asset);
+    const { operationId, nonce, executionContext } = request;
     const { signature, template } = request.signature;
 
+    const erip712Params = extractParameterEIP712(template, request.asset, operationId, executionContext);
     try {
-      const {
-        buyerFinId,
-        sellerFinId,
-        asset,
-        settlement,
-        loan,
-        params
-      } = extractParameterEIP712(template, reqAsset, operationId, executionContext);
-      switch (params.leg) {
-        case LegType.Asset:
-          if (destination && buyerFinId !== destination.finId) {
-            return failedTransaction(1, `Buyer FinId in the signature does not match the destination FinId`);
-          }
-          if (sellerFinId !== source.finId) {
-            return failedTransaction(1, `Seller FinId in the signature does not match the source FinId`);
-          }
-          if (quantity !== asset.amount) {
-            return failedTransaction(1, `Quantity in the signature does not match the requested quantity`);
-          }
-          break;
-        case LegType.Settlement:
-          if (destination && sellerFinId !== destination.finId) {
-            return failedTransaction(1, `Seller FinId in the signature does not match the destination FinId`);
-          }
-          if (buyerFinId !== source.finId) {
-            return failedTransaction(1, `Buyer FinId in the signature does not match the source FinId`);
-          }
-          if (quantity !== settlement.amount) {
-            return failedTransaction(1, `Quantity in the signature does not match the requested quantity`);
-          }
-          break;
+      this.validateRequestParams(request, erip712Params);
+    } catch (e) {
+      if (e instanceof RequestValidationError) {
+        logger.info(`Validation error: ${e.reason}`);
+        return failedTransaction(1, e.reason);
       }
-
+    }
+    const { buyerFinId, sellerFinId, asset, settlement, loan, params } = erip712Params;
+    try {
       const txHash = await this.finP2PContract.hold(nonce, sellerFinId, buyerFinId,
         asset, settlement, loan, params, signature);
 

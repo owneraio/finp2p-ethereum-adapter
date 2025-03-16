@@ -15,7 +15,7 @@ import {
   EIP712Types,
   emptyLoanTerms,
   LegType,
-  PrimaryType,
+  PrimaryType
 } from "../../finp2p-contracts/src/contracts/eip712";
 import Asset = Components.Schemas.Asset;
 import Receipt = Components.Schemas.Receipt;
@@ -28,6 +28,8 @@ import FinP2PEVMOperatorDetails = Components.Schemas.FinP2PEVMOperatorDetails;
 import EIP712TypeObject = Components.Schemas.EIP712TypeObject;
 import EIP712TypeString = Components.Schemas.EIP712TypeString;
 import ProofPolicy = Components.Schemas.ProofPolicy;
+import Source = Components.Schemas.Source;
+import Destination = Components.Schemas.Destination;
 
 export const assetFromAPI = (asset: Components.Schemas.Asset): {
   assetId: string, assetType: "fiat" | "finp2p" | "cryptocurrency",
@@ -260,29 +262,33 @@ export const finIdFromAPI = (finId: Components.Schemas.EIP712TypeObject): string
   return finId.idkey as EIP712TypeString;
 };
 
-const compareAssets = (eipAsset: EIP712TypeObject, reqAsset: {
-  assetId: string, assetType: "fiat" | "finp2p" | "cryptocurrency",
-}): boolean => {
-  return (eipAsset.assetId === reqAsset.assetId && eipAsset.assetType === reqAsset.assetType);
+const compareAssets = (reqAsset: Components.Schemas.Asset, eipAsset: EIP712TypeObject): boolean => {
+  const { assetId, assetType } = assetFromAPI(reqAsset);
+  return (eipAsset.assetId === assetId && eipAsset.assetType === assetType);
 
 };
 
-export const detectLeg = (template: Components.Schemas.SignatureTemplate, reqAsset: {
-  assetId: string, assetType: "fiat" | "finp2p" | "cryptocurrency",
-}): LegType => {
+export const detectLeg = (asset: Components.Schemas.Asset, template: Components.Schemas.SignatureTemplate): LegType => {
   if (template.type != "EIP712") {
     throw new Error(`Unsupported signature template type: ${template.type}`);
   }
-  if (compareAssets(template.message.asset as EIP712TypeObject, reqAsset)) {
+  if (compareAssets(asset, template.message.asset as EIP712TypeObject)) {
     return LegType.Asset;
-  } else if (compareAssets(template.message.settlement as EIP712TypeObject, reqAsset)) {
+  } else if (compareAssets(asset, template.message.settlement as EIP712TypeObject)) {
     return LegType.Settlement;
   } else {
     throw new Error(`Asset not found in EIP712 message`);
   }
 };
 
-type EIP712Params = {
+export type RequestParams = {
+  source: Source;
+  destination?: Destination;
+  asset: Asset;
+  quantity: string;
+}
+
+export type EIP712Params = {
   buyerFinId: string,
   sellerFinId: string,
   asset: Term,
@@ -293,10 +299,7 @@ type EIP712Params = {
 
 export const extractParameterEIP712 = (
   template: Components.Schemas.SignatureTemplate,
-  reqAsset: {
-    assetId: string,
-    assetType: "fiat" | "finp2p" | "cryptocurrency",
-  },
+  asset: Components.Schemas.Asset,
   operationId: string = "",
   executionContext: {
     executionPlanId: string,
@@ -307,7 +310,7 @@ export const extractParameterEIP712 = (
     throw new Error(`Unsupported signature template type: ${template.type}`);
   }
 
-  const leg = detectLeg(template, reqAsset);
+  const leg = detectLeg(asset, template);
   const eip712PrimaryType = eip71212PrimaryTypeFromTemplate(template);
   switch (template.primaryType) {
     case "PrimarySale": {
@@ -352,9 +355,9 @@ export const extractParameterEIP712 = (
       };
     }
     case "Loan": {
-      let phase: Phase = Phase.Initiate
+      let phase: Phase = Phase.Initiate;
       if (executionContext && executionContext.instructionSequenceNumber > 3) {
-          phase = Phase.Close;
+        phase = Phase.Close;
       }
       return {
         sellerFinId: finIdFromAPI(template.message.borrower as EIP712TypeObject),
@@ -394,4 +397,10 @@ export const eip71212PrimaryTypeFromTemplate = (template: Components.Schemas.EIP
 
 export function getRandomNumber(min: number, max: number): number {
   return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+
+export class RequestValidationError extends Error {
+  constructor(public readonly reason: string) {
+    super(reason);
+  }
 }

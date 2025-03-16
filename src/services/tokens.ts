@@ -1,8 +1,13 @@
 import { CommonService } from "./common";
 import {
-  assetCreationResult, assetFromAPI, extractParameterEIP712, failedAssetCreation, failedTransaction, getRandomNumber
+  assetCreationResult,
+  assetFromAPI,
+  extractParameterEIP712,
+  failedAssetCreation,
+  failedTransaction,
+  getRandomNumber, RequestValidationError
 } from "./mapping";
-import { assetTypeFromString, EthereumTransactionError, term } from "../../finp2p-contracts/src/contracts/model";
+import { assetTypeFromString, EthereumTransactionError, Phase, term } from "../../finp2p-contracts/src/contracts/model";
 import { logger } from "../helpers/logger";
 import { FinP2PContract } from "../../finp2p-contracts/src/contracts/finp2p";
 import { isEthereumAddress } from "../../finp2p-contracts/src/contracts/utils";
@@ -110,46 +115,22 @@ export class TokenService extends CommonService {
   }
 
   public async transfer(request: Paths.TransferAsset.RequestBody): Promise<Paths.TransferAsset.Responses.$200> {
-    const { nonce, asset, quantity, source, destination, executionContext } = request;
-    const reqAsset = assetFromAPI(asset);
+    const { nonce } = request;
     const { signature, template } = request.signature;
 
+    const erip712Params = extractParameterEIP712(template, request.asset, "", request.executionContext);
     try {
-      const {
-        buyerFinId,
-        sellerFinId,
-        asset,
-        settlement,
-        loan,
-        params
-      } = extractParameterEIP712(template, reqAsset, '', executionContext);
-      switch (params.leg) {
-        case LegType.Asset:
-          if (buyerFinId !== destination.finId) {
-            return failedTransaction(1, `Buyer FinId in the signature does not match the destination FinId`);
-          }
-          if (sellerFinId !== source.finId) {
-            return failedTransaction(1, `Seller FinId in the signature does not match the source FinId`);
-          }
-          if (quantity !== asset.amount) {
-            return failedTransaction(1, `Quantity in the signature does not match the requested quantity`);
-          }
-          break;
-        case LegType.Settlement:
-          if (sellerFinId !== destination.finId) {
-            return failedTransaction(1, `Seller FinId in the signature does not match the destination FinId`);
-          }
-          if (buyerFinId !== source.finId) {
-            return failedTransaction(1, `Buyer FinId in the signature does not match the source FinId`);
-          }
-          if (quantity !== settlement.amount) {
-            return failedTransaction(1, `Quantity in the signature does not match the requested quantity`);
-          }
-          break;
+      this.validateRequestParams(request, erip712Params);
+    } catch (e) {
+      if (e instanceof RequestValidationError) {
+        logger.info(`Validation error: ${e.reason}`);
+        return failedTransaction(1, e.reason);
       }
+    }
+    const { buyerFinId, sellerFinId, asset, settlement, loan, params } = erip712Params;
 
+    try {
       const txHash = await this.finP2PContract.transfer(nonce, sellerFinId, buyerFinId, asset, settlement, loan, params, signature);
-
       return {
         isCompleted: false, cid: txHash
       } as Components.Schemas.ReceiptOperation;
@@ -164,6 +145,7 @@ export class TokenService extends CommonService {
     }
 
   }
+
 
 }
 
