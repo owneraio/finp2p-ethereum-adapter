@@ -75,14 +75,12 @@ export class CommonService {
     }
   }
 
-  protected validateRequestParams(
-    requestParams: RequestParams,
-    eip712Params: EIP712Params): void {
+  protected validateRequest(requestParams: RequestParams, eip712Params: EIP712Params): void {
     const { source, destination, quantity } = requestParams;
-    const { buyerFinId, sellerFinId, asset, settlement, params } = eip712Params;
-    switch (params.phase) {
+    const { buyerFinId, sellerFinId, asset, settlement, params: { phase, leg } } = eip712Params;
+    switch (phase) {
       case Phase.Initiate:
-        switch (params.leg) {
+        switch (leg) {
           case LegType.Asset:
             if (destination && buyerFinId !== destination.finId) {
               throw new RequestValidationError(`Buyer FinId in the signature does not match the destination FinId`);
@@ -108,7 +106,7 @@ export class CommonService {
         }
         break;
       case Phase.Close:
-        switch (params.leg) {
+        switch (leg) {
           case LegType.Asset:
             if (destination && sellerFinId !== destination.finId) {
               throw new RequestValidationError(`Seller FinId in the signature does not match the destination FinId`);

@@ -2,7 +2,7 @@ import { CommonService } from "./common";
 import {
   assetCreationResult,
   assetFromAPI,
-  extractParameterEIP712,
+  extractEIP712Params,
   failedAssetCreation,
   failedTransaction,
   getRandomNumber, RequestValidationError
@@ -115,12 +115,9 @@ export class TokenService extends CommonService {
   }
 
   public async transfer(request: Paths.TransferAsset.RequestBody): Promise<Paths.TransferAsset.Responses.$200> {
-    const { nonce } = request;
-    const { signature, template } = request.signature;
-
-    const erip712Params = extractParameterEIP712(template, request.asset, "", request.executionContext);
+    const erip712Params = extractEIP712Params(request);
     try {
-      this.validateRequestParams(request, erip712Params);
+      this.validateRequest(request, erip712Params);
     } catch (e) {
       if (e instanceof RequestValidationError) {
         logger.info(`Validation error: ${e.reason}`);
@@ -128,6 +125,7 @@ export class TokenService extends CommonService {
       }
     }
     const { buyerFinId, sellerFinId, asset, settlement, loan, params } = erip712Params;
+    const { nonce, signature: { signature } } = request;
 
     try {
       const txHash = await this.finP2PContract.transfer(nonce, sellerFinId, buyerFinId, asset, settlement, loan, params, signature);

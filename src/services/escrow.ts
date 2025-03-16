@@ -1,17 +1,14 @@
 import { logger } from "../helpers/logger";
 import { CommonService } from "./common";
 import { EthereumTransactionError } from "../../finp2p-contracts/src/contracts/model";
-import { extractParameterEIP712, failedTransaction, RequestValidationError } from "./mapping";
+import { extractEIP712Params, failedTransaction, RequestValidationError } from "./mapping";
 
 export class EscrowService extends CommonService {
 
   public async hold(request: Paths.HoldOperation.RequestBody): Promise<Paths.HoldOperation.Responses.$200> {
-    const { operationId, nonce, executionContext } = request;
-    const { signature, template } = request.signature;
-
-    const erip712Params = extractParameterEIP712(template, request.asset, operationId, executionContext);
+    const erip712Params = extractEIP712Params(request);
     try {
-      this.validateRequestParams(request, erip712Params);
+      this.validateRequest(request, erip712Params);
     } catch (e) {
       if (e instanceof RequestValidationError) {
         logger.info(`Validation error: ${e.reason}`);
@@ -19,6 +16,8 @@ export class EscrowService extends CommonService {
       }
     }
     const { buyerFinId, sellerFinId, asset, settlement, loan, params } = erip712Params;
+    const { nonce, signature: { signature } } = request;
+
     try {
       const txHash = await this.finP2PContract.hold(nonce, sellerFinId, buyerFinId,
         asset, settlement, loan, params, signature);

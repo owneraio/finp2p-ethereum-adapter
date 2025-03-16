@@ -30,6 +30,8 @@ import EIP712TypeString = Components.Schemas.EIP712TypeString;
 import ProofPolicy = Components.Schemas.ProofPolicy;
 import Source = Components.Schemas.Source;
 import Destination = Components.Schemas.Destination;
+import Signature = Components.Schemas.Signature;
+import ExecutionContext = Components.Schemas.ExecutionContext;
 
 export const assetFromAPI = (asset: Components.Schemas.Asset): {
   assetId: string, assetType: "fiat" | "finp2p" | "cryptocurrency",
@@ -216,16 +218,6 @@ export const assetCreationResult = (tokenId: string, tokenAddress: string, finp2
   } as CreateAssetResponse;
 };
 
-export const notFoundErrorCode = 5;
-
-export const assetNotFoundResult = (tokenId: string) => {
-  return {
-    isCompleted: true, error: {
-      code: notFoundErrorCode, message: `Asset not found for token id ${tokenId}`
-    }
-  } as CreateAssetResponse;
-};
-
 export const failedAssetCreation = (code: number, message: string) => {
   return {
     isCompleted: true, error: { code, message }
@@ -286,6 +278,9 @@ export type RequestParams = {
   destination?: Destination;
   asset: Asset;
   quantity: string;
+  operationId?: string
+  signature: Signature
+  executionContext?: ExecutionContext
 }
 
 export type EIP712Params = {
@@ -297,15 +292,8 @@ export type EIP712Params = {
   params: OperationParams
 };
 
-export const extractParameterEIP712 = (
-  template: Components.Schemas.SignatureTemplate,
-  asset: Components.Schemas.Asset,
-  operationId: string = "",
-  executionContext: {
-    executionPlanId: string,
-    instructionSequenceNumber: number
-  } | undefined
-): EIP712Params => {
+export const extractEIP712Params = (request: RequestParams): EIP712Params => {
+  const { signature: { template }, asset, operationId ,executionContext } = request
   if (template.type != "EIP712") {
     throw new Error(`Unsupported signature template type: ${template.type}`);
   }
