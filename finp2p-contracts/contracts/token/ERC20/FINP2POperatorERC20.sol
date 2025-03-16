@@ -5,7 +5,7 @@ pragma solidity ^0.8.20;
 import {StringUtils} from "../../utils/StringUtils.sol";
 import {Burnable} from "../../utils/erc20/Burnable.sol";
 import {Mintable} from "../../utils/erc20/Mintable.sol";
-import {Bytes} from "../../utils/finp2p/Bytes.sol";
+import {FinIdUtils} from "../../utils/finp2p/FinIdUtils.sol";
 import {FinP2PSignatureVerifier} from "../../utils/finp2p/FinP2PSignatureVerifier.sol";
 import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -22,6 +22,7 @@ import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IER
 contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
     using StringUtils for string;
     using StringUtils for uint256;
+    using FinIdUtils for string;
 
     enum Phase {
         INITIATE,
@@ -165,7 +166,7 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
         string calldata finId
     ) external view returns (string memory) {
         require(_haveAsset(assetId), "Asset not found");
-        address addr = Bytes.finIdToAddress(finId);
+        address addr = finId.toAddress();
         Asset memory asset = assets[assetId];
         uint8 tokenDecimals = IERC20Metadata(asset.tokenAddress).decimals();
         uint256 tokenBalance = IERC20(asset.tokenAddress).balanceOf(addr);
@@ -180,7 +181,7 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
         Term calldata assetTerm
     ) external {
         require(hasRole(TRANSACTION_MANAGER, _msgSender()), "FINP2POperatorERC20: must have transaction manager role to issue asset");
-        _mint(Bytes.finIdToAddress(issuerFinId), assetTerm.assetId, assetTerm.amount);
+        _mint(issuerFinId.toAddress(), assetTerm.assetId, assetTerm.amount);
         emit Issue(assetTerm.assetId, assetTerm.assetType, issuerFinId, assetTerm.amount);
     }
 
@@ -234,7 +235,7 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
                 signature
             ), "Signature is not verified");
         }
-        _transfer(Bytes.finIdToAddress(source), Bytes.finIdToAddress(destination), assetId, amount);
+        _transfer(source.toAddress(), destination.toAddress(), assetId, amount);
         emit Transfer(assetId, assetType, source, destination, amount);
     }
 
@@ -246,7 +247,7 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
         Term calldata term
     ) external {
         require(hasRole(TRANSACTION_MANAGER, _msgSender()), "FINP2POperatorERC20: must have transaction manager role to release asset");
-        _burn(Bytes.finIdToAddress(ownerFinId), term.assetId, term.amount);
+        _burn(ownerFinId.toAddress(), term.assetId, term.amount);
         emit Redeem(term.assetId, term.assetType, ownerFinId, term.amount, '');
     }
 
@@ -299,7 +300,7 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
                 signature
             ), "Signature is not verified");
         }
-        _transfer(Bytes.finIdToAddress(source), _getEscrow(), assetId, amount);
+        _transfer(source.toAddress(), _getEscrow(), assetId, amount);
         locks[op.operationId] = Lock(assetId, assetType, source, amount);
         emit Hold(assetId, assetType, source, amount, op.operationId);
     }
@@ -316,8 +317,9 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
         require(hasRole(TRANSACTION_MANAGER, _msgSender()), "FINP2POperatorERC20: must have transaction manager role to release asset");
         require(_haveContract(operationId), "Contract does not exists");
         Lock storage lock = locks[operationId];
-        // TODO: take request quantity?
-        _transfer(_getEscrow(), Bytes.finIdToAddress(toFinId), lock.assetId, lock.amount);
+        require(lock.amount.equals(quantity), "Trying to release amount different from the one held");
+
+        _transfer(_getEscrow(), toFinId.toAddress(), lock.assetId, lock.amount);
         emit Release(lock.assetId, lock.assetType, lock.finId, toFinId, quantity, operationId);
         delete locks[operationId];
     }
@@ -335,7 +337,7 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
         require(_haveContract(operationId), "Contract does not exists");
         Lock storage lock = locks[operationId];
         require(lock.finId.equals(ownerFinId), "Trying to redeem asset with owner different from the one who held it");
-        // TODO: take request quantity?
+        require(lock.amount.equals(quantity), "Trying to redeem amount different from the one held");
         _burn(_getEscrow(), lock.assetId, lock.amount);
         emit Redeem(lock.assetId, lock.assetType, ownerFinId, quantity, operationId);
         delete locks[operationId];
@@ -349,7 +351,7 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
         require(hasRole(TRANSACTION_MANAGER, _msgSender()), "FINP2POperatorERC20: must have transaction manager role to rollback asset");
         require(_haveContract(operationId), "contract does not exists");
         Lock storage lock = locks[operationId];
-        _transfer(_getEscrow(), Bytes.finIdToAddress(lock.finId), lock.assetId, lock.amount);
+        _transfer(_getEscrow(), lock.finId.toAddress(), lock.assetId, lock.amount);
         emit Release(lock.assetId, lock.assetType, lock.finId, "", lock.amount, operationId);
         delete locks[operationId];
     }

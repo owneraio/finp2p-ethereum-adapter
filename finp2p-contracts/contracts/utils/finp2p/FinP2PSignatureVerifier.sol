@@ -2,7 +2,7 @@
 
 pragma solidity ^0.8.0;
 
-import {Bytes} from "./Bytes.sol";
+import {FinIdUtils} from "./FinIdUtils.sol";
 import {Signature} from "./Signature.sol";
 import {EIP712} from "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
 
@@ -10,6 +10,7 @@ import {EIP712} from "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
  * @dev Library for FinP2P protocol signature verification.
  */
 contract FinP2PSignatureVerifier is EIP712 {
+    using FinIdUtils for string;
 
     string private constant SIGNING_DOMAIN = "FinP2P";
     string private constant SIGNATURE_VERSION = "1";
@@ -108,7 +109,7 @@ contract FinP2PSignatureVerifier is EIP712 {
         bytes memory signature
     ) public view returns (bool) {
         bytes32 hash = hashInvestment(primaryType, nonce, buyerFinId, sellerFinId, asset, settlement, loan);
-        return Signature.verify(Bytes.finIdToAddress(signerFinId), hash, signature);
+        return Signature.verify(signerFinId.toAddress(), hash, signature);
     }
 
     // --------------------------------------------------------------------------------------
