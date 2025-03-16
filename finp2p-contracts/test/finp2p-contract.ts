@@ -210,7 +210,7 @@ describe("FinP2P proxy contract test", function() {
                 .to.emit(contract, "Issue").withArgs(assetId, assetType, from, amount);
               expect(await contract.getBalance(assetId, from)).to.equal(toFixedDecimals(amount, decimals));
 
-              const operationId = `0x${uuid().replaceAll("-", "")}`;
+              const operationId = uuid();
               const nonce = `${generateNonce().toString("hex")}`;
               const {
                 types,
@@ -267,7 +267,7 @@ describe("FinP2P proxy contract test", function() {
                 .to.emit(contract, "Issue").withArgs(assetId, assetType, from, amount);
               expect(await contract.getBalance(assetId, from)).to.equal(toFixedDecimals(amount, decimals));
 
-              const operationId = `0x${uuid().replaceAll("-", "")}`;
+              const operationId = uuid();
               const nonce = `${generateNonce().toString("hex")}`;
               const {
                 types,
@@ -330,7 +330,7 @@ describe("FinP2P proxy contract test", function() {
 
               // -----------------------------
 
-              const operationId = `0x${uuid().replaceAll("-", "")}`;
+              const operationId = uuid();
               const nonce = `${generateNonce().toString("hex")}`;
               const {
                 types,

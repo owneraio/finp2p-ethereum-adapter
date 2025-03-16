@@ -8,7 +8,7 @@ import {
   OperationStatus,
   pendingOperation, Term
 } from "./model";
-import { hashToBytes16, parseTransactionReceipt } from "./utils";
+import { parseTransactionReceipt } from "./utils";
 import { ContractsManager } from "./manager";
 import { EIP712Domain, EIP712LoanTerms } from "./eip712";
 import winston from "winston";
@@ -91,19 +91,19 @@ export class FinP2PContract extends ContractsManager {
 
   async releaseTo(operationId: string, buyerFinId: string, quantity: string) {
     return this.safeExecuteTransaction(this.finP2P, async (finP2P: FINP2POperatorERC20, txParams: PayableOverrides) => {
-      return finP2P.releaseTo(hashToBytes16(operationId), buyerFinId, quantity, txParams);
+      return finP2P.releaseTo(operationId, buyerFinId, quantity, txParams);
     });
   }
 
   async releaseAndRedeem(operationId: string, ownerFinId: string, quantity: string) {
     return this.safeExecuteTransaction(this.finP2P, async (finP2P: FINP2POperatorERC20, txParams: PayableOverrides) => {
-      return finP2P.releaseAndRedeem(hashToBytes16(operationId), ownerFinId, quantity, txParams);
+      return finP2P.releaseAndRedeem(operationId, ownerFinId, quantity, txParams);
     });
   }
 
   async releaseBack(operationId: string) {
     return this.safeExecuteTransaction(this.finP2P, async (finP2P: FINP2POperatorERC20, txParams: PayableOverrides) => {
-      return finP2P.releaseBack(hashToBytes16(operationId), txParams);
+      return finP2P.releaseBack(operationId, txParams);
     });
   }
 

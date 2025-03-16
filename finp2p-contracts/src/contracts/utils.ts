@@ -29,10 +29,6 @@ export const compactSerialize = (signature: string): string => {
   return concat([r, s]).substring(2);
 };
 
-export const hashToBytes16 = (val: string): string => {
-  return hexlify(keccak256(toUtf8Bytes(val))).slice(0, 34);
-};
-
 export const privateKeyToFinId = (privateKey: string): string => {
   const privKeyBuffer = Buffer.from(privateKey.replace("0x", ""), "hex");
   const pubKeyUInt8Array = secp256k1.publicKeyCreate(privKeyBuffer, true);

@@ -37,7 +37,7 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
         LegType leg;
         Phase phase;
         PrimaryType eip712PrimaryType;
-        bytes16 operationId;
+        string operationId;
     }
 
     struct LockInfo {
@@ -68,7 +68,7 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
     /// @param finId The FinID of the holder
     /// @param quantity The quantity held
     /// @param operationId The operation id
-    event Hold(string assetId, AssetType assetType, string finId, string quantity, bytes16 operationId);
+    event Hold(string assetId, AssetType assetType, string finId, string quantity, string operationId);
 
     /// @notice Release event
     /// @param assetId The asset id
@@ -77,7 +77,7 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
     /// @param destinationFinId The FinID of the destination
     /// @param quantity The quantity released
     /// @param operationId The operation id
-    event Release(string assetId, AssetType assetType, string sourceFinId, string destinationFinId, string quantity, bytes16 operationId);
+    event Release(string assetId, AssetType assetType, string sourceFinId, string destinationFinId, string quantity, string operationId);
 
     /// @notice Redeem event
     /// @param assetId The asset id
@@ -85,7 +85,7 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
     /// @param ownerFinId The FinID of the owner
     /// @param quantity The quantity redeemed
     /// @param operationId The operation id
-    event Redeem(string assetId, AssetType assetType, string ownerFinId, string quantity, bytes16 operationId);
+    event Redeem(string assetId, AssetType assetType, string ownerFinId, string quantity, string operationId);
 
     struct Asset {
         string id;
@@ -101,7 +101,7 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
 
     address private escrowWalletAddress;
     mapping(string => Asset) private assets;
-    mapping(bytes16 => Lock) private locks;
+    mapping(string => Lock) private locks;
 
     constructor() {
         _grantRole(DEFAULT_ADMIN_ROLE, _msgSender());
@@ -309,7 +309,7 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
     /// @param toFinId The FinID of the destination
     /// @param quantity The quantity to release
     function releaseTo(
-        bytes16 operationId,
+        string calldata operationId,
         string calldata toFinId,
         string calldata quantity
     ) external {
@@ -327,7 +327,7 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
     /// @param ownerFinId The FinID of the owner
     /// @param quantity The quantity to redeem
     function releaseAndRedeem(
-        bytes16 operationId,
+        string calldata operationId,
         string calldata ownerFinId,
         string calldata quantity
     ) external {
@@ -344,7 +344,7 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
     /// @notice Release asset from escrow back to the source
     /// @param operationId The operation id of the withheld asset
     function releaseBack(
-        bytes16 operationId
+        string memory operationId
     ) external {
         require(hasRole(TRANSACTION_MANAGER, _msgSender()), "FINP2POperatorERC20: must have transaction manager role to rollback asset");
         require(_haveContract(operationId), "contract does not exists");
@@ -357,7 +357,7 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
     /// @notice Get the lock info
     /// @param operationId The operation id
     /// @return The lock info
-    function getLockInfo(bytes16 operationId) external view returns (LockInfo memory) {
+    function getLockInfo(string memory operationId) external view returns (LockInfo memory) {
         require(_haveContract(operationId), "Contract not found");
         Lock storage l = locks[operationId];
         return LockInfo(l.assetId, l.assetType, l.finId, l.amount);
@@ -369,7 +369,7 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
         exists = (assets[assetId].tokenAddress != address(0));
     }
 
-    function _haveContract(bytes16 operationId) internal view returns (bool exists) {
+    function _haveContract(string memory operationId) internal view returns (bool exists) {
         exists = (bytes(locks[operationId].amount).length > 0);
     }
 
