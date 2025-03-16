@@ -279,7 +279,6 @@ describe(`token service test`, () => {
       operationId: operationId,
       nonce: transferNonce,
       source: investorSource,
-      destination: issuerSource,
       quantity: `${redeemAmount}`,
       asset: asset,
       signature: redemptionSignature
