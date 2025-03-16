@@ -44,7 +44,8 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
     struct LockInfo {
         string assetId;
         AssetType assetType;
-        string finId;
+        string source;
+        string destination;
         string amount;
     }
 
@@ -96,7 +97,8 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
     struct Lock {
         string assetId;
         AssetType assetType;
-        string finId;
+        string source;
+        string destination;
         string amount;
     }
 
@@ -301,7 +303,7 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
             ), "Signature is not verified");
         }
         _transfer(source.toAddress(), _getEscrow(), assetId, amount);
-        locks[op.operationId] = Lock(assetId, assetType, source, amount);
+        locks[op.operationId] = Lock(assetId, assetType, source, destination, amount);
         emit Hold(assetId, assetType, source, amount, op.operationId);
     }
 
@@ -318,9 +320,10 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
         require(_haveContract(operationId), "Contract does not exists");
         Lock storage lock = locks[operationId];
         require(lock.amount.equals(quantity), "Trying to release amount different from the one held");
+        require(lock.destination.equals(toFinId), "Trying to release to different destination than the one expected in the lock");
 
         _transfer(_getEscrow(), toFinId.toAddress(), lock.assetId, lock.amount);
-        emit Release(lock.assetId, lock.assetType, lock.finId, toFinId, quantity, operationId);
+        emit Release(lock.assetId, lock.assetType, lock.source, lock.destination, quantity, operationId);
         delete locks[operationId];
     }
 
@@ -336,7 +339,7 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
         require(hasRole(TRANSACTION_MANAGER, _msgSender()), "FINP2POperatorERC20: must have transaction manager role to release asset");
         require(_haveContract(operationId), "Contract does not exists");
         Lock storage lock = locks[operationId];
-        require(lock.finId.equals(ownerFinId), "Trying to redeem asset with owner different from the one who held it");
+        require(lock.source.equals(ownerFinId), "Trying to redeem asset with owner different from the one who held it");
         require(lock.amount.equals(quantity), "Trying to redeem amount different from the one held");
         _burn(_getEscrow(), lock.assetId, lock.amount);
         emit Redeem(lock.assetId, lock.assetType, ownerFinId, quantity, operationId);
@@ -351,8 +354,8 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
         require(hasRole(TRANSACTION_MANAGER, _msgSender()), "FINP2POperatorERC20: must have transaction manager role to rollback asset");
         require(_haveContract(operationId), "contract does not exists");
         Lock storage lock = locks[operationId];
-        _transfer(_getEscrow(), lock.finId.toAddress(), lock.assetId, lock.amount);
-        emit Release(lock.assetId, lock.assetType, lock.finId, "", lock.amount, operationId);
+        _transfer(_getEscrow(), lock.source.toAddress(), lock.assetId, lock.amount);
+        emit Release(lock.assetId, lock.assetType, lock.source, "", lock.amount, operationId);
         delete locks[operationId];
     }
 
@@ -362,7 +365,7 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
     function getLockInfo(string memory operationId) external view returns (LockInfo memory) {
         require(_haveContract(operationId), "Contract not found");
         Lock storage l = locks[operationId];
-        return LockInfo(l.assetId, l.assetType, l.finId, l.amount);
+        return LockInfo(l.assetId, l.assetType, l.source, l.destination, l.amount);
     }
 
     // ------------------------------------------------------------------------------------------

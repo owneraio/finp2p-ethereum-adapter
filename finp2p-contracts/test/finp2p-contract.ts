@@ -225,7 +225,8 @@ describe("FinP2P proxy contract test", function() {
               expect(lock[0]).to.equal(assetId);
               expect(lock[1]).to.equal(assetType);
               expect(lock[2]).to.equal(from);
-              expect(lock[3]).to.equal(amount);
+              expect(lock[3]).to.equal(to);
+              expect(lock[4]).to.equal(amount);
 
               await expect(contract.releaseTo(operationId, to, amount, { from: operator }))
                 .to.emit(contract, "Release").withArgs(assetId, assetType, from, to, amount, operationId);
@@ -283,7 +284,8 @@ describe("FinP2P proxy contract test", function() {
               expect(lock[0]).to.equal(assetId);
               expect(lock[1]).to.equal(assetType);
               expect(lock[2]).to.equal(from);
-              expect(lock[3]).to.equal(amount);
+              expect(lock[3]).to.equal(to);
+              expect(lock[4]).to.equal(amount);
 
               await expect(contract.releaseBack(operationId, { from: operator }))
                 .to.emit(contract, "Release").withArgs(assetId, assetType, from, "", amount, operationId);
@@ -344,7 +346,8 @@ describe("FinP2P proxy contract test", function() {
               expect(lock[0]).to.equal(assetId);
               expect(lock[1]).to.equal(assetType);
               expect(lock[2]).to.equal(investorFinId);
-              expect(lock[3]).to.equal(amount);
+              expect(lock[3]).to.equal('');
+              expect(lock[4]).to.equal(amount);
               expect(await contract.getBalance(assetId, investorFinId)).to.equal(`${(0).toFixed(decimals)}`);
 
               // -----------------------------
