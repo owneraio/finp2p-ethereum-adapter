@@ -1,9 +1,9 @@
-import * as secp256k1 from 'secp256k1';
-import * as crypto from 'crypto';
-import { v4 as uuidv4 } from 'uuid';
-import createKeccakHash from 'keccak';
-import HashListTemplate = Components.Schemas.HashListTemplate;
+import * as secp256k1 from "secp256k1";
+import * as crypto from "crypto";
+import { v4 as uuidv4 } from "uuid";
+import createKeccakHash from "keccak";
 import { OpenApisV3 } from "dtsgenerator/dist/core/openApiV3";
+import HashListTemplate = Components.Schemas.HashListTemplate;
 import Components = OpenApisV3.SchemaJson.Definitions.Components;
 
 export const ASSET = 102;
@@ -58,36 +58,31 @@ export interface SettlementGroup {
 
 const extractIdFromAsset = (asset: Components.Schemas.Asset): string => {
   switch (asset.type) {
-    case 'finp2p':
+    case "finp2p":
       return asset.resourceId;
-    case 'cryptocurrency':
-    case 'fiat':
+    case "cryptocurrency":
+    case "fiat":
       return asset.code;
   }
 };
 
 const extractIdFromSource = (account: Components.Schemas.FinIdAccount): string => {
   switch (account.type) {
-    case 'finId':
+    case "finId":
       return account.finId;
   }
 };
 
-const extractIdFromDestination = (
-  account: Components.Schemas.FinIdAccount |
-  Components.Schemas.CryptoWalletAccount |
-  Components.Schemas.FiatAccount |
-  undefined
-): string => {
+const extractIdFromDestination = (account: Components.Schemas.FinIdAccount | Components.Schemas.CryptoWalletAccount | Components.Schemas.FiatAccount | undefined): string => {
   if (account === undefined) {
-    return '';
+    return "";
   }
   switch (account?.type) {
-    case 'finId':
+    case "finId":
       return account.finId;
-    case 'cryptoWallet':
+    case "cryptoWallet":
       return account.address;
-    case 'fiatAccount':
+    case "fiatAccount":
       return account.code;
   }
 };
@@ -95,23 +90,21 @@ const extractIdFromDestination = (
 
 type HashFunction = string;
 let HashFunction = {
-  SHA3_256: 'sha3-256',
-  BLAKE2B: 'blake2b',
-  KECCAK_256: 'keccak-256',
+  SHA3_256: "sha3-256", BLAKE2B: "blake2b", KECCAK_256: "keccak-256"
 };
 
 export const hashFunctionToAPI = (hashFunc: HashFunction): Components.Schemas.HashFunction => {
   switch (hashFunc) {
     case HashFunction.SHA3_256:
-      return 'sha3_256';
+      return "sha3_256";
     case HashFunction.BLAKE2B:
-      return 'blake2b';
+      return "blake2b";
     case HashFunction.KECCAK_256:
-      return 'keccak_256';
+      return "keccak_256";
     default:
-      throw Error('unsupported hash function : ' + hashFunc);
+      throw Error("unsupported hash function : " + hashFunc);
   }
-}
+};
 
 export const hashBufferValues = (values: Buffer[], hashFunc: HashFunction = HashFunction.SHA3_256) => {
   let hashFn: crypto.Hash;
@@ -121,10 +114,10 @@ export const hashBufferValues = (values: Buffer[], hashFunc: HashFunction = Hash
       break;
     case HashFunction.KECCAK_256:
       // @ts-ignore
-      hashFn = createKeccakHash('keccak256');
+      hashFn = createKeccakHash("keccak256");
       break;
     default:
-      throw Error('unsupported hash function : ' + hashFunc);
+      throw Error("unsupported hash function : " + hashFunc);
   }
 
   values.forEach((v) => {
@@ -143,10 +136,10 @@ export const hashFields = (fields: Components.Schemas.Field[], hashFunc: string)
   let values: any = [];
   for (let f of fields) {
     switch (f.type) {
-      case 'bytes':
-        values.push(Buffer.from(f.value, 'hex'));
+      case "bytes":
+        values.push(Buffer.from(f.value, "hex"));
         break;
-      case 'string':
+      case "string":
         values.push(f.value);
         break;
     }
@@ -157,7 +150,7 @@ export const hashFields = (fields: Components.Schemas.Field[], hashFunc: string)
 
 export const sign = (privKey: Buffer, hash: Buffer) => {
   const sigObj = secp256k1.sign(hash, privKey);
-  return sigObj.signature.toString('hex');
+  return sigObj.signature.toString("hex");
 };
 
 export const transferSignature = (assetGroup: AssetGroup, settlementGroup: SettlementGroup, hashFunc: string, privateKey: Buffer): Components.Schemas.Signature => {
@@ -165,82 +158,64 @@ export const transferSignature = (assetGroup: AssetGroup, settlementGroup: Settl
   const hashes: Buffer[] = [];
   if (assetGroup !== undefined) {
     let assetFields: Components.Schemas.Field[] = [];
-    assetFields.push({ name: 'nonce', type: 'bytes', value: assetGroup.nonce.toString('hex') });
-    assetFields.push({ name: 'operation', type: 'string', value: assetGroup.operation });
-    assetFields.push({ name: 'assetType', type: 'string', value: assetGroup.asset.type });
-    assetFields.push({ name: 'assetId', type: 'string', value: extractIdFromAsset(assetGroup.asset) });
+    assetFields.push({ name: "nonce", type: "bytes", value: assetGroup.nonce.toString("hex") });
+    assetFields.push({ name: "operation", type: "string", value: assetGroup.operation });
+    assetFields.push({ name: "assetType", type: "string", value: assetGroup.asset.type });
+    assetFields.push({ name: "assetId", type: "string", value: extractIdFromAsset(assetGroup.asset) });
     if (assetGroup.source !== undefined) {
-      assetFields.push({ name: 'srcAccountType', type: 'string', value: assetGroup.source.account.type });
+      assetFields.push({ name: "srcAccountType", type: "string", value: assetGroup.source.account.type });
       assetFields.push({
-        name: 'srcAccount',
-        type: 'string',
-        value: extractIdFromSource(assetGroup.source.account),
+        name: "srcAccount", type: "string", value: extractIdFromSource(assetGroup.source.account)
       });
     }
     if (assetGroup.destination !== undefined) {
-      assetFields.push({ name: 'dstAccountType', type: 'string', value: assetGroup.destination.account.type });
+      assetFields.push({ name: "dstAccountType", type: "string", value: assetGroup.destination.account.type });
       assetFields.push({
-        name: 'dstAccount',
-        type: 'string',
-        value: extractIdFromDestination(assetGroup.destination.account),
+        name: "dstAccount", type: "string", value: extractIdFromDestination(assetGroup.destination.account)
       });
     }
-    assetFields.push({ name: 'amount', type: 'string', value: `${assetGroup.quantity}` });
+    assetFields.push({ name: "amount", type: "string", value: `${assetGroup.quantity}` });
     let assetHash = hashFields(assetFields, hashFunc);
     hashGroups.push({
-      hash: assetHash.toString('hex'),
-      fields: assetFields,
+      hash: assetHash.toString("hex"), fields: assetFields
     });
     hashes.push(assetHash);
   }
 
   if (settlementGroup !== undefined) {
     let settlementFields: Components.Schemas.Field[] = [];
-    settlementFields.push({ name: 'assetType', type: 'string', value: settlementGroup.asset.type });
-    settlementFields.push({ name: 'assetId', type: 'string', value: extractIdFromAsset(settlementGroup.asset) });
+    settlementFields.push({ name: "assetType", type: "string", value: settlementGroup.asset.type });
+    settlementFields.push({ name: "assetId", type: "string", value: extractIdFromAsset(settlementGroup.asset) });
     if (settlementGroup.source !== undefined) {
-      settlementFields.push({ name: 'srcAccountType', type: 'string', value: settlementGroup.source.account.type });
+      settlementFields.push({ name: "srcAccountType", type: "string", value: settlementGroup.source.account.type });
       settlementFields.push({
-        name: 'srcAccount',
-        type: 'string',
-        value: extractIdFromSource(settlementGroup.source.account),
+        name: "srcAccount", type: "string", value: extractIdFromSource(settlementGroup.source.account)
       });
     }
     if (settlementGroup.destination !== undefined) {
       settlementFields.push({
-        name: 'dstAccountType',
-        type: 'string',
-        value: settlementGroup.destination.account.type,
+        name: "dstAccountType", type: "string", value: settlementGroup.destination.account.type
       });
       settlementFields.push({
-        name: 'dstAccount',
-        type: 'string',
-        value: extractIdFromDestination(settlementGroup.destination.account),
+        name: "dstAccount", type: "string", value: extractIdFromDestination(settlementGroup.destination.account)
       });
     }
     settlementFields.push({
-      name: 'amount',
-      type: 'string',
-      value: `${settlementGroup.quantity}`,
+      name: "amount", type: "string", value: `${settlementGroup.quantity}`
     });
 
     let settlementHash = hashFields(settlementFields, hashFunc);
     hashGroups.push({
-      hash: settlementHash.toString('hex'),
-      fields: settlementFields,
+      hash: settlementHash.toString("hex"), fields: settlementFields
     });
     hashes.push(settlementHash);
   }
 
   const hash = hashBufferValues(hashes, hashFunc);
   return {
-    signature: sign(privateKey, hash),
-    hashFunc: hashFunctionToAPI(hashFunc),
-    template: {
-      type: 'hashList',
-      hash: hash.toString('hex'),
-      hashGroups: hashGroups,
-    } as HashListTemplate,
+    signature: sign(privateKey, hash), hashFunc: hashFunctionToAPI(hashFunc), template: {
+      type: "hashList", hash: hash.toString("hex"), hashGroups: hashGroups
+    } as HashListTemplate
   };
 };
 

@@ -12,8 +12,14 @@ import { randomPort } from "./utils";
 import { addressFromPrivateKey } from "../../finp2p-contracts/src/contracts/utils";
 import { AssetCreationPolicy } from "../../src/services/tokens";
 import { createProviderAndSigner, ProviderType } from "../../finp2p-contracts/src/contracts/config";
+import winston, { format, transports } from "winston";
 
-const providerType: ProviderType = 'local';
+const providerType: ProviderType = "local";
+
+const level = "INFO";
+const logger = winston.createLogger({
+  level, transports: [new transports.Console({ level })], format: format.json()
+});
 
 class CustomTestEnvironment extends NodeEnvironment {
 
@@ -49,7 +55,7 @@ class CustomTestEnvironment extends NodeEnvironment {
       process.env.NETWORK_HOST = details.rpcUrl;
 
       const operatorAddress = addressFromPrivateKey(operator);
-      const finP2PContractAddress = await this.deployContract(operatorAddress)
+      const finP2PContractAddress = await this.deployContract(operatorAddress);
       this.global.serverAddress = await this.startApp(finP2PContractAddress);
 
     } catch (err) {
@@ -79,11 +85,7 @@ class CustomTestEnvironment extends NodeEnvironment {
     await logExtractor.started();
     console.log("Hardhat node started successfully.");
 
-    let accounts = [
-      "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80",
-      "0x5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a",
-      "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d",
-    ];
+    let accounts = ["0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80", "0x5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a", "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d"];
 
     const rpcHost = startedContainer.getHost();
     const rpcPort = startedContainer.getMappedPort(containerPort).toString();
@@ -94,18 +96,19 @@ class CustomTestEnvironment extends NodeEnvironment {
   }
 
   private async deployContract(operatorAddress: string) {
-    const { provider, signer } = await createProviderAndSigner(providerType);
-    const contractManger = new ContractsManager(provider, signer);
+    const { provider, signer } = await createProviderAndSigner(providerType, logger);
+    const contractManger = new ContractsManager(provider, signer, logger);
     return await contractManger.deployFinP2PContract(operatorAddress);
   }
 
   private async startApp(finP2PContractAddress: string) {
-    const { provider, signer } = await createProviderAndSigner(providerType);
-    const finP2PContract = new FinP2PContract(provider, signer, finP2PContractAddress);
+    const { provider, signer } = await createProviderAndSigner(providerType, logger, false);
+    const finP2PContract = new FinP2PContract(provider, signer, finP2PContractAddress, logger);
 
     const port = randomPort();
-    const assetCreationPolicy = { type: 'deploy-new-token' , decimals: 0 } as AssetCreationPolicy;
-    const app = createApp(finP2PContract, assetCreationPolicy, undefined);
+    const assetCreationPolicy = { type: "deploy-new-token", decimals: 0 } as AssetCreationPolicy;
+
+    const app = createApp(finP2PContract, assetCreationPolicy, undefined, logger);
     console.log("App created successfully.");
 
     this.httpServer = app.listen(port, () => {

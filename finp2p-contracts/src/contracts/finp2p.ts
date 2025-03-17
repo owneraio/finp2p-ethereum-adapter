@@ -1,43 +1,55 @@
-import { ContractFactory, ContractTransactionResponse, Interface, Provider, Signer } from "ethers";
-import FINP2P
-  from '../../artifacts/contracts/token/ERC20/FINP2POperatorERC20.sol/FINP2POperatorERC20.json';
-import { FINP2POperatorERC20 } from '../../typechain-types';
+import { ContractFactory, Provider, Signer } from "ethers";
+import FINP2P from "../../artifacts/contracts/token/ERC20/FINP2POperatorERC20.sol/FINP2POperatorERC20.json";
+import { FINP2POperatorERC20 } from "../../typechain-types";
 import {
-  detectError,
-  EthereumTransactionError,
-  FinP2PReceipt, HashType,
-  NonceAlreadyBeenUsedError,
-  NonceToHighError,
-  OperationStatus
+  completedOperation,
+  failedOperation,
+  FinP2PReceipt, OperationParams,
+  OperationStatus,
+  pendingOperation, Term
 } from "./model";
-import { normalizeOperationId, parseTransactionReceipt } from "./utils";
-import { ContractsManager } from './manager';
-import console from 'console';
+import { parseTransactionReceipt } from "./utils";
+import { ContractsManager } from "./manager";
+import { EIP712Domain, EIP712LoanTerms } from "./eip712";
+import winston from "winston";
+import { FINP2POperatorERC20Interface } from "../../typechain-types/contracts/token/ERC20/FINP2POperatorERC20";
+import { PayableOverrides } from "../../typechain-types/common";
+
+
+const ETH_COMPLETED_TRANSACTION_STATUS = 1;
 
 export class FinP2PContract extends ContractsManager {
 
-  contractInterface: Interface;
+  contractInterface: FINP2POperatorERC20Interface;
 
   finP2P: FINP2POperatorERC20;
 
   finP2PContractAddress: string;
 
-  constructor(provider: Provider, signer: Signer, finP2PContractAddress: string) {
-    super(provider, signer);
+  constructor(provider: Provider, signer: Signer, finP2PContractAddress: string, logger: winston.Logger) {
+    super(provider, signer, logger);
     const factory = new ContractFactory<any[], FINP2POperatorERC20>(
-      FINP2P.abi, FINP2P.bytecode, this.signer,
+      FINP2P.abi, FINP2P.bytecode, this.signer
     );
     const contract = factory.attach(finP2PContractAddress);
-    this.contractInterface = contract.interface;
+    this.contractInterface = contract.interface as FINP2POperatorERC20Interface;
     this.finP2P = contract as FINP2POperatorERC20;
     this.finP2PContractAddress = finP2PContractAddress;
-    this.signer.getNonce().then((nonce) => {
-      console.log('Syncing nonce:', nonce);
-    });
   }
 
-  async eip712Domain() {
-    return this.finP2P.eip712Domain();
+  async eip712Domain(): Promise<EIP712Domain> {
+    const domain = await this.finP2P.eip712Domain();
+    if (domain === null) {
+      throw new Error("Failed to get EIP712 domain");
+    }
+    if (domain.length < 5) {
+      throw new Error("Invalid EIP712 domain");
+    }
+    const name = domain[1];
+    const version = domain[2];
+    const chainId = parseInt(`${domain[3]}`);
+    const verifyingContract = domain[4];
+    return { name, version, chainId, verifyingContract };
   }
 
   async getAssetAddress(assetId: string) {
@@ -45,54 +57,53 @@ export class FinP2PContract extends ContractsManager {
   }
 
   async associateAsset(assetId: string, tokenAddress: string) {
-    return this.safeExecuteTransaction(async (finP2P: FINP2POperatorERC20) => {
-      return finP2P.associateAsset(assetId, tokenAddress);
+    return this.safeExecuteTransaction(this.finP2P, async (finP2P: FINP2POperatorERC20, txParams: PayableOverrides) => {
+      return finP2P.associateAsset(assetId, tokenAddress, txParams);
     });
   }
 
-  async issue(assetId: string, issuerFinId: string, quantity: string) {
-    return this.safeExecuteTransaction(async (finP2P: FINP2POperatorERC20) => {
-      return finP2P.issue(assetId, issuerFinId, quantity);
+  async issue(issuerFinId: string, asset: Term) {
+    return this.safeExecuteTransaction(this.finP2P, async (finP2P: FINP2POperatorERC20, txParams: PayableOverrides) => {
+      return finP2P.issue(issuerFinId, asset, txParams);
     });
   }
 
-  async transfer(nonce: string, assetId: string, sellerFinId: string, buyerFinId: string, quantity: string,
-    settlementAsset: string, settlementAmount: string, hashType: HashType, eip712PrimaryType: number, signature: string) {
-    return this.safeExecuteTransaction(async (finP2P: FINP2POperatorERC20) => {
+  async transfer(nonce: string, sellerFinId: string, buyerFinId: string,
+                 asset: Term, settlement: Term, loan: EIP712LoanTerms, params: OperationParams, signature: string) {
+    return this.safeExecuteTransaction(this.finP2P, async (finP2P: FINP2POperatorERC20, txParams: PayableOverrides) => {
       return finP2P.transfer(
-        nonce, assetId, sellerFinId, buyerFinId, quantity,
-        settlementAsset, settlementAmount, hashType, eip712PrimaryType, `0x${signature}`);
+        nonce, sellerFinId, buyerFinId, asset, settlement, loan, params, `0x${signature}`, txParams);
     });
   }
 
-  async redeem(nonce: string, assetId: string, sellerFinId: string, issuerFinId: string, quantity: string,
-    settlementAsset: string, settlementAmount: string, hashType: HashType, signature: string) {
-    return this.safeExecuteTransaction(async (finP2P: FINP2POperatorERC20) => {
-      return finP2P.redeem(nonce, assetId, sellerFinId, issuerFinId, quantity,
-        settlementAsset, settlementAmount, hashType, `0x${signature}`);
+  async redeem(ownerFinId: string, asset: Term) {
+    return this.safeExecuteTransaction(this.finP2P, async (finP2P: FINP2POperatorERC20, txParams: PayableOverrides) => {
+      return finP2P.redeem(ownerFinId, asset, txParams);
     });
   }
 
-  async hold(operationId: string, nonce: string, assetId: string, sellerFinId: string, buyerFinId: string, quantity: string,
-    settlementAsset: string, settlementAmount: string, /*hashType: HashType, eip712PrimaryType: number,*/signature: string) {
-    const opId = normalizeOperationId(operationId);
-    return this.safeExecuteTransaction(async (finP2P: FINP2POperatorERC20) => {
-      return finP2P.hold(opId, nonce, assetId, sellerFinId, buyerFinId, quantity,
-        settlementAsset, settlementAmount, /*hashType, eip712PrimaryType,*/ `0x${signature}`);
+  async hold(nonce: string, sellerFinId: string, buyerFinId: string,
+             asset: Term, settlement: Term, loan: EIP712LoanTerms, params: OperationParams, signature: string) {
+    return this.safeExecuteTransaction(this.finP2P, async (finP2P: FINP2POperatorERC20, txParams: PayableOverrides) => {
+      return finP2P.hold(nonce, sellerFinId, buyerFinId, asset, settlement, loan, params, `0x${signature}`, txParams);
     });
   }
 
-  async release(operationId: string, buyerFinId: string) {
-    const opId = normalizeOperationId(operationId);
-    return this.safeExecuteTransaction(async (finP2P: FINP2POperatorERC20) => {
-      return finP2P.release(opId, buyerFinId);
+  async releaseTo(operationId: string, buyerFinId: string, quantity: string) {
+    return this.safeExecuteTransaction(this.finP2P, async (finP2P: FINP2POperatorERC20, txParams: PayableOverrides) => {
+      return finP2P.releaseTo(operationId, buyerFinId, quantity, txParams);
     });
   }
 
-  async rollback(operationId: string) {
-    const opId = normalizeOperationId(operationId);
-    return this.safeExecuteTransaction(async (finP2P: FINP2POperatorERC20) => {
-      return finP2P.rollback(opId);
+  async releaseAndRedeem(operationId: string, ownerFinId: string, quantity: string) {
+    return this.safeExecuteTransaction(this.finP2P, async (finP2P: FINP2POperatorERC20, txParams: PayableOverrides) => {
+      return finP2P.releaseAndRedeem(operationId, ownerFinId, quantity, txParams);
+    });
+  }
+
+  async releaseBack(operationId: string) {
+    return this.safeExecuteTransaction(this.finP2P, async (finP2P: FINP2POperatorERC20, txParams: PayableOverrides) => {
+      return finP2P.releaseBack(operationId, txParams);
     });
   }
 
@@ -100,76 +111,45 @@ export class FinP2PContract extends ContractsManager {
     return this.finP2P.getBalance(assetId, finId);
   }
 
+  async hasRole(role: string, address: string) {
+    return this.finP2P.hasRole(role, address);
+  }
+
   async getOperationStatus(hash: string): Promise<OperationStatus> {
     const txReceipt = await this.provider.getTransactionReceipt(hash);
     if (txReceipt === null) {
-      return {
-        status: 'pending',
-      };
-    } else if (txReceipt?.status === 1) {
-      let receipt = parseTransactionReceipt(txReceipt, this.contractInterface);
-      if (receipt === null) {
-        console.log('Failed to parse receipt');
-        return {
-          status: 'failed',
-          error: {
-            code: 1,
-            message: 'Operation failed',
-          },
-        };
-      }
-      return {
-        status: 'completed',
-        receipt: receipt,
-      };
+      return pendingOperation();
     } else {
-      return {
-        status: 'failed',
-        error: {
-          code: 1,
-          message: 'Operation failed',
-        },
-      };
+      if (txReceipt?.status === ETH_COMPLETED_TRANSACTION_STATUS) {
+        const block = await this.provider.getBlock(txReceipt.blockNumber);
+        const timestamp = block?.timestamp || 0;
+        const receipt = parseTransactionReceipt(txReceipt, this.contractInterface, timestamp);
+        if (receipt === null) {
+          this.logger.error("Failed to parse receipt");
+          return failedOperation("Failed to parse receipt", 1);
+        }
+        // const erc20Transfer = parseERC20Transfer(txReceipt, );
+        // this.logger.info('ERC20 transfer event', erc20Transfer);
+        return completedOperation(receipt);
+      } else {
+        return failedOperation(`Transaction failed with status: ${txReceipt.status}`, 1);
+      }
     }
   }
 
   async getReceipt(hash: string): Promise<FinP2PReceipt> {
     const txReceipt = await this.provider.getTransactionReceipt(hash);
     if (txReceipt === null) {
-      throw new Error('Transaction not found');
+      throw new Error("Transaction not found");
     }
-    const receipt = parseTransactionReceipt(txReceipt, this.contractInterface);
+    const block = await this.provider.getBlock(txReceipt.blockNumber);
+    const timestamp = block?.timestamp || 0;
+    const receipt = parseTransactionReceipt(txReceipt, this.contractInterface, timestamp);
     if (receipt === null) {
-      throw new Error('Failed to parse receipt');
+      throw new Error("Failed to parse receipt");
     }
     return receipt;
   }
 
-  private async safeExecuteTransaction(call: (finp2p: FINP2POperatorERC20) => Promise<ContractTransactionResponse>, maxAttempts: number = 10) {
-    for (let i = 0; i < maxAttempts; i++) {
-      try {
-        const response = await call(this.finP2P);
-        return response.hash;
-      } catch (e) {
-        const err = detectError(e);
-        if (err instanceof EthereumTransactionError) {
-          // console.log('Ethereum transaction error');
-          this.resetNonce();
-          throw err;
 
-        } else if (err instanceof NonceToHighError) {
-          // console.log('Nonce too high error, retrying');
-          this.resetNonce();
-          // continuing the loop
-        } else if (err instanceof NonceAlreadyBeenUsedError) {
-          // console.log('Nonce already been used error, retrying');
-          this.resetNonce();
-          // continuing the loop
-        } else {
-          throw err;
-        }
-      }
-    }
-    throw new Error(`Failed to execute transaction without nonce-too-high error after ${maxAttempts} attempts`);
-  }
 }

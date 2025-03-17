@@ -1,5 +1,5 @@
-import { v4 as uuid } from 'uuid';
-import { logger } from '../helpers/logger';
+import { v4 as uuid } from "uuid";
+import { logger } from "../helpers/logger";
 
 export class PlanService {
 
@@ -7,11 +7,9 @@ export class PlanService {
     logger.info(`Got execution plan to approve: ${request.executionPlan.id}`);
 
     return {
-      isCompleted: true,
-      cid: uuid(),
-      approval: {
-        status: 'approved',
-      },
+      isCompleted: true, cid: uuid(), approval: {
+        status: "approved"
+      }
     } as Components.Schemas.ExecutionPlanApprovalOperation;
   }
 

@@ -1,30 +1,33 @@
 import process from "process";
-import console from "console";
 import { FinP2PContract } from "../src/contracts/finp2p";
 import { createProviderAndSigner, ProviderType } from "../src/contracts/config";
 import { ERC20Contract } from "../src/contracts/erc20";
+import winston, { format, transports } from "winston";
 
-const erc20Approve = async (providerType: ProviderType, finp2pContractAddress: string,
-                              assetId: string, spender: string, amount: number) => {
+const logger = winston.createLogger({
+  level: "info", transports: [new transports.Console()], format: format.json()
+});
 
-  const { provider, signer } = await createProviderAndSigner(providerType);
+const erc20Approve = async (providerType: ProviderType, finp2pContractAddress: string, assetId: string, spender: string, amount: bigint) => {
+
+  const { provider, signer } = await createProviderAndSigner(providerType, logger);
   const network = await provider.getNetwork();
-  console.log("Network name: ", network.name);
-  console.log("Network chainId: ", network.chainId);
-  const finp2p = new FinP2PContract(provider, signer, finp2pContractAddress);
+  logger.info("Network name: ", network.name);
+  logger.info("Network chainId: ", network.chainId);
+  const finp2p = new FinP2PContract(provider, signer, finp2pContractAddress, logger);
   const tokenAddress = await finp2p.getAssetAddress(assetId);
-  console.log(`ERC20 token associated with ${assetId} is: ${tokenAddress}`);
+  logger.info(`ERC20 token associated with ${assetId} is: ${tokenAddress}`);
 
-  const erc20 = new ERC20Contract(provider, signer, tokenAddress);
-  console.log("ERC20 token details: ");
-  console.log(`\tname: ${await erc20.name()}`);
+  const erc20 = new ERC20Contract(provider, signer, tokenAddress, logger);
+  logger.info("ERC20 token details: ");
+  logger.info(`\tname: ${await erc20.name()}`);
 
-  await erc20.approve(spender, amount)
+  await erc20.approve(spender, amount);
 
-  console.log(`Approved ${amount} tokens for ${spender} (${spender})`);
+  logger.info(`Approved ${amount} tokens for ${spender} (${spender})`);
 };
 
-const providerType = (process.env.PROVIDER_TYPE || 'local') as ProviderType;
+const providerType = (process.env.PROVIDER_TYPE || "local") as ProviderType;
 
 const finp2pContractAddress = process.env.FINP2P_CONTRACT_ADDRESS;
 if (!finp2pContractAddress) {
@@ -40,9 +43,9 @@ if (!spender) {
 }
 const amountStr = process.env.AMOUNT;
 if (!amountStr) {
-  throw new Error("SPENDER_FIN_ID is not set");
+  throw new Error("AMOUNT is not set");
 }
-const amount = parseInt(amountStr);
+const amount = BigInt(amountStr);
 
 erc20Approve(providerType, finp2pContractAddress, assetId, spender, amount)
   .then(() => {

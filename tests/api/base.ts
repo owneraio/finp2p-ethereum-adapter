@@ -26,9 +26,7 @@ export class ClientBase {
     return new Promise((resolve, reject) => {
       axios.post(`${this.host}${url}`, data, {
         headers: {
-          "Content-Type": "application/json",
-          "Accept": "application/json",
-          "Idempotency-Key": idempotencyKey
+          "Content-Type": "application/json", "Accept": "application/json", "Idempotency-Key": idempotencyKey
         }
       }).then(({ data: response }) => {
         resolve(response);

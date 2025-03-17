@@ -12,6 +12,9 @@
     "postbuild": "cpx 'src/**/*.graphql' dist/src/",
     "test": "jest",
     "test-server": "tsc && node ./dist/scripts/test-server.js",
+    "migration": "tsc && node ./dist/scripts/migration.js",
+    "sync-balances": "tsc && node ./dist/scripts/sync-balances.js",
+    "mass-approve": "tsc && node ./dist/scripts/mass-approve.js",
     "start": "node ."
   },
   "keywords": [],

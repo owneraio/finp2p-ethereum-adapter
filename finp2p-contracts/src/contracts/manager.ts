@@ -1,9 +1,19 @@
 import {
-  ContractFactory, NonceManager, Provider, Signer
+  BaseContract,
+  ContractFactory,
+  ContractTransactionResponse,
+  NonceManager,
+  Provider,
+  Signer, TypedDataField
 } from "ethers";
-import FINP2P from '../../artifacts/contracts/token/ERC20/FINP2POperatorERC20.sol/FINP2POperatorERC20.json';
-import ERC20 from '../../artifacts/contracts/token/ERC20/ERC20WithOperator.sol/ERC20WithOperator.json';
-import { ERC20WithOperator, FINP2POperatorERC20 } from '../../typechain-types';
+import FINP2P from "../../artifacts/contracts/token/ERC20/FINP2POperatorERC20.sol/FINP2POperatorERC20.json";
+import ERC20 from "../../artifacts/contracts/token/ERC20/ERC20WithOperator.sol/ERC20WithOperator.json";
+import { ERC20WithOperator, FINP2POperatorERC20 } from "../../typechain-types";
+import winston from "winston";
+import { PayableOverrides } from "../../typechain-types/common";
+import { detectError, EthereumTransactionError, NonceAlreadyBeenUsedError, NonceToHighError } from "./model";
+import { hash as typedHash, sign } from "./eip712";
+import { compactSerialize } from "./utils";
 
 const DefaultDecimalsCurrencies = 2;
 
@@ -11,10 +21,17 @@ export class ContractsManager {
 
   provider: Provider;
   signer: Signer;
+  logger: winston.Logger
 
-  constructor(provider: Provider, signer: Signer) {
+  constructor(provider: Provider, signer: Signer, logger: winston.Logger) {
     this.provider = provider;
     this.signer = signer;
+    this.logger = logger;
+    if (this.signer instanceof NonceManager) {
+      this.signer.getNonce().then((nonce) => {
+        this.logger.info(`Using nonce-manager, current nonce: ${nonce}`);
+      });
+    }
   }
 
   async deployERC20(name: string, symbol: string, decimals: number, finP2PContractAddress: string) {
@@ -28,8 +45,16 @@ export class ContractsManager {
     return await contract.getAddress();
   }
 
+  async getPendingTransactionCount() {
+    return await this.provider.getTransactionCount(this.signer.getAddress(), 'pending');
+  }
+
+  async getLatestTransactionCount() {
+    return await this.provider.getTransactionCount(this.signer.getAddress(), 'latest');
+  }
+
   async deployFinP2PContract(signerAddress: string | undefined, paymentAssetCode: string | undefined = undefined) {
-    console.log('Deploying FinP2P contract...');
+    this.logger.info('Deploying FinP2P contract...');
     const factory = new ContractFactory<any[], FINP2POperatorERC20>(
       FINP2P.abi, FINP2P.bytecode, this.signer,
     );
@@ -37,7 +62,7 @@ export class ContractsManager {
     await contract.waitForDeployment();
 
     const address = await contract.getAddress();
-    console.log('FinP2P contract deployed successfully at:', address);
+    this.logger.info(`FinP2P contract deployed successfully at: ${address}`);
 
     if (signerAddress) {
       await this.grantAssetManagerRole(address, signerAddress);
@@ -52,7 +77,7 @@ export class ContractsManager {
   }
 
   async isFinP2PContractHealthy(finP2PContractAddress: string): Promise<boolean> {
-    // console.log(`Check FinP2P contract at ${finP2PContractAddress} on chain`);
+    // logger.info(`Check FinP2P contract at ${finP2PContractAddress} on chain`);
     const factory = new ContractFactory<any[], FINP2POperatorERC20>(
       FINP2P.abi, FINP2P.bytecode, this.signer,
     );
@@ -71,34 +96,45 @@ export class ContractsManager {
   }
 
   async preCreatePaymentAsset(factory: ContractFactory<any[], FINP2POperatorERC20>, finP2PContractAddress: string, assetId: string, decimals: number): Promise<void> {
-    console.log(`Pre-creating payment asset ${assetId}...`);
+    this.logger.info(`Pre-creating payment asset ${assetId}...`);
     const tokenAddress = await this.deployERC20(assetId, assetId, decimals, finP2PContractAddress);
 
-    const contract = factory.attach(finP2PContractAddress);
-
-    console.log(`Associating asset ${assetId} with token ${tokenAddress}...`);
-    const tx = await contract.associateAsset(assetId, tokenAddress);
-    await this.waitForCompletion(tx.hash);
+    const contract = factory.attach(finP2PContractAddress) as FINP2POperatorERC20;
+    this.logger.info(`Associating asset ${assetId} with token ${tokenAddress}...`);
+    const txHash = await this.safeExecuteTransaction(contract, async (finP2P: FINP2POperatorERC20, txParams: PayableOverrides) => {
+      return finP2P.associateAsset(assetId, tokenAddress, txParams);
+    });
+    await this.waitForCompletion(txHash);
   }
 
   async grantAssetManagerRole(finP2PContractAddress: string, to: string) {
-    console.log(`Granting asset manager role to ${to}...`);
+    this.logger.info(`Granting asset manager role to ${to}...`);
     const factory = new ContractFactory<any[], FINP2POperatorERC20>(
       FINP2P.abi, FINP2P.bytecode, this.signer,
     );
-    const contract = factory.attach(finP2PContractAddress);
-    const tx = await contract.grantAssetManagerRole(to);
-    await this.waitForCompletion(tx.hash);
+    const contract = factory.attach(finP2PContractAddress) as FINP2POperatorERC20;
+    const txHash = await this.safeExecuteTransaction(contract, async (finP2P: FINP2POperatorERC20, txParams: PayableOverrides) => {
+      return finP2P.grantAssetManagerRole(to, txParams);
+    })
+    await this.waitForCompletion(txHash);
   }
 
   async grantTransactionManagerRole(finP2PContractAddress: string, to: string) {
-    console.log(`Granting transaction manager role to ${to}...`);
+    this.logger.info(`Granting transaction manager role to ${to}...`);
     const factory = new ContractFactory<any[], FINP2POperatorERC20>(
       FINP2P.abi, FINP2P.bytecode, this.signer,
     );
-    const contract = factory.attach(finP2PContractAddress);
-    const tx = await contract.grantTransactionManagerRole(to);
-    await this.waitForCompletion(tx.hash);
+    const contract = factory.attach(finP2PContractAddress) as FINP2POperatorERC20;
+    const txHash = await this.safeExecuteTransaction(contract, async (finP2P: FINP2POperatorERC20, txParams: PayableOverrides) => {
+      return finP2P.grantTransactionManagerRole(to, txParams);
+    })
+    await this.waitForCompletion(txHash);
+  }
+
+  async signEIP712(chainId: bigint | number, verifyingContract: string, types: Record<string, Array<TypedDataField>>, message: Record<string, any>) : Promise<{ hash: string, signature: string}> {
+    const hash = typedHash(chainId, verifyingContract, types, message).substring(2);
+    const signature = compactSerialize(await sign(chainId, verifyingContract, types, message, this.signer));
+    return { hash, signature };
   }
 
   public async waitForCompletion(txHash: string, tries: number = 300) {
@@ -117,7 +153,43 @@ export class ContractsManager {
     throw new Error(`no result after ${tries} retries`);
   }
 
-  protected resetNonce() {
-    (this.signer as NonceManager).reset();
+  protected async safeExecuteTransaction<C extends BaseContract>(contract: C, call: (contract: C, overrides: PayableOverrides) => Promise<ContractTransactionResponse>, maxAttempts: number = 10) {
+    for (let i = 0; i < maxAttempts; i++) {
+      try {
+        let nonce: number
+        if (this.signer instanceof NonceManager) {
+          nonce = await (this.signer as NonceManager).getNonce()
+        } else {
+          nonce = await this.getLatestTransactionCount();
+        }
+        const response = await call(contract, { nonce });
+        return response.hash;
+      } catch (e) {
+        const err = detectError(e);
+        if (err instanceof EthereumTransactionError) {
+          // console.log('Ethereum transaction error');
+          this.resetNonce();
+          throw err;
+
+        } else if (err instanceof NonceToHighError) {
+          // console.log('Nonce too high error, retrying');
+          this.resetNonce();
+          // continuing the loop
+        } else if (err instanceof NonceAlreadyBeenUsedError) {
+          // console.log('Nonce already been used error, retrying');
+          this.resetNonce();
+          // continuing the loop
+        } else {
+          throw err;
+        }
+      }
+    }
+    throw new Error(`Failed to execute transaction without nonce-too-high error after ${maxAttempts} attempts`);
+  }
+
+  private resetNonce() {
+    if (this.signer instanceof NonceManager) {
+      (this.signer as NonceManager).reset();
+    }
   }
 }

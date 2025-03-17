@@ -1,5 +1,23 @@
 declare namespace Components {
     namespace Schemas {
+        export interface AbsolutePollingInterval {
+            type: "absolute";
+            /**
+             * absolute time as epoch time seconds
+             */
+            time: number;
+        }
+        export type ApiAnyError = ApiErrorClient4XX | ApiErrorServer5XX;
+        export interface ApiErrorClient4XX {
+            type: "error";
+            status: 400 | 401 | 403 | 404 | 409;
+            errors: (AssetMetadataAndConfigError | GeneralClientError)[];
+        }
+        export interface ApiErrorServer5XX {
+            type: "error";
+            status: 500 | 502 | 503 | 504;
+            errors: GeneralServerError[];
+        }
         export interface ApproveExecutionPlanRequest {
             /**
              * execution plan information
@@ -20,11 +38,16 @@ declare namespace Components {
              * flag indicating if the operation completed, if true then error or response must be present (but not both)
              */
             isCompleted: boolean;
+            operationMetadata?: /* additional metadata regarding the operation */ OperationMetadata;
             approval: PlanApproved | PlanRejected;
         }
         export type Asset = CryptocurrencyAsset | FiatAsset | Finp2pAsset;
         export interface AssetCreateResponse {
             ledgerAssetInfo: LedgerAssetInfo;
+        }
+        export interface AssetMetadataAndConfigError {
+            code: 4108;
+            message: "Asset metadata and config cannot be provided at the same time";
         }
         export interface Balance {
             asset: Asset;
@@ -32,6 +55,13 @@ declare namespace Components {
              * the number of asset tokens
              */
             balance: string;
+        }
+        export interface CallbackEndpoint {
+            type: "endpoint";
+        }
+        export interface CallbackResultsStrategy {
+            type: "callback";
+            callback: CallbackEndpoint;
         }
         export interface ContractDetails {
             /**
@@ -61,6 +91,7 @@ declare namespace Components {
              * flag indicating if the operation completed, if true then error or response must be present (but not both)
              */
             isCompleted: boolean;
+            operationMetadata?: /* additional metadata regarding the operation */ OperationMetadata;
             error?: CreateAssetOperationErrorInformation;
             response?: AssetCreateResponse;
         }
@@ -69,6 +100,12 @@ declare namespace Components {
             message?: string;
         }
         export interface CreateAssetRequest {
+            /**
+             * The asset metadata
+             */
+            metadata?: {
+                [name: string]: any;
+            };
             asset: Asset;
             ledgerAssetBinding?: LedgerAssetBinding;
         }
@@ -81,8 +118,15 @@ declare namespace Components {
              * flag indicating if the operation completed, if true then error or response must be present (but not both)
              */
             isCompleted: boolean;
+            operationMetadata?: /* additional metadata regarding the operation */ OperationMetadata;
             error?: CreateAssetOperationErrorInformation;
             response?: AssetCreateResponse;
+        }
+        export interface CryptoTransfer {
+            type: "cryptoTransfer";
+            network: string;
+            contractAddress: string;
+            walletAddress: string;
         }
         export interface CryptoWalletAccount {
             type: "cryptoWallet";
@@ -107,15 +151,16 @@ declare namespace Components {
             /**
              * Instructions for the deposit operation
              */
-            description: string;
+            description?: string;
+            paymentOptions?: PaymentMethods;
             /**
-             * Any addition deposit specific information
+             * Any addition deposit specific information, deprecated use "payment method options" instead fields
              */
             details?: {
                 [key: string]: any;
             };
             /**
-             * operation id
+             * operation id reference while will correlate with any receipt associated with the deposit operation
              */
             operationId?: string;
         }
@@ -153,6 +198,7 @@ declare namespace Components {
              * flag indicating if the operation completed, if true then error or response must be present (but not both)
              */
             isCompleted: boolean;
+            operationMetadata?: /* additional metadata regarding the operation */ OperationMetadata;
             error?: DepositOperationErrorInformation;
             response?: DepositInstruction;
         }
@@ -165,6 +211,7 @@ declare namespace Components {
              * flag indicating if the operation completed, if true then error or response must be present (but not both)
              */
             isCompleted: boolean;
+            operationMetadata?: /* additional metadata regarding the operation */ OperationMetadata;
             error?: DepositOperationErrorInformation;
             response?: DepositInstruction;
         }
@@ -219,19 +266,6 @@ declare namespace Components {
         export interface EIP712Types {
             definitions?: EIP712TypeDefinition[];
         }
-        export interface EmptyOperation {
-            /**
-             * unique correlation id which identify the operation
-             */
-            cid: string;
-            /**
-             * flag indicating if the operation completed, if true then error or response must be present (but not both)
-             */
-            isCompleted: boolean;
-            error?: EmptyOperationErrorInformation;
-        }
-        export interface EmptyOperationErrorInformation {
-        }
         export interface ExecutionContext {
             /**
              * execution plan id
@@ -253,6 +287,7 @@ declare namespace Components {
              * flag indicating if the operation completed, if true then error or response must be present (but not both)
              */
             isCompleted: boolean;
+            operationMetadata?: /* additional metadata regarding the operation */ OperationMetadata;
             approval: PlanApproved | PlanRejected;
         }
         export interface FiatAccount {
@@ -311,6 +346,14 @@ declare namespace Components {
              */
             resourceId: string;
         }
+        export interface GeneralClientError {
+            code: 1000;
+            message: "General client error";
+        }
+        export interface GeneralServerError {
+            code: 2000;
+            message: "General server error";
+        }
         export interface GetAssetBalanceRequest {
             owner: Source;
             asset: Asset;
@@ -338,13 +381,14 @@ declare namespace Components {
              * flag indicating if the operation completed, if true then error or response must be present (but not both)
              */
             isCompleted: boolean;
+            operationMetadata?: /* additional metadata regarding the operation */ OperationMetadata;
             error?: ReceiptOperationErrorInformation;
             response?: Receipt;
         }
         /**
          * hash function types
          */
-        export type HashFunction = "unspecified" | "sha3_256" | "blake2b" | "keccak_256";
+        export type HashFunction = "unspecified" | "sha3_256" | "sha3-256" | "blake2b" | "keccak_256" | "keccak-256";
         export interface HashGroup {
             /**
              * hex representation of the hash group hash value
@@ -406,8 +450,13 @@ declare namespace Components {
              * flag indicating if the operation completed, if true then error or response must be present (but not both)
              */
             isCompleted: boolean;
+            operationMetadata?: /* additional metadata regarding the operation */ OperationMetadata;
             error?: ReceiptOperationErrorInformation;
             response?: Receipt;
+        }
+        export interface IbanAccountDetails {
+            type: "iban";
+            iban: string;
         }
         export interface IssueAssetsRequest {
             nonce: /**
@@ -444,6 +493,7 @@ declare namespace Components {
              * flag indicating if the operation completed, if true then error or response must be present (but not both)
              */
             isCompleted: boolean;
+            operationMetadata?: /* additional metadata regarding the operation */ OperationMetadata;
             error?: ReceiptOperationErrorInformation;
             response?: Receipt;
         }
@@ -489,13 +539,56 @@ declare namespace Components {
              * flag indicating if the operation completed, if true then error or response must be present (but not both)
              */
             isCompleted: boolean;
+            operationMetadata?: /* additional metadata regarding the operation */ OperationMetadata;
         }
-        export interface OperationStatus {
-            type: "receipt" | "deposit" | "empty" | "approval" | "createAsset";
-            operation: CreateAssetOperation | DepositOperation | ReceiptOperation | EmptyOperation | ExecutionPlanApprovalOperation;
+        /**
+         * additional metadata regarding the operation
+         */
+        export interface OperationMetadata {
+            /**
+             * denote the expected response strategy of the operation, i.e. how would completion and results of the operation should be handled
+             * optional, if not provided [polling strategy](#/components/schema/pollingResultsStrategy) will be use with [random interval](#/components/schema/randomPollingInterval)
+             *
+             */
+            operationResponseStrategy?: /**
+             * denote the expected response strategy of the operation, i.e. how would completion and results of the operation should be handled
+             * optional, if not provided [polling strategy](#/components/schema/pollingResultsStrategy) will be use with [random interval](#/components/schema/randomPollingInterval)
+             *
+             */
+            PollingResultsStrategy | CallbackResultsStrategy;
+        }
+        export type OperationStatus = OperationStatusCreateAsset | OperationStatusDeposit | OperationStatusReceipt | OperationStatusApproval;
+        export interface OperationStatusApproval {
+            type: "approval";
+            operation: ExecutionPlanApprovalOperation;
+        }
+        export interface OperationStatusCreateAsset {
+            type: "createAsset";
+            operation: CreateAssetOperation;
+        }
+        export interface OperationStatusDeposit {
+            type: "deposit";
+            operation: DepositOperation;
+        }
+        export interface OperationStatusReceipt {
+            type: "receipt";
+            operation: ReceiptOperation;
         }
         export type OperationType = "issue" | "transfer" | "hold" | "release" | "redeem";
-        export type PayoutAsset = CryptocurrencyAsset | FiatAsset;
+        export interface PaymentInstructions {
+            type: "paymentInstructions";
+            instruction: string;
+        }
+        export interface PaymentMethod {
+            description: string;
+            /**
+             * accepted currency for payment
+             */
+            currency: string;
+            methodInstruction: WireTransfer | WireTransferUSA | CryptoTransfer | PaymentInstructions;
+        }
+        export type PaymentMethods = PaymentMethod[];
+        export type PayoutAsset = CryptocurrencyAsset | FiatAsset | Finp2pAsset;
         export interface PayoutInstruction {
             /**
              * withdrawal description
@@ -504,7 +597,7 @@ declare namespace Components {
         }
         export interface PayoutRequest {
             source: Source;
-            destination: /* describes destination for remote operations operations */ Destination;
+            destination?: /* describes destination for remote operations operations */ Destination;
             /**
              * How many units of the asset
              */
@@ -534,8 +627,12 @@ declare namespace Components {
              * flag indicating if the operation completed, if true then error or response must be present (but not both)
              */
             isCompleted: boolean;
+            operationMetadata?: /* additional metadata regarding the operation */ OperationMetadata;
             error?: ReceiptOperationErrorInformation;
             response?: Receipt;
+        }
+        export interface PlanApprovalResponse {
+            approval: PlanApproved | PlanRejected;
         }
         export interface PlanApproved {
             status: "approved";
@@ -544,10 +641,17 @@ declare namespace Components {
             status: "rejected";
             failure?: ValidationFailure | RegulationFailure;
         }
+        export interface PollingResultsStrategy {
+            type: "poll";
+            polling: RandomPollingInterval | AbsolutePollingInterval | RelativePollingInterval;
+        }
         /**
          * additional proof information attached to a receipt
          */
         export type ProofPolicy = /* additional proof information attached to a receipt */ SignatureProofPolicy | /* no proof validation required for this policy */ NoProofPolicy;
+        export interface RandomPollingInterval {
+            type: "random";
+        }
         export interface Receipt {
             /**
              * the receipt id
@@ -582,6 +686,7 @@ declare namespace Components {
              * flag indicating if the operation completed, if true then error or response must be present (but not both)
              */
             isCompleted: boolean;
+            operationMetadata?: /* additional metadata regarding the operation */ OperationMetadata;
             error?: ReceiptOperationErrorInformation;
             response?: Receipt;
         }
@@ -634,6 +739,7 @@ declare namespace Components {
              * flag indicating if the operation completed, if true then error or response must be present (but not both)
              */
             isCompleted: boolean;
+            operationMetadata?: /* additional metadata regarding the operation */ OperationMetadata;
             error?: ReceiptOperationErrorInformation;
             response?: Receipt;
         }
@@ -650,6 +756,15 @@ declare namespace Components {
         export interface RegulationFailure {
             failureType: "RegulationFailure";
             errors: RegulationError[];
+        }
+        export interface RelativePollingInterval {
+            type: "relative";
+            /**
+             * ISO-8601 duration format
+             * example:
+             * PT5M (5Min duration), P1DT30M (1 Day and 30 Minutes )
+             */
+            duration: string;
         }
         export interface ReleaseOperationRequest {
             /**
@@ -674,6 +789,7 @@ declare namespace Components {
              * flag indicating if the operation completed, if true then error or response must be present (but not both)
              */
             isCompleted: boolean;
+            operationMetadata?: /* additional metadata regarding the operation */ OperationMetadata;
             error?: ReceiptOperationErrorInformation;
             response?: Receipt;
         }
@@ -699,6 +815,7 @@ declare namespace Components {
              * flag indicating if the operation completed, if true then error or response must be present (but not both)
              */
             isCompleted: boolean;
+            operationMetadata?: /* additional metadata regarding the operation */ OperationMetadata;
             error?: ReceiptOperationErrorInformation;
             response?: Receipt;
         }
@@ -724,6 +841,11 @@ declare namespace Components {
              */
             finId: string;
             account: FinIdAccount;
+        }
+        export interface SwiftAccountDetails {
+            type: "bic";
+            swiftCode: string;
+            accountNumber: string;
         }
         /**
          * additional ledger specific
@@ -774,6 +896,7 @@ declare namespace Components {
              * flag indicating if the operation completed, if true then error or response must be present (but not both)
              */
             isCompleted: boolean;
+            operationMetadata?: /* additional metadata regarding the operation */ OperationMetadata;
             error?: ReceiptOperationErrorInformation;
             response?: Receipt;
         }
@@ -784,6 +907,27 @@ declare namespace Components {
              */
             code: number; // uint32
             message: string;
+        }
+        export type WireDetails = IbanAccountDetails | SwiftAccountDetails;
+        export interface WireTransfer {
+            type: "wireTransfer";
+            accountHolderName: string;
+            bankName: string;
+            wireDetails: WireDetails;
+            line1: string;
+            city: string;
+            postalCode: string;
+            country: string;
+        }
+        export interface WireTransferUSA {
+            type: "wireTransferUSA";
+            accountNumber: string;
+            routingNumber: string;
+            line1: string;
+            city: string;
+            postalCode: string;
+            country: string;
+            state: string;
         }
     }
 }

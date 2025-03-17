@@ -2,17 +2,14 @@
 
 pragma solidity ^0.8.20;
 
-import "../../utils/erc20/Burnable.sol";
-import "../../utils/erc20/Mintable.sol";
-import "../../utils/finp2p/Bytes.sol";
-import "../../utils/finp2p/FinP2PSignatureVerifier.sol";
-import "../../utils/finp2p/IFinP2PAsset.sol";
-import "../../utils/finp2p/IFinP2PEscrow.sol";
-import "../../utils/finp2p/Signature.sol";
-import "../../utils/DecimalStringUtils.sol";
-import "@openzeppelin/contracts/access/AccessControl.sol";
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
+import {StringUtils} from "../../utils/StringUtils.sol";
+import {Burnable} from "../../utils/erc20/Burnable.sol";
+import {Mintable} from "../../utils/erc20/Mintable.sol";
+import {FinIdUtils} from "../../utils/finp2p/FinIdUtils.sol";
+import {FinP2PSignatureVerifier} from "../../utils/finp2p/FinP2PSignatureVerifier.sol";
+import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 
 /**
  * @dev FINP2POperatorERC20
@@ -22,12 +19,81 @@ import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
  * It also allows to hold and release tokens in escrow.
  *
  */
-contract FINP2POperatorERC20 is IFinP2PAsset, IFinP2PEscrow, AccessControl, FinP2PSignatureVerifier {
-    using DecimalStringUtils for string;
-    using DecimalStringUtils for uint256;
+contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
+    using StringUtils for string;
+    using StringUtils for uint256;
+    using FinIdUtils for string;
+
+    enum Phase {
+        INITIATE,
+        CLOSE
+    }
+
+    enum ReleaseType {
+        RELEASE,
+        REDEEM
+    }
+
+    string public constant VERSION = "0.22.2";
 
     bytes32 private constant ASSET_MANAGER = keccak256("ASSET_MANAGER");
     bytes32 private constant TRANSACTION_MANAGER = keccak256("TRANSACTION_MANAGER");
+
+    struct OperationParams {
+        LegType leg;
+        Phase phase;
+        PrimaryType eip712PrimaryType;
+        string operationId;
+        ReleaseType releaseType;
+    }
+
+    struct LockInfo {
+        string assetId;
+        AssetType assetType;
+        string source;
+        string destination;
+        string amount;
+    }
+
+    /// @notice Issue event
+    /// @param assetId The asset id
+    /// @param assetType The asset type
+    /// @param issuerFinId The FinID of the issuer
+    /// @param quantity The quantity issued
+    event Issue(string assetId, AssetType assetType, string issuerFinId, string quantity);
+
+    /// @notice Transfer event
+    /// @param assetId The asset id
+    /// @param assetType The asset type
+    /// @param sourceFinId The FinID of the source
+    /// @param destinationFinId The FinID of the destination
+    /// @param quantity The quantity transferred
+    event Transfer(string assetId, AssetType assetType, string sourceFinId, string destinationFinId, string quantity);
+
+    /// @notice Hold event
+    /// @param assetId The asset id
+    /// @param assetType The asset type
+    /// @param finId The FinID of the holder
+    /// @param quantity The quantity held
+    /// @param operationId The operation id
+    event Hold(string assetId, AssetType assetType, string finId, string quantity, string operationId);
+
+    /// @notice Release event
+    /// @param assetId The asset id
+    /// @param assetType The asset type
+    /// @param sourceFinId The FinID of the source
+    /// @param destinationFinId The FinID of the destination
+    /// @param quantity The quantity released
+    /// @param operationId The operation id
+    event Release(string assetId, AssetType assetType, string sourceFinId, string destinationFinId, string quantity, string operationId);
+
+    /// @notice Redeem event
+    /// @param assetId The asset id
+    /// @param assetType The asset type
+    /// @param ownerFinId The FinID of the owner
+    /// @param quantity The quantity redeemed
+    /// @param operationId The operation id
+    event Redeem(string assetId, AssetType assetType, string ownerFinId, string quantity, string operationId);
 
     struct Asset {
         string id;
@@ -36,13 +102,15 @@ contract FINP2POperatorERC20 is IFinP2PAsset, IFinP2PEscrow, AccessControl, FinP
 
     struct Lock {
         string assetId;
-        string finId;
-        address token;
-        uint256 amount;
+        AssetType assetType;
+        string source;
+        string destination;
+        string amount;
     }
 
-    mapping(string => Asset) assets;
-    mapping(bytes16 => Lock) private locks;
+    address private escrowWalletAddress;
+    mapping(string => Asset) private assets;
+    mapping(string => Lock) private locks;
 
     constructor() {
         _grantRole(DEFAULT_ADMIN_ROLE, _msgSender());
@@ -50,272 +118,352 @@ contract FINP2POperatorERC20 is IFinP2PAsset, IFinP2PEscrow, AccessControl, FinP
         _grantRole(TRANSACTION_MANAGER, _msgSender());
     }
 
-    function grantAssetManagerRole(address account) public {
+    /// @notice Grant the asset manager role to an account
+    /// @param account The account to grant the role
+    function grantAssetManagerRole(address account) external {
         require(hasRole(DEFAULT_ADMIN_ROLE, _msgSender()), "FINP2POperatorERC20: must have admin role to grant asset manager role");
         grantRole(ASSET_MANAGER, account);
     }
 
-    function grantTransactionManagerRole(address account) public {
+    /// @notice Grant the transaction manager role to an account
+    /// @param account The account to grant the role
+    function grantTransactionManagerRole(address account) external {
         require(hasRole(DEFAULT_ADMIN_ROLE, _msgSender()), "FINP2POperatorERC20: must have admin role to grant transaction manager role");
         grantRole(TRANSACTION_MANAGER, account);
     }
 
-    function associateAsset(string memory assetId, address tokenAddress) public override {
+    /// @notice Set escrow wallet address
+    /// @param _escrowWalletAddress The escrow wallet address
+    function setEscrowWalletAddress(address _escrowWalletAddress) external {
+        require(hasRole(DEFAULT_ADMIN_ROLE, _msgSender()), "FINP2POperatorERC20: must have admin role to set escrow wallet address");
+        escrowWalletAddress = _escrowWalletAddress;
+    }
+
+    /// @notice Associate an asset with a token address
+    /// @param assetId The asset id
+    /// @param tokenAddress The token address
+    function associateAsset(string calldata assetId, address tokenAddress) external {
         require(hasRole(ASSET_MANAGER, _msgSender()), "FINP2POperatorERC20: must have asset manager role to associate asset");
-        require(!haveAsset(assetId), "Asset already exists");
+        require(!_haveAsset(assetId), "Asset already exists");
         assets[assetId] = Asset(assetId, tokenAddress);
     }
 
-    function removeAsset(string memory assetId) public override {
+    /// @notice Remove an asset
+    /// @param assetId The asset id
+    function removeAsset(string calldata assetId) external {
         require(hasRole(ASSET_MANAGER, _msgSender()), "FINP2POperatorERC20: must have asset manager role to remove asset");
-        require(haveAsset(assetId), "Asset not found");
+        require(_haveAsset(assetId), "Asset not found");
         delete assets[assetId];
     }
 
-    function getAssetAddress(string memory assetId) public override view returns (address) {
-        require(haveAsset(assetId), "Asset not found");
+    /// @notice Get the token address of an asset
+    /// @param assetId The asset id
+    /// @return The token address
+    function getAssetAddress(string calldata assetId) external view returns (address) {
+        require(_haveAsset(assetId), "Asset not found");
         Asset memory asset = assets[assetId];
         return asset.tokenAddress;
     }
 
+    /// @notice Get the balance of an asset for a FinID
+    /// @param assetId The asset id
+    /// @param finId The FinID
+    /// @return The balance of the asset
     function getBalance(
-        string memory assetId,
-        string memory finId
-    ) public override view returns (string memory) {
-        require(haveAsset(assetId), "Asset not found");
-        address addr = Bytes.finIdToAddress(finId);
+        string calldata assetId,
+        string calldata finId
+    ) external view returns (string memory) {
+        require(_haveAsset(assetId), "Asset not found");
+        address addr = finId.toAddress();
         Asset memory asset = assets[assetId];
         uint8 tokenDecimals = IERC20Metadata(asset.tokenAddress).decimals();
         uint256 tokenBalance = IERC20(asset.tokenAddress).balanceOf(addr);
         return tokenBalance.uintToString(tokenDecimals);
     }
 
+    /// @notice Issue asset to the issuer
+    /// @param issuerFinId The FinID of the issuer
+    /// @param assetTerm The asset term to issue
     function issue(
-        string memory assetId,
-        string memory issuerFinId,
-        string memory quantity
-    ) public override virtual {
+        string calldata issuerFinId,
+        Term calldata assetTerm
+    ) external {
         require(hasRole(TRANSACTION_MANAGER, _msgSender()), "FINP2POperatorERC20: must have transaction manager role to issue asset");
-        require(haveAsset(assetId), "Asset not found");
-
-        address issuer = Bytes.finIdToAddress(issuerFinId);
-
-        Asset memory asset = assets[assetId];
-        uint8 tokenDecimals = IERC20Metadata(asset.tokenAddress).decimals();
-        uint256 tokenAmount = quantity.stringToUint(tokenDecimals);
-        Mintable(asset.tokenAddress).mint(issuer, tokenAmount);
-
-        emit Issue(assetId, issuerFinId, quantity);
+        _mint(issuerFinId.toAddress(), assetTerm.assetId, assetTerm.amount);
+        emit Issue(assetTerm.assetId, assetTerm.assetType, issuerFinId, assetTerm.amount);
     }
 
+    /// @notice Transfer asset from seller to buyer
+    /// @param nonce The investor signature nonce
+    /// @param sellerFinId The FinID of the seller
+    /// @param buyerFinId The FinID of the buyer
+    /// @param assetTerm The asset term to transfer
+    /// @param settlementTerm The settlement term to transfer
+    /// @param loanTerm The loan term to transfer, could be empty
+    /// @param op The operation parameters
+    /// @param signature The investor signature
     function transfer(
         string memory nonce,
-        string memory assetId,
         string memory sellerFinId,
         string memory buyerFinId,
-        string memory quantity,
-        string memory settlementAsset,
-        string memory settlementAmount,
-        uint8 hashType,
-        uint8 eip712PrimaryType,
+        Term memory assetTerm,
+        Term memory settlementTerm,
+        LoanTerm memory loanTerm,
+        OperationParams memory op,
         bytes memory signature
-    ) public override virtual {
+    ) external {
         require(hasRole(TRANSACTION_MANAGER, _msgSender()), "FINP2POperatorERC20: must have transaction manager role to transfer asset");
-        require(haveAsset(assetId), "Asset not found");
-
-        address seller = Bytes.finIdToAddress(sellerFinId);
-        address buyer = Bytes.finIdToAddress(buyerFinId);
-
-        require(verifyTransferSignature(
-            nonce,
-            buyerFinId,
-            sellerFinId,
-            assetId,
-            quantity,
-            settlementAsset,
-            settlementAmount,
-            seller,
-            hashType,
-            eip712PrimaryType,
-            signature
-        ), "Signature is not verified");
-
-        Asset memory asset = assets[assetId];
-
-        uint8 tokenDecimals = IERC20Metadata(asset.tokenAddress).decimals();
-        uint256 tokenAmount = quantity.stringToUint(tokenDecimals);
-        uint256 balance = IERC20(asset.tokenAddress).balanceOf(seller);
-        require(balance >= tokenAmount, "Not sufficient balance to transfer");
-
-        IERC20(asset.tokenAddress).transferFrom(seller, buyer, tokenAmount);
-
-        emit Transfer(assetId, sellerFinId, buyerFinId, quantity);
+        (string memory source,
+            string memory destination,
+            string memory assetId,
+            AssetType assetType,
+            string memory amount) = _extractDetails(sellerFinId, buyerFinId, assetTerm, settlementTerm, op);
+        if (op.phase == Phase.INITIATE) {
+            require(verifyInvestmentSignature(
+                op.eip712PrimaryType,
+                nonce,
+                buyerFinId,
+                sellerFinId,
+                assetTerm,
+                settlementTerm,
+                loanTerm,
+                source,
+                signature
+            ), "Signature is not verified");
+        } else if (op.phase == Phase.CLOSE) {
+            require(verifyInvestmentSignature(
+                op.eip712PrimaryType,
+                nonce,
+                buyerFinId,
+                sellerFinId,
+                assetTerm,
+                settlementTerm,
+                loanTerm,
+                destination,
+                signature
+            ), "Signature is not verified");
+        }
+        _transfer(source.toAddress(), destination.toAddress(), assetId, amount);
+        emit Transfer(assetId, assetType, source, destination, amount);
     }
 
+    /// @notice Redeem asset from the owner
+    /// @param ownerFinId The FinID of the owner
+    /// @param term The term to redeem
     function redeem(
-        string memory nonce,
-        string memory assetId,
-        string memory sellerFinId,
-        string memory issuerFinId,
-        string memory quantity,
-        string memory settlementAsset,
-        string memory settlementAmount,
-        uint8 hashType,
-        bytes memory signature
-    ) public override virtual {
-        require(hasRole(TRANSACTION_MANAGER, _msgSender()), "FINP2POperatorERC20: must have transaction manager role to redeem asset");
-        require(haveAsset(assetId), "Asset not found");
-
-        address seller = Bytes.finIdToAddress(sellerFinId);
-
-        require(verifyRedemptionSignature(
-            nonce,
-            sellerFinId,
-            issuerFinId,
-            assetId,
-            quantity,
-            settlementAsset,
-            settlementAmount,
-            seller,
-            hashType,
-            signature
-        ), "Signature is not verified");
-
-        Asset memory asset = assets[assetId];
-        uint8 tokenDecimals = IERC20Metadata(asset.tokenAddress).decimals();
-        uint256 tokenAmount = quantity.stringToUint(tokenDecimals);
-
-        uint256 balance = IERC20(asset.tokenAddress).balanceOf(seller);
-        require(tokenAmount > 0, "Amount should be greater than zero");
-        require(balance >= tokenAmount, "Not sufficient balance to redeem");
-
-        Burnable(asset.tokenAddress).burn(seller, tokenAmount);
-
-        emit Redeem(assetId, sellerFinId, quantity);
+        string calldata ownerFinId,
+        Term calldata term
+    ) external {
+        require(hasRole(TRANSACTION_MANAGER, _msgSender()), "FINP2POperatorERC20: must have transaction manager role to release asset");
+        _burn(ownerFinId.toAddress(), term.assetId, term.amount);
+        emit Redeem(term.assetId, term.assetType, ownerFinId, term.amount, '');
     }
 
+    /// @notice Hold asset in escrow
+    /// @param nonce The investor signature nonce
+    /// @param sellerFinId The FinID of the seller
+    /// @param buyerFinId The FinID of the buyer
+    /// @param assetTerm The asset term to hold
+    /// @param settlementTerm The settlement term to hold
+    /// @param loanTerm The loan term to hold, could be empty
+    /// @param op The operation parameters
+    /// @param signature The investor signature
     function hold(
-        bytes16 operationId,
         string memory nonce,
-        string memory assetId,
         string memory sellerFinId,
         string memory buyerFinId,
-        string memory quantity,
-        string memory settlementAsset,
-        string memory settlementAmount,
+        Term memory assetTerm,
+        Term memory settlementTerm,
+        LoanTerm memory loanTerm,
+        OperationParams memory op,
         bytes memory signature
-    ) public override virtual {
+    ) external {
         require(hasRole(TRANSACTION_MANAGER, _msgSender()), "FINP2POperatorERC20: must have transaction manager role to hold asset");
-
-        address buyer = Bytes.finIdToAddress(buyerFinId);
-
-        require(verifyTransferSignature(
-             nonce,
-            buyerFinId,
-             sellerFinId,
-            assetId,
-            quantity,
-            settlementAsset,
-            settlementAmount,
-            buyer,
-            /*HASH_TYPE_HASHLIST*/HASH_TYPE_EIP712, // todo: pass hashType as a parameter
-            EIP712_PRIMARY_TYPE_SELLING, // todo: pass eip712PrimaryType as a parameter
-            signature
-        ), "Signature is not verified");
-
-        if (haveContract(operationId))
-            revert("Withheld contract already exists");
-
-        require(haveAsset(settlementAsset), "Asset not found");
-        Asset memory asset = assets[settlementAsset];
-
-        uint256 tokenAmount = getTokenAmount(asset.tokenAddress, settlementAmount);
-
-//        uint256 balance = IERC20(asset.tokenAddress).balanceOf(buyer);
-//        require(balance >= tokenAmount, "Not sufficient balance to hold");
-
-        if (!IERC20(asset.tokenAddress).transferFrom(buyer, address(this), tokenAmount))
-            revert("Transfer failed");
-
-        locks[operationId] = Lock(
-            settlementAsset,
-            buyerFinId,
-            asset.tokenAddress,
-            tokenAmount
-        );
-
-        emit Hold(settlementAsset, buyerFinId, settlementAmount, operationId);
+        (string memory source,
+            string memory destination,
+            string memory assetId, AssetType assetType,
+            string memory amount) = _extractDetails(sellerFinId, buyerFinId, assetTerm, settlementTerm, op);
+        if (op.phase == Phase.INITIATE) {
+            require(verifyInvestmentSignature(
+                op.eip712PrimaryType,
+                nonce,
+                buyerFinId,
+                sellerFinId,
+                assetTerm,
+                settlementTerm,
+                loanTerm,
+                source,
+                signature
+            ), "Signature is not verified");
+        } else if (op.phase == Phase.CLOSE) {
+            require(verifyInvestmentSignature(
+                op.eip712PrimaryType,
+                nonce,
+                buyerFinId,
+                sellerFinId,
+                assetTerm,
+                settlementTerm,
+                loanTerm,
+                destination,
+                signature
+            ), "Signature is not verified");
+        }
+        _transfer(source.toAddress(), _getEscrow(), assetId, amount);
+        if (op.releaseType == ReleaseType.RELEASE) {
+            locks[op.operationId] = Lock(assetId, assetType, source, destination, amount);
+        } else if (op.releaseType == ReleaseType.REDEEM) {
+            locks[op.operationId] = Lock(assetId, assetType, source, '', amount);
+        } else {
+            revert("Invalid release type");
+        }
+        emit Hold(assetId, assetType, source, amount, op.operationId);
     }
 
-    function getTokenAmount(address tokenAddress, string memory amount) internal view returns (uint256) {
-        uint8 tokenDecimals = IERC20Metadata(tokenAddress).decimals();
-        return amount.stringToUint(tokenDecimals);
-    }
-
-    function getLockInfo(bytes16 operationId) public override view returns (LockInfo memory) {
-        require(haveContract(operationId), "Contract not found");
-        Lock storage l = locks[operationId];
-        Asset memory asset = assets[l.assetId];
-        uint8 tokenDecimals = IERC20Metadata(asset.tokenAddress).decimals();
-        string memory amount = l.amount.uintToString(tokenDecimals);
-        return LockInfo(l.assetId, amount);
-    }
-
-    function release(
-        bytes16 operationId,
-        string memory buyerFinId
-    ) public override virtual {
+    /// @notice Release asset from escrow to the destination
+    /// @param operationId The operation id, a connection between hold and release
+    /// @param toFinId The FinID of the destination
+    /// @param quantity The quantity to release
+    function releaseTo(
+        string calldata operationId,
+        string calldata toFinId,
+        string calldata quantity
+    ) external {
         require(hasRole(TRANSACTION_MANAGER, _msgSender()), "FINP2POperatorERC20: must have transaction manager role to release asset");
-
-        require(haveContract(operationId), "Contract does not exists");
-
+        require(_haveContract(operationId), "Contract does not exists");
         Lock storage lock = locks[operationId];
+        require(lock.amount.equals(quantity), "Trying to release amount different from the one held");
+        require(lock.destination.equals(toFinId), "Trying to release to different destination than the one expected in the lock");
 
-        uint256 balance = IERC20(lock.token).balanceOf(address(this));
-        require(balance >= lock.amount, "No tokens to release");
-
-        address buyer = Bytes.finIdToAddress(buyerFinId);
-
-        IERC20(lock.token).transfer(buyer, lock.amount);
-
-        Asset memory asset = assets[lock.assetId];
-        uint8 tokenDecimals = IERC20Metadata(asset.tokenAddress).decimals();
-        string memory amount = lock.amount.uintToString(tokenDecimals);
-        emit Release(lock.assetId, lock.finId, buyerFinId, amount, operationId);
-
+        _transfer(_getEscrow(), toFinId.toAddress(), lock.assetId, lock.amount);
+        emit Release(lock.assetId, lock.assetType, lock.source, lock.destination, quantity, operationId);
         delete locks[operationId];
     }
 
-    function rollback(
-        bytes16 operationId
-    ) public override virtual {
+    /// @notice Release asset from escrow and redeem it
+    /// @param operationId The operation id, a connection between hold and release
+    /// @param ownerFinId The FinID of the owner
+    /// @param quantity The quantity to redeem
+    function releaseAndRedeem(
+        string calldata operationId,
+        string calldata ownerFinId,
+        string calldata quantity
+    ) external {
+        require(hasRole(TRANSACTION_MANAGER, _msgSender()), "FINP2POperatorERC20: must have transaction manager role to release asset");
+        require(_haveContract(operationId), "Contract does not exists");
+        Lock storage lock = locks[operationId];
+        require(lock.source.equals(ownerFinId), "Trying to redeem asset with owner different from the one who held it");
+        require(bytes(lock.destination).length == 0, "Trying to redeem asset with non-empty destination");
+        require(lock.amount.equals(quantity), "Trying to redeem amount different from the one held");
+        _burn(_getEscrow(), lock.assetId, lock.amount);
+        emit Redeem(lock.assetId, lock.assetType, ownerFinId, quantity, operationId);
+        delete locks[operationId];
+    }
+
+    /// @notice Release asset from escrow back to the source
+    /// @param operationId The operation id of the withheld asset
+    function releaseBack(
+        string memory operationId
+    ) external {
         require(hasRole(TRANSACTION_MANAGER, _msgSender()), "FINP2POperatorERC20: must have transaction manager role to rollback asset");
-
-        require(haveContract(operationId), "contract does not exists");
+        require(_haveContract(operationId), "contract does not exists");
         Lock storage lock = locks[operationId];
-        address owner = Bytes.finIdToAddress(lock.finId);
-        require(msg.sender == owner, "Only owner may unhold the contract");
-
-        uint256 totalBalance = IERC20(lock.token).balanceOf(address(this));
-        require(totalBalance >= lock.amount, "No tokens to unhold");
-
-        IERC20(lock.token).transferFrom(address(this), owner, lock.amount);
-
-        Asset memory asset = assets[lock.assetId];
-        uint8 tokenDecimals = IERC20Metadata(asset.tokenAddress).decimals();
-        string memory amount = lock.amount.uintToString(tokenDecimals);
-        emit Rollback(lock.assetId, lock.finId, amount, operationId);
-
+        _transfer(_getEscrow(), lock.source.toAddress(), lock.assetId, lock.amount);
+        emit Release(lock.assetId, lock.assetType, lock.source, "", lock.amount, operationId);
         delete locks[operationId];
     }
 
+    /// @notice Get the lock info
+    /// @param operationId The operation id
+    /// @return The lock info
+    function getLockInfo(string memory operationId) external view returns (LockInfo memory) {
+        require(_haveContract(operationId), "Contract not found");
+        Lock storage l = locks[operationId];
+        return LockInfo(l.assetId, l.assetType, l.source, l.destination, l.amount);
+    }
 
-    function haveAsset(string memory assetId) internal view returns (bool exists) {
+    // ------------------------------------------------------------------------------------------
+
+    function _haveAsset(string memory assetId) internal view returns (bool exists) {
         exists = (assets[assetId].tokenAddress != address(0));
     }
 
-    function haveContract(bytes16 operationId) internal view returns (bool exists) {
-        exists = (locks[operationId].amount > 0);
+    function _haveContract(string memory operationId) internal view returns (bool exists) {
+        exists = (bytes(locks[operationId].amount).length > 0);
     }
 
+
+    function _mint(address to, string memory assetId, string memory quantity) internal {
+        require(_haveAsset(assetId), "Asset not found");
+        Asset memory asset = assets[assetId];
+
+        uint8 tokenDecimals = IERC20Metadata(asset.tokenAddress).decimals();
+        uint256 tokenAmount = quantity.stringToUint(tokenDecimals);
+        Mintable(asset.tokenAddress).mint(to, tokenAmount);
+    }
+
+    function _transfer(address from, address to, string memory assetId, string memory quantity) internal {
+        require(_haveAsset(assetId), "Asset not found");
+        Asset memory asset = assets[assetId];
+
+        uint8 tokenDecimals = IERC20Metadata(asset.tokenAddress).decimals();
+        uint256 tokenAmount = quantity.stringToUint(tokenDecimals);
+        uint256 balance = IERC20(asset.tokenAddress).balanceOf(from);
+        require(balance >= tokenAmount, "Not sufficient balance to transfer");
+
+        IERC20(asset.tokenAddress).transferFrom(from, to, tokenAmount);
+    }
+
+    function _burn(address from, string memory assetId, string memory quantity) internal {
+        require(_haveAsset(assetId), "Asset not found");
+        Asset memory asset = assets[assetId];
+
+        uint8 tokenDecimals = IERC20Metadata(asset.tokenAddress).decimals();
+        uint256 tokenAmount = quantity.stringToUint(tokenDecimals);
+        uint256 balance = IERC20(asset.tokenAddress).balanceOf(from);
+        require(balance >= tokenAmount, "Not sufficient balance to burn");
+        Burnable(asset.tokenAddress).burn(from, tokenAmount);
+    }
+
+    /// @notice Extract the direction of the operation
+    /// @param sellerFinId The FinID of the seller
+    /// @param buyerFinId The FinID of the buyer
+    /// @param assetTerm The asset term
+    /// @param settlementTerm The settlement term
+    /// @param op The operation parameters
+    /// @return The source FinID, the destination FinID, the asset id, the asset type, the amount
+    function _extractDetails(
+        string memory sellerFinId,
+        string memory buyerFinId,
+        Term memory assetTerm,
+        Term memory settlementTerm,
+        OperationParams memory op
+    ) internal pure returns (string memory, string memory, string memory, AssetType, string memory) {
+        if (op.leg == LegType.ASSET) {
+            if (op.phase == Phase.INITIATE) {
+                return (sellerFinId, buyerFinId, assetTerm.assetId, assetTerm.assetType, assetTerm.amount);
+            } else if (op.phase == Phase.CLOSE) {
+                return (buyerFinId, sellerFinId, assetTerm.assetId, assetTerm.assetType, assetTerm.amount);
+            } else {
+                revert("Invalid phase");
+            }
+        } else if (op.leg == LegType.SETTLEMENT) {
+            if (op.phase == Phase.INITIATE) {
+                return (buyerFinId, sellerFinId, settlementTerm.assetId, settlementTerm.assetType, settlementTerm.amount);
+            } else if (op.phase == Phase.CLOSE) {
+                return (sellerFinId, buyerFinId, settlementTerm.assetId, settlementTerm.assetType, settlementTerm.amount);
+            } else {
+                revert("Invalid phase");
+            }
+        } else {
+            revert("Invalid leg");
+        }
+    }
+
+    function _getEscrow() public view returns (address) {
+        if (escrowWalletAddress == address(0)) {
+            return address(this);
+        } else {
+            return escrowWalletAddress;
+        }
+    }
 }
