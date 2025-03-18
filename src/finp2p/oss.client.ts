@@ -42,7 +42,7 @@ export class OssClient {
   async getAssetsWithTokens(): Promise<{assetId: string, tokenAddress: string}[]> {
     const resp = await this.queryOss<OssAssetNodes>(GET_ALL_ASSETS, {});
     return resp.assets.nodes.
-      filter(a => a.ledgerAssetInfo.tokenId && a.ledgerAssetInfo.tokenId.length > 0).
+      filter(a => a.ledgerAssetInfo && a.ledgerAssetInfo.tokenId && a.ledgerAssetInfo.tokenId.length > 0).
       map(a => ({ assetId: a.id, tokenAddress: a.ledgerAssetInfo.tokenId || ''}));
   }
 
