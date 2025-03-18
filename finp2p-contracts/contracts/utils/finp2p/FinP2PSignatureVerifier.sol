@@ -4,7 +4,7 @@ pragma solidity ^0.8.0;
 
 import {FinIdUtils} from "./FinIdUtils.sol";
 import {Signature} from "./Signature.sol";
-import {EIP712} from "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
+import {EIP712} from "./EIP712.sol";
 
 /**
  * @dev Library for FinP2P protocol signature verification.

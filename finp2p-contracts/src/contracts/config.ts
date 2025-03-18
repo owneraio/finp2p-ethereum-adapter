@@ -87,8 +87,8 @@ const createFireblocksProvider = async (): Promise<ProviderAndSigner> => {
   const privateKey = fs.readFileSync(privKeyPath, "utf-8");
 
   const chainId = (process.env.FIREBLOCKS_CHAIN_ID || ChainId.MAINNET) as ChainId;
-  const apiBaseUrl = (process.env.FIREBLOCKS_API_BASE_URL || ApiBaseUrl.Production) as ApiBaseUrl;
-  const vaultAccountIds = process.env.FIREBLOCKS_VAULT_ACCOUNT_IDS?.split(",").map((id) => parseInt(id)) || [];
+  const apiBaseUrl = (process.env.FIREBLOCKS_API_BASE_URL || ApiBaseUrl.Sandbox) as ApiBaseUrl;
+  const vaultAccountIds = process.env.FIREBLOCKS_VAULT_ACCOUNT_IDS?.split(",").map((id) => id) || [];
 
   const eip1193Provider = new FireblocksWeb3Provider({
     privateKey, apiKey, chainId, apiBaseUrl, vaultAccountIds
