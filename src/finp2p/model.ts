@@ -27,7 +27,7 @@ export type OssAsset = {
     }[]
   }
   ledgerAssetInfo: {
-    tokenId: string | undefined
+    tokenId: string
   }
 };
 
