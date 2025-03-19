@@ -66,7 +66,7 @@ export class CommonService {
         } else {
           logger.info('No execution context found for receipt', { receiptId: receipt.id })
         }
-        const receiptResponse = receiptToAPI(await this.ledgerProof(status.receipt));
+        const receiptResponse = receiptToAPI(await this.ledgerProof(receipt));
         return {
           type: "receipt", operation: {
             isCompleted: true, response: receiptResponse

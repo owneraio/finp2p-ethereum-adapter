@@ -185,6 +185,7 @@ export const receiptToAPI = (receipt: FinP2PReceipt): Receipt => {
     timestamp,
     operationId,
     operationType,
+    tradeDetails,
     proof
   } = receipt;
   return {
@@ -197,7 +198,7 @@ export const receiptToAPI = (receipt: FinP2PReceipt): Receipt => {
       transactionId: id, operationId
     },
     timestamp,
-    tradeDetails: tradeDetailsToAPI(receipt.tradeDetails),
+    tradeDetails: tradeDetailsToAPI(tradeDetails),
     operationType,
     proof: proofToAPI(proof)
   };
