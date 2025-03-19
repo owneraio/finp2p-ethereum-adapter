@@ -2,14 +2,15 @@ import {
   AssetType,
   assetTypeFromString,
   emptyTerm,
+  ExecutionContext,
   FinP2PReceipt,
   operationParams,
   OperationParams,
+  Phase,
   ReceiptProof,
   ReleaseType,
   Term,
-  TradeDetails,
-  ExecutionContext
+  TradeDetails
 } from "../../finp2p-contracts/src/contracts/model";
 import {
   EIP712Domain,
@@ -344,7 +345,7 @@ export const extractEIP712Params = (request: RequestParams): EIP712Params => {
         asset: termFromAPI(template.message.asset as EIP712TypeObject),
         settlement: termFromAPI(template.message.settlement as EIP712TypeObject),
         loan: emptyLoanTerms(),
-        params: operationParams(leg, eip712PrimaryType, operationId, ReleaseType.Release)
+        params: operationParams(leg, eip712PrimaryType, Phase.Initiate, operationId, ReleaseType.Release)
       };
     }
     case "Buying":
@@ -355,7 +356,7 @@ export const extractEIP712Params = (request: RequestParams): EIP712Params => {
         asset: termFromAPI(template.message.asset as EIP712TypeObject),
         settlement: termFromAPI(template.message.settlement as EIP712TypeObject),
         loan: emptyLoanTerms(),
-        params: operationParams(leg, eip712PrimaryType, operationId, ReleaseType.Release)
+        params: operationParams(leg, eip712PrimaryType, Phase.Initiate, operationId, ReleaseType.Release)
       };
     }
     case "RequestForTransfer": {
@@ -365,7 +366,7 @@ export const extractEIP712Params = (request: RequestParams): EIP712Params => {
         asset: termFromAPI(template.message.asset as EIP712TypeObject),
         settlement: emptyTerm(),
         loan: emptyLoanTerms(),
-        params: operationParams(leg, eip712PrimaryType, operationId, ReleaseType.Release)
+        params: operationParams(leg, eip712PrimaryType, Phase.Initiate, operationId, ReleaseType.Release)
       };
     }
     case "Redemption": {
@@ -375,17 +376,21 @@ export const extractEIP712Params = (request: RequestParams): EIP712Params => {
         asset: termFromAPI(template.message.asset as EIP712TypeObject),
         settlement: termFromAPI(template.message.settlement as EIP712TypeObject),
         loan: emptyLoanTerms(),
-        params: operationParams(leg, eip712PrimaryType, operationId, ReleaseType.Redeem)
+        params: operationParams(leg, eip712PrimaryType, Phase.Initiate, operationId, ReleaseType.Redeem)
       };
     }
     case "Loan": {
+      let phase: Phase = Phase.Initiate;
+      if (executionContext && executionContext.instructionSequenceNumber > 3) {
+        phase = Phase.Close;
+      }
       return {
         sellerFinId: finIdFromAPI(template.message.borrower as EIP712TypeObject),
         buyerFinId: finIdFromAPI(template.message.lender as EIP712TypeObject),
         asset: termFromAPI(template.message.asset as EIP712TypeObject),
         settlement: termFromAPI(template.message.settlement as EIP712TypeObject),
         loan: loanTermFromAPI(template.message.loanTerms as EIP712TypeObject),
-        params: operationParams(leg, eip712PrimaryType, operationId, ReleaseType.Release)
+        params: operationParams(leg, eip712PrimaryType, phase, operationId, ReleaseType.Release)
       };
     }
     default:

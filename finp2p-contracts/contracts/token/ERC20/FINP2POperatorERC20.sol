@@ -24,6 +24,11 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
     using StringUtils for uint256;
     using FinIdUtils for string;
 
+    enum Phase {
+        INITIATE,
+        CLOSE
+    }
+
     enum ReleaseType {
         RELEASE,
         REDEEM
@@ -36,6 +41,7 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
 
     struct OperationParams {
         LegType leg;
+        Phase phase;
         PrimaryType eip712PrimaryType;
         string operationId;
         ReleaseType releaseType;
@@ -406,9 +412,21 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
         OperationParams memory op
     ) internal pure returns (string memory, string memory, string memory, AssetType, string memory) {
         if (op.leg == LegType.ASSET) {
-            return (sellerFinId, buyerFinId, assetTerm.assetId, assetTerm.assetType, assetTerm.amount);
+            if (op.phase == Phase.INITIATE) {
+                return (sellerFinId, buyerFinId, assetTerm.assetId, assetTerm.assetType, assetTerm.amount);
+            } else if (op.phase == Phase.CLOSE) {
+                return (buyerFinId, sellerFinId, assetTerm.assetId, assetTerm.assetType, assetTerm.amount);
+            } else {
+                revert("Invalid phase");
+            }
         } else if (op.leg == LegType.SETTLEMENT) {
-            return (buyerFinId, sellerFinId, settlementTerm.assetId, settlementTerm.assetType, settlementTerm.amount);
+            if (op.phase == Phase.INITIATE) {
+                return (buyerFinId, sellerFinId, settlementTerm.assetId, settlementTerm.assetType, settlementTerm.amount);
+            } else if (op.phase == Phase.CLOSE) {
+                return (sellerFinId, buyerFinId, settlementTerm.assetId, settlementTerm.assetType, settlementTerm.amount);
+            } else {
+                revert("Invalid phase");
+            }
         } else {
             revert("Invalid leg");
         }
