@@ -86,17 +86,12 @@ const createFireblocksProvider = async (): Promise<ProviderAndSigner> => {
   }
   const privateKey = fs.readFileSync(privKeyPath, "utf-8");
 
-  // const chainId = (process.env.FIREBLOCKS_CHAIN_ID || ChainId.MAINNET) as ChainId;
-  const chainId = 2023;
-  const rpcUrl = 'https://ddauser1:IMGJ3lDIJ86ZWMI52ODTGtwe2S5IHCuu@rpc-us-east-2-dev.hermes-network-dev.devx.systems:8555'
-  // const rpcUrl = 'https://ddauser1:IMGJ3lDIJ86ZWMI52ODTGtwe2S5IHCuu@rpc-us-east-2-dev.hermes-network-dev.devx.systems:8555'
+  const chainId = (process.env.FIREBLOCKS_CHAIN_ID || ChainId.MAINNET) as ChainId;
   const apiBaseUrl = (process.env.FIREBLOCKS_API_BASE_URL || ApiBaseUrl.Production) as ApiBaseUrl;
-  const vaultAccountIds = process.env.FIREBLOCKS_VAULT_ACCOUNT_IDS?.split(",").map((id) => id) || [];
+  const vaultAccountIds = process.env.FIREBLOCKS_VAULT_ACCOUNT_IDS?.split(",").map((id) => parseInt(id)) || [];
 
   const eip1193Provider = new FireblocksWeb3Provider({
-    // privateKey, apiKey, rpcUrl, apiBaseUrl, vaultAccountIds
-    // privateKey, apiKey, chainId, apiBaseUrl, vaultAccountIds
-    privateKey, apiKey, assetId: 'DTCC_TEST', rpcUrl, apiBaseUrl, vaultAccountIds
+    privateKey, apiKey, chainId, apiBaseUrl, vaultAccountIds
   });
   const provider = new BrowserProvider(eip1193Provider);
   const signer = await provider.getSigner();
