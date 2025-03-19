@@ -24,24 +24,24 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
     using StringUtils for uint256;
     using FinIdUtils for string;
 
-    enum Phase {
-        INITIATE,
-        CLOSE
-    }
+//    enum Phase {
+//        INITIATE,
+//        CLOSE
+//    }
 
     enum ReleaseType {
         RELEASE,
         REDEEM
     }
 
-    string public constant VERSION = "0.23.0_domain-registry_0";
+    string public constant VERSION = "0.23.1_domain-registry_1";
 
     bytes32 private constant ASSET_MANAGER = keccak256("ASSET_MANAGER");
     bytes32 private constant TRANSACTION_MANAGER = keccak256("TRANSACTION_MANAGER");
 
     struct OperationParams {
         LegType leg;
-        Phase phase;
+//        Phase phase;
         PrimaryType eip712PrimaryType;
         string operationId;
         ReleaseType releaseType;
@@ -218,31 +218,17 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
             string memory assetId,
             AssetType assetType,
             string memory amount) = _extractDetails(sellerFinId, buyerFinId, assetTerm, settlementTerm, op);
-        if (op.phase == Phase.INITIATE) {
-            require(verifyInvestmentSignature(
-                op.eip712PrimaryType,
-                nonce,
-                buyerFinId,
-                sellerFinId,
-                assetTerm,
-                settlementTerm,
-                loanTerm,
-                source,
-                signature
-            ), "Signature is not verified");
-        } else if (op.phase == Phase.CLOSE) {
-            require(verifyInvestmentSignature(
-                op.eip712PrimaryType,
-                nonce,
-                buyerFinId,
-                sellerFinId,
-                assetTerm,
-                settlementTerm,
-                loanTerm,
-                destination,
-                signature
-            ), "Signature is not verified");
-        }
+        require(verifyInvestmentSignature(
+            op.eip712PrimaryType,
+            nonce,
+            buyerFinId,
+            sellerFinId,
+            assetTerm,
+            settlementTerm,
+            loanTerm,
+            source,
+            signature
+        ), "Signature is not verified");
         _transfer(source.toAddress(), destination.toAddress(), assetId, amount);
         emit Transfer(assetId, assetType, source, destination, amount);
     }
@@ -283,31 +269,18 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
             string memory destination,
             string memory assetId, AssetType assetType,
             string memory amount) = _extractDetails(sellerFinId, buyerFinId, assetTerm, settlementTerm, op);
-        if (op.phase == Phase.INITIATE) {
-            require(verifyInvestmentSignature(
-                op.eip712PrimaryType,
-                nonce,
-                buyerFinId,
-                sellerFinId,
-                assetTerm,
-                settlementTerm,
-                loanTerm,
-                source,
-                signature
-            ), "Signature is not verified");
-        } else if (op.phase == Phase.CLOSE) {
-            require(verifyInvestmentSignature(
-                op.eip712PrimaryType,
-                nonce,
-                buyerFinId,
-                sellerFinId,
-                assetTerm,
-                settlementTerm,
-                loanTerm,
-                destination,
-                signature
-            ), "Signature is not verified");
-        }
+        require(verifyInvestmentSignature(
+            op.eip712PrimaryType,
+            nonce,
+            buyerFinId,
+            sellerFinId,
+            assetTerm,
+            settlementTerm,
+            loanTerm,
+            source,
+            signature
+        ), "Signature is not verified");
+
         _transfer(source.toAddress(), _getEscrow(), assetId, amount);
         if (op.releaseType == ReleaseType.RELEASE) {
             locks[op.operationId] = Lock(assetId, assetType, source, destination, amount);
@@ -439,21 +412,9 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
         OperationParams memory op
     ) internal pure returns (string memory, string memory, string memory, AssetType, string memory) {
         if (op.leg == LegType.ASSET) {
-            if (op.phase == Phase.INITIATE) {
-                return (sellerFinId, buyerFinId, assetTerm.assetId, assetTerm.assetType, assetTerm.amount);
-            } else if (op.phase == Phase.CLOSE) {
-                return (buyerFinId, sellerFinId, assetTerm.assetId, assetTerm.assetType, assetTerm.amount);
-            } else {
-                revert("Invalid phase");
-            }
+            return (sellerFinId, buyerFinId, assetTerm.assetId, assetTerm.assetType, assetTerm.amount);
         } else if (op.leg == LegType.SETTLEMENT) {
-            if (op.phase == Phase.INITIATE) {
-                return (buyerFinId, sellerFinId, settlementTerm.assetId, settlementTerm.assetType, settlementTerm.amount);
-            } else if (op.phase == Phase.CLOSE) {
-                return (sellerFinId, buyerFinId, settlementTerm.assetId, settlementTerm.assetType, settlementTerm.amount);
-            } else {
-                revert("Invalid phase");
-            }
+            return (buyerFinId, sellerFinId, settlementTerm.assetId, settlementTerm.assetType, settlementTerm.amount);
         } else {
             revert("Invalid leg");
         }

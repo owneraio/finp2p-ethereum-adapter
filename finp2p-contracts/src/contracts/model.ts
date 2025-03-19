@@ -6,7 +6,6 @@ import {
   eip712TradeDetails,
   eip712TransactionDetails, EIP712Term, EIP712AssetType
 } from "./eip712";
-import { zeroPadBytes } from "ethers";
 
 export interface Term {
   assetId: string,
@@ -73,11 +72,6 @@ export const termToEIP712 = (term: Term): EIP712Term => {
   };
 }
 
-export const enum Phase {
-  Initiate = 0,
-  Close = 1
-}
-
 export const enum ReleaseType {
   Release = 0,
   Redeem = 1
@@ -86,7 +80,6 @@ export const enum ReleaseType {
 export interface OperationParams {
   leg: LegType;
   eip712PrimaryType: PrimaryType;
-  phase: Phase;
   operationId: string;
   releaseType: ReleaseType
 }
@@ -94,13 +87,11 @@ export interface OperationParams {
 export const operationParams = (
   leg: LegType,
   eip712PrimaryType: PrimaryType,
-  phase: Phase = Phase.Initiate,
   operationId: string = '',
   releaseType: ReleaseType = ReleaseType.Release): OperationParams => {
   return {
     leg,
     eip712PrimaryType,
-    phase,
     operationId,
     releaseType
   };
