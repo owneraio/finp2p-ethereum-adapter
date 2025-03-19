@@ -7,7 +7,9 @@ import {
   OperationParams,
   ReceiptProof,
   ReleaseType,
-  Term
+  Term,
+  TradeDetails,
+  ExecutionContext
 } from "../../finp2p-contracts/src/contracts/model";
 import {
   EIP712Domain,
@@ -33,7 +35,8 @@ import ProofPolicy = Components.Schemas.ProofPolicy;
 import Source = Components.Schemas.Source;
 import Destination = Components.Schemas.Destination;
 import Signature = Components.Schemas.Signature;
-import ExecutionContext = Components.Schemas.ExecutionContext;
+import ReceiptExecutionContext = Components.Schemas.ReceiptExecutionContext;
+import ReceiptTradeDetails = Components.Schemas.ReceiptTradeDetails;
 
 export const assetFromAPI = (asset: Components.Schemas.Asset): {
   assetId: string, assetType: "fiat" | "finp2p" | "cryptocurrency",
@@ -194,10 +197,23 @@ export const receiptToAPI = (receipt: FinP2PReceipt): Receipt => {
       transactionId: id, operationId
     },
     timestamp,
-    tradeDetails: {},
+    tradeDetails: tradeDetailsToAPI(receipt.tradeDetails),
     operationType,
     proof: proofToAPI(proof)
   };
+};
+
+export const tradeDetailsToAPI = (tradeDetails: TradeDetails | undefined): ReceiptTradeDetails => {
+  if (!tradeDetails) {
+    return {};
+  }
+  const { executionContext } = tradeDetails;
+  return { executionContext: executionContextToAPI(executionContext) }
+};
+
+export const executionContextToAPI = (executionContext: ExecutionContext): ReceiptExecutionContext => {
+  const { executionPlanId, instructionSequenceNumber } = executionContext;
+  return { executionPlanId, instructionSequenceNumber }
 };
 
 export const assetCreationResult = (tokenId: string, tokenAddress: string, finp2pTokenAddress: string) => {

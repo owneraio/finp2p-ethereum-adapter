@@ -1,4 +1,4 @@
-import { CommonService } from "./common";
+import { CommonService, ExecDetailsStore } from "./common";
 import {
   assetCreationResult,
   assetFromAPI,
@@ -24,8 +24,9 @@ export class TokenService extends CommonService {
 
   assetCreationPolicy: AssetCreationPolicy;
 
-  constructor(finP2PContract: FinP2PContract, assetCreationPolicy: AssetCreationPolicy, policyGetter: PolicyGetter | undefined) {
-    super(finP2PContract, policyGetter);
+  constructor(finP2PContract: FinP2PContract, assetCreationPolicy: AssetCreationPolicy, policyGetter: PolicyGetter | undefined,
+              execDetailsStore: ExecDetailsStore | undefined) {
+    super(finP2PContract, policyGetter, execDetailsStore);
     this.assetCreationPolicy = assetCreationPolicy;
   }
 
@@ -90,13 +91,16 @@ export class TokenService extends CommonService {
   }
 
   public async issue(request: Paths.IssueAssets.RequestBody): Promise<Paths.IssueAssets.Responses.$200> {
-    const { asset, quantity, destination: { finId: issuerFinId } } = request;
+    const { asset, quantity, destination: { finId: issuerFinId }, executionContext } = request;
     const { assetId, assetType } = assetFromAPI(asset);
 
     let txHash: string;
     try {
       logger.info(`Issue asset ${assetId} to ${issuerFinId} with amount ${quantity}`);
       txHash = await this.finP2PContract.issue(issuerFinId, term(assetId, assetTypeFromString(assetType), quantity));
+      if (executionContext) {
+        this.execDetailsStore?.addExecutionContext(txHash, executionContext.executionPlanId, executionContext.instructionSequenceNumber);
+      }
     } catch (e) {
       logger.error(`Error on asset issuance: ${e}`);
       if (e instanceof EthereumTransactionError) {
@@ -112,7 +116,8 @@ export class TokenService extends CommonService {
   }
 
   public async transfer(request: Paths.TransferAsset.RequestBody): Promise<Paths.TransferAsset.Responses.$200> {
-    const requestParams: RequestParams = {...request, type: 'transfer'};
+    const { executionContext } = request;
+    const requestParams: RequestParams = { ...request, type: "transfer" };
     const eip712Params = extractEIP712Params(requestParams);
     try {
       this.validateRequest(requestParams, eip712Params);
@@ -127,6 +132,9 @@ export class TokenService extends CommonService {
 
     try {
       const txHash = await this.finP2PContract.transfer(nonce, sellerFinId, buyerFinId, asset, settlement, loan, params, signature);
+      if (executionContext) {
+        this.execDetailsStore?.addExecutionContext(txHash, executionContext.executionPlanId, executionContext.instructionSequenceNumber);
+      }
       return {
         isCompleted: false, cid: txHash
       } as Components.Schemas.ReceiptOperation;

@@ -4,7 +4,7 @@ import {
   EIP712Template,
   eip712ExecutionContext, LegType, PrimaryType,
   eip712TradeDetails,
-  eip712TransactionDetails, EIP712Term, EIP712AssetType
+  eip712TransactionDetails, EIP712Term, EIP712AssetType,
 } from "./eip712";
 
 export interface Term {
@@ -128,6 +128,14 @@ export const failedOperation = (message: string, code: number): FailedTransactio
   };
 };
 
+export type TradeDetails = {
+  executionContext: ExecutionContext
+}
+
+export type ExecutionContext = {
+  executionPlanId: string
+  instructionSequenceNumber: number
+}
 
 export type ReceiptProof = {
   type: "no-proof"
@@ -162,7 +170,9 @@ export const receiptToEIP712Message = (receipt: FinP2PReceipt): EIP712ReceiptMes
     destination: { accountType: destination ? "finId" : "", finId: destination || "" },
     quantity,
     asset: eip712Asset(assetId, assetTypeToEIP712(assetType)),
-    tradeDetails: eip712TradeDetails(eip712ExecutionContext("", "")),
+    tradeDetails: eip712TradeDetails(eip712ExecutionContext(
+      receipt?.tradeDetails?.executionContext.executionPlanId || '',
+      `${receipt?.tradeDetails?.executionContext.instructionSequenceNumber || ''}`)),
     transactionDetails: eip712TransactionDetails(operationId || "", id)
   };
 };
@@ -179,6 +189,7 @@ export type FinP2PReceipt = {
   timestamp: number
   operationType: OperationType
   operationId?: string
+  tradeDetails?: TradeDetails
   proof?: ReceiptProof
 };
 
