@@ -24,11 +24,6 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
     using StringUtils for uint256;
     using FinIdUtils for string;
 
-//    enum Phase {
-//        INITIATE,
-//        CLOSE
-//    }
-
     enum ReleaseType {
         RELEASE,
         REDEEM
@@ -41,7 +36,6 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
 
     struct OperationParams {
         LegType leg;
-//        Phase phase;
         PrimaryType eip712PrimaryType;
         string operationId;
         ReleaseType releaseType;
