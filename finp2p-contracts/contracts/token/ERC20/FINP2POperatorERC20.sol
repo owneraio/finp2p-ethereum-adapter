@@ -34,7 +34,7 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
         REDEEM
     }
 
-    string public constant VERSION = "0.23.0";
+    string public constant VERSION = "0.23.1";
 
     bytes32 private constant ASSET_MANAGER = keccak256("ASSET_MANAGER");
     bytes32 private constant TRANSACTION_MANAGER = keccak256("TRANSACTION_MANAGER");
@@ -218,31 +218,17 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
             string memory assetId,
             AssetType assetType,
             string memory amount) = _extractDetails(sellerFinId, buyerFinId, assetTerm, settlementTerm, op);
-        if (op.phase == Phase.INITIATE) {
-            require(verifyInvestmentSignature(
-                op.eip712PrimaryType,
-                nonce,
-                buyerFinId,
-                sellerFinId,
-                assetTerm,
-                settlementTerm,
-                loanTerm,
-                source,
-                signature
-            ), "Signature is not verified");
-        } else if (op.phase == Phase.CLOSE) {
-            require(verifyInvestmentSignature(
-                op.eip712PrimaryType,
-                nonce,
-                buyerFinId,
-                sellerFinId,
-                assetTerm,
-                settlementTerm,
-                loanTerm,
-                destination,
-                signature
-            ), "Signature is not verified");
-        }
+        require(verifyInvestmentSignature(
+            op.eip712PrimaryType,
+            nonce,
+            buyerFinId,
+            sellerFinId,
+            assetTerm,
+            settlementTerm,
+            loanTerm,
+            source,
+            signature
+        ), "Signature is not verified");
         _transfer(source.toAddress(), destination.toAddress(), assetId, amount);
         emit Transfer(assetId, assetType, source, destination, amount);
     }
@@ -283,31 +269,18 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
             string memory destination,
             string memory assetId, AssetType assetType,
             string memory amount) = _extractDetails(sellerFinId, buyerFinId, assetTerm, settlementTerm, op);
-        if (op.phase == Phase.INITIATE) {
-            require(verifyInvestmentSignature(
-                op.eip712PrimaryType,
-                nonce,
-                buyerFinId,
-                sellerFinId,
-                assetTerm,
-                settlementTerm,
-                loanTerm,
-                source,
-                signature
-            ), "Signature is not verified");
-        } else if (op.phase == Phase.CLOSE) {
-            require(verifyInvestmentSignature(
-                op.eip712PrimaryType,
-                nonce,
-                buyerFinId,
-                sellerFinId,
-                assetTerm,
-                settlementTerm,
-                loanTerm,
-                destination,
-                signature
-            ), "Signature is not verified");
-        }
+        require(verifyInvestmentSignature(
+            op.eip712PrimaryType,
+            nonce,
+            buyerFinId,
+            sellerFinId,
+            assetTerm,
+            settlementTerm,
+            loanTerm,
+            source,
+            signature
+        ), "Signature is not verified");
+
         _transfer(source.toAddress(), _getEscrow(), assetId, amount);
         if (op.releaseType == ReleaseType.RELEASE) {
             locks[op.operationId] = Lock(assetId, assetType, source, destination, amount);

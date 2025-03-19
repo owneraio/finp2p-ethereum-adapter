@@ -1,6 +1,6 @@
 import { logger } from "../helpers/logger";
 import { FinP2PContract } from "../../finp2p-contracts/src/contracts/finp2p";
-import { FinP2PReceipt, Phase, receiptToEIP712Message } from "../../finp2p-contracts/src/contracts/model";
+import { FinP2PReceipt, ExecutionContext, Phase, receiptToEIP712Message } from "../../finp2p-contracts/src/contracts/model";
 import { assetFromAPI, EIP712Params, receiptToAPI, RequestParams, RequestValidationError } from "./mapping";
 import { PolicyGetter } from "../finp2p/policy";
 import {
@@ -10,15 +10,21 @@ import {
 } from "../../finp2p-contracts/src/contracts/eip712";
 import { ProofDomain } from "../finp2p/model";
 
+export interface ExecDetailsStore {
+  addExecutionContext(txHash: string, executionPlanId: string, instructionSequenceNumber: number): void;
+  getExecutionContext(txHash: string): ExecutionContext;
+}
 
 export class CommonService {
 
   finP2PContract: FinP2PContract;
   policyGetter: PolicyGetter | undefined;
+  execDetailsStore: ExecDetailsStore  | undefined;
 
-  constructor(finP2PContract: FinP2PContract, policyGetter: PolicyGetter | undefined) {
+  constructor(finP2PContract: FinP2PContract, policyGetter: PolicyGetter | undefined, execDetailsStore: ExecDetailsStore  | undefined) {
     this.finP2PContract = finP2PContract;
     this.policyGetter = policyGetter;
+    this.execDetailsStore = execDetailsStore;
   }
 
   public async balance(request: Paths.GetAssetBalance.RequestBody): Promise<Paths.GetAssetBalance.Responses.$200> {
@@ -52,10 +58,18 @@ export class CommonService {
     const status = await this.finP2PContract.getOperationStatus(cid);
     switch (status.status) {
       case "completed":
-        const receipt = receiptToAPI(await this.ledgerProof(status.receipt));
+        let { receipt } = status;
+        const executionContext = this.execDetailsStore?.getExecutionContext(receipt.id)
+        if (executionContext) {
+          logger.info('Found execution context for receipt', executionContext)
+          receipt = { ...receipt, tradeDetails: { executionContext } }
+        } else {
+          logger.info('No execution context found for receipt', { receiptId: receipt.id })
+        }
+        const receiptResponse = receiptToAPI(await this.ledgerProof(receipt));
         return {
           type: "receipt", operation: {
-            isCompleted: true, response: receipt
+            isCompleted: true, response: receiptResponse
           }
         } as Components.Schemas.OperationStatus;
 

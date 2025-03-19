@@ -69,7 +69,7 @@ describe("FinP2P proxy contract test", function() {
           case Phase.Initiate:
             return { from: seller.finId, to: buyer.finId, signer: seller.signer };
           case Phase.Close:
-            return { from: buyer.finId, to: seller.finId, signer: seller.signer };
+            return { from: buyer.finId, to: seller.finId, signer: buyer.signer };
           default:
             throw new Error("Invalid phase");
         }
@@ -78,7 +78,7 @@ describe("FinP2P proxy contract test", function() {
           case Phase.Initiate:
             return { from: buyer.finId, to: seller.finId, signer: buyer.signer };
           case Phase.Close:
-            return { from: seller.finId, to: buyer.finId, signer: buyer.signer };
+            return { from: seller.finId, to: buyer.finId, signer: seller.signer };
           default:
             throw new Error("Invalid phase");
         }

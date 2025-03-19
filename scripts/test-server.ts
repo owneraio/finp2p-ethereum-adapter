@@ -14,6 +14,8 @@ import { AssetCreationPolicy } from "../src/services/tokens";
 import { PolicyGetter } from "../src/finp2p/policy";
 import { OssClient } from "../src/finp2p/oss.client";
 import winston, { format, transports } from "winston";
+import { InMemoryExecDetailsStore } from "../src/services/exec-details-store";
+import { ExecDetailsStore } from "../src/services/common";
 
 let ethereumNodeContainer: StartedTestContainer | undefined;
 let httpServer: http.Server | undefined;
@@ -81,6 +83,7 @@ const deployERC20Contract = async (provider: Provider, signer: Signer, finp2pTok
 
 const startApp = async (port: number, provider: Provider, signer: Signer,
                         finP2PContractAddress: string, tokenAddress: string, policyGetter: PolicyGetter | undefined,
+                        execDetailsStore: ExecDetailsStore | undefined,
                         logger: winston.Logger) => {
   const finP2PContract = new FinP2PContract(provider, signer, finP2PContractAddress, logger);
 
@@ -90,7 +93,7 @@ const startApp = async (port: number, provider: Provider, signer: Signer,
   } as AssetCreationPolicy;
 
 
-  const app = createApp(finP2PContract, assetCreationPolicy, policyGetter, logger);
+  const app = createApp(finP2PContract, assetCreationPolicy, policyGetter, execDetailsStore, logger);
   logger.info('App created successfully.');
 
   httpServer = app.listen(port, () => {
@@ -123,8 +126,9 @@ const start = async () => {
   if (ossUrl) {
      policyGetter = new PolicyGetter(new OssClient(ossUrl, undefined));
   }
+  const execDetailsStore = new InMemoryExecDetailsStore();
 
-  await startApp(port, provider, signer, finP2PContractAddress, tokenAddress, policyGetter, logger);
+  await startApp(port, provider, signer, finP2PContractAddress, tokenAddress, policyGetter, execDetailsStore, logger);
 };
 
 

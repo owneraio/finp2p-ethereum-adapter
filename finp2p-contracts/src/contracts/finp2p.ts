@@ -2,9 +2,10 @@ import { ContractFactory, Provider, Signer } from "ethers";
 import FINP2P from "../../artifacts/contracts/token/ERC20/FINP2POperatorERC20.sol/FINP2POperatorERC20.json";
 import { FINP2POperatorERC20 } from "../../typechain-types";
 import {
+  assetTypeFromNumber,
   completedOperation,
   failedOperation,
-  FinP2PReceipt, OperationParams,
+  FinP2PReceipt, LockInfo, OperationParams,
   OperationStatus,
   pendingOperation, Term
 } from "./model";
@@ -151,5 +152,21 @@ export class FinP2PContract extends ContractsManager {
     return receipt;
   }
 
+  async getLockInfo(operationId: string): Promise<LockInfo> {
+    const info = await this.finP2P.getLockInfo(operationId);
+    if (info === null) {
+      throw new Error("Failed to get lock info");
+    }
+    if (info.length < 4) {
+      throw new Error("Failed to get lock info");
+    }
+    return {
+      assetId: info[0],
+      assetType: assetTypeFromNumber(info[1]),
+      source: info[2],
+      destination: info[3],
+      amount: info[4]
+    };
+  }
 
 }

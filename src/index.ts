@@ -9,6 +9,7 @@ import {
 import { PolicyGetter } from "./finp2p/policy";
 import { OssClient } from "./finp2p/oss.client";
 import winston, { format, transports } from "winston";
+import { InMemoryExecDetailsStore } from "./services/exec-details-store";
 
 const createAssetCreationPolicy = async (contractManager: FinP2PContract | undefined): Promise<AssetCreationPolicy> => {
   const type = (process.env.ASSET_CREATION_POLICY || "deploy-new-token");
@@ -82,8 +83,9 @@ const init = async () => {
   const finp2pContract = new FinP2PContract(provider, signer, finP2PContractAddress, logger);
   const assetCreationPolicy = await createAssetCreationPolicy(finp2pContract);
   const policyGetter = new PolicyGetter(new OssClient(ossUrl, undefined));
+  const execDetailsStore = new InMemoryExecDetailsStore();
 
-  createApp(finp2pContract, assetCreationPolicy, policyGetter, logger).listen(port, () => {
+  createApp(finp2pContract, assetCreationPolicy, policyGetter, execDetailsStore, logger).listen(port, () => {
     logger.info(`listening at http://localhost:${port}`);
   });
 };
