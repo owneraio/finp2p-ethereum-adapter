@@ -243,3 +243,11 @@ export const detectError = (e: any): EthereumTransactionError | NonceToHighError
   }
   return e;
 };
+
+export type LockInfo = {
+  assetId: string;
+  assetType: AssetType;
+  source: string;
+  destination: string;
+  amount: string;
+}
