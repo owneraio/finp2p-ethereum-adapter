@@ -207,7 +207,7 @@ export const RECEIPT_PROOF_TYPES = {
     { name: "asset", type: "Asset" },
     { name: "tradeDetails", type: "TradeDetails" },
     { name: "transactionDetails", type: "TransactionDetails" },
-    { name: "quantity", type: "string" }
+    // { name: "quantity", type: "string" }
   ]
 };
 
@@ -377,7 +377,7 @@ export interface EIP712ReceiptMessage extends EIP712Message {
   source: EIP712Source,
   destination: EIP712Destination,
   asset: EIP712Asset,
-  quantity: string,
+  // quantity: string,
   tradeDetails: EIP7127TradeDetails,
   transactionDetails: EIP712TransactionDetails
 }
@@ -460,7 +460,7 @@ export const newLoanMessage = (nonce: string, borrower: EIP712FinId, lender: EIP
 };
 
 export const newReceiptMessage = (id: string, operationType: string, source: EIP712Source, destination: EIP712Destination, asset: EIP712Asset, quantity: string, tradeDetails: EIP7127TradeDetails, transactionDetails: EIP712TransactionDetails): EIP712ReceiptMessage => {
-  return { id, operationType, source, destination, asset, quantity, tradeDetails, transactionDetails };
+  return { id, operationType, source, destination, asset/*, quantity*/, tradeDetails, transactionDetails };
 };
 
 export const signWithPrivateKey = <T extends EIP712Message>(chainId: bigint | number, verifyingContract: string, types: EIP712Types, message: T, signerPrivateKey: string) => {
