@@ -160,7 +160,7 @@ export const receiptToEIP712Message = (receipt: FinP2PReceipt): EIP712ReceiptMes
     operationType,
     source: { accountType: source ? "finId" : "", finId: source || "" },
     destination: { accountType: destination ? "finId" : "", finId: destination || "" },
-    quantity,
+    // quantity,
     asset: eip712Asset(assetId, assetTypeToEIP712(assetType)),
     tradeDetails: eip712TradeDetails(eip712ExecutionContext(
       receipt?.tradeDetails?.executionContext.executionPlanId || '',
