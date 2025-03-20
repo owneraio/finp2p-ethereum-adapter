@@ -6,6 +6,7 @@ import console from "console";
 import { EthereumTransactionError } from "../finp2p-contracts/src/contracts/model";
 import { ERC20Contract } from "../finp2p-contracts/src/contracts/erc20";
 import winston, { format, transports } from "winston";
+import { isEthereumAddress } from "../finp2p-contracts/src/contracts/utils";
 
 const logger = winston.createLogger({
   level: 'info',
@@ -30,6 +31,23 @@ const startMigration = async (ossUrl: string, providerType: ProviderType, finp2p
   let migrated = 0;
   let skipped = 0;
   for (const { assetId, tokenAddress } of assets) {
+    if (!isEthereumAddress(tokenAddress)) {
+      logger.info(`Token address ${tokenAddress} for asset ${assetId} is not a valid Ethereum address, skipping`);
+      continue
+    }
+    try {
+      const foundAddress = await finP2PContract.getAssetAddress(assetId);
+      if (foundAddress === tokenAddress) {
+        logger.info(`Asset ${assetId} already associated with token ${tokenAddress}`);
+        skipped++;
+        continue;
+      }
+    } catch (e) {
+      if (!`${e}`.includes('Asset not found')) {
+        throw e;
+      }
+    }
+
     try {
       logger.info(`Migrating asset ${assetId} with token address ${tokenAddress}`);
       const txHash = await finP2PContract.associateAsset(assetId, tokenAddress);
