@@ -14,6 +14,12 @@ abstract contract EIP712 is IERC5267 {
     bytes32 private constant TYPE_HASH =
     keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)");
 
+
+    struct Domain {
+        uint256 chainId;
+        address verifyingContract;
+    }
+
     // Cache the domain separator as an immutable value, but also store the chain id that it corresponds to, in order to
     // invalidate the cached domain separator if the chain id changes.
     bytes32 private immutable _hashedName;
@@ -46,13 +52,10 @@ abstract contract EIP712 is IERC5267 {
     /**
      * @dev Returns the domain separator for the current chain.
      */
-    function _domainSeparatorV4() internal view returns (bytes32) {
-        return _buildDomainSeparator();
+    function _domainSeparatorV4(Domain memory domain) internal view returns (bytes32) {
+        return keccak256(abi.encode(TYPE_HASH, _hashedName, _hashedVersion, domain.chainId, domain.verifyingContract));
     }
 
-    function _buildDomainSeparator() private view returns (bytes32) {
-        return keccak256(abi.encode(TYPE_HASH, _hashedName, _hashedVersion, 1, 0xCcCCccccCCCCcCCCCCCcCcCccCcCCCcCcccccccC));
-    }
 
     /**
      * @dev Given an already https://eips.ethereum.org/EIPS/eip-712#definition-of-hashstruct[hashed struct], this
@@ -69,8 +72,8 @@ abstract contract EIP712 is IERC5267 {
      * address signer = ECDSA.recover(digest, signature);
      * ```
      */
-    function _hashTypedDataV4(bytes32 structHash) internal view virtual returns (bytes32) {
-        return MessageHashUtils.toTypedDataHash(_domainSeparatorV4(), structHash);
+    function _hashTypedDataV4(Domain memory domain, bytes32 structHash) internal view virtual returns (bytes32) {
+        return MessageHashUtils.toTypedDataHash(_domainSeparatorV4(domain), structHash);
     }
 
     /**
