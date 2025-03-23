@@ -31,17 +31,15 @@ let extraDomain: {
   chainId: number | bigint,
   verifyingContract: string
 } | undefined = undefined;
-const extraDomainStr = process.env.EXTRA_DOMAIN;
-if (extraDomainStr) {
-  const spl = extraDomainStr.split(":");
-  if (spl.length !== 2) {
-    throw new Error("Invalid EXTRA_DOMAIN format");
-  }
-  extraDomain = {
-    chainId: parseInt(spl[0]),
-    verifyingContract: spl[1]
-  };
+const extraDomainStr = process.env.EXTRA_DOMAIN || "1:0xCcCCccccCCCCcCCCCCCcCcCccCcCCCcCcccccccC";
+const spl = extraDomainStr.split(":");
+if (spl.length !== 2) {
+  throw new Error("Invalid EXTRA_DOMAIN format");
 }
+extraDomain = {
+  chainId: parseInt(spl[0]),
+  verifyingContract: spl[1]
+};
 
 deploy(providerType, operatorAddress, paymentAssetCode, extraDomain)
   .then(() => {
