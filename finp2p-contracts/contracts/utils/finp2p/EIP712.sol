@@ -14,6 +14,7 @@ abstract contract EIP712 is IERC5267 {
     bytes32 private constant TYPE_HASH =
     keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)");
 
+    mapping(bytes32 => Domain) private _allowedDomains;
 
     struct Domain {
         uint256 chainId;
@@ -47,15 +48,29 @@ abstract contract EIP712 is IERC5267 {
         _version = version.toShortStringWithFallback(_versionFallback);
         _hashedName = keccak256(bytes(name));
         _hashedVersion = keccak256(bytes(version));
+        _addAllowedDomain(block.chainid, address(this));
+    }
+
+    function _addAllowedDomain(uint256 chainId, address verifyingContract) internal virtual {
+        _allowedDomains[keccak256(abi.encode(chainId, verifyingContract))] =
+                        Domain(chainId, verifyingContract);
+    }
+
+    function isDomainAllowed(uint256 chainId, address verifyingContract) public view returns (bool) {
+        return _isDomainAllowed(Domain(chainId, verifyingContract));
     }
 
     /**
      * @dev Returns the domain separator for the current chain.
      */
     function _domainSeparatorV4(Domain memory domain) internal view returns (bytes32) {
+        require(_isDomainAllowed(domain), "EIP712: domain not allowed");
         return keccak256(abi.encode(TYPE_HASH, _hashedName, _hashedVersion, domain.chainId, domain.verifyingContract));
     }
 
+    function _isDomainAllowed(Domain memory domain) internal view returns (bool) {
+        return _allowedDomains[keccak256(abi.encode(domain.chainId, domain.verifyingContract))].chainId != 0;
+    }
 
     /**
      * @dev Given an already https://eips.ethereum.org/EIPS/eip-712#definition-of-hashstruct[hashed struct], this

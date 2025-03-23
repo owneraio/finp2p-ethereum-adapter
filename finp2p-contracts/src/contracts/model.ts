@@ -112,7 +112,7 @@ export const operationParams = (
     operationId,
     releaseType
   };
-};
+}
 
 export type OperationStatus = PendingTransaction | SuccessfulTransaction | FailedTransaction;
 

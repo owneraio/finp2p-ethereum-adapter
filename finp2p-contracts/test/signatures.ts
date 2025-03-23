@@ -4,7 +4,7 @@ import { expect } from "chai";
 import { ethers } from "hardhat";
 import { generateNonce } from "./utils";
 import { v4 as uuidv4 } from "uuid";
-import { HDNodeWallet, Wallet } from "ethers";
+import { HDNodeWallet, Signer, Wallet } from "ethers";
 import { getFinId } from "../src/contracts/utils";
 import {
   eip712Asset,
@@ -26,11 +26,12 @@ import {
   verify
 } from "../src/contracts/eip712";
 import { AssetType, operationParams, Phase, ReleaseType, term, Term, termToEIP712 } from "../src/contracts/model";
+import type { FINP2POperatorERC20 } from "../typechain-types";
 
 
 describe("Signing test", function() {
   async function deployFinP2PSignatureVerifier() {
-    const deployer = await ethers.getContractFactory("FinP2PSignatureVerifier");
+    const deployer = await ethers.getContractFactory("FINP2POperatorERC20");
     const contract = await deployer.deploy();
     const address = await contract.getAddress();
     return { contract, address };
@@ -38,8 +39,12 @@ describe("Signing test", function() {
 
   const buyer = Wallet.createRandom();
   const seller = Wallet.createRandom();
-  // Hardhat defaults, could be retrieved with `await verifier.eip712Domain()`
-  const defaultDomain = { chainId: 1337, verifyingContract: '0x5FbDB2315678afecb367f032d93F642f64180aa3' }
+
+  const defaultDomain = { chainId: 1337, verifyingContract: '0x5FbDB2315678afecb367f032d93F642f64180aa3' }; // Hardhat defaults
+  const extraDomain = { chainId: 1, verifyingContract: '0xCcCCccccCCCCcCCCCCCcCcCccCcCCCcCcccccccC' };      // registered with `addAllowedDomain(..)`
+  const fakeDomain = { chainId: 1314, verifyingContract: '0xdAC17F958D2ee523a2206206994597C13D831ec7' };
+
+  let verifier: FINP2POperatorERC20;
 
   const testCases: {
     domain: {chainId: number | bigint, verifyingContract: string},
@@ -72,7 +77,7 @@ describe("Signing test", function() {
     loan: emptyLoanTerms(),
     signer: seller
   }, {
-    domain: defaultDomain,
+    domain: extraDomain,
     primaryType: PrimaryType.Selling,
     nonce: `${generateNonce().toString("hex")}`,
     buyerFinId: getFinId(buyer),
@@ -92,7 +97,7 @@ describe("Signing test", function() {
     loan: emptyLoanTerms(),
     signer: seller
   }, {
-    domain: defaultDomain,
+    domain: extraDomain,
     primaryType: PrimaryType.RequestForTransfer,
     nonce: `${generateNonce().toString("hex")}`,
     buyerFinId: getFinId(buyer),
@@ -122,9 +127,14 @@ describe("Signing test", function() {
     loan: loanTerms("2025-01-01", "2025-01-02", "1000000.00", "1000123.71"),
     signer: seller
   }];
+
+  before(async () => {
+    ({ contract: verifier } = await loadFixture(deployFinP2PSignatureVerifier));
+    await verifier.addAllowedDomain(extraDomain.chainId, extraDomain.verifyingContract);
+  });
+
   testCases.forEach(({ domain, primaryType, nonce, buyerFinId, sellerFinId, asset, settlement, loan, signer }) => {
     it(`Investor signatures (primary type: ${primaryType})`, async function() {
-      const { contract: verifier } = await loadFixture(deployFinP2PSignatureVerifier);
       const { chainId, verifyingContract } = domain;
       const signerAddress = await signer.getAddress();
       const {
@@ -139,10 +149,26 @@ describe("Signing test", function() {
       expect(offChainHash).to.equal(onChainHash);
       expect(await verifier.verifyInvestmentSignature(op, nonce, buyerFinId, sellerFinId, asset, settlement, loan, getFinId(signer), signature)).to.equal(true);
     });
+
+    it(`Failed investor signatures (primary type: ${primaryType})`, async function() {
+      const { chainId, verifyingContract } = domain;
+      const { types, message } = newInvestmentMessage(primaryType, nonce, buyerFinId, sellerFinId, termToEIP712(asset), termToEIP712(settlement), loan);
+      const signature = await sign(chainId, verifyingContract, types, message, signer);
+
+      const fakeNonce = `${generateNonce().toString("hex")}`;
+      expect(await verifier.verifyInvestmentSignature(operationParams(domain, primaryType, LegType.Asset, Phase.Initiate, '', ReleaseType.Release),
+        fakeNonce, buyerFinId, sellerFinId, asset, settlement, loan, getFinId(signer), signature)).to.equal(false);
+
+      const fakeSigner = Wallet.createRandom();
+      expect(await verifier.verifyInvestmentSignature(operationParams(domain, primaryType, LegType.Asset, Phase.Initiate, '', ReleaseType.Release),
+        nonce, buyerFinId, sellerFinId, asset, settlement, loan, getFinId(fakeSigner), signature)).to.equal(false);
+
+      await expect(verifier.verifyInvestmentSignature(operationParams(fakeDomain, primaryType, LegType.Asset, Phase.Initiate, '', ReleaseType.Release),
+        nonce, buyerFinId, sellerFinId, asset, settlement, loan, getFinId(signer), signature)).to.be.revertedWith("EIP712: domain not allowed");
+    });
   });
 
   it.skip("Investor signature from platform", async function() {
-    const { contract: verifier } = await loadFixture(deployFinP2PSignatureVerifier);
     const chainId = 1337;
     const verifyingContract = "0x5FbDB2315678afecb367f032d93F642f64180aa3";
     const nonce = "e78c3a7f564c19667a7d90285e7fe443eca8403d45a2eea80000000067d1907d";
@@ -176,7 +202,6 @@ describe("Signing test", function() {
   });
 
   it("Receipt proof signature", async function() {
-    const { contract: verifier } = await loadFixture(deployFinP2PSignatureVerifier);
     const { chainId, verifyingContract } = await verifier.eip712Domain();
     const id = uuidv4();
     const operationType = "issue";
