@@ -24,28 +24,10 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
     using StringUtils for uint256;
     using FinIdUtils for string;
 
-    enum Phase {
-        INITIATE,
-        CLOSE
-    }
-
-    enum ReleaseType {
-        RELEASE,
-        REDEEM
-    }
-
-    string public constant VERSION = "0.23.1";
+    string public constant VERSION = "0.23.2";
 
     bytes32 private constant ASSET_MANAGER = keccak256("ASSET_MANAGER");
     bytes32 private constant TRANSACTION_MANAGER = keccak256("TRANSACTION_MANAGER");
-
-    struct OperationParams {
-        LegType leg;
-        Phase phase;
-        PrimaryType eip712PrimaryType;
-        string operationId;
-        ReleaseType releaseType;
-    }
 
     struct LockInfo {
         string assetId;
@@ -219,7 +201,7 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
             AssetType assetType,
             string memory amount) = _extractDetails(sellerFinId, buyerFinId, assetTerm, settlementTerm, op);
         require(verifyInvestmentSignature(
-            op.eip712PrimaryType,
+            op,
             nonce,
             buyerFinId,
             sellerFinId,
@@ -270,7 +252,7 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
             string memory assetId, AssetType assetType,
             string memory amount) = _extractDetails(sellerFinId, buyerFinId, assetTerm, settlementTerm, op);
         require(verifyInvestmentSignature(
-            op.eip712PrimaryType,
+            op,
             nonce,
             buyerFinId,
             sellerFinId,
@@ -352,6 +334,11 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
         require(_haveContract(operationId), "Contract not found");
         Lock storage l = locks[operationId];
         return LockInfo(l.assetId, l.assetType, l.source, l.destination, l.amount);
+    }
+
+    function addAllowedDomain(uint256 chainId, address verifyingContract) external {
+        require(hasRole(DEFAULT_ADMIN_ROLE, _msgSender()), "FINP2POperatorERC20: must have admin role to add allowed domains");
+        _addAllowedDomain(chainId, verifyingContract);
     }
 
     // ------------------------------------------------------------------------------------------
