@@ -21,7 +21,7 @@ export class ContractsManager {
 
   provider: Provider;
   signer: Signer;
-  logger: winston.Logger
+  logger: winston.Logger;
 
   constructor(provider: Provider, signer: Signer, logger: winston.Logger) {
     this.provider = provider;
@@ -38,7 +38,7 @@ export class ContractsManager {
     const factory = new ContractFactory<any[], ERC20WithOperator>(
       ERC20.abi,
       ERC20.bytecode,
-      this.signer,
+      this.signer
     );
     const contract = await factory.deploy(name, symbol, decimals, finP2PContractAddress);
     await contract.waitForDeployment();
@@ -46,17 +46,23 @@ export class ContractsManager {
   }
 
   async getPendingTransactionCount() {
-    return await this.provider.getTransactionCount(this.signer.getAddress(), 'pending');
+    return await this.provider.getTransactionCount(this.signer.getAddress(), "pending");
   }
 
   async getLatestTransactionCount() {
-    return await this.provider.getTransactionCount(this.signer.getAddress(), 'latest');
+    return await this.provider.getTransactionCount(this.signer.getAddress(), "latest");
   }
 
-  async deployFinP2PContract(signerAddress: string | undefined, paymentAssetCode: string | undefined = undefined) {
-    this.logger.info('Deploying FinP2P contract...');
+  async deployFinP2PContract(signerAddress: string | undefined,
+                             paymentAssetCode: string | undefined = undefined,
+                             extraDomain: {
+                               chainId: number | bigint,
+                               verifyingContract: string
+                             } | undefined = undefined
+  ) {
+    this.logger.info("Deploying FinP2P contract...");
     const factory = new ContractFactory<any[], FINP2POperatorERC20>(
-      FINP2P.abi, FINP2P.bytecode, this.signer,
+      FINP2P.abi, FINP2P.bytecode, this.signer
     );
     const contract = await factory.deploy();
     await contract.waitForDeployment();
@@ -73,20 +79,24 @@ export class ContractsManager {
       await this.preCreatePaymentAsset(factory, address, paymentAssetCode, DefaultDecimalsCurrencies);
     }
 
+    if (extraDomain) {
+      const { chainId, verifyingContract } = extraDomain;
+      await this.addAllowedDomain(address, chainId, verifyingContract);
+    }
     return address;
   }
 
   async isFinP2PContractHealthy(finP2PContractAddress: string): Promise<boolean> {
     // logger.info(`Check FinP2P contract at ${finP2PContractAddress} on chain`);
     const factory = new ContractFactory<any[], FINP2POperatorERC20>(
-      FINP2P.abi, FINP2P.bytecode, this.signer,
+      FINP2P.abi, FINP2P.bytecode, this.signer
     );
     const contract = factory.attach(finP2PContractAddress);
     try {
-      await contract.getAssetAddress('test-asset-id');
+      await contract.getAssetAddress("test-asset-id");
     } catch (err) {
       if (err instanceof Error) {
-        if (err.message.includes('Asset not found')) {
+        if (err.message.includes("Asset not found")) {
           return true;
         }
       }
@@ -110,28 +120,43 @@ export class ContractsManager {
   async grantAssetManagerRole(finP2PContractAddress: string, to: string) {
     this.logger.info(`Granting asset manager role to ${to}...`);
     const factory = new ContractFactory<any[], FINP2POperatorERC20>(
-      FINP2P.abi, FINP2P.bytecode, this.signer,
+      FINP2P.abi, FINP2P.bytecode, this.signer
     );
     const contract = factory.attach(finP2PContractAddress) as FINP2POperatorERC20;
     const txHash = await this.safeExecuteTransaction(contract, async (finP2P: FINP2POperatorERC20, txParams: PayableOverrides) => {
       return finP2P.grantAssetManagerRole(to, txParams);
-    })
+    });
     await this.waitForCompletion(txHash);
   }
 
   async grantTransactionManagerRole(finP2PContractAddress: string, to: string) {
     this.logger.info(`Granting transaction manager role to ${to}...`);
     const factory = new ContractFactory<any[], FINP2POperatorERC20>(
-      FINP2P.abi, FINP2P.bytecode, this.signer,
+      FINP2P.abi, FINP2P.bytecode, this.signer
     );
     const contract = factory.attach(finP2PContractAddress) as FINP2POperatorERC20;
     const txHash = await this.safeExecuteTransaction(contract, async (finP2P: FINP2POperatorERC20, txParams: PayableOverrides) => {
       return finP2P.grantTransactionManagerRole(to, txParams);
-    })
+    });
     await this.waitForCompletion(txHash);
   }
 
-  async signEIP712(chainId: bigint | number, verifyingContract: string, types: Record<string, Array<TypedDataField>>, message: Record<string, any>) : Promise<{ hash: string, signature: string}> {
+  async addAllowedDomain(finP2PContractAddress: string, chainId: number | bigint, verifyingContract: string) {
+    this.logger.info(`Adding allowed domain for chainId ${chainId} and verifying contract ${verifyingContract}...`);
+    const factory = new ContractFactory<any[], FINP2POperatorERC20>(
+      FINP2P.abi, FINP2P.bytecode, this.signer
+    );
+    const contract = factory.attach(finP2PContractAddress) as FINP2POperatorERC20;
+    const txHash = await this.safeExecuteTransaction(contract, async (finP2P: FINP2POperatorERC20, txParams: PayableOverrides) => {
+      return finP2P.addAllowedDomain(chainId, verifyingContract, txParams);
+    });
+    await this.waitForCompletion(txHash);
+  }
+
+  async signEIP712(chainId: bigint | number, verifyingContract: string, types: Record<string, Array<TypedDataField>>, message: Record<string, any>): Promise<{
+    hash: string,
+    signature: string
+  }> {
     const hash = typedHash(chainId, verifyingContract, types, message).substring(2);
     const signature = compactSerialize(await sign(chainId, verifyingContract, types, message, this.signer));
     return { hash, signature };
@@ -156,9 +181,9 @@ export class ContractsManager {
   protected async safeExecuteTransaction<C extends BaseContract>(contract: C, call: (contract: C, overrides: PayableOverrides) => Promise<ContractTransactionResponse>, maxAttempts: number = 10) {
     for (let i = 0; i < maxAttempts; i++) {
       try {
-        let nonce: number
+        let nonce: number;
         if (this.signer instanceof NonceManager) {
-          nonce = await (this.signer as NonceManager).getNonce()
+          nonce = await (this.signer as NonceManager).getNonce();
         } else {
           nonce = await this.getLatestTransactionCount();
         }
