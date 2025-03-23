@@ -24,7 +24,7 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
     using StringUtils for uint256;
     using FinIdUtils for string;
 
-    string public constant VERSION = "0.23.1_domain-registry_1";
+    string public constant VERSION = "0.23.2";
 
     bytes32 private constant ASSET_MANAGER = keccak256("ASSET_MANAGER");
     bytes32 private constant TRANSACTION_MANAGER = keccak256("TRANSACTION_MANAGER");
