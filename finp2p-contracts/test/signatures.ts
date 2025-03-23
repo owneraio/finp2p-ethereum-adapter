@@ -4,7 +4,7 @@ import { expect } from "chai";
 import { ethers } from "hardhat";
 import { generateNonce } from "./utils";
 import { v4 as uuidv4 } from "uuid";
-import { HDNodeWallet, Signer, Wallet } from "ethers";
+import { HDNodeWallet, Wallet } from "ethers";
 import { getFinId } from "../src/contracts/utils";
 import {
   eip712Asset,
@@ -40,14 +40,14 @@ describe("Signing test", function() {
   const buyer = Wallet.createRandom();
   const seller = Wallet.createRandom();
 
-  const defaultDomain = { chainId: 1337, verifyingContract: '0x5FbDB2315678afecb367f032d93F642f64180aa3' }; // Hardhat defaults
+  // const defaultDomain = { chainId: 1337, verifyingContract: '0x5FbDB2315678afecb367f032d93F642f64180aa3' }; // Hardhat defaults
   const extraDomain = { chainId: 1, verifyingContract: '0xCcCCccccCCCCcCCCCCCcCcCccCcCCCcCcccccccC' };      // registered with `addAllowedDomain(..)`
   const fakeDomain = { chainId: 1314, verifyingContract: '0xdAC17F958D2ee523a2206206994597C13D831ec7' };
 
   let verifier: FINP2POperatorERC20;
 
   const testCases: {
-    domain: {chainId: number | bigint, verifyingContract: string},
+    domain?: {chainId: number | bigint, verifyingContract: string},
     primaryType: PrimaryType,
     nonce: string,
     buyerFinId: string,
@@ -57,7 +57,6 @@ describe("Signing test", function() {
     loan: EIP712LoanTerms,
     signer: HDNodeWallet
   }[] = [{
-    domain: defaultDomain,
     primaryType: PrimaryType.PrimarySale,
     nonce: `${generateNonce().toString("hex")}`,
     buyerFinId: getFinId(buyer),
@@ -67,7 +66,6 @@ describe("Signing test", function() {
     loan: emptyLoanTerms(),
     signer: seller
   }, {
-    domain: defaultDomain,
     primaryType: PrimaryType.Buying,
     nonce: `${generateNonce().toString("hex")}`,
     buyerFinId: getFinId(buyer),
@@ -77,7 +75,6 @@ describe("Signing test", function() {
     loan: emptyLoanTerms(),
     signer: seller
   }, {
-    domain: extraDomain,
     primaryType: PrimaryType.Selling,
     nonce: `${generateNonce().toString("hex")}`,
     buyerFinId: getFinId(buyer),
@@ -87,7 +84,6 @@ describe("Signing test", function() {
     loan: emptyLoanTerms(),
     signer: seller
   }, {
-    domain: defaultDomain,
     primaryType: PrimaryType.Redemption,
     nonce: `${generateNonce().toString("hex")}`,
     buyerFinId: getFinId(buyer),
@@ -107,7 +103,6 @@ describe("Signing test", function() {
     loan: emptyLoanTerms(),
     signer: seller
   }, {
-    domain: defaultDomain,
     primaryType: PrimaryType.PrivateOffer,
     nonce: `${generateNonce().toString("hex")}`,
     buyerFinId: getFinId(buyer),
@@ -117,7 +112,6 @@ describe("Signing test", function() {
     loan: emptyLoanTerms(),
     signer: seller
   }, {
-    domain: defaultDomain,
     primaryType: PrimaryType.Loan,
     nonce: `${generateNonce().toString("hex")}`,
     buyerFinId: getFinId(buyer),
@@ -135,7 +129,13 @@ describe("Signing test", function() {
 
   testCases.forEach(({ domain, primaryType, nonce, buyerFinId, sellerFinId, asset, settlement, loan, signer }) => {
     it(`Investor signatures (primary type: ${primaryType})`, async function() {
-      const { chainId, verifyingContract } = domain;
+      let chainId: number | bigint;
+      let verifyingContract: string;
+      if (domain) {
+        ({ chainId, verifyingContract } = domain);
+      } else {
+        ({ chainId, verifyingContract } = await verifier.eip712Domain());
+      }
       const signerAddress = await signer.getAddress();
       const {
         types,
@@ -144,23 +144,29 @@ describe("Signing test", function() {
       const signature = await sign(chainId, verifyingContract, types, message, signer);
       const offChainHash = hash(chainId, verifyingContract, types, message);
       expect(verify(chainId, verifyingContract, types, message, signerAddress, signature)).to.equal(true);
-      const op = operationParams(domain, primaryType, LegType.Asset, Phase.Initiate, '', ReleaseType.Release);
+      const op = operationParams({ chainId, verifyingContract } , primaryType, LegType.Asset, Phase.Initiate, '', ReleaseType.Release);
       const onChainHash = await verifier.hashInvestment(op, nonce, buyerFinId, sellerFinId, asset, settlement, loan);
       expect(offChainHash).to.equal(onChainHash);
       expect(await verifier.verifyInvestmentSignature(op, nonce, buyerFinId, sellerFinId, asset, settlement, loan, getFinId(signer), signature)).to.equal(true);
     });
 
     it(`Failed investor signatures (primary type: ${primaryType})`, async function() {
-      const { chainId, verifyingContract } = domain;
+      let chainId: number | bigint;
+      let verifyingContract: string;
+      if (domain) {
+        ({ chainId, verifyingContract } = domain);
+      } else {
+        ({ chainId, verifyingContract } = await verifier.eip712Domain());
+      }
       const { types, message } = newInvestmentMessage(primaryType, nonce, buyerFinId, sellerFinId, termToEIP712(asset), termToEIP712(settlement), loan);
       const signature = await sign(chainId, verifyingContract, types, message, signer);
 
       const fakeNonce = `${generateNonce().toString("hex")}`;
-      expect(await verifier.verifyInvestmentSignature(operationParams(domain, primaryType, LegType.Asset, Phase.Initiate, '', ReleaseType.Release),
+      expect(await verifier.verifyInvestmentSignature(operationParams({ chainId, verifyingContract } , primaryType, LegType.Asset, Phase.Initiate, '', ReleaseType.Release),
         fakeNonce, buyerFinId, sellerFinId, asset, settlement, loan, getFinId(signer), signature)).to.equal(false);
 
       const fakeSigner = Wallet.createRandom();
-      expect(await verifier.verifyInvestmentSignature(operationParams(domain, primaryType, LegType.Asset, Phase.Initiate, '', ReleaseType.Release),
+      expect(await verifier.verifyInvestmentSignature(operationParams({ chainId, verifyingContract } , primaryType, LegType.Asset, Phase.Initiate, '', ReleaseType.Release),
         nonce, buyerFinId, sellerFinId, asset, settlement, loan, getFinId(fakeSigner), signature)).to.equal(false);
 
       await expect(verifier.verifyInvestmentSignature(operationParams(fakeDomain, primaryType, LegType.Asset, Phase.Initiate, '', ReleaseType.Release),

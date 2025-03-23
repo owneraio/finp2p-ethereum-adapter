@@ -104,10 +104,10 @@ describe("FinP2P proxy contract test", function() {
     let operator: Signer;
     let contract: FINP2POperatorERC20;
     let finP2PAddress: string;
-    const defaultDomain = { chainId: 1337, verifyingContract: '0x5FbDB2315678afecb367f032d93F642f64180aa3' }
+    let chainId: bigint;
+    let verifyingContract: string;
 
     const testCases: {
-      domain: { chainId: number | bigint, verifyingContract: string },
       primaryTypes: PrimaryType[],
       legs: LegType[],
       phases: Phase[],
@@ -116,7 +116,6 @@ describe("FinP2P proxy contract test", function() {
       loan: EIP712LoanTerms,
       decimals: number
     }[] = [{
-      domain: defaultDomain,
       primaryTypes: [PrimaryType.PrimarySale, PrimaryType.Buying, PrimaryType.Selling, PrimaryType.PrivateOffer],
       legs: [LegType.Asset, LegType.Settlement],
       phases: [Phase.Initiate],
@@ -125,7 +124,6 @@ describe("FinP2P proxy contract test", function() {
       loan: emptyLoanTerms(),
       decimals: 0
     }, {
-      domain: defaultDomain,
       primaryTypes: [PrimaryType.PrimarySale, PrimaryType.Buying, PrimaryType.Selling, PrimaryType.PrivateOffer],
       legs: [LegType.Asset, LegType.Settlement],
       phases: [Phase.Initiate],
@@ -134,7 +132,6 @@ describe("FinP2P proxy contract test", function() {
       loan: emptyLoanTerms(),
       decimals: 2
     }, {
-      domain: defaultDomain,
       primaryTypes: [PrimaryType.PrimarySale, PrimaryType.Buying, PrimaryType.Selling, PrimaryType.PrivateOffer],
       legs: [LegType.Asset, LegType.Settlement],
       phases: [Phase.Initiate],
@@ -143,7 +140,6 @@ describe("FinP2P proxy contract test", function() {
       loan: emptyLoanTerms(),
       decimals: 4
     }, {
-      domain: defaultDomain,
       primaryTypes: [PrimaryType.RequestForTransfer],
       legs: [LegType.Asset],
       phases: [Phase.Initiate, Phase.Close],
@@ -152,7 +148,6 @@ describe("FinP2P proxy contract test", function() {
       loan: emptyLoanTerms(),
       decimals: 2
     }, {
-      domain: defaultDomain,
       primaryTypes: [PrimaryType.Redemption],
       legs: [LegType.Asset, LegType.Settlement],
       phases: [Phase.Initiate],
@@ -161,7 +156,6 @@ describe("FinP2P proxy contract test", function() {
       loan: emptyLoanTerms(),
       decimals: 2
     }, {
-      domain: defaultDomain,
       primaryTypes: [PrimaryType.Loan],
       legs: [LegType.Asset, LegType.Settlement],
       phases: [Phase.Initiate],
@@ -174,6 +168,7 @@ describe("FinP2P proxy contract test", function() {
     before(async () => {
       [operator] = await ethers.getSigners();
       ({ contract, address: finP2PAddress } = await loadFixture(deployFinP2PProxyFixture));
+      ({ chainId, verifyingContract } = await contract.eip712Domain());
       for (const term of testCases) {
         const asset = await deployERC20(term.asset.assetId, term.asset.assetId, term.decimals, finP2PAddress);
         await contract.associateAsset(term.asset.assetId, asset, { from: operator });
@@ -183,11 +178,10 @@ describe("FinP2P proxy contract test", function() {
       }
     });
 
-    testCases.forEach(({ domain, decimals, asset, settlement, loan, primaryTypes, legs, phases }) => {
+    testCases.forEach(({ decimals, asset, settlement, loan, primaryTypes, legs, phases }) => {
       primaryTypes.forEach((primaryType) => {
         legs.forEach((leg) => {
           phases.forEach((phase) => {
-            const { chainId, verifyingContract } = domain;
 
             it(`issue/transfer/redeem operations (asset: ${asset}, settlement ${settlement}, primaryType: ${primaryType}, leg: ${leg}, phase: ${phase}, decimals: ${decimals}`, async () => {
               const buyer = generateInvestor();
@@ -206,7 +200,7 @@ describe("FinP2P proxy contract test", function() {
                 message
               } = newInvestmentMessage(primaryType, nonce, buyer.finId, seller.finId, termToEIP712(asset), termToEIP712(settlement), loan);
               const signature = await sign(chainId, verifyingContract, types, message, signer);
-              await expect(contract.transfer(nonce, seller.finId, buyer.finId, asset, settlement, loan, operationParams(domain, primaryType, leg, phase), signature, { from: operator }))
+              await expect(contract.transfer(nonce, seller.finId, buyer.finId, asset, settlement, loan, operationParams({ chainId, verifyingContract}, primaryType, leg, phase), signature, { from: operator }))
                 .to.emit(contract, "Transfer").withArgs(assetId, assetType, from, to, amount);
 
               expect(await contract.getBalance(assetId, from)).to.equal(`${(0).toFixed(decimals)}`);
@@ -234,7 +228,7 @@ describe("FinP2P proxy contract test", function() {
                 message
               } = newInvestmentMessage(primaryType, nonce, buyer.finId, seller.finId, termToEIP712(asset), termToEIP712(settlement), loan);
               const signature = await sign(chainId, verifyingContract, types, message, signer);
-              await expect(contract.hold(nonce, seller.finId, buyer.finId, asset, settlement, loan, operationParams(domain, primaryType, leg, phase, operationId, ReleaseType.Release), signature, { from: operator }))
+              await expect(contract.hold(nonce, seller.finId, buyer.finId, asset, settlement, loan, operationParams({ chainId, verifyingContract}, primaryType, leg, phase, operationId, ReleaseType.Release), signature, { from: operator }))
                 .to.emit(contract, "Hold").withArgs(assetId, assetType, from, amount, operationId);
 
               expect(await contract.getBalance(assetId, from)).to.equal(`${(0).toFixed(decimals)}`);
@@ -293,7 +287,7 @@ describe("FinP2P proxy contract test", function() {
               } = newInvestmentMessage(primaryType, nonce, buyerFinId, sellerFinId, termToEIP712(asset), termToEIP712(settlement), loan);
               const signature = await sign(chainId, verifyingContract, types, message, signer);
               await expect(contract.hold(nonce, sellerFinId, buyerFinId, asset, settlement, loan,
-                operationParams(domain, primaryType, leg, Phase.Initiate, operationId, ReleaseType.Release), signature, { from: operator }))
+                operationParams({ chainId, verifyingContract}, primaryType, leg, Phase.Initiate, operationId, ReleaseType.Release), signature, { from: operator }))
                 .to.emit(contract, "Hold").withArgs(assetId, assetType, from, amount, operationId);
 
               expect(await contract.getBalance(assetId, from)).to.equal(`${(0).toFixed(decimals)}`);
@@ -357,7 +351,7 @@ describe("FinP2P proxy contract test", function() {
               } = newInvestmentMessage(PrimaryType.Redemption, nonce, issuerFinId, investorFinId, termToEIP712(asset), termToEIP712(settlement), loan);
               const signature = await sign(chainId, verifyingContract, types, message, signer);
 
-              await expect(contract.hold(nonce, investorFinId, issuerFinId, asset, settlement, loan, operationParams(domain, PrimaryType.Redemption, leg,  phase, operationId, ReleaseType.Redeem), signature, { from: operator }))
+              await expect(contract.hold(nonce, investorFinId, issuerFinId, asset, settlement, loan, operationParams({ chainId, verifyingContract}, PrimaryType.Redemption, leg,  phase, operationId, ReleaseType.Redeem), signature, { from: operator }))
                 .to.emit(contract, "Hold").withArgs(assetId, assetType, investorFinId, amount, operationId);
               const lock = await contract.getLockInfo(operationId);
               expect(lock[0]).to.equal(assetId);
