@@ -30,19 +30,13 @@ contract FINP2POperatorERC20 is AccessControl {
     using FinP2P for FinP2P.LegType;
     using FinP2P for FinP2P.OperationParams;
     using FinP2P for FinP2P.Term;
+    using FinP2P for FinP2P.LockInfo;
 
     string public constant VERSION = "0.23.2";
 
     bytes32 private constant ASSET_MANAGER = keccak256("ASSET_MANAGER");
     bytes32 private constant TRANSACTION_MANAGER = keccak256("TRANSACTION_MANAGER");
 
-    struct LockInfo {
-        string assetId;
-        FinP2P.AssetType assetType;
-        string source;
-        string destination;
-        string amount;
-    }
 
     /// @notice Issue event
     /// @param assetId The asset id
@@ -84,23 +78,10 @@ contract FINP2POperatorERC20 is AccessControl {
     /// @param operationId The operation id
     event Redeem(string assetId, FinP2P.AssetType assetType, string ownerFinId, string quantity, string operationId);
 
-    struct Asset {
-        string id;
-        address tokenAddress;
-    }
-
-    struct Lock {
-        string assetId;
-        FinP2P.AssetType assetType;
-        string source;
-        string destination;
-        string amount;
-    }
-
     FinP2PSignatureVerifier private verifier;
     address private escrowWalletAddress;
-    mapping(string => Asset) private assets;
-    mapping(string => Lock) private locks;
+    mapping(string => FinP2P.Asset) private assets;
+    mapping(string => FinP2P.Lock) private locks;
 
     constructor(address verifierAddress) {
         _grantRole(DEFAULT_ADMIN_ROLE, _msgSender());
@@ -136,7 +117,7 @@ contract FINP2POperatorERC20 is AccessControl {
     function associateAsset(string calldata assetId, address tokenAddress) external {
         require(hasRole(ASSET_MANAGER, _msgSender()), "FINP2POperatorERC20: must have asset manager role to associate asset");
         require(!_haveAsset(assetId), "Asset already exists");
-        assets[assetId] = Asset(assetId, tokenAddress);
+        assets[assetId] = FinP2P.Asset(assetId, tokenAddress);
     }
 
     /// @notice Remove an asset
@@ -152,7 +133,7 @@ contract FINP2POperatorERC20 is AccessControl {
     /// @return The token address
     function getAssetAddress(string calldata assetId) external view returns (address) {
         require(_haveAsset(assetId), "Asset not found");
-        Asset memory asset = assets[assetId];
+        FinP2P.Asset memory asset = assets[assetId];
         return asset.tokenAddress;
     }
 
@@ -166,7 +147,7 @@ contract FINP2POperatorERC20 is AccessControl {
     ) external view returns (string memory) {
         require(_haveAsset(assetId), "Asset not found");
         address addr = finId.toAddress();
-        Asset memory asset = assets[assetId];
+        FinP2P.Asset memory asset = assets[assetId];
         uint8 tokenDecimals = IERC20Metadata(asset.tokenAddress).decimals();
         uint256 tokenBalance = IERC20(asset.tokenAddress).balanceOf(addr);
         return tokenBalance.uintToString(tokenDecimals);
@@ -274,9 +255,9 @@ contract FINP2POperatorERC20 is AccessControl {
 
         _transfer(source.toAddress(), _getEscrow(), assetId, amount);
         if (op.releaseType == FinP2P.ReleaseType.RELEASE) {
-            locks[op.operationId] = Lock(assetId, assetType, source, destination, amount);
+            locks[op.operationId] = FinP2P.Lock(assetId, assetType, source, destination, amount);
         } else if (op.releaseType == FinP2P.ReleaseType.REDEEM) {
-            locks[op.operationId] = Lock(assetId, assetType, source, '', amount);
+            locks[op.operationId] = FinP2P.Lock(assetId, assetType, source, '', amount);
         } else {
             revert("Invalid release type");
         }
@@ -294,7 +275,7 @@ contract FINP2POperatorERC20 is AccessControl {
     ) external {
         require(hasRole(TRANSACTION_MANAGER, _msgSender()), "FINP2POperatorERC20: must have transaction manager role to release asset");
         require(_haveContract(operationId), "Contract does not exists");
-        Lock storage lock = locks[operationId];
+        FinP2P.Lock storage lock = locks[operationId];
         require(lock.amount.equals(quantity), "Trying to release amount different from the one held");
         require(lock.destination.equals(toFinId), "Trying to release to different destination than the one expected in the lock");
 
@@ -314,7 +295,7 @@ contract FINP2POperatorERC20 is AccessControl {
     ) external {
         require(hasRole(TRANSACTION_MANAGER, _msgSender()), "FINP2POperatorERC20: must have transaction manager role to release asset");
         require(_haveContract(operationId), "Contract does not exists");
-        Lock storage lock = locks[operationId];
+        FinP2P.Lock storage lock = locks[operationId];
         require(lock.source.equals(ownerFinId), "Trying to redeem asset with owner different from the one who held it");
         require(bytes(lock.destination).length == 0, "Trying to redeem asset with non-empty destination");
         require(lock.amount.equals(quantity), "Trying to redeem amount different from the one held");
@@ -330,7 +311,7 @@ contract FINP2POperatorERC20 is AccessControl {
     ) external {
         require(hasRole(TRANSACTION_MANAGER, _msgSender()), "FINP2POperatorERC20: must have transaction manager role to rollback asset");
         require(_haveContract(operationId), "contract does not exists");
-        Lock storage lock = locks[operationId];
+        FinP2P.Lock storage lock = locks[operationId];
         _transfer(_getEscrow(), lock.source.toAddress(), lock.assetId, lock.amount);
         emit Release(lock.assetId, lock.assetType, lock.source, "", lock.amount, operationId);
         delete locks[operationId];
@@ -339,10 +320,10 @@ contract FINP2POperatorERC20 is AccessControl {
     /// @notice Get the lock info
     /// @param operationId The operation id
     /// @return The lock info
-    function getLockInfo(string memory operationId) external view returns (LockInfo memory) {
+    function getLockInfo(string memory operationId) external view returns (FinP2P.LockInfo memory) {
         require(_haveContract(operationId), "Contract not found");
-        Lock storage l = locks[operationId];
-        return LockInfo(l.assetId, l.assetType, l.source, l.destination, l.amount);
+        FinP2P.Lock storage l = locks[operationId];
+        return FinP2P.LockInfo(l.assetId, l.assetType, l.source, l.destination, l.amount);
     }
 
     // ------------------------------------------------------------------------------------------
@@ -358,7 +339,7 @@ contract FINP2POperatorERC20 is AccessControl {
 
     function _mint(address to, string memory assetId, string memory quantity) internal {
         require(_haveAsset(assetId), "Asset not found");
-        Asset memory asset = assets[assetId];
+        FinP2P.Asset memory asset = assets[assetId];
 
         uint8 tokenDecimals = IERC20Metadata(asset.tokenAddress).decimals();
         uint256 tokenAmount = quantity.stringToUint(tokenDecimals);
@@ -367,7 +348,7 @@ contract FINP2POperatorERC20 is AccessControl {
 
     function _transfer(address from, address to, string memory assetId, string memory quantity) internal {
         require(_haveAsset(assetId), "Asset not found");
-        Asset memory asset = assets[assetId];
+        FinP2P.Asset memory asset = assets[assetId];
 
         uint8 tokenDecimals = IERC20Metadata(asset.tokenAddress).decimals();
         uint256 tokenAmount = quantity.stringToUint(tokenDecimals);
@@ -379,7 +360,7 @@ contract FINP2POperatorERC20 is AccessControl {
 
     function _burn(address from, string memory assetId, string memory quantity) internal {
         require(_haveAsset(assetId), "Asset not found");
-        Asset memory asset = assets[assetId];
+        FinP2P.Asset memory asset = assets[assetId];
 
         uint8 tokenDecimals = IERC20Metadata(asset.tokenAddress).decimals();
         uint256 tokenAmount = quantity.stringToUint(tokenDecimals);

@@ -3,6 +3,7 @@
 pragma solidity ^0.8.0;
 
 library FinP2P {
+
     enum Phase {
         INITIATE,
         CLOSE
@@ -61,5 +62,25 @@ library FinP2P {
         string returnedMoneyAmount;
     }
 
+    struct Asset {
+        string id;
+        address tokenAddress;
+    }
+
+    struct Lock {
+        string assetId;
+        FinP2P.AssetType assetType;
+        string source;
+        string destination;
+        string amount;
+    }
+
+    struct LockInfo {
+        string assetId;
+        FinP2P.AssetType assetType;
+        string source;
+        string destination;
+        string amount;
+    }
 
 }
