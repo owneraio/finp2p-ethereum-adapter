@@ -37,47 +37,6 @@ contract FINP2POperatorERC20 is AccessControl {
     bytes32 private constant ASSET_MANAGER = keccak256("ASSET_MANAGER");
     bytes32 private constant TRANSACTION_MANAGER = keccak256("TRANSACTION_MANAGER");
 
-
-    /// @notice Issue event
-    /// @param assetId The asset id
-    /// @param assetType The asset type
-    /// @param issuerFinId The FinID of the issuer
-    /// @param quantity The quantity issued
-    event Issue(string assetId, FinP2P.AssetType assetType, string issuerFinId, string quantity);
-
-    /// @notice Transfer event
-    /// @param assetId The asset id
-    /// @param assetType The asset type
-    /// @param sourceFinId The FinID of the source
-    /// @param destinationFinId The FinID of the destination
-    /// @param quantity The quantity transferred
-    event Transfer(string assetId, FinP2P.AssetType assetType, string sourceFinId, string destinationFinId, string quantity);
-
-    /// @notice Hold event
-    /// @param assetId The asset id
-    /// @param assetType The asset type
-    /// @param finId The FinID of the holder
-    /// @param quantity The quantity held
-    /// @param operationId The operation id
-    event Hold(string assetId, FinP2P.AssetType assetType, string finId, string quantity, string operationId);
-
-    /// @notice Release event
-    /// @param assetId The asset id
-    /// @param assetType The asset type
-    /// @param sourceFinId The FinID of the source
-    /// @param destinationFinId The FinID of the destination
-    /// @param quantity The quantity released
-    /// @param operationId The operation id
-    event Release(string assetId, FinP2P.AssetType assetType, string sourceFinId, string destinationFinId, string quantity, string operationId);
-
-    /// @notice Redeem event
-    /// @param assetId The asset id
-    /// @param assetType The asset type
-    /// @param ownerFinId The FinID of the owner
-    /// @param quantity The quantity redeemed
-    /// @param operationId The operation id
-    event Redeem(string assetId, FinP2P.AssetType assetType, string ownerFinId, string quantity, string operationId);
-
     FinP2PSignatureVerifier private verifier;
     address private escrowWalletAddress;
     mapping(string => FinP2P.Asset) private assets;
@@ -162,7 +121,7 @@ contract FINP2POperatorERC20 is AccessControl {
     ) external {
         require(hasRole(TRANSACTION_MANAGER, _msgSender()), "FINP2POperatorERC20: must have transaction manager role to issue asset");
         _mint(issuerFinId.toAddress(), assetTerm.assetId, assetTerm.amount);
-        emit Issue(assetTerm.assetId, assetTerm.assetType, issuerFinId, assetTerm.amount);
+        emit FinP2P.Issue(assetTerm.assetId, assetTerm.assetType, issuerFinId, assetTerm.amount);
     }
 
     /// @notice Transfer asset from seller to buyer
@@ -202,7 +161,7 @@ contract FINP2POperatorERC20 is AccessControl {
 //            signature
 //        ), "Signature is not verified");
         _transfer(source.toAddress(), destination.toAddress(), assetId, amount);
-        emit Transfer(assetId, assetType, source, destination, amount);
+        emit FinP2P.Transfer(assetId, assetType, source, destination, amount);
     }
 
     /// @notice Redeem asset from the owner
@@ -214,7 +173,7 @@ contract FINP2POperatorERC20 is AccessControl {
     ) external {
         require(hasRole(TRANSACTION_MANAGER, _msgSender()), "FINP2POperatorERC20: must have transaction manager role to release asset");
         _burn(ownerFinId.toAddress(), term.assetId, term.amount);
-        emit Redeem(term.assetId, term.assetType, ownerFinId, term.amount, '');
+        emit FinP2P.Redeem(term.assetId, term.assetType, ownerFinId, term.amount, '');
     }
 
     /// @notice Hold asset in escrow
@@ -261,7 +220,7 @@ contract FINP2POperatorERC20 is AccessControl {
         } else {
             revert("Invalid release type");
         }
-        emit Hold(assetId, assetType, source, amount, op.operationId);
+        emit FinP2P.Hold(assetId, assetType, source, amount, op.operationId);
     }
 
     /// @notice Release asset from escrow to the destination
@@ -280,7 +239,7 @@ contract FINP2POperatorERC20 is AccessControl {
         require(lock.destination.equals(toFinId), "Trying to release to different destination than the one expected in the lock");
 
         _transfer(_getEscrow(), toFinId.toAddress(), lock.assetId, lock.amount);
-        emit Release(lock.assetId, lock.assetType, lock.source, lock.destination, quantity, operationId);
+        emit FinP2P.Release(lock.assetId, lock.assetType, lock.source, lock.destination, quantity, operationId);
         delete locks[operationId];
     }
 
@@ -300,7 +259,7 @@ contract FINP2POperatorERC20 is AccessControl {
         require(bytes(lock.destination).length == 0, "Trying to redeem asset with non-empty destination");
         require(lock.amount.equals(quantity), "Trying to redeem amount different from the one held");
         _burn(_getEscrow(), lock.assetId, lock.amount);
-        emit Redeem(lock.assetId, lock.assetType, ownerFinId, quantity, operationId);
+        emit FinP2P.Redeem(lock.assetId, lock.assetType, ownerFinId, quantity, operationId);
         delete locks[operationId];
     }
 
@@ -313,7 +272,7 @@ contract FINP2POperatorERC20 is AccessControl {
         require(_haveContract(operationId), "contract does not exists");
         FinP2P.Lock storage lock = locks[operationId];
         _transfer(_getEscrow(), lock.source.toAddress(), lock.assetId, lock.amount);
-        emit Release(lock.assetId, lock.assetType, lock.source, "", lock.amount, operationId);
+        emit FinP2P.Release(lock.assetId, lock.assetType, lock.source, "", lock.amount, operationId);
         delete locks[operationId];
     }
 
