@@ -83,4 +83,39 @@ library FinP2P {
         string amount;
     }
 
+    /// @notice Extract the direction of the operation
+    /// @param sellerFinId The FinID of the seller
+    /// @param buyerFinId The FinID of the buyer
+    /// @param assetTerm The asset term
+    /// @param settlementTerm The settlement term
+    /// @param op The operation parameters
+    /// @return The source FinID, the destination FinID, the asset id, the asset type, the amount
+    function extractDetails(
+        string memory sellerFinId,
+        string memory buyerFinId,
+        FinP2P.Term memory assetTerm,
+        FinP2P.Term memory settlementTerm,
+        FinP2P.OperationParams memory op
+    ) internal pure returns (string memory, string memory, string memory, FinP2P.AssetType, string memory) {
+        if (op.leg == FinP2P.LegType.ASSET) {
+            if (op.phase == FinP2P.Phase.INITIATE) {
+                return (sellerFinId, buyerFinId, assetTerm.assetId, assetTerm.assetType, assetTerm.amount);
+            } else if (op.phase == FinP2P.Phase.CLOSE) {
+                return (buyerFinId, sellerFinId, assetTerm.assetId, assetTerm.assetType, assetTerm.amount);
+            } else {
+                revert("Invalid phase");
+            }
+        } else if (op.leg == FinP2P.LegType.SETTLEMENT) {
+            if (op.phase == FinP2P.Phase.INITIATE) {
+                return (buyerFinId, sellerFinId, settlementTerm.assetId, settlementTerm.assetType, settlementTerm.amount);
+            } else if (op.phase == FinP2P.Phase.CLOSE) {
+                return (sellerFinId, buyerFinId, settlementTerm.assetId, settlementTerm.assetType, settlementTerm.amount);
+            } else {
+                revert("Invalid phase");
+            }
+        } else {
+            revert("Invalid leg");
+        }
+    }
+
 }
