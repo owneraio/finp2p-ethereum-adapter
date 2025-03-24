@@ -1,7 +1,6 @@
 import { Signer, TypedDataEncoder, verifyTypedData, Wallet } from "ethers";
 
 
-
 export const enum LegType {
   Asset = 0,
   Settlement = 1
@@ -227,7 +226,7 @@ export interface EIP712Message {
 export type EIP712AssetType = "finp2p" | "fiat" | "cryptocurrency";
 export const eip712Term = (assetId: string, assetType: EIP712AssetType, amount: string): EIP712Term => {
   return { assetId, assetType, amount };
-}
+};
 
 
 export interface EIP712Term {
@@ -315,10 +314,10 @@ export interface EIP712LoanMessage extends EIP712Message {
   loanTerms: EIP712LoanTerms
 }
 
-export type EIP712AccountType = 'finId' | 'iban' | 'cryptoWallet';
+export type EIP712AccountType = "finId" | "iban" | "cryptoWallet";
 
 export interface EIP712Source {
-  accountType: EIP712AccountType | '';
+  accountType: EIP712AccountType | "";
   finId: string;
 }
 
@@ -327,7 +326,7 @@ export const eip712Source = (accountType: EIP712AccountType, finId: string): EIP
 };
 
 export interface EIP712Destination {
-  accountType: EIP712AccountType | '';
+  accountType: EIP712AccountType | "";
   finId: string;
 }
 
@@ -459,8 +458,8 @@ export const newLoanMessage = (nonce: string, borrower: EIP712FinId, lender: EIP
   return { nonce, borrower, lender, asset, settlement, loanTerms };
 };
 
-export const newReceiptMessage = (id: string, operationType: string, source: EIP712Source, destination: EIP712Destination, asset: EIP712Asset, quantity: string, tradeDetails: EIP7127TradeDetails, transactionDetails: EIP712TransactionDetails): EIP712ReceiptMessage => {
-  return { id, operationType, source, destination, asset, quantity, tradeDetails, transactionDetails };
+export const newReceiptMessage = (id: string, operationType: string, source: EIP712Source, destination: EIP712Destination, asset: EIP712Asset, tradeDetails: EIP7127TradeDetails, transactionDetails: EIP712TransactionDetails, quantity: string): EIP712ReceiptMessage => {
+  return { id, operationType, source, destination, asset, tradeDetails, transactionDetails, quantity };
 };
 
 export const signWithPrivateKey = <T extends EIP712Message>(chainId: bigint | number, verifyingContract: string, types: EIP712Types, message: T, signerPrivateKey: string) => {

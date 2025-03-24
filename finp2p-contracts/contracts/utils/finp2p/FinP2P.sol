@@ -91,24 +91,16 @@ library FinP2P {
         FAILED
     }
 
-    enum InstructionType {
+    enum OperationType {
         ISSUE,
-        REDEEM,
         TRANSFER,
         HOLD,
         RELEASE,
-        AWAIT
+        REDEEM
     }
 
-    function requireExecution(InstructionType iType) internal pure returns (bool) {
-        if (iType == InstructionType.AWAIT) {
-            return false;
-        }
-        return true;
-    }
-
-    function requireInvestorSignature(InstructionType iType) internal pure returns (bool) {
-        if (iType == InstructionType.TRANSFER || iType == InstructionType.HOLD) {
+    function requireInvestorSignature(OperationType op) internal pure returns (bool) {
+        if (op == OperationType.TRANSFER || op == OperationType.HOLD) {
             return true;
         }
         return false;
@@ -128,7 +120,7 @@ library FinP2P {
 
     struct Instruction {
         uint8 sequence;
-        InstructionType instructionType;
+        OperationType operation;
         string assetId;
         FinP2P.AssetType assetType;
         string source;
@@ -145,6 +137,35 @@ library FinP2P {
         ExecutionStatus status;
         uint8 currentInstruction;
         Instruction[] instructions;
+    }
+
+    struct ReceiptSource {
+        string accountType;
+        string finId;
+    }
+
+    struct ReceiptDestination {
+        string accountType;
+        string finId;
+    }
+
+    struct ReceiptAsset {
+        AssetType assetType;
+        string assetId;
+    }
+
+    struct ReceiptExecutionContext {
+        string executionPlanId;
+        uint8 instructionSequenceNumber;
+    }
+
+    struct ReceiptTradeDetails {
+        ReceiptExecutionContext executionContext;
+    }
+
+    struct ReceiptTransactionDetails {
+        string operationId;
+        string transactionId;
     }
 
 /// @notice Issue event
