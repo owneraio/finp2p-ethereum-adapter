@@ -83,6 +83,47 @@ library FinP2P {
         string amount;
     }
 
+
+    /// @notice Issue event
+    /// @param assetId The asset id
+    /// @param assetType The asset type
+    /// @param issuerFinId The FinID of the issuer
+    /// @param quantity The quantity issued
+    event Issue(string assetId, FinP2P.AssetType assetType, string issuerFinId, string quantity);
+
+    /// @notice Transfer event
+    /// @param assetId The asset id
+    /// @param assetType The asset type
+    /// @param sourceFinId The FinID of the source
+    /// @param destinationFinId The FinID of the destination
+    /// @param quantity The quantity transferred
+    event Transfer(string assetId, FinP2P.AssetType assetType, string sourceFinId, string destinationFinId, string quantity);
+
+    /// @notice Hold event
+    /// @param assetId The asset id
+    /// @param assetType The asset type
+    /// @param finId The FinID of the holder
+    /// @param quantity The quantity held
+    /// @param operationId The operation id
+    event Hold(string assetId, FinP2P.AssetType assetType, string finId, string quantity, string operationId);
+
+    /// @notice Release event
+    /// @param assetId The asset id
+    /// @param assetType The asset type
+    /// @param sourceFinId The FinID of the source
+    /// @param destinationFinId The FinID of the destination
+    /// @param quantity The quantity released
+    /// @param operationId The operation id
+    event Release(string assetId, FinP2P.AssetType assetType, string sourceFinId, string destinationFinId, string quantity, string operationId);
+
+    /// @notice Redeem event
+    /// @param assetId The asset id
+    /// @param assetType The asset type
+    /// @param ownerFinId The FinID of the owner
+    /// @param quantity The quantity redeemed
+    /// @param operationId The operation id
+    event Redeem(string assetId, FinP2P.AssetType assetType, string ownerFinId, string quantity, string operationId);
+
     /// @notice Extract the direction of the operation
     /// @param sellerFinId The FinID of the seller
     /// @param buyerFinId The FinID of the buyer
