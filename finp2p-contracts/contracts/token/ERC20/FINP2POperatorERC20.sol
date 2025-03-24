@@ -399,19 +399,35 @@ contract FINP2POperatorERC20 is AccessControl {
         require(_haveExecution(id), "Execution not found");
         uint8 currentInstruction = executions[id].currentInstruction;
         executions[id].instructions[currentInstruction - 1].status = FinP2P.InstructionStatus.EXECUTED;
-        if (executions[id].instructions.length < currentInstruction) {
-            executions[id].currentInstruction += 1;
-        } else {
+        if (_isExecutionCompleted(id)) {
             executions[id].status = FinP2P.ExecutionStatus.EXECUTED;
+        } else {
+            uint currentIdx = currentInstruction - 1;
+            for (uint i = currentIdx + 1; i < executions[id].instructions.length; i++) {
+                if (executions[id].instructions[i].instructionType.requireExecution()) {
+                    executions[id].currentInstruction = uint8(i);
+                    break;
+                }
+            }
         }
     }
 
     function _isExecutionVerified(string memory id) internal view returns (bool) {
         for (uint i = 0; i < executions[id].instructions.length; i++) {
-            FinP2P.Instruction memory instruction = executions[id].instructions[i];
-            if (instruction.executor == FinP2P.InstructionExecutor.THIS_CONTRACT &&
-                instruction.instructionType.requireInvestorSignature() &&
-                instruction.status == FinP2P.InstructionStatus.REQUIRE_INVESTOR_SIGNATURE) {
+            if (executions[id].instructions[i].executor == FinP2P.InstructionExecutor.THIS_CONTRACT &&
+                executions[id].instructions[i].instructionType.requireExecution() &&
+                executions[id].instructions[i].instructionType.requireInvestorSignature() &&
+                executions[id].instructions[i].status == FinP2P.InstructionStatus.REQUIRE_INVESTOR_SIGNATURE) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    function _isExecutionCompleted(string memory id) internal view returns (bool) {
+        for (uint i = 0; i < executions[id].instructions.length; i++) {
+            if (executions[id].instructions[i].instructionType.requireExecution() &&
+                executions[id].instructions[i].status != FinP2P.InstructionStatus.EXECUTED) {
                 return false;
             }
         }

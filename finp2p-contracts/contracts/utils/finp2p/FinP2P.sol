@@ -100,6 +100,13 @@ library FinP2P {
         AWAIT
     }
 
+    function requireExecution(InstructionType iType) internal pure returns (bool) {
+        if (iType == InstructionType.AWAIT) {
+            return false;
+        }
+        return true;
+    }
+
     function requireInvestorSignature(InstructionType iType) internal pure returns (bool) {
         if (iType == InstructionType.TRANSFER || iType == InstructionType.HOLD) {
             return true;
