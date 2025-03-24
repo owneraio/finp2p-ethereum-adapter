@@ -25,6 +25,7 @@ contract FINP2POperatorERC20 is AccessControl {
     using StringUtils for string;
     using StringUtils for uint256;
     using FinIdUtils for string;
+    using FinP2P for FinP2P.InstructionType;
 
     string public constant VERSION = "0.23.4";
 
@@ -113,13 +114,33 @@ contract FINP2POperatorERC20 is AccessControl {
         executions[id].currentInstruction = 1;
     }
 
-    function addInstructionToExecution(string memory id, FinP2P.Instruction memory instruction) external {
-        require(executions[id].status == FinP2P.ExecutionStatus.CREATED, "Execution is not in CREATED status");
-        executions[id].instructions.push(instruction);
+    function addInstructionToExecution(
+        string memory executionId,
+        uint8 instructionSequence,
+        FinP2P.InstructionType instructionType,
+        string memory assetId,
+        FinP2P.AssetType assetType,
+        string memory source,
+        string memory destination,
+        string memory amount,
+        FinP2P.InstructionExecutor executor,
+        string memory proofSigner
+    ) external {
+        require(executions[executionId].status == FinP2P.ExecutionStatus.CREATED, "Execution is not in CREATED status");
+        FinP2P.InstructionStatus status;
+        if (executor == FinP2P.InstructionExecutor.THIS_CONTRACT && instructionType.requireInvestorSignature()) {
+            status = FinP2P.InstructionStatus.REQUIRE_INVESTOR_SIGNATURE;
+        } else {
+            status = FinP2P.InstructionStatus.PENDING;
+        }
+        executions[executionId].instructions.push(FinP2P.Instruction(instructionSequence, instructionType,
+            assetId, assetType, source, destination, amount,
+            executor, status, proofSigner));
     }
 
     function provideInvestorSignature(
-        string memory id,
+        string calldata executionId,
+        uint8 instructionSequence,
         FinP2P.Domain memory domain,
         string memory nonce,
         string memory buyerFinId,
@@ -130,13 +151,12 @@ contract FINP2POperatorERC20 is AccessControl {
         bytes memory signature
     ) external {
         require(hasRole(TRANSACTION_MANAGER, _msgSender()), "FINP2POperatorERC20: must have transaction manager role to transfer asset");
-        require(executions[id].status == FinP2P.ExecutionStatus.CREATED, "Execution is not in CREATED status");
-
-        string memory signerFinId;
-        // TODO: detect signerFinId
-        signerFinId = buyerFinId;
+        require(executions[executionId].status == FinP2P.ExecutionStatus.CREATED, "Execution is not in CREATED status");
+        FinP2P.Instruction memory instruction = executions[executionId].instructions[instructionSequence - 1];
+        require(instruction.executor == FinP2P.InstructionExecutor.THIS_CONTRACT, "Instruction executor is not THIS_CONTRACT");
+        string memory signerFinId = instruction.source;
         require(verifier.verifyInvestmentSignature(
-            executions[id].primaryType,
+            executions[executionId].primaryType,
             domain,
             nonce,
             buyerFinId,
@@ -147,7 +167,10 @@ contract FINP2POperatorERC20 is AccessControl {
             signerFinId,
             signature
         ), "Signature is not verified");
-        executions[id].status = FinP2P.ExecutionStatus.VERIFIED;
+        executions[executionId].instructions[instructionSequence - 1].status = FinP2P.InstructionStatus.PENDING;
+        if (_isExecutionVerified(executionId)) {
+            executions[executionId].status = FinP2P.ExecutionStatus.VERIFIED;
+        }
     }
 
     function issue(
@@ -318,16 +341,8 @@ contract FINP2POperatorERC20 is AccessControl {
             instructionType, FinP2P.InstructionExecutor.OTHER_CONTRACT,
             source, destination, assetId, assetType, quantity);
         string memory signerFinId = _getCurrentInstructionProofSigner(executionId);
-        require(verifier.verifyReceiptProofSignature(
-            domain,
-            id,
-            source,
-            destination,
-            assetType,
-            assetId,
-            quantity,
-            signerFinId,
-            signature
+        require(verifier.verifyReceiptProofSignature(domain, id, source, destination,
+            assetType, assetId, quantity, signerFinId, signature
         ), "Signature is not verified");
         _completeCurrentInstruction(executionId);
     }
@@ -389,6 +404,18 @@ contract FINP2POperatorERC20 is AccessControl {
         } else {
             executions[id].status = FinP2P.ExecutionStatus.EXECUTED;
         }
+    }
+
+    function _isExecutionVerified(string memory id) internal view returns (bool) {
+        for (uint i = 0; i < executions[id].instructions.length; i++) {
+            FinP2P.Instruction memory instruction = executions[id].instructions[i];
+            if (instruction.executor == FinP2P.InstructionExecutor.THIS_CONTRACT &&
+                instruction.instructionType.requireInvestorSignature() &&
+                instruction.status == FinP2P.InstructionStatus.REQUIRE_INVESTOR_SIGNATURE) {
+                return false;
+            }
+        }
+        return true;
     }
 
 
