@@ -83,54 +83,95 @@ library FinP2P {
         string amount;
     }
 
+    enum ExecutionStatus {
+        NONE,
+        CREATED,
+        VERIFIED,
+        EXECUTED,
+        FAILED
+    }
 
-    /// @notice Issue event
-    /// @param assetId The asset id
-    /// @param assetType The asset type
-    /// @param issuerFinId The FinID of the issuer
-    /// @param quantity The quantity issued
+    enum InstructionType {
+        ISSUE,
+        REDEEM,
+        TRANSFER,
+        HOLD,
+        RELEASE,
+        AWAIT
+    }
+
+    enum InstructionStatus {
+        PENDING,
+        EXECUTED,
+        FAILED
+    }
+
+    struct Instruction {
+        uint8 sequence;
+        InstructionType instructionType;
+        string assetId;
+        FinP2P.AssetType assetType;
+        string source;
+        string destination;
+        string amount;
+        InstructionStatus status;
+    }
+
+    struct ExecutionContext {
+        string id;
+        PrimaryType primaryType;
+        ExecutionStatus status;
+        uint8 currentInstruction;
+        Instruction[] instructions;
+    }
+
+/// @notice Issue event
+/// @param assetId The asset id
+/// @param assetType The asset type
+/// @param issuerFinId The FinID of the issuer
+/// @param quantity The quantity issued
     event Issue(string assetId, FinP2P.AssetType assetType, string issuerFinId, string quantity);
 
-    /// @notice Transfer event
-    /// @param assetId The asset id
-    /// @param assetType The asset type
-    /// @param sourceFinId The FinID of the source
-    /// @param destinationFinId The FinID of the destination
-    /// @param quantity The quantity transferred
+/// @notice Transfer event
+/// @param assetId The asset id
+/// @param assetType The asset type
+/// @param sourceFinId The FinID of the source
+/// @param destinationFinId The FinID of the destination
+/// @param quantity The quantity transferred
     event Transfer(string assetId, FinP2P.AssetType assetType, string sourceFinId, string destinationFinId, string quantity);
 
-    /// @notice Hold event
-    /// @param assetId The asset id
-    /// @param assetType The asset type
-    /// @param finId The FinID of the holder
-    /// @param quantity The quantity held
-    /// @param operationId The operation id
+/// @notice Hold event
+/// @param assetId The asset id
+/// @param assetType The asset type
+/// @param finId The FinID of the holder
+/// @param quantity The quantity held
+/// @param operationId The operation id
     event Hold(string assetId, FinP2P.AssetType assetType, string finId, string quantity, string operationId);
 
-    /// @notice Release event
-    /// @param assetId The asset id
-    /// @param assetType The asset type
-    /// @param sourceFinId The FinID of the source
-    /// @param destinationFinId The FinID of the destination
-    /// @param quantity The quantity released
-    /// @param operationId The operation id
+/// @notice Release event
+/// @param assetId The asset id
+/// @param assetType The asset type
+/// @param sourceFinId The FinID of the source
+/// @param destinationFinId The FinID of the destination
+/// @param quantity The quantity released
+/// @param operationId The operation id
     event Release(string assetId, FinP2P.AssetType assetType, string sourceFinId, string destinationFinId, string quantity, string operationId);
 
-    /// @notice Redeem event
-    /// @param assetId The asset id
-    /// @param assetType The asset type
-    /// @param ownerFinId The FinID of the owner
-    /// @param quantity The quantity redeemed
-    /// @param operationId The operation id
+/// @notice Redeem event
+/// @param assetId The asset id
+/// @param assetType The asset type
+/// @param ownerFinId The FinID of the owner
+/// @param quantity The quantity redeemed
+/// @param operationId The operation id
     event Redeem(string assetId, FinP2P.AssetType assetType, string ownerFinId, string quantity, string operationId);
 
-    /// @notice Extract the direction of the operation
-    /// @param sellerFinId The FinID of the seller
-    /// @param buyerFinId The FinID of the buyer
-    /// @param assetTerm The asset term
-    /// @param settlementTerm The settlement term
-    /// @param op The operation parameters
-    /// @return The source FinID, the destination FinID, the asset id, the asset type, the amount
+/// @notice Extract the direction of the operation
+/// @param sellerFinId The FinID of the seller
+/// @param buyerFinId The FinID of the buyer
+/// @param assetTerm The asset term
+/// @param settlementTerm The settlement term
+/// @param op The operation parameters
+/// @return The source FinID, the destination FinID, the asset id, the asset type, the amount
     function extractDetails(
         string memory sellerFinId,
         string memory buyerFinId,
