@@ -217,16 +217,28 @@ describe("Signing test", function() {
     const destinationWallet = Wallet.createRandom();
     const sourceFinId = getFinId(sourceWallet);
     const destinationFinId = getFinId(destinationWallet);
+    const assetId = `bank-us:102:${uuidv4()}`;
+    const quantity = `${getRandomNumber(1, 100)}`;
+    const executionPlanId = `some-bank:106:${uuidv4()}`;
+    const epSeqNum = "3";
     const message = newReceiptMessage(id, operationType, eip712Source("finId", sourceFinId),
       eip712Destination("finId", destinationFinId),
-      eip712Asset(`bank-us:102:${uuidv4()}`, "finp2p"),
-      `${getRandomNumber(1, 100)}`,
-      eip712TradeDetails(eip712ExecutionContext(`some-bank:106:${uuidv4()}`, "")),
-      eip712TransactionDetails("", id));
+      eip712Asset(assetId, "finp2p"),
+      quantity,
+      eip712TradeDetails(eip712ExecutionContext(executionPlanId, epSeqNum)),
+      eip712TransactionDetails("", id)
+    );
 
-    // const offChainHash = hash(chainId, verifyingContract, RECEIPT_PROOF_TYPES, message);
+    const offChainHash = hash(chainId, verifyingContract, RECEIPT_PROOF_TYPES, message);
     const signature = await sign(chainId, verifyingContract, RECEIPT_PROOF_TYPES, message, signer);
     expect(verify(chainId, verifyingContract, RECEIPT_PROOF_TYPES, message, signerAddress, signature)).to.equal(true);
+
+    const domain = {chainId, verifyingContract};
+    const onChainHash = await verifier.hashReceipt(domain, id, sourceFinId, destinationFinId, AssetType.FinP2P, assetId, quantity);
+    expect(offChainHash).to.equal(onChainHash);
+
+    expect(await verifier.verifyReceiptProofSignature(domain, id, sourceFinId, destinationFinId, AssetType.FinP2P, assetId,
+      quantity, getFinId(signer), signature)).to.equal(true);
   });
 
 
