@@ -159,7 +159,8 @@ contract FINP2POperatorERC20 is AccessControl {
         string calldata quantity
     ) external {
         require(hasRole(TRANSACTION_MANAGER, _msgSender()), "FINP2POperatorERC20: must have transaction manager role to issue asset");
-        _validateCurrentInstruction(executionId, instructionSequence, FinP2P.InstructionType.ISSUE,
+        _validateCurrentInstruction(executionId, instructionSequence,
+            FinP2P.InstructionType.ISSUE, FinP2P.InstructionExecutor.THIS_CONTRACT,
             "", destination, assetId, assetType, quantity);
         _mint(destination.toAddress(), assetId, quantity);
         _completeCurrentInstruction(executionId);
@@ -176,7 +177,8 @@ contract FINP2POperatorERC20 is AccessControl {
         string calldata quantity
     ) external {
         require(hasRole(TRANSACTION_MANAGER, _msgSender()), "FINP2POperatorERC20: must have transaction manager role to transfer asset");
-        _validateCurrentInstruction(executionId, instructionSequence, FinP2P.InstructionType.TRANSFER,
+        _validateCurrentInstruction(executionId, instructionSequence,
+            FinP2P.InstructionType.TRANSFER, FinP2P.InstructionExecutor.THIS_CONTRACT,
             source, destination, assetId, assetType, quantity);
         _transfer(source.toAddress(), destination.toAddress(), assetId, quantity);
         _completeCurrentInstruction(executionId);
@@ -192,7 +194,8 @@ contract FINP2POperatorERC20 is AccessControl {
         string calldata quantity
     ) external {
         require(hasRole(TRANSACTION_MANAGER, _msgSender()), "FINP2POperatorERC20: must have transaction manager role to release asset");
-        _validateCurrentInstruction(executionId, instructionSequence, FinP2P.InstructionType.REDEEM,
+        _validateCurrentInstruction(executionId, instructionSequence,
+            FinP2P.InstructionType.REDEEM, FinP2P.InstructionExecutor.THIS_CONTRACT,
             source, "", assetId, assetType, quantity);
 
         _burn(source.toAddress(), assetId, quantity);
@@ -211,7 +214,8 @@ contract FINP2POperatorERC20 is AccessControl {
         string memory operationId
     ) external {
         require(hasRole(TRANSACTION_MANAGER, _msgSender()), "FINP2POperatorERC20: must have transaction manager role to transfer asset");
-        _validateCurrentInstruction(executionId, instructionSequence, FinP2P.InstructionType.HOLD,
+        _validateCurrentInstruction(executionId, instructionSequence,
+            FinP2P.InstructionType.HOLD, FinP2P.InstructionExecutor.THIS_CONTRACT,
             source, destination, assetId, assetType, quantity);
 
         _transfer(source.toAddress(), _getEscrow(), assetId, quantity);
@@ -231,7 +235,8 @@ contract FINP2POperatorERC20 is AccessControl {
         string memory operationId
     ) external {
         require(hasRole(TRANSACTION_MANAGER, _msgSender()), "FINP2POperatorERC20: must have transaction manager role to release asset");
-        _validateCurrentInstruction(executionId, instructionSequence, FinP2P.InstructionType.RELEASE,
+        _validateCurrentInstruction(executionId, instructionSequence,
+            FinP2P.InstructionType.RELEASE, FinP2P.InstructionExecutor.THIS_CONTRACT,
             source, destination, assetId, assetType, quantity);
 
         require(_haveContract(operationId), "Contract does not exists");
@@ -257,7 +262,8 @@ contract FINP2POperatorERC20 is AccessControl {
         string memory operationId
     ) external {
         require(hasRole(TRANSACTION_MANAGER, _msgSender()), "FINP2POperatorERC20: must have transaction manager role to release asset");
-        _validateCurrentInstruction(executionId, instructionSequence, FinP2P.InstructionType.RELEASE,
+        _validateCurrentInstruction(executionId, instructionSequence,
+            FinP2P.InstructionType.RELEASE, FinP2P.InstructionExecutor.THIS_CONTRACT,
             source, destination, assetId, assetType, quantity);
 
         require(_haveContract(operationId), "Contract does not exists");
@@ -293,7 +299,6 @@ contract FINP2POperatorERC20 is AccessControl {
         return FinP2P.LockInfo(l.assetId, l.assetType, l.source, l.destination, l.amount);
     }
 
-
     function provideInstructionProof(
         string calldata executionId,
         uint8 instructionSequence,
@@ -309,11 +314,10 @@ contract FINP2POperatorERC20 is AccessControl {
     ) external {
         require(hasRole(TRANSACTION_MANAGER, _msgSender()), "FINP2POperatorERC20: must have transaction manager role to transfer asset");
         require(executions[executionId].status == FinP2P.ExecutionStatus.VERIFIED, "Execution is not in VERIFIED status");
-        _validateCurrentInstruction(executionId, instructionSequence, instructionType,
+        _validateCurrentInstruction(executionId, instructionSequence,
+            instructionType, FinP2P.InstructionExecutor.OTHER_CONTRACT,
             source, destination, assetId, assetType, quantity);
-        string memory signerFinId;
-        // TODO: detect signerFinId
-        signerFinId = "";
+        string memory signerFinId = _getCurrentInstructionProofSigner(executionId);
         require(verifier.verifyReceiptProofSignature(
             domain,
             id,
@@ -346,6 +350,7 @@ contract FINP2POperatorERC20 is AccessControl {
         string memory executionId,
         uint8 instructionSequence,
         FinP2P.InstructionType instructionType,
+        FinP2P.InstructionExecutor instructionExecutor,
         string memory source,
         string memory destination,
         string memory assetId,
@@ -358,12 +363,21 @@ contract FINP2POperatorERC20 is AccessControl {
         FinP2P.Instruction memory instruction = executions[executionId].instructions[currentInstruction - 1];
         require(instruction.sequence == instructionSequence, "Invalid instruction sequence");
         require(instruction.instructionType == instructionType, "Instruction type does not match");
+        require(instruction.executor == instructionExecutor, "Instruction type does not match");
         require(instruction.status == FinP2P.InstructionStatus.PENDING, "Instruction is not in PENDING status");
         require(instruction.assetId.equals(assetId), "Asset id does not match");
         require(instruction.assetType == assetType, "Asset type does not match");
         require(instruction.amount.equals(quantity), "Quantity does not match");
         require(instruction.source.equals(source), "Source does not match");
         require(instruction.destination.equals(destination), "Destination does not match");
+    }
+
+    function _getCurrentInstructionProofSigner(string memory executionId) internal view returns (string memory) {
+        require(_haveExecution(executionId), "Execution not found");
+        uint8 currentInstruction = executions[executionId].currentInstruction;
+        FinP2P.Instruction memory instruction = executions[executionId].instructions[currentInstruction - 1];
+        require(instruction.executor == FinP2P.InstructionExecutor.OTHER_CONTRACT, "Proof signer only for OTHER_CONTRACT executor");
+        return instruction.proofSigner;
     }
 
     function _completeCurrentInstruction(string memory id) internal {
