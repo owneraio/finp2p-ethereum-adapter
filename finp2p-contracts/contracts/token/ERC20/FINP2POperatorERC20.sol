@@ -131,8 +131,10 @@ contract FINP2POperatorERC20 is AccessControl {
     ) external {
         require(hasRole(TRANSACTION_MANAGER, _msgSender()), "FINP2POperatorERC20: must have transaction manager role to transfer asset");
         require(executions[id].status == FinP2P.ExecutionStatus.CREATED, "Execution is not in CREATED status");
+
         string memory signerFinId;
-        sellerFinId = buyerFinId;
+        // TODO: detect signerFinId
+        signerFinId = buyerFinId;
         require(verifier.verifyInvestmentSignature(
             executions[id].primaryType,
             domain,
@@ -148,166 +150,124 @@ contract FINP2POperatorERC20 is AccessControl {
         executions[id].status = FinP2P.ExecutionStatus.VERIFIED;
     }
 
-    /// @notice Issue asset to the issuer
-    /// @param issuerFinId The FinID of the issuer
-    /// @param assetTerm The asset term to issue
     function issue(
-        string memory executionId,
+        string calldata executionId,
         uint8 instructionSequence,
-        string calldata issuerFinId,
-        FinP2P.Term calldata assetTerm
+        string calldata destination,
+        string calldata assetId,
+        FinP2P.AssetType assetType,
+        string calldata quantity
     ) external {
         require(hasRole(TRANSACTION_MANAGER, _msgSender()), "FINP2POperatorERC20: must have transaction manager role to issue asset");
-        FinP2P.Instruction memory instruction = _getCurrentInstruction(executionId);
-        require(instruction.sequence == instructionSequence, "Invalid instruction sequence");
-        require(instruction.instructionType == FinP2P.InstructionType.ISSUE, "Instruction is not ISSUE");
-        require(instruction.status == FinP2P.InstructionStatus.PENDING, "Instruction is not in PENDING status");
-        require(instruction.assetId.equals(assetTerm.assetId), "Asset id does not match");
-        require(instruction.assetType == assetTerm.assetType, "Asset type does not match");
-        require(instruction.amount.equals(assetTerm.amount), "Amount does not match");
-        require(instruction.destination.equals(issuerFinId), "Destination does not match");
-
-        _mint(issuerFinId.toAddress(), assetTerm.assetId, assetTerm.amount);
+        _validateCurrentInstruction(executionId, instructionSequence, FinP2P.InstructionType.ISSUE,
+            "", destination, assetId, assetType, quantity);
+        _mint(destination.toAddress(), assetId, quantity);
         _completeCurrentInstruction(executionId);
-        emit FinP2P.Issue(assetTerm.assetId, assetTerm.assetType, issuerFinId, assetTerm.amount);
+        emit FinP2P.Issue(assetId, assetType, destination, quantity);
     }
 
-    /// @notice Transfer asset from seller to buyer
-    /// @param nonce The investor signature nonce
-    /// @param sellerFinId The FinID of the seller
-    /// @param buyerFinId The FinID of the buyer
-    /// @param assetTerm The asset term to transfer
-    /// @param settlementTerm The settlement term to transfer
-    /// @param loanTerm The loan term to transfer, could be empty
-    /// @param op The operation parameters
-    /// @param signature The investor signature
     function transfer(
-        string memory nonce,
-        string memory sellerFinId,
-        string memory buyerFinId,
-        FinP2P.Term memory assetTerm,
-        FinP2P.Term memory settlementTerm,
-        FinP2P.LoanTerm memory loanTerm,
-        FinP2P.OperationParams memory op,
-        bytes memory signature
+        string calldata executionId,
+        uint8 instructionSequence,
+        string calldata source,
+        string calldata destination,
+        string calldata assetId,
+        FinP2P.AssetType assetType,
+        string calldata quantity
     ) external {
         require(hasRole(TRANSACTION_MANAGER, _msgSender()), "FINP2POperatorERC20: must have transaction manager role to transfer asset");
-        (string memory source,
-            string memory destination,
-            string memory assetId,
-            FinP2P.AssetType assetType,
-            string memory amount) = FinP2P.extractDetails(sellerFinId, buyerFinId, assetTerm, settlementTerm, op);
-//        require(verifier.verifyInvestmentSignature(
-//            op,
-//            nonce,
-//            buyerFinId,
-//            sellerFinId,
-//            assetTerm,
-//            settlementTerm,
-//            loanTerm,
-//            source,
-//            signature
-//        ), "Signature is not verified");
-        _transfer(source.toAddress(), destination.toAddress(), assetId, amount);
-        emit FinP2P.Transfer(assetId, assetType, source, destination, amount);
+        _validateCurrentInstruction(executionId, instructionSequence, FinP2P.InstructionType.TRANSFER,
+            source, destination, assetId, assetType, quantity);
+        _transfer(source.toAddress(), destination.toAddress(), assetId, quantity);
+        _completeCurrentInstruction(executionId);
+        emit FinP2P.Transfer(assetId, assetType, source, destination, quantity);
     }
 
-    /// @notice Redeem asset from the owner
-    /// @param ownerFinId The FinID of the owner
-    /// @param term The term to redeem
     function redeem(
-        string calldata ownerFinId,
-        FinP2P.Term calldata term
-    ) external {
-        require(hasRole(TRANSACTION_MANAGER, _msgSender()), "FINP2POperatorERC20: must have transaction manager role to release asset");
-        _burn(ownerFinId.toAddress(), term.assetId, term.amount);
-        emit FinP2P.Redeem(term.assetId, term.assetType, ownerFinId, term.amount, '');
-    }
-
-    /// @notice Hold asset in escrow
-    /// @param nonce The investor signature nonce
-    /// @param sellerFinId The FinID of the seller
-    /// @param buyerFinId The FinID of the buyer
-    /// @param assetTerm The asset term to hold
-    /// @param settlementTerm The settlement term to hold
-    /// @param loanTerm The loan term to hold, could be empty
-    /// @param op The operation parameters
-    /// @param signature The investor signature
-    function hold(
-        string memory nonce,
-        string memory sellerFinId,
-        string memory buyerFinId,
-        FinP2P.Term memory assetTerm,
-        FinP2P.Term memory settlementTerm,
-        FinP2P.LoanTerm memory loanTerm,
-        FinP2P.OperationParams memory op,
-        bytes memory signature
-    ) external {
-        require(hasRole(TRANSACTION_MANAGER, _msgSender()), "FINP2POperatorERC20: must have transaction manager role to hold asset");
-        (string memory source,
-            string memory destination,
-            string memory assetId, FinP2P.AssetType assetType,
-            string memory amount) = FinP2P.extractDetails(sellerFinId, buyerFinId, assetTerm, settlementTerm, op);
-//        require(verifier.verifyInvestmentSignature(
-//            op,
-//            nonce,
-//            buyerFinId,
-//            sellerFinId,
-//            assetTerm,
-//            settlementTerm,
-//            loanTerm,
-//            source,
-//            signature
-//        ), "Signature is not verified");
-
-        _transfer(source.toAddress(), _getEscrow(), assetId, amount);
-        if (op.releaseType == FinP2P.ReleaseType.RELEASE) {
-            locks[op.operationId] = FinP2P.Lock(assetId, assetType, source, destination, amount);
-        } else if (op.releaseType == FinP2P.ReleaseType.REDEEM) {
-            locks[op.operationId] = FinP2P.Lock(assetId, assetType, source, '', amount);
-        } else {
-            revert("Invalid release type");
-        }
-        emit FinP2P.Hold(assetId, assetType, source, amount, op.operationId);
-    }
-
-    /// @notice Release asset from escrow to the destination
-    /// @param operationId The operation id, a connection between hold and release
-    /// @param toFinId The FinID of the destination
-    /// @param quantity The quantity to release
-    function releaseTo(
-        string calldata operationId,
-        string calldata toFinId,
+        string calldata executionId,
+        uint8 instructionSequence,
+        string calldata source,
+        string calldata assetId,
+        FinP2P.AssetType assetType,
         string calldata quantity
     ) external {
         require(hasRole(TRANSACTION_MANAGER, _msgSender()), "FINP2POperatorERC20: must have transaction manager role to release asset");
+        _validateCurrentInstruction(executionId, instructionSequence, FinP2P.InstructionType.REDEEM,
+            source, "", assetId, assetType, quantity);
+
+        _burn(source.toAddress(), assetId, quantity);
+        _completeCurrentInstruction(executionId);
+        emit FinP2P.Redeem(assetId, assetType, source, quantity, '');
+    }
+
+    function hold(
+        string memory executionId,
+        uint8 instructionSequence,
+        string memory source,
+        string memory destination,
+        string memory assetId,
+        FinP2P.AssetType assetType,
+        string memory quantity,
+        string memory operationId
+    ) external {
+        require(hasRole(TRANSACTION_MANAGER, _msgSender()), "FINP2POperatorERC20: must have transaction manager role to transfer asset");
+        _validateCurrentInstruction(executionId, instructionSequence, FinP2P.InstructionType.HOLD,
+            source, destination, assetId, assetType, quantity);
+
+        _transfer(source.toAddress(), _getEscrow(), assetId, quantity);
+        locks[operationId] = FinP2P.Lock(assetId, assetType, source, destination, quantity);
+        _completeCurrentInstruction(executionId);
+        emit FinP2P.Hold(assetId, assetType, source, quantity, operationId);
+    }
+
+    function releaseTo(
+        string memory executionId,
+        uint8 instructionSequence,
+        string memory source,
+        string memory destination,
+        string memory assetId,
+        FinP2P.AssetType assetType,
+        string memory quantity,
+        string memory operationId
+    ) external {
+        require(hasRole(TRANSACTION_MANAGER, _msgSender()), "FINP2POperatorERC20: must have transaction manager role to release asset");
+        _validateCurrentInstruction(executionId, instructionSequence, FinP2P.InstructionType.RELEASE,
+            source, destination, assetId, assetType, quantity);
+
         require(_haveContract(operationId), "Contract does not exists");
         FinP2P.Lock storage lock = locks[operationId];
         require(lock.amount.equals(quantity), "Trying to release amount different from the one held");
-        require(lock.destination.equals(toFinId), "Trying to release to different destination than the one expected in the lock");
+        require(lock.destination.equals(destination), "Trying to release to different destination than the one expected in the lock");
 
-        _transfer(_getEscrow(), toFinId.toAddress(), lock.assetId, lock.amount);
+        _transfer(_getEscrow(), destination.toAddress(), lock.assetId, lock.amount);
+        _completeCurrentInstruction(executionId);
+
         emit FinP2P.Release(lock.assetId, lock.assetType, lock.source, lock.destination, quantity, operationId);
         delete locks[operationId];
     }
 
-    /// @notice Release asset from escrow and redeem it
-    /// @param operationId The operation id, a connection between hold and release
-    /// @param ownerFinId The FinID of the owner
-    /// @param quantity The quantity to redeem
     function releaseAndRedeem(
-        string calldata operationId,
-        string calldata ownerFinId,
-        string calldata quantity
+        string memory executionId,
+        uint8 instructionSequence,
+        string memory source,
+        string memory destination,
+        string memory assetId,
+        FinP2P.AssetType assetType,
+        string memory quantity,
+        string memory operationId
     ) external {
         require(hasRole(TRANSACTION_MANAGER, _msgSender()), "FINP2POperatorERC20: must have transaction manager role to release asset");
+        _validateCurrentInstruction(executionId, instructionSequence, FinP2P.InstructionType.RELEASE,
+            source, destination, assetId, assetType, quantity);
+
         require(_haveContract(operationId), "Contract does not exists");
         FinP2P.Lock storage lock = locks[operationId];
-        require(lock.source.equals(ownerFinId), "Trying to redeem asset with owner different from the one who held it");
+        require(lock.source.equals(source), "Trying to redeem asset with owner different from the one who held it");
         require(bytes(lock.destination).length == 0, "Trying to redeem asset with non-empty destination");
         require(lock.amount.equals(quantity), "Trying to redeem amount different from the one held");
         _burn(_getEscrow(), lock.assetId, lock.amount);
-        emit FinP2P.Redeem(lock.assetId, lock.assetType, ownerFinId, quantity, operationId);
+        _completeCurrentInstruction(executionId);
+        emit FinP2P.Redeem(lock.assetId, lock.assetType, source, quantity, operationId);
         delete locks[operationId];
     }
 
@@ -333,6 +293,41 @@ contract FINP2POperatorERC20 is AccessControl {
         return FinP2P.LockInfo(l.assetId, l.assetType, l.source, l.destination, l.amount);
     }
 
+
+    function provideInstructionProof(
+        string calldata executionId,
+        uint8 instructionSequence,
+        FinP2P.Domain memory domain,
+        string memory id,
+        FinP2P.InstructionType instructionType,
+        string memory source,
+        string memory destination,
+        string memory assetId,
+        FinP2P.AssetType assetType,
+        string memory quantity,
+        bytes memory signature
+    ) external {
+        require(hasRole(TRANSACTION_MANAGER, _msgSender()), "FINP2POperatorERC20: must have transaction manager role to transfer asset");
+        require(executions[executionId].status == FinP2P.ExecutionStatus.VERIFIED, "Execution is not in VERIFIED status");
+        _validateCurrentInstruction(executionId, instructionSequence, instructionType,
+            source, destination, assetId, assetType, quantity);
+        string memory signerFinId;
+        // TODO: detect signerFinId
+        signerFinId = "";
+        require(verifier.verifyReceiptProofSignature(
+            domain,
+            id,
+            source,
+            destination,
+            assetType,
+            assetId,
+            quantity,
+            signerFinId,
+            signature
+        ), "Signature is not verified");
+        _completeCurrentInstruction(executionId);
+    }
+
     // ------------------------------------------------------------------------------------------
 
     function _haveAsset(string memory assetId) internal view returns (bool exists) {
@@ -347,11 +342,28 @@ contract FINP2POperatorERC20 is AccessControl {
         exists = (bytes(executions[id].id).length > 0);
     }
 
-    function _getCurrentInstruction(string memory id) internal view returns (FinP2P.Instruction memory) {
-        require(_haveExecution(id), "Execution not found");
-        require(executions[id].status == FinP2P.ExecutionStatus.VERIFIED, "Execution is not in VERIFIED status");
-        uint8 currentInstruction = executions[id].currentInstruction;
-        return executions[id].instructions[currentInstruction - 1];
+    function _validateCurrentInstruction(
+        string memory executionId,
+        uint8 instructionSequence,
+        FinP2P.InstructionType instructionType,
+        string memory source,
+        string memory destination,
+        string memory assetId,
+        FinP2P.AssetType assetType,
+        string memory quantity
+    ) internal view {
+        require(_haveExecution(executionId), "Execution not found");
+        require(executions[executionId].status == FinP2P.ExecutionStatus.VERIFIED, "Execution is not in VERIFIED status");
+        uint8 currentInstruction = executions[executionId].currentInstruction;
+        FinP2P.Instruction memory instruction = executions[executionId].instructions[currentInstruction - 1];
+        require(instruction.sequence == instructionSequence, "Invalid instruction sequence");
+        require(instruction.instructionType == instructionType, "Instruction type does not match");
+        require(instruction.status == FinP2P.InstructionStatus.PENDING, "Instruction is not in PENDING status");
+        require(instruction.assetId.equals(assetId), "Asset id does not match");
+        require(instruction.assetType == assetType, "Asset type does not match");
+        require(instruction.amount.equals(quantity), "Quantity does not match");
+        require(instruction.source.equals(source), "Source does not match");
+        require(instruction.destination.equals(destination), "Destination does not match");
     }
 
     function _completeCurrentInstruction(string memory id) internal {
