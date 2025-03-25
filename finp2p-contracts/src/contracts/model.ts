@@ -85,6 +85,10 @@ export const enum InstructionExecutor {
   OTHER_CONTRACT = 1
 }
 
+export const exCtx = (planId: string, sequence: number) => {
+  return { planId, sequence };
+}
+
 export const term = (assetId: string, assetType: AssetType, amount: string): Term => {
   return { assetId, assetType, amount };
 };

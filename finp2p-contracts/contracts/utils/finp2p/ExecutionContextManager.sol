@@ -11,10 +11,14 @@ contract ExecutionContextManager is FinP2PSignatureVerifier {
 
     mapping(string => FinP2P.ExecutionPlan) private executions;
 
-    function createExecutionContext(string memory id) external {
+    function createExecutionPlan(string memory id) external {
         executions[id].id = id;
         executions[id].status = FinP2P.ExecutionStatus.CREATED;
         executions[id].currentInstruction = 1;
+    }
+
+    function getExecutionPlan(string memory id) external view returns (FinP2P.ExecutionPlan memory) {
+        return executions[id];
     }
 
     function addInstructionToExecution(
@@ -51,7 +55,6 @@ contract ExecutionContextManager is FinP2PSignatureVerifier {
         FinP2P.LoanTerm memory loan,
         bytes memory signature
     ) external {
-//        require(hasRole(TRANSACTION_MANAGER, _msgSender()), "FINP2POperatorERC20: must have transaction manager role to transfer asset");
         require(executions[executionContext.planId].status == FinP2P.ExecutionStatus.CREATED, "Execution is not in CREATED status");
         FinP2P.Instruction memory instruction = executions[executionContext.planId].instructions[executionContext.sequence - 1];
         require(instruction.executor == FinP2P.InstructionExecutor.THIS_CONTRACT, "Instruction executor is not THIS_CONTRACT");
@@ -122,29 +125,30 @@ contract ExecutionContextManager is FinP2PSignatureVerifier {
         require(instruction.destination.equals(destination), "Destination does not match");
     }
 
+    function completeCurrentInstruction(string memory planId) public {
+        require(_haveExecution(planId), "Execution not found");
+        uint8 currentInstruction = executions[planId].currentInstruction;
+        executions[planId].instructions[currentInstruction - 1].status = FinP2P.InstructionStatus.EXECUTED;
+        if (_isExecutionCompleted(planId)) {
+            executions[planId].status = FinP2P.ExecutionStatus.EXECUTED;
+        } else {
+//            uint currentIdx = currentInstruction - 1;
+//            for (uint i = currentIdx + 1; i < executions[planId].instructions.length; i++) {
+//                if (executions[planId].instructions[i].sequence > 0) {
+//                    executions[planId].currentInstruction = uint8(i);
+//                    break;
+//                }
+//            }
+            executions[planId].currentInstruction = currentInstruction + 1;
+        }
+    }
+
     function _getCurrentInstructionProofSigner(string memory executionId) internal view returns (string memory) {
         require(_haveExecution(executionId), "Execution not found");
         uint8 currentInstruction = executions[executionId].currentInstruction;
         FinP2P.Instruction memory instruction = executions[executionId].instructions[currentInstruction - 1];
         require(instruction.executor == FinP2P.InstructionExecutor.OTHER_CONTRACT, "Proof signer only for OTHER_CONTRACT executor");
         return instruction.proofSigner;
-    }
-
-    function completeCurrentInstruction(string memory id) public {
-        require(_haveExecution(id), "Execution not found");
-        uint8 currentInstruction = executions[id].currentInstruction;
-        executions[id].instructions[currentInstruction - 1].status = FinP2P.InstructionStatus.EXECUTED;
-        if (_isExecutionCompleted(id)) {
-            executions[id].status = FinP2P.ExecutionStatus.EXECUTED;
-        } else {
-            uint currentIdx = currentInstruction - 1;
-            for (uint i = currentIdx + 1; i < executions[id].instructions.length; i++) {
-                if (executions[id].instructions[i].sequence > 0) {
-                    executions[id].currentInstruction = uint8(i);
-                    break;
-                }
-            }
-        }
     }
 
     function _isExecutionVerified(string memory id) internal view returns (bool) {

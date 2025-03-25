@@ -111,6 +111,28 @@ contract FINP2POperatorERC20 is AccessControl {
         string calldata destination,
         string calldata assetId,
         FinP2P.AssetType assetType,
+        string calldata quantity
+    ) external onlyRole(TRANSACTION_MANAGER) {
+        _mint(destination.toAddress(), assetId, quantity);
+        emit FinP2P.Issue(assetId, assetType, destination, quantity);
+    }
+
+
+    function redeem(
+        string calldata source,
+        string calldata assetId,
+        FinP2P.AssetType assetType,
+        string calldata quantity
+    ) external onlyRole(TRANSACTION_MANAGER) {
+        _burn(source.toAddress(), assetId, quantity);
+        emit FinP2P.Redeem(assetId, assetType, source, quantity, '');
+    }
+
+
+    function issueWithContext(
+        string calldata destination,
+        string calldata assetId,
+        FinP2P.AssetType assetType,
         string calldata quantity,
         FinP2P.ExecutionContext memory executionContext
     ) external onlyRole(TRANSACTION_MANAGER) {
@@ -122,7 +144,7 @@ contract FINP2POperatorERC20 is AccessControl {
         emit FinP2P.Issue(assetId, assetType, destination, quantity);
     }
 
-    function transfer(
+    function transferWithContext(
         string calldata source,
         string calldata destination,
         string calldata assetId,
@@ -138,7 +160,7 @@ contract FINP2POperatorERC20 is AccessControl {
         emit FinP2P.Transfer(assetId, assetType, source, destination, quantity);
     }
 
-    function redeem(
+    function redeemWithContext(
         string calldata source,
         string calldata assetId,
         FinP2P.AssetType assetType,
@@ -154,14 +176,14 @@ contract FINP2POperatorERC20 is AccessControl {
         emit FinP2P.Redeem(assetId, assetType, source, quantity, '');
     }
 
-    function hold(
+    function holdWithContext(
         string memory source,
         string memory destination,
         string memory assetId,
         FinP2P.AssetType assetType,
         string memory quantity,
         string memory operationId,
-        FinP2P.ExecutionContext memory executionContext
+        FinP2P.ExecutionContext calldata executionContext
     ) external onlyRole(TRANSACTION_MANAGER) {
         executionContextManager.validateCurrentInstruction(executionContext,
             FinP2P.OperationType.HOLD, FinP2P.InstructionExecutor.THIS_CONTRACT,
@@ -173,7 +195,7 @@ contract FINP2POperatorERC20 is AccessControl {
         emit FinP2P.Hold(assetId, assetType, source, quantity, operationId);
     }
 
-    function releaseTo(
+    function releaseToWithContext(
         string memory source,
         string memory destination,
         string memory assetId,
@@ -198,7 +220,7 @@ contract FINP2POperatorERC20 is AccessControl {
         delete locks[operationId];
     }
 
-    function releaseAndRedeem(
+    function releaseAndRedeemWithContext(
         string memory source,
         string memory destination,
         string memory assetId,

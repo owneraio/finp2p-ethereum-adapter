@@ -7,23 +7,17 @@ import { generateNonce, toFixedDecimals } from "./utils";
 import { getFinId } from "../src/contracts/utils";
 import { Signer, Wallet } from "ethers";
 import {
-  EIP712LoanTerms,
   emptyLoanTerms,
-  LegType,
-  loanTerms,
   newInvestmentMessage,
   PrimaryType,
   sign
 } from "../src/contracts/eip712";
-import type { ExecutionContextManager, FINP2POperatorERC20, FinP2PSignatureVerifier } from "../typechain-types";
+import type { ExecutionContextManager, FINP2POperatorERC20 } from "../typechain-types";
 import {
-  AssetType,
-  emptyTerm, InstructionExecutor,
-  operationParams, OperationType,
-  Phase,
-  ReleaseType,
+  AssetType, exCtx,
+  InstructionExecutor,
+  OperationType,
   term,
-  Term,
   termToEIP712
 } from "../src/contracts/model";
 
@@ -64,7 +58,7 @@ describe("FinP2P proxy contract test", function() {
 
     let operator: Signer;
     let exCtxManager: ExecutionContextManager;
-    let contract: FINP2POperatorERC20;
+    let finp2p: FINP2POperatorERC20;
     let finP2PAddress: string;
     let chainId: bigint;
     let verifyingContract: string;
@@ -73,7 +67,7 @@ describe("FinP2P proxy contract test", function() {
     before(async () => {
       [operator] = await ethers.getSigners();
       ({
-        finp2POperatorERC20: contract,
+        finp2POperatorERC20: finp2p,
         finp2POperatorERC20Address: finP2PAddress,
         exCtxManager
       } = await loadFixture(deployFinP2PProxyFixture));
@@ -81,52 +75,64 @@ describe("FinP2P proxy contract test", function() {
 
     });
 
-    it(`test`, async () => {
+    it(`Primary sale`, async () => {
       const decimals = 2;
       const domain = { chainId, verifyingContract };
       const primaryType = PrimaryType.PrimarySale;
 
       const asset = term(generateAssetId(), AssetType.FinP2P, "10");
       const settlement = term(generateAssetId(), AssetType.Fiat, "100");
-      const loan = emptyLoanTerms()
+      const loan = emptyLoanTerms();
 
       const assetERC20Address = await deployERC20(asset.assetId, asset.assetId, decimals, finP2PAddress);
-      await contract.associateAsset(asset.assetId, assetERC20Address, { from: operator });
+      await finp2p.associateAsset(asset.assetId, assetERC20Address, { from: operator });
       const settlementERC20Address = await deployERC20(settlement.assetId, settlement.assetId, decimals, finP2PAddress);
-      await contract.associateAsset(settlement.assetId, settlementERC20Address, { from: operator });
+      await finp2p.associateAsset(settlement.assetId, settlementERC20Address, { from: operator });
 
       const buyer = generateInvestor();
       const seller = generateInvestor();
 
       const planId = `${uuid()}`;
-      await exCtxManager.createExecutionContext(planId, { from: operator });
-      await exCtxManager.addInstructionToExecution({planId, sequence: 1}, OperationType.HOLD, settlement.assetId, settlement.assetType, buyer.finId, seller.finId, settlement.amount, InstructionExecutor.THIS_CONTRACT, "", { from: operator });
-      await exCtxManager.addInstructionToExecution({planId, sequence: 1}, OperationType.ISSUE, asset.assetId, asset.assetType, seller.finId, buyer.finId, asset.amount, InstructionExecutor.THIS_CONTRACT, "", { from: operator });
-      await exCtxManager.addInstructionToExecution({planId, sequence: 1}, OperationType.RELEASE, settlement.assetId, settlement.assetType, buyer.finId, seller.finId, settlement.amount, InstructionExecutor.THIS_CONTRACT, "", { from: operator });
+      await exCtxManager.createExecutionPlan(planId, { from: operator });
+      await exCtxManager.addInstructionToExecution(exCtx(planId, 1), OperationType.HOLD, settlement.assetId, settlement.assetType, buyer.finId, seller.finId, settlement.amount, InstructionExecutor.THIS_CONTRACT, "", { from: operator });
+      await exCtxManager.addInstructionToExecution(exCtx(planId, 2), OperationType.ISSUE, asset.assetId, asset.assetType, "", buyer.finId, asset.amount, InstructionExecutor.THIS_CONTRACT, "", { from: operator });
+      await exCtxManager.addInstructionToExecution(exCtx(planId, 3), OperationType.RELEASE, settlement.assetId, settlement.assetType, buyer.finId, seller.finId, settlement.amount, InstructionExecutor.THIS_CONTRACT, "", { from: operator });
 
       const nonce = `${generateNonce().toString("hex")}`;
-      const { types, message } = newInvestmentMessage(primaryType, nonce, buyer.finId, seller.finId, termToEIP712(asset), termToEIP712(settlement), loan);
+      const {
+        types,
+        message
+      } = newInvestmentMessage(primaryType, nonce, buyer.finId, seller.finId, termToEIP712(asset), termToEIP712(settlement), loan);
       const buyerSignature = await sign(chainId, verifyingContract, types, message, buyer.signer);
-      await exCtxManager.provideInvestorSignature({planId, sequence: 1}, domain, nonce, buyer.finId, seller.finId, asset, settlement, loan, buyerSignature, { from: operator });
+      await exCtxManager.provideInvestorSignature(exCtx(planId, 1), domain, nonce, buyer.finId, seller.finId, asset, settlement, loan, buyerSignature, { from: operator });
 
+      await expect(finp2p.issue(buyer.finId, settlement.assetId, settlement.assetType, settlement.amount, { from: operator }))
+        .to.emit(finp2p, "Issue").withArgs(settlement.assetId, settlement.assetType, buyer.finId, settlement.amount);
 
+      // ------------------------
 
-      // expect(await contract.getBalance(asset, from)).to.equal(`${(0).toFixed(decimals)}`);
-      // await expect(contract.issue(from, term(assetId, assetType, amount), { from: operator }))
-      //   .to.emit(contract, "Issue").withArgs(assetId, assetType, from, amount);
-      // expect(await contract.getBalance(assetId, from)).to.equal(toFixedDecimals(amount, decimals));
-      //
-      // await expect(contract.transfer(nonce, seller.finId, buyer.finId, asset, settlement, loan, operationParams({
-      //   chainId,
-      //   verifyingContract
-      // }, primaryType, leg, phase), signature, { from: operator }))
-      //   .to.emit(contract, "Transfer").withArgs(assetId, assetType, from, to, amount);
-      //
-      // expect(await contract.getBalance(assetId, from)).to.equal(`${(0).toFixed(decimals)}`);
-      // expect(await contract.getBalance(assetId, to)).to.equal(toFixedDecimals(amount, decimals));
-      //
-      // await contract.redeem(to, term(assetId, assetType, amount), { from: operator });
-      // expect(await contract.getBalance(assetId, to)).to.equal(`${(0).toFixed(decimals)}`);
+      const operationId = uuid();
+      expect(await finp2p.getBalance(settlement.assetId, buyer.finId)).to.equal(toFixedDecimals(settlement.amount, decimals));
+      expect(await finp2p.getBalance(settlement.assetId, seller.finId)).to.equal(`${(0).toFixed(decimals)}`);
+      await expect(finp2p.holdWithContext(buyer.finId, seller.finId, settlement.assetId, settlement.assetType, settlement.amount, operationId, exCtx(planId, 1), { from: operator }))
+        .to.emit(finp2p, "Hold").withArgs(settlement.assetId, settlement.assetType, buyer.finId, settlement.amount, operationId);
+      expect(await finp2p.getBalance(settlement.assetId, buyer.finId)).to.equal(`${(0).toFixed(decimals)}`);
+      expect(await finp2p.getBalance(settlement.assetId, seller.finId)).to.equal(`${(0).toFixed(decimals)}`);
+
+      // let exCtxDetails = await exCtxManager.getExecutionPlan(planId);
+      // console.log(exCtxDetails);
+
+      expect(await finp2p.getBalance(asset.assetId, buyer.finId)).to.equal(`${(0).toFixed(decimals)}`);
+      expect(await finp2p.getBalance(asset.assetId, seller.finId)).to.equal(`${(0).toFixed(decimals)}`);
+      await expect(finp2p.issueWithContext(buyer.finId, asset.assetId, asset.assetType, asset.amount, exCtx(planId, 2), { from: operator }))
+        .to.emit(finp2p, "Issue").withArgs(asset.assetId, asset.assetType, buyer.finId, asset.amount);
+      expect(await finp2p.getBalance(asset.assetId, buyer.finId)).to.equal(toFixedDecimals(asset.amount, decimals));
+      expect(await finp2p.getBalance(asset.assetId, seller.finId)).to.equal(`${(0).toFixed(decimals)}`);
+
+      await expect(finp2p.releaseToWithContext(buyer.finId, seller.finId, settlement.assetId, settlement.assetType, settlement.amount, operationId, exCtx(planId, 3), { from: operator }))
+        .to.emit(finp2p, "Release").withArgs(settlement.assetId, settlement.assetType, buyer.finId, seller.finId, settlement.amount, operationId);
+      expect(await finp2p.getBalance(settlement.assetId, buyer.finId)).to.equal(`${(0).toFixed(decimals)}`);
+      expect(await finp2p.getBalance(settlement.assetId, seller.finId)).to.equal(toFixedDecimals(settlement.amount, decimals));
 
     });
   });
