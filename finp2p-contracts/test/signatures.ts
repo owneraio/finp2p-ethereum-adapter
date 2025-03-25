@@ -210,12 +210,12 @@ describe("Signing test", function() {
     const assetId = `bank-us:102:${uuidv4()}`;
     const quantity = `${getRandomNumber(1, 100)}`;
     const executionPlanId = `some-bank:106:${uuidv4()}`;
-    const instructionSequenceNumber = "3";
+    const instructionSequenceNumber = 3;
     const operationId = uuidv4();
     const transactionId = uuidv4();
     const message = newReceiptMessage(id, operationTypeToEIP712(operationType),
       eip712Source("finId", sourceFinId), eip712Destination("finId", destinationFinId), eip712Asset(assetId, "finp2p"),
-      eip712TradeDetails(eip712ExecutionContext(executionPlanId, instructionSequenceNumber)),
+      eip712TradeDetails(eip712ExecutionContext(executionPlanId, `${instructionSequenceNumber}`)),
       eip712TransactionDetails(operationId, transactionId),
       quantity
     );
@@ -233,8 +233,8 @@ describe("Signing test", function() {
     const transactionDetails = { operationId, transactionId };
     const onChainHash = await verifier.hashReceipt(domain, id, operationType, source, destination, asset, tradeDetails, transactionDetails, quantity);
     expect(offChainHash).to.equal(onChainHash);
-    // expect(await verifier.verifyReceiptProofSignature(domain, id, operationType, source, destination, asset, tradeDetails, transactionDetails, quantity,
-    //   getFinId(signer), signature)).to.equal(true);
+    expect(await verifier.verifyReceiptProofSignature(domain, id, operationType, source, destination, asset, tradeDetails, transactionDetails, quantity,
+      getFinId(signer), signature)).to.equal(true);
   });
 
 

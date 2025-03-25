@@ -352,11 +352,11 @@ export const eip712ExecutionContext = (executionPlanId: string, instructionSeque
   return { executionPlanId, instructionSequenceNumber };
 };
 
-export interface EIP7127TradeDetails {
+export interface EIP712TradeDetails {
   executionContext: EIP712ExecutionContext;
 }
 
-export const eip712TradeDetails = (executionContext: EIP712ExecutionContext): EIP7127TradeDetails => {
+export const eip712TradeDetails = (executionContext: EIP712ExecutionContext): EIP712TradeDetails => {
   return { executionContext };
 };
 
@@ -377,7 +377,7 @@ export interface EIP712ReceiptMessage extends EIP712Message {
   destination: EIP712Destination,
   asset: EIP712Asset,
   quantity: string,
-  tradeDetails: EIP7127TradeDetails,
+  tradeDetails: EIP712TradeDetails,
   transactionDetails: EIP712TransactionDetails
 }
 
@@ -458,7 +458,7 @@ export const newLoanMessage = (nonce: string, borrower: EIP712FinId, lender: EIP
   return { nonce, borrower, lender, asset, settlement, loanTerms };
 };
 
-export const newReceiptMessage = (id: string, operationType: string, source: EIP712Source, destination: EIP712Destination, asset: EIP712Asset, tradeDetails: EIP7127TradeDetails, transactionDetails: EIP712TransactionDetails, quantity: string): EIP712ReceiptMessage => {
+export const newReceiptMessage = (id: string, operationType: string, source: EIP712Source, destination: EIP712Destination, asset: EIP712Asset, tradeDetails: EIP712TradeDetails, transactionDetails: EIP712TransactionDetails, quantity: string): EIP712ReceiptMessage => {
   return { id, operationType, source, destination, asset, tradeDetails, transactionDetails, quantity };
 };
 
