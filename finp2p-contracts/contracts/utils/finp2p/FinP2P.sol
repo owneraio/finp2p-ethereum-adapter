@@ -118,6 +118,11 @@ library FinP2P {
         OTHER_CONTRACT
     }
 
+    struct ExecutionContext {
+        string planId;
+        uint8 sequence;
+    }
+
     struct Instruction {
         uint8 sequence;
         OperationType operation;
@@ -131,7 +136,7 @@ library FinP2P {
         string proofSigner;
     }
 
-    struct ExecutionContext {
+    struct ExecutionPlan {
         string id;
         PrimaryType primaryType;
         ExecutionStatus status;
@@ -208,4 +213,10 @@ library FinP2P {
 /// @param operationId The operation id
     event Redeem(string assetId, FinP2P.AssetType assetType, string ownerFinId, string quantity, string operationId);
 
+    error NotAdmin();
+    error NotAssetManager();
+    error NotTransactionManager();
+    error ExecutionNotCreated();
+    error ExecutionNotVerified();
+    error InvalidInstructionSequence();
 }

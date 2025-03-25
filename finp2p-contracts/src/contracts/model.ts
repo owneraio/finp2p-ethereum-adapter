@@ -80,6 +80,11 @@ export const operationTypeToEIP712 = (operationType: OperationType): string => {
   }
 }
 
+export const enum InstructionExecutor {
+  THIS_CONTRACT = 0,
+  OTHER_CONTRACT = 1
+}
+
 export const term = (assetId: string, assetType: AssetType, amount: string): Term => {
   return { assetId, assetType, amount };
 };
