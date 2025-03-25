@@ -98,16 +98,16 @@ describe("FinP2P proxy contract test", function() {
       const buyer = generateInvestor();
       const seller = generateInvestor();
 
-      const executionId = `${uuid()}`;
-      await exCtxManager.createExecutionContext(executionId, { from: operator });
-      await exCtxManager.addInstructionToExecution(executionId, 1, OperationType.HOLD, settlement.assetId, settlement.assetType, buyer.finId, seller.finId, settlement.amount, InstructionExecutor.THIS_CONTRACT, "", { from: operator });
-      await exCtxManager.addInstructionToExecution(executionId, 2, OperationType.ISSUE, asset.assetId, asset.assetType, seller.finId, buyer.finId, asset.amount, InstructionExecutor.THIS_CONTRACT, "", { from: operator });
-      await exCtxManager.addInstructionToExecution(executionId, 3, OperationType.RELEASE, settlement.assetId, settlement.assetType, buyer.finId, seller.finId, settlement.amount, InstructionExecutor.THIS_CONTRACT, "", { from: operator });
+      const planId = `${uuid()}`;
+      await exCtxManager.createExecutionContext(planId, { from: operator });
+      await exCtxManager.addInstructionToExecution({planId, sequence: 1}, OperationType.HOLD, settlement.assetId, settlement.assetType, buyer.finId, seller.finId, settlement.amount, InstructionExecutor.THIS_CONTRACT, "", { from: operator });
+      await exCtxManager.addInstructionToExecution({planId, sequence: 1}, OperationType.ISSUE, asset.assetId, asset.assetType, seller.finId, buyer.finId, asset.amount, InstructionExecutor.THIS_CONTRACT, "", { from: operator });
+      await exCtxManager.addInstructionToExecution({planId, sequence: 1}, OperationType.RELEASE, settlement.assetId, settlement.assetType, buyer.finId, seller.finId, settlement.amount, InstructionExecutor.THIS_CONTRACT, "", { from: operator });
 
       const nonce = `${generateNonce().toString("hex")}`;
       const { types, message } = newInvestmentMessage(primaryType, nonce, buyer.finId, seller.finId, termToEIP712(asset), termToEIP712(settlement), loan);
       const buyerSignature = await sign(chainId, verifyingContract, types, message, buyer.signer);
-      await exCtxManager.provideInvestorSignature(executionId, 1, domain, nonce, buyer.finId, seller.finId, asset, settlement, loan, buyerSignature, { from: operator });
+      await exCtxManager.provideInvestorSignature({planId, sequence: 1}, domain, nonce, buyer.finId, seller.finId, asset, settlement, loan, buyerSignature, { from: operator });
 
 
 
