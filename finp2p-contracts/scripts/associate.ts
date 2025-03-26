@@ -13,7 +13,7 @@ const associateAsset = async (providerType: ProviderType, deployerPrivateKey: st
   }
   logger.info(`Granting asset manager and transaction manager roles finP2P contract ${finp2pContractAddress}`);
   const { provider, signer } = await createProviderAndSigner(providerType, logger);
-  const manager = new FinP2PContract(provider, signer, finp2pContractAddress, logger);
+  const manager = await FinP2PContract.create(provider, signer, finp2pContractAddress, logger);
   await manager.associateAsset(assetId, erc20Address);
   logger.info("Asset associated successfully");
 };

@@ -14,7 +14,7 @@ const erc20Approve = async (providerType: ProviderType, finp2pContractAddress: s
   const network = await provider.getNetwork();
   logger.info("Network name: ", network.name);
   logger.info("Network chainId: ", network.chainId);
-  const finp2p = new FinP2PContract(provider, signer, finp2pContractAddress, logger);
+  const finp2p = await FinP2PContract.create(provider, signer, finp2pContractAddress, logger);
   const tokenAddress = await finp2p.getAssetAddress(assetId);
   logger.info(`ERC20 token associated with ${assetId} is: ${tokenAddress}`);
 

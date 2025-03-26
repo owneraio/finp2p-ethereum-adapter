@@ -1,17 +1,19 @@
 import { ContractFactory, Provider, Signer } from "ethers";
+import EXECUTION_CONTEXT_MANAGER
+  from "../../artifacts/contracts/utils/finp2p/ExecutionContextManager.sol/ExecutionContextManager.json";
 import FINP2P from "../../artifacts/contracts/token/ERC20/FINP2POperatorERC20.sol/FINP2POperatorERC20.json";
-import { FINP2POperatorERC20 } from "../../typechain-types";
+import { ExecutionContextManager, FINP2POperatorERC20 } from "../../typechain-types";
 import {
   assetTypeFromNumber,
   completedOperation,
   failedOperation,
-  FinP2PReceipt, LockInfo, OperationParams,
+  FinP2PReceipt, LockInfo,
   OperationStatus,
-  pendingOperation, Term
+  pendingOperation, ExecutionContext, AssetType, InstructionType, InstructionExecutor, Domain
 } from "./model";
 import { parseTransactionReceipt } from "./utils";
 import { ContractsManager } from "./manager";
-import { EIP712Domain, EIP712LoanTerms } from "./eip712";
+import { EIP712Domain, EIP712LoanTerms, EIP712Term } from "./eip712";
 import winston from "winston";
 import { FINP2POperatorERC20Interface } from "../../typechain-types/contracts/token/ERC20/FINP2POperatorERC20";
 import { PayableOverrides } from "../../typechain-types/common";
@@ -23,23 +25,33 @@ export class FinP2PContract extends ContractsManager {
 
   contractInterface: FINP2POperatorERC20Interface;
 
+  executionManager: ExecutionContextManager;
   finP2P: FINP2POperatorERC20;
 
   finP2PContractAddress: string;
 
-  constructor(provider: Provider, signer: Signer, finP2PContractAddress: string, logger: winston.Logger) {
+  static async create(provider: Provider, signer: Signer, finP2PContractAddress: string, logger: winston.Logger) {
+    const exCtxManagerAddress =''; // TODO: get exCtxManagerAddress from finP2PContract
+    return new FinP2PContract(provider, signer, exCtxManagerAddress, finP2PContractAddress, logger);
+  }
+
+  constructor(provider: Provider, signer: Signer, exCtxManagerAddress: string, finP2PContractAddress: string, logger: winston.Logger) {
     super(provider, signer, logger);
-    const factory = new ContractFactory<any[], FINP2POperatorERC20>(
+    const executionManagerFactory = new ContractFactory<any[], ExecutionContextManager>(
+      EXECUTION_CONTEXT_MANAGER.abi, EXECUTION_CONTEXT_MANAGER.bytecode, this.signer
+    );
+    this.executionManager = executionManagerFactory.attach(exCtxManagerAddress) as ExecutionContextManager;
+    const finp2pFactory = new ContractFactory<any[], FINP2POperatorERC20>(
       FINP2P.abi, FINP2P.bytecode, this.signer
     );
-    const contract = factory.attach(finP2PContractAddress);
-    this.contractInterface = contract.interface as FINP2POperatorERC20Interface;
-    this.finP2P = contract as FINP2POperatorERC20;
+    const finP2PContract = finp2pFactory.attach(finP2PContractAddress);
+    this.contractInterface = finP2PContract.interface as FINP2POperatorERC20Interface;
+    this.finP2P = finP2PContract as FINP2POperatorERC20;
     this.finP2PContractAddress = finP2PContractAddress;
   }
 
   async eip712Domain(): Promise<EIP712Domain> {
-    const domain = await this.finP2P.eip712Domain();
+    const domain = await this.executionManager.eip712Domain();
     if (domain === null) {
       throw new Error("Failed to get EIP712 domain");
     }
@@ -57,48 +69,84 @@ export class FinP2PContract extends ContractsManager {
     return this.finP2P.getAssetAddress(assetId);
   }
 
+  async createExecutionPlan(planId: string) {
+    return this.safeExecuteTransaction(this.executionManager, async (executionManager: ExecutionContextManager, txParams: PayableOverrides) => {
+      return executionManager.createExecutionPlan(planId, txParams);
+    });
+  }
+
+  async addInstructionToExecution(exCtx: ExecutionContext, instructionType: InstructionType, assetId: string, assetType: AssetType,
+                                  source: string, destination: string, amount: string, instructionExecutor: InstructionExecutor, proofSigner: string) {
+    return this.safeExecuteTransaction(this.executionManager, async (executionManager: ExecutionContextManager, txParams: PayableOverrides) => {
+      return executionManager.addInstructionToExecution(exCtx, instructionType, assetId, assetType,
+        source, destination, amount, instructionExecutor, proofSigner, txParams);
+    });
+  }
+
+  async provideInvestorSignature(exCtx: ExecutionContext, domain: Domain, nonce: string, buyer: string, seller: string,
+                                 asset: EIP712Term, settlement: EIP712Term, loan: EIP712LoanTerms, signature: string) {
+    return this.safeExecuteTransaction(this.executionManager, async (executionManager: ExecutionContextManager, txParams: PayableOverrides) => {
+      return executionManager.provideInvestorSignature(exCtx, domain, nonce, buyer, seller, asset, settlement, loan, signature, txParams);
+    });
+  }
+
   async associateAsset(assetId: string, tokenAddress: string) {
     return this.safeExecuteTransaction(this.finP2P, async (finP2P: FINP2POperatorERC20, txParams: PayableOverrides) => {
       return finP2P.associateAsset(assetId, tokenAddress, txParams);
     });
   }
 
-  async issue(issuerFinId: string, asset: Term) {
+  async issue(issuerFinId: string, assetId: string, assetType: AssetType, amount: string) {
     return this.safeExecuteTransaction(this.finP2P, async (finP2P: FINP2POperatorERC20, txParams: PayableOverrides) => {
-      return finP2P.issue(issuerFinId, asset, txParams);
+      return finP2P.issue(issuerFinId, assetId, assetType, amount, txParams);
     });
   }
 
-  async transfer(nonce: string, sellerFinId: string, buyerFinId: string,
-                 asset: Term, settlement: Term, loan: EIP712LoanTerms, params: OperationParams, signature: string) {
+  async redeem(ownerFinId: string, assetId: string, assetType: AssetType, amount: string) {
     return this.safeExecuteTransaction(this.finP2P, async (finP2P: FINP2POperatorERC20, txParams: PayableOverrides) => {
-      return finP2P.transfer(
-        nonce, sellerFinId, buyerFinId, asset, settlement, loan, params, `0x${signature}`, txParams);
+      return finP2P.redeem(ownerFinId, assetId, assetType, amount, txParams);
     });
   }
 
-  async redeem(ownerFinId: string, asset: Term) {
+  async issueWithContext(issuerFinId: string, assetId: string, assetType: AssetType, amount: string, exCtx: ExecutionContext) {
     return this.safeExecuteTransaction(this.finP2P, async (finP2P: FINP2POperatorERC20, txParams: PayableOverrides) => {
-      return finP2P.redeem(ownerFinId, asset, txParams);
+      return finP2P.issueWithContext(issuerFinId, assetId, assetType, amount, exCtx, txParams);
     });
   }
 
-  async hold(nonce: string, sellerFinId: string, buyerFinId: string,
-             asset: Term, settlement: Term, loan: EIP712LoanTerms, params: OperationParams, signature: string) {
+  async transferWithContext(source: string, destination: string, assetId: string, assetType: AssetType,
+                            amount: string, exCtx: ExecutionContext) {
     return this.safeExecuteTransaction(this.finP2P, async (finP2P: FINP2POperatorERC20, txParams: PayableOverrides) => {
-      return finP2P.hold(nonce, sellerFinId, buyerFinId, asset, settlement, loan, params, `0x${signature}`, txParams);
+      return finP2P.transferWithContext(
+        source, destination, assetId, assetType, amount, exCtx, txParams);
     });
   }
 
-  async releaseTo(operationId: string, buyerFinId: string, quantity: string) {
+  async redeemWithContext(owner: string, assetId: string, assetType: AssetType,
+                          amount: string, exCtx: ExecutionContext) {
     return this.safeExecuteTransaction(this.finP2P, async (finP2P: FINP2POperatorERC20, txParams: PayableOverrides) => {
-      return finP2P.releaseTo(operationId, buyerFinId, quantity, txParams);
+      return finP2P.redeemWithContext(owner, assetId, assetType, amount, exCtx, txParams);
     });
   }
 
-  async releaseAndRedeem(operationId: string, ownerFinId: string, quantity: string) {
+  async holdWithContext(source: string, destination: string, assetId: string, assetType: AssetType,
+                        amount: string, operationId: string, exCtx: ExecutionContext) {
     return this.safeExecuteTransaction(this.finP2P, async (finP2P: FINP2POperatorERC20, txParams: PayableOverrides) => {
-      return finP2P.releaseAndRedeem(operationId, ownerFinId, quantity, txParams);
+      return finP2P.holdWithContext(source, destination, assetId, assetType, amount, operationId, exCtx, txParams);
+    });
+  }
+
+  async releaseToWithContext(source: string, destination: string, assetId: string, assetType: AssetType,
+                             amount: string, operationId: string, exCtx: ExecutionContext) {
+    return this.safeExecuteTransaction(this.finP2P, async (finP2P: FINP2POperatorERC20, txParams: PayableOverrides) => {
+      return finP2P.releaseToWithContext(source, destination, assetId, assetType, amount, operationId, exCtx, txParams);
+    });
+  }
+
+  async releaseAndRedeemWithContext(source: string, assetId: string, assetType: AssetType,
+                                    amount: string, operationId: string, exCtx: ExecutionContext) {
+    return this.safeExecuteTransaction(this.finP2P, async (finP2P: FINP2POperatorERC20, txParams: PayableOverrides) => {
+      return finP2P.releaseAndRedeemWithContext(source, assetId, assetType, amount, operationId, exCtx, txParams);
     });
   }
 

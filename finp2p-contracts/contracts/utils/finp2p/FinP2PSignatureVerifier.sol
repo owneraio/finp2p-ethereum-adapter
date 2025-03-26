@@ -145,7 +145,7 @@ contract FinP2PSignatureVerifier is EIP712 {
     function verifyReceiptProofSignature(
         FinP2P.Domain memory domain,
         string memory id,
-        FinP2P.OperationType operationType,
+        FinP2P.InstructionType operationType,
         FinP2P.ReceiptSource memory source,
         FinP2P.ReceiptDestination memory destination,
         FinP2P.ReceiptAsset memory asset,
@@ -257,7 +257,7 @@ contract FinP2PSignatureVerifier is EIP712 {
     function hashReceipt(
         FinP2P.Domain memory domain,
         string memory id,
-        FinP2P.OperationType operationType,
+        FinP2P.InstructionType operationType,
         FinP2P.ReceiptSource memory source,
         FinP2P.ReceiptDestination memory destination,
         FinP2P.ReceiptAsset memory asset,
@@ -369,16 +369,16 @@ contract FinP2PSignatureVerifier is EIP712 {
         ));
     }
 
-    function hashOperationType(FinP2P.OperationType op) public pure returns (bytes32) {
-        if (op == FinP2P.OperationType.ISSUE) {
+    function hashOperationType(FinP2P.InstructionType op) public pure returns (bytes32) {
+        if (op == FinP2P.InstructionType.ISSUE) {
             return OPERATION_ISSUE_HASH;
-        } else if (op == FinP2P.OperationType.TRANSFER) {
+        } else if (op == FinP2P.InstructionType.TRANSFER) {
             return OPERATION_TRANSFER_HASH;
-        } else if (op == FinP2P.OperationType.REDEEM) {
+        } else if (op == FinP2P.InstructionType.REDEEM) {
             return OPERATION_REDEEM_HASH;
-        } else if (op == FinP2P.OperationType.HOLD) {
+        } else if (op == FinP2P.InstructionType.HOLD) {
             return OPERATION_HOLD_HASH;
-        } else if (op == FinP2P.OperationType.RELEASE) {
+        } else if (op == FinP2P.InstructionType.RELEASE) {
             return OPERATION_RELEASE_HASH;
         } else {
             revert("Invalid operation type");

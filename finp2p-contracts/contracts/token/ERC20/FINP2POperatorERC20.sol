@@ -65,6 +65,10 @@ contract FINP2POperatorERC20 is AccessControl {
         escrowWalletAddress = _escrowWalletAddress;
     }
 
+    function getExecutionContextManager() external returns (address) {
+        return address(executionContextManager);
+    }
+
     /// @notice Associate an asset with a token address
     /// @param assetId The asset id
     /// @param tokenAddress The token address
@@ -137,7 +141,7 @@ contract FINP2POperatorERC20 is AccessControl {
         FinP2P.ExecutionContext memory executionContext
     ) external onlyRole(TRANSACTION_MANAGER) {
         executionContextManager.validateCurrentInstruction(executionContext,
-            FinP2P.OperationType.ISSUE, FinP2P.InstructionExecutor.THIS_CONTRACT,
+            FinP2P.InstructionType.ISSUE, FinP2P.InstructionExecutor.THIS_CONTRACT,
             "", destination, assetId, assetType, quantity);
         _mint(destination.toAddress(), assetId, quantity);
         executionContextManager.completeCurrentInstruction(executionContext.planId);
@@ -153,7 +157,7 @@ contract FINP2POperatorERC20 is AccessControl {
         FinP2P.ExecutionContext memory executionContext
     ) external onlyRole(TRANSACTION_MANAGER) {
         executionContextManager.validateCurrentInstruction(executionContext,
-            FinP2P.OperationType.TRANSFER, FinP2P.InstructionExecutor.THIS_CONTRACT,
+            FinP2P.InstructionType.TRANSFER, FinP2P.InstructionExecutor.THIS_CONTRACT,
             source, destination, assetId, assetType, quantity);
         _transfer(source.toAddress(), destination.toAddress(), assetId, quantity);
         executionContextManager.completeCurrentInstruction(executionContext.planId);
@@ -168,7 +172,7 @@ contract FINP2POperatorERC20 is AccessControl {
         FinP2P.ExecutionContext memory executionContext
     ) external onlyRole(TRANSACTION_MANAGER) {
         executionContextManager.validateCurrentInstruction(executionContext,
-            FinP2P.OperationType.REDEEM, FinP2P.InstructionExecutor.THIS_CONTRACT,
+            FinP2P.InstructionType.REDEEM, FinP2P.InstructionExecutor.THIS_CONTRACT,
             source, "", assetId, assetType, quantity);
 
         _burn(source.toAddress(), assetId, quantity);
@@ -186,7 +190,7 @@ contract FINP2POperatorERC20 is AccessControl {
         FinP2P.ExecutionContext calldata executionContext
     ) external onlyRole(TRANSACTION_MANAGER) {
         executionContextManager.validateCurrentInstruction(executionContext,
-            FinP2P.OperationType.HOLD, FinP2P.InstructionExecutor.THIS_CONTRACT,
+            FinP2P.InstructionType.HOLD, FinP2P.InstructionExecutor.THIS_CONTRACT,
             source, destination, assetId, assetType, quantity);
 
         _transfer(source.toAddress(), _getEscrow(), assetId, quantity);
@@ -205,7 +209,7 @@ contract FINP2POperatorERC20 is AccessControl {
         FinP2P.ExecutionContext memory executionContext
     ) external onlyRole(TRANSACTION_MANAGER) {
         executionContextManager.validateCurrentInstruction(executionContext,
-            FinP2P.OperationType.RELEASE, FinP2P.InstructionExecutor.THIS_CONTRACT,
+            FinP2P.InstructionType.RELEASE, FinP2P.InstructionExecutor.THIS_CONTRACT,
             source, destination, assetId, assetType, quantity);
 
         require(_haveContract(operationId), "Contract does not exists");
@@ -222,7 +226,6 @@ contract FINP2POperatorERC20 is AccessControl {
 
     function releaseAndRedeemWithContext(
         string memory source,
-        string memory destination,
         string memory assetId,
         FinP2P.AssetType assetType,
         string memory quantity,
@@ -230,8 +233,8 @@ contract FINP2POperatorERC20 is AccessControl {
         FinP2P.ExecutionContext memory executionContext
     ) external onlyRole(TRANSACTION_MANAGER) {
         executionContextManager.validateCurrentInstruction(executionContext,
-            FinP2P.OperationType.RELEASE, FinP2P.InstructionExecutor.THIS_CONTRACT,
-            source, destination, assetId, assetType, quantity);
+            FinP2P.InstructionType.RELEASE, FinP2P.InstructionExecutor.THIS_CONTRACT,
+            source, "", assetId, assetType, quantity);
 
         require(_haveContract(operationId), "Contract does not exists");
         FinP2P.Lock storage lock = locks[operationId];

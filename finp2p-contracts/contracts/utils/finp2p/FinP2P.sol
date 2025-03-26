@@ -91,16 +91,17 @@ library FinP2P {
         FAILED
     }
 
-    enum OperationType {
+    enum InstructionType {
         ISSUE,
         TRANSFER,
         HOLD,
         RELEASE,
-        REDEEM
+        REDEEM,
+        AWAIT
     }
 
-    function requireInvestorSignature(OperationType op) internal pure returns (bool) {
-        if (op == OperationType.TRANSFER || op == OperationType.HOLD) {
+    function requireInvestorSignature(InstructionType op) internal pure returns (bool) {
+        if (op == InstructionType.TRANSFER || op == InstructionType.HOLD) {
             return true;
         }
         return false;
@@ -125,7 +126,7 @@ library FinP2P {
 
     struct Instruction {
         uint8 sequence;
-        OperationType operation;
+        InstructionType instructionType;
         string assetId;
         FinP2P.AssetType assetType;
         string source;
@@ -137,11 +138,20 @@ library FinP2P {
     }
 
     struct ExecutionPlan {
+        address creator;
         string id;
         PrimaryType primaryType;
         ExecutionStatus status;
         uint8 currentInstruction;
         Instruction[] instructions;
+    }
+
+    enum ReceiptOperationType {
+        ISSUE,
+        TRANSFER,
+        HOLD,
+        RELEASE,
+        REDEEM
     }
 
     struct ReceiptSource {
@@ -171,6 +181,10 @@ library FinP2P {
     struct ReceiptTransactionDetails {
         string operationId;
         string transactionId;
+    }
+
+    function toInstructionType(ReceiptOperationType op) public pure returns (InstructionType) {
+        return InstructionType(uint8(op)); // Safe conversion since InstructionType has the same values
     }
 
 /// @notice Issue event

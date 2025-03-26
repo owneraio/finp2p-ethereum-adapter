@@ -26,7 +26,7 @@ import {
 } from "../src/contracts/eip712";
 import {
   AssetType,
-  OperationType, operationTypeToEIP712,
+  ReceiptOperationType, receiptOperationTypeToEIP712,
   term,
   Term,
   termToEIP712
@@ -200,7 +200,7 @@ describe("Signing test", function() {
   it("Receipt proof signature", async function() {
     const { chainId, verifyingContract } = await verifier.eip712Domain();
     const id = uuidv4();
-    const operationType = OperationType.ISSUE;
+    const operationType = ReceiptOperationType.ISSUE;
     const signer = Wallet.createRandom();
     const signerAddress = await signer.getAddress();
     const sourceWallet = Wallet.createRandom();
@@ -213,7 +213,7 @@ describe("Signing test", function() {
     const instructionSequenceNumber = 3;
     const operationId = uuidv4();
     const transactionId = uuidv4();
-    const message = newReceiptMessage(id, operationTypeToEIP712(operationType),
+    const message = newReceiptMessage(id, receiptOperationTypeToEIP712(operationType),
       eip712Source("finId", sourceFinId), eip712Destination("finId", destinationFinId), eip712Asset(assetId, "finp2p"),
       eip712TradeDetails(eip712ExecutionContext(executionPlanId, `${instructionSequenceNumber}`)),
       eip712TransactionDetails(operationId, transactionId),

@@ -79,10 +79,10 @@ export class ContractsManager {
       await this.preCreatePaymentAsset(factory, address, paymentAssetCode, DefaultDecimalsCurrencies);
     }
 
-    if (extraDomain) {
-      const { chainId, verifyingContract } = extraDomain;
-      await this.addAllowedDomain(address, chainId, verifyingContract);
-    }
+    // if (extraDomain) {
+    //   const { chainId, verifyingContract } = extraDomain;
+    //   await this.addAllowedDomain(address, chainId, verifyingContract);
+    // }
     return address;
   }
 
@@ -141,17 +141,17 @@ export class ContractsManager {
     await this.waitForCompletion(txHash);
   }
 
-  async addAllowedDomain(finP2PContractAddress: string, chainId: number | bigint, verifyingContract: string) {
-    this.logger.info(`Adding allowed domain for chainId ${chainId} and verifying contract ${verifyingContract}...`);
-    const factory = new ContractFactory<any[], FINP2POperatorERC20>(
-      FINP2P.abi, FINP2P.bytecode, this.signer
-    );
-    const contract = factory.attach(finP2PContractAddress) as FINP2POperatorERC20;
-    const txHash = await this.safeExecuteTransaction(contract, async (finP2P: FINP2POperatorERC20, txParams: PayableOverrides) => {
-      return finP2P.addAllowedDomain(chainId, verifyingContract, txParams);
-    });
-    await this.waitForCompletion(txHash);
-  }
+  // async addAllowedDomain(finP2PContractAddress: string, chainId: number | bigint, verifyingContract: string) {
+  //   this.logger.info(`Adding allowed domain for chainId ${chainId} and verifying contract ${verifyingContract}...`);
+  //   const factory = new ContractFactory<any[], FINP2POperatorERC20>(
+  //     FINP2P.abi, FINP2P.bytecode, this.signer
+  //   );
+  //   const contract = factory.attach(finP2PContractAddress) as FINP2POperatorERC20;
+  //   const txHash = await this.safeExecuteTransaction(contract, async (finP2P: FINP2POperatorERC20, txParams: PayableOverrides) => {
+  //     return finP2P.addAllowedDomain(chainId, verifyingContract, txParams);
+  //   });
+  //   await this.waitForCompletion(txHash);
+  // }
 
   async signEIP712(chainId: bigint | number, verifyingContract: string, types: Record<string, Array<TypedDataField>>, message: Record<string, any>): Promise<{
     hash: string,

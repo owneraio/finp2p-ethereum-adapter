@@ -1,17 +1,20 @@
 // SPDX-License-Identifier: Apache-2.0
 
 pragma solidity ^0.8.20;
+
 import "./FinP2PSignatureVerifier.sol";
 import {FinP2P} from "./FinP2P.sol";
 
 contract ExecutionContextManager is FinP2PSignatureVerifier {
 
-    using FinP2P for FinP2P.OperationType;
+    using FinP2P for FinP2P.InstructionType;
+    using FinP2P for FinP2P.ReceiptOperationType;
     using StringUtils for string;
 
     mapping(string => FinP2P.ExecutionPlan) private executions;
 
     function createExecutionPlan(string memory id) external {
+        executions[id].creator = msg.sender;
         executions[id].id = id;
         executions[id].status = FinP2P.ExecutionStatus.CREATED;
         executions[id].currentInstruction = 1;
@@ -23,7 +26,7 @@ contract ExecutionContextManager is FinP2PSignatureVerifier {
 
     function addInstructionToExecution(
         FinP2P.ExecutionContext memory executionContext,
-        FinP2P.OperationType operation,
+        FinP2P.InstructionType operation,
         string memory assetId,
         FinP2P.AssetType assetType,
         string memory source,
@@ -33,6 +36,7 @@ contract ExecutionContextManager is FinP2PSignatureVerifier {
         string memory proofSigner
     ) external {
         require(executions[executionContext.planId].status == FinP2P.ExecutionStatus.CREATED, "Execution is not in CREATED status");
+        require(executions[executionContext.planId].creator == msg.sender, "Only creator can add instructions");
         FinP2P.InstructionStatus status;
         if (executor == FinP2P.InstructionExecutor.THIS_CONTRACT && operation.requireInvestorSignature()) {
             status = FinP2P.InstructionStatus.REQUIRE_INVESTOR_SIGNATURE;
@@ -56,6 +60,7 @@ contract ExecutionContextManager is FinP2PSignatureVerifier {
         bytes memory signature
     ) external {
         require(executions[executionContext.planId].status == FinP2P.ExecutionStatus.CREATED, "Execution is not in CREATED status");
+        require(executions[executionContext.planId].creator == msg.sender, "Only creator can provide investor signature");
         FinP2P.Instruction memory instruction = executions[executionContext.planId].instructions[executionContext.sequence - 1];
         require(instruction.executor == FinP2P.InstructionExecutor.THIS_CONTRACT, "Instruction executor is not THIS_CONTRACT");
         string memory signerFinId = instruction.source;
@@ -80,7 +85,7 @@ contract ExecutionContextManager is FinP2PSignatureVerifier {
     function provideInstructionProof(
         FinP2P.Domain memory domain,
         string memory id,
-        FinP2P.OperationType operation,
+        FinP2P.ReceiptOperationType operation,
         FinP2P.ReceiptSource memory source,
         FinP2P.ReceiptDestination memory destination,
         FinP2P.ReceiptAsset memory asset,
@@ -88,13 +93,14 @@ contract ExecutionContextManager is FinP2PSignatureVerifier {
         FinP2P.ReceiptTransactionDetails memory transactionDetails,
         string memory quantity,
         bytes memory signature
-    ) external  {
+    ) external {
         require(executions[tradeDetails.executionContext.executionPlanId].status == FinP2P.ExecutionStatus.VERIFIED, "Execution is not in VERIFIED status");
+        require(executions[tradeDetails.executionContext.executionPlanId].creator == msg.sender, "Only creator can provide instruction proof");
         validateCurrentInstruction(FinP2P.ExecutionContext(tradeDetails.executionContext.executionPlanId, tradeDetails.executionContext.instructionSequenceNumber),
-            operation, FinP2P.InstructionExecutor.OTHER_CONTRACT,
+            operation.toInstructionType(), FinP2P.InstructionExecutor.OTHER_CONTRACT,
             source.finId, destination.finId, asset.assetId, asset.assetType, quantity);
         string memory signerFinId = _getCurrentInstructionProofSigner(tradeDetails.executionContext.executionPlanId);
-        require(verifyReceiptProofSignature(domain, id, operation, source, destination,
+        require(verifyReceiptProofSignature(domain, id, operation.toInstructionType(), source, destination,
             asset, tradeDetails, transactionDetails, quantity, signerFinId, signature
         ), "Signature is not verified");
         completeCurrentInstruction(tradeDetails.executionContext.executionPlanId);
@@ -102,7 +108,7 @@ contract ExecutionContextManager is FinP2PSignatureVerifier {
 
     function validateCurrentInstruction(
         FinP2P.ExecutionContext memory executionContext,
-        FinP2P.OperationType operation,
+        FinP2P.InstructionType instructionType,
         FinP2P.InstructionExecutor instructionExecutor,
         string memory source,
         string memory destination,
@@ -115,7 +121,7 @@ contract ExecutionContextManager is FinP2PSignatureVerifier {
         uint8 currentInstruction = executions[executionContext.planId].currentInstruction;
         FinP2P.Instruction memory instruction = executions[executionContext.planId].instructions[currentInstruction - 1];
         require(instruction.sequence == executionContext.sequence, "Invalid instruction sequence");
-        require(instruction.operation == operation, "Operation does not match");
+        require(instruction.instructionType == instructionType, "Operation does not match");
         require(instruction.executor == instructionExecutor, "Instruction type does not match");
         require(instruction.status == FinP2P.InstructionStatus.PENDING, "Instruction is not in PENDING status");
         require(instruction.assetId.equals(assetId), "Asset id does not match");
@@ -132,13 +138,13 @@ contract ExecutionContextManager is FinP2PSignatureVerifier {
         if (_isExecutionCompleted(planId)) {
             executions[planId].status = FinP2P.ExecutionStatus.EXECUTED;
         } else {
-//            uint currentIdx = currentInstruction - 1;
-//            for (uint i = currentIdx + 1; i < executions[planId].instructions.length; i++) {
-//                if (executions[planId].instructions[i].sequence > 0) {
+            uint currentIdx = currentInstruction - 1;
+            for (uint idx = currentIdx + 1; idx < executions[planId].instructions.length; idx++) {
+                if (executions[planId].instructions[idx].instructionType == FinP2P.InstructionType.AWAIT) {
 //                    executions[planId].currentInstruction = uint8(i);
-//                    break;
-//                }
-//            }
+                    break;
+                }
+            }
             executions[planId].currentInstruction = currentInstruction + 1;
         }
     }
@@ -154,7 +160,7 @@ contract ExecutionContextManager is FinP2PSignatureVerifier {
     function _isExecutionVerified(string memory id) internal view returns (bool) {
         for (uint i = 0; i < executions[id].instructions.length; i++) {
             if (executions[id].instructions[i].executor == FinP2P.InstructionExecutor.THIS_CONTRACT &&
-            executions[id].instructions[i].operation.requireInvestorSignature() &&
+            executions[id].instructions[i].instructionType.requireInvestorSignature() &&
                 executions[id].instructions[i].status == FinP2P.InstructionStatus.REQUIRE_INVESTOR_SIGNATURE) {
                 return false;
             }
