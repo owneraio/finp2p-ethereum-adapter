@@ -1,3 +1,11 @@
+import {
+  AssetType, Domain,
+  ExecutionContext,
+  InstructionExecutor,
+  InstructionType
+} from "../../finp2p-contracts/src/contracts/model";
+import { EIP712LoanTerms, EIP712Term } from "../../finp2p-contracts/src/contracts/eip712";
+
 export type OssAsset = {
   id: string,
   name: string,
@@ -51,7 +59,7 @@ export type OssOwner = {
       expiry: number
     }[]
   }
-  holdings:  {
+  holdings: {
     nodes: {
       assetType: string,
       asset: { resourceId: string },
@@ -76,50 +84,75 @@ export type ProofDomain = {
 }
 
 export type Proof = {
-  type: 'NoProofPolicy'
+  type: "NoProofPolicy"
 } | {
-  type: 'SignatureProofPolicy',
+  type: "SignatureProofPolicy",
   verifyingKey: string,
   signatureTemplate: string,
 }
 
 export type ProofPolicy = {
-  type: 'NoProofPolicy'
+  type: "NoProofPolicy"
 } | {
-  type: 'SignatureProofPolicy',
+  type: "SignatureProofPolicy",
   verifyingKey: string,
   signatureTemplate: string,
   domain: ProofDomain | null
 }
 
 export const parseProofDomain = (jsonString: string): ProofDomain | null => {
-    const rawObject: unknown = JSON.parse(jsonString);
+  const rawObject: unknown = JSON.parse(jsonString);
 
-    if (typeof rawObject !== "object" || rawObject === null) {
-      return null
-    }
+  if (typeof rawObject !== "object" || rawObject === null) {
+    return null;
+  }
 
-    const obj: Record<string, unknown> = {};
+  const obj: Record<string, unknown> = {};
 
-    for (const key in rawObject) {
-      if (Object.prototype.hasOwnProperty.call(rawObject, key)) {
-        obj[key.toLowerCase()] = (rawObject as any)[key];
-      }
+  for (const key in rawObject) {
+    if (Object.prototype.hasOwnProperty.call(rawObject, key)) {
+      obj[key.toLowerCase()] = (rawObject as any)[key];
     }
+  }
 
-    const verifyingContract = obj["verifyingcontract"] as string;
-    let chainId: number
-    const chainIdVal = obj["chainid"];
-    if (!verifyingContract || !chainIdVal) {
-      return null;
-    }
-    if (typeof chainIdVal !== "number") {
-      chainId = parseInt(chainIdVal as string);
-    } else {
-      chainId = chainIdVal;
-    }
-    return {
-      chainId,
-      verifyingContract,
-    };
+  const verifyingContract = obj["verifyingcontract"] as string;
+  let chainId: number;
+  const chainIdVal = obj["chainid"];
+  if (!verifyingContract || !chainIdVal) {
+    return null;
+  }
+  if (typeof chainIdVal !== "number") {
+    chainId = parseInt(chainIdVal as string);
+  } else {
+    chainId = chainIdVal;
+  }
+  return {
+    chainId,
+    verifyingContract
+  };
+};
+
+
+export type Instruction = {
+  exCtx: ExecutionContext,
+  instructionType: InstructionType,
+  assetId: string,
+  assetType: AssetType,
+  source: string,
+  destination: string,
+  amount: string,
+  instructionExecutor: InstructionExecutor,
+  proofSigner: string
+  signature?: InvestorSignature
+}
+
+export type InvestorSignature = {
+  domain: Domain,
+  nonce: string,
+  buyer: string,
+  seller: string,
+  asset: EIP712Term,
+  settlement: EIP712Term,
+  loan: EIP712LoanTerms,
+  signature: string
 }

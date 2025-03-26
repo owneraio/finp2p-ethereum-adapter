@@ -1,5 +1,6 @@
-import Execution = FinAPIComponents.Schemas.Execution;
 import { FinAPIClient } from "./finapi/finapi.client";
+import { Instruction } from "./model";
+import { instructionFromAPI } from "./mapping";
 
 
 export class ExecutionPlanGetter {
@@ -9,7 +10,12 @@ export class ExecutionPlanGetter {
     this.finApiClient = finApiClient;
   }
 
-  async getExecutionPlan(id: string): Promise<Execution> {
-    return this.finApiClient.getExecutionPlan(id);
+  async getExecutionPlanInstructions(id: string): Promise<Instruction[]> {
+    const { plan: { instructions } } = await this.finApiClient.getExecutionPlan(id);
+    let result: Instruction[] = [];
+    for (let instruction of instructions) {
+      result.push(instructionFromAPI(id, instruction))
+    }
+    return result;
   }
 }
