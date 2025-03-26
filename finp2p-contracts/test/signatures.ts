@@ -11,7 +11,7 @@ import {
   eip712Destination,
   eip712ExecutionContext,
   EIP712LoanTerms,
-  eip712Source,
+  eip712Source, eip712Term,
   eip712TradeDetails,
   eip712TransactionDetails,
   emptyLoanTerms,
@@ -25,11 +25,8 @@ import {
   verify
 } from "../src/contracts/eip712";
 import {
-  AssetType,
-  ReceiptOperationType, receiptOperationTypeToEIP712,
-  term,
-  Term,
-  termToEIP712
+  AssetType, assetTypeToEIP712,
+  ReceiptOperationType, receiptOperationTypeToEIP712
 } from "../src/contracts/model";
 import type { FinP2PSignatureVerifier } from "../typechain-types";
 
@@ -54,8 +51,8 @@ describe("Signing test", function() {
     nonce: string,
     buyerFinId: string,
     sellerFinId: string,
-    asset: Term,
-    settlement: Term,
+    asset: { assetId: string, assetType: AssetType, amount: string },
+    settlement: { assetId: string, assetType: AssetType, amount: string },
     loan: EIP712LoanTerms,
     signer: HDNodeWallet
   }[] = [{
@@ -63,8 +60,8 @@ describe("Signing test", function() {
     nonce: `${generateNonce().toString("hex")}`,
     buyerFinId: getFinId(buyer),
     sellerFinId: getFinId(seller),
-    asset: term(`bank-us:102:${uuidv4()}`, AssetType.FinP2P, `${getRandomNumber(1, 100)}`),
-    settlement: term("USD", AssetType.Fiat, `${getRandomNumber(1, 100)}`),
+    asset: { assetId: `bank-us:102:${uuidv4()}`, assetType: AssetType.FinP2P, amount: `${getRandomNumber(1, 100)}` },
+    settlement: { assetId: "USD", assetType: AssetType.Fiat, amount: `${getRandomNumber(1, 100)}` },
     loan: emptyLoanTerms(),
     signer: seller
   }, {
@@ -72,8 +69,8 @@ describe("Signing test", function() {
     nonce: `${generateNonce().toString("hex")}`,
     buyerFinId: getFinId(buyer),
     sellerFinId: getFinId(seller),
-    asset: term(`bank-us:102:${uuidv4()}`, AssetType.FinP2P, `${getRandomNumber(1, 100)}`),
-    settlement: term("USD", AssetType.Fiat, `${getRandomNumber(1, 100)}`),
+    asset: { assetId: `bank-us:102:${uuidv4()}`, assetType: AssetType.FinP2P, amount: `${getRandomNumber(1, 100)}` },
+    settlement: { assetId: "USD", assetType: AssetType.Fiat, amount: `${getRandomNumber(1, 100)}` },
     loan: emptyLoanTerms(),
     signer: seller
   }, {
@@ -81,8 +78,8 @@ describe("Signing test", function() {
     nonce: `${generateNonce().toString("hex")}`,
     buyerFinId: getFinId(buyer),
     sellerFinId: getFinId(seller),
-    asset: term(`bank-us:102:${uuidv4()}`, AssetType.FinP2P, `${getRandomNumber(1, 100)}`),
-    settlement: term("USD", AssetType.Fiat, `${getRandomNumber(1, 100)}`),
+    asset: { assetId: `bank-us:102:${uuidv4()}`, assetType: AssetType.FinP2P, amount: `${getRandomNumber(1, 100)}` },
+    settlement: { assetId: "USD", assetType: AssetType.Fiat, amount: `${getRandomNumber(1, 100)}` },
     loan: emptyLoanTerms(),
     signer: seller
   }, {
@@ -90,8 +87,8 @@ describe("Signing test", function() {
     nonce: `${generateNonce().toString("hex")}`,
     buyerFinId: getFinId(buyer),
     sellerFinId: getFinId(seller),
-    asset: term(`bank-us:102:${uuidv4()}`, AssetType.FinP2P, `${getRandomNumber(1, 100)}`),
-    settlement: term("USD", AssetType.Fiat, `${getRandomNumber(1, 100)}`),
+    asset: { assetId: `bank-us:102:${uuidv4()}`, assetType: AssetType.FinP2P, amount: `${getRandomNumber(1, 100)}` },
+    settlement: { assetId: "USD", assetType: AssetType.Fiat, amount: `${getRandomNumber(1, 100)}` },
     loan: emptyLoanTerms(),
     signer: seller
   }, {
@@ -99,8 +96,8 @@ describe("Signing test", function() {
     nonce: `${generateNonce().toString("hex")}`,
     buyerFinId: getFinId(buyer),
     sellerFinId: getFinId(seller),
-    asset: term(`bank-us:102:${uuidv4()}`, AssetType.FinP2P, `${getRandomNumber(1, 100)}`),
-    settlement: term("USD", AssetType.Fiat, `${getRandomNumber(1, 100)}`),
+    asset: { assetId: `bank-us:102:${uuidv4()}`, assetType: AssetType.FinP2P, amount: `${getRandomNumber(1, 100)}` },
+    settlement: { assetId: "USD", assetType: AssetType.Fiat, amount: `${getRandomNumber(1, 100)}` },
     loan: emptyLoanTerms(),
     signer: seller
   }, {
@@ -108,8 +105,8 @@ describe("Signing test", function() {
     nonce: `${generateNonce().toString("hex")}`,
     buyerFinId: getFinId(buyer),
     sellerFinId: getFinId(seller),
-    asset: term(`bank-us:102:${uuidv4()}`, AssetType.FinP2P, `${getRandomNumber(1, 100)}`),
-    settlement: term("USD", AssetType.Fiat, `${getRandomNumber(1, 100)}`),
+    asset: { assetId: `bank-us:102:${uuidv4()}`, assetType: AssetType.FinP2P, amount: `${getRandomNumber(1, 100)}` },
+    settlement: { assetId: "USD", assetType: AssetType.Fiat, amount: `${getRandomNumber(1, 100)}` },
     loan: emptyLoanTerms(),
     signer: seller
   }, {
@@ -117,8 +114,8 @@ describe("Signing test", function() {
     nonce: `${generateNonce().toString("hex")}`,
     buyerFinId: getFinId(buyer),
     sellerFinId: getFinId(seller),
-    asset: term(`bank-us:102:${uuidv4()}`, AssetType.FinP2P, `${getRandomNumber(1, 100)}`),
-    settlement: term("USD", AssetType.Fiat, `${getRandomNumber(1, 100)}`),
+    asset: { assetId: `bank-us:102:${uuidv4()}`, assetType: AssetType.FinP2P, amount: `${getRandomNumber(1, 100)}` },
+    settlement: { assetId: "USD", assetType: AssetType.Fiat, amount: `${getRandomNumber(1, 100)}` },
     loan: loanTerms("2025-01-01", "2025-01-02", "1000000.00", "1000123.71"),
     signer: seller
   }];
@@ -135,7 +132,10 @@ describe("Signing test", function() {
       const {
         types,
         message
-      } = newInvestmentMessage(primaryType, nonce, buyerFinId, sellerFinId, termToEIP712(asset), termToEIP712(settlement), loan);
+      } = newInvestmentMessage(primaryType, nonce, buyerFinId, sellerFinId,
+        eip712Term(asset.assetId, assetTypeToEIP712(asset.assetType), asset.amount),
+        eip712Term(settlement.assetId, assetTypeToEIP712(settlement.assetType), settlement.amount),
+        loan);
       const signature = await sign(chainId, verifyingContract, types, message, signer);
       const offChainHash = hash(chainId, verifyingContract, types, message);
       expect(verify(chainId, verifyingContract, types, message, signerAddress, signature)).to.equal(true);
@@ -151,7 +151,9 @@ describe("Signing test", function() {
       const {
         types,
         message
-      } = newInvestmentMessage(primaryType, nonce, buyerFinId, sellerFinId, termToEIP712(asset), termToEIP712(settlement), loan);
+      } = newInvestmentMessage(primaryType, nonce, buyerFinId, sellerFinId,
+        eip712Term(asset.assetId, assetTypeToEIP712(asset.assetType), asset.amount),
+        eip712Term(settlement.assetId, assetTypeToEIP712(settlement.assetType), settlement.amount), loan);
       const signature = await sign(chainId, verifyingContract, types, message, signer);
 
       const fakeNonce = `${generateNonce().toString("hex")}`;
@@ -172,8 +174,8 @@ describe("Signing test", function() {
     const sellerFinId = "03da4a23d6385d7f591350f55d98176902580b8ed0412fe54de28a59d5fd5d1af7";
     // lender
     const buyerFinId = "02d34fde92bcd3baef081118e1e5fe9154ff47176a4118cc27b10f5347a56bec23";
-    const asset = term("bank-us:102:66fe5a05-ffc6-4754-8d46-68e8abd0e083", AssetType.FinP2P, "1");
-    const settlement = term("USD", AssetType.Fiat, "900");
+    const asset = { assetId: "bank-us:102:66fe5a05-ffc6-4754-8d46-68e8abd0e083", assetType: AssetType.FinP2P, amount: "1" };
+    const settlement = { assetId: "USD", assetType: AssetType.Fiat, amount: "900" };
     const loan = loanTerms("1741787256", "1741787271", "900", "900.25");
     const domain = {
       chainId,
@@ -183,7 +185,9 @@ describe("Signing test", function() {
     const {
       message,
       types
-    } = newInvestmentMessage(primaryType, nonce, buyerFinId, sellerFinId, termToEIP712(asset), termToEIP712(settlement), loan);
+    } = newInvestmentMessage(primaryType, nonce, buyerFinId, sellerFinId,
+      eip712Term(asset.assetId, assetTypeToEIP712(asset.assetType), asset.amount),
+      eip712Term(settlement.assetId, assetTypeToEIP712(settlement.assetType), settlement.amount), loan);
     const offChainHash = hash(chainId, verifyingContract, types, message);
     const onChainHash = await verifier.hashInvestment(primaryType, domain, nonce, buyerFinId, sellerFinId, asset, settlement, loan);
 

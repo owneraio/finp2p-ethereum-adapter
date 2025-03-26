@@ -37,7 +37,7 @@ export class CommonService {
 
   public async getReceipt(id: Paths.GetReceipt.Parameters.TransactionId): Promise<Paths.GetReceipt.Responses.$200> {
     try {
-      const receipt = await this.ledgerProof(await this.finP2PContract.getReceipt(id));
+      const receipt = await this.provideLedgerProofIfNeeded(await this.finP2PContract.getReceipt(id));
       return {
         isCompleted: true, response: receiptToAPI(receipt)
       } as Components.Schemas.ReceiptOperation;
@@ -56,7 +56,7 @@ export class CommonService {
     switch (status.status) {
       case "completed":
         let { receipt } = status;
-        const receiptResponse = receiptToAPI(await this.ledgerProof(receipt));
+        const receiptResponse = receiptToAPI(await this.provideLedgerProofIfNeeded(receipt));
         return {
           type: "receipt", operation: {
             isCompleted: true, response: receiptResponse
@@ -80,7 +80,7 @@ export class CommonService {
   }
 
 
-  private async ledgerProof(receipt: FinP2PReceipt): Promise<FinP2PReceipt> {
+  private async provideLedgerProofIfNeeded(receipt: FinP2PReceipt): Promise<FinP2PReceipt> {
     if (this.policyGetter === undefined) {
       return receipt;
     }

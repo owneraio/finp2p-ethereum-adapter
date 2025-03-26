@@ -192,7 +192,7 @@ library FinP2P {
 /// @param assetType The asset type
 /// @param issuerFinId The FinID of the issuer
 /// @param quantity The quantity issued
-    event Issue(string assetId, FinP2P.AssetType assetType, string issuerFinId, string quantity);
+    event Issue(string assetId, FinP2P.AssetType assetType, string issuerFinId, string quantity, ExecutionContext executionContext);
 
 /// @notice Transfer event
 /// @param assetId The asset id
@@ -200,7 +200,7 @@ library FinP2P {
 /// @param sourceFinId The FinID of the source
 /// @param destinationFinId The FinID of the destination
 /// @param quantity The quantity transferred
-    event Transfer(string assetId, FinP2P.AssetType assetType, string sourceFinId, string destinationFinId, string quantity);
+    event Transfer(string assetId, FinP2P.AssetType assetType, string sourceFinId, string destinationFinId, string quantity, ExecutionContext executionContext);
 
 /// @notice Hold event
 /// @param assetId The asset id
@@ -208,7 +208,7 @@ library FinP2P {
 /// @param finId The FinID of the holder
 /// @param quantity The quantity held
 /// @param operationId The operation id
-    event Hold(string assetId, FinP2P.AssetType assetType, string finId, string quantity, string operationId);
+    event Hold(string assetId, FinP2P.AssetType assetType, string finId, string quantity, string operationId, ExecutionContext executionContext);
 
 /// @notice Release event
 /// @param assetId The asset id
@@ -217,7 +217,7 @@ library FinP2P {
 /// @param destinationFinId The FinID of the destination
 /// @param quantity The quantity released
 /// @param operationId The operation id
-    event Release(string assetId, FinP2P.AssetType assetType, string sourceFinId, string destinationFinId, string quantity, string operationId);
+    event Release(string assetId, FinP2P.AssetType assetType, string sourceFinId, string destinationFinId, string quantity, string operationId, ExecutionContext executionContext);
 
 /// @notice Redeem event
 /// @param assetId The asset id
@@ -225,7 +225,7 @@ library FinP2P {
 /// @param ownerFinId The FinID of the owner
 /// @param quantity The quantity redeemed
 /// @param operationId The operation id
-    event Redeem(string assetId, FinP2P.AssetType assetType, string ownerFinId, string quantity, string operationId);
+    event Redeem(string assetId, FinP2P.AssetType assetType, string ownerFinId, string quantity, string operationId, ExecutionContext executionContext);
 
     error NotAdmin();
     error NotAssetManager();

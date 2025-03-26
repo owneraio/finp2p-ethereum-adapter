@@ -118,7 +118,7 @@ contract FINP2POperatorERC20 is AccessControl {
         string calldata quantity
     ) external onlyRole(TRANSACTION_MANAGER) {
         _mint(destination.toAddress(), assetId, quantity);
-        emit FinP2P.Issue(assetId, assetType, destination, quantity);
+        emit FinP2P.Issue(assetId, assetType, destination, quantity, FinP2P.ExecutionContext("", 0));
     }
 
 
@@ -129,7 +129,7 @@ contract FINP2POperatorERC20 is AccessControl {
         string calldata quantity
     ) external onlyRole(TRANSACTION_MANAGER) {
         _burn(source.toAddress(), assetId, quantity);
-        emit FinP2P.Redeem(assetId, assetType, source, quantity, '');
+        emit FinP2P.Redeem(assetId, assetType, source, quantity, '', FinP2P.ExecutionContext("", 0));
     }
 
 
@@ -145,7 +145,7 @@ contract FINP2POperatorERC20 is AccessControl {
             "", destination, assetId, assetType, quantity);
         _mint(destination.toAddress(), assetId, quantity);
         executionContextManager.completeCurrentInstruction(executionContext.planId);
-        emit FinP2P.Issue(assetId, assetType, destination, quantity);
+        emit FinP2P.Issue(assetId, assetType, destination, quantity, executionContext);
     }
 
     function transferWithContext(
@@ -161,7 +161,7 @@ contract FINP2POperatorERC20 is AccessControl {
             source, destination, assetId, assetType, quantity);
         _transfer(source.toAddress(), destination.toAddress(), assetId, quantity);
         executionContextManager.completeCurrentInstruction(executionContext.planId);
-        emit FinP2P.Transfer(assetId, assetType, source, destination, quantity);
+        emit FinP2P.Transfer(assetId, assetType, source, destination, quantity, executionContext);
     }
 
     function redeemWithContext(
@@ -177,7 +177,7 @@ contract FINP2POperatorERC20 is AccessControl {
 
         _burn(source.toAddress(), assetId, quantity);
         executionContextManager.completeCurrentInstruction(executionContext.planId);
-        emit FinP2P.Redeem(assetId, assetType, source, quantity, '');
+        emit FinP2P.Redeem(assetId, assetType, source, quantity, '', executionContext);
     }
 
     function holdWithContext(
@@ -196,7 +196,7 @@ contract FINP2POperatorERC20 is AccessControl {
         _transfer(source.toAddress(), _getEscrow(), assetId, quantity);
         locks[operationId] = FinP2P.Lock(assetId, assetType, source, destination, quantity);
         executionContextManager.completeCurrentInstruction(executionContext.planId);
-        emit FinP2P.Hold(assetId, assetType, source, quantity, operationId);
+        emit FinP2P.Hold(assetId, assetType, source, quantity, operationId, executionContext);
     }
 
     function releaseToWithContext(
@@ -220,7 +220,7 @@ contract FINP2POperatorERC20 is AccessControl {
         _transfer(_getEscrow(), destination.toAddress(), lock.assetId, lock.amount);
         executionContextManager.completeCurrentInstruction(executionContext.planId);
 
-        emit FinP2P.Release(lock.assetId, lock.assetType, lock.source, lock.destination, quantity, operationId);
+        emit FinP2P.Release(lock.assetId, lock.assetType, lock.source, lock.destination, quantity, operationId, executionContext);
         delete locks[operationId];
     }
 
@@ -243,10 +243,11 @@ contract FINP2POperatorERC20 is AccessControl {
         require(lock.amount.equals(quantity), "Trying to redeem amount different from the one held");
         _burn(_getEscrow(), lock.assetId, lock.amount);
         executionContextManager.completeCurrentInstruction(executionContext.planId);
-        emit FinP2P.Redeem(lock.assetId, lock.assetType, source, quantity, operationId);
+        emit FinP2P.Redeem(lock.assetId, lock.assetType, source, quantity, operationId, executionContext);
         delete locks[operationId];
     }
 
+    // TODO: should be a part of execution context to with a failure proof provided
     /// @notice Release asset from escrow back to the source
     /// @param operationId The operation id of the withheld asset
     function releaseBack(
@@ -255,7 +256,7 @@ contract FINP2POperatorERC20 is AccessControl {
         require(_haveContract(operationId), "contract does not exists");
         FinP2P.Lock storage lock = locks[operationId];
         _transfer(_getEscrow(), lock.source.toAddress(), lock.assetId, lock.amount);
-        emit FinP2P.Release(lock.assetId, lock.assetType, lock.source, "", lock.amount, operationId);
+        emit FinP2P.Release(lock.assetId, lock.assetType, lock.source, "", lock.amount, operationId, FinP2P.ExecutionContext("", 0));
         delete locks[operationId];
     }
 
