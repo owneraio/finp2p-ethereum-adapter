@@ -7,6 +7,7 @@ import { generateNonce, toFixedDecimals } from "./utils";
 import { getFinId } from "../src/contracts/utils";
 import { Signer, Wallet } from "ethers";
 import {
+  eip712Term,
   emptyLoanTerms,
   newInvestmentMessage,
   PrimaryType,
@@ -14,11 +15,8 @@ import {
 } from "../src/contracts/eip712";
 import type { ExecutionContextManager, FINP2POperatorERC20 } from "../typechain-types";
 import {
-  AssetType, executionContext,
-  InstructionExecutor, InstructionType,
-  ReceiptOperationType,
-  term,
-  termToEIP712
+  AssetType, assetTypeToEIP712, executionContext,
+  InstructionExecutor, InstructionType
 } from "../src/contracts/model";
 
 
@@ -80,8 +78,8 @@ describe("FinP2P proxy contract test", function() {
       const domain = { chainId, verifyingContract };
       const primaryType = PrimaryType.PrimarySale;
 
-      const asset = term(generateAssetId(), AssetType.FinP2P, "10");
-      const settlement = term(generateAssetId(), AssetType.Fiat, "100");
+      const asset = { assetId: generateAssetId(), assetType: AssetType.FinP2P, amount: "10" };
+      const settlement = { assetId: generateAssetId(), assetType: AssetType.Fiat, amount: "100" };
       const loan = emptyLoanTerms();
 
       const assetERC20Address = await deployERC20(asset.assetId, asset.assetId, decimals, finP2PAddress);
@@ -102,7 +100,10 @@ describe("FinP2P proxy contract test", function() {
       const {
         types,
         message
-      } = newInvestmentMessage(primaryType, nonce, buyer.finId, seller.finId, termToEIP712(asset), termToEIP712(settlement), loan);
+      } = newInvestmentMessage(primaryType, nonce, buyer.finId, seller.finId,
+        eip712Term(asset.assetId, assetTypeToEIP712(asset.assetType), asset.amount),
+        eip712Term(settlement.assetId, assetTypeToEIP712(settlement.assetType), settlement.amount),
+        loan);
       const buyerSignature = await sign(chainId, verifyingContract, types, message, buyer.signer);
       await exCtxManager.provideInvestorSignature(executionContext(planId, 1), domain, nonce, buyer.finId, seller.finId, asset, settlement, loan, buyerSignature, { from: operator });
 
