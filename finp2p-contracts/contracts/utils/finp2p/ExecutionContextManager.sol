@@ -13,8 +13,9 @@ contract ExecutionContextManager is FinP2PSignatureVerifier {
 
     mapping(string => FinP2P.ExecutionPlan) private executions;
 
-    function createExecutionPlan(string memory id) external {
+    function createExecutionPlan(string memory id, address transactionManager) external {
         executions[id].creator = msg.sender;
+        executions[id].transactionManager = transactionManager;
         executions[id].id = id;
         executions[id].status = FinP2P.ExecutionStatus.CREATED;
         executions[id].currentInstruction = 1;
@@ -95,7 +96,7 @@ contract ExecutionContextManager is FinP2PSignatureVerifier {
         bytes memory signature
     ) external {
         require(executions[tradeDetails.executionContext.executionPlanId].status == FinP2P.ExecutionStatus.VERIFIED, "Execution is not in VERIFIED status");
-        require(executions[tradeDetails.executionContext.executionPlanId].creator == msg.sender, "Only creator can provide instruction proof");
+        require(executions[tradeDetails.executionContext.executionPlanId].transactionManager == msg.sender, "Only creator can provide instruction proof");
         validateCurrentInstruction(FinP2P.ExecutionContext(tradeDetails.executionContext.executionPlanId, tradeDetails.executionContext.instructionSequenceNumber),
             operation.toInstructionType(), FinP2P.InstructionExecutor.OTHER_CONTRACT,
             source.finId, destination.finId, asset.assetId, asset.assetType, quantity);
@@ -133,20 +134,30 @@ contract ExecutionContextManager is FinP2PSignatureVerifier {
 
     function completeCurrentInstruction(string memory planId) public {
         require(_haveExecution(planId), "Execution not found");
+        require(executions[planId].transactionManager == msg.sender, "Only creator can complete instruction");
+
         uint8 currentInstruction = executions[planId].currentInstruction;
         executions[planId].instructions[currentInstruction - 1].status = FinP2P.InstructionStatus.EXECUTED;
         if (_isExecutionCompleted(planId)) {
             executions[planId].status = FinP2P.ExecutionStatus.EXECUTED;
         } else {
-            uint currentIdx = currentInstruction - 1;
-            for (uint idx = currentIdx + 1; idx < executions[planId].instructions.length; idx++) {
-                if (executions[planId].instructions[idx].instructionType == FinP2P.InstructionType.AWAIT) {
-//                    executions[planId].currentInstruction = uint8(i);
+            uint currentIdx = currentInstruction;
+            for (uint idx = currentIdx; idx < executions[planId].instructions.length; idx++) {
+                if (executions[planId].instructions[idx].instructionType != FinP2P.InstructionType.AWAIT) {
+                    executions[planId].currentInstruction = uint8(idx + 1);
                     break;
                 }
             }
-            executions[planId].currentInstruction = currentInstruction + 1;
         }
+    }
+
+    function failCurrentInstruction(string memory planId, string memory reason) public {
+        require(_haveExecution(planId), "Execution not found");
+        require(executions[planId].transactionManager == msg.sender, "Only creator can fail instruction");
+        uint8 currentInstruction = executions[planId].currentInstruction;
+        executions[planId].instructions[currentInstruction - 1].status = FinP2P.InstructionStatus.FAILED;
+        executions[planId].status = FinP2P.ExecutionStatus.FAILED;
+        executions[planId].failureReason = reason;
     }
 
     function _getCurrentInstructionProofSigner(string memory executionId) internal view returns (string memory) {

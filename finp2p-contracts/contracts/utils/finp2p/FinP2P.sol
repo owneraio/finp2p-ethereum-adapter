@@ -139,9 +139,11 @@ library FinP2P {
 
     struct ExecutionPlan {
         address creator;
+        address transactionManager;
         string id;
         PrimaryType primaryType;
         ExecutionStatus status;
+        string failureReason;
         uint8 currentInstruction;
         Instruction[] instructions;
     }

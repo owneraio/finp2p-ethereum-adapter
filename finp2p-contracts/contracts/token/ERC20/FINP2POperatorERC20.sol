@@ -33,7 +33,8 @@ contract FINP2POperatorERC20 is AccessControl {
     bytes32 private constant TRANSACTION_MANAGER = keccak256("TRANSACTION_MANAGER");
 
     address private escrowWalletAddress;
-    ExecutionContextManager private executionContextManager;
+    ExecutionContextManager private execution;
+
     mapping(string => FinP2P.Asset) private assets;
     mapping(string => FinP2P.Lock) private locks;
 
@@ -41,7 +42,7 @@ contract FINP2POperatorERC20 is AccessControl {
         _grantRole(DEFAULT_ADMIN_ROLE, _msgSender());
         _grantRole(ASSET_MANAGER, _msgSender());
         _grantRole(TRANSACTION_MANAGER, _msgSender());
-        executionContextManager = ExecutionContextManager(executionContextAddress);
+        execution = ExecutionContextManager(executionContextAddress);
     }
 
     /// @notice Grant the asset manager role to an account
@@ -66,7 +67,7 @@ contract FINP2POperatorERC20 is AccessControl {
     }
 
     function getExecutionContextManager() external returns (address) {
-        return address(executionContextManager);
+        return address(execution);
     }
 
     /// @notice Associate an asset with a token address
@@ -140,11 +141,13 @@ contract FINP2POperatorERC20 is AccessControl {
         string calldata quantity,
         FinP2P.ExecutionContext memory executionContext
     ) external onlyRole(TRANSACTION_MANAGER) {
-        executionContextManager.validateCurrentInstruction(executionContext,
+        execution.validateCurrentInstruction(executionContext,
             FinP2P.InstructionType.ISSUE, FinP2P.InstructionExecutor.THIS_CONTRACT,
             "", destination, assetId, assetType, quantity);
         _mint(destination.toAddress(), assetId, quantity);
-        executionContextManager.completeCurrentInstruction(executionContext.planId);
+        execution.completeCurrentInstruction(executionContext.planId);
+//         todo: in case of a failure, fail execution with a reason
+//        execution.failCurrentInstruction(executionContext.planId, "failed");
         emit FinP2P.Issue(assetId, assetType, destination, quantity, executionContext);
     }
 
@@ -156,11 +159,11 @@ contract FINP2POperatorERC20 is AccessControl {
         string calldata quantity,
         FinP2P.ExecutionContext memory executionContext
     ) external onlyRole(TRANSACTION_MANAGER) {
-        executionContextManager.validateCurrentInstruction(executionContext,
+        execution.validateCurrentInstruction(executionContext,
             FinP2P.InstructionType.TRANSFER, FinP2P.InstructionExecutor.THIS_CONTRACT,
             source, destination, assetId, assetType, quantity);
         _transfer(source.toAddress(), destination.toAddress(), assetId, quantity);
-        executionContextManager.completeCurrentInstruction(executionContext.planId);
+        execution.completeCurrentInstruction(executionContext.planId);
         emit FinP2P.Transfer(assetId, assetType, source, destination, quantity, executionContext);
     }
 
@@ -171,12 +174,12 @@ contract FINP2POperatorERC20 is AccessControl {
         string calldata quantity,
         FinP2P.ExecutionContext memory executionContext
     ) external onlyRole(TRANSACTION_MANAGER) {
-        executionContextManager.validateCurrentInstruction(executionContext,
+        execution.validateCurrentInstruction(executionContext,
             FinP2P.InstructionType.REDEEM, FinP2P.InstructionExecutor.THIS_CONTRACT,
             source, "", assetId, assetType, quantity);
 
         _burn(source.toAddress(), assetId, quantity);
-        executionContextManager.completeCurrentInstruction(executionContext.planId);
+        execution.completeCurrentInstruction(executionContext.planId);
         emit FinP2P.Redeem(assetId, assetType, source, quantity, '', executionContext);
     }
 
@@ -189,13 +192,13 @@ contract FINP2POperatorERC20 is AccessControl {
         string memory operationId,
         FinP2P.ExecutionContext calldata executionContext
     ) external onlyRole(TRANSACTION_MANAGER) {
-        executionContextManager.validateCurrentInstruction(executionContext,
+        execution.validateCurrentInstruction(executionContext,
             FinP2P.InstructionType.HOLD, FinP2P.InstructionExecutor.THIS_CONTRACT,
             source, destination, assetId, assetType, quantity);
 
         _transfer(source.toAddress(), _getEscrow(), assetId, quantity);
         locks[operationId] = FinP2P.Lock(assetId, assetType, source, destination, quantity);
-        executionContextManager.completeCurrentInstruction(executionContext.planId);
+        execution.completeCurrentInstruction(executionContext.planId);
         emit FinP2P.Hold(assetId, assetType, source, quantity, operationId, executionContext);
     }
 
@@ -208,7 +211,7 @@ contract FINP2POperatorERC20 is AccessControl {
         string memory operationId,
         FinP2P.ExecutionContext memory executionContext
     ) external onlyRole(TRANSACTION_MANAGER) {
-        executionContextManager.validateCurrentInstruction(executionContext,
+        execution.validateCurrentInstruction(executionContext,
             FinP2P.InstructionType.RELEASE, FinP2P.InstructionExecutor.THIS_CONTRACT,
             source, destination, assetId, assetType, quantity);
 
@@ -218,7 +221,7 @@ contract FINP2POperatorERC20 is AccessControl {
         require(lock.destination.equals(destination), "Trying to release to different destination than the one expected in the lock");
 
         _transfer(_getEscrow(), destination.toAddress(), lock.assetId, lock.amount);
-        executionContextManager.completeCurrentInstruction(executionContext.planId);
+        execution.completeCurrentInstruction(executionContext.planId);
 
         emit FinP2P.Release(lock.assetId, lock.assetType, lock.source, lock.destination, quantity, operationId, executionContext);
         delete locks[operationId];
@@ -232,7 +235,7 @@ contract FINP2POperatorERC20 is AccessControl {
         string memory operationId,
         FinP2P.ExecutionContext memory executionContext
     ) external onlyRole(TRANSACTION_MANAGER) {
-        executionContextManager.validateCurrentInstruction(executionContext,
+        execution.validateCurrentInstruction(executionContext,
             FinP2P.InstructionType.RELEASE, FinP2P.InstructionExecutor.THIS_CONTRACT,
             source, "", assetId, assetType, quantity);
 
@@ -242,7 +245,7 @@ contract FINP2POperatorERC20 is AccessControl {
         require(bytes(lock.destination).length == 0, "Trying to redeem asset with non-empty destination");
         require(lock.amount.equals(quantity), "Trying to redeem amount different from the one held");
         _burn(_getEscrow(), lock.assetId, lock.amount);
-        executionContextManager.completeCurrentInstruction(executionContext.planId);
+        execution.completeCurrentInstruction(executionContext.planId);
         emit FinP2P.Redeem(lock.assetId, lock.assetType, source, quantity, operationId, executionContext);
         delete locks[operationId];
     }
@@ -286,7 +289,14 @@ contract FINP2POperatorERC20 is AccessControl {
 
         uint8 tokenDecimals = IERC20Metadata(asset.tokenAddress).decimals();
         uint256 tokenAmount = quantity.stringToUint(tokenDecimals);
-        Mintable(asset.tokenAddress).mint(to, tokenAmount);
+
+        try Mintable(asset.tokenAddress).mint(to, tokenAmount) {
+        } catch Error(string memory reason) {
+            // TODO: propagate back errors and store it on execution
+            revert(reason);
+        } catch {
+            revert("Failed to mint tokens");
+        }
     }
 
     function _transfer(address from, address to, string memory assetId, string memory quantity) internal {

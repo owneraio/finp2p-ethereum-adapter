@@ -106,7 +106,7 @@ describe("FinP2P proxy contract test", function() {
       const seller = generateInvestor();
 
       const planId = `${uuid()}`;
-      await exCtxManager.createExecutionPlan(planId, { from: operator });
+      await exCtxManager.createExecutionPlan(planId, finP2PAddress, { from: operator });
       await exCtxManager.addInstructionToExecution(executionContext(planId, 1), InstructionType.HOLD, settlement.assetId, settlement.assetType, buyer.finId, seller.finId, settlement.amount, InstructionExecutor.THIS_CONTRACT, "", { from: operator });
       await exCtxManager.addInstructionToExecution(executionContext(planId, 2), InstructionType.ISSUE, asset.assetId, asset.assetType, "", buyer.finId, asset.amount, InstructionExecutor.THIS_CONTRACT, "", { from: operator });
       await exCtxManager.addInstructionToExecution(executionContext(planId, 3), InstructionType.RELEASE, settlement.assetId, settlement.assetType, buyer.finId, seller.finId, settlement.amount, InstructionExecutor.THIS_CONTRACT, "", { from: operator });

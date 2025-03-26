@@ -4,10 +4,10 @@ import {
   assetFromAPI, executionContextFromAPI,
   failedAssetCreation,
   failedTransaction,
-  getRandomNumber,
+  getRandomNumber
 } from "./mapping";
 import {
-  EthereumTransactionError,
+  EthereumTransactionError
 } from "../../finp2p-contracts/src/contracts/model";
 import { logger } from "../helpers/logger";
 import { FinP2PContract } from "../../finp2p-contracts/src/contracts/finp2p";
@@ -15,6 +15,7 @@ import { isEthereumAddress } from "../../finp2p-contracts/src/contracts/utils";
 import { PolicyGetter } from "../finp2p/policy";
 import CreateAssetResponse = Components.Schemas.CreateAssetResponse;
 import LedgerTokenId = Components.Schemas.LedgerTokenId;
+import { ExecutionPlanGetter } from "../finp2p/execution.plan";
 
 export type AssetCreationPolicy = | { type: "deploy-new-token"; decimals: number } | {
   type: "reuse-existing-token";
@@ -25,8 +26,10 @@ export class TokenService extends CommonService {
 
   assetCreationPolicy: AssetCreationPolicy;
 
-  constructor(finP2PContract: FinP2PContract, assetCreationPolicy: AssetCreationPolicy, policyGetter: PolicyGetter | undefined) {
-    super(finP2PContract, policyGetter);
+  constructor(finP2PContract: FinP2PContract, assetCreationPolicy: AssetCreationPolicy,
+              policyGetter: PolicyGetter | undefined,
+              executionGetter: ExecutionPlanGetter | undefined) {
+    super(finP2PContract, policyGetter, executionGetter);
     this.assetCreationPolicy = assetCreationPolicy;
   }
 
@@ -119,7 +122,7 @@ export class TokenService extends CommonService {
   }
 
   public async transfer(request: Paths.TransferAsset.RequestBody): Promise<Paths.TransferAsset.Responses.$200> {
-   const {
+    const {
       asset,
       quantity,
       source: { finId: source },

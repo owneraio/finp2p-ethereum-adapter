@@ -12,16 +12,21 @@ import {
   RECEIPT_PROOF_TYPES
 } from "../../finp2p-contracts/src/contracts/eip712";
 import { ProofDomain } from "../finp2p/model";
+import { ExecutionPlanGetter } from "../finp2p/execution.plan";
 
 
 export class CommonService {
 
   finP2PContract: FinP2PContract;
   policyGetter: PolicyGetter | undefined;
+  executionGetter: ExecutionPlanGetter | undefined
 
-  constructor(finP2PContract: FinP2PContract, policyGetter: PolicyGetter | undefined) {
+  constructor(finP2PContract: FinP2PContract,
+              policyGetter: PolicyGetter | undefined,
+              executionGetter: ExecutionPlanGetter | undefined) {
     this.finP2PContract = finP2PContract;
     this.policyGetter = policyGetter;
+    this.executionGetter = executionGetter;
   }
 
   public async balance(request: Paths.GetAssetBalance.RequestBody): Promise<Paths.GetAssetBalance.Responses.$200> {

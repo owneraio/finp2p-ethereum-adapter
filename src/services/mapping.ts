@@ -24,9 +24,27 @@ import AssetCreateResponse = Components.Schemas.AssetCreateResponse;
 import FinP2PEVMOperatorDetails = Components.Schemas.FinP2PEVMOperatorDetails;
 import EIP712TypeString = Components.Schemas.EIP712TypeString;
 import ProofPolicy = Components.Schemas.ProofPolicy;
+import { v4 as uuid } from "uuid";
 
 
 export const assetFromAPI = (asset: Components.Schemas.Asset): Asset => {
+  switch (asset.type) {
+    case "fiat":
+      return {
+        assetId: asset.code, assetType: AssetType.Fiat
+      };
+    case "finp2p":
+      return {
+        assetId: asset.resourceId, assetType: AssetType.FinP2P
+      };
+    case "cryptocurrency":
+      return {
+        assetId: asset.code, assetType: AssetType.Cryptocurrency
+      };
+  }
+};
+
+export const finApiAssetFromAPI = (asset: FinAPIComponents.Schemas.Asset): Asset => {
   switch (asset.type) {
     case "fiat":
       return {
@@ -259,6 +277,19 @@ export const failedTransaction = (code: number, message: string) => {
   return {
     isCompleted: true, error: { code, message }
   } as Components.Schemas.ReceiptOperation;
+};
+
+export const failedPlanApproval = (code: number, message: string) => {
+  return {
+    isCompleted: true, cid: uuid(),
+    approval: {
+      status: "rejected",
+      failure: {
+        failureType: "ValidationFailure",
+        message, code
+      }
+    }
+  } as Components.Schemas.ExecutionPlanApprovalOperation;
 };
 
 export const loanTermFromAPI = (loanTerms: Components.Schemas.EIP712TypeObject | undefined): EIP712LoanTerms => {

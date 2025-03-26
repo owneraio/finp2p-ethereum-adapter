@@ -71,7 +71,7 @@ export class FinP2PContract extends ContractsManager {
 
   async createExecutionPlan(planId: string) {
     return this.safeExecuteTransaction(this.executionManager, async (executionManager: ExecutionContextManager, txParams: PayableOverrides) => {
-      return executionManager.createExecutionPlan(planId, txParams);
+      return executionManager.createExecutionPlan(planId, this.finP2PContractAddress, txParams);
     });
   }
 
