@@ -1,10 +1,10 @@
 import {
-  eip712Asset,
+  eip712ReceiptAsset,
   EIP712ReceiptMessage,
   EIP712Template,
-  eip712ExecutionContext,
-  eip712TradeDetails,
-  eip712TransactionDetails, EIP712AssetType
+  eip712ReceiptExecutionContext,
+  eip712ReceiptTradeDetails,
+  eip712ReceiptTransactionDetails, EIP712AssetType
 } from "./eip712";
 
 export interface Term {
@@ -148,6 +148,23 @@ export const receiptOperationTypeToEIP712 = (receiptOperationType: ReceiptOperat
   }
 }
 
+export const receiptOperationTypeFromEIP712 = (receiptOperationType: string): ReceiptOperationType => {
+  switch (receiptOperationType) {
+    case "issue":
+      return ReceiptOperationType.ISSUE;
+    case "transfer":
+      return ReceiptOperationType.TRANSFER;
+    case "hold":
+      return ReceiptOperationType.HOLD;
+    case "release":
+      return ReceiptOperationType.RELEASE;
+    case "redeem":
+      return ReceiptOperationType.REDEEM;
+    default:
+      throw new Error("Invalid receipt operation type");
+  }
+}
+
 export type ReceiptTradeDetails = {
   executionContext: ReceiptExecutionContext
 }
@@ -173,11 +190,11 @@ export const receiptToEIP712Message = (receipt: FinP2PReceipt): EIP712ReceiptMes
     source: { accountType: source ? "finId" : "", finId: source || "" },
     destination: { accountType: destination ? "finId" : "", finId: destination || "" },
     quantity,
-    asset: eip712Asset(assetId, assetTypeToEIP712(assetType)),
-    tradeDetails: eip712TradeDetails(eip712ExecutionContext(
+    asset: eip712ReceiptAsset(assetId, assetTypeToEIP712(assetType)),
+    tradeDetails: eip712ReceiptTradeDetails(eip712ReceiptExecutionContext(
       receipt?.tradeDetails?.executionContext.executionPlanId || "",
       `${receipt?.tradeDetails?.executionContext.instructionSequenceNumber || ""}`)),
-    transactionDetails: eip712TransactionDetails(operationId || "", id)
+    transactionDetails: eip712ReceiptTransactionDetails(operationId || "", id)
   };
 };
 

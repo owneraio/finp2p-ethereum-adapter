@@ -7,17 +7,31 @@ import {
   assetTypeFromNumber,
   completedOperation,
   failedOperation,
-  FinP2PReceipt, LockInfo,
+  FinP2PReceipt,
+  LockInfo,
   OperationStatus,
-  pendingOperation, ExecutionContext, AssetType, InstructionType, InstructionExecutor, Domain
+  pendingOperation,
+  ExecutionContext,
+  AssetType,
+  InstructionType,
+  InstructionExecutor,
+  Domain,
+  ReceiptOperationType,
+  Term
 } from "./model";
 import { parseTransactionReceipt } from "./utils";
 import { ContractsManager } from "./manager";
-import { EIP712Domain, EIP712LoanTerms, EIP712Term } from "./eip712";
+import {
+  EIP712ReceiptAsset,
+  EIP712ReceiptDestination,
+  EIP712Domain,
+  EIP712LoanTerms,
+  EIP712ReceiptSource,
+  EIP712ReceiptTradeDetails, EIP712ReceiptTransactionDetails
+} from "./eip712";
 import winston from "winston";
 import { FINP2POperatorERC20Interface } from "../../typechain-types/contracts/token/ERC20/FINP2POperatorERC20";
 import { PayableOverrides } from "../../typechain-types/common";
-import { Term } from "../../../src/finp2p/model";
 
 
 const ETH_COMPLETED_TRANSACTION_STATUS = 1;
@@ -88,6 +102,15 @@ export class FinP2PContract extends ContractsManager {
                                  asset: Term, settlement: Term, loan: EIP712LoanTerms, signature: string) {
     return this.safeExecuteTransaction(this.executionManager, async (executionManager: ExecutionContextManager, txParams: PayableOverrides) => {
       return executionManager.provideInvestorSignature(exCtx, domain, nonce, buyer, seller, asset, settlement, loan, signature, txParams);
+    });
+  }
+
+  async provideInstructionProof(domain: Domain, id: string, operation: ReceiptOperationType,
+                                source: EIP712ReceiptSource, destination: EIP712ReceiptDestination, asset: EIP712ReceiptAsset,
+                                tradeDetails: EIP712ReceiptTradeDetails, transactionDetails: EIP712ReceiptTransactionDetails,
+                                quantity: string, signature: string) {
+    return this.safeExecuteTransaction(this.executionManager, async (executionManager: ExecutionContextManager, txParams: PayableOverrides) => {
+      return executionManager.provideInstructionProof(domain, id, operation, source, destination, asset, tradeDetails, transactionDetails, quantity, signature, txParams);
     });
   }
 

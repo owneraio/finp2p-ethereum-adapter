@@ -311,56 +311,56 @@ export interface EIP712LoanMessage extends EIP712Message {
 
 export type EIP712AccountType = "finId" | "iban" | "cryptoWallet";
 
-export interface EIP712Source {
+export interface EIP712ReceiptSource {
   accountType: EIP712AccountType | "";
   finId: string;
 }
 
-export const eip712Source = (accountType: EIP712AccountType, finId: string): EIP712Source => {
+export const eip712ReceiptSource = (accountType: EIP712AccountType, finId: string): EIP712ReceiptSource => {
   return { accountType, finId };
 };
 
-export interface EIP712Destination {
+export interface EIP712ReceiptDestination {
   accountType: EIP712AccountType | "";
   finId: string;
 }
 
-export const eip712Destination = (accountType: EIP712AccountType, finId: string): EIP712Destination => {
+export const eip712ReceiptDestination = (accountType: EIP712AccountType, finId: string): EIP712ReceiptDestination => {
   return { accountType, finId };
 };
 
-export interface EIP712Asset {
+export interface EIP712ReceiptAsset {
   assetId: string;
   assetType: EIP712AssetType;
 }
 
-export const eip712Asset = (assetId: string, assetType: EIP712AssetType): EIP712Asset => {
+export const eip712ReceiptAsset = (assetId: string, assetType: EIP712AssetType): EIP712ReceiptAsset => {
   return { assetId, assetType };
 };
 
-export interface EIP712ExecutionContext {
+export interface EIP712ReceiptExecutionContext {
   executionPlanId: string;
   instructionSequenceNumber: string;
 }
 
-export const eip712ExecutionContext = (executionPlanId: string, instructionSequenceNumber: string): EIP712ExecutionContext => {
+export const eip712ReceiptExecutionContext = (executionPlanId: string, instructionSequenceNumber: string): EIP712ReceiptExecutionContext => {
   return { executionPlanId, instructionSequenceNumber };
 };
 
-export interface EIP712TradeDetails {
-  executionContext: EIP712ExecutionContext;
+export interface EIP712ReceiptTradeDetails {
+  executionContext: EIP712ReceiptExecutionContext;
 }
 
-export const eip712TradeDetails = (executionContext: EIP712ExecutionContext): EIP712TradeDetails => {
+export const eip712ReceiptTradeDetails = (executionContext: EIP712ReceiptExecutionContext): EIP712ReceiptTradeDetails => {
   return { executionContext };
 };
 
-export interface EIP712TransactionDetails {
+export interface EIP712ReceiptTransactionDetails {
   operationId: string;
   transactionId: string;
 }
 
-export const eip712TransactionDetails = (operationId: string, transactionId: string): EIP712TransactionDetails => {
+export const eip712ReceiptTransactionDetails = (operationId: string, transactionId: string): EIP712ReceiptTransactionDetails => {
   return { operationId, transactionId };
 };
 
@@ -368,12 +368,12 @@ export const eip712TransactionDetails = (operationId: string, transactionId: str
 export interface EIP712ReceiptMessage extends EIP712Message {
   id: string,
   operationType: string,
-  source: EIP712Source,
-  destination: EIP712Destination,
-  asset: EIP712Asset,
+  source: EIP712ReceiptSource,
+  destination: EIP712ReceiptDestination,
+  asset: EIP712ReceiptAsset,
   quantity: string,
-  tradeDetails: EIP712TradeDetails,
-  transactionDetails: EIP712TransactionDetails
+  tradeDetails: EIP712ReceiptTradeDetails,
+  transactionDetails: EIP712ReceiptTransactionDetails
 }
 
 export const newInvestmentMessage = (
@@ -453,7 +453,7 @@ export const newLoanMessage = (nonce: string, borrower: EIP712FinId, lender: EIP
   return { nonce, borrower, lender, asset, settlement, loanTerms };
 };
 
-export const newReceiptMessage = (id: string, operationType: string, source: EIP712Source, destination: EIP712Destination, asset: EIP712Asset, tradeDetails: EIP712TradeDetails, transactionDetails: EIP712TransactionDetails, quantity: string): EIP712ReceiptMessage => {
+export const newReceiptMessage = (id: string, operationType: string, source: EIP712ReceiptSource, destination: EIP712ReceiptDestination, asset: EIP712ReceiptAsset, tradeDetails: EIP712ReceiptTradeDetails, transactionDetails: EIP712ReceiptTransactionDetails, quantity: string): EIP712ReceiptMessage => {
   return { id, operationType, source, destination, asset, tradeDetails, transactionDetails, quantity };
 };
 

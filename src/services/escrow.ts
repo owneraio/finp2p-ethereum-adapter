@@ -17,6 +17,8 @@ export class EscrowService extends CommonService {
     const exCtx = executionContextFromAPI(executionContext);
 
     try {
+      await this.providePreviousInstructionProofIfExists(exCtx.planId, exCtx.sequence);
+
       const txHash = await this.finP2PContract.holdWithContext(source, "", assetId, assetType, quantity, operationId, exCtx);
       return {
         isCompleted: false, cid: txHash
@@ -43,7 +45,10 @@ export class EscrowService extends CommonService {
     } = request;
     const { assetId, assetType } = assetFromAPI(asset);
     const exCtx = executionContextFromAPI(executionContext);
+
     try {
+      await this.providePreviousInstructionProofIfExists(exCtx.planId, exCtx.sequence);
+
       const txHash = await this.finP2PContract.releaseToWithContext(source, destination, assetId, assetType, quantity, operationId, exCtx);
       return {
         isCompleted: false, cid: txHash
@@ -59,9 +64,12 @@ export class EscrowService extends CommonService {
   }
 
   public async releaseBack(request: Paths.RollbackOperation.RequestBody): Promise<Paths.RollbackOperation.Responses.$200> {
-    const { operationId } = request;
+    const { operationId, executionContext } = request;
+    const exCtx = executionContextFromAPI(executionContext);
 
     try {
+      await this.providePreviousInstructionProofIfExists(exCtx.planId, exCtx.sequence);
+
       const txHash = await this.finP2PContract.releaseBack(operationId);
       return {
         isCompleted: false, cid: txHash
@@ -93,6 +101,8 @@ export class EscrowService extends CommonService {
     }
 
     try {
+      await this.providePreviousInstructionProofIfExists(exCtx.planId, exCtx.sequence);
+
       const txHash = await this.finP2PContract.releaseAndRedeemWithContext(source, assetId, assetType, quantity, operationId, exCtx);
       return {
         isCompleted: false, cid: txHash

@@ -7,13 +7,13 @@ import { v4 as uuidv4 } from "uuid";
 import { HDNodeWallet, Wallet } from "ethers";
 import { getFinId } from "../src/contracts/utils";
 import {
-  eip712Asset,
-  eip712Destination,
-  eip712ExecutionContext,
+  eip712ReceiptAsset,
+  eip712ReceiptDestination,
+  eip712ReceiptExecutionContext,
   EIP712LoanTerms,
-  eip712Source, eip712Term,
-  eip712TradeDetails,
-  eip712TransactionDetails,
+  eip712ReceiptSource, eip712Term,
+  eip712ReceiptTradeDetails,
+  eip712ReceiptTransactionDetails,
   emptyLoanTerms,
   hash,
   loanTerms,
@@ -218,9 +218,9 @@ describe("Signing test", function() {
     const operationId = uuidv4();
     const transactionId = uuidv4();
     const message = newReceiptMessage(id, receiptOperationTypeToEIP712(operationType),
-      eip712Source("finId", sourceFinId), eip712Destination("finId", destinationFinId), eip712Asset(assetId, "finp2p"),
-      eip712TradeDetails(eip712ExecutionContext(executionPlanId, `${instructionSequenceNumber}`)),
-      eip712TransactionDetails(operationId, transactionId),
+      eip712ReceiptSource("finId", sourceFinId), eip712ReceiptDestination("finId", destinationFinId), eip712ReceiptAsset(assetId, "finp2p"),
+      eip712ReceiptTradeDetails(eip712ReceiptExecutionContext(executionPlanId, `${instructionSequenceNumber}`)),
+      eip712ReceiptTransactionDetails(operationId, transactionId),
       quantity
     );
 

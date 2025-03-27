@@ -3,10 +3,15 @@ import {
   Domain,
   ExecutionContext,
   InstructionExecutor,
-  InstructionType,
+  InstructionType, ReceiptOperationType,
   Term
 } from "../../finp2p-contracts/src/contracts/model";
-import { EIP712LoanTerms } from "../../finp2p-contracts/src/contracts/eip712";
+import {
+  EIP712ReceiptAsset,
+  EIP712ReceiptDestination,
+  EIP712LoanTerms,
+  EIP712ReceiptSource, EIP712ReceiptTradeDetails, EIP712ReceiptTransactionDetails
+} from "../../finp2p-contracts/src/contracts/eip712";
 
 export type OssAsset = {
   id: string,
@@ -139,6 +144,12 @@ export type Asset = {
   assetType: AssetType;
 }
 
+export type ExecutionPlan = {
+  id: string,
+  instructions: Instruction[]
+  status: "proposed" | "approved" | "rejected" | "failed" | "completed";
+}
+
 export type Instruction = {
   executionContext: ExecutionContext,
   instructionType: InstructionType,
@@ -148,10 +159,10 @@ export type Instruction = {
   destination: string,
   amount: string,
   executor: InstructionExecutor,
+  organizationId: string
   proofSigner: string
   signature?: InvestorSignature
 }
-
 
 export type InvestorSignature = {
   domain: Domain,
@@ -161,5 +172,18 @@ export type InvestorSignature = {
   asset: Term,
   settlement: Term
   loan: EIP712LoanTerms,
+  signature: string
+}
+
+export type InstructionCompletionProof = {
+  domain: Domain,
+  id: string,
+  operation: ReceiptOperationType,
+  source: EIP712ReceiptSource,
+  destination: EIP712ReceiptDestination,
+  asset: EIP712ReceiptAsset,
+  tradeDetails: EIP712ReceiptTradeDetails,
+  transactionDetails: EIP712ReceiptTransactionDetails,
+  quantity: string,
   signature: string
 }

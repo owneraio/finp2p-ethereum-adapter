@@ -1,7 +1,8 @@
 import { logger } from "../helpers/logger";
 import { FinP2PContract } from "../../finp2p-contracts/src/contracts/finp2p";
 import {
-  FinP2PReceipt,
+  Domain,
+  FinP2PReceipt, ReceiptOperationType,
   receiptToEIP712Message
 } from "../../finp2p-contracts/src/contracts/model";
 import { assetFromAPI, receiptToAPI } from "./mapping";
@@ -9,6 +10,11 @@ import { PolicyGetter } from "../finp2p/policy";
 import {
   DOMAIN_TYPE,
   EIP712Domain,
+  EIP712ReceiptAsset,
+  EIP712ReceiptDestination,
+  EIP712ReceiptSource,
+  EIP712ReceiptTradeDetails,
+  EIP712ReceiptTransactionDetails,
   RECEIPT_PROOF_TYPES
 } from "../../finp2p-contracts/src/contracts/eip712";
 import { ProofDomain } from "../finp2p/model";
@@ -42,7 +48,7 @@ export class CommonService {
 
   public async getReceipt(id: Paths.GetReceipt.Parameters.TransactionId): Promise<Paths.GetReceipt.Responses.$200> {
     try {
-      const receipt = await this.provideLedgerProofIfNeeded(await this.finP2PContract.getReceipt(id));
+      const receipt = await this.enrichReceiptWithLedgerProofIfNeeded(await this.finP2PContract.getReceipt(id));
       return {
         isCompleted: true, response: receiptToAPI(receipt)
       } as Components.Schemas.ReceiptOperation;
@@ -61,7 +67,7 @@ export class CommonService {
     switch (status.status) {
       case "completed":
         let { receipt } = status;
-        const receiptResponse = receiptToAPI(await this.provideLedgerProofIfNeeded(receipt));
+        const receiptResponse = receiptToAPI(await this.enrichReceiptWithLedgerProofIfNeeded(receipt));
         return {
           type: "receipt", operation: {
             isCompleted: true, response: receiptResponse
@@ -84,8 +90,17 @@ export class CommonService {
     }
   }
 
+  protected async providePreviousInstructionProofIfExists(planId: string, currentSequence: number) {
+    if (!this.executionGetter) {
+      throw new Error("Execution getter is not set");
+    }
+    const { domain, id, operation, source, destination, asset,
+      tradeDetails, transactionDetails,  quantity, signature} = await this.executionGetter.getPreviousInstructionProof(planId, currentSequence);
+    const txHash = await this.finP2PContract.provideInstructionProof(domain, id, operation, source, destination, asset, tradeDetails, transactionDetails, quantity, signature);
+    await this.finP2PContract.waitForCompletion(txHash)
+  }
 
-  private async provideLedgerProofIfNeeded(receipt: FinP2PReceipt): Promise<FinP2PReceipt> {
+  private async enrichReceiptWithLedgerProofIfNeeded(receipt: FinP2PReceipt): Promise<FinP2PReceipt> {
     if (this.policyGetter === undefined) {
       return receipt;
     }

@@ -90,7 +90,6 @@ export class TokenService extends CommonService {
         return failedAssetCreation(1, `${e}`);
       }
     }
-
   }
 
   public async issue(request: Paths.IssueAssets.RequestBody): Promise<Paths.IssueAssets.Responses.$200> {
@@ -103,10 +102,14 @@ export class TokenService extends CommonService {
     const { assetId, assetType } = assetFromAPI(asset);
     const exCtx = executionContextFromAPI(executionContext);
 
-    let txHash: string;
     try {
+      await this.providePreviousInstructionProofIfExists(exCtx.planId, exCtx.sequence);
+
       logger.info(`Issue asset ${assetId} to ${issuerFinId} with amount ${quantity}`);
-      txHash = await this.finP2PContract.issueWithContext(issuerFinId, assetId, assetType, quantity, exCtx);
+      const txHash = await this.finP2PContract.issueWithContext(issuerFinId, assetId, assetType, quantity, exCtx);
+      return {
+        isCompleted: false, cid: txHash
+      } as Components.Schemas.ReceiptOperation;
     } catch (e) {
       logger.error(`Error on asset issuance: ${e}`);
       if (e instanceof EthereumTransactionError) {
@@ -116,9 +119,7 @@ export class TokenService extends CommonService {
         return failedTransaction(1, `${e}`);
       }
     }
-    return {
-      isCompleted: false, cid: txHash
-    } as Components.Schemas.ReceiptOperation;
+
   }
 
   public async transfer(request: Paths.TransferAsset.RequestBody): Promise<Paths.TransferAsset.Responses.$200> {
@@ -132,7 +133,10 @@ export class TokenService extends CommonService {
     const { assetId, assetType } = assetFromAPI(asset);
     const exCtx = executionContextFromAPI(executionContext);
 
+
     try {
+      await this.providePreviousInstructionProofIfExists(exCtx.planId, exCtx.sequence);
+
       const txHash = await this.finP2PContract.transferWithContext(source, destination, assetId, assetType, quantity, exCtx);
       return {
         isCompleted: false, cid: txHash
