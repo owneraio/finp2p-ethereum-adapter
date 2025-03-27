@@ -4,7 +4,7 @@ import { FinP2PContract } from "../finp2p-contracts/src/contracts/finp2p";
 import { createProviderAndSigner, ProviderType } from "../finp2p-contracts/src/contracts/config";
 import console from "console";
 import winston, { format, transports } from "winston";
-import { AssetType, term } from "../finp2p-contracts/src/contracts/model";
+import { AssetType } from "../finp2p-contracts/src/contracts/model";
 
 const logger = winston.createLogger({
   level: 'info',
@@ -23,7 +23,7 @@ const syncBalanceFromOssToEthereum = async (ossUrl: string, providerType: Provid
   }
 
   const { provider, signer } = await createProviderAndSigner(providerType, logger);
-  const contract = new FinP2PContract(provider, signer, finp2pContractAddress, logger);
+  const contract = await FinP2PContract.create(provider, signer, finp2pContractAddress, logger);
 
   for (const { assetId } of assets) {
     try {
@@ -48,13 +48,13 @@ const syncBalanceFromOssToEthereum = async (ossUrl: string, providerType: Provid
       if (balance > 0) {
 
         logger.info(`Issuing ${balance} asset ${assetId} for finId ${finId}`);
-        const issueTx = await contract.issue(finId, term(assetId, AssetType.FinP2P, `${balance}`));
+        const issueTx = await contract.issue(finId, assetId, AssetType.FinP2P, `${balance}`);
         await contract.waitForCompletion(issueTx);
 
       } else if (balance < 0) {
 
         logger.info(`Redeeming ${-balance} asset ${assetId} for finId ${finId}`);
-        const issueTx = await contract.redeem(finId, term(assetId, AssetType.FinP2P, `${-balance}`));
+        const issueTx = await contract.redeem(finId, assetId, AssetType.FinP2P, `${-balance}`);
         await contract.waitForCompletion(issueTx);
       } else {
         logger.info(`FinId ${finId} already has enough balance for asset ${assetId}: ${balance}`);

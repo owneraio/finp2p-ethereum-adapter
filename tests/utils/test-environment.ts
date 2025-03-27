@@ -13,7 +13,6 @@ import { addressFromPrivateKey } from "../../finp2p-contracts/src/contracts/util
 import { AssetCreationPolicy } from "../../src/services/tokens";
 import { createProviderAndSigner, ProviderType } from "../../finp2p-contracts/src/contracts/config";
 import winston, { format, transports } from "winston";
-import { InMemoryExecDetailsStore } from "../../src/services/exec-details-store";
 
 const providerType: ProviderType = "local";
 
@@ -104,12 +103,12 @@ class CustomTestEnvironment extends NodeEnvironment {
 
   private async startApp(finP2PContractAddress: string) {
     const { provider, signer } = await createProviderAndSigner(providerType, logger, false);
-    const finP2PContract = new FinP2PContract(provider, signer, finP2PContractAddress, logger);
+    const finP2PContract = await FinP2PContract.create(provider, signer, finP2PContractAddress, logger);
 
     const port = randomPort();
     const assetCreationPolicy = { type: "deploy-new-token", decimals: 0 } as AssetCreationPolicy;
 
-    const app = createApp(finP2PContract, assetCreationPolicy, undefined,  new InMemoryExecDetailsStore(), logger);
+    const app = createApp(finP2PContract, assetCreationPolicy, undefined, undefined, logger);
     console.log("App created successfully.");
 
     this.httpServer = app.listen(port, () => {

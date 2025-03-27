@@ -1,10 +1,10 @@
 import {
-  eip712Asset,
+  eip712ReceiptAsset,
   EIP712ReceiptMessage,
   EIP712Template,
-  eip712ExecutionContext, LegType, PrimaryType,
-  eip712TradeDetails,
-  eip712TransactionDetails, EIP712Term, EIP712AssetType,
+  eip712ReceiptExecutionContext,
+  eip712ReceiptTradeDetails,
+  eip712ReceiptTransactionDetails, EIP712AssetType
 } from "./eip712";
 
 export interface Term {
@@ -30,7 +30,7 @@ export const assetTypeFromNumber = (assetType: bigint): AssetType => {
     default:
       throw new Error("Invalid asset type");
   }
-}
+};
 
 export const assetTypeFromString = (assetType: string): AssetType => {
   switch (assetType) {
@@ -51,7 +51,7 @@ export const term = (assetId: string, assetType: AssetType, amount: string): Ter
 
 export const emptyTerm = (): Term => {
   return term("", 0, "");
-};
+}
 
 export const assetTypeToEIP712 = (assetType: AssetType): EIP712AssetType => {
   switch (assetType) {
@@ -62,56 +62,43 @@ export const assetTypeToEIP712 = (assetType: AssetType): EIP712AssetType => {
     case AssetType.Cryptocurrency:
       return "cryptocurrency";
   }
+};
+
+export const enum InstructionType {
+  ISSUE = 0,
+  TRANSFER = 1,
+  HOLD = 2,
+  RELEASE = 3,
+  REDEEM = 4,
+  AWAIT = 5
 }
 
-export const termToEIP712 = (term: Term): EIP712Term => {
-  return {
-    assetId: term.assetId,
-    assetType: assetTypeToEIP712(term.assetType),
-    amount: term.amount
-  };
+export const enum ReceiptOperationType {
+  ISSUE = 0,
+  TRANSFER = 1,
+  HOLD = 2,
+  RELEASE = 3,
+  REDEEM = 4
 }
 
-export const enum Phase {
-  Initiate = 0,
-  Close = 1
+export const enum InstructionExecutor {
+  THIS_CONTRACT = 0,
+  OTHER_CONTRACT = 1
 }
 
-export const enum ReleaseType {
-  Release = 0,
-  Redeem = 1
+export type ExecutionContext = {
+  planId: string,
+  sequence: number
 }
 
-export interface OperationParams {
-  domain: {
+export const executionContext = (planId: string, sequence: number): ExecutionContext => {
+  return { planId, sequence };
+}
+
+
+export type Domain = {
     chainId: number | bigint
     verifyingContract: string
-  }
-  primaryType: PrimaryType;
-  leg: LegType;
-  phase: Phase;
-  operationId: string;
-  releaseType: ReleaseType
-}
-
-export const operationParams = (
-  domain: {
-    chainId: number | bigint,
-    verifyingContract: string
-  },
-  primaryType: PrimaryType,
-  leg: LegType,
-  phase: Phase = Phase.Initiate,
-  operationId: string = '',
-  releaseType: ReleaseType = ReleaseType.Release): OperationParams => {
-  return {
-    domain,
-    primaryType,
-    leg,
-    phase,
-    operationId,
-    releaseType
-  };
 }
 
 export type OperationStatus = PendingTransaction | SuccessfulTransaction | FailedTransaction;
@@ -145,11 +132,44 @@ export const failedOperation = (message: string, code: number): FailedTransactio
   };
 };
 
-export type TradeDetails = {
-  executionContext: ExecutionContext
+
+export const receiptOperationTypeToEIP712 = (receiptOperationType: ReceiptOperationType): string => {
+  switch (receiptOperationType) {
+    case ReceiptOperationType.ISSUE:
+      return "issue";
+    case ReceiptOperationType.TRANSFER:
+      return "transfer";
+    case ReceiptOperationType.HOLD:
+      return "hold";
+    case ReceiptOperationType.RELEASE:
+      return "release";
+    case ReceiptOperationType.REDEEM:
+      return "redeem";
+  }
 }
 
-export type ExecutionContext = {
+export const receiptOperationTypeFromEIP712 = (receiptOperationType: string): ReceiptOperationType => {
+  switch (receiptOperationType) {
+    case "issue":
+      return ReceiptOperationType.ISSUE;
+    case "transfer":
+      return ReceiptOperationType.TRANSFER;
+    case "hold":
+      return ReceiptOperationType.HOLD;
+    case "release":
+      return ReceiptOperationType.RELEASE;
+    case "redeem":
+      return ReceiptOperationType.REDEEM;
+    default:
+      throw new Error("Invalid receipt operation type");
+  }
+}
+
+export type ReceiptTradeDetails = {
+  executionContext: ReceiptExecutionContext
+}
+
+export type ReceiptExecutionContext = {
   executionPlanId: string
   instructionSequenceNumber: number
 }
@@ -166,19 +186,18 @@ export const receiptToEIP712Message = (receipt: FinP2PReceipt): EIP712ReceiptMes
   const { id, operationType, assetId, assetType, quantity, source, destination, operationId } = receipt;
   return {
     id,
-    operationType,
+    operationType: receiptOperationTypeToEIP712(operationType),
     source: { accountType: source ? "finId" : "", finId: source || "" },
     destination: { accountType: destination ? "finId" : "", finId: destination || "" },
     quantity,
-    asset: eip712Asset(assetId, assetTypeToEIP712(assetType)),
-    tradeDetails: eip712TradeDetails(eip712ExecutionContext(
-      receipt?.tradeDetails?.executionContext.executionPlanId || '',
-      `${receipt?.tradeDetails?.executionContext.instructionSequenceNumber || ''}`)),
-    transactionDetails: eip712TransactionDetails(operationId || "", id)
+    asset: eip712ReceiptAsset(assetId, assetTypeToEIP712(assetType)),
+    tradeDetails: eip712ReceiptTradeDetails(eip712ReceiptExecutionContext(
+      receipt?.tradeDetails?.executionContext.executionPlanId || "",
+      `${receipt?.tradeDetails?.executionContext.instructionSequenceNumber || ""}`)),
+    transactionDetails: eip712ReceiptTransactionDetails(operationId || "", id)
   };
 };
 
-export type OperationType = "transfer" | "redeem" | "hold" | "release" | "issue";
 
 export type FinP2PReceipt = {
   id: string
@@ -188,9 +207,9 @@ export type FinP2PReceipt = {
   source?: string
   destination?: string
   timestamp: number
-  operationType: OperationType
+  operationType: ReceiptOperationType
   operationId?: string
-  tradeDetails?: TradeDetails
+  tradeDetails?: ReceiptTradeDetails
   proof?: ReceiptProof
 };
 

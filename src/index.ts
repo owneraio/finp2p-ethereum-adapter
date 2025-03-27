@@ -9,7 +9,8 @@ import {
 import { PolicyGetter } from "./finp2p/policy";
 import { OssClient } from "./finp2p/oss.client";
 import winston, { format, transports } from "winston";
-import { InMemoryExecDetailsStore } from "./services/exec-details-store";
+import { ExecutionPlanGetter } from "./finp2p/execution.plan";
+import { FinAPIClient } from "./finp2p/finapi/finapi.client";
 
 const createAssetCreationPolicy = async (contractManager: FinP2PContract | undefined): Promise<AssetCreationPolicy> => {
   const type = (process.env.ASSET_CREATION_POLICY || "deploy-new-token");
@@ -59,6 +60,22 @@ const init = async () => {
   if (!ossUrl) {
     throw new Error("OSS_URL is not set");
   }
+  const finp2pAddress = process.env.FINP2P_ADDRESS;
+  if (!finp2pAddress) {
+    throw new Error("FINP2P_ADDRESS is not set");
+  }
+
+  // let policyGetter: PolicyGetter | undefined;
+  // let executionGetter: ExecutionPlanGetter | undefined;
+  // const ossUrl = process.env.OSS_URL;
+  // if (ossUrl) {
+  //   const ossClient = new OssClient(ossUrl, undefined);
+  //   policyGetter = new PolicyGetter(ossClient);
+  //
+  //     const finApiClient = new FinAPIClient(finp2pAddress);
+  //     executionGetter = new ExecutionPlanGetter(finApiClient, ossClient);
+  //   }
+  // }
 
   const level = process.env.LOG_LEVEL || "info";
   const logger = winston.createLogger({
@@ -80,12 +97,14 @@ const init = async () => {
 
   const useNonceManager = process.env.NONCE_POLICY === "fast";
   const { provider, signer } = await createProviderAndSigner(providerType, logger, useNonceManager);
-  const finp2pContract = new FinP2PContract(provider, signer, finP2PContractAddress, logger);
+  const finp2pContract = await FinP2PContract.create(provider, signer, finP2PContractAddress, logger);
   const assetCreationPolicy = await createAssetCreationPolicy(finp2pContract);
-  const policyGetter = new PolicyGetter(new OssClient(ossUrl, undefined));
-  const execDetailsStore = new InMemoryExecDetailsStore();
+  const ossClient = new OssClient(ossUrl, undefined);
+  const policyGetter = new PolicyGetter(ossClient);
+  const finApiClient = new FinAPIClient(finp2pAddress);
+  const executionGetter = new ExecutionPlanGetter(finApiClient, ossClient);
 
-  createApp(finp2pContract, assetCreationPolicy, policyGetter, execDetailsStore, logger).listen(port, () => {
+  createApp(finp2pContract, assetCreationPolicy, policyGetter, executionGetter, logger).listen(port, () => {
     logger.info(`listening at http://localhost:${port}`);
   });
 };
