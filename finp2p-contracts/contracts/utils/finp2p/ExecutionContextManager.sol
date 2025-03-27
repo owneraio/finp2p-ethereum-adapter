@@ -12,6 +12,7 @@ contract ExecutionContextManager is FinP2PSignatureVerifier {
     using StringUtils for string;
 
     mapping(string => FinP2P.ExecutionPlan) private executions;
+    mapping(bytes32 => bool) private usedSignatures;
 
     function createExecutionPlan(string memory id, address transactionManager) external {
         executions[id].creator = msg.sender;
@@ -62,6 +63,7 @@ contract ExecutionContextManager is FinP2PSignatureVerifier {
     ) external {
         require(executions[executionContext.planId].status == FinP2P.ExecutionStatus.CREATED, "Execution is not in CREATED status");
         require(executions[executionContext.planId].creator == msg.sender, "Only creator can provide investor signature");
+        require(usedSignatures[keccak256(signature)] == false, "Signature already used");
         FinP2P.Instruction memory instruction = executions[executionContext.planId].instructions[executionContext.sequence - 1];
         require(instruction.executor == FinP2P.InstructionExecutor.THIS_CONTRACT, "Instruction executor is not THIS_CONTRACT");
         string memory signerFinId = instruction.source;
@@ -77,6 +79,7 @@ contract ExecutionContextManager is FinP2PSignatureVerifier {
             signerFinId,
             signature
         ), "Signature is not verified");
+        usedSignatures[keccak256(signature)] = true;
         executions[executionContext.planId].instructions[executionContext.sequence - 1].status = FinP2P.InstructionStatus.PENDING;
         if (_isExecutionVerified(executionContext.planId)) {
             executions[executionContext.planId].status = FinP2P.ExecutionStatus.VERIFIED;
