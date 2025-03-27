@@ -18,6 +18,7 @@ import {
   AssetType, assetTypeToEIP712, executionContext,
   InstructionExecutor, InstructionType
 } from "../src/contracts/model";
+import { Term } from "../../src/finp2p/model";
 
 
 describe("FinP2P proxy contract test", function() {
@@ -93,8 +94,8 @@ describe("FinP2P proxy contract test", function() {
       const domain = { chainId, verifyingContract };
       const primaryType = PrimaryType.PrimarySale;
 
-      const asset = { assetId: generateAssetId(), assetType: AssetType.FinP2P, amount: "10" };
-      const settlement = { assetId: generateAssetId(), assetType: AssetType.Fiat, amount: "100" };
+      const asset: Term = { assetId: generateAssetId(), assetType: AssetType.FinP2P, amount: "10" };
+      const settlement: Term = { assetId: generateAssetId(), assetType: AssetType.Fiat, amount: "100" };
       const loan = emptyLoanTerms();
 
       const assetERC20Address = await deployERC20(asset.assetId, asset.assetId, decimals, finP2PAddress);

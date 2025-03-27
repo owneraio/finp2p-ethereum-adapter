@@ -7,16 +7,16 @@ import {
   eip712TransactionDetails, EIP712AssetType
 } from "./eip712";
 
+export interface Term {
+  assetId: string,
+  assetType: AssetType,
+  amount: string
+}
 
 export const enum AssetType {
   FinP2P = 0,
   Fiat = 1,
   Cryptocurrency = 2
-}
-
-export type Asset = {
-  assetId: string;
-  assetType: AssetType;
 }
 
 export const assetTypeFromNumber = (assetType: bigint): AssetType => {
@@ -31,6 +31,27 @@ export const assetTypeFromNumber = (assetType: bigint): AssetType => {
       throw new Error("Invalid asset type");
   }
 };
+
+export const assetTypeFromString = (assetType: string): AssetType => {
+  switch (assetType) {
+    case "finp2p":
+      return AssetType.FinP2P;
+    case "fiat":
+      return AssetType.Fiat;
+    case "cryptocurrency":
+      return AssetType.Cryptocurrency;
+    default:
+      throw new Error("Invalid asset type");
+  }
+}
+
+export const term = (assetId: string, assetType: AssetType, amount: string): Term => {
+  return { assetId, assetType, amount };
+};
+
+export const emptyTerm = (): Term => {
+  return term("", 0, "");
+}
 
 export const assetTypeToEIP712 = (assetType: AssetType): EIP712AssetType => {
   switch (assetType) {

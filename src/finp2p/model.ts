@@ -1,10 +1,12 @@
 import {
-  AssetType, Domain,
+  AssetType,
+  Domain,
   ExecutionContext,
   InstructionExecutor,
-  InstructionType
+  InstructionType,
+  Term
 } from "../../finp2p-contracts/src/contracts/model";
-import { EIP712LoanTerms, EIP712Term } from "../../finp2p-contracts/src/contracts/eip712";
+import { EIP712LoanTerms } from "../../finp2p-contracts/src/contracts/eip712";
 
 export type OssAsset = {
   id: string,
@@ -132,27 +134,32 @@ export const parseProofDomain = (jsonString: string): ProofDomain | null => {
   };
 };
 
+export type Asset = {
+  assetId: string;
+  assetType: AssetType;
+}
 
 export type Instruction = {
-  exCtx: ExecutionContext,
+  executionContext: ExecutionContext,
   instructionType: InstructionType,
   assetId: string,
   assetType: AssetType,
   source: string,
   destination: string,
   amount: string,
-  instructionExecutor: InstructionExecutor,
+  executor: InstructionExecutor,
   proofSigner: string
   signature?: InvestorSignature
 }
+
 
 export type InvestorSignature = {
   domain: Domain,
   nonce: string,
   buyer: string,
   seller: string,
-  asset: EIP712Term,
-  settlement: EIP712Term,
+  asset: Term,
+  settlement: Term
   loan: EIP712LoanTerms,
   signature: string
 }

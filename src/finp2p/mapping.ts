@@ -1,8 +1,13 @@
 import process from "process";
-import { InstructionExecutor, InstructionType } from "../../finp2p-contracts/src/contracts/model";
+import {
+  InstructionExecutor,
+  InstructionType,
+  AssetType,
+  emptyTerm
+} from "../../finp2p-contracts/src/contracts/model";
 import { finApiAssetFromAPI } from "../services/mapping";
 import { Instruction, InvestorSignature } from "./model";
-import { EIP712LoanTerms, EIP712Term, emptyLoanTerms } from "../../finp2p-contracts/src/contracts/eip712";
+import { EIP712LoanTerms, emptyLoanTerms } from "../../finp2p-contracts/src/contracts/eip712";
 
 
 export const instructionFromAPI = (planId: string, instruction: FinAPIComponents.Schemas.ExecutionInstruction): Instruction => {
@@ -17,7 +22,7 @@ export const instructionFromAPI = (planId: string, instruction: FinAPIComponents
   const { assetId, assetType } = finApiAssetFromAPI(asset);
   const signature = investorSignatureFromAPI(sig);
   return {
-    exCtx, instructionType, assetId, assetType, source, destination, amount, instructionExecutor, proofSigner, signature
+    executionContext: exCtx, instructionType, assetId, assetType, source, destination, amount, executor: instructionExecutor, proofSigner, signature
   };
 };
 
@@ -170,7 +175,11 @@ const eip712DomainFromTemplate = (domain: FinAPIComponents.Schemas.EIP712Domain)
   return { chainId, verifyingContract };
 };
 
-const termFromAPI = (term: FinAPIComponents.Schemas.EIP712TypeObject): EIP712Term => {
+const termFromAPI = (term: FinAPIComponents.Schemas.EIP712TypeObject): {
+  assetId: string,
+  assetType: AssetType,
+  amount: string
+} => {
   return {
     assetId: term.assetId as FinAPIComponents.Schemas.EIP712TypeString,
     assetType: assetTypeFromString(term.assetType as FinAPIComponents.Schemas.EIP712TypeString),
@@ -188,4 +197,17 @@ const loanTermFromAPI = (loanTerms: Components.Schemas.EIP712TypeObject | undefi
     borrowedMoneyAmount: loanTerms.borrowedMoneyAmount as FinAPIComponents.Schemas.EIP712TypeString,
     returnedMoneyAmount: loanTerms.returnedMoneyAmount as FinAPIComponents.Schemas.EIP712TypeString
   } as EIP712LoanTerms;
+};
+
+const assetTypeFromString = (assetType: string): AssetType => {
+  switch (assetType) {
+    case "finp2p":
+      return AssetType.FinP2P;
+    case "fiat":
+      return AssetType.Fiat;
+    case "cryptocurrency":
+      return AssetType.Cryptocurrency;
+    default:
+      throw new Error("Invalid asset type");
+  }
 };

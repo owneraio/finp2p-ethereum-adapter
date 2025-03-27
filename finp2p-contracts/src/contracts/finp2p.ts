@@ -17,6 +17,7 @@ import { EIP712Domain, EIP712LoanTerms, EIP712Term } from "./eip712";
 import winston from "winston";
 import { FINP2POperatorERC20Interface } from "../../typechain-types/contracts/token/ERC20/FINP2POperatorERC20";
 import { PayableOverrides } from "../../typechain-types/common";
+import { Term } from "../../../src/finp2p/model";
 
 
 const ETH_COMPLETED_TRANSACTION_STATUS = 1;
@@ -31,7 +32,7 @@ export class FinP2PContract extends ContractsManager {
   finP2PContractAddress: string;
 
   static async create(provider: Provider, signer: Signer, finP2PContractAddress: string, logger: winston.Logger) {
-    const exCtxManagerAddress =''; // TODO: get exCtxManagerAddress from finP2PContract
+    const exCtxManagerAddress = ""; // TODO: get exCtxManagerAddress from finP2PContract
     return new FinP2PContract(provider, signer, exCtxManagerAddress, finP2PContractAddress, logger);
   }
 
@@ -84,7 +85,7 @@ export class FinP2PContract extends ContractsManager {
   }
 
   async provideInvestorSignature(exCtx: ExecutionContext, domain: Domain, nonce: string, buyer: string, seller: string,
-                                 asset: EIP712Term, settlement: EIP712Term, loan: EIP712LoanTerms, signature: string) {
+                                 asset: Term, settlement: Term, loan: EIP712LoanTerms, signature: string) {
     return this.safeExecuteTransaction(this.executionManager, async (executionManager: ExecutionContextManager, txParams: PayableOverrides) => {
       return executionManager.provideInvestorSignature(exCtx, domain, nonce, buyer, seller, asset, settlement, loan, signature, txParams);
     });
