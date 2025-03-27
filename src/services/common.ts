@@ -1,8 +1,7 @@
 import { logger } from "../helpers/logger";
 import { FinP2PContract } from "../../finp2p-contracts/src/contracts/finp2p";
 import {
-  Domain,
-  FinP2PReceipt, ReceiptOperationType,
+  FinP2PReceipt,
   receiptToEIP712Message
 } from "../../finp2p-contracts/src/contracts/model";
 import { assetFromAPI, receiptToAPI } from "./mapping";
@@ -10,11 +9,6 @@ import { PolicyGetter } from "../finp2p/policy";
 import {
   DOMAIN_TYPE,
   EIP712Domain,
-  EIP712ReceiptAsset,
-  EIP712ReceiptDestination,
-  EIP712ReceiptSource,
-  EIP712ReceiptTradeDetails,
-  EIP712ReceiptTransactionDetails,
   RECEIPT_PROOF_TYPES
 } from "../../finp2p-contracts/src/contracts/eip712";
 import { ProofDomain } from "../finp2p/model";

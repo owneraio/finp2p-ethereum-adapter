@@ -8,11 +8,14 @@ import { PaymentsService } from "./services/payments";
 import { PlanService } from "./services/plans";
 import { FinP2PContract } from "../finp2p-contracts/src/contracts/finp2p";
 import { PolicyGetter } from "./finp2p/policy";
+import { ExecutionPlanGetter } from "./finp2p/execution.plan";
 
 
 function createApp(finP2PContract: FinP2PContract,
                    assetCreationPolicy: AssetCreationPolicy,
-                   policyGetter: PolicyGetter | undefined, logger: winston.Logger) {
+                   policyGetter: PolicyGetter | undefined,
+                   executionGetter: ExecutionPlanGetter | undefined,
+                   logger: winston.Logger) {
   const app = express();
   app.use(express.json({ limit: "50mb" }));
   app.use(expressLogger({
@@ -24,10 +27,10 @@ function createApp(finP2PContract: FinP2PContract,
   }));
 
   routes.register(app,
-    new TokenService(finP2PContract, assetCreationPolicy, policyGetter),
-    new EscrowService(finP2PContract, policyGetter),
-    new PaymentsService(finP2PContract, policyGetter),
-    new PlanService());
+    new TokenService(finP2PContract, assetCreationPolicy, policyGetter, executionGetter),
+    new EscrowService(finP2PContract, policyGetter, executionGetter),
+    new PaymentsService(finP2PContract, policyGetter, executionGetter),
+    new PlanService(finP2PContract, policyGetter, executionGetter));
 
   return app;
 }

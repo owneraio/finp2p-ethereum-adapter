@@ -1,5 +1,4 @@
 import {
-  Asset,
   AssetType,
   ExecutionContext,
   FinP2PReceipt,
@@ -25,6 +24,7 @@ import FinP2PEVMOperatorDetails = Components.Schemas.FinP2PEVMOperatorDetails;
 import EIP712TypeString = Components.Schemas.EIP712TypeString;
 import ProofPolicy = Components.Schemas.ProofPolicy;
 import { v4 as uuid } from "uuid";
+import { Asset } from "../finp2p/model";
 
 
 export const assetFromAPI = (asset: Components.Schemas.Asset): Asset => {

@@ -6,7 +6,7 @@ export class FinAPIClient {
   finP2PUrl: string;
   authTokenResolver: (() => string) | undefined;
 
-  constructor(finP2PUrl: string, authTokenResolver: (() => string) | undefined) {
+  constructor(finP2PUrl: string, authTokenResolver: (() => string) | undefined = undefined) {
     this.finP2PUrl = finP2PUrl;
     this.authTokenResolver = authTokenResolver;
   }
