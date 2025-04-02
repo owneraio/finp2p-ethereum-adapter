@@ -181,6 +181,15 @@ export const parseERC20Transfer = (receipt: TransactionReceipt,
   }
 };
 
+export const linkLibrary = (bytecode: string, libraryName: string, libraryAddress: string) : string => {
+  const formattedAddress = libraryAddress.replace("0x", "").toLowerCase();
+  const placeholder = new RegExp(`_\\$${libraryName}\\$__`, "g"); // Matches __$LibraryName$__
+  if (!bytecode.match(placeholder)) {
+    throw new Error(`Library placeholder for ${libraryName} not found in bytecode.`);
+  }
+  return bytecode.replace(placeholder, formattedAddress);
+}
+
 export const isEthereumAddress = (address: string): boolean => {
   return isAddress(address);
 };

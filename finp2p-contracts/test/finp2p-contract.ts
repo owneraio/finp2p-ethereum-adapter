@@ -5,7 +5,7 @@ import { ethers } from "hardhat";
 import { v4 as uuid } from "uuid";
 import { generateNonce, toFixedDecimals } from "./utils";
 import { getFinId } from "../src/contracts/utils";
-import { Signer, Wallet } from "ethers";
+import { keccak256, Signer, toUtf8Bytes, Wallet } from "ethers";
 import {
   eip712Term,
   emptyLoanTerms,
