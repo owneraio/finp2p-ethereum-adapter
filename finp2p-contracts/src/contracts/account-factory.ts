@@ -29,6 +29,7 @@ export class AccountFactoryContract extends ContractsManager {
   }
 
   async createRepoAgreement(name: string, description: string, source: AddressLike, destination: AddressLike) {
+    this.logger.debug(`Creating repo agreement for ${name}`);
     const liabilityFactoryAddress = await this.getLiabilityFactory();
     const controller = await this.controller();
 

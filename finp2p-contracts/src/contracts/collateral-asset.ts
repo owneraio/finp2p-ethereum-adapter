@@ -1,5 +1,5 @@
 import { ContractsManager } from "./manager";
-import { type AddressLike, ContractFactory, Provider, Signer } from "ethers";
+import { ContractFactory, Provider, Signer } from "ethers";
 import { IAssetCollateralAccount } from "../../typechain-types";
 import COLLATERAL_ACCOUNT
   from "../../artifacts/contracts/token/collateral/IAssetCollateralAccount.sol/IAssetCollateralAccount.json";
