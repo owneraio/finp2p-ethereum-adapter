@@ -27,6 +27,10 @@ interface IAssetCollateralAccount {
         uint256 effectiveTime;
     }
 
+    function setAllowableCollateral(
+        address[] memory assetList
+    ) external;
+
     function setPricedItemConfiguration(
         address priceService,
         address pricedInToken,
