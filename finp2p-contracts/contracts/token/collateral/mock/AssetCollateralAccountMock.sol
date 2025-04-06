@@ -93,16 +93,16 @@ contract AssetCollateralAccountMock is IAssetCollateralAccount {
 
     function deposit(Asset calldata _asset, uint256 _amount) external {
 
-        uint256 price = IPriceService(priceService).getAssetRate(_asset.addr);
-        uint256 haircut = IHaircutService(haircutContext).getAssetHaircut(_asset.addr);
-        uint256 baseValue = price * _amount / 1e18;
-        uint256 valueAfterHaircut = baseValue * (100 - haircut) / 100;
+//        uint256 price = IPriceService(priceService).getAssetRate(_asset.addr);
+//        uint256 haircut = IHaircutService(haircutContext).getAssetHaircut(_asset.addr);
+//        uint256 baseValue = price * _amount / 1e18;
+//        uint256 valueAfterHaircut = baseValue * (100 - haircut) / 100;
 
 
         IERC20(_asset.addr).transferFrom(source, liabilityOwner, _amount);
         locks.push(Lock(_asset.addr, _amount));
 
-        amountKept += valueAfterHaircut;
+//        amountKept += valueAfterHaircut;
     }
 
     /// @notice [permission] controller or Role:EscrowAgent

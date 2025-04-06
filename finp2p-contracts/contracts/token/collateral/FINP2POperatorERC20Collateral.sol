@@ -10,6 +10,7 @@ import {FinP2PSignatureVerifier} from "../../utils/finp2p/FinP2PSignatureVerifie
 import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
+import {IAssetCollateralAccount} from "./IAssetCollateralAccount.sol";
 
 /**
  * @dev FINP2POperatorERC20
@@ -190,6 +191,7 @@ contract FINP2POperatorERC20Collateral is AccessControl, FinP2PSignatureVerifier
     /// @param loanTerm The loan term to transfer, could be empty
     /// @param op The operation parameters
     /// @param signature The investor signature
+    /// @param signature The investor signature
     function transfer(
         string memory nonce,
         string memory sellerFinId,
@@ -217,7 +219,7 @@ contract FINP2POperatorERC20Collateral is AccessControl, FinP2PSignatureVerifier
             source,
             signature
         ), "Signature is not verified");
-        _transfer(source.toAddress(), destination.toAddress(), assetId, amount);
+        _transfer(source.toAddress(), destination.toAddress(), assetId, amount, op.phase);
         emit Transfer(assetId, assetType, source, destination, amount);
     }
 
@@ -269,7 +271,7 @@ contract FINP2POperatorERC20Collateral is AccessControl, FinP2PSignatureVerifier
             signature
         ), "Signature is not verified");
 
-        _transfer(source.toAddress(), _getEscrow(), assetId, amount);
+        _transfer(source.toAddress(), _getEscrow(), assetId, amount, op.phase);
         if (op.releaseType == ReleaseType.RELEASE) {
             locks[op.operationId] = Lock(assetId, assetType, source, destination, amount);
         } else if (op.releaseType == ReleaseType.REDEEM) {
@@ -295,7 +297,7 @@ contract FINP2POperatorERC20Collateral is AccessControl, FinP2PSignatureVerifier
         require(lock.amount.equals(quantity), "Trying to release amount different from the one held");
         require(lock.destination.equals(toFinId), "Trying to release to different destination than the one expected in the lock");
 
-        _transfer(_getEscrow(), toFinId.toAddress(), lock.assetId, lock.amount);
+        _transfer(_getEscrow(), toFinId.toAddress(), lock.assetId, lock.amount, Phase.NONE);
         emit Release(lock.assetId, lock.assetType, lock.source, lock.destination, quantity, operationId);
         delete locks[operationId];
     }
@@ -328,7 +330,7 @@ contract FINP2POperatorERC20Collateral is AccessControl, FinP2PSignatureVerifier
         require(hasRole(TRANSACTION_MANAGER, _msgSender()), "FINP2POperatorERC20: must have transaction manager role to rollback asset");
         require(_haveContract(operationId), "contract does not exists");
         Lock storage lock = locks[operationId];
-        _transfer(_getEscrow(), lock.source.toAddress(), lock.assetId, lock.amount);
+        _transfer(_getEscrow(), lock.source.toAddress(), lock.assetId, lock.amount, Phase.NONE);
         emit Release(lock.assetId, lock.assetType, lock.source, "", lock.amount, operationId);
         delete locks[operationId];
     }
@@ -367,16 +369,36 @@ contract FINP2POperatorERC20Collateral is AccessControl, FinP2PSignatureVerifier
         Mintable(asset.tokenAddress).mint(to, tokenAmount);
     }
 
-    function _transfer(address from, address to, string memory assetId, string memory quantity) internal {
+    function _transfer(address from, address to, string memory assetId, string memory quantity, Phase phase) internal {
         require(_haveAsset(assetId), "Asset not found");
         Asset memory asset = assets[assetId];
 
-        uint8 tokenDecimals = IERC20Metadata(asset.tokenAddress).decimals();
-        uint256 tokenAmount = quantity.stringToUint(tokenDecimals);
-        uint256 balance = IERC20(asset.tokenAddress).balanceOf(from);
-        require(balance >= tokenAmount, "Not sufficient balance to transfer");
+        if (asset.tokenType == TokenType.ERC20) {
+            uint8 tokenDecimals = IERC20Metadata(asset.tokenAddress).decimals();
+            uint256 tokenAmount = quantity.stringToUint(tokenDecimals);
+            uint256 balance = IERC20(asset.tokenAddress).balanceOf(from);
+            require(balance >= tokenAmount, "Not sufficient balance to transfer");
 
-        IERC20(asset.tokenAddress).transferFrom(from, to, tokenAmount);
+            IERC20(asset.tokenAddress).transferFrom(from, to, tokenAmount);
+
+        } else if (asset.tokenType == TokenType.COLLATERAL) {
+            uint8 tokenDecimals = 18; // TODO: get from the IAssetCollateralAccount
+            uint256 tokenAmount = quantity.stringToUint(tokenDecimals);
+
+            if (phase == Phase.INITIATE) {
+                IAssetCollateralAccount(asset.tokenAddress).deposit(
+                    IAssetCollateralAccount.Asset(IAssetCollateralAccount.AssetStandard.FUNGIBLE, asset.tokenAddress, 0),
+                    tokenAmount
+                );
+            } else if (phase == Phase.CLOSE) {
+                IAssetCollateralAccount(asset.tokenAddress).release();
+
+            } else if (phase == Phase.NONE) {
+                // TODO: do nothing, maybe send a fake event
+            }
+        } else {
+            revert("Invalid token type");
+        }
     }
 
     function _burn(address from, string memory assetId, string memory quantity) internal {

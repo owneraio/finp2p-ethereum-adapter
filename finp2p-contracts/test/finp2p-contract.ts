@@ -15,7 +15,7 @@ import {
   PrimaryType,
   sign
 } from "../src/contracts/eip712";
-import type { FINP2POperatorERC20 } from "../typechain-types";
+import type { FINP2POperatorERC20Collateral } from "../typechain-types";
 import {
   AssetType,
   emptyTerm,
@@ -24,9 +24,8 @@ import {
   ReleaseType,
   term,
   Term,
-  termToEIP712
+  termToEIP712, TokenType
 } from "../src/contracts/model";
-import * as domain from "node:domain";
 
 
 describe("FinP2P proxy contract test", function() {
@@ -40,7 +39,7 @@ describe("FinP2P proxy contract test", function() {
   }
 
   async function deployFinP2PProxyFixture() {
-    const deployer = await ethers.getContractFactory("FINP2POperatorERC20");
+    const deployer = await ethers.getContractFactory("FINP2POperatorERC20Collateral");
     const contract = await deployer.deploy();
     const address = await contract.getAddress();
     return { contract, address };
@@ -102,7 +101,7 @@ describe("FinP2P proxy contract test", function() {
   describe("FinP2PProxy operations", () => {
 
     let operator: Signer;
-    let contract: FINP2POperatorERC20;
+    let contract: FINP2POperatorERC20Collateral;
     let finP2PAddress: string;
     let chainId: bigint;
     let verifyingContract: string;
@@ -171,10 +170,10 @@ describe("FinP2P proxy contract test", function() {
       ({ chainId, verifyingContract } = await contract.eip712Domain());
       for (const term of testCases) {
         const asset = await deployERC20(term.asset.assetId, term.asset.assetId, term.decimals, finP2PAddress);
-        await contract.associateAsset(term.asset.assetId, asset, { from: operator });
+        await contract.associateAsset(term.asset.assetId, asset, TokenType.ERC20, { from: operator });
 
         const settlement = await deployERC20(term.settlement.assetId, term.settlement.assetId, term.decimals, finP2PAddress);
-        await contract.associateAsset(term.settlement.assetId, settlement, { from: operator });
+        await contract.associateAsset(term.settlement.assetId, settlement, TokenType.ERC20, { from: operator });
       }
     });
 

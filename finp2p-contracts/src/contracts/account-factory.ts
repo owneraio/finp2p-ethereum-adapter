@@ -5,6 +5,7 @@ import ACCOUNT_FACTORY from "../../artifacts/contracts/token/collateral/IAccount
 // import ACCOUNT_FACTORY from "../../IAccountFactory.json";
 import winston from "winston";
 import { IAccountFactoryInterface } from "../../typechain-types/contracts/token/collateral/IAccountFactory";
+import { parseAFCreateAccount } from "./utils";
 
 
 // Hardcoded constants
@@ -51,19 +52,7 @@ export class AccountFactoryContract extends ContractsManager {
     if (!receipt) {
       throw new Error("Failed to get transaction receipt");
     }
-    for (const log of receipt.logs) {
-      try {
-        const parsed = this.contractInterface.parseLog(log);
-        if (parsed && parsed.name === "AccountCreated") {
-          const { account, accountId } = parsed.args;
-          return { address: account, id: accountId };
-        }
-      } catch (e) {
-        // This log didn't match the ABI — skip
-        continue;
-      }
-    }
-    throw new Error("Failed to create account");
+    return parseAFCreateAccount(receipt, this.contractInterface);
   }
 
   async getLiabilityFactory() {

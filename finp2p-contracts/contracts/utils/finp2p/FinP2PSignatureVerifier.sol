@@ -18,7 +18,8 @@ contract FinP2PSignatureVerifier is EIP712 {
 
     enum Phase {
         INITIATE,
-        CLOSE
+        CLOSE,
+        NONE
     }
 
     enum ReleaseType {

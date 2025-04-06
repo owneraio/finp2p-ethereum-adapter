@@ -26,6 +26,10 @@ import {
 import {
   FINP2POperatorERC20CollateralInterface
 } from "../../typechain-types/contracts/token/collateral/FINP2POperatorERC20Collateral";
+import {
+  IAccountFactoryInterface,
+  AccountCreatedEvent
+} from "../../typechain-types/contracts/token/collateral/IAccountFactory";
 
 export const compactSerialize = (signature: string): string => {
   const { r, s } = Signature.from(signature);
@@ -160,6 +164,25 @@ export const parseTransactionReceipt = (
   }
 
   return null;
+};
+
+export const parseAFCreateAccount = (receipt: TransactionReceipt,
+                                     contractInterface: IAccountFactoryInterface): {
+  address: string,
+  id: bigint
+} | undefined => {
+
+  for (const log of receipt.logs) {
+    try {
+      const parsed = contractInterface.parseLog(log);
+      if (parsed && parsed.name === "AccountCreated") {
+        const { account, accountId } = parsed.args as unknown as AccountCreatedEvent.OutputObject;
+        return { address: account, id: accountId };
+      }
+    } catch (e) {
+      // do nothing
+    }
+  }
 };
 
 export const parseERC20Transfer = (receipt: TransactionReceipt,

@@ -41,6 +41,7 @@ contract AccountFactoryMock is IAccountFactory {
             collateralType, decimals, source, destination);
         _collateral.setAllowableCollateral(strategyInput.assetContextList);
 
+        emit AccountCreated(address(_collateral), 0, address(0), "", "", bytes32(0));
         return address(_collateral);
     }
 
