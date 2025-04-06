@@ -4,13 +4,18 @@ import {
   EIP712Template,
   eip712ExecutionContext, LegType, PrimaryType,
   eip712TradeDetails,
-  eip712TransactionDetails, EIP712Term, EIP712AssetType,
+  eip712TransactionDetails, EIP712Term, EIP712AssetType
 } from "./eip712";
 
 export interface Term {
   assetId: string,
   assetType: AssetType,
   amount: string
+}
+
+export const enum TokenType {
+  ERC20 = 0,
+  COLLATERAL = 1
 }
 
 export const enum AssetType {
@@ -30,7 +35,7 @@ export const assetTypeFromNumber = (assetType: bigint): AssetType => {
     default:
       throw new Error("Invalid asset type");
   }
-}
+};
 
 export const assetTypeFromString = (assetType: string): AssetType => {
   switch (assetType) {
@@ -43,7 +48,7 @@ export const assetTypeFromString = (assetType: string): AssetType => {
     default:
       throw new Error("Invalid asset type");
   }
-}
+};
 
 export const term = (assetId: string, assetType: AssetType, amount: string): Term => {
   return { assetId, assetType, amount };
@@ -62,7 +67,7 @@ export const assetTypeToEIP712 = (assetType: AssetType): EIP712AssetType => {
     case AssetType.Cryptocurrency:
       return "cryptocurrency";
   }
-}
+};
 
 export const termToEIP712 = (term: Term): EIP712Term => {
   return {
@@ -70,7 +75,7 @@ export const termToEIP712 = (term: Term): EIP712Term => {
     assetType: assetTypeToEIP712(term.assetType),
     amount: term.amount
   };
-}
+};
 
 export const enum Phase {
   Initiate = 0,
@@ -86,12 +91,12 @@ export interface OperationParams {
   domain: {
     chainId: number | bigint
     verifyingContract: string
-  }
+  };
   primaryType: PrimaryType;
   leg: LegType;
   phase: Phase;
   operationId: string;
-  releaseType: ReleaseType
+  releaseType: ReleaseType;
 }
 
 export const operationParams = (
@@ -102,7 +107,7 @@ export const operationParams = (
   primaryType: PrimaryType,
   leg: LegType,
   phase: Phase = Phase.Initiate,
-  operationId: string = '',
+  operationId: string = "",
   releaseType: ReleaseType = ReleaseType.Release): OperationParams => {
   return {
     domain,
@@ -112,7 +117,7 @@ export const operationParams = (
     operationId,
     releaseType
   };
-}
+};
 
 export type OperationStatus = PendingTransaction | SuccessfulTransaction | FailedTransaction;
 
@@ -172,8 +177,8 @@ export const receiptToEIP712Message = (receipt: FinP2PReceipt): EIP712ReceiptMes
     quantity,
     asset: eip712Asset(assetId, assetTypeToEIP712(assetType)),
     tradeDetails: eip712TradeDetails(eip712ExecutionContext(
-      receipt?.tradeDetails?.executionContext.executionPlanId || '',
-      `${receipt?.tradeDetails?.executionContext.instructionSequenceNumber || ''}`)),
+      receipt?.tradeDetails?.executionContext.executionPlanId || "",
+      `${receipt?.tradeDetails?.executionContext.instructionSequenceNumber || ""}`)),
     transactionDetails: eip712TransactionDetails(operationId || "", id)
   };
 };

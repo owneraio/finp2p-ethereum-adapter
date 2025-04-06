@@ -1,19 +1,21 @@
 import { ContractFactory, Provider, Signer } from "ethers";
-import FINP2P from "../../artifacts/contracts/token/ERC20/FINP2POperatorERC20.sol/FINP2POperatorERC20.json";
-import { FINP2POperatorERC20 } from "../../typechain-types";
+import FINP2P from "../../artifacts/contracts/token/collateral/FINP2POperatorERC20Collateral.sol/FINP2POperatorERC20Collateral.json";
 import {
   assetTypeFromNumber,
   completedOperation,
   failedOperation,
   FinP2PReceipt, LockInfo, OperationParams,
   OperationStatus,
-  pendingOperation, Term
+  pendingOperation, Term, TokenType
 } from "./model";
 import { parseTransactionReceipt } from "./utils";
 import { ContractsManager } from "./manager";
 import { EIP712Domain, EIP712LoanTerms } from "./eip712";
 import winston from "winston";
-import { FINP2POperatorERC20Interface } from "../../typechain-types/contracts/token/ERC20/FINP2POperatorERC20";
+import {
+  FINP2POperatorERC20Collateral,
+  FINP2POperatorERC20CollateralInterface
+} from "../../typechain-types/contracts/token/collateral/FINP2POperatorERC20Collateral";
 import { PayableOverrides } from "../../typechain-types/common";
 
 
@@ -21,20 +23,20 @@ const ETH_COMPLETED_TRANSACTION_STATUS = 1;
 
 export class FinP2PContract extends ContractsManager {
 
-  contractInterface: FINP2POperatorERC20Interface;
+  contractInterface: FINP2POperatorERC20CollateralInterface;
 
-  finP2P: FINP2POperatorERC20;
+  finP2P: FINP2POperatorERC20Collateral;
 
   finP2PContractAddress: string;
 
   constructor(provider: Provider, signer: Signer, finP2PContractAddress: string, logger: winston.Logger) {
     super(provider, signer, logger);
-    const factory = new ContractFactory<any[], FINP2POperatorERC20>(
+    const factory = new ContractFactory<any[], FINP2POperatorERC20Collateral>(
       FINP2P.abi, FINP2P.bytecode, this.signer
     );
     const contract = factory.attach(finP2PContractAddress);
-    this.contractInterface = contract.interface as FINP2POperatorERC20Interface;
-    this.finP2P = contract as FINP2POperatorERC20;
+    this.contractInterface = contract.interface as FINP2POperatorERC20CollateralInterface;
+    this.finP2P = contract as FINP2POperatorERC20Collateral;
     this.finP2PContractAddress = finP2PContractAddress;
   }
 
@@ -57,53 +59,53 @@ export class FinP2PContract extends ContractsManager {
     return this.finP2P.getAssetAddress(assetId);
   }
 
-  async associateAsset(assetId: string, tokenAddress: string) {
-    return this.safeExecuteTransaction(this.finP2P, async (finP2P: FINP2POperatorERC20, txParams: PayableOverrides) => {
-      return finP2P.associateAsset(assetId, tokenAddress, txParams);
+  async associateAsset(assetId: string, tokenAddress: string, tokenType: TokenType) {
+    return this.safeExecuteTransaction(this.finP2P, async (finP2P: FINP2POperatorERC20Collateral, txParams: PayableOverrides) => {
+      return finP2P.associateAsset(assetId, tokenAddress, tokenType, txParams);
     });
   }
 
   async issue(issuerFinId: string, asset: Term) {
-    return this.safeExecuteTransaction(this.finP2P, async (finP2P: FINP2POperatorERC20, txParams: PayableOverrides) => {
+    return this.safeExecuteTransaction(this.finP2P, async (finP2P: FINP2POperatorERC20Collateral, txParams: PayableOverrides) => {
       return finP2P.issue(issuerFinId, asset, txParams);
     });
   }
 
   async transfer(nonce: string, sellerFinId: string, buyerFinId: string,
                  asset: Term, settlement: Term, loan: EIP712LoanTerms, params: OperationParams, signature: string) {
-    return this.safeExecuteTransaction(this.finP2P, async (finP2P: FINP2POperatorERC20, txParams: PayableOverrides) => {
+    return this.safeExecuteTransaction(this.finP2P, async (finP2P: FINP2POperatorERC20Collateral, txParams: PayableOverrides) => {
       return finP2P.transfer(
         nonce, sellerFinId, buyerFinId, asset, settlement, loan, params, `0x${signature}`, txParams);
     });
   }
 
   async redeem(ownerFinId: string, asset: Term) {
-    return this.safeExecuteTransaction(this.finP2P, async (finP2P: FINP2POperatorERC20, txParams: PayableOverrides) => {
+    return this.safeExecuteTransaction(this.finP2P, async (finP2P: FINP2POperatorERC20Collateral, txParams: PayableOverrides) => {
       return finP2P.redeem(ownerFinId, asset, txParams);
     });
   }
 
   async hold(nonce: string, sellerFinId: string, buyerFinId: string,
              asset: Term, settlement: Term, loan: EIP712LoanTerms, params: OperationParams, signature: string) {
-    return this.safeExecuteTransaction(this.finP2P, async (finP2P: FINP2POperatorERC20, txParams: PayableOverrides) => {
+    return this.safeExecuteTransaction(this.finP2P, async (finP2P: FINP2POperatorERC20Collateral, txParams: PayableOverrides) => {
       return finP2P.hold(nonce, sellerFinId, buyerFinId, asset, settlement, loan, params, `0x${signature}`, txParams);
     });
   }
 
   async releaseTo(operationId: string, buyerFinId: string, quantity: string) {
-    return this.safeExecuteTransaction(this.finP2P, async (finP2P: FINP2POperatorERC20, txParams: PayableOverrides) => {
+    return this.safeExecuteTransaction(this.finP2P, async (finP2P: FINP2POperatorERC20Collateral, txParams: PayableOverrides) => {
       return finP2P.releaseTo(operationId, buyerFinId, quantity, txParams);
     });
   }
 
   async releaseAndRedeem(operationId: string, ownerFinId: string, quantity: string) {
-    return this.safeExecuteTransaction(this.finP2P, async (finP2P: FINP2POperatorERC20, txParams: PayableOverrides) => {
+    return this.safeExecuteTransaction(this.finP2P, async (finP2P: FINP2POperatorERC20Collateral, txParams: PayableOverrides) => {
       return finP2P.releaseAndRedeem(operationId, ownerFinId, quantity, txParams);
     });
   }
 
   async releaseBack(operationId: string) {
-    return this.safeExecuteTransaction(this.finP2P, async (finP2P: FINP2POperatorERC20, txParams: PayableOverrides) => {
+    return this.safeExecuteTransaction(this.finP2P, async (finP2P: FINP2POperatorERC20Collateral, txParams: PayableOverrides) => {
       return finP2P.releaseBack(operationId, txParams);
     });
   }

@@ -23,6 +23,9 @@ import {
   ERC20WithOperatorInterface,
   TransferEvent as ERC20TransferEvent
 } from "../../typechain-types/contracts/token/ERC20/ERC20WithOperator";
+import {
+  FINP2POperatorERC20CollateralInterface
+} from "../../typechain-types/contracts/token/collateral/FINP2POperatorERC20Collateral";
 
 export const compactSerialize = (signature: string): string => {
   const { r, s } = Signature.from(signature);
@@ -54,7 +57,7 @@ export const addressFromPrivateKey = (privateKey: string): string => {
 
 export const parseTransactionReceipt = (
   receipt: TransactionReceipt,
-  contractInterface: FINP2POperatorERC20Interface,
+  contractInterface: FINP2POperatorERC20Interface | FINP2POperatorERC20CollateralInterface,
   timestamp: number
 ): FinP2PReceipt | null => {
   const id = receipt.hash;

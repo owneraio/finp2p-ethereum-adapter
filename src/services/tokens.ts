@@ -7,7 +7,12 @@ import {
   failedTransaction,
   getRandomNumber, RequestParams, RequestValidationError
 } from "./mapping";
-import { assetTypeFromString, EthereumTransactionError, term } from "../../finp2p-contracts/src/contracts/model";
+import {
+  assetTypeFromString,
+  EthereumTransactionError,
+  term,
+  TokenType
+} from "../../finp2p-contracts/src/contracts/model";
 import { logger } from "../helpers/logger";
 import { FinP2PContract } from "../../finp2p-contracts/src/contracts/finp2p";
 import { isEthereumAddress } from "../../finp2p-contracts/src/contracts/utils";
@@ -31,11 +36,12 @@ export class TokenService extends CommonService {
   }
 
   public async createAsset(request: Paths.CreateAsset.RequestBody): Promise<Paths.CreateAsset.Responses.$200> {
-    const { assetId } = assetFromAPI(request.asset);
+    const { asset, ledgerAssetBinding, metadata } = request;
+    const { assetId } = assetFromAPI(asset);
     try {
 
-      if (request.ledgerAssetBinding) {
-        const { tokenId: tokenAddress } = request.ledgerAssetBinding as LedgerTokenId;
+      if (ledgerAssetBinding) {
+        const { tokenId: tokenAddress } = ledgerAssetBinding as LedgerTokenId;
         if (!isEthereumAddress(tokenAddress)) {
           return {
             isCompleted: true, error: {
@@ -44,7 +50,11 @@ export class TokenService extends CommonService {
           } as CreateAssetResponse;
         }
 
-        const txHash = await this.finP2PContract.associateAsset(assetId, tokenAddress);
+        let tokenType = TokenType.ERC20;
+        if (metadata && metadata["tokenType"] === "COLLATERAL") {
+          tokenType = TokenType.COLLATERAL;
+        }
+        const txHash = await this.finP2PContract.associateAsset(assetId, tokenAddress, tokenType);
         await this.finP2PContract.waitForCompletion(txHash);
         return assetCreationResult(tokenAddress, tokenAddress, this.finP2PContract.finP2PContractAddress);
 
@@ -73,7 +83,7 @@ export class TokenService extends CommonService {
             } as CreateAssetResponse;
         }
 
-        const txHash = await this.finP2PContract.associateAsset(assetId, tokenAddress);
+        const txHash = await this.finP2PContract.associateAsset(assetId, tokenAddress, TokenType.ERC20);
         await this.finP2PContract.waitForCompletion(txHash);
         return assetCreationResult(tokenId, tokenAddress, this.finP2PContract.finP2PContractAddress);
       }
