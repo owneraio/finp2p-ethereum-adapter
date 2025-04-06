@@ -184,6 +184,7 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
     /// @param loanTerm The loan term to transfer, could be empty
     /// @param op The operation parameters
     /// @param signature The investor signature
+    /// @param signature The investor signature
     function transfer(
         string memory nonce,
         string memory sellerFinId,

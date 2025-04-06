@@ -5,6 +5,11 @@ pragma solidity ^0.8.20;
 
 interface IAssetCollateralAccount {
 
+    enum CollateralType {
+        CCP_MARGIN,
+        REPO
+    }
+
     enum AssetStandard {
         NETWORK, //ETHER,
         FUNGIBLE, //ERC20,
@@ -38,10 +43,10 @@ interface IAssetCollateralAccount {
     ) external;
 
     function setConfigurationBundle(
-        uint256 targetRatio,
-        uint256 defaultRatio,
-        uint256 targetRatioLimit,
-        uint256 defaultRatioLimit,
+        int256 targetRatio,
+        int256 defaultRatio,
+        int256 targetRatioLimit,
+        int256 defaultRatioLimit,
         uint256 priceType,
         address haircutContext,
         address priceService,
