@@ -85,7 +85,6 @@ const deployERC20Contract = async (provider: Provider, signer: Signer, finp2pTok
 
 const startApp = async (port: number, provider: Provider, signer: Signer,
                         finP2PContractAddress: string,
-                        tokenAddress: string,
                         policyGetter: PolicyGetter | undefined,
                         finApiClient: FinAPIClient | undefined,
                         execDetailsStore: ExecDetailsStore | undefined,
@@ -94,8 +93,8 @@ const startApp = async (port: number, provider: Provider, signer: Signer,
   const collateralAddress = await finP2PContract.getCollateralAssetManagerAddress();
   const finP2PCollateralBaContract = new FinP2PCollateralAssetFactoryContract(provider, signer, collateralAddress, logger);
   const assetCreationPolicy = {
-    type: "reuse-existing-token",
-    tokenAddress
+    type: "deploy-new-token",
+    decimals: 2
   } as AssetCreationPolicy;
 
 
@@ -125,7 +124,6 @@ const start = async () => {
   const network = await provider.getNetwork();
   logger.info(`Connected to network: ${network.name} chainId: ${network.chainId}`);
   const finP2PContractAddress = await deployContract(provider, signer, operatorAddress);
-  const tokenAddress = await deployERC20Contract(provider, signer, finP2PContractAddress);
 
   let policyGetter: PolicyGetter | undefined;
   const ossUrl = process.env.OSS_URL;
@@ -139,7 +137,7 @@ const start = async () => {
     throw new Error("FINP2P_ADDRESS is not set");
   }
   const finApiClient = new FinAPIClient(finApiUrl);
-  await startApp(port, provider, signer, finP2PContractAddress, tokenAddress, policyGetter, finApiClient, execDetailsStore, logger);
+  await startApp(port, provider, signer, finP2PContractAddress, policyGetter, finApiClient, execDetailsStore, logger);
 };
 
 

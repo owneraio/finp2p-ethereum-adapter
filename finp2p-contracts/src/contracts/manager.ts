@@ -82,16 +82,33 @@ export class ContractsManager {
       await this.preCreatePaymentAsset(factory, address, paymentAssetCode, DefaultDecimalsCurrencies);
     }
 
-    const { contract: collateralBasket, address: finP2PCollateralAssetFactoryAddress } = await this.deployFinP2PCollateralBasket();
-    await contract.setCollateralAssetManagerAddress(finP2PCollateralAssetFactoryAddress);
+    const {
+      contract: collateralBasket,
+      address: finP2PCollateralAssetFactoryAddress
+    } = await this.deployFinP2PCollateralBasket();
+
+    await this.waitForCompletion(
+      await this.safeExecuteTransaction(contract as FINP2POperatorERC20Collateral, async (finP2P: FINP2POperatorERC20Collateral, txParams: PayableOverrides) => {
+        return finP2P.setCollateralAssetManagerAddress(finP2PCollateralAssetFactoryAddress, txParams);
+      })
+    );
     const operator = await this.signer.getAddress();
-    await collateralBasket.grantBasketFactoryRole(operator);
-    await collateralBasket.grantBasketManagerRole(address);
+
+    await this.waitForCompletion(
+      await this.safeExecuteTransaction(collateralBasket as FinP2PCollateralBasket, async (finP2P: FinP2PCollateralBasket, txParams: PayableOverrides) => {
+        return finP2P.grantBasketFactoryRole(operator, txParams);
+      })
+    );
+    await this.waitForCompletion(
+      await this.safeExecuteTransaction(collateralBasket as FinP2PCollateralBasket, async (finP2P: FinP2PCollateralBasket, txParams: PayableOverrides) => {
+        return finP2P.grantBasketManagerRole(address, txParams);
+      })
+    );
 
     if (extraDomain) {
       const { chainId, verifyingContract } = extraDomain;
       this.logger.debug(`FinP2P contract deployed successfully at: ${chainId}, ${verifyingContract}`);
-    //   await this.addAllowedDomain(address, chainId, verifyingContract);
+      //   await this.addAllowedDomain(address, chainId, verifyingContract);
     }
 
     return address;

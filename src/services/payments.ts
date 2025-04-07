@@ -60,12 +60,14 @@ export class PaymentsService extends CommonService {
     const res = await this.finApiClient.createAsset(
       assetName, assetType, issuerId, tokenId, intentTypes, config, metadata);
     logger.info(`Collateral asset creation result: ${res}`);
-    // const { id: assetId } = res as FinAPIComponents.Schemas.ResourceIdResponse;
+    const { id: collateralAssetId } = res as FinAPIComponents.Schemas.ResourceIdResponse;
 
     return {
       isCompleted: true, cid: uuid(),
       response: {
-        account: request.destination, description: "", details: {}
+        account: request.destination, description: "", details: {
+          collateralAssetId
+        }
       }
     } as Paths.DepositInstruction.Responses.$200;
   }
