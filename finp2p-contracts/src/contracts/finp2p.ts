@@ -71,6 +71,16 @@ export class FinP2PContract extends ContractsManager {
     });
   }
 
+  async setCollateralAssetManagerAddress(address: string) {
+    return this.safeExecuteTransaction(this.finP2P, async (finP2P: FINP2POperatorERC20Collateral, txParams: PayableOverrides) => {
+      return finP2P.setCollateralAssetManagerAddress(address, txParams);
+    });
+  }
+
+  async getCollateralAssetManagerAddress() {
+    return await this.finP2P.getCollateralAssetManagerAddress();
+  }
+
   async issue(issuerFinId: string, asset: Term) {
     return this.safeExecuteTransaction(this.finP2P, async (finP2P: FINP2POperatorERC20Collateral, txParams: PayableOverrides) => {
       return finP2P.issue(issuerFinId, asset, txParams);

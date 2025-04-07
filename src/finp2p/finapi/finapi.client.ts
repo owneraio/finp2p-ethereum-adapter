@@ -1,5 +1,6 @@
-import Execution = FinAPIComponents.Schemas.Execution;
-import * as axios from 'axios';
+import CreateAssetProfile = FinAPIPaths.CreateAssetProfile;
+import IntentType = FinAPIComponents.Schemas.IntentType;
+import * as axios from "axios";
 
 export class FinAPIClient {
 
@@ -11,8 +12,27 @@ export class FinAPIClient {
     this.authTokenResolver = authTokenResolver;
   }
 
-  async getExecutionPlan(planId: string): Promise<Execution> {
-    return this.post(`/execution/${planId}`);
+  async createAsset(name: string, type: string, issuerId: string, tokenId: string, intentTypes: IntentType[], config: string, metadata: any) {
+    return await this.post<CreateAssetProfile.RequestBody, FinAPIComponents.Schemas.ResourceIdResponse | FinAPIComponents.Schemas.OperationBase | FinAPIComponents.Schemas.ApiAnyError>(
+      `/profiles/asset`, {
+        metadata,
+        config,
+        intentTypes,
+        name,
+        type,
+        issuerId,
+        denomination: {
+          type: "fiat",
+          code: "USD"
+        },
+        ledgerAssetBinding: {
+          type: "tokenId",
+          tokenId
+        },
+        assetPolicies: {
+          proof: undefined // TBD
+        }
+      });
   }
 
   private async post<Request, Response>(path: string, request: Request | undefined = undefined): Promise<Response> {

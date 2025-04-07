@@ -13,9 +13,13 @@
     "deploy-contract-job": "node dist/scripts/deploy-job.js",
     "grant-operator-roles": "node dist/scripts/grant.js",
     "associate-asset": "node dist/scripts/associate.js",
-    "generate-wallet": "node dist/scripts/generate-wallet.js",
+    "generate-wallet": "ts-node scripts/generate-wallet.ts",
     "erc20-approve": "node dist/scripts/erc20-approve.js",
-    "amend-asset": "node dist/scripts/amend-asset.js"
+    "amend-asset": "node dist/scripts/amend-asset.js",
+    "dtcc": "ts-node scripts/dtcc.ts",
+    "dtcc-collateral": "ts-node scripts/dtcc-collateral.ts",
+    "fireblocks-dtcc": "ts-node scripts/fireblocks-dtcc.ts",
+    "add-wallet-to-role": "ts-node scripts/add-wallet-to-role.ts"
   },
   "keywords": [],
   "author": "",

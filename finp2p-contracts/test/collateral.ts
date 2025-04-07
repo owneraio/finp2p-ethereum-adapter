@@ -100,14 +100,12 @@ describe("Collateral contract test", function() {
 
       const name = "Asset Collateral Account";
       const description = "Description of Asset Collateral Account";
-      const source = await borrower.signer.getAddress();
-      const destination = await lender.signer.getAddress();
       const tokenAddressList = [erc20TokenAddress];
       const amountList = [borrowedAmount.toFixed(assetDecimals)];
 
       const basketId = uuid();
       await collateralBasket.createCollateralAsset(
-        name, description, basketId, tokenAddressList, amountList, source, destination
+        name, description, basketId, tokenAddressList, amountList, borrower.finId, lender.finId
       );
       const collateralAssetId = generateAssetId();
       await finP2P.associateCollateralAsset(collateralAssetId, basketId);

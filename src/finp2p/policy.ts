@@ -1,5 +1,5 @@
 import { OssClient } from "./oss.client";
-import { parseProofDomain, Proof, ProofDomain, ProofPolicy } from "./model";
+import { OssOwner, parseProofDomain, Proof, ProofDomain, ProofPolicy } from "./model";
 import process from "process";
 import console from "console";
 import { AssetType } from "../../finp2p-contracts/src/contracts/model";
@@ -14,6 +14,10 @@ export class PolicyGetter {
   async getAssetToken(assetId: string): Promise<string> {
     const { ledgerAssetInfo: { tokenId } } = await this.ossClient.getAsset(assetId);
     return tokenId;
+  }
+
+  async getOwnerByFinId(finId: string): Promise<OssOwner> {
+    return await this.ossClient.getOwnerByFinId(finId);
   }
 
   async getPolicy(assetCode: string, assetType: AssetType): Promise<ProofPolicy> {

@@ -10,7 +10,7 @@ import {
 import {
   assetTypeFromString,
   EthereumTransactionError,
-  term,
+  term
 } from "../../finp2p-contracts/src/contracts/model";
 import { logger } from "../helpers/logger";
 import { FinP2PContract } from "../../finp2p-contracts/src/contracts/finp2p";
@@ -18,6 +18,7 @@ import { isEthereumAddress } from "../../finp2p-contracts/src/contracts/utils";
 import { PolicyGetter } from "../finp2p/policy";
 import CreateAssetResponse = Components.Schemas.CreateAssetResponse;
 import LedgerTokenId = Components.Schemas.LedgerTokenId;
+import { FinAPIClient } from "../finp2p/finapi/finapi.client";
 
 export type AssetCreationPolicy = | { type: "deploy-new-token"; decimals: number } | {
   type: "reuse-existing-token";
@@ -28,9 +29,13 @@ export class TokenService extends CommonService {
 
   assetCreationPolicy: AssetCreationPolicy;
 
-  constructor(finP2PContract: FinP2PContract, assetCreationPolicy: AssetCreationPolicy, policyGetter: PolicyGetter | undefined,
-              execDetailsStore: ExecDetailsStore | undefined) {
-    super(finP2PContract, policyGetter, execDetailsStore);
+  constructor(finP2PContract: FinP2PContract,
+              assetCreationPolicy: AssetCreationPolicy,
+              policyGetter: PolicyGetter | undefined,
+              finApiClient: FinAPIClient | undefined,
+              execDetailsStore: ExecDetailsStore | undefined
+  ) {
+    super(finP2PContract, policyGetter, finApiClient, execDetailsStore);
     this.assetCreationPolicy = assetCreationPolicy;
   }
 
@@ -42,7 +47,7 @@ export class TokenService extends CommonService {
       if (ledgerAssetBinding) {
         const { tokenId } = ledgerAssetBinding as LedgerTokenId;
 
-        let txHash: string
+        let txHash: string;
         if (metadata && metadata["tokenType"] === "COLLATERAL") {
 
           txHash = await this.finP2PContract.associateCollateralAsset(assetId, tokenId);

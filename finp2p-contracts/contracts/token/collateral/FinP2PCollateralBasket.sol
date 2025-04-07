@@ -2,7 +2,8 @@
 
 pragma solidity ^0.8.20;
 
-import "../../utils/StringUtils.sol";
+import {StringUtils} from "../../utils/StringUtils.sol";
+import {FinIdUtils} from "../../utils/finp2p/FinIdUtils.sol";
 import "./IAccountFactory.sol";
 import "@openzeppelin/contracts/access/AccessControl.sol";
 import {FinP2PSignatureVerifier} from "../../utils/finp2p/FinP2PSignatureVerifier.sol";
@@ -14,6 +15,7 @@ import {IFinP2PCollateralBasketManager} from "./IFinP2PCollateralBasketManager.s
 
 contract FinP2PCollateralBasket is IFinP2PCollateralBasketManager, IFinP2PCollateralBasketFactory, AccessControl {
     using StringUtils for string;
+    using FinIdUtils for string;
 
     bytes32 internal constant COLLATERAL_STRATEGY_ID = keccak256("Asset-Collateral-Account-Strategy");
     uint8 internal constant DECIMALS = 18;
@@ -69,8 +71,8 @@ contract FinP2PCollateralBasket is IFinP2PCollateralBasketManager, IFinP2PCollat
         string memory basketId,
         address[] memory tokenAddresses,
         string[] memory quantities,
-        address source,
-        address destination
+        string memory sourceFinId,
+        string memory destinationFinId
     ) external {
         require(hasRole(BASKET_FACTORY, _msgSender()), "FinP2PCollateralBasket: must have basket factory role to create collateral asset");
 
@@ -80,8 +82,8 @@ contract FinP2PCollateralBasket is IFinP2PCollateralBasketManager, IFinP2PCollat
         bytes memory initParams = abi.encode(DECIMALS, IAssetCollateralAccount.CollateralType.REPO, 0, 0);
 
         address[] memory addressList = new address[](3);
-        addressList[0] = source;
-        addressList[1] = destination;
+        addressList[0] = sourceFinId.toAddress();
+        addressList[1] = destinationFinId.toAddress();
         addressList[2] = accountFactory.getLiabilityFactory();
         address controller = accountFactory.controller();
 
@@ -107,8 +109,8 @@ contract FinP2PCollateralBasket is IFinP2PCollateralBasketManager, IFinP2PCollat
 
         baskets[basketId] = CollateralBasket(
             collateralAccount,
-            source,
-            destination,
+            sourceFinId.toAddress(),
+            destinationFinId.toAddress(),
             tokenAddresses,
             amounts,
             CollateralBasketState.CREATED

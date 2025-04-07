@@ -16,7 +16,9 @@ const deploy = async (providerType: ProviderType, operatorAddress: string,
   const { provider, signer } = await createProviderAndSigner(providerType, logger);
   const contractManger = new ContractsManager(provider, signer, logger);
   logger.info("Deploying from env variables...");
-  const finP2PContractAddress = await contractManger.deployFinP2PContract(operatorAddress, paymentAssetCode, extraDomain);
+  const finP2PContractAddress = await contractManger.deployFinP2PContract(
+    operatorAddress, paymentAssetCode, extraDomain
+  );
   logger.info(JSON.stringify({ finP2PContractAddress }));
 };
 
@@ -40,6 +42,7 @@ extraDomain = {
   chainId: parseInt(spl[0]),
   verifyingContract: spl[1]
 };
+
 
 deploy(providerType, operatorAddress, paymentAssetCode, extraDomain)
   .then(() => {

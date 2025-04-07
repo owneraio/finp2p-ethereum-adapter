@@ -137,6 +137,11 @@ contract FINP2POperatorERC20Collateral is AccessControl, FinP2PSignatureVerifier
         collateralAssetManagerAddress = _collateralAssetManagerAddress;
     }
 
+    /// @notice Get the collateral asset manager address
+    function getCollateralAssetManagerAddress() external view returns (address) {
+        return collateralAssetManagerAddress;
+    }
+
     /// @notice Associate an asset with a token address
     /// @param assetId The asset id
     /// @param tokenAddress The token address

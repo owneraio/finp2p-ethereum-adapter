@@ -1,0 +1,5440 @@
+openapi: 3.0.1
+info:
+  title: Transactional API
+  description: This is the transactional API reference for application development over the FinP2P Router network.
+  termsOfService: 'https://ownera.io/terms/'
+  contact:
+    email: support@ownera.io
+  version: x.x.x
+tags:
+  - name: profiles
+    description: Access to Profiles
+  - name: certificates
+    description: Access to Certificates
+  - name: docs
+    description: Documents storage
+  - name: tokens
+    description: Token management
+  - name: operations
+    description: Operations information
+  - name: messages
+    description: Messaging
+
+paths:
+  /profiles/owner:
+    post:
+      tags:
+        - profiles
+      summary: Create owner profile
+      parameters:
+        - in: header
+          name: Idempotency-Key
+          schema:
+            $ref: '#/components/schemas/nonce'
+      description: 'Creates a new global identity for an asset owner, the Global Identity cryptography is based on the secp256k1 curve'
+      operationId: createOwnerProfile
+      responses:
+        '200':
+          description: successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/resourceIdResponse'
+        '202':
+          description: accepted operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/operationBase'
+        '400':
+          description: Invalid Input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '409':
+          description: Conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '500':
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '502':
+          description: Bad Gateway
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '503':
+          description: Service Unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '504':
+          description: Gateway Timeout
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+
+  /profiles/owner/{ownerId}/account:
+    post:
+      tags:
+        - profiles
+      summary: Add an account to an owner profile
+      parameters:
+        - in: header
+          name: Idempotency-Key
+          schema:
+            $ref: '#/components/schemas/nonce'
+        - name: ownerId
+          in: path
+          description: ID of the owner profile
+          required: true
+          schema:
+            $ref: '#/components/schemas/ownerId'
+      description: 'Adds a custody managed account to an owner'
+      operationId: addAccount
+      requestBody:
+        content:
+          application/json:
+            schema:
+              required: [ orgId ]
+              type: object
+              properties:
+                orgId:
+                  type: string
+                  description: 'Org ID for the custodian of the account'
+
+        required: true
+      responses:
+        '200':
+          description: successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/accountOperationResult'
+        '202':
+          description: accepted operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/operationBase'
+        '400':
+          description: Invalid Input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '409':
+          description: Conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '500':
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '502':
+          description: Bad Gateway
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '503':
+          description: Service Unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '504':
+          description: Gateway Timeout
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+
+  /profiles/asset:
+    post:
+      tags:
+        - profiles
+      summary: Create asset profile
+      parameters:
+        - in: header
+          name: Idempotency-Key
+          schema:
+            $ref: '#/components/schemas/nonce'
+      description: Creates a new profile for an asset identity
+      operationId: createAssetProfile
+      requestBody:
+        content:
+          application/json:
+            schema:
+              required: [ name, type, issuerId, denomination ]
+              type: object
+              properties:
+                metadata:
+                  type: object
+                  description: The asset metadata
+                  x-go-type-skip-optional-pointer: true
+                  additionalProperties: true
+                config:
+                  type: string
+                  description: The asset configuration, in serilized JSON representation (deprecated, use metadata instead)
+                  deprecated: true
+                verifiers:
+                  type: array
+                  description: A list of regulation verifiers to execute to validate a transaction
+                  items:
+                    $ref: '#/components/schemas/assetVerifier'
+                  x-go-type-skip-optional-pointer: true
+                intentTypes:
+                  $ref: '#/components/schemas/intentTypesAllowEmpty'
+                name:
+                  $ref: '#/components/schemas/name'
+                type:
+                  type: string
+                  pattern: '^[a-zA-Z0-9\- ]*$'
+                  description: The type of the asset
+                  maxLength: 150
+                issuerId:
+                  $ref: '#/components/schemas/ownerId'
+                denomination:
+                  $ref: '#/components/schemas/assetDenomination'
+                ledgerAssetBinding:
+                  $ref: '#/components/schemas/ledgerAssetBinding'
+                assetPolicies:
+                  $ref: '#/components/schemas/assetPolicies'
+
+        required: true
+      responses:
+        '200':
+          description: successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/resourceIdResponse'
+        '202':
+          description: accepted operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/operationBase'
+
+        '400':
+          description: Invalid Input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '409':
+          description: Conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '500':
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '502':
+          description: Bad Gateway
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '503':
+          description: Service Unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '504':
+          description: Gateway Timeout
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+
+  '/profiles/asset/{id}':
+    put:
+      tags:
+        - profiles
+      summary: Update asset profile
+      description: Update a profile for an asset identity
+      operationId: updateAssetProfile
+      parameters:
+        - in: header
+          name: Idempotency-Key
+          schema:
+            $ref: '#/components/schemas/nonce'
+        - name: id
+          in: path
+          description: ID of the asset profile
+          required: true
+          schema:
+            $ref: '#/components/schemas/assetId'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [ name ]
+              properties:
+                metadata:
+                  type: object
+                  description: The asset metadata
+                  x-go-type-skip-optional-pointer: true
+                  additionalProperties: true
+                config:
+                  type: string
+                  description: The asset configuration, in serilized JSON representation (deprecated, use metadata instead)
+                  deprecated: true
+                verifiers:
+                  type: array
+                  description: A list of regulation verifiers to execute to validate a transaction
+                  items:
+                    $ref: '#/components/schemas/assetVerifier'
+                  x-go-type-skip-optional-pointer: true
+                name:
+                  $ref: '#/components/schemas/name'
+                assetPolicies:
+                  $ref: '#/components/schemas/assetPolicies'
+        required: true
+      responses:
+        '200':
+          description: successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/resourceIdResponse'
+        '202':
+          description: accepted operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/operationBase'
+        '400':
+          description: Invalid Input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '409':
+          description: Conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '500':
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '502':
+          description: Bad Gateway
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '503':
+          description: Service Unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '504':
+          description: Gateway Timeout
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+
+  '/profiles/asset/{id}/intent':
+    post:
+      tags:
+        - profiles
+      summary: Create intent for asset profile
+      description: Create a new intent on an asset profile for either primarySale, buyingIntent or SellingIntent
+      operationId: addAssetProfileIntent
+      parameters:
+        - in: header
+          name: Idempotency-Key
+          schema:
+            $ref: '#/components/schemas/nonce'
+        - name: id
+          in: path
+          description: ID of the asset profile
+          required: true
+          schema:
+            type: string
+            pattern: '^[^:](?:.+):102:(?:.+)'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              required: [ start, end, intent ] # start, end
+              type: object
+              properties:
+                start:
+                  type: integer
+                  format: int64
+                  minimum: 0
+                  # maximum: 10000000000
+                  description: start time for intent, in epoch (seconds)
+                  x-go-type-skip-optional-pointer: true
+                end:
+                  type: integer
+                  format: int64
+                  minimum: 0
+                  # maximum: 10000000000
+                  description: end time for intent, in epoch (seconds)
+                  x-go-type-skip-optional-pointer: true
+                #                assetTerm:
+                #                  $ref: '#/components/schemas/finp2pAssetTerm'
+                #                assetInstruction:
+                #                  $ref: '#/components/schemas/intentAssetInstruction'
+                #                settlementTerm:
+                #                  $ref: '#/components/schemas/settlementTerm'
+                intent:
+                  $ref: '#/components/schemas/intent'
+
+        required: true
+      responses:
+        '200':
+          description: successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/idResponse'
+        '400':
+          description: Invalid Input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '409':
+          description: Conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '500':
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '502':
+          description: Bad Gateway
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '503':
+          description: Service Unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '504':
+          description: Gateway Timeout
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+      callbacks:
+        manualSigningCallback:
+          '{$request.body#/intent.signaturePolicy.callbackURL}':
+            post:
+              requestBody:
+                required: true
+                content:
+                  application/json:
+                    schema:
+                      type: object
+                      properties:
+                        requestId:
+                          type: string
+                          description: 'unique identifier of the request, should be used when providing the signature'
+                        intentId:
+                          $ref: '#/components/schemas/intentId'
+                        signer:
+                          type: string
+                          description: 'resource id of the requested signer'
+                        signatureTemplate:
+                          $ref: '#/components/schemas/signatureTemplate'
+              responses:
+                '200':
+                  description: >
+                    - __Asynchronous way (default)__:
+
+                        an immediate response to the request is expected by specifying __type__ = _'acknowledgement'_, __signature__ is not specified.
+                        When the signature is received, it needs to be sent to '/token/signature-result'.
+
+                    - __Synchronous way__:
+
+                        __type__ must be 'signature', __signature__ must contain the received signature
+
+                  content:
+                    application/json:
+                      schema:
+                        type: object
+                        properties:
+                          type:
+                            $ref: '#/components/schemas/signatureResponseType'
+                          signature:
+                            $ref: '#/components/schemas/transferSignature'
+
+  '/profiles/asset/{id}/intent/{intentId}':
+    patch:
+      tags:
+        - profiles
+      summary: Update intent on an asset profile
+      description: Update an asset intent with new intent rules
+      operationId: updateAssetProfileIntent
+      parameters:
+        - in: header
+          name: Idempotency-Key
+          schema:
+            $ref: '#/components/schemas/nonce'
+        - name: id
+          in: path
+          description: ID of the asset profile
+          required: true
+          schema:
+            $ref: '#/components/schemas/assetId'
+        - name: intentId
+          in: path
+          description: ID of the intent
+          required: true
+          schema:
+            $ref: '#/components/schemas/intentId'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              #              required: [ start, end ]
+              properties:
+                start:
+                  type: integer
+                  format: int64
+                  minimum: 0
+                  # maximum: 10000000000
+                  description: start time for intent, in epoch (seconds)
+                end:
+                  type: integer
+                  format: int64
+                  minimum: 0
+                  # maximum: 10000000000
+                  description: end time for intent, in epoch (seconds)
+                intent:
+                  $ref: '#/components/schemas/updateIntent'
+                status:
+                  type: string
+                  enum: [ Rejected ]
+                  description: To change the status of the intent
+        required: true
+      responses:
+        '200':
+          description: successful operation
+        '400':
+          description: Invalid Input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '409':
+          description: Conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '500':
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '502':
+          description: Bad Gateway
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '503':
+          description: Service Unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '504':
+          description: Gateway Timeout
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+
+  '/profiles/asset/{id}/intent/{intentId}/enable':
+    put:
+      tags:
+        - profiles
+      summary: Enable the intent
+      description: Enable the intent (in case it was previously disabled)
+      operationId: enableAssetProfileIntent
+      parameters:
+        - name: id
+          in: path
+          description: ID of the asset profile
+          required: true
+          schema:
+            $ref: '#/components/schemas/assetId'
+        - name: intentId
+          in: path
+          description: ID of the intent
+          required: true
+          schema:
+            $ref: '#/components/schemas/intentId'
+      responses:
+        '200':
+          description: successful operation
+        '400':
+          description: Invalid Input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '409':
+          description: Conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '500':
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '502':
+          description: Bad Gateway
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '503':
+          description: Service Unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '504':
+          description: Gateway Timeout
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+
+  '/profiles/asset/{id}/intent/{intentId}/disable':
+    put:
+      tags:
+        - profiles
+      summary: Disable the intent
+      description: Disable the intent so that it can not participate in a token transfer, but is still visible to other participants with an inactive status
+      operationId: disableAssetProfileIntent
+      parameters:
+        - name: id
+          in: path
+          description: ID of the asset profile
+          required: true
+          schema:
+            $ref: '#/components/schemas/assetId'
+        - name: intentId
+          in: path
+          description: ID of the intent
+          required: true
+          schema:
+            $ref: '#/components/schemas/intentId'
+      responses:
+        '200':
+          description: successful operation
+        '400':
+          description: Invalid Input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '409':
+          description: Conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '500':
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '502':
+          description: Bad Gateway
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '503':
+          description: Service Unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '504':
+          description: Gateway Timeout
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+
+  /profiles/{id}/share:
+    post:
+      tags:
+        - profiles
+      summary: Share profile with other organizations
+      description: 'Shares profile with other organizations'
+      operationId: shareProfile
+      parameters:
+        - in: header
+          name: Idempotency-Key
+          schema:
+            $ref: '#/components/schemas/nonce'
+        - name: id
+          in: path
+          description: ID of the asset profile
+          required: true
+          schema:
+            type: string
+            pattern: '^[^:](?:.+):(?:.+):(?:.+)'
+            example: 'bank-x:103:ed495b49-2ad8-4e44-a294-405d5e24d181'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              required:
+                - organizations
+              type: object
+              properties:
+                organizations:
+                  type: array
+                  items:
+                    type: string
+                  description: 'Collections of organizations ids to share the profile with'
+        required: true
+      responses:
+        '200':
+          description: successful operation
+        '400':
+          description: Invalid Input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '409':
+          description: Conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '500':
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '502':
+          description: Bad Gateway
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '503':
+          description: Service Unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '504':
+          description: Gateway Timeout
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+
+  /profiles/asset/{id}/intents/enable:
+    put:
+      tags:
+        - profiles
+      summary: Intent types allowed to be applied on asset
+      description: 'Enable intent types to be used on given asset id'
+      operationId: enableAssetAllowedIntents
+      parameters:
+        - name: id
+          in: path
+          description: ID of the asset profile
+          required: true
+          schema:
+            type: string
+            pattern: '^[^:](?:.+):(?:.+):(?:.+)'
+            example: 'bank-x:103:ed495b49-2ad8-4e44-a294-405d5e24d181'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              required:
+                - intentTypes
+              type: object
+              properties:
+                intentTypes:
+                  $ref: '#/components/schemas/intentTypes'
+        required: true
+      responses:
+        '200':
+          description: successful operation
+        '400':
+          description: Invalid Input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '409':
+          description: Conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '500':
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '502':
+          description: Bad Gateway
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '503':
+          description: Service Unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '504':
+          description: Gateway Timeout
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+
+  /profiles/asset/{id}/intents/disable:
+    put:
+      tags:
+        - profiles
+      summary: Block intent types from being applied on asset
+      description: 'Block intent types to be used on given asset id'
+      operationId: disableAssetAllowedIntents
+      parameters:
+        - name: id
+          in: path
+          description: ID of the asset profile
+          required: true
+          schema:
+            type: string
+            pattern: '^[^:](?:.+):(?:.+):(?:.+)'
+            example: 'bank-x:103:ed495b49-2ad8-4e44-a294-405d5e24d181'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              required:
+                - intentTypes
+              type: object
+              properties:
+                intentTypes:
+                  $ref: '#/components/schemas/intentTypes'
+        required: true
+      responses:
+        '200':
+          description: successful operation
+        '400':
+          description: Invalid Input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '409':
+          description: Conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '500':
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '502':
+          description: Bad Gateway
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '503':
+          description: Service Unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '504':
+          description: Gateway Timeout
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+
+  /profiles/{profileId}/certificates:
+    post:
+      tags:
+        - certificates
+      summary: Create Certificate
+      description: Creates a new Certificate for a specific profile identity
+      operationId: createCertificate
+      parameters:
+        - in: header
+          name: Idempotency-Key
+          schema:
+            $ref: '#/components/schemas/nonce'
+        - name: profileId
+          in: path
+          description: ID of The profile that holds the certificate
+          required: true
+          schema:
+            $ref: '#/components/schemas/profileId'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [ type, issuanceDate, expirationDate, data ]
+              properties:
+                type:
+                  type: string
+                  pattern: '^[a-zA-Z0-9 _./]*$'
+                  maxLength: 150
+                  description: The type of the Certificate
+                issuanceDate:
+                  type: integer
+                  format: int64
+                  minimum: 0
+                  # maximum: 10000000000
+                  description: The issuance date of the Certificate in epoch time seconds
+                expirationDate:
+                  type: integer
+                  format: int64
+                  minimum: 0
+                  # maximum: 10000000000
+                  description: The expiration date of the Certificate in epoch time seconds
+                data:
+                  type: string
+                  description: Serialized data objects that contain one or more properties that are each related to the subject of the Certificate
+      responses:
+        '200':
+          description: successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/idResponse'
+        '400':
+          description: Invalid Input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '409':
+          description: Conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '500':
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '502':
+          description: Bad Gateway
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '503':
+          description: Service Unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '504':
+          description: Gateway Timeout
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+
+  '/profiles/{profileId}/certificates/{certificateId}':
+    put:
+      tags:
+        - certificates
+      summary: Update Certificate
+      description: Updates a new Certificate for a specific profile identity
+      operationId: updateCertificate
+      parameters:
+        - in: header
+          name: Idempotency-Key
+          schema:
+            $ref: '#/components/schemas/nonce'
+        - name: profileId
+          in: path
+          description: ID of The profile that holds the certificate
+          required: true
+          schema:
+            $ref: '#/components/schemas/profileId'
+        - name: certificateId
+          in: path
+          description: ID of a Certificate to update
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [ issuanceDate, expirationDate, data ]
+              properties:
+                issuanceDate:
+                  type: integer
+                  format: int64
+                  minimum: 0
+                  # maximum: 10000000000
+                  description: The issuance date of the Certificate in epoch time seconds
+                expirationDate:
+                  type: integer
+                  format: int64
+                  minimum: 0
+                  # maximum: 10000000000
+                  description: The expiration date of the Certificate in epoch time seconds
+                data:
+                  type: string
+                  description: Serilized data objects that contain one or more properties that are each related to the subject of the Certificate
+        required: true
+      responses:
+        '200':
+          description: successful operation
+        '400':
+          description: Invalid Input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '409':
+          description: Conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '500':
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '502':
+          description: Bad Gateway
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '503':
+          description: Service Unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '504':
+          description: Gateway Timeout
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+
+  '/profiles/{profileId}/certificates/{certificateId}/docs':
+    post:
+      tags:
+        - docs
+      summary: Adds a new document on a Certificate
+      description: Adds a new document associated with a Certificate ID
+      operationId: addCertificateDoc
+      parameters:
+        - in: header
+          name: Idempotency-Key
+          schema:
+            $ref: '#/components/schemas/nonce'
+        - name: profileId
+          in: path
+          description: ID of The profile that holds the certificate
+          required: true
+          schema:
+            $ref: '#/components/schemas/ownerId'
+        - name: certificateId
+          in: path
+          description: ID of The certificate that will hold the doc
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              description: The request body can contain multiple files as multiple file form fields
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: the document in binary format
+      responses:
+        '200':
+          description: successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/documentsList'
+        '400':
+          description: Invalid Input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '409':
+          description: Conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '500':
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '502':
+          description: Bad Gateway
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '503':
+          description: Service Unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '504':
+          description: Gateway Timeout
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+
+  '/docs/{uri}':
+    get:
+      tags:
+        - docs
+      summary: Get document
+      description: 'Get document content, associated with a Certificate ID'
+      operationId: getDoc
+      parameters:
+        - name: uri
+          in: path
+          description: Document URI
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: successful operation
+          content:
+            '*/*':
+              schema:
+                type: string
+                format: binary
+                description: the document in binary format
+        '400':
+          description: Invalid Input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '409':
+          description: Conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '500':
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '502':
+          description: Bad Gateway
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '503':
+          description: Service Unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '504':
+          description: Gateway Timeout
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+
+  '/profiles/{profileId}/certificates/{certificateId}/docs/{docId}':
+    put:
+      tags:
+        - docs
+      summary: Update document
+      description: Update an existing document on a Certificate
+      operationId: updateCertificateDoc
+      parameters:
+        - in: header
+          name: Idempotency-Key
+          schema:
+            $ref: '#/components/schemas/nonce'
+        - name: docId
+          in: path
+          description: Document ID
+          required: true
+          schema:
+            type: string
+        - name: profileId
+          in: path
+          description: ID of The profile that holds the certificate
+          required: true
+          schema:
+            type: string
+        - name: certificateId
+          in: path
+          description: ID of The certificate that holds the doc
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: the document in binary format
+      responses:
+        '200':
+          description: successful operation
+        '400':
+          description: Invalid Input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '409':
+          description: Conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '500':
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '502':
+          description: Bad Gateway
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '503':
+          description: Service Unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '504':
+          description: Gateway Timeout
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+
+  '/tokens/execute':
+    post:
+      tags:
+        - tokens
+      summary: Execute token intent operation
+      parameters:
+        - in: header
+          name: Idempotency-Key
+          schema:
+            $ref: '#/components/schemas/nonce'
+      description: Execute a token intent
+      operationId: ExecuteToken
+      requestBody:
+        content:
+          application/json:
+            schema:
+              required: [ user, intentId, intent ]
+              type: object
+              properties:
+                user:
+                  $ref: '#/components/schemas/ownerId'
+                intentId:
+                  $ref: '#/components/schemas/intentId'
+                intent:
+                  $ref: '#/components/schemas/intentExecution'
+                executionId:
+                  type: string
+                  description: 'unique identifier for the execution, will default to generated UUID if not provided'
+      responses:
+        '200':
+          description: operation information
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/executionOperationResult'
+        '202':
+          description: accepted operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/operationBase'
+        '400':
+          description: Invalid Input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '409':
+          description: Conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '500':
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '502':
+          description: Bad Gateway
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '503':
+          description: Service Unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '504':
+          description: Gateway Timeout
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+  '/tokens/transfer':
+    put:
+      tags:
+        - tokens
+      summary: Asset Token transfer
+      parameters:
+        - in: header
+          name: Idempotency-Key
+          schema:
+            $ref: '#/components/schemas/nonce'
+      description: Transfer existing asset token to a new owner. Transfer of ownership is done by eliminating existing tokens owned by the sender and creating new tokens with the new owner.
+      operationId: transferToken
+      requestBody:
+        content:
+          application/json:
+            schema:
+              required: [ asset, source, destination, nonce ]
+              type: object
+              properties:
+                nonce:
+                  $ref: '#/components/schemas/nonce'
+                source:
+                  $ref: '#/components/schemas/ownerId'
+                destination:
+                  $ref: '#/components/schemas/ownerId'
+                asset:
+                  $ref: '#/components/schemas/transferRequestAssetOrder'
+
+        required: true
+      responses:
+        '200':
+          description: operation information
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/executionOperationResult'
+        '202':
+          description: accepted operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/operationBase'
+        '400':
+          description: Invalid Input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '409':
+          description: Conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '500':
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '502':
+          description: Bad Gateway
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '503':
+          description: Service Unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '504':
+          description: Gateway Timeout
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+
+  '/tokens/redeem':
+    put:
+      tags:
+        - tokens
+      summary: Asset Token redeem
+      description: Redeem existing asset token for new owner. Redeem of ownership is done by eliminating existing tokens owned by the owner.
+      operationId: redeemToken
+      requestBody:
+        content:
+          application/json:
+            schema:
+              required: [ asset, seller, sourcePublicKey, quantity, nonce ]
+              type: object
+              properties:
+                asset:
+                  $ref: '#/components/schemas/assetId'
+                seller:
+                  $ref: '#/components/schemas/ownerId'
+                sourcePublicKey:
+                  $ref: '#/components/schemas/finId'
+                quantity:
+                  type: string
+                  description: 'How many units of token type to redeem'
+                nonce:
+                  type: string
+                  description: '24 randomly generated bytes by the client'
+        required: true
+      responses:
+        '200':
+          description: operation information
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/tokenOperationResult'
+        '202':
+          description: accepted operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/operationBase'
+        '400':
+          description: Invalid Input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '409':
+          description: Conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '500':
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '502':
+          description: Bad Gateway
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '503':
+          description: Service Unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '504':
+          description: Gateway Timeout
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+
+  '/tokens/balance':
+    post:
+      tags:
+        - tokens
+      summary: Get asset balance
+      description: Get owner Asset's tokens balance
+      operationId: balance
+      requestBody:
+        content:
+          application/json:
+            schema:
+              required: [ asset, sourcePublicKey ]
+              type: object
+              properties:
+                asset:
+                  $ref: '#/components/schemas/assetId'
+                sourcePublicKey:
+                  type: string
+                  description: owner hex representation of a secp256k1 public key 33 bytes compressed
+        required: true
+      responses:
+        '200':
+          description: successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/balanceInformation'
+        '400':
+          description: Invalid Input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '409':
+          description: Conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '500':
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '502':
+          description: Bad Gateway
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '503':
+          description: Service Unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '504':
+          description: Gateway Timeout
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+
+  '/tokens/signature-result':
+    post:
+      tags:
+        - tokens
+      summary: Provide transaction signature result
+      description: Response method for manual transaction signing operation
+      operationId: signatureResult
+      requestBody:
+        content:
+          application/json:
+            schema:
+              required: [ requestId, intentId, signature ]
+              type: object
+              properties:
+                requestId:
+                  type: string
+                  description: nonce
+                assetId:
+                  $ref: '#/components/schemas/assetId'
+                intentId:
+                  $ref: '#/components/schemas/intentId'
+                signature:
+                  $ref: '#/components/schemas/transferSignature'
+        required: true
+      responses:
+        '200':
+          description: successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/signatureResultResponse'
+        '400':
+          description: Invalid Input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '409':
+          description: Conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '500':
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '502':
+          description: Bad Gateway
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '503':
+          description: Service Unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '504':
+          description: Gateway Timeout
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+
+  '/payments/deposit':
+    post:
+      tags:
+        - payments
+      summary: Create deposit request
+      parameters:
+        - in: header
+          name: Idempotency-Key
+          schema:
+            $ref: '#/components/schemas/nonce'
+      description: Create a new deposit request
+      operationId: createDepositRequest
+      requestBody:
+        content:
+          application/json:
+            schema:
+              required: [ profileId, account, amount ]
+              type: object
+              properties:
+                profileId:
+                  $ref: '#/components/schemas/ownerId'
+                account:
+                  $ref: '#/components/schemas/depositAccount'
+                amount:
+                  $ref: '#/components/schemas/amount'
+                details:
+                  type: object
+                  description: Any addition deposit specific information
+                nonce:
+                  $ref: '#/components/schemas/nonce'
+                signaturePolicy:
+                  $ref: '#/components/schemas/depositSignaturePolicy'
+
+        required: true
+      responses:
+        '200':
+          description: successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/depositInstruction'
+        '202':
+          description: accepted operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/operationBase'
+        '400':
+          description: Invalid Input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '409':
+          description: Conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '500':
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '502':
+          description: Bad Gateway
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '503':
+          description: Service Unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '504':
+          description: Gateway Timeout
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+
+  '/payments/withdraw':
+    post:
+      tags:
+        - payments
+      summary: Create withdraw request
+      parameters:
+        - in: header
+          name: Idempotency-Key
+          schema:
+            $ref: '#/components/schemas/nonce'
+      description: Create a new withdraw request
+      operationId: createWithdrawRequest
+      requestBody:
+        content:
+          application/json:
+            schema:
+              required: [ profileId, account, amount ]
+              type: object
+              properties:
+                profileId:
+                  $ref: '#/components/schemas/ownerId'
+                account:
+                  $ref: '#/components/schemas/withdrawAccount'
+                amount:
+                  $ref: '#/components/schemas/amount'
+                withdrawInstruction:
+                  $ref: '#/components/schemas/withdrawInstruction'
+                nonce:
+                  deprecated: true
+                  $ref: "#/components/schemas/nonce"
+                signaturePolicy:
+                  $ref: '#/components/schemas/withdrawSignaturePolicy'
+        required: true
+      responses:
+        '200':
+          description: successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/receipt'
+        '202':
+          description: accepted operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/operationBase'
+        '400':
+          description: Invalid Input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '409':
+          description: Conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '500':
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '502':
+          description: Bad Gateway
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '503':
+          description: Service Unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '504':
+          description: Gateway Timeout
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+
+  '/operations/status/{cid}':
+    get:
+      tags:
+        - operations
+      summary: 'Get operation'
+      description: get the operation state by the operation correlation id
+      operationId: getOperation
+      parameters:
+        - name: cid
+          in: path
+          description: correlation id of an operation
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: operation response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/operationResponse'
+        '400':
+          description: Invalid Input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '409':
+          description: Conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '500':
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '502':
+          description: Bad Gateway
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '503':
+          description: Service Unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '504':
+          description: Gateway Timeout
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+
+  '/messages/attachments/{uuid}':
+    get:
+      tags:
+        - attachments
+      summary: Get attachment
+      description: 'Get document content, associated with a message ID'
+      operationId: getAttachment
+      parameters:
+        - name: uuid
+          in: path
+          description: Attachment UUID
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: successful operation
+          content:
+            '*/*':
+              schema:
+                type: string
+                format: binary
+                description: the attachment in binary format
+        '400':
+          description: Invalid Input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '409':
+          description: Conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '500':
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '502':
+          description: Bad Gateway
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '503':
+          description: Service Unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '504':
+          description: Gateway Timeout
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+
+  '/messages/send':
+    post:
+      tags:
+        - messages
+      summary: Send message
+      parameters:
+        - in: header
+          name: Idempotency-Key
+          schema:
+            $ref: '#/components/schemas/nonce'
+      description: 'Send a message to a group of users'
+      operationId: sendMessage
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              required: [ subject, body, recipients, correspondent ]
+              type: object
+              properties:
+                subject:
+                  type: string
+                  description: 'message subject or title'
+                body:
+                  type: string
+                  description: 'message body'
+                correspondent:
+                  $ref: '#/components/schemas/correspondent'
+                recipients:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/ownerId'
+                  description: 'Collections of owners ids to send the message to'
+                attachments:
+                  type: object
+                  properties:
+                    filename:
+                      type: array
+                      items:
+                        type: string
+                        format: binary
+                  description: 'Collection optional attachments'
+        required: true
+      responses:
+        '200':
+          description: successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/messageResponse'
+        '400':
+          description: Invalid Input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '409':
+          description: Conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '500':
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '502':
+          description: Bad Gateway
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '503':
+          description: Service Unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '504':
+          description: Gateway Timeout
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+
+  '/profiles/asset/intent/transfer':
+    post:
+      tags:
+        - profiles
+      summary: Initiate a transfer
+      parameters:
+        - in: header
+          name: Idempotency-Key
+          schema:
+            $ref: '#/components/schemas/nonce'
+      description: Send or request an asset, fiat currency, or cryptocurrency transfer between users.
+      operationId: createRequestForTransferIntent
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/requestForTransferIntent'
+      responses:
+        '200':
+          description: successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/intentIdResponse'
+        '400':
+          description: Invalid Input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '409':
+          description: Conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '500':
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '502':
+          description: Bad Gateway
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '503':
+          description: Service Unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '504':
+          description: Gateway Timeout
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+
+  '/profiles/asset/intent/transfer/execute/{intentId}':
+    post:
+      tags:
+        - profiles
+      summary: Execute a transfer
+      parameters:
+        - in: header
+          name: Idempotency-Key
+          schema:
+            $ref: '#/components/schemas/nonce'
+        - name: intentId
+          in: path
+          description: ID of the transfer profile
+          required: true
+          schema:
+            type: string
+            pattern: '^[^:](?:.+):105:(?:.+)'
+
+      description: Send or request an asset, fiat currency, or cryptocurrency transfer between users.
+      operationId: executeRequestForTransferIntent
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/requestForTransferExecuteIntent'
+      responses:
+        '200':
+          description: operation information
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/operationResponse'
+        '400':
+          description: Invalid Input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '409':
+          description: Conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '500':
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '502':
+          description: Bad Gateway
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '503':
+          description: Service Unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '504':
+          description: Gateway Timeout
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+
+  '/profiles/asset/intent/transfer/{intentId}':
+    patch:
+      tags:
+        - profiles
+      summary: Update a transfer intent
+      parameters:
+        - in: header
+          name: Idempotency-Key
+          schema:
+            $ref: '#/components/schemas/nonce'
+        - name: intentId
+          in: path
+          description: ID of the intent
+          required: true
+          schema:
+            type: string
+            pattern: '^[^:](?:.+):105:(?:.+)'
+      description: Update transfer intent, send or request an asset, fiat currency, or cryptocurrency transfer between users.
+      operationId: updateRequestForTransferIntent
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/requestForTransferUpdateIntent'
+        required: true
+      responses:
+        '200':
+          description: operation information
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/operationResponse'
+        '400':
+          description: Invalid Input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '409':
+          description: Conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '500':
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '502':
+          description: Bad Gateway
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '503':
+          description: Service Unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+        '504':
+          description: Gateway Timeout
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiAnyError'
+
+security:
+  - bearerAuth: [ ]
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      description: |
+        Ownera's custom bearer authentication
+
+        The Ownera authorization header is required to communicate with the Ownera APIs, the header should represent
+        a JSON object which contains the associated organization id, API key, nonce, timestamp and one time generated access token.
+
+        The one time access token is required to be generated for each request to the Ownera APIs, one time access tokens are time bounded
+        by the timestamp value of the authorization object and are limited for one time use, tokens which their timestamp is outside of the
+        accepted time range or that the token was already previously used will be rejected.
+
+        Access token is generated by concatenation of the API key, random nonce value and current epoch timestamp in seconds,
+        this digest signed using the associated secret of the API key (HS256, RS256) and encoded as an hexadecimal string.
+
+        The authorization object, including the generated access token, is base64 encoded an sent to the API as bearer authorization header.
+
+        sample code snippet (RS256):
+
+        const nonce = crypto.randomBytes(16).toString('hex');
+        const timestamp = Math.floor(new Date().getTime() / 1000);
+
+        const rawAccessToken = `${API_KEY}${nonce}${timestamp}`;
+
+        const accessToken = crypto.createSign('SHA256').update(rawAccessToken).sign(Buffer.from($PRIVATE_KEY)).toString('hex');
+
+        const authInfo = {
+          organization: $ORGANIZATION_ID,
+          apiKey: $API_KEY,
+          nonce,
+          timestamp,
+          accessToken
+        };
+
+        const authorizationHeader = Buffer.from(JSON.stringify(authInfo)).toString("base64");
+  schemas:
+    idempotency-key:
+      allOf:
+        - $ref: '#/components/schemas/nonce'
+
+    resourceId:
+      type: string
+      description: 'finp2p resource id format'
+      pattern: '^[^:](?:.+):(101|102|103|104|105):(?:.+)'
+      maxLength: 150
+      example: 'bank-x:101:9929ccaf-8967-4ba3-9198-a4b8e3128388'
+
+    profileId:
+      type: string
+      description: 'finp2p resource id format'
+      pattern: '^[^:](?:.+):(101|102):(?:.+)'
+      maxLength: 150
+      example: 'bank-x:101:9929ccaf-8967-4ba3-9198-a4b8e3128388'
+
+    ownerId:
+      type: string
+      description: 'The Owner resource id'
+      pattern: '^[^:](?:.+):101:(?:.+)'
+      maxLength: 150
+      example: 'bank-x:101:511c1d7f-4ed8-410d-887c-a10e3e499a01'
+
+    assetId:
+      type: string
+      description: 'The Asset resource id'
+      pattern: '^[^:](?:.+):102:(?:.+)'
+      maxLength: 150
+      example: 'bank-x:102:f461a964-ae08-4e35-b690-24de06d973db'
+
+    intentId:
+      type: string
+      description: 'The intent resource id'
+      pattern: '^[^:](?:.+):105:(?:.+)'
+      maxLength: 150
+      example: 'bank-x:105:9929ccaf-8967-4ba3-9198-a4b8e3128388'
+
+    executionPlanId:
+      type: string
+      description: 'The execution resource id'
+      pattern: '^[^:](?:.+):106:(?:.+)$'
+      maxLength: 150
+      example: 'bank-x:106:9929ccaf-8967-4ba3-9198-a4b8e3128388'
+
+    finId:
+      type: string
+      description: 'Existing owner hex representation of a secp256k1 public key 33 bytes compressed'
+      pattern: '^[0-9a-h]*$'
+      minLength: 64
+      maxLength: 66
+
+    primarySaleExecution:
+      type: object
+      required: [ type, nonce, issuer, buyer, asset, settlement ]
+      properties:
+        type:
+          type: string
+          enum: [ primarySaleExecution ]
+        nonce:
+          $ref: '#/components/schemas/nonce'
+        issuer:
+          $ref: '#/components/schemas/ownerId'
+        buyer:
+          $ref: '#/components/schemas/ownerId'
+        asset:
+          $ref: '#/components/schemas/issueRequestAssetOrder'
+        settlement:
+          $ref: '#/components/schemas/executeIntentRequestSettlement'
+
+    buyingIntentExecution:
+      type: object
+      required: [ type, nonce, asset, settlement, seller ]
+      properties:
+        type:
+          type: string
+          enum: [ buyingIntentExecution ]
+        nonce:
+          $ref: '#/components/schemas/nonce'
+        asset:
+          $ref: '#/components/schemas/transferRequestAssetOrder'
+        settlement:
+          $ref: '#/components/schemas/executeIntentRequestSettlement'
+        seller:
+          $ref: '#/components/schemas/ownerId'
+
+    sellingIntentExecution:
+      type: object
+      required: [ type, nonce, asset, settlement, buyer ]
+      properties:
+        type:
+          type: string
+          enum: [ sellingIntentExecution ]
+        nonce:
+          $ref: '#/components/schemas/nonce'
+        asset:
+          $ref: '#/components/schemas/transferRequestAssetOrder'
+        settlement:
+          $ref: '#/components/schemas/executeIntentRequestSettlement'
+        buyer:
+          $ref: '#/components/schemas/ownerId'
+
+    loanIntentExecution:
+      type: object
+      required: [ type, executorType, nonce, asset, settlement, lender, borrower ]
+      properties:
+        type:
+          type: string
+          enum: [ loanIntentExecution ]
+        executorType:
+          type: string
+          enum: [ borrower, lender ]
+        nonce:
+          $ref: '#/components/schemas/nonce'
+        borrower:
+          $ref: '#/components/schemas/ownerId'
+        lender:
+          $ref: '#/components/schemas/ownerId'
+        asset:
+          $ref: '#/components/schemas/loanRequestAssetOrder'
+        settlement:
+          $ref: '#/components/schemas/executeLoanIntentRequestSettlement'
+        loanInstruction:
+          $ref: '#/components/schemas/loanInstruction'
+
+    redemptionIntentExecution:
+      type: object
+      required: [ type, nonce, issuer, seller, asset, settlement ]
+      properties:
+        type:
+          type: string
+          enum: [ redemptionIntentExecution ]
+        nonce:
+          $ref: '#/components/schemas/nonce'
+        issuer:
+          $ref: '#/components/schemas/ownerId'
+        seller:
+          $ref: '#/components/schemas/ownerId'
+        asset:
+          $ref: '#/components/schemas/transferRequestAssetOrder'
+        settlement:
+          $ref: '#/components/schemas/executeIntentRequestSettlement'
+
+    privateOfferIntentExecution:
+      type: object
+      required: [ type, nonce, asset, settlement, buyer, seller ]
+      properties:
+        type:
+          type: string
+          enum: [ privateOfferIntentExecution ]
+        nonce:
+          $ref: '#/components/schemas/nonce'
+        asset:
+          $ref: '#/components/schemas/transferRequestAssetOrder'
+        settlement:
+          $ref: '#/components/schemas/executeIntentRequestSettlement'
+        buyer:
+          $ref: '#/components/schemas/ownerId'
+        seller:
+          $ref: '#/components/schemas/ownerId'
+
+    intentExecution:
+      type: object
+      oneOf:
+        - $ref: '#/components/schemas/primarySaleExecution'
+        - $ref: '#/components/schemas/buyingIntentExecution'
+        - $ref: '#/components/schemas/sellingIntentExecution'
+        - $ref: '#/components/schemas/loanIntentExecution'
+        - $ref: '#/components/schemas/redemptionIntentExecution'
+        - $ref: '#/components/schemas/privateOfferIntentExecution'
+      discriminator:
+        propertyName: type
+        mapping:
+          primarySaleExecution: '#/components/schemas/primarySaleExecution'
+          buyingIntentExecution: '#/components/schemas/buyingIntentExecution'
+          sellingIntentExecution: '#/components/schemas/sellingIntentExecution'
+          loanIntentExecution: '#/components/schemas/loanIntentExecution'
+          redemptionIntentExecution: '#/components/schemas/redemptionIntentExecution'
+          privateOfferIntentExecution: '#/components/schemas/privateOfferIntentExecution'
+
+    correspondent:
+      type: object
+      oneOf:
+        - $ref: '#/components/schemas/assetIssuer'
+      discriminator:
+        propertyName: type
+        mapping:
+          assetIssuer: '#/components/schemas/assetIssuer'
+
+    intent:
+      type: object
+      oneOf:
+        - $ref: '#/components/schemas/primarySale'
+        - $ref: '#/components/schemas/buyingIntent'
+        - $ref: '#/components/schemas/sellingIntent'
+        - $ref: '#/components/schemas/loanIntent'
+        - $ref: '#/components/schemas/redemptionIntent'
+        - $ref: '#/components/schemas/privateOfferIntent'
+      discriminator:
+        propertyName: type
+        mapping:
+          primarySale: '#/components/schemas/primarySale'
+          buyingIntent: '#/components/schemas/buyingIntent'
+          sellingIntent: '#/components/schemas/sellingIntent'
+          loanIntent: '#/components/schemas/loanIntent'
+          redemptionIntent: '#/components/schemas/redemptionIntent'
+          privateOfferIntent: '#/components/schemas/privateOfferIntent'
+
+    primarySale:
+      type: object
+      required: [ type, issuer, assetTerm, assetInstruction, settlementTerm ]
+      properties:
+        type:
+          type: string
+          enum: [ primarySale ]
+        issuer:
+          $ref: '#/components/schemas/ownerId'
+        assetTerm:
+          $ref: '#/components/schemas/finp2pAssetTerm'
+        assetInstruction:
+          $ref: '#/components/schemas/intentAssetInstruction'
+        settlementTerm:
+          $ref: '#/components/schemas/settlementTerm'
+        settlementInstruction:
+          $ref: '#/components/schemas/sellingIntentSettlementInstruction'
+
+    buyingIntent:
+      type: object
+      required:
+        [ type, buyer, assetTerm, assetInstruction, settlementInstruction ]
+      properties:
+        type:
+          type: string
+          enum: [ buyingIntent ]
+        buyer:
+          type: string
+          description: 'resource id of the buyer'
+        assetTerm:
+          $ref: '#/components/schemas/finp2pAssetTerm'
+        assetInstruction:
+          $ref: '#/components/schemas/intentAssetInstruction'
+        settlementTerm:
+          $ref: '#/components/schemas/settlementTerm'
+        settlementInstruction:
+          $ref: '#/components/schemas/buyingIntentSettlementInstruction'
+        signaturePolicy:
+          oneOf:
+            - $ref: '#/components/schemas/presignedBuyIntentSignaturePolicy'
+            - $ref: '#/components/schemas/manualSignaturePolicy'
+          discriminator:
+            propertyName: type
+            mapping:
+              presignedPolicy: '#/components/schemas/presignedBuyIntentSignaturePolicy'
+              manualPolicy: '#/components/schemas/manualSignaturePolicy'
+
+    sellingIntent:
+      type: object
+      required: [ type, seller, assetTerm, assetInstruction, settlementTerm ]
+      properties:
+        type:
+          type: string
+          enum: [ sellingIntent ]
+        seller:
+          $ref: '#/components/schemas/ownerId'
+        assetTerm:
+          $ref: '#/components/schemas/finp2pAssetTerm'
+        assetInstruction:
+          $ref: '#/components/schemas/intentAssetInstruction'
+        settlementTerm:
+          $ref: '#/components/schemas/settlementTerm'
+        signaturePolicy:
+          oneOf:
+            - $ref: '#/components/schemas/presignedSellIntentSignaturePolicy'
+            - $ref: '#/components/schemas/manualSignaturePolicy'
+          discriminator:
+            propertyName: type
+            mapping:
+              presignedPolicy: '#/components/schemas/presignedSellIntentSignaturePolicy'
+              manualPolicy: '#/components/schemas/manualSignaturePolicy'
+        settlementInstruction:
+          $ref: '#/components/schemas/sellingIntentSettlementInstruction'
+
+    loanIntent:
+      type: object
+      required: [ type, creatorType, borrower, lender ]
+      properties:
+        type:
+          type: string
+          enum: [ loanIntent ]
+        creatorType:
+          type: string
+          enum: [ borrower, lender ]
+        borrower:
+          $ref: '#/components/schemas/ownerId'
+        lender:
+          $ref: '#/components/schemas/ownerId'
+        assetTerm:
+          $ref: '#/components/schemas/finp2pAssetTerm'
+        assetInstruction:
+          $ref: '#/components/schemas/loanIntentAssetInstruction'
+        settlementTerm:
+          $ref: '#/components/schemas/settlementTerm'
+        settlementInstruction:
+          $ref: '#/components/schemas/loanIntentSettlementInstruction'
+        loanInstruction:
+          $ref: '#/components/schemas/loanInstruction'
+        signaturePolicy:
+          oneOf:
+            - $ref: '#/components/schemas/presignedLoanIntentSignaturePolicy'
+          discriminator:
+            propertyName: type
+            mapping:
+              presignedPolicy: '#/components/schemas/presignedLoanIntentSignaturePolicy'
+
+    redemptionIntent:
+      type: object
+      required: [ type, issuer, assetTerm, settlementInstruction ]
+      properties:
+        type:
+          type: string
+          enum: [ redemptionIntent ]
+        issuer:
+          $ref: '#/components/schemas/ownerId'
+        assetTerm:
+          $ref: '#/components/schemas/finp2pAssetTerm'
+        assetInstruction:
+          $ref: '#/components/schemas/intentAssetInstruction'
+        settlementTerm:
+          $ref: '#/components/schemas/settlementTerm'
+        settlementInstruction:
+          $ref: '#/components/schemas/redemptionIntentSettlementInstruction'
+        conditions:
+          $ref: '#/components/schemas/redemptionIntentConditions'
+        signaturePolicy:
+          oneOf:
+            - $ref: '#/components/schemas/preSignedRedemptionIntentSignaturePolicy'
+            - $ref: '#/components/schemas/manualSignaturePolicy'
+          discriminator:
+            propertyName: type
+            mapping:
+              preSignedPolicy: '#/components/schemas/preSignedRedemptionIntentSignaturePolicy'
+              manualPolicy: '#/components/schemas/manualSignaturePolicy'
+
+    privateOfferIntent:
+      type: object
+      required: [ type, buyer, seller, assetTerm, settlementTerm ]
+      properties:
+        type:
+          type: string
+          enum: [ privateOfferIntent ]
+        buyer:
+          $ref: '#/components/schemas/ownerId'
+        seller:
+          $ref: '#/components/schemas/ownerId'
+        assetTerm:
+          $ref: '#/components/schemas/finp2pAssetTerm'
+        assetInstruction:
+          $ref: '#/components/schemas/privateOfferIntentAssetInstruction'
+        settlementTerm:
+          $ref: '#/components/schemas/settlementTerm'
+        signaturePolicy:
+          oneOf:
+            - $ref: '#/components/schemas/presignedSellIntentSignaturePolicy'
+            - $ref: '#/components/schemas/manualSignaturePolicy'
+          discriminator:
+            propertyName: type
+            mapping:
+              presignedPolicy: '#/components/schemas/presignedSellIntentSignaturePolicy'
+              manualPolicy: '#/components/schemas/manualSignaturePolicy'
+        settlementInstruction:
+          $ref: '#/components/schemas/sellingIntentSettlementInstruction'
+
+    settlementTerm:
+      type: object
+      required: [ asset, unitValue ]
+      properties:
+        asset:
+          $ref: '#/components/schemas/asset'
+        unitValue:
+          type: string
+          description: 'A unit value represented as a string, the value is a decimal number'
+          pattern: '^\d+\.?\d*$'
+          maxLength: 150
+
+    assetTerm:
+      type: object
+      required: [ asset, amount ]
+      properties:
+        asset:
+          $ref: '#/components/schemas/asset'
+        amount:
+          $ref: '#/components/schemas/amount'
+
+    issueRequestAssetOrder:
+      type: object
+      required: [ term, instruction ]
+      properties:
+        term:
+          $ref: '#/components/schemas/finp2pAssetTerm'
+        instruction:
+          $ref: '#/components/schemas/issueRequestAssetOrderInstruction'
+
+    issueRequestAssetOrderInstruction:
+      type: object
+      required: [ destinationAccount ]
+      properties:
+        destinationAccount:
+          $ref: '#/components/schemas/assetInstruction'
+
+    #    issueRequestSettlement:
+    #      type: object
+    #      description: Settlement information for the issuance request
+    #      required: [ term, instruction ]
+    #      properties:
+    #        term:
+    #          $ref: '#/components/schemas/assetTerm'
+    #        instruction:
+    #          $ref: '#/components/schemas/issueRequestSettlementInstruction'
+
+    #    issueRequestSettlementInstruction:
+    #      type: object
+    #      oneOf:
+    #        - $ref: '#/components/schemas/escrowSettlement'
+    #      discriminator:
+    #        propertyName: type
+    #        mapping:
+    #          escrow: '#/components/schemas/escrowSettlement'
+
+    transferRequestAssetOrder:
+      type: object
+      required: [ term, instruction ]
+      properties:
+        term:
+          $ref: '#/components/schemas/finp2pAssetTerm'
+        instruction:
+          $ref: '#/components/schemas/transferRequestAssetOrderInstruction'
+
+    loanRequestAssetOrder:
+      type: object
+      required: [ term, instruction ]
+      properties:
+        term:
+          $ref: '#/components/schemas/finp2pAssetTerm'
+        instruction:
+          $ref: '#/components/schemas/loanRequestAssetOrderInstruction'
+
+    transferRequestAssetOrderInstruction:
+      type: object
+      required: [ sourceAccount, destinationAccount ]
+      properties:
+        sourceAccount:
+          $ref: '#/components/schemas/assetInstruction'
+        destinationAccount:
+          $ref: '#/components/schemas/assetInstruction'
+
+    loanRequestAssetOrderInstruction:
+      type: object
+      required: [ borrowerAccount, lenderAccount ]
+      properties:
+        borrowerAccount:
+          $ref: '#/components/schemas/assetInstruction'
+        lenderAccount:
+          $ref: '#/components/schemas/assetInstruction'
+
+    executeIntentRequestSettlement:
+      type: object
+      description: Settlement information for the execute intent request
+      required: [ term, instruction ]
+      properties:
+        term:
+          $ref: '#/components/schemas/assetTerm'
+        instruction:
+          $ref: '#/components/schemas/settlementInstruction'
+
+    executeLoanIntentRequestSettlement:
+      type: object
+      description: Settlement information for the execute intent request
+      required: [ term, instruction ]
+      properties:
+        term:
+          $ref: '#/components/schemas/assetTerm'
+        instruction:
+          $ref: '#/components/schemas/loanSettlementInstruction'
+
+    #    transferRequestSettlementInstruction:
+    #      type: object
+    #      oneOf:
+    #        - $ref: '#/components/schemas/escrowSettlement'
+    #      discriminator:
+    #        propertyName: type
+    #        mapping:
+    #          escrow: '#/components/schemas/escrowSettlement'
+
+    finp2pAssetTerm:
+      type: object
+      required: [ asset, amount ]
+      properties:
+        asset:
+          $ref: '#/components/schemas/finp2pAsset'
+        amount:
+          $ref: '#/components/schemas/amount'
+
+    intentAssetInstruction:
+      type: object
+      required: [ account ]
+      properties:
+        account:
+          $ref: '#/components/schemas/assetInstruction'
+
+    privateOfferIntentAssetInstruction:
+      type: object
+      required: [ account ]
+      properties:
+        account:
+          $ref: '#/components/schemas/privateOfferAssetInstruction'
+
+    loanIntentAssetInstruction:
+      type: object
+      required: [ borrowerAccount, lenderAccount ]
+      properties:
+        borrowerAccount:
+          $ref: '#/components/schemas/assetInstruction'
+        lenderAccount:
+          $ref: '#/components/schemas/assetInstruction'
+
+    assetInstruction:
+      type: object
+      required: [ account, asset ]
+      properties:
+        account:
+          $ref: '#/components/schemas/assetInstructionAccount'
+        asset:
+          $ref: '#/components/schemas/finp2pAsset'
+
+    privateOfferAssetInstruction:
+      type: object
+      required: [ asset ]
+      properties:
+        account:
+          $ref: '#/components/schemas/assetInstructionAccount'
+        asset:
+          $ref: '#/components/schemas/finp2pAsset'
+
+    assetInstructionAccount:
+      type: object
+      oneOf:
+        - $ref: '#/components/schemas/finIdAccount'
+      discriminator:
+        propertyName: type
+        mapping:
+          finId: '#/components/schemas/finIdAccount'
+
+    settlementInstruction:
+      type: object
+      required: [ sourceAccount, destinationAccount ]
+      properties:
+        sourceAccount:
+          $ref: '#/components/schemas/accountAsset'
+        destinationAccount:
+          $ref: '#/components/schemas/accountAsset'
+
+    loanSettlementInstruction:
+      type: object
+      required: [ borrowerAccount, lenderAccount ]
+      properties:
+        borrowerAccount:
+          $ref: '#/components/schemas/accountAsset'
+        lenderAccount:
+          $ref: '#/components/schemas/accountAsset'
+
+    buyingIntentSettlementInstruction:
+      type: object
+      required: [ sourceAccount ]
+      properties:
+        sourceAccount:
+          $ref: '#/components/schemas/accountAsset'
+
+    sellingIntentSettlementInstruction:
+      type: object
+      required: [ destinationAccounts ]
+      properties:
+        destinationAccounts:
+          type: array
+          items:
+            $ref: '#/components/schemas/accountAsset'
+
+    redemptionIntentSettlementInstruction:
+      type: object
+      required: [ sourceAccounts ]
+      properties:
+        sourceAccounts:
+          type: array
+          items:
+            $ref: '#/components/schemas/accountAsset'
+
+    loanIntentSettlementInstruction:
+      type: object
+      required: [ borrowerAccount, lenderAccount ]
+      properties:
+        borrowerAccount:
+          $ref: '#/components/schemas/accountAsset'
+        lenderAccount:
+          $ref: '#/components/schemas/accountAsset'
+
+    privateOfferIntentSettlementInstruction:
+      type: object
+      required: [ sellerAccount, buyerAccount ]
+      properties:
+        sellerAccount:
+          $ref: '#/components/schemas/accountAsset'
+        buyerAccount:
+          $ref: '#/components/schemas/accountAsset'
+
+    loanInstruction:
+      type: object
+      required: [ openDate, closeDate, conditions ]
+      properties:
+        openDate:
+          type: integer
+          format: int64
+          description: date and time operation starts, in epoch (seconds)
+          minimum: 0
+          # maximum: 10000000000
+          x-go-type-skip-optional-pointer: true
+        closeDate:
+          type: integer
+          format: int64
+          description: date and time operation ends, in epoch (seconds)
+          minimum: 0
+          # maximum: 10000000000
+          x-go-type-skip-optional-pointer: true
+        conditions:
+          $ref: '#/components/schemas/loanConditions'
+
+    presignedSellIntentSignaturePolicy:
+      type: object
+      required: [ type ]
+      properties:
+        type:
+          type: string
+          enum: [ 'presignedPolicy' ]
+
+    presignedBuyIntentSignaturePolicy:
+      type: object
+      required: [ type ]
+      properties:
+        type:
+          type: string
+          enum: [ 'presignedPolicy' ]
+
+    presignedLoanIntentSignaturePolicy:
+      type: object
+      required: [ type ]
+      properties:
+        type:
+          type: string
+          enum: [ 'presignedPolicy' ]
+
+    preSignedRedemptionIntentSignaturePolicy:
+      type: object
+      required: [ type ]
+      properties:
+        type:
+          type: string
+          enum: [ 'presignedPolicy' ]
+
+    presignedPrivateOfferIntentSignaturePolicy:
+      type: object
+      required: [ type ]
+      properties:
+        type:
+          type: string
+          enum: [ 'presignedPolicy' ]
+
+    manualSignaturePolicy:
+      type: object
+      required: [ type ]
+      properties:
+        type:
+          type: string
+          enum: [ 'manualPolicy' ]
+        nonce:
+          $ref: '#/components/schemas/nonce'
+
+    signatureResponseType:
+      type: string
+      enum: [ signature, acknowledgement ]
+      description: Type of response, immediate / synchronous response or asynchronous
+
+    idResponse:
+      type: object
+      required: [ id ]
+      properties:
+        id:
+          $ref: '#/components/schemas/ownerId'
+
+    intentIdResponse:
+      type: object
+      required: [ intentId ]
+      properties:
+        intentId:
+          $ref: '#/components/schemas/ownerId'
+
+    resourceIdResponse:
+      type: object
+      required: [ id ]
+      properties:
+        id:
+          $ref: '#/components/schemas/resourceId'
+
+    operationBase:
+      type: object
+      required: [ isCompleted ]
+      properties:
+        cid:
+          type: string
+          description: unique correlation id which identify the operation
+        isCompleted:
+          type: boolean
+          description: flag indicating if the operation completed, if true then error or response must be present (but not both)
+          default: false
+
+    operationResponse:
+      type: object
+      oneOf:
+        - $ref: '#/components/schemas/tokenOperation'
+        - $ref: '#/components/schemas/profileOperation'
+        - $ref: '#/components/schemas/depositOperation'
+        - $ref: '#/components/schemas/withdrawOperation'
+        - $ref: '#/components/schemas/executionOperation'
+        - $ref: '#/components/schemas/accountOperation'
+      discriminator:
+        propertyName: type
+        mapping:
+          token: '#/components/schemas/tokenOperation'
+          profile: '#/components/schemas/profileOperation'
+          deposit: '#/components/schemas/depositOperation'
+          withdraw: '#/components/schemas/withdrawOperation'
+          execution: '#/components/schemas/executionOperation'
+          account: '#/components/schemas/accountOperation'
+
+    tokenOperation:
+      allOf:
+        - $ref: '#/components/schemas/operationBase'
+        - type: object
+          required: [ type ]
+          properties:
+            type:
+              type: string
+              enum: [ 'token' ]
+            metadata: { }
+          discriminator:
+            propertyName: type
+            mapping:
+              error: '#/components/schemas/ApiAnyError'
+              response: '#/components/schemas/tokenOperationResultResponse'
+        - oneOf:
+            - $ref: '#/components/schemas/ApiAnyError'
+            - $ref: '#/components/schemas/tokenOperationResultResponse'
+
+    tokenOperationResultResponse:
+      type: object
+      required: [ type ]
+      properties:
+        type:
+          type: string
+          enum: [ 'response' ]
+        response:
+          $ref: '#/components/schemas/tokenOperationResult'
+
+    executionOperation:
+      allOf:
+        - $ref: '#/components/schemas/operationBase'
+        - type: object
+          required: [ type ]
+          properties:
+            type:
+              type: string
+              enum: [ 'execution' ]
+            metadata: { }
+          discriminator:
+            propertyName: type
+            mapping:
+              error: '#/components/schemas/ApiAnyError'
+              response: '#/components/schemas/executionOperationResultResponse'
+        - oneOf:
+            - $ref: '#/components/schemas/ApiAnyError'
+            - $ref: '#/components/schemas/executionOperationResultResponse'
+
+    executionOperationResultResponse:
+      type: object
+      required: [ type ]
+      properties:
+        type:
+          type: string
+          enum: [ 'response' ]
+        response:
+          $ref: '#/components/schemas/executionOperationResult'
+
+    accountOperation:
+      allOf:
+        - $ref: '#/components/schemas/operationBase'
+        - type: object
+          required: [ type ]
+          properties:
+            type:
+              type: string
+              enum: [ 'account' ]
+            metadata: { }
+          discriminator:
+            propertyName: type
+            mapping:
+              error: '#/components/schemas/ApiAnyError'
+              response: '#/components/schemas/accountOperationResultResponse'
+        - oneOf:
+            - $ref: '#/components/schemas/ApiAnyError'
+            - $ref: '#/components/schemas/accountOperationResultResponse'
+
+    accountOperationResultResponse:
+      type: object
+      required: [ type ]
+      properties:
+        type:
+          type: string
+          enum: [ 'response' ]
+        response:
+          $ref: '#/components/schemas/accountOperationResult'
+
+    accountOperationResult:
+      type: object
+      properties:
+        custodyOrgId:
+          type: string
+          description: custodian org id
+        finId:
+          type: string
+          description: 'hex representation of a secp256k1 resource public key 33 bytes compressed'
+
+    executionOperationResult:
+      type: object
+      required: [ executionPlanId ]
+      properties:
+        executionPlanId:
+          $ref: '#/components/schemas/executionPlanId'
+
+    tokenOperationResult:
+      type: object
+      required: [ receipt ]
+      properties:
+        receipt:
+          $ref: '#/components/schemas/receipt'
+
+    profileOperation:
+      allOf:
+        - $ref: '#/components/schemas/operationBase'
+        - type: object
+          required: [ type ]
+          properties:
+            type:
+              type: string
+              enum: [ 'profile' ]
+          discriminator:
+            propertyName: type
+            mapping:
+              error: '#/components/schemas/ApiAnyError'
+              response: '#/components/schemas/profileOperationResponse'
+        - oneOf:
+            - $ref: '#/components/schemas/ApiAnyError'
+            - $ref: '#/components/schemas/profileOperationResponse'
+
+    profileOperationResponse:
+      type: object
+      required: [ type ]
+      properties:
+        type:
+          type: string
+          enum: [ 'response' ]
+        response:
+          $ref: '#/components/schemas/resourceIdResponse'
+
+    depositOperation:
+      allOf:
+        - $ref: '#/components/schemas/operationBase'
+        - type: object
+          required: [ type ]
+          properties:
+            type:
+              type: string
+              enum: [ 'deposit' ]
+          discriminator:
+            propertyName: type
+            mapping:
+              error: '#/components/schemas/ApiAnyError'
+              response: '#/components/schemas/depositInstructionResponse'
+        - oneOf:
+            - $ref: '#/components/schemas/ApiAnyError'
+            - $ref: '#/components/schemas/depositInstructionResponse'
+
+    depositInstructionResponse:
+      type: object
+      required: [ type ]
+      properties:
+        type:
+          type: string
+          enum: [ 'response' ]
+        response:
+          $ref: '#/components/schemas/depositInstruction'
+
+    withdrawOperation:
+      allOf:
+        - $ref: '#/components/schemas/operationBase'
+        - type: object
+          required: [ type ]
+          properties:
+            type:
+              type: string
+              enum: [ 'withdraw' ]
+          discriminator:
+            propertyName: type
+            mapping:
+              error: '#/components/schemas/ApiAnyError'
+              response: '#/components/schemas/receiptResponse'
+        - oneOf:
+            - $ref: '#/components/schemas/ApiAnyError'
+            - $ref: '#/components/schemas/receiptResponse'
+
+    receiptResponse:
+      type: object
+      required: [ type ]
+      properties:
+        type:
+          type: string
+          enum: [ 'response' ]
+        receipt:
+          $ref: '#/components/schemas/receipt'
+
+    depositInstruction:
+      type: object
+      required: [ operationId, depositInstruction ]
+      properties:
+        operationId:
+          type: string
+          description: operation id
+        depositInstruction:
+          type: object
+          description: Deposit instruction, including account details
+          required: [ account, description ]
+          properties:
+            account:
+              $ref: '#/components/schemas/depositAccount'
+            description:
+              type: string
+              description: Instruction details
+            details:
+              type: object
+              description: Additional details
+            paymentOptions:
+              $ref: '#/components/schemas/paymentMethods'
+
+    receipt:
+      type: object
+      required: [ id, asset, quantity, details, timestamp, operationType ]
+      properties:
+        id:
+          type: string
+          description: receipt id
+        asset:
+          $ref: '#/components/schemas/receiptAsset'
+        source:
+          $ref: '#/components/schemas/ownerId'
+        destination:
+          $ref: '#/components/schemas/ownerId'
+        quantity:
+          type: string
+        tradeDetails:
+          $ref: '#/components/schemas/receiptTradeDetails'
+        details:
+          $ref: '#/components/schemas/receiptDetails'
+        operationRef:
+          type: string
+        operationType:
+          type: string
+          enum: [ 'hold', 'issue', 'redeem', 'release', 'transfer', 'unknown' ]
+        timestamp:
+          type: integer
+
+    receiptAsset:
+      type: object
+      required: [ code, type ]
+      properties:
+        code:
+          type: string
+          description: asset code
+        type:
+          type: string
+          description: asset type
+
+    receiptTradeDetails:
+      type: object
+      properties:
+        intentId:
+          type: string
+        intentVersion:
+          type: string
+        executionContext:
+          $ref: '#/components/schemas/receiptExecutionContext'
+
+    receiptExecutionContext:
+      type: object
+      required: [ executionPlanId, instructionSequenceNumber ]
+      properties:
+        executionPlanId:
+          type: string
+        instructionSequenceNumber:
+          type: integer
+
+    receiptDetails:
+      type: object
+      oneOf:
+        - $ref: '#/components/schemas/receiptAssetDetails'
+        - $ref: '#/components/schemas/receiptPaymentDetails'
+      discriminator:
+        propertyName: type
+        mapping:
+          asset: '#/components/schemas/receiptAssetDetails'
+          payment: '#/components/schemas/receiptPaymentDetails'
+
+    receiptAssetDetails:
+      type: object
+      required: [ type, transactionDetails ]
+      properties:
+        type:
+          type: string
+          enum: [ 'asset' ]
+        sourceFinId:
+          type: string
+        destinationFinId:
+          type: string
+        transactionDetails:
+          $ref: '#/components/schemas/receiptTransactionDetails'
+
+    receiptPaymentDetails:
+      type: object
+      required: [ type, transactionDetails ]
+      properties:
+        type:
+          type: string
+          enum: [ 'payment' ]
+        source:
+          $ref: '#/components/schemas/accountAsset'
+        destination:
+          $ref: '#/components/schemas/accountAsset'
+        transactionDetails:
+          $ref: '#/components/schemas/receiptTransactionDetails'
+
+    receiptTransactionDetails:
+      description: Additional input and output details for UTXO supporting DLTs
+      type: object
+      required:
+        - transactionId
+      properties:
+        transactionId:
+          type: string
+          description: Transaction id
+        operationId:
+          type: string
+          description: Operation id
+
+    wildcardTransferSignature:
+      type: string
+      description: |
+        Signature = sign(sender private secp256k1 key, message)
+
+        | order | value | type | comment |
+        |--|--|--|--|
+        | 1 | nonce | []byte |  |
+        | 2 | operation       | string | "transfer" |
+        | 3 | "*" | string | value should indicate any recipient address |
+        | 4 | assetId            | string | |
+        | 5 | quantity           | string | string representation of the quantity |
+        | 6 | settlementAssetId   | string | |
+        | 7 | settlementQuantity  | string | string representation of the quantity |
+        | 8 | settlementExpiry    | string | string representation of the expiry value |
+
+    transferSignature:
+      type: string
+      description: |
+
+        Asset Hash Group (AHG) structure:
+
+        AHG = hash('SHA3-256', [fields by order]);
+
+        | order | value | type | comment |
+        |--|--|--|--|
+        | 1 | nonce           | []byte  |  |
+        | 2 | operation       | string  | "transfer" |
+        | 3 | assetType       | string  | "finp2p" |
+        | 4 | assetId         | string  | unique identifier of the asset |
+        | 5 | srcAccountType  | string  | "finId" |
+        | 6 | srcAccount      | string  | source account finId address  |
+        | 7 | dstAccountType  | string  | "finId" |
+        | 8 | dstAccount      | string  | destination account finId address  |
+        | 9 | amount          | string  | string representation of the transfer amount |
+
+        hashGroups = hash('SHA3-256', [AHG]);
+
+        Signature = sign(sender private secp256k1 key, hashGroups)
+
+    signatureResultResponse:
+      type: object
+      properties:
+        nonce:
+          type: string
+          description: Nonce
+
+    transferWithSettlementSignature:
+      type: string
+      description: |
+
+        Asset Hash Group (AHG) structure:
+
+        AHG = hash('SHA3-256', [fields by order]);
+
+        | order | value | type | comment |
+        |--|--|--|--|
+        | 1 | nonce           | []byte  |  |
+        | 2 | operation       | string  | "transfer" |
+        | 3 | assetType       | string  | "finp2p" |
+        | 4 | assetId         | string  | unique identifier of the asset |
+        | 5 | srcAccountType  | string  | "finId" |
+        | 6 | srcAccount      | string  | source account finId address  |
+        | 7 | dstAccountType  | string  | "finId" |
+        | 8 | dstAccount      | string  | destination account finId address  |
+        | 9 | amount          | string  | string representation of the transfer amount |
+
+        Settlement Hash Group (SHG) structure:
+
+        SHG = hash('SHA3-256', [fields by order]);
+
+        | order | value | type | comment |
+        |--|--|--|--|
+        | 1 | assetType       | string  | "finp2p", "fiat", "cryptocurrency" |
+        | 2 | assetId         | string  | unique identifier of the asset |
+        | 3 | srcAccountType  | string  | "finId", "cryptoWallet", "escrow" |
+        | 4 | srcAccount      | string  | source account of the asset  |
+        | 5 | dstAccountType  | string  | "finId", "cryptoWallet", "escrow" |
+        | 6 | dstAccount      | string  | destination account for the asset  |
+        | 7 | amount          | string  | string representation of the settlement amount |
+
+        hashGroups = hash('SHA3-256', [AHG, SHG]);
+
+        Signature = sign(sender private secp256k1 key, hashGroups)
+
+    nonce:
+      type: string
+      description: |
+        32 bytes buffer (24 randomly generated bytes by the client + 8 bytes epoch timestamp seconds) encoded to hex:
+
+          const nonce = Buffer.alloc(32);
+          nonce.fill(crypto.randomBytes(24), 0, 24);
+
+          const nowEpochSeconds = Math.floor(new Date().getTime() / 1000);
+          const t = BigInt(nowEpochSeconds);
+          nonce.writeBigInt64BE(t, 24);
+    sellerTransferSignature:
+      type: string
+      description: |
+        Asset Hash Group (AHG) structure:
+
+        AHG = hash('SHA3-256', [fields by order]);
+
+        | order | value | type | comment |
+        |--|--|--|--|
+        | 1 | nonce           | []byte  |  |
+        | 2 | operation       | string  | "transfer" |
+        | 3 | assetType       | string  | "finp2p" |
+        | 4 | assetId         | string  | unique identifier of the asset |
+        | 5 | srcAccountType  | string  | "finId" |
+        | 6 | srcAccount      | string  | source account finId address  |
+        | 7 | dstAccountType  | string  | "finId" |
+        | 8 | dstAccount      | string  | destination account finId address  |
+        | 9 | amount          | string  | string representation of the transfer amount |
+
+        Settlement Hash Group (SHG) structure:
+
+        SHG = hash('SHA3-256', [fields by order]);
+
+        | order | value | type | comment |
+        |--|--|--|--|
+        | 1 | assetType       | string  | "finp2p", "fiat", "cryptocurrency" |
+        | 2 | assetId         | string  | unique identifier of the asset |
+        | 3 | srcAccountType  | string  | "finId", "cryptoWallet", "escrow" |
+        | 4 | srcAccount      | string  | source account of the asset  |
+        | 5 | dstAccountType  | string  | "finId", "cryptoWallet", "escrow" |
+        | 6 | dstAccount      | string  | destination account for the asset  |
+        | 7 | amount          | string  | string representation of the settlement amount |
+
+        hashGroups = hash('SHA3-256', [AHG, SHG]);
+
+        Signature = sign(sender private secp256k1 key, hashGroups)
+
+    buyerTransferSignature:
+      type: string
+      description: |
+        Asset Hash Group (AHG) structure:
+
+        AHG = hash('SHA3-256', [fields by order]);
+
+        | order | value | type | comment |
+        |--|--|--|--|
+        | 1 | nonce           | []byte  |  |
+        | 2 | operation       | string  | "transfer" |
+        | 3 | assetType       | string  | "finp2p" |
+        | 4 | assetId         | string  | unique identifier of the asset |
+        | 5 | srcAccountType  | string  | "finId" |
+        | 6 | srcAccount      | string  | source account finId address  |
+        | 7 | dstAccountType  | string  | "finId" |
+        | 8 | dstAccount      | string  | destination account finId address  |
+        | 9 | amount          | string  | string representation of the transfer amount |
+
+        Settlement Hash Group (SHG) structure:
+
+        SHG = hash('SHA3-256', [fields by order]);
+
+        | order | value | type | comment |
+        |--|--|--|--|
+        | 1 | assetType       | string  | "finp2p", "fiat", "cryptocurrency" |
+        | 2 | assetId         | string  | unique identifier of the asset |
+        | 3 | srcAccountType  | string  | "finId", "cryptoWallet", "escrow" |
+        | 4 | srcAccount      | string  | source account of the asset  |
+        | 5 | dstAccountType  | string  | "finId", "cryptoWallet", "escrow" |
+        | 6 | dstAccount      | string  | destination account for the asset  |
+        | 7 | amount          | string  | string representation of the settlement amount |
+        | 8 | expiry          | string  | string representation of the escrow hold expiry value |
+
+        hashGroups = hash('SHA3-256', [AHG, SHG]);
+
+        Signature = sign(sender private secp256k1 key, hashGroups)
+
+    issueSignature:
+      type: string
+      description: |
+
+        Asset Hash Group (AHG) structure:
+
+        AHG = hash('SHA3-256', [fields by order]);
+
+        | order | value | type | comment |
+        |--|--|--|--|
+        | 1 | nonce           | []byte  |  |
+        | 2 | operation       | string  | "issue" |
+        | 3 | assetType       | string  | "finp2p" |
+        | 4 | assetId         | string  | unique identifier of the asset |
+        | 5 | dstAccountType  | string  | "finId" |
+        | 6 | dstAccount      | string  | destination account finId address hex representation |
+        | 7 | amount          | string  | hex (prefixed with 0x) representation of the issuance amount |
+
+        Settlement Hash Group (SHG) structure:
+
+        SHG = hash('SHA3-256', [fields by order]);
+
+        | order | value | type | comment |
+        |--|--|--|--|
+        | 1 | assetType       | string  | "finp2p", "fiat", "cryptocurrency" |
+        | 2 | assetId         | string  | unique identifier of the asset |
+        | 3 | srcAccountType  | string  | "finId", "cryptoWallet", "escrow" |
+        | 4 | srcAccount      | string  | source account of the asset  |
+        | 5 | dstAccountType  | string  | "finId", "cryptoWallet", "escrow" |
+        | 6 | dstAccount      | string  | destination account for the asset  |
+        | 7 | amount          | string  | string representation of the settlement amount |
+        | 8 | expiry          | string  | string representation of the escrow hold expiry value |
+
+        hashGroups = hash('SHA3-256', [AHG, SHG]);
+
+        Signature = sign(sender private secp256k1 key, hashGroups)
+
+    depositSignature:
+      type: string
+      description: |
+        HG = hash('SHA3-256', [fields by order]);
+        | order | value | type | comment |
+        |--|--|--|--|
+        | 1 | nonce           | []byte  |  |
+        | 2 | operation       | string  | "deposit" |
+        | 3 | assetType       | string  | "fiat", "cryptocurrency", "custom" |
+        | 4 | assetId         | string  | unique identifier of the asset |
+        | 5 | dstAccountType  | string  | "finId" |
+        | 6 | dstAccount      | string  | destination account to deposit funds  |
+        | 7 | amount          | string  | string representation of the deposit amount |
+
+        hashGroups = hash('SHA3-256', [HG]);
+
+        Signature = sign(sender private secp256k1 key, hashGroups)
+
+    withdrawSignature:
+      type: string
+      description: |
+        HG = hash('SHA3-256', [fields by order]);
+
+        | order | value | type | comment |
+        |--|--|--|--|
+        | 1 | nonce           | []byte  |  |
+        | 2 | operation       | string  | "withdraw" |
+        | 3 | assetType       | string  |  "fiat", "cryptocurrency", "custom" |
+        | 4 | assetId         | string  | unique identifier of the asset |
+        | 5 | srcAccountType  | string  | "finId" |
+        | 6 | srcAccount      | string  | source account to withdraw funds from  |
+        | 7 | dstAccountType  | string  | "finId", "cryptoWallet", "escrow" | optional
+        | 8 | dstAccount      | string  | destination account to deposit funds into  | optional
+        | 9 | amount          | string  | string representation of the amount |
+
+        hashGroups = hash('SHA3-256', [HG]);
+
+        Signature = sign(sender private secp256k1 key, hashGroups)
+
+    loanSignature:
+      type: string
+      description: |
+        Loan signature:
+
+        Single Hash Group (AHG) structure:
+
+        HASH = hash('SHA3-256', [fields by order]);
+
+        | order | value | type | comment |
+        |---|--|--|--|
+        |  1 | nonce           | []byte  |  |
+        |  2 | operation       | string  | "loan" |
+        |  3 | assetType       | string  | "finp2p" |
+        |  4 | assetId         | string  | unique identifier of the collateral asset |
+        |  5 | srcAccountType  | string  | "finId" |
+        |  6 | srcAccount      | string  | source account finId address  |
+        |  7 | dstAccountType  | string  | "finId" |
+        |  8 | dstAccount      | string  | destination account finId address  |
+        |  9 | amount          | string  | string representation of the transfer amount |
+        | 10 | assetType       | string  | money asset type "finp2p", "fiat", "cryptocurrency" |
+        | 11 | assetId         | string  | unique identifier of the money asset |
+        | 12 | srcAccountType  | string  | source money account type "finId", "cryptoWallet", "escrow" |
+        | 13 | srcAccount      | string  | source money account id  |
+        | 14 | dstAccountType  | string  | destination money account type "finId", "cryptoWallet", "escrow" |
+        | 15 | dstAccount      | string  | destination money account id  |
+        | 16 | amount          | string  | string representation of the money borrowed |
+        | 17 | closeAmount     | string  | string representation of the money returned back |
+        | 18 | openTime        | string  | string representation of the open time volume |
+        | 19 | closeTime       | string  | string representation of the close time volume |
+
+        hashGroups = hash('SHA3-256', [HASH]);
+
+        Signature = sign(sender private secp256k1 key, hashGroups)
+
+    accountAsset:
+      type: object
+      description: 'describes account information'
+      required: [ account, asset ]
+      properties:
+        account:
+          $ref: '#/components/schemas/account'
+        asset:
+          $ref: '#/components/schemas/asset'
+
+    finIdAccount:
+      type: object
+      required: [ type, finId, orgId ]
+      properties:
+        type:
+          type: string
+          enum: [ 'finId' ]
+        finId:
+          $ref: '#/components/schemas/finId'
+        orgId:
+          type: 'string'
+          pattern: '^[^:]*$'
+          maxLength: 150
+        custodian:
+          $ref: '#/components/schemas/custodian'
+
+    custodian:
+      type: object
+      required: [ orgId ]
+      properties:
+        orgId:
+          type: 'string'
+
+    cryptoWalletAccount:
+      type: object
+      required: [ type, address ]
+      properties:
+        type:
+          type: string
+          enum: [ 'cryptoWallet' ]
+        address:
+          type: 'string'
+          description: 'address of the cryptocurrency wallet'
+          pattern: '^0x[0-9a-hA-H]+$'
+
+    ibanAccount:
+      type: object
+      required: [ type, code ]
+      properties:
+        type:
+          type: string
+          enum: [ 'iban' ]
+        code:
+          type: 'string'
+          description: 'iban address'
+          example: 'GB29NWBK60161331926819'
+
+    asset:
+      type: object
+      discriminator:
+        propertyName: type
+        mapping:
+          cryptocurrency: '#/components/schemas/cryptocurrencyAsset'
+          fiat: '#/components/schemas/fiatAsset'
+          finp2p: '#/components/schemas/finp2pAsset'
+      oneOf:
+        - $ref: '#/components/schemas/cryptocurrencyAsset'
+        - $ref: '#/components/schemas/fiatAsset'
+        - $ref: '#/components/schemas/finp2pAsset'
+
+    depositSignaturePolicy:
+      oneOf:
+        - $ref: '#/components/schemas/manualSignaturePolicy'
+      discriminator:
+        propertyName: type
+        mapping:
+          manualPolicy: '#/components/schemas/manualSignaturePolicy'
+
+    withdrawSignaturePolicy:
+      oneOf:
+        - $ref: '#/components/schemas/manualSignaturePolicy'
+      discriminator:
+        propertyName: type
+        mapping:
+          manualPolicy: '#/components/schemas/manualSignaturePolicy'
+
+    amount:
+      type: string
+      description: 'the total number of units'
+      pattern: '^\d+\.?\d*$'
+      maxLength: 150
+
+    unitValue:
+      type: string
+      description: 'A unit value represented as a string, the value is a decimal number'
+      pattern: '^\d+(\.\d+)?$'
+
+    cryptocurrencyAsset:
+      type: object
+      required: [ type, code ]
+      properties:
+        type:
+          type: 'string'
+          enum: [ 'cryptocurrency' ]
+        code:
+          type: 'string'
+          description: 'unique identifier symbol of the cryptocurrency'
+          pattern: '^[0-9a-zA-Z_\-]+$'
+          maxLength: 150
+
+    fiatAsset:
+      type: object
+      required: [ type, code ]
+      properties:
+        type:
+          type: 'string'
+          enum: [ 'fiat' ]
+        code:
+          type: 'string'
+          description: 'unique identifier code of the fiat currency - based on ISO-4217'
+          pattern: '^(?:AED|AFN|ALL|AMD|ANG|AOA|ARS|AUD|AWG|AZN|BAM|BBD|BDT|BGN|BHD|BIF|BMD|BND|BOB|BRL|BSD|BTN|BWP|BYR|BZD|CAD|CDF|CHF|CLP|CNY|COP|CRC|CUC|CUP|CVE|CZK|DJF|DKK|DOP|DZD|EGP|ERN|ETB|EUR|FJD|FKP|GBP|GEL|GGP|GHS|GIP|GMD|GNF|GTQ|GYD|HKD|HNL|HRK|HTG|HUF|IDR|ILS|IMP|INR|IQD|IRR|ISK|JEP|JMD|JOD|JPY|KES|KGS|KHR|KMF|KPW|KRW|KWD|KYD|KZT|LAK|LBP|LKR|LRD|LSL|LYD|MAD|MDL|MGA|MKD|MMK|MNT|MOP|MRO|MUR|MVR|MWK|MXN|MYR|MZN|NAD|NGN|NIO|NOK|NPR|NZD|OMR|PAB|PEN|PGK|PHP|PKR|PLN|PYG|QAR|RON|RSD|RUB|RWF|SAR|SBD|SCR|SDG|SEK|SGD|SHP|SLL|SOS|SPL|SRD|STD|SVC|SYP|SZL|THB|TJS|TMT|TND|TOP|TRY|TTD|TVD|TWD|TZS|UAH|UGX|USD|UYU|UZS|VEF|VND|VUV|WST|XAF|XCD|XDR|XOF|XPF|YER|ZAR|ZMW|ZWD)$'
+
+    finp2pAsset:
+      type: object
+      required: [ type, resourceId ]
+      properties:
+        type:
+          type: 'string'
+          enum: [ 'finp2p' ]
+        resourceId:
+          type: 'string'
+          pattern: '^[^:](?:.+):102:(?:.+)'
+          description: 'unique resource ID of the FinP2P asset'
+
+    signatureTemplate:
+      type: object
+      description: 'represent a signature template information'
+      properties:
+        signature:
+          type: string
+          description: 'hex representation of the signature'
+        template:
+          description: 'ordered list of hash groups'
+          type: object
+          properties:
+            hashGroups:
+              type: array
+              items:
+                $ref: '#/components/schemas/hashGroup'
+            hash:
+              type: string
+              description: 'hex representation of the combined hash groups hash value'
+
+    hashGroup:
+      type: object
+      properties:
+        hash:
+          type: string
+          description: 'hex representation of the hash group hash value'
+        fields:
+          description: 'list of fields by order they appear in the hash group'
+          type: array
+          items:
+            $ref: '#/components/schemas/field'
+
+    field:
+      type: object
+      description: 'describing a field in the hash group'
+      properties:
+        name:
+          type: string
+          description: 'name of field'
+        type:
+          type: string
+          enum: [ 'string', 'int' ]
+          description: 'type of field'
+        value:
+          type: string
+          description: 'hex representation of the field value'
+
+    depositAccount:
+      type: object
+      description: 'describes account information'
+      required: [ account, asset ]
+      properties:
+        account:
+          type: object
+          oneOf:
+            - $ref: '#/components/schemas/finIdAccount'
+          discriminator:
+            propertyName: type
+            mapping:
+              finId: '#/components/schemas/finIdAccount'
+        asset:
+          $ref: '#/components/schemas/depositAsset'
+
+    depositAsset:
+      type: object
+      discriminator:
+        propertyName: type
+        mapping:
+          cryptocurrency: '#/components/schemas/cryptocurrencyAsset'
+          fiat: '#/components/schemas/fiatAsset'
+          finp2p: '#/components/schemas/finp2pAsset'
+          custom: '#/components/schemas/customAsset'
+      oneOf:
+        - $ref: '#/components/schemas/cryptocurrencyAsset'
+        - $ref: '#/components/schemas/fiatAsset'
+        - $ref: '#/components/schemas/finp2pAsset'
+        - $ref: '#/components/schemas/customAsset'
+
+    customAsset:
+      type: object
+      required: [ type ]
+      properties:
+        type:
+          type: 'string'
+          enum: [ 'custom' ]
+
+    withdrawAccount:
+      type: object
+      description: 'describes account information'
+      required: [ account, asset ]
+      properties:
+        account:
+          type: object
+          oneOf:
+            - $ref: '#/components/schemas/finIdAccount'
+          discriminator:
+            propertyName: type
+            mapping:
+              finId: '#/components/schemas/finIdAccount'
+        asset:
+          $ref: '#/components/schemas/asset'
+
+    withdrawInstruction:
+      type: object
+      description: Withdrawal instruction
+      required: [ account, description ]
+      properties:
+        account:
+          $ref: '#/components/schemas/accountAsset'
+        description:
+          type: string
+          description: Instruction details
+
+    documentsList:
+      type: object
+      required: [ refs ]
+      properties:
+        refs:
+          type: array
+          description: A list document references
+          items:
+            $ref: '#/components/schemas/documentRef'
+
+    documentRef:
+      type: object
+      required: [ id, uri, fileName, mimeType ]
+      properties:
+        id:
+          type: string
+          description: the ID of the document
+        uri:
+          type: string
+          description: the URI to retrieve the document
+        fileName:
+          type: string
+          description: The file name
+        mimeType:
+          type: string
+          description: The file mimeType
+
+    name:
+      type: string
+      pattern: '^[a-zA-Z0-9\-_. /]*$'
+      maxLength: 150
+      description: The name of the asset
+
+    assetVerifier:
+      type: object
+      required: [ id, name, provider ]
+      properties:
+        id:
+          type: string
+          pattern: '^[a-zA-Z0-9]*$'
+          maxLength: 150
+          description: verifier id
+        name:
+          $ref: '#/components/schemas/name'
+        provider:
+          type: string
+          description: one from the list [REG_APP_STORE, OTHER]
+          enum: [ 'REG_APP_STORE', 'OTHER' ]
+
+    assetDenomination:
+      type: object
+      required: [ type, code ]
+      properties:
+        type:
+          type: string
+          enum: [ 'fiat', 'cryptocurrency' ]
+          description: denomination asset type
+        code:
+          type: string
+          description: unique code identifying the denomination asset type
+          pattern: '^[a-zA-Z0-9]*$'
+          maxLength: 150
+
+    assetPolicies:
+      type: object
+      properties:
+        proof:
+          $ref: '#/components/schemas/proofPolicy'
+
+    proofPolicy:
+      type: object
+      discriminator:
+        propertyName: type
+        mapping:
+          signatureProofPolicy: '#/components/schemas/signatureProofPolicy'
+          noProofPolicy: '#/components/schemas/noProofPolicy'
+      oneOf:
+        - $ref: '#/components/schemas/signatureProofPolicy'
+        - $ref: '#/components/schemas/noProofPolicy'
+
+    noProofPolicy:
+      type: object
+      properties:
+        type:
+          type: string
+          enum: [ 'noProofPolicy' ]
+      required: [ type ]
+      description: 'no proof validation required for this policy'
+
+    signatureProofPolicy:
+      type: object
+      required: [ type, policy ]
+      properties:
+        type:
+          type: string
+        policy:
+          type: object
+          properties:
+            publicKey:
+              type: string
+              description: The public key used for receipt proof in hex representation of a secp256k1 public key 33 bytes compressed
+              example: '0234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef12'
+            signatureTemplate:
+              type: string
+              enum: [ 'hashlist', 'EIP712' ]
+
+    balanceInformation:
+      type: object
+      required: [ quantity ]
+      properties:
+        quantity:
+          type: string
+          description: 'the asset token balance quantity'
+
+    assetIssuer:
+      type: object
+      required: [ type, issuerId, assetId ]
+      properties:
+        type:
+          type: string
+          enum: [ 'assetIssuer' ]
+        issuerId:
+          $ref: '#/components/schemas/ownerId'
+        assetId:
+          $ref: '#/components/schemas/assetId'
+
+    messageResponse:
+      type: object
+      required: [ id ]
+      properties:
+        id:
+          type: string
+
+    loanConditions:
+      type: object
+      oneOf:
+        - $ref: '#/components/schemas/repaymentTerm'
+        - $ref: '#/components/schemas/interestTerm'
+        - $ref: '#/components/schemas/closeAmountTerm'
+      discriminator:
+        propertyName: type
+        mapping:
+          repaymentTerm: '#/components/schemas/repaymentTerm'
+
+    repaymentTerm:
+      type: object
+      required: [ type, closeAmount ]
+      properties:
+        type:
+          type: string
+          enum: [ repaymentTerm ]
+        closeAmount:
+          $ref: '#/components/schemas/amount'
+        interestRate:
+          type: string
+          description: indicative annual interest rate of the operation
+          pattern: '^-?\d*\.?\d*$'
+          maxLength: 150
+
+    interestTerm:
+      type: object
+      required: [ type, interestRate ]
+      properties:
+        type:
+          type: string
+          enum: [ interestTerm ]
+        interestRate:
+          type: string
+          description: indicative annual interest rate of the operation
+
+    closeAmountTerm:
+      type: object
+      required: [ type, closeAmount ]
+      properties:
+        type:
+          type: string
+          enum: [ closeAmountTerm ]
+        closeAmount:
+          $ref: '#/components/schemas/amount'
+
+    intentTypesAllowEmpty:
+      type: array
+      description: Allowed intent types to be applied on an asset
+      items:
+        $ref: '#/components/schemas/intentType'
+      uniqueItems: true
+
+    intentTypes:
+      type: array
+      description: Allowed intent types to be applied on an asset
+      items:
+        $ref: '#/components/schemas/intentType'
+      uniqueItems: true
+      minItems: 1
+
+    intentType:
+      type: string
+      enum:
+        - primarySale
+        - buyingIntent
+        - sellingIntent
+        - loanIntent
+        - redemptionIntent
+        - privateOfferIntent
+        - requestForTransferIntent
+
+    updateIntent:
+      type: object
+      oneOf:
+        - $ref: '#/components/schemas/primarySaleIntentUpdatePayload'
+        - $ref: '#/components/schemas/buyingIntentUpdatePayload'
+        - $ref: '#/components/schemas/sellingIntentUpdatePayload'
+        - $ref: '#/components/schemas/loanIntentUpdatePayload'
+        - $ref: '#/components/schemas/redemptionIntentUpdatePayload'
+        - $ref: '#/components/schemas/privateOfferIntentUpdatePayload'
+      discriminator:
+        propertyName: type
+        mapping:
+          primarySale: '#/components/schemas/primarySaleIntentUpdatePayload'
+          buyingIntent: '#/components/schemas/buyingIntentUpdatePayload'
+          sellingIntent: '#/components/schemas/sellingIntentUpdatePayload'
+          loanIntent: '#/components/schemas/loanIntentUpdatePayload'
+          redemptionIntent: '#/components/schemas/redemptionIntentUpdatePayload'
+          privateOfferIntent: '#/components/schemas/privateOfferIntentUpdatePayload'
+
+    primarySaleIntentUpdatePayload:
+      type: object
+      required: [ type ]
+      description: allowed fields to be updated on given intent type
+      properties:
+        type:
+          type: string
+          enum: [ primarySale ]
+        settlementTerm:
+          $ref: '#/components/schemas/primarySaleSettlementTermUpdate'
+        assetTerm:
+          $ref: '#/components/schemas/primarySaleAssetTermUpdate'
+
+    primarySaleAssetTermUpdate:
+      type: object
+      required: [ amount ]
+      properties:
+        amount:
+          $ref: '#/components/schemas/amount'
+
+    primarySaleSettlementTermUpdate:
+      type: object
+      required: [ unitValue ]
+      properties:
+        unitValue:
+          $ref: '#/components/schemas/unitValue'
+
+    buyingIntentUpdatePayload:
+      type: object
+      required: [ type ]
+      description: allowed fields to be updated on given intent type
+      properties:
+        type:
+          type: string
+          enum: [ buyingIntent ]
+        settlementTerm:
+          $ref: '#/components/schemas/buyingIntentSettlementTermUpdate'
+        assetTerm:
+          $ref: '#/components/schemas/buyingIntentAssetTermUpdate'
+
+    buyingIntentSettlementTermUpdate:
+      type: object
+      required: [ unitValue ]
+      properties:
+        unitValue:
+          $ref: '#/components/schemas/unitValue'
+
+    buyingIntentAssetTermUpdate:
+      type: object
+      required: [ amount ]
+      properties:
+        amount:
+          $ref: '#/components/schemas/amount'
+
+    sellingIntentUpdatePayload:
+      type: object
+      required: [ type ]
+      description: allowed fields to be updated on given intent type
+      properties:
+        type:
+          type: string
+          enum: [ sellingIntent ]
+        settlementTerm:
+          $ref: '#/components/schemas/sellingIntentSettlementTermUpdate'
+        assetTerm:
+          $ref: '#/components/schemas/sellingIntentAssetTermUpdate'
+
+    sellingIntentSettlementTermUpdate:
+      type: object
+      required: [ unitValue ]
+      properties:
+        unitValue:
+          $ref: '#/components/schemas/unitValue'
+
+    sellingIntentAssetTermUpdate:
+      type: object
+      required: [ amount ]
+      properties:
+        amount:
+          $ref: '#/components/schemas/amount'
+
+    loanIntentUpdatePayload:
+      type: object
+      required: [ type ]
+      description: allowed fields to be updated on given intent type
+      properties:
+        type:
+          type: string
+          enum: [ loanIntent ]
+        settlementTerm:
+          $ref: '#/components/schemas/loanIntentSettlementTermUpdate'
+        assetTerm:
+          $ref: '#/components/schemas/loanIntentAssetTermUpdate'
+
+    loanIntentSettlementTermUpdate:
+      type: object
+      required: [ unitValue ]
+      properties:
+        unitValue:
+          $ref: '#/components/schemas/unitValue'
+
+    loanIntentAssetTermUpdate:
+      type: object
+      required: [ amount ]
+      properties:
+        amount:
+          $ref: '#/components/schemas/amount'
+
+    redemptionIntentUpdatePayload:
+      type: object
+      required: [ type ]
+      description: allowed fields to be updated on given intent type
+      properties:
+        type:
+          type: string
+          enum: [ redemptionIntent ]
+        settlementTerm:
+          $ref: '#/components/schemas/redemptionIntentSettlementTermUpdate'
+        assetTerm:
+          $ref: '#/components/schemas/redemptionIntentAssetTermUpdate'
+
+    redemptionIntentSettlementTermUpdate:
+      type: object
+      required: [ unitValue ]
+      properties:
+        unitValue:
+          $ref: '#/components/schemas/unitValue'
+
+    redemptionIntentAssetTermUpdate:
+      type: object
+      required: [ amount ]
+      properties:
+        amount:
+          $ref: '#/components/schemas/amount'
+
+    redemptionIntentConditions:
+      properties:
+        redemptionDuration:
+          type: string
+          format: duration
+          description: duration in ISO 8601 format (e.g., "PT1H30M" for 1 hour 30 minutes)
+          pattern: '^P(\d{1}Y)?(\d{1,2}M)?(\d{1,3}D)?(T(\d{1,2}H)?(\d{1,2}M)?(\d{1,2}S)?)?$'
+
+    privateOfferIntentUpdatePayload:
+      type: object
+      required: [ type ]
+      description: allowed fields to be updated on given intent type
+      properties:
+        type:
+          type: string
+          enum: [ privateOfferIntent ]
+        settlementTerm:
+          $ref: '#/components/schemas/privateOfferIntentSettlementTermUpdate'
+        assetTerm:
+          $ref: '#/components/schemas/privateOfferIntentAssetTermUpdate'
+
+    privateOfferIntentSettlementTermUpdate:
+      type: object
+      required: [ unitValue ]
+      properties:
+        unitValue:
+          $ref: '#/components/schemas/unitValue'
+
+    privateOfferIntentAssetTermUpdate:
+      type: object
+      required: [ amount ]
+      properties:
+        amount:
+          $ref: '#/components/schemas/amount'
+
+    ledgerAssetBinding:
+      type: object
+      oneOf:
+        - $ref: '#/components/schemas/ledgerTokenId'
+      discriminator:
+        propertyName: type
+        mapping:
+          tokenId: '#/components/schemas/ledgerTokenId'
+
+    ledgerTokenId:
+      type: object
+      required: [ tokenId, type ]
+      properties:
+        type:
+          type: string
+          description: 'the type of the identifier'
+          enum: [ 'tokenId' ]
+        tokenId:
+          type: string
+          description: 'the token id binding'
+
+    requestForTransferIntent:
+      type: object
+      required:
+        - start
+        - end
+        - senderId
+        - receiverId
+        - intentInfo
+      properties:
+        start:
+          type: integer
+          format: int64
+          minimum: 0
+          description: start time for intent, in epoch (seconds)
+        end:
+          type: integer
+          format: int64
+          minimum: 0
+          description: end time for intent, in epoch (seconds)
+        nonce:
+          $ref: '#/components/schemas/nonce'
+        senderId:
+          $ref: '#/components/schemas/ownerId'
+        receiverId:
+          $ref: '#/components/schemas/ownerId'
+        intentInfo:
+          $ref: '#/components/schemas/requestForTransferIntentInfo'
+        transactionMetadata:
+          $ref: '#/components/schemas/transactionMetadata'
+
+    requestForTransferExecuteIntent:
+      type: object
+      required:
+        - senderId
+        - receiverId
+        - action
+        - type
+        - amount
+        - asset
+        - sourceAccount
+        - destinationAccount
+      properties:
+        nonce:
+          $ref: '#/components/schemas/nonce'
+        senderId:
+          $ref: '#/components/schemas/ownerId'
+        receiverId:
+          $ref: '#/components/schemas/ownerId'
+        action:
+          type: string
+          enum: [ send, request ]
+          description: Indicates whether the operation is to send or request money/asset.
+        type:
+          type: string
+          enum: [ requestForTransferIntent ]
+          description: The type of the intent.
+        amount:
+          type: string
+          example: '100'
+          description: The amount of the asset, fiat or cryptocurrency to be transferred.
+        asset:
+          $ref: '#/components/schemas/asset'
+        sourceAccount:
+          $ref: '#/components/schemas/accountRequestForTransfer'
+        destinationAccount:
+          $ref: '#/components/schemas/accountRequestForTransfer'
+        transactionMetadata:
+          $ref: '#/components/schemas/transactionMetadata'
+
+    requestForTransferUpdateIntent:
+      type: object
+      properties:
+        start:
+          type: integer
+          format: int64
+          minimum: 0
+          description: start time for intent, in epoch (seconds)
+        end:
+          type: integer
+          format: int64
+          minimum: 0
+          description: end time for intent, in epoch (seconds)
+        status:
+          type: string
+          enum:
+            [
+              Unknown,
+              Active,
+              NonActive,
+              Cancelled,
+              Completed,
+              Expired,
+              Rejected,
+            ]
+          description: To change the status of the intent
+        intentInfo:
+          type: object
+          properties:
+            amount:
+              type: string
+              example: '100'
+              description: The amount of the asset, fiat or cryptocurrency to be transferred.
+        transactionMetadata:
+          $ref: '#/components/schemas/transactionMetadata'
+
+    account:
+      oneOf:
+        - $ref: '#/components/schemas/finIdAccount'
+        - $ref: '#/components/schemas/cryptoWalletAccount'
+        - $ref: '#/components/schemas/ibanAccount'
+      discriminator:
+        propertyName: type
+        mapping:
+          finId: '#/components/schemas/finIdAccount'
+          cryptoWallet: '#/components/schemas/cryptoWalletAccount'
+          iban: '#/components/schemas/ibanAccount'
+
+    accountRequestForTransfer:
+      oneOf:
+        - $ref: '#/components/schemas/finIdAccount'
+      discriminator:
+        propertyName: type
+        mapping:
+          finId: '#/components/schemas/finIdAccount'
+
+    intentInfo:
+      type: object
+      required:
+        - type
+        - amount
+        - asset
+      properties:
+        type:
+          type: string
+          enum: [ requestForTransferIntent ]
+          description: The type of the intent.
+        amount:
+          type: string
+          example: '100'
+          description: The amount of the asset, fiat or cryptocurrency to be transferred.
+        asset:
+          $ref: '#/components/schemas/asset'
+
+    requestForTransferIntentInfo:
+      oneOf:
+        - $ref: '#/components/schemas/requestForTransferSourceAccount'
+        - $ref: '#/components/schemas/requestForTransferDestinationAccount'
+      discriminator:
+        propertyName: action
+        mapping:
+          send: '#/components/schemas/requestForTransferSourceAccount'
+          request: '#/components/schemas/requestForTransferDestinationAccount'
+
+    requestForTransferSourceAccount:
+      allOf:
+        - $ref: '#/components/schemas/intentInfo'
+        - type: object
+          required: [ action ]
+          properties:
+            action:
+              type: string
+              enum: [ send ]
+              description: Indicates whether the operation is to send or request money/asset.
+            sourceAccount:
+              $ref: '#/components/schemas/accountRequestForTransfer'
+
+    requestForTransferDestinationAccount:
+      allOf:
+        - $ref: '#/components/schemas/intentInfo'
+        - type: object
+          required: [ action ]
+          properties:
+            action:
+              type: string
+              enum: [ request ]
+              description: Indicates whether the operation is to send or request money/asset.
+            destinationAccount:
+              $ref: '#/components/schemas/accountRequestForTransfer'
+
+    transactionMetadata:
+      type: object
+      properties:
+        referenceId:
+          type: string
+          example: ref-2024-003
+          description: Optional reference ID for the transaction.
+        description:
+          type: string
+          example: Transfer of funds for invoice #1234
+          description: Optional description or note for the transfer.
+
+    ApproveExecutionPlanRequest:
+      type: object
+      required:
+        - executionPlan
+      properties:
+        executionPlan:
+          type: object
+          description: execution plan information
+          required: [ id ]
+          properties:
+            id:
+              type: string
+              description: execution plan id
+
+    ApproveExecutionPlanResponse:
+      allOf:
+        - $ref: '#/components/schemas/ExecutionPlanApprovalOperation'
+
+    ApiErrorClient4XX:
+      type: object
+      required: [ status, errors, type ]
+      properties:
+        type:
+          type: string
+          enum: [ "error" ]
+        status:
+          type: integer
+          enum: [ 400, 401, 403, 404, 409 ]
+          x-go-json-ignore: true
+          x-enumNames: [ 'value' ]
+        errors:
+          type: array
+          items:
+            oneOf:
+              - $ref: '#/components/schemas/AssetMetadataAndConfigError'
+              - $ref: '#/components/schemas/GeneralClientError'
+
+    # 10xx General Client Errors
+    GeneralClientError:
+      type: object
+      required: [ code, message ]
+      properties:
+        code:
+          type: integer
+          enum: [ 1000 ]
+        message:
+          type: string
+          enum: [ 'General client error' ]
+
+    AssetMetadataAndConfigError:
+      type: object
+      required: [ code, message ]
+      properties:
+        code:
+          type: integer
+          enum: [ 4108 ]
+        message:
+          type: string
+          enum: [ 'Asset metadata and config cannot be provided at the same time' ]
+
+    ApiErrorServer5XX:
+      type: object
+      required: [ status, errors, type ]
+      properties:
+        type:
+          type: string
+          enum: [ "error" ]
+        status:
+          type: integer
+          enum: [ 500, 502, 503, 504 ]
+          x-go-json-ignore: true
+          x-enumNames: [ 'value' ]
+        errors:
+          type: array
+          items:
+            $ref: '#/components/schemas/GeneralServerError'
+
+    # 20xx General Server Errors
+    GeneralServerError:
+      type: object
+      required: [ code, message ]
+      properties:
+        code:
+          type: integer
+          enum: [ 2000 ]
+        message:
+          type: string
+          enum: [ 'General server error' ]
+
+    ApiAnyError:
+      oneOf:
+        - $ref: '#/components/schemas/ApiErrorClient4XX'
+        - $ref: '#/components/schemas/ApiErrorServer5XX'
+
+    ExecutionPlanApprovalOperation:
+      allOf:
+        - $ref: '#/components/schemas/OperationBase'
+        - $ref: '#/components/schemas/PlanApprovalResponse'
+
+    PlanApprovalResponse:
+      type: object
+      required: [ approval ]
+      properties:
+        approval:
+          oneOf:
+            - $ref: '#/components/schemas/PlanApproved'
+            - $ref: '#/components/schemas/PlanRejected'
+          discriminator:
+            propertyName: status
+            mapping:
+              approved: '#/components/schemas/PlanApproved'
+              rejected: '#/components/schemas/PlanRejected'
+
+    PlanApproved:
+      type: object
+      required: [ status ]
+      properties:
+        status:
+          type: string
+          enum: [ 'approved' ]
+
+    PlanRejected:
+      type: object
+      required: [ status, reason ]
+      properties:
+        status:
+          type: string
+          enum: [ 'rejected' ]
+        failure:
+          oneOf:
+            - $ref: '#/components/schemas/ValidationFailure'
+            - $ref: '#/components/schemas/RegulationFailure'
+          discriminator:
+            propertyName: failureType
+            mapping:
+              validationFailure: '#/components/schemas/ValidationFailure'
+              regulationFailure: '#/components/schemas/RegulationFailure'
+
+    ValidationFailure:
+      type: object
+      required:
+        - failureType
+        - code
+        - message
+      properties:
+        failureType:
+          type: string
+          enum: [ ValidationFailure ]
+        code:
+          type: integer
+          format: uint32
+          description: ledger error code for validation
+        message:
+          type: string
+
+    RegulationFailure:
+      type: object
+      required:
+        - failureType
+        - errors
+      properties:
+        failureType:
+          type: string
+          enum: [ RegulationFailure ]
+        errors:
+          type: array
+          items:
+            $ref: '#/components/schemas/RegulationError'
+
+    RegulationError:
+      type: object
+      required:
+        - regulationType
+        - details
+      properties:
+        regulationType:
+          type: string
+          description: the type of regulation
+        details:
+          type: string
+          description: actionable details of the error
+
+    OperationBase:
+      type: object
+      required:
+        - cid
+        - isCompleted
+      properties:
+        cid:
+          type: string
+          description: unique correlation id which identify the operation
+        isCompleted:
+          type: boolean
+          description: flag indicating if the operation completed, if true then error or response must be present (but not both)
+          default: false
+        operationMetadata:
+          $ref: '#/components/schemas/OperationMetadata'
+
+    OperationMetadata:
+      type: object
+      description: additional metadata regarding the operation
+      properties:
+        operationResponseStrategy:
+          description: |
+            denote the expected response strategy of the operation, i.e. how would completion and results of the operation should be handled 
+            optional, if not provided [polling strategy](#/components/schema/pollingResultsStrategy) will be use with [random interval](#/components/schema/randomPollingInterval)
+          type: object
+          oneOf:
+            - $ref: '#/components/schemas/pollingResultsStrategy'
+            - $ref: '#/components/schemas/callbackResultsStrategy'
+          discriminator:
+            propertyName: type
+            mapping:
+              poll: '#/components/schemas/pollingResultsStrategy'
+              callback: '#/components/schemas/callbackResultsStrategy'
+
+
+    callbackResultsStrategy:
+      type: object
+      required: [ type, callback ]
+      properties:
+        type:
+          type: string
+          enum: [ callback ]
+        callback:
+          type: object
+          oneOf:
+            - $ref: '#/components/schemas/callbackEndpoint'
+          discriminator:
+            propertyName: type
+            mapping:
+              endpoint: '#/components/schemas/callbackEndpoint'
+
+    callbackEndpoint:
+      type: object
+      required: [ type ]
+      properties:
+        type:
+          type: string
+          enum: [ endpoint ]
+
+    pollingResultsStrategy:
+      type: object
+      required: [ type, polling ]
+      properties:
+        type:
+          type: string
+          enum: [ poll ]
+        polling:
+          type: object
+          oneOf:
+            - $ref: '#/components/schemas/randomPollingInterval'
+            - $ref: '#/components/schemas/absolutePollingInterval'
+            - $ref: '#/components/schemas/relativePollingInterval'
+          discriminator:
+            propertyName: type
+            mapping:
+              random: '#/components/schemas/pollingResultsStrategy'
+              absolute: '#/components/schemas/absolutePollingInterval'
+              relative: '#/components/schemas/relativePollingInterval'
+
+
+
+    relativePollingInterval:
+      type: object
+      required: [ type, duration ]
+      properties:
+        type:
+          type: string
+          enum: [ relative ]
+        duration:
+          type: string
+          description: ISO-8601 duration format
+          example: PT5M (5Min duration), P1DT30M (1 Day and 30 Minutes )
+
+
+    absolutePollingInterval:
+      type: object
+      required: [ type, time ]
+      properties:
+        type:
+          type: string
+          enum: [ absolute ]
+        time:
+          type: integer
+          description: absolute time as epoch time seconds
+
+    randomPollingInterval:
+      type: object
+      required: [ type ]
+      properties:
+        type:
+          type: string
+          enum: [ random ]
+
+    paymentMethods:
+      type: array
+      items:
+        $ref: '#/components/schemas/paymentMethod'
+
+    paymentMethod:
+      type: object
+      required: [ description, currency, methodInstruction ]
+      properties:
+        description:
+          type: string
+        currency:
+          type: string
+          description: accepted currency for payment
+        methodInstruction:
+          oneOf:
+            - $ref: '#/components/schemas/wireTransfer'
+            - $ref: '#/components/schemas/wireTransferUSA'
+            - $ref: '#/components/schemas/cryptoTransfer'
+            - $ref: '#/components/schemas/paymentInstructions'
+          discriminator:
+            propertyName: type
+            mapping:
+              wireTransfer: '#/components/schemas/wireTransfer'
+              wireTransferUSA: '#/components/schemas/wireTransferUSA'
+              cryptoTransfer: '#/components/schemas/cryptoTransfer'
+              paymentInstructions: '#/components/schemas/paymentInstructions'
+
+
+    paymentInstructions:
+      type: object
+      required: [ type, instruction ]
+      properties:
+        type:
+          type: string
+          enum: [ 'paymentInstructions' ]
+        instruction:
+          type: "string"
+
+    cryptoTransfer:
+      type: object
+      required: [ type, network, contractAddress, walletAddress ]
+      properties:
+        type:
+          type: string
+          enum: [ 'cryptoTransfer' ]
+        network:
+          type: string
+        contractAddress:
+          type: string
+        walletAddress:
+          type: string
+
+    wireTransferUSA:
+      type: object
+      required: [ type, accountNumber, routingNumber, line1, city, postalCode, country, state ]
+      properties:
+        type:
+          type: string
+          enum: [ 'wireTransferUSA' ]
+        accountNumber:
+          type: string
+        routingNumber:
+          type: string
+        line1:
+          type: string
+        city:
+          type: string
+        postalCode:
+          type: string
+        country:
+          type: string
+        state:
+          type: string
+
+    wireTransfer:
+      type: object
+      required: [ type, accountHolderName, bankName, wireDetails, line1, city, postalCode, country, state ]
+      properties:
+        type:
+          type: string
+          enum: [ 'wireTransfer' ]
+        accountHolderName:
+          type: string
+        bankName:
+          type: string
+        wireDetails:
+          $ref: '#/components/schemas/wireDetails'
+        line1:
+          type: string
+        city:
+          type: string
+        postalCode:
+          type: string
+        country:
+          type: string
+
+    wireDetails:
+      discriminator:
+        propertyName: type
+        mapping:
+          iban: '#/components/schemas/ibanAccountDetails'
+          swift: '#/components/schemas/swiftAccountDetails'
+      oneOf:
+        - $ref: '#/components/schemas/ibanAccountDetails'
+        - $ref: '#/components/schemas/swiftAccountDetails'
+
+    ibanAccountDetails:
+      type: object
+      required: [ type, iban ]
+      properties:
+        type:
+          type: string
+          enum: [ 'iban' ]
+        iban:
+          type: string
+
+    swiftAccountDetails:
+      type: object
+      required: [ type, swiftCode, accountNumber ]
+      properties:
+        type:
+          type: string
+          enum: [ 'bic' ]
+        swiftCode:
+          type: string
+        accountNumber:
+          type: string
+

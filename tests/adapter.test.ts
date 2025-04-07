@@ -79,7 +79,7 @@ describe(`token service test`, () => {
           assetId: settlementAsset, assetType: "fiat", amount: `${issueSettlementAmount}`
         }
       } as EIP712PrimarySaleMessage, issueBuyerPrivateKey)
-    } as Paths.IssueAssets.RequestBody);
+    } as FinAPIOperationalPaths.IssueAssets.RequestBody);
     expect(issueStatus.error).toBeUndefined();
     const issueReceipt = await client.expectReceipt(issueStatus);
     expect(issueReceipt.asset).toStrictEqual(asset);
@@ -120,7 +120,7 @@ describe(`token service test`, () => {
           assetId: settlementAsset, assetType: "fiat", amount: `${transferSettlementAmount}`
         }
       } as EIP712SellingMessage, sellerPrivateKey)
-    } as Paths.TransferAsset.RequestBody));
+    } as FinAPIOperationalPaths.TransferAsset.RequestBody));
     expect(transferReceipt.asset).toStrictEqual(asset);
     expect(parseInt(transferReceipt.quantity)).toBe(transferAmount);
     expect(transferReceipt.source?.finId).toBe(sellerFinId);
@@ -152,7 +152,7 @@ describe(`token service test`, () => {
 
     let depositStatus = await client.payments.getDepositInstruction({
       owner: buyerSource, destination: buyerSource, asset: settlementAsset
-    } as Paths.DepositInstruction.RequestBody);
+    } as FinAPIOperationalPaths.DepositInstruction.RequestBody);
     if (!depositStatus.isCompleted) {
       await client.common.waitForCompletion(depositStatus.cid);
     }
@@ -166,7 +166,7 @@ describe(`token service test`, () => {
       quantity: `${initialBalance}`,
       asset: settlementAsset,
       settlementRef: settlementRef
-    } as Paths.IssueAssets.RequestBody);
+    } as FinAPIOperationalPaths.IssueAssets.RequestBody);
     if (!setBalanceStatus.isCompleted) {
       await client.common.waitForReceipt(setBalanceStatus.cid);
     }
@@ -194,7 +194,7 @@ describe(`token service test`, () => {
       quantity: `${transferSettlementAmount}`,
       asset: settlementAsset,
       signature: await eip712Signature(chainId, verifyingContract, "Selling", SELLING_TYPES, newSellingMessage(transferNonce, finId(buyerFinId), finId(sellerFinId), eip712Term(assetId, "finp2p", `${transferAmount}`), eip712Term(settlementAssetId, "fiat", `${transferSettlementAmount}`)), buyerPrivateKey)
-    } as Paths.HoldOperation.RequestBody);
+    } as FinAPIOperationalPaths.HoldOperation.RequestBody);
     expect(holdStatus.error).toBeUndefined();
     const holdReceipt = await client.expectReceipt(holdStatus);
     expect(holdReceipt.asset).toStrictEqual(settlementAsset);
@@ -258,7 +258,7 @@ describe(`token service test`, () => {
       destination: investorSource.account,
       quantity: `${issueAmount}`,
       asset: asset
-    } as Paths.IssueAssets.RequestBody);
+    } as FinAPIOperationalPaths.IssueAssets.RequestBody);
     if (!setBalanceStatus.isCompleted) {
       await client.common.waitForReceipt(setBalanceStatus.cid);
     }
@@ -282,7 +282,7 @@ describe(`token service test`, () => {
       quantity: `${redeemAmount}`,
       asset: asset,
       signature: redemptionSignature
-    } as Paths.HoldOperation.RequestBody);
+    } as FinAPIOperationalPaths.HoldOperation.RequestBody);
     expect(holdStatus.error).toBeUndefined();
     const holdReceipt = await client.expectReceipt(holdStatus);
     expect(holdReceipt.asset).toStrictEqual(asset);

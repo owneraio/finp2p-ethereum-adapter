@@ -36,19 +36,19 @@ export class TokensAPI extends ClientBase {
     super(host);
   }
 
-  public async createAsset(req: Paths.CreateAsset.RequestBody): Promise<Paths.CreateAsset.Responses.$200> {
+  public async createAsset(req: FinAPIOperationalPaths.CreateAsset.RequestBody): Promise<FinAPIOperationalPaths.CreateAsset.Responses.$200> {
     return await this.post("/assets/create", req);
   }
 
-  public async issue(req: Paths.IssueAssets.RequestBody): Promise<Paths.IssueAssets.Responses.$200> {
+  public async issue(req: FinAPIOperationalPaths.IssueAssets.RequestBody): Promise<FinAPIOperationalPaths.IssueAssets.Responses.$200> {
     return await this.post("/assets/issue", req);
   }
 
-  public async redeem(req: Paths.RedeemAssets.RequestBody): Promise<Paths.RedeemAssets.Responses.$200> {
+  public async redeem(req: FinAPIOperationalPaths.RedeemAssets.RequestBody): Promise<FinAPIOperationalPaths.RedeemAssets.Responses.$200> {
     return await this.post("/assets/redeem", req);
   }
 
-  public async transfer(req: Paths.TransferAsset.RequestBody): Promise<Paths.TransferAsset.Responses.$200> {
+  public async transfer(req: FinAPIOperationalPaths.TransferAsset.RequestBody): Promise<FinAPIOperationalPaths.TransferAsset.Responses.$200> {
     return await this.post("/assets/transfer", req);
   }
 
@@ -60,15 +60,15 @@ export class EscrowAPI extends ClientBase {
     super(host);
   }
 
-  public async hold(req: Paths.HoldOperation.RequestBody): Promise<Paths.HoldOperation.Responses.$200> {
+  public async hold(req: FinAPIOperationalPaths.HoldOperation.RequestBody): Promise<FinAPIOperationalPaths.HoldOperation.Responses.$200> {
     return await this.post("/assets/hold", req);
   }
 
-  public async release(req: Paths.ReleaseOperation.RequestBody): Promise<Paths.ReleaseOperation.Responses.$200> {
+  public async release(req: FinAPIOperationalPaths.ReleaseOperation.RequestBody): Promise<FinAPIOperationalPaths.ReleaseOperation.Responses.$200> {
     return await this.post("/assets/release", req);
   }
 
-  public async rollback(req: Paths.RollbackOperation.RequestBody): Promise<Paths.RollbackOperation.Responses.$200> {
+  public async rollback(req: FinAPIOperationalPaths.RollbackOperation.RequestBody): Promise<FinAPIOperationalPaths.RollbackOperation.Responses.$200> {
     return await this.post("/assets/rollback", req);
   }
 }
@@ -79,11 +79,11 @@ export class PaymentsAPI extends ClientBase {
     super(host);
   }
 
-  public async getDepositInstruction(req: Paths.DepositInstruction.RequestBody): Promise<Paths.DepositInstruction.Responses.$200> {
+  public async getDepositInstruction(req: FinAPIOperationalPaths.DepositInstruction.RequestBody): Promise<FinAPIOperationalPaths.DepositInstruction.Responses.$200> {
     return await this.post("/payments/depositInstruction", req);
   }
 
-  public async payout(req: Paths.Payout.RequestBody): Promise<Paths.Payout.Responses.$200> {
+  public async payout(req: FinAPIOperationalPaths.Payout.RequestBody): Promise<FinAPIOperationalPaths.Payout.Responses.$200> {
     return await this.post("/payments/payout", req);
   }
 }
@@ -95,15 +95,15 @@ export class CommonAPI extends ClientBase {
     super(host);
   }
 
-  public async getReceipt(id: Paths.GetReceipt.Parameters.TransactionId): Promise<Paths.GetReceipt.Responses.$200> {
+  public async getReceipt(id: FinAPIOperationalPaths.GetReceipt.Parameters.TransactionId): Promise<FinAPIOperationalPaths.GetReceipt.Responses.$200> {
     return await this.post(`/assets/receipt/${id}`);
   }
 
-  public async getOperationStatus(id: Paths.GetOperation.Parameters.Cid): Promise<Paths.GetOperation.Responses.$200> {
+  public async getOperationStatus(id: FinAPIOperationalPaths.GetOperation.Parameters.Cid): Promise<FinAPIOperationalPaths.GetOperation.Responses.$200> {
     return await this.get(`/operations/status/${id}`);
   }
 
-  public async balance(req: Paths.GetAssetBalance.RequestBody): Promise<Paths.GetAssetBalance.Responses.$200> {
+  public async balance(req: FinAPIOperationalPaths.GetAssetBalance.RequestBody): Promise<FinAPIOperationalPaths.GetAssetBalance.Responses.$200> {
     return await this.post("/assets/getBalance", req);
   }
 

@@ -12,8 +12,8 @@ interface IFinP2PCollateralBasketFactory {
         string memory basketId,
         address[] memory tokenAddresses,
         string[] memory quantities,
-        address source,
-        address destination
+        string memory sourceFinId,
+        string memory destinationFinId
     ) external;
 
 }
