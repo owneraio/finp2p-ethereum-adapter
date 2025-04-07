@@ -58,6 +58,7 @@ export class ContractsManager {
 
   async deployFinP2PContract(signerAddress: string | undefined,
                              paymentAssetCode: string | undefined = undefined,
+                             accountFactoryAddress: string | undefined = undefined,
                              extraDomain: {
                                chainId: number | bigint,
                                verifyingContract: string
@@ -92,16 +93,24 @@ export class ContractsManager {
         return finP2P.setCollateralAssetManagerAddress(finP2PCollateralAssetFactoryAddress, txParams);
       })
     );
+
     const operator = await this.signer.getAddress();
 
+    if (accountFactoryAddress) {
+      await this.waitForCompletion(
+        await this.safeExecuteTransaction(collateralBasket as FinP2PCollateralBasket, async (basket: FinP2PCollateralBasket, txParams: PayableOverrides) => {
+          return basket.setAccountFactoryAddress(accountFactoryAddress, txParams);
+        })
+      );
+    }
     await this.waitForCompletion(
-      await this.safeExecuteTransaction(collateralBasket as FinP2PCollateralBasket, async (finP2P: FinP2PCollateralBasket, txParams: PayableOverrides) => {
-        return finP2P.grantBasketFactoryRole(operator, txParams);
+      await this.safeExecuteTransaction(collateralBasket as FinP2PCollateralBasket, async (basket: FinP2PCollateralBasket, txParams: PayableOverrides) => {
+        return basket.grantBasketFactoryRole(operator, txParams);
       })
     );
     await this.waitForCompletion(
-      await this.safeExecuteTransaction(collateralBasket as FinP2PCollateralBasket, async (finP2P: FinP2PCollateralBasket, txParams: PayableOverrides) => {
-        return finP2P.grantBasketManagerRole(address, txParams);
+      await this.safeExecuteTransaction(collateralBasket as FinP2PCollateralBasket, async (basket: FinP2PCollateralBasket, txParams: PayableOverrides) => {
+        return basket.grantBasketManagerRole(address, txParams);
       })
     );
 

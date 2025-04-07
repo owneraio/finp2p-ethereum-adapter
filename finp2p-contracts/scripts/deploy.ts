@@ -9,6 +9,7 @@ const logger = winston.createLogger({
 
 const deploy = async (providerType: ProviderType, operatorAddress: string,
                       paymentAssetCode: string | undefined,
+                      accountFactoryAddress: string | undefined,
                       extraDomain: {
                         chainId: number | bigint,
                         verifyingContract: string
@@ -17,7 +18,7 @@ const deploy = async (providerType: ProviderType, operatorAddress: string,
   const contractManger = new ContractsManager(provider, signer, logger);
   logger.info("Deploying from env variables...");
   const finP2PContractAddress = await contractManger.deployFinP2PContract(
-    operatorAddress, paymentAssetCode, extraDomain
+    operatorAddress, paymentAssetCode, accountFactoryAddress, extraDomain
   );
   logger.info(JSON.stringify({ finP2PContractAddress }));
 };
@@ -28,6 +29,8 @@ if (!operatorAddress) {
   throw new Error("OPERATOR_ADDRESS is not set");
 }
 const paymentAssetCode = process.env.PAYMENT_ASSET_CODE;
+
+const accountFactoryAddress = process.env.ACCOUNT_FACTORY_ADDRESS;
 
 let extraDomain: {
   chainId: number | bigint,
@@ -44,6 +47,6 @@ extraDomain = {
 };
 
 
-deploy(providerType, operatorAddress, paymentAssetCode, extraDomain)
+deploy(providerType, operatorAddress, paymentAssetCode, accountFactoryAddress, extraDomain)
   .then(() => {
   });

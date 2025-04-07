@@ -8,7 +8,7 @@ import createApp from "../src/app";
 import { addressFromPrivateKey } from "../finp2p-contracts/src/contracts/utils";
 import process from "process";
 import http from "http";
-import { Provider, Signer } from "ethers";
+import { ContractFactory, Provider, Signer } from "ethers";
 import { createProviderAndSigner, ProviderType } from "../finp2p-contracts/src/contracts/config";
 import { AssetCreationPolicy } from "../src/services/tokens";
 import { PolicyGetter } from "../src/finp2p/policy";
@@ -18,6 +18,9 @@ import { InMemoryExecDetailsStore } from "../src/services/exec-details-store";
 import { ExecDetailsStore } from "../src/services/common";
 import { FinP2PCollateralAssetFactoryContract } from "../finp2p-contracts/src/contracts/collateral";
 import { FinAPIClient } from "../src/finp2p/finapi/finapi.client";
+import { IAccountFactory } from "../finp2p-contracts/typechain-types";
+import ACCOUNT_FACTORY
+  from "../finp2p-contracts/artifacts/contracts/token/collateral/mock/AccountFactoryMock.sol/AccountFactoryMock.json";
 
 let ethereumNodeContainer: StartedTestContainer | undefined;
 let httpServer: http.Server | undefined;
@@ -71,11 +74,24 @@ const startHardhatContainer = async () => {
   return { rpcUrl, accounts } as NetworkDetails;
 };
 
+const deployAccountFactory = async (signer: Signer) => {
+  logger.info("Deploying account factory contract...");
+  const factory = new ContractFactory<any[], IAccountFactory>(
+    ACCOUNT_FACTORY.abi, ACCOUNT_FACTORY.bytecode, signer
+  );
+  const contract = await factory.deploy();
+  await contract.waitForDeployment();
+
+  return  await contract.getAddress();
+};
+
 const deployContract = async (provider: Provider, signer: Signer,
                               operatorAddress: string | undefined,
-                              paymentAssetCode: string | undefined = undefined) => {
+                              paymentAssetCode: string | undefined = undefined,
+                              accountFactoryAddress: string | undefined
+) => {
   const contractManger = new ContractsManager(provider, signer, logger);
-  return contractManger.deployFinP2PContract(operatorAddress, paymentAssetCode);
+  return contractManger.deployFinP2PContract(operatorAddress, paymentAssetCode, accountFactoryAddress);
 };
 
 const deployERC20Contract = async (provider: Provider, signer: Signer, finp2pTokenAddress: string) => {
@@ -123,7 +139,9 @@ const start = async () => {
   const { provider, signer } = await createProviderAndSigner(providerType, logger, false);
   const network = await provider.getNetwork();
   logger.info(`Connected to network: ${network.name} chainId: ${network.chainId}`);
-  const finP2PContractAddress = await deployContract(provider, signer, operatorAddress);
+
+  const accountFactoryAddress = await deployAccountFactory(signer);
+  const finP2PContractAddress = await deployContract(provider, signer, operatorAddress, undefined, accountFactoryAddress);
 
   let policyGetter: PolicyGetter | undefined;
   const ossUrl = process.env.OSS_URL;

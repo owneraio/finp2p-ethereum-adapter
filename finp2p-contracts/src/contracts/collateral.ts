@@ -26,5 +26,4 @@ export class FinP2PCollateralAssetFactoryContract extends ContractsManager {
       name, description, basketId, tokenAddresses, quantities, source, destination);
   }
 
-
 }
