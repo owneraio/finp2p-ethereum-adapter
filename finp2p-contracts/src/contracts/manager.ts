@@ -9,7 +9,9 @@ import {
 import FINP2P
   from "../../artifacts/contracts/token/collateral/FINP2POperatorERC20Collateral.sol/FINP2POperatorERC20Collateral.json";
 import ERC20 from "../../artifacts/contracts/token/ERC20/ERC20WithOperator.sol/ERC20WithOperator.json";
-import { ERC20WithOperator, FINP2POperatorERC20Collateral } from "../../typechain-types";
+import FIN2P2P_COLLATERAL_ASSET_FACTORY
+  from "../../artifacts/contracts/token/collateral/FinP2PCollateralBasket.sol/FinP2PCollateralBasket.json";
+import { ERC20WithOperator, FINP2POperatorERC20Collateral, FinP2PCollateralBasket } from "../../typechain-types";
 import winston from "winston";
 import { PayableOverrides } from "../../typechain-types/common";
 import { detectError, EthereumTransactionError, NonceAlreadyBeenUsedError, NonceToHighError } from "./model";
@@ -80,16 +82,32 @@ export class ContractsManager {
       await this.preCreatePaymentAsset(factory, address, paymentAssetCode, DefaultDecimalsCurrencies);
     }
 
+    const { contract: collateralBasket, address: finP2PCollateralAssetFactoryAddress } = await this.deployFinP2PCollateralBasket();
+    await contract.setCollateralAssetManagerAddress(finP2PCollateralAssetFactoryAddress);
+    const operator = await this.signer.getAddress();
+    await collateralBasket.grantBasketFactoryRole(operator);
+    await collateralBasket.grantBasketManagerRole(address);
+
     if (extraDomain) {
       const { chainId, verifyingContract } = extraDomain;
-      await this.addAllowedDomain(address, chainId, verifyingContract);
+      this.logger.debug(`FinP2P contract deployed successfully at: ${chainId}, ${verifyingContract}`);
+    //   await this.addAllowedDomain(address, chainId, verifyingContract);
     }
 
-    // todo: deploy account factory here
-    // if (finP2PCollateralAssetFactoryAddress) {
-    //   await contract.setCollateralAssetManagerAddress(finP2PCollateralAssetFactoryAddress);
-    // }
     return address;
+  }
+
+  async deployFinP2PCollateralBasket() {
+    this.logger.info("Deploying FinP2P collateral basket contract...");
+    const factory = new ContractFactory<any[], FinP2PCollateralBasket>(
+      FIN2P2P_COLLATERAL_ASSET_FACTORY.abi, FIN2P2P_COLLATERAL_ASSET_FACTORY.bytecode, this.signer
+    );
+    const contract = await factory.deploy();
+    await contract.waitForDeployment();
+
+    const address = await contract.getAddress();
+    this.logger.info(`FinP2P collateral basket contract deployed successfully at: ${address}`);
+    return { contract, address };
   }
 
   async isFinP2PContractHealthy(finP2PContractAddress: string): Promise<boolean> {
@@ -147,17 +165,17 @@ export class ContractsManager {
     await this.waitForCompletion(txHash);
   }
 
-  async addAllowedDomain(finP2PContractAddress: string, chainId: number | bigint, verifyingContract: string) {
-    this.logger.info(`Adding allowed domain for chainId ${chainId} and verifying contract ${verifyingContract}...`);
-    const factory = new ContractFactory<any[], FINP2POperatorERC20Collateral>(
-      FINP2P.abi, FINP2P.bytecode, this.signer
-    );
-    const contract = factory.attach(finP2PContractAddress) as FINP2POperatorERC20Collateral;
-    const txHash = await this.safeExecuteTransaction(contract, async (finP2P: FINP2POperatorERC20Collateral, txParams: PayableOverrides) => {
-      return finP2P.addAllowedDomain(chainId, verifyingContract, txParams);
-    });
-    await this.waitForCompletion(txHash);
-  }
+  // async addAllowedDomain(finP2PContractAddress: string, chainId: number | bigint, verifyingContract: string) {
+  //   this.logger.info(`Adding allowed domain for chainId ${chainId} and verifying contract ${verifyingContract}...`);
+  //   const factory = new ContractFactory<any[], FINP2POperatorERC20Collateral>(
+  //     FINP2P.abi, FINP2P.bytecode, this.signer
+  //   );
+  //   const contract = factory.attach(finP2PContractAddress) as FINP2POperatorERC20Collateral;
+  //   const txHash = await this.safeExecuteTransaction(contract, async (finP2P: FINP2POperatorERC20Collateral, txParams: PayableOverrides) => {
+  //     return finP2P.addAllowedDomain(chainId, verifyingContract, txParams);
+  //   });
+  //   await this.waitForCompletion(txHash);
+  // }
 
   async signEIP712(chainId: bigint | number, verifyingContract: string, types: Record<string, Array<TypedDataField>>, message: Record<string, any>): Promise<{
     hash: string,
