@@ -11,7 +11,6 @@ import {
   assetTypeFromString,
   EthereumTransactionError,
   term,
-  TokenType
 } from "../../finp2p-contracts/src/contracts/model";
 import { logger } from "../helpers/logger";
 import { FinP2PContract } from "../../finp2p-contracts/src/contracts/finp2p";
@@ -41,22 +40,25 @@ export class TokenService extends CommonService {
     try {
 
       if (ledgerAssetBinding) {
-        const { tokenId: tokenAddress } = ledgerAssetBinding as LedgerTokenId;
-        if (!isEthereumAddress(tokenAddress)) {
-          return {
-            isCompleted: true, error: {
-              code: 1, message: `Token ${tokenAddress} does not exist`
-            }
-          } as CreateAssetResponse;
-        }
+        const { tokenId } = ledgerAssetBinding as LedgerTokenId;
 
-        let tokenType = TokenType.ERC20;
+        let txHash: string
         if (metadata && metadata["tokenType"] === "COLLATERAL") {
-          tokenType = TokenType.COLLATERAL;
+
+          txHash = await this.finP2PContract.associateCollateralAsset(assetId, tokenId);
+
+        } else {
+          if (!isEthereumAddress(tokenId)) {
+            return {
+              isCompleted: true, error: {
+                code: 1, message: `Token ${tokenId} does not exist`
+              }
+            } as CreateAssetResponse;
+          }
+          txHash = await this.finP2PContract.associateAsset(assetId, tokenId);
         }
-        const txHash = await this.finP2PContract.associateAsset(assetId, tokenAddress, tokenType);
         await this.finP2PContract.waitForCompletion(txHash);
-        return assetCreationResult(tokenAddress, tokenAddress, this.finP2PContract.finP2PContractAddress);
+        return assetCreationResult(tokenId, tokenId, this.finP2PContract.finP2PContractAddress);
 
 
       } else {
@@ -83,7 +85,7 @@ export class TokenService extends CommonService {
             } as CreateAssetResponse;
         }
 
-        const txHash = await this.finP2PContract.associateAsset(assetId, tokenAddress, TokenType.ERC20);
+        const txHash = await this.finP2PContract.associateAsset(assetId, tokenAddress);
         await this.finP2PContract.waitForCompletion(txHash);
         return assetCreationResult(tokenId, tokenAddress, this.finP2PContract.finP2PContractAddress);
       }

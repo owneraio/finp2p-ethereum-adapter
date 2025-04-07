@@ -1,19 +1,18 @@
 import { CommonService, ExecDetailsStore } from "./common";
 import { v4 as uuid } from "uuid";
-import { CollateralAssetContract } from "../../finp2p-contracts/src/contracts/collateral-asset";
-import { AccountFactoryContract } from "../../finp2p-contracts/src/contracts/account-factory";
 import { FinP2PContract } from "../../finp2p-contracts/src/contracts/finp2p";
 import { PolicyGetter } from "../finp2p/policy";
+import { FinP2PCollateralAssetFactoryContract } from "../../finp2p-contracts/src/contracts/collateral";
 
 export class PaymentsService extends CommonService {
 
-  assetFactory: AccountFactoryContract;
-  collateralAssetContract: CollateralAssetContract;
+  collateralAssetFactoryContract: FinP2PCollateralAssetFactoryContract;
 
-  constructor(finP2PContract: FinP2PContract, policyGetter: PolicyGetter | undefined, execDetailsStore: ExecDetailsStore | undefined, assetFactory: AccountFactoryContract, collateralAssetContract: CollateralAssetContract) {
+  constructor(finP2PContract: FinP2PContract, policyGetter: PolicyGetter | undefined,
+              execDetailsStore: ExecDetailsStore | undefined,
+              collateralAssetFactoryContract: FinP2PCollateralAssetFactoryContract) {
     super(finP2PContract, policyGetter, execDetailsStore);
-    this.assetFactory = assetFactory;
-    this.collateralAssetContract = collateralAssetContract;
+    this.collateralAssetFactoryContract = collateralAssetFactoryContract;
   }
 
   public async deposit(request: Paths.DepositInstruction.RequestBody): Promise<Paths.DepositInstruction.Responses.$200> {
@@ -26,11 +25,14 @@ export class PaymentsService extends CommonService {
 
 
       }
-      const agreementName = '';
-      const agreementDescription = '';
-      const source = '0x'
-      const destination = '0x'
-      const agreementId = await this.assetFactory.createRepoAgreement(agreementName, agreementDescription, source, destination)
+      const basketId = "";
+      const agreementName = "";
+      const agreementDescription = "";
+      const tokenAddresses: string[] = [];
+      const tokenAmounts: number[] = [];
+      const source = "0x";
+      const destination = "0x";
+      await this.collateralAssetFactoryContract.createCollateralBasket(basketId, agreementName, agreementDescription, tokenAddresses, tokenAmounts, source, destination);
 
       // TODO: create asset with agreementId passed in tokenId and tokenType=COLLATERAL passed with metadata
 

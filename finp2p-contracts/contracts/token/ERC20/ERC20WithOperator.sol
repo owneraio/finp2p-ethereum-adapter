@@ -168,7 +168,7 @@ contract ERC20WithOperator is Context, IERC20, IERC20Metadata, Mintable, Burnabl
 
         // Bypass allowance check if spender has the operator role
         if (!hasRole(OPERATOR_ROLE, spender)) {
-            _spendAllowance(from, spender, amount);
+      //      _spendAllowance(from, spender, amount);
         }
         _transfer(from, to, amount);
         return true;

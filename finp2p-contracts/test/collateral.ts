@@ -2,13 +2,16 @@ import { loadFixture } from "@nomicfoundation/hardhat-toolbox/network-helpers";
 // @ts-ignore
 import { ethers } from "hardhat";
 import { v4 as uuid } from "uuid";
-import { getFinId, parseAFCreateAccount } from "../src/contracts/utils";
-import { AbiCoder, ContractFactory, keccak256, Signer, toUtf8Bytes, Wallet } from "ethers";
-import type { FINP2POperatorERC20Collateral, IAccountFactory, IAssetCollateralAccount } from "../typechain-types";
-import { AssetType, term, TokenType } from "../src/contracts/model";
+import { getFinId } from "../src/contracts/utils";
+import { Signer, Wallet } from "ethers";
+import type {
+  FinP2PCollateralBasket,
+  FINP2POperatorERC20Collateral
+} from "../typechain-types";
+import { AssetType, operationParams, Phase, term, termToEIP712 } from "../src/contracts/model";
 import { expect } from "chai";
-import { toFixedDecimals } from "./utils";
-import { CollectionType } from "fireblocks-sdk";
+import { generateNonce, toFixedDecimals } from "./utils";
+import { LegType, loanTerms, newInvestmentMessage, PrimaryType, sign } from "../src/contracts/eip712";
 
 
 describe("Collateral contract test", function() {
@@ -27,7 +30,14 @@ describe("Collateral contract test", function() {
     return { contract, address };
   }
 
-  async function deployFinP2PProxyFixture() {
+  async function deployFinP2PCollateralBasket() {
+    const deployer = await ethers.getContractFactory("FinP2PCollateralBasket");
+    const contract = await deployer.deploy();
+    const address = await contract.getAddress();
+    return { contract, address };
+  }
+
+  async function deployFinP2OperatorFixture() {
     const deployer = await ethers.getContractFactory("FINP2POperatorERC20Collateral");
     const contract = await deployer.deploy();
     const address = await contract.getAddress();
@@ -41,7 +51,7 @@ describe("Collateral contract test", function() {
   function generateInvestor(): {
     signer: Signer, finId: string
   } {
-    const signer = Wallet.createRandom();
+    const signer = Wallet.createRandom().connect(ethers.provider);
     const finId = getFinId(signer);
     return { signer, finId };
   }
@@ -49,82 +59,95 @@ describe("Collateral contract test", function() {
 
   describe("FinP2PProxy operations", () => {
 
-    let operator: Signer;
     let finP2P: FINP2POperatorERC20Collateral;
-    let accountFactory: IAccountFactory;
-    let assetCollateral: IAssetCollateralAccount;
-    let accountFactoryAddress: string;
-    let finP2PAddress: string;
+    let collateralBasket: FinP2PCollateralBasket;
+    let finP2PAddress, collateralBasketAddress: string;
+
     let chainId: bigint;
     let verifyingContract: string;
 
-    it(`Collateral`, async () => {
-      [operator] = await ethers.getSigners();
-      ({ contract: accountFactory, address: accountFactoryAddress } = await loadFixture(deployAccountFactory));
-      ({ contract: finP2P, address: finP2PAddress } = await loadFixture(deployFinP2PProxyFixture));
+
+    it(`Collateral asset open and close`, async () => {
+      const { address: accountFactoryAddress } = await loadFixture(deployAccountFactory);
+      ({
+        contract: collateralBasket,
+        address: collateralBasketAddress
+      } = await loadFixture(deployFinP2PCollateralBasket));
+      ({ contract: finP2P, address: finP2PAddress } = await loadFixture(deployFinP2OperatorFixture));
       ({ chainId, verifyingContract } = await finP2P.eip712Domain());
+
+      await collateralBasket.setAccountFactoryAddress(accountFactoryAddress);
+      await finP2P.setCollateralAssetManagerAddress(collateralBasketAddress);
 
       const borrower = generateInvestor();
       const lender = generateInvestor();
 
       const assetDecimals = 2;
       const assetId = generateAssetId();
-      const { contract: erc20Token, address: erc20TokenAddress } = await deployERC20(assetId, assetId, assetDecimals, finP2PAddress);
-      await finP2P.associateAsset(assetId, erc20TokenAddress, TokenType.ERC20, { from: operator });
+      const {
+        contract: erc20Token,
+        address: erc20TokenAddress
+      } = await deployERC20(assetId, assetId, assetDecimals, finP2PAddress);
+      await finP2P.associateAsset(assetId, erc20TokenAddress);
 
-      const initialAmount = "1000.00";
-      await finP2P.issue(borrower.finId, term(assetId, AssetType.FinP2P, initialAmount), { from: operator });
+      const initialAmount = 1000;
+      await finP2P.issue(borrower.finId, term(assetId, AssetType.FinP2P, initialAmount.toFixed(assetDecimals)));
 
-      expect(await finP2P.getBalance(assetId, borrower.finId)).to.equal(toFixedDecimals(initialAmount, assetDecimals));
+      expect(await finP2P.getBalance(assetId, borrower.finId)).to.equal(toFixedDecimals(initialAmount.toFixed(assetDecimals), assetDecimals));
+
+      const borrowedAmount = 750; //10 ** assetDecimals;
 
       const name = "Asset Collateral Account";
       const description = "Description of Asset Collateral Account";
       const source = await borrower.signer.getAddress();
       const destination = await lender.signer.getAddress();
+      const tokenAddressList = [erc20TokenAddress];
+      const amountList = [borrowedAmount * 10 ** assetDecimals];
 
-      const strategyId = keccak256(toUtf8Bytes("Asset-Collateral-Account-Strategy"));
-      const liabilityFactoryAddress = await accountFactory.getLiabilityFactory();
-      const controller = await accountFactory.controller();
-
-      const initParams = new AbiCoder().encode(
-        ["uint8", "uint8", "uint256", "uint256"],
-        [18, 1, 0, 0]
+      const basketId = uuid();
+      await collateralBasket.createCollateralBasket(
+        name, description, basketId, tokenAddressList, amountList, source, destination
       );
 
-      const strategyInput = {
-        assetContextList: [],
-        addressList: [source, destination, liabilityFactoryAddress],
-        amountList: [],
-        effectiveTimeList: [],
-        liabilityDataList: []
-      };
-      const rsp = await accountFactory.createAccount(name, description, strategyId, controller, initParams, strategyInput, { from: operator });
-      const receipt = await rsp.wait();
-      if (!receipt) {
-        throw new Error("Failed to get transaction receipt");
-      }
-      const account = parseAFCreateAccount(receipt, accountFactory.interface);
-      if (!account) {
-        throw new Error("Failed to parse account creation event");
-      }
-      const { address: collateralAddress } = account;
+      // await erc20Token.connect(borrower);
+      // await erc20Token.approve(collateralAddress, 100000000);
+      // const allowance = await erc20Token.allowance(await borrower.signer.getAddress(), collateralAddress); //TODO: that does not work
+      // console.log(allowance);
 
-      const borrowedAmount = 10 ** assetDecimals;
+      const collateralAssetId = generateAssetId();
+      await finP2P.associateCollateralAsset(collateralAssetId, basketId);
+      const asset = term(collateralAssetId, AssetType.FinP2P, "1.00");
+      const settlementAssetCode = "USDT";
+      const settlement = term(settlementAssetCode, AssetType.FinP2P, "100000000.00");
+      const borrowedMoneyAmount = "10000000.00";
+      const returnedMoneyAmount = "10000030.00";
+      const openTime = "2025-02-01";
+      const closeTime = "2025-02-01";
+      const loan = loanTerms(openTime, closeTime, borrowedMoneyAmount, returnedMoneyAmount);
 
-      await erc20Token.approve(collateralAddress, borrowedAmount, { from: borrower.signer });
+      const borrowerNonce = `${generateNonce().toString("hex")}`;
+      const borrowerMessage = newInvestmentMessage(PrimaryType.Loan, borrowerNonce, lender.finId, borrower.finId,
+        termToEIP712(asset), termToEIP712(settlement), loan);
+      const borrowerSignature = await sign(chainId, verifyingContract, borrowerMessage.types, borrowerMessage.message, borrower.signer);
 
-      const accountCollateral = await ethers.getContractAt("IAssetCollateralAccount", collateralAddress) as IAssetCollateralAccount;
+      const lenderNonce = `${generateNonce().toString("hex")}`;
+      const lenderMessage = newInvestmentMessage(PrimaryType.Loan, lenderNonce, lender.finId, borrower.finId,
+        termToEIP712(asset), termToEIP712(settlement), loan);
+      const lenderSignature = await sign(chainId, verifyingContract, lenderMessage.types, lenderMessage.message, lender.signer);
 
-      let val = await finP2P.getBalance(assetId, borrower.finId);
-      console.log(`Balance before deposit: ${val}`);
-      await accountCollateral.deposit({
-        standard: 1,
-        addr: erc20TokenAddress,
-        tokenId: 0
-      }, borrowedAmount, { from: operator });
-      val = await finP2P.getBalance(assetId, borrower.finId);
-      console.log(`Balance after deposit: ${val}`);
+      await finP2P.transfer(borrowerNonce, borrower.finId, lender.finId, asset, settlement, loan,
+        operationParams({ chainId, verifyingContract }, PrimaryType.Loan, LegType.Asset, Phase.Initiate),
+        borrowerSignature);
 
+      expect(await finP2P.getBalance(assetId, borrower.finId)).to.equal(`${(initialAmount - borrowedAmount).toFixed(assetDecimals)}`);
+      expect(await finP2P.getBalance(assetId, lender.finId)).to.equal(`${(0).toFixed(assetDecimals)}`);
+
+      await finP2P.transfer(lenderNonce, borrower.finId, lender.finId, asset, settlement, loan,
+        operationParams({ chainId, verifyingContract }, PrimaryType.Loan, LegType.Asset, Phase.Close),
+        lenderSignature);
+
+      expect(await finP2P.getBalance(assetId, borrower.finId)).to.equal(`${(initialAmount - borrowedAmount).toFixed(assetDecimals)}`);
+      expect(await finP2P.getBalance(assetId, lender.finId)).to.equal(`${(borrowedAmount).toFixed(assetDecimals)}`);
     });
 
   });

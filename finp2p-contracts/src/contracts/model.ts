@@ -13,11 +13,6 @@ export interface Term {
   amount: string
 }
 
-export const enum TokenType {
-  ERC20 = 0,
-  COLLATERAL = 1
-}
-
 export const enum AssetType {
   FinP2P = 0,
   Fiat = 1,

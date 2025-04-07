@@ -11,6 +11,7 @@ import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {IAssetCollateralAccount} from "./IAssetCollateralAccount.sol";
+import {IFinP2PCollateralBasketManager} from "./IFinP2PCollateralBasketManager.sol";
 
 /**
  * @dev FINP2POperatorERC20
@@ -84,9 +85,9 @@ contract FINP2POperatorERC20Collateral is AccessControl, FinP2PSignatureVerifier
     }
 
     struct Asset {
-        string id;
         TokenType tokenType;
         address tokenAddress;
+        string basketId;
     }
 
     struct Lock {
@@ -98,6 +99,7 @@ contract FINP2POperatorERC20Collateral is AccessControl, FinP2PSignatureVerifier
     }
 
     address private escrowWalletAddress;
+    address private collateralAssetManagerAddress;
     mapping(string => Asset) private assets;
     mapping(string => Lock) private locks;
 
@@ -121,29 +123,42 @@ contract FINP2POperatorERC20Collateral is AccessControl, FinP2PSignatureVerifier
         grantRole(TRANSACTION_MANAGER, account);
     }
 
-    /// @notice Set escrow wallet address
-    /// @param _escrowWalletAddress The escrow wallet address
-    function setEscrowWalletAddress(address _escrowWalletAddress) external {
-        require(hasRole(DEFAULT_ADMIN_ROLE, _msgSender()), "FINP2POperatorERC20: must have admin role to set escrow wallet address");
-        escrowWalletAddress = _escrowWalletAddress;
+//    /// @notice Set escrow wallet address
+//    /// @param _escrowWalletAddress The escrow wallet address
+//    function setEscrowWalletAddress(address _escrowWalletAddress) external {
+//        require(hasRole(DEFAULT_ADMIN_ROLE, _msgSender()), "FINP2POperatorERC20: must have admin role to set escrow wallet address");
+//        escrowWalletAddress = _escrowWalletAddress;
+//    }
+
+    /// @notice Set collateral asset manager address
+    /// @param _collateralAssetManagerAddress The collateral asset manager address
+    function setCollateralAssetManagerAddress(address _collateralAssetManagerAddress) external {
+        require(hasRole(DEFAULT_ADMIN_ROLE, _msgSender()), "FINP2POperatorERC20: must have admin role to set collateral asset manager");
+        collateralAssetManagerAddress = _collateralAssetManagerAddress;
     }
 
     /// @notice Associate an asset with a token address
     /// @param assetId The asset id
     /// @param tokenAddress The token address
-    function associateAsset(string calldata assetId, address tokenAddress, TokenType tokenType) external {
+    function associateAsset(string calldata assetId, address tokenAddress) external {
         require(hasRole(ASSET_MANAGER, _msgSender()), "FINP2POperatorERC20: must have asset manager role to associate asset");
         require(!_haveAsset(assetId), "Asset already exists");
-        assets[assetId] = Asset(assetId, tokenType, tokenAddress);
+        assets[assetId] = Asset(TokenType.ERC20, tokenAddress, "");
     }
 
-    /// @notice Remove an asset
-    /// @param assetId The asset id
-    function removeAsset(string calldata assetId) external {
-        require(hasRole(ASSET_MANAGER, _msgSender()), "FINP2POperatorERC20: must have asset manager role to remove asset");
-        require(_haveAsset(assetId), "Asset not found");
-        delete assets[assetId];
+    function associateCollateralAsset(string calldata assetId, string calldata basketId) external {
+        require(hasRole(ASSET_MANAGER, _msgSender()), "FINP2POperatorERC20: must have asset manager role to associate asset");
+        require(!_haveAsset(assetId), "Asset already exists");
+        assets[assetId] = Asset(TokenType.COLLATERAL, collateralAssetManagerAddress, basketId);
     }
+
+//    /// @notice Remove an asset
+//    /// @param assetId The asset id
+//    function removeAsset(string calldata assetId) external {
+//        require(hasRole(ASSET_MANAGER, _msgSender()), "FINP2POperatorERC20: must have asset manager role to remove asset");
+//        require(_haveAsset(assetId), "Asset not found");
+//        delete assets[assetId];
+//    }
 
     /// @notice Get the token address of an asset
     /// @param assetId The asset id
@@ -165,9 +180,21 @@ contract FINP2POperatorERC20Collateral is AccessControl, FinP2PSignatureVerifier
         require(_haveAsset(assetId), "Asset not found");
         address addr = finId.toAddress();
         Asset memory asset = assets[assetId];
-        uint8 tokenDecimals = IERC20Metadata(asset.tokenAddress).decimals();
-        uint256 tokenBalance = IERC20(asset.tokenAddress).balanceOf(addr);
-        return tokenBalance.uintToString(tokenDecimals);
+        if (asset.tokenType == TokenType.ERC20) {
+            uint8 tokenDecimals = IERC20Metadata(asset.tokenAddress).decimals();
+            uint256 tokenBalance = IERC20(asset.tokenAddress).balanceOf(addr);
+            return tokenBalance.uintToString(tokenDecimals);
+
+        } else if (asset.tokenType == TokenType.COLLATERAL) {
+            require(collateralAssetManagerAddress != address(0), "Collateral asset manager address not set");
+            if (IFinP2PCollateralBasketManager(collateralAssetManagerAddress).hasActiveBasket(asset.basketId, addr)) {
+                return "1";
+            } else {
+                return "0";
+            }
+        } else {
+            revert("Invalid token type");
+        }
     }
 
     /// @notice Issue asset to the issuer
@@ -344,10 +371,10 @@ contract FINP2POperatorERC20Collateral is AccessControl, FinP2PSignatureVerifier
         return LockInfo(l.assetId, l.assetType, l.source, l.destination, l.amount);
     }
 
-    function addAllowedDomain(uint256 chainId, address verifyingContract) external {
-        require(hasRole(DEFAULT_ADMIN_ROLE, _msgSender()), "FINP2POperatorERC20: must have admin role to add allowed domains");
-        _addAllowedDomain(chainId, verifyingContract);
-    }
+//    function addAllowedDomain(uint256 chainId, address verifyingContract) external {
+//        require(hasRole(DEFAULT_ADMIN_ROLE, _msgSender()), "FINP2POperatorERC20: must have admin role to add allowed domains");
+//        _addAllowedDomain(chainId, verifyingContract);
+//    }
 
     // ------------------------------------------------------------------------------------------
 
@@ -382,20 +409,9 @@ contract FINP2POperatorERC20Collateral is AccessControl, FinP2PSignatureVerifier
             IERC20(asset.tokenAddress).transferFrom(from, to, tokenAmount);
 
         } else if (asset.tokenType == TokenType.COLLATERAL) {
-            uint8 tokenDecimals = 18; // TODO: get from the IAssetCollateralAccount
-            uint256 tokenAmount = quantity.stringToUint(tokenDecimals);
+            require(collateralAssetManagerAddress != address(0), "Collateral asset manager address not set");
+            IFinP2PCollateralBasketManager(collateralAssetManagerAddress).process(asset.basketId, quantity, phase);
 
-            if (phase == Phase.INITIATE) {
-                IAssetCollateralAccount(asset.tokenAddress).deposit(
-                    IAssetCollateralAccount.Asset(IAssetCollateralAccount.AssetStandard.FUNGIBLE, asset.tokenAddress, 0),
-                    tokenAmount
-                );
-            } else if (phase == Phase.CLOSE) {
-                IAssetCollateralAccount(asset.tokenAddress).release();
-
-            } else if (phase == Phase.NONE) {
-                // TODO: do nothing, maybe send a fake event
-            }
         } else {
             revert("Invalid token type");
         }

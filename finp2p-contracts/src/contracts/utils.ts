@@ -166,24 +166,6 @@ export const parseTransactionReceipt = (
   return null;
 };
 
-export const parseAFCreateAccount = (receipt: TransactionReceipt,
-                                     contractInterface: IAccountFactoryInterface): {
-  address: string,
-  id: bigint
-} | undefined => {
-
-  for (const log of receipt.logs) {
-    try {
-      const parsed = contractInterface.parseLog(log);
-      if (parsed && parsed.name === "AccountCreated") {
-        const { account, accountId } = parsed.args as unknown as AccountCreatedEvent.OutputObject;
-        return { address: account, id: accountId };
-      }
-    } catch (e) {
-      // do nothing
-    }
-  }
-};
 
 export const parseERC20Transfer = (receipt: TransactionReceipt,
                                    contractInterface: ERC20WithOperatorInterface): {

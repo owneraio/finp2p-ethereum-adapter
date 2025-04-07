@@ -6,7 +6,7 @@ import {
   failedOperation,
   FinP2PReceipt, LockInfo, OperationParams,
   OperationStatus,
-  pendingOperation, Term, TokenType
+  pendingOperation, Term
 } from "./model";
 import { parseTransactionReceipt } from "./utils";
 import { ContractsManager } from "./manager";
@@ -59,9 +59,15 @@ export class FinP2PContract extends ContractsManager {
     return this.finP2P.getAssetAddress(assetId);
   }
 
-  async associateAsset(assetId: string, tokenAddress: string, tokenType: TokenType) {
+  async associateAsset(assetId: string, tokenAddress: string) {
     return this.safeExecuteTransaction(this.finP2P, async (finP2P: FINP2POperatorERC20Collateral, txParams: PayableOverrides) => {
-      return finP2P.associateAsset(assetId, tokenAddress, tokenType, txParams);
+      return finP2P.associateAsset(assetId, tokenAddress, txParams);
+    });
+  }
+
+  async associateCollateralAsset(assetId: string, basketId: string) {
+    return this.safeExecuteTransaction(this.finP2P, async (finP2P: FINP2POperatorERC20Collateral, txParams: PayableOverrides) => {
+      return finP2P.associateCollateralAsset(assetId, basketId, txParams);
     });
   }
 
