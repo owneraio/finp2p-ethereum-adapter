@@ -4,19 +4,28 @@ pragma solidity ^0.8.20;
 
 import "../../utils/StringUtils.sol";
 import "./IAccountFactory.sol";
+import "@openzeppelin/contracts/access/AccessControl.sol";
 import {FinP2PSignatureVerifier} from "../../utils/finp2p/FinP2PSignatureVerifier.sol";
 import {IAccountFactory} from "./IAccountFactory.sol";
 import {IAssetCollateralAccount} from "./IAssetCollateralAccount.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {IFinP2PCollateralBasketManager} from "./IFinP2PCollateralBasketManager.sol";
 import {IFinP2PCollateralBasketFactory} from "./IFinP2PCollateralBasketFactory.sol";
+import {IFinP2PCollateralBasketManager} from "./IFinP2PCollateralBasketManager.sol";
 
-contract FinP2PCollateralBasket is IFinP2PCollateralBasketManager, IFinP2PCollateralBasketFactory {
+contract FinP2PCollateralBasket is IFinP2PCollateralBasketManager, IFinP2PCollateralBasketFactory, AccessControl {
     using StringUtils for string;
 
     bytes32 internal constant COLLATERAL_STRATEGY_ID = keccak256("Asset-Collateral-Account-Strategy");
     uint8 internal constant DECIMALS = 18;
+
+    bytes32 private constant BASKET_FACTORY = keccak256("BASKET_FACTORY");
+    bytes32 private constant BASKET_MANAGER = keccak256("BASKET_MANAGER");
+
+    enum CollateralBasketState {
+        CREATED,
+        DEPOSITED,
+        RELEASED
+    }
 
     struct CollateralBasket {
         address collateralAccount;
@@ -24,25 +33,48 @@ contract FinP2PCollateralBasket is IFinP2PCollateralBasketManager, IFinP2PCollat
         address destination;
         address[] tokenAddresses;
         uint256[] amounts;
+        CollateralBasketState state;
     }
 
     address private accountFactoryAddress;
     mapping(string => CollateralBasket) private baskets;
 
+    constructor() {
+        _grantRole(DEFAULT_ADMIN_ROLE, _msgSender());
+        _grantRole(BASKET_FACTORY, _msgSender());
+        _grantRole(BASKET_MANAGER, _msgSender());
+    }
+
+    /// @notice Grant the asset manager role to an account
+    /// @param account The account to grant the role
+    function grantBasketFactoryRole(address account) external {
+        require(hasRole(DEFAULT_ADMIN_ROLE, _msgSender()), "FinP2PCollateralBasket: must have admin role to grant basket factory role");
+        grantRole(BASKET_FACTORY, account);
+    }
+
+    /// @notice Grant the transaction manager role to an account
+    /// @param account The account to grant the role
+    function grantBasketManagerRole(address account) external {
+        require(hasRole(DEFAULT_ADMIN_ROLE, _msgSender()), "FinP2PCollateralBasket: must have admin role to grant basket manager role");
+        grantRole(BASKET_MANAGER, account);
+    }
+
     function setAccountFactoryAddress(address _accountFactoryAddress) external {
         accountFactoryAddress = _accountFactoryAddress;
     }
 
-    function createCollateralBasket(
+    function createCollateralAsset(
         string memory name,
         string memory description,
         string memory basketId,
         address[] memory tokenAddresses,
-        uint256[] memory amounts,
+        string[] memory quantities,
         address source,
         address destination
     ) external {
-        require(tokenAddresses.length == amounts.length, "AssetId and amounts length mismatch");
+        require(hasRole(BASKET_FACTORY, _msgSender()), "FinP2PCollateralBasket: must have basket factory role to create collateral asset");
+
+        require(tokenAddresses.length == quantities.length, "AssetId and quantities length mismatch");
 
         IAccountFactory accountFactory = IAccountFactory(accountFactoryAddress);
         bytes memory initParams = abi.encode(DECIMALS, IAssetCollateralAccount.CollateralType.REPO, 0, 0);
@@ -66,21 +98,67 @@ contract FinP2PCollateralBasket is IFinP2PCollateralBasketManager, IFinP2PCollat
             initParams,
             strategyInput
         );
+
+        uint256[] memory amounts = new uint256[](quantities.length);
+        for (uint256 i = 0; i < quantities.length; i++) {
+            uint8 tokenDecimals = IERC20Metadata(tokenAddresses[i]).decimals();
+            amounts[i] = quantities[i].stringToUint(tokenDecimals);
+        }
+
         baskets[basketId] = CollateralBasket(
             collateralAccount,
             source,
             destination,
             tokenAddresses,
-            amounts
+            amounts,
+            CollateralBasketState.CREATED
         );
     }
 
-    function hasActiveBasket(string memory basketId, address ownerAddress) external view returns (bool) {
+//    function configureAccount(
+//        string memory basketId,
+//        int256 targetRatio,
+//        int256 defaultRatio
+//    ) external {
+//        IAssetCollateralAccount(baskets[basketId].collateralAccount).setConfigurationBundle(
+//            targetRatio,
+//            defaultRatio,
+//            2, //targetRatioLimit
+//            2, //defaultRatioLimit
+//            uint256(priceType),
+//            address(haircutContext),
+//            address(mockPriceService),
+//            pricedInToken,
+//            liabilityData,
+//            assetContextList
+//        );
+//    }
+
+    function getBalance(string memory basketId, address owner) external view returns (string memory) {
         CollateralBasket storage basket = baskets[basketId];
-        return basket.source == ownerAddress;
+        if (basket.state == CollateralBasketState.CREATED) {
+            if (basket.source == owner) {
+                return "1";
+            } else {
+                return "0";
+            }
+        } else if (basket.state == CollateralBasketState.DEPOSITED) {
+            if (basket.destination == owner) {
+                return "1";
+            } else {
+                return "0";
+            }
+
+        } else if (basket.state == CollateralBasketState.RELEASED) {
+            return "0";
+        } else {
+            revert("Unknown basket state");
+        }
     }
 
     function process(string memory basketId, string memory quantity, FinP2PSignatureVerifier.Phase phase) external {
+        require(hasRole(BASKET_MANAGER, _msgSender()), "FinP2PCollateralBasket: must have basket manager role to process account transactions");
+
         require(baskets[basketId].collateralAccount != address(0), "Basket does not exist");
         require(quantity.stringToUint(18) == 10 ** 18, "Quantity must be 1");
 
@@ -93,11 +171,10 @@ contract FinP2PCollateralBasket is IFinP2PCollateralBasketManager, IFinP2PCollat
                     IAssetCollateralAccount.Asset(IAssetCollateralAccount.AssetStandard.FUNGIBLE, tokenAddress, 0),
                     tokenAmount
                 );
+                baskets[basketId].state = CollateralBasketState.DEPOSITED;
             } else if (phase == FinP2PSignatureVerifier.Phase.CLOSE) {
                 collateralAccount.release();
-
-            } else if (phase == FinP2PSignatureVerifier.Phase.NONE) {
-                // TODO: do nothing, maybe send a fake event
+                baskets[basketId].state = CollateralBasketState.RELEASED;
             }
         }
     }

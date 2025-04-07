@@ -19,11 +19,11 @@ export class FinP2PCollateralAssetFactoryContract extends ContractsManager {
     this.collateralAssetFactory = afContract as IFinP2PCollateralBasketFactory;
   }
 
-  async createCollateralBasket(name: string, description: string, basketId: string,
-                               tokenAddresses: string[], amounts: number[],
-                               source: string, destination: string) {
-    return await this.collateralAssetFactory.createCollateralBasket(
-      name, description, basketId, tokenAddresses, amounts, source, destination);
+  async createCollateralAsset(name: string, description: string, basketId: string,
+                              tokenAddresses: string[], quantities: string[],
+                              source: string, destination: string) {
+    return await this.collateralAssetFactory.createCollateralAsset(
+      name, description, basketId, tokenAddresses, quantities, source, destination);
   }
 
 

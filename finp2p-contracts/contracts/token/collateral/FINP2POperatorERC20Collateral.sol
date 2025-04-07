@@ -26,7 +26,7 @@ contract FINP2POperatorERC20Collateral is AccessControl, FinP2PSignatureVerifier
     using StringUtils for uint256;
     using FinIdUtils for string;
 
-    string public constant VERSION = "0.23.2";
+    string public constant VERSION = "0.23.3_collateral_assets";
 
     bytes32 private constant ASSET_MANAGER = keccak256("ASSET_MANAGER");
     bytes32 private constant TRANSACTION_MANAGER = keccak256("TRANSACTION_MANAGER");
@@ -187,11 +187,7 @@ contract FINP2POperatorERC20Collateral is AccessControl, FinP2PSignatureVerifier
 
         } else if (asset.tokenType == TokenType.COLLATERAL) {
             require(collateralAssetManagerAddress != address(0), "Collateral asset manager address not set");
-            if (IFinP2PCollateralBasketManager(collateralAssetManagerAddress).hasActiveBasket(asset.basketId, addr)) {
-                return "1";
-            } else {
-                return "0";
-            }
+            return IFinP2PCollateralBasketManager(collateralAssetManagerAddress).getBalance(asset.basketId, addr);
         } else {
             revert("Invalid token type");
         }

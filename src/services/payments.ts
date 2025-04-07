@@ -25,14 +25,14 @@ export class PaymentsService extends CommonService {
 
 
       }
-      const basketId = "";
-      const agreementName = "";
-      const agreementDescription = "";
+      const basketId = uuid();
+      const agreementName = "FinP2P Asset Collateral Account";
+      const agreementDescription = "A collateral account created as part of FinP2P asset agreement";
       const tokenAddresses: string[] = [];
-      const tokenAmounts: number[] = [];
+      const quantities: string[] = [];
       const source = "0x";
       const destination = "0x";
-      await this.collateralAssetFactoryContract.createCollateralBasket(basketId, agreementName, agreementDescription, tokenAddresses, tokenAmounts, source, destination);
+      await this.collateralAssetFactoryContract.createCollateralAsset(basketId, agreementName, agreementDescription, tokenAddresses, quantities, source, destination);
 
       // TODO: create asset with agreementId passed in tokenId and tokenType=COLLATERAL passed with metadata
 

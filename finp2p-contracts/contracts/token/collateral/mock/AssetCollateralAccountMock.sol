@@ -109,7 +109,7 @@ contract AssetCollateralAccountMock is IAssetCollateralAccount {
     function release() external {
         for (uint i = 0; i < locks.length; i++) {
             require(locks[i].amount > 0, "Lock is not active");
-            IERC20(locks[i].tokenAddress).transferFrom(liabilityOwner, destination, locks[i].amount);
+            IERC20(locks[i].tokenAddress).transferFrom(liabilityOwner, source, locks[i].amount);
             locks[i].amount = 0;
         }
     }
@@ -117,7 +117,7 @@ contract AssetCollateralAccountMock is IAssetCollateralAccount {
     function forward() external {
         for (uint i = 0; i < locks.length; i++) {
             require(locks[i].amount > 0, "Lock is not active");
-            IERC20(locks[i].tokenAddress).transferFrom(liabilityOwner, source, locks[i].amount);
+            IERC20(locks[i].tokenAddress).transferFrom(liabilityOwner, destination, locks[i].amount);
             locks[i].amount = 0;
         }
     }
@@ -126,7 +126,7 @@ contract AssetCollateralAccountMock is IAssetCollateralAccount {
     function partialRelease(Asset[] calldata _assets, uint256[] calldata _amounts) external {
         for (uint i = 0; i < _assets.length; i++) {
             require(locks[i].amount > _amounts[i], "Amount exceeds lock");
-            IERC20(_assets[i].addr).transferFrom(liabilityOwner, destination, _amounts[i]);
+            IERC20(_assets[i].addr).transferFrom(liabilityOwner, source, _amounts[i]);
             locks[i].amount -= _amounts[i];
         }
     }
@@ -134,7 +134,7 @@ contract AssetCollateralAccountMock is IAssetCollateralAccount {
     function partialForward(Asset[] calldata _assets, uint256[] calldata _amounts) external {
         for (uint i = 0; i < _assets.length; i++) {
             require(locks[i].amount > _amounts[i], "Amount exceeds lock");
-            IERC20(_assets[i].addr).transferFrom(liabilityOwner, source, _amounts[i]);
+            IERC20(_assets[i].addr).transferFrom(liabilityOwner, destination, _amounts[i]);
             locks[i].amount -= _amounts[i];
         }
     }

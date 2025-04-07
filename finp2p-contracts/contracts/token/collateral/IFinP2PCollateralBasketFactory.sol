@@ -6,12 +6,12 @@ import "../../utils/finp2p/FinP2PSignatureVerifier.sol";
 
 interface IFinP2PCollateralBasketFactory {
 
-    function createCollateralBasket(
+    function createCollateralAsset(
         string memory name,
         string memory description,
         string memory basketId,
         address[] memory tokenAddresses,
-        uint256[] memory amounts,
+        string[] memory quantities,
         address source,
         address destination
     ) external;

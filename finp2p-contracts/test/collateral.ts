@@ -78,6 +78,7 @@ describe("Collateral contract test", function() {
 
       await collateralBasket.setAccountFactoryAddress(accountFactoryAddress);
       await finP2P.setCollateralAssetManagerAddress(collateralBasketAddress);
+      await collateralBasket.grantBasketManagerRole(finP2PAddress);
 
       const borrower = generateInvestor();
       const lender = generateInvestor();
@@ -102,20 +103,25 @@ describe("Collateral contract test", function() {
       const source = await borrower.signer.getAddress();
       const destination = await lender.signer.getAddress();
       const tokenAddressList = [erc20TokenAddress];
-      const amountList = [borrowedAmount * 10 ** assetDecimals];
+      const amountList = [borrowedAmount.toFixed(assetDecimals)];
 
       const basketId = uuid();
-      await collateralBasket.createCollateralBasket(
+      await collateralBasket.createCollateralAsset(
         name, description, basketId, tokenAddressList, amountList, source, destination
       );
+      const collateralAssetId = generateAssetId();
+      await finP2P.associateCollateralAsset(collateralAssetId, basketId);
+
+      expect(await finP2P.getBalance(collateralAssetId, borrower.finId)).to.equal('1');
+      expect(await finP2P.getBalance(collateralAssetId, lender.finId)).to.equal('0');
+
 
       // await erc20Token.connect(borrower);
       // await erc20Token.approve(collateralAddress, 100000000);
       // const allowance = await erc20Token.allowance(await borrower.signer.getAddress(), collateralAddress); //TODO: that does not work
       // console.log(allowance);
 
-      const collateralAssetId = generateAssetId();
-      await finP2P.associateCollateralAsset(collateralAssetId, basketId);
+
       const asset = term(collateralAssetId, AssetType.FinP2P, "1.00");
       const settlementAssetCode = "USDT";
       const settlement = term(settlementAssetCode, AssetType.FinP2P, "100000000.00");
@@ -135,19 +141,27 @@ describe("Collateral contract test", function() {
         termToEIP712(asset), termToEIP712(settlement), loan);
       const lenderSignature = await sign(chainId, verifyingContract, lenderMessage.types, lenderMessage.message, lender.signer);
 
-      await finP2P.transfer(borrowerNonce, borrower.finId, lender.finId, asset, settlement, loan,
+      await expect(finP2P.transfer(borrowerNonce, borrower.finId, lender.finId, asset, settlement, loan,
         operationParams({ chainId, verifyingContract }, PrimaryType.Loan, LegType.Asset, Phase.Initiate),
-        borrowerSignature);
+        borrowerSignature)).to.emit(finP2P, "Transfer").withArgs(collateralAssetId, AssetType.FinP2P, borrower.finId, lender.finId, "1.00");
 
+      expect(await finP2P.getBalance(collateralAssetId, borrower.finId)).to.equal('0');
+      expect(await finP2P.getBalance(collateralAssetId, lender.finId)).to.equal('1');
       expect(await finP2P.getBalance(assetId, borrower.finId)).to.equal(`${(initialAmount - borrowedAmount).toFixed(assetDecimals)}`);
+      // assets are yet kept in collateral asset basket
       expect(await finP2P.getBalance(assetId, lender.finId)).to.equal(`${(0).toFixed(assetDecimals)}`);
 
-      await finP2P.transfer(lenderNonce, borrower.finId, lender.finId, asset, settlement, loan,
-        operationParams({ chainId, verifyingContract }, PrimaryType.Loan, LegType.Asset, Phase.Close),
-        lenderSignature);
 
-      expect(await finP2P.getBalance(assetId, borrower.finId)).to.equal(`${(initialAmount - borrowedAmount).toFixed(assetDecimals)}`);
-      expect(await finP2P.getBalance(assetId, lender.finId)).to.equal(`${(borrowedAmount).toFixed(assetDecimals)}`);
+      await expect(finP2P.transfer(lenderNonce, borrower.finId, lender.finId, asset, settlement, loan,
+        operationParams({ chainId, verifyingContract }, PrimaryType.Loan, LegType.Asset, Phase.Close),
+        lenderSignature)).to.emit(finP2P, "Transfer").withArgs(collateralAssetId, AssetType.FinP2P, lender.finId, borrower.finId, "1.00");
+
+      // collateral asset burned for both investors
+      expect(await finP2P.getBalance(collateralAssetId, borrower.finId)).to.equal('0');
+      expect(await finP2P.getBalance(collateralAssetId, lender.finId)).to.equal('0');
+      // assets returned to borrower from lender
+      expect(await finP2P.getBalance(assetId, borrower.finId)).to.equal(`${(initialAmount).toFixed(assetDecimals)}`);
+      expect(await finP2P.getBalance(assetId, lender.finId)).to.equal(`${(0).toFixed(assetDecimals)}`);
     });
 
   });
