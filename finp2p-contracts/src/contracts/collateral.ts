@@ -36,11 +36,11 @@ export class FinP2PCollateralAssetFactoryContract extends ContractsManager {
 
   constructor(provider: Provider, signer: Signer, contractAddress: string, logger: winston.Logger) {
     super(provider, signer, logger);
-    const afFactory = new ContractFactory<any[], IFinP2PCollateralBasketFactory>(
+    const factory = new ContractFactory<any[], IFinP2PCollateralBasketFactory>(
       FINP2P_COLLATERAL_ASSET_FACTORY.abi, FINP2P_COLLATERAL_ASSET_FACTORY.bytecode, this.signer
     );
-    const afContract = afFactory.attach(contractAddress);
-    this.collateralAssetFactory = afContract as IFinP2PCollateralBasketFactory;
+    const contract = factory.attach(contractAddress);
+    this.collateralAssetFactory = contract as IFinP2PCollateralBasketFactory;
   }
 
   async createCollateralAsset(name: string, description: string, basketId: string,
