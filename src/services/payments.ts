@@ -2,7 +2,10 @@ import { CommonService, ExecDetailsStore } from "./common";
 import { v4 as uuid } from "uuid";
 import { FinP2PContract } from "../../finp2p-contracts/src/contracts/finp2p";
 import { PolicyGetter } from "../finp2p/policy";
-import { FinP2PCollateralAssetFactoryContract } from "../../finp2p-contracts/src/contracts/collateral";
+import {
+  CollateralAssetParams,
+  FinP2PCollateralAssetFactoryContract
+} from "../../finp2p-contracts/src/contracts/collateral";
 import { FinAPIClient } from "../finp2p/finapi/finapi.client";
 import IntentType = FinAPIComponents.Schemas.IntentType;
 import { logger } from "../helpers/logger";
@@ -44,8 +47,20 @@ export class PaymentsService extends CommonService {
     const agreementDescription = "A collateral account created as part of FinP2P asset agreement";
     const basketId = uuid();
 
+    const haircutContext = details["haircutContext"] as string
+    const priceService = details["priceService"] as string
+
+    const params: CollateralAssetParams = {
+      haircutContext,
+      priceService,
+      pricedInToken: '', // TODO: asset twin address
+      liabilityAmount: 0,
+      liabilityAddress: '',
+      assetContextList: []
+    }
+
     await this.collateralAssetFactoryContract.createCollateralAsset(
-      basketId, agreementName, agreementDescription, tokenAddresses, quantities, borrower, lender
+      basketId, agreementName, agreementDescription, tokenAddresses, quantities, borrower, lender, params
     );
 
     // TODO: create asset with agreementId passed in tokenId and tokenType=COLLATERAL passed with metadata

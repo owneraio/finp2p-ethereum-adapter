@@ -13,6 +13,8 @@ import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IER
 import {IFinP2PCollateralBasketFactory} from "./IFinP2PCollateralBasketFactory.sol";
 import {IFinP2PCollateralBasketManager} from "./IFinP2PCollateralBasketManager.sol";
 import {StringUtils} from "../../../utils/StringUtils.sol";
+import {PriceType} from "../price/AssetPriceStructs.sol";
+import {StrategyInput, LiabilityData} from "../common/StrategyInput.sol";
 
 contract FinP2PCollateralBasket is IFinP2PCollateralBasketManager, IFinP2PCollateralBasketFactory, AccessControl {
     using StringUtils for string;
@@ -73,7 +75,8 @@ contract FinP2PCollateralBasket is IFinP2PCollateralBasketManager, IFinP2PCollat
         address[] memory tokenAddresses,
         string[] memory quantities,
         string memory sourceFinId,
-        string memory destinationFinId
+        string memory destinationFinId,
+        CollateralAssetParameters memory param
     ) external {
         require(hasRole(BASKET_FACTORY, _msgSender()), "FinP2PCollateralBasket: must have basket factory role to create collateral asset");
 
@@ -88,7 +91,7 @@ contract FinP2PCollateralBasket is IFinP2PCollateralBasketManager, IFinP2PCollat
         addressList[2] = accountFactory.getLiabilityFactory();
         address controller = accountFactory.controller();
 
-        IAccountFactory.StrategyInput memory strategyInput = IAccountFactory.StrategyInput({
+        StrategyInput memory strategyInput = StrategyInput({
             assetContextList: new address[](0), // TODO: when should we provide asset list here?
             addressList: addressList
         });
@@ -116,26 +119,36 @@ contract FinP2PCollateralBasket is IFinP2PCollateralBasketManager, IFinP2PCollat
             amounts,
             CollateralBasketState.CREATED
         );
+
+        _configureCollateralAsset(basketId, param);
     }
 
-//    function configureAccount(
-//        string memory basketId,
-//        int256 targetRatio,
-//        int256 defaultRatio
-//    ) external {
-//        IAssetCollateralAccount(baskets[basketId].collateralAccount).setConfigurationBundle(
-//            targetRatio,
-//            defaultRatio,
-//            2, //targetRatioLimit
-//            2, //defaultRatioLimit
-//            uint256(priceType),
-//            address(haircutContext),
-//            address(mockPriceService),
-//            pricedInToken,
-//            liabilityData,
-//            assetContextList
-//        );
-//    }
+
+    function _configureCollateralAsset(
+        string memory basketId,
+        CollateralAssetParameters memory param
+    ) internal {
+        address accountAddress = baskets[basketId].collateralAccount;
+        require(accountAddress != address(0), "Basket does not exist");
+        IAssetCollateralAccount account = IAssetCollateralAccount(baskets[basketId].collateralAccount);
+
+        account.setConfigurationBundle(
+//            param.targetRatio,
+//            param.defaultRatio,
+//            param.targetRatioLimit,
+//            param.defaultRatioLimit,
+            12 * 10 ** 17,
+            12 * 10 ** 17,
+            2,
+            2,
+            uint256(PriceType.DEFAULT),
+            param.haircutContext,
+            param.priceService,
+            param.pricedInToken,
+            LiabilityData(param.liabilityAddress, param.liabilityAmount, param.pricedInToken, 1),
+            param.assetContextList
+        );
+    }
 
     function getBalance(string memory basketId, address owner) external view returns (string memory) {
         CollateralBasket storage basket = baskets[basketId];

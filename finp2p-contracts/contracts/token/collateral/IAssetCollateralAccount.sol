@@ -4,19 +4,13 @@
 pragma solidity ^0.8.20;
 
 import {Asset} from "./common/AssetHelpers.sol";
+import {LiabilityData} from "./common/StrategyInput.sol";
 
 interface IAssetCollateralAccount {
 
     enum CollateralType {
         CCP_MARGIN,
         REPO
-    }
-
-    struct LiabilityData {
-        address liabilityAddress;
-        uint256 amount;
-        address pricedInToken;
-        uint256 effectiveTime;
     }
 
     function setAllowableCollateral(

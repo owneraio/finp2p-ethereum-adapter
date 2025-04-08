@@ -6,3 +6,13 @@ pragma solidity ^0.8.20;
 struct AssetPriceContextData {
     bool foo;
 }
+
+enum PriceType {
+    DEFAULT,
+    MARKET,
+    BID,
+    ASK,
+    NAV,
+    NPV,
+    LIQUIDATION
+}

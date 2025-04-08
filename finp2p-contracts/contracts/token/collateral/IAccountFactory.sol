@@ -3,12 +3,9 @@
 
 pragma solidity ^0.8.20;
 
-interface IAccountFactory {
+import {StrategyInput} from "./common/StrategyInput.sol";
 
-    struct StrategyInput {
-        address[] assetContextList;
-        address[] addressList;
-    }
+interface IAccountFactory {
 
     // Functions
     function addAccountStrategy(address accountStrategy) external;
