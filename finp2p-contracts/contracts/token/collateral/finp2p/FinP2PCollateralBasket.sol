@@ -145,7 +145,7 @@ contract FinP2PCollateralBasket is IFinP2PCollateralBasketManager, IFinP2PCollat
             param.haircutContext,
             param.priceService,
             param.pricedInToken,
-            LiabilityData(param.liabilityAddress, param.liabilityAmount, param.pricedInToken, 1),
+            LiabilityData(address(0)/*param.liabilityAddress*/, param.liabilityAmount, param.pricedInToken, 1),
             param.assetContextList
         );
     }

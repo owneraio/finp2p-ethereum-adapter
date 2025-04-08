@@ -26,7 +26,7 @@ export interface CollateralAssetParams {
   priceService: string;
   pricedInToken: string;
   liabilityAmount: number;
-  liabilityAddress: string;
+  // liabilityAddress: string;
   assetContextList: string[];
 }
 

@@ -29,7 +29,7 @@ interface IFinP2PCollateralBasketFactory {
         address priceService;
         address pricedInToken;
         uint256 liabilityAmount;
-        address liabilityAddress;
+//        address liabilityAddress;
         address[] assetContextList;
     }
 

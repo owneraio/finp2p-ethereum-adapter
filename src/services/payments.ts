@@ -33,6 +33,11 @@ export class PaymentsService extends CommonService {
       } as Paths.DepositInstruction.Responses.$200;
     }
 
+    // STEP 1   ----------------------------------------------------------------
+
+    const basketId = uuid();
+    const agreementName = "FinP2P Asset Collateral Account";
+    const agreementDescription = "A collateral account created as part of FinP2P asset agreement";
     const assetList = details["assetList"] as string[];
     let tokenAddresses: string[] = [];
     for (const assetId of assetList) {
@@ -43,27 +48,20 @@ export class PaymentsService extends CommonService {
     const borrower = details["borrower"] as string;
     const lender = details["lender"] as string;
     const { id: borrowerId } = await this.policyGetter.getOwnerByFinId(borrower);
-    const agreementName = "FinP2P Asset Collateral Account";
-    const agreementDescription = "A collateral account created as part of FinP2P asset agreement";
-    const basketId = uuid();
-
-    const haircutContext = details["haircutContext"] as string
-    const priceService = details["priceService"] as string
-
-    const params: CollateralAssetParams = {
-      haircutContext,
-      priceService,
-      pricedInToken: '', // TODO: asset twin address
-      liabilityAmount: 0,
-      liabilityAddress: '',
-      assetContextList: []
-    }
+    const haircutContext = details["haircutContext"] as string;
+    const priceService = details["priceService"] as string;
+    const paymentAssetId = details["paymentAssetId"] as string; // asset twin address
+    const liabilityAmount = details["liabilityAmount"] as number; //  = REPO OPEN AMOUNT
+    const pricedInToken = await this.policyGetter.getAssetToken(paymentAssetId);
 
     await this.collateralAssetFactoryContract.createCollateralAsset(
-      basketId, agreementName, agreementDescription, tokenAddresses, quantities, borrower, lender, params
+      basketId, agreementName, agreementDescription, tokenAddresses, quantities, borrower, lender, {
+        haircutContext, priceService, pricedInToken, liabilityAmount,
+        assetContextList: [] // TODO: decide, should we reconfigure whitelisted assets on this level
+      }
     );
 
-    // TODO: create asset with agreementId passed in tokenId and tokenType=COLLATERAL passed with metadata
+    // STEP 2   ----------------------------------------------------------------
 
     const assetName = agreementName;
     const assetType = "collateral";
