@@ -2,16 +2,17 @@
 
 pragma solidity ^0.8.20;
 
-import {StringUtils} from "../../utils/StringUtils.sol";
-import {FinIdUtils} from "../../utils/finp2p/FinIdUtils.sol";
-import "./IAccountFactory.sol";
+import "../../ERC20/FINP2POperatorERC20.sol";
 import "@openzeppelin/contracts/access/AccessControl.sol";
-import {FinP2PSignatureVerifier} from "../../utils/finp2p/FinP2PSignatureVerifier.sol";
-import {IAccountFactory} from "./IAccountFactory.sol";
-import {IAssetCollateralAccount} from "./IAssetCollateralAccount.sol";
+import {FinIdUtils} from "../../../utils/finp2p/FinIdUtils.sol";
+import {FinP2PSignatureVerifier} from "../../../utils/finp2p/FinP2PSignatureVerifier.sol";
+import {IAccountFactory} from "../IAccountFactory.sol";
+import {IAssetCollateralAccount} from "../IAssetCollateralAccount.sol";
+import {Asset, AssetStandard} from "../common/AssetHelpers.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {IFinP2PCollateralBasketFactory} from "./IFinP2PCollateralBasketFactory.sol";
 import {IFinP2PCollateralBasketManager} from "./IFinP2PCollateralBasketManager.sol";
+import {StringUtils} from "../../../utils/StringUtils.sol";
 
 contract FinP2PCollateralBasket is IFinP2PCollateralBasketManager, IFinP2PCollateralBasketFactory, AccessControl {
     using StringUtils for string;
@@ -170,7 +171,7 @@ contract FinP2PCollateralBasket is IFinP2PCollateralBasketManager, IFinP2PCollat
             if (phase == FinP2PSignatureVerifier.Phase.INITIATE) {
                 uint256 tokenAmount = baskets[basketId].amounts[i];
                 collateralAccount.deposit(
-                    IAssetCollateralAccount.Asset(IAssetCollateralAccount.AssetStandard.FUNGIBLE, tokenAddress, 0),
+                    Asset(AssetStandard.FUNGIBLE, tokenAddress, 0),
                     tokenAmount
                 );
                 baskets[basketId].state = CollateralBasketState.DEPOSITED;

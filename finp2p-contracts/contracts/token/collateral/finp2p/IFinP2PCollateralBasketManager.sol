@@ -2,7 +2,7 @@
 
 pragma solidity ^0.8.20;
 
-import "../../utils/finp2p/FinP2PSignatureVerifier.sol";
+import "../../../utils/finp2p/FinP2PSignatureVerifier.sol";
 
 interface IFinP2PCollateralBasketManager {
 

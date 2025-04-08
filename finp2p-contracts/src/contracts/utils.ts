@@ -1,11 +1,9 @@
 import {
   concat,
   HDNodeWallet,
-  hexlify,
   isAddress,
   keccak256,
   Signature,
-  toUtf8Bytes,
   TransactionReceipt,
   Wallet
 } from "ethers";
@@ -25,11 +23,7 @@ import {
 } from "../../typechain-types/contracts/token/ERC20/ERC20WithOperator";
 import {
   FINP2POperatorERC20CollateralInterface
-} from "../../typechain-types/contracts/token/collateral/FINP2POperatorERC20Collateral";
-import {
-  IAccountFactoryInterface,
-  AccountCreatedEvent
-} from "../../typechain-types/contracts/token/collateral/IAccountFactory";
+} from "../../typechain-types/contracts/token/collateral/finp2p/FINP2POperatorERC20Collateral";
 
 export const compactSerialize = (signature: string): string => {
   const { r, s } = Signature.from(signature);

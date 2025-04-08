@@ -1,5 +1,5 @@
 import { ContractFactory, Provider, Signer } from "ethers";
-import FINP2P from "../../artifacts/contracts/token/collateral/FINP2POperatorERC20Collateral.sol/FINP2POperatorERC20Collateral.json";
+import FINP2P from "../../artifacts/contracts/token/collateral/finp2p/FINP2POperatorERC20Collateral.sol/FINP2POperatorERC20Collateral.json";
 import {
   assetTypeFromNumber,
   completedOperation,
@@ -15,7 +15,7 @@ import winston from "winston";
 import {
   FINP2POperatorERC20Collateral,
   FINP2POperatorERC20CollateralInterface
-} from "../../typechain-types/contracts/token/collateral/FINP2POperatorERC20Collateral";
+} from "../../typechain-types/contracts/token/collateral/finp2p/FINP2POperatorERC20Collateral";
 import { PayableOverrides } from "../../typechain-types/common";
 
 

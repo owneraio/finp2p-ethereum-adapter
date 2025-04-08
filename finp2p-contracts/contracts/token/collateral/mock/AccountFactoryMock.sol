@@ -20,11 +20,11 @@ contract AccountFactoryMock is IAccountFactory {
         string calldata name,
         string calldata description,
         bytes32 accountStandard,
-        address controller,
+        address controller_,
         bytes calldata initParams,
         StrategyInput calldata strategyInput
     ) external returns (address) {
-        _controller = controller;
+        _controller = controller_;
         (uint8 decimals, uint8 collateralTypeRaw, uint8 reserved1, uint8 reserved2) =
                             abi.decode(initParams, (uint8, uint8, uint8, uint8));
 
@@ -80,7 +80,7 @@ contract AccountFactoryMock is IAccountFactory {
         address dataContextFactoryAddress,
         address propertyRegistry,
         address liabilityFactory,
-        address controller
+        address controller_
     ) external {
 
     }

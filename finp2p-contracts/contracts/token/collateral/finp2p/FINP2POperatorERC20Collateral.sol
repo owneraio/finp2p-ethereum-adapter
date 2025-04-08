@@ -2,15 +2,15 @@
 
 pragma solidity ^0.8.20;
 
-import {StringUtils} from "../../utils/StringUtils.sol";
-import {Burnable} from "../../utils/erc20/Burnable.sol";
-import {Mintable} from "../../utils/erc20/Mintable.sol";
-import {FinIdUtils} from "../../utils/finp2p/FinIdUtils.sol";
-import {FinP2PSignatureVerifier} from "../../utils/finp2p/FinP2PSignatureVerifier.sol";
+import {StringUtils} from "../../../utils/StringUtils.sol";
+import {Burnable} from "../../../utils/erc20/Burnable.sol";
+import {Mintable} from "../../../utils/erc20/Mintable.sol";
+import {FinIdUtils} from "../../../utils/finp2p/FinIdUtils.sol";
+import {FinP2PSignatureVerifier} from "../../../utils/finp2p/FinP2PSignatureVerifier.sol";
 import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
-import {IAssetCollateralAccount} from "./IAssetCollateralAccount.sol";
+import {IAssetCollateralAccount} from "../IAssetCollateralAccount.sol";
 import {IFinP2PCollateralBasketManager} from "./IFinP2PCollateralBasketManager.sol";
 
 /**

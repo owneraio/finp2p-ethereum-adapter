@@ -7,10 +7,10 @@ import {
   Signer, TypedDataField
 } from "ethers";
 import FINP2P
-  from "../../artifacts/contracts/token/collateral/FINP2POperatorERC20Collateral.sol/FINP2POperatorERC20Collateral.json";
+  from "../../artifacts/contracts/token/collateral/finp2p/FINP2POperatorERC20Collateral.sol/FINP2POperatorERC20Collateral.json";
 import ERC20 from "../../artifacts/contracts/token/ERC20/ERC20WithOperator.sol/ERC20WithOperator.json";
 import FIN2P2P_COLLATERAL_ASSET_FACTORY
-  from "../../artifacts/contracts/token/collateral/FinP2PCollateralBasket.sol/FinP2PCollateralBasket.json";
+  from "../../artifacts/contracts/token/collateral/finp2p/FinP2PCollateralBasket.sol/FinP2PCollateralBasket.json";
 import { ERC20WithOperator, FINP2POperatorERC20Collateral, FinP2PCollateralBasket } from "../../typechain-types";
 import winston from "winston";
 import { PayableOverrides } from "../../typechain-types/common";

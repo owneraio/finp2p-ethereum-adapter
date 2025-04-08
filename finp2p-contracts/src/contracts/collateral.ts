@@ -2,7 +2,7 @@ import { ContractsManager } from "./manager";
 import { ContractFactory, Provider, Signer } from "ethers";
 import { IFinP2PCollateralBasketFactory } from "../../typechain-types";
 import FINP2P_COLLATERAL_ASSET_FACTORY
-  from "../../artifacts/contracts/token/collateral/IFinP2PCollateralBasketFactory.sol/IFinP2PCollateralBasketFactory.json";
+  from "../../artifacts/contracts/token/collateral/finp2p/IFinP2PCollateralBasketFactory.sol/IFinP2PCollateralBasketFactory.json";
 import winston from "winston";
 
 
