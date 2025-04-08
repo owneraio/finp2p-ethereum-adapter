@@ -35,7 +35,7 @@ const logger = winston.createLogger({
 class AccountFactory {
   contract: IAccountFactory;
 
-  constructor(signer: Signer, contractAddress: string, logger: winston.Logger) {
+  constructor(signer: Signer, contractAddress: string) {
     this.contract = new ContractFactory<any[], IAccountFactory>(
       ACCOUNT_FACTORY.abi, ACCOUNT_FACTORY.bytecode, signer
     ).attach(contractAddress) as IAccountFactory;
@@ -87,7 +87,7 @@ class AccountFactory {
 class AssetPriceContext {
   contract: IAssetPriceContext;
 
-  constructor(signer: Signer, contractAddress: string, logger: winston.Logger) {
+  constructor(signer: Signer, contractAddress: string) {
     this.contract = new ContractFactory<any[], IAssetPriceContext>(
       ASSET_PRICE_CONTEXT.abi, ASSET_PRICE_CONTEXT.bytecode, signer
     ).attach(contractAddress) as IAssetPriceContext;
@@ -121,7 +121,7 @@ class AssetPriceContext {
 class HaircutContext {
   contract: IAssetHaircutContext;
 
-  constructor(signer: Signer, contractAddress: string, logger: winston.Logger) {
+  constructor(signer: Signer, contractAddress: string) {
     this.contract = new ContractFactory<any[], IAssetHaircutContext>(
       ASSET_HAIRCUT_CONTEXT.abi, ASSET_HAIRCUT_CONTEXT.bytecode, signer
     ).attach(contractAddress) as IAssetHaircutContext;
@@ -147,7 +147,7 @@ class HaircutContext {
 class AssetCollateralAccount {
   contract: IAssetCollateralAccount;
 
-  constructor(signer: Signer, contractAddress: string, logger: winston.Logger) {
+  constructor(signer: Signer, contractAddress: string) {
     this.contract = new ContractFactory<any[], IAssetCollateralAccount>(
       ASSET_COLLATERAL_CONTRACT.abi, ASSET_COLLATERAL_CONTRACT.bytecode, signer
     ).attach(contractAddress) as IAssetCollateralAccount;
@@ -209,9 +209,9 @@ const collateralFlow = async (
   const chainId = network.chainId;
   logger.info(`Network chainId: ${chainId}`);
 
-  const accountFactory = new AccountFactory(signer, factoryAddress, logger);
-  const assetPriceContext = new AssetPriceContext(signer, priceServiceAddress, logger);
-  const haircutContext = new HaircutContext(signer, haircutContextAddress, logger);
+  const accountFactory = new AccountFactory(signer, factoryAddress);
+  const assetPriceContext = new AssetPriceContext(signer, priceServiceAddress);
+  const haircutContext = new HaircutContext(signer, haircutContextAddress,);
 
   const rate = parseUnits("1", 18); // = 1 ether
   for (const tokenAddress of tokenAddresses) {
@@ -230,11 +230,11 @@ const collateralFlow = async (
   const name = "Asset Collateral Account";
   const description = "Description of Asset Collateral Account";
 
-  logger.info(`Creating collateral asset ${name}...`);
+  logger.info(`Creating collateral asset '${name}'...`);
   const collateralAddress = await accountFactory.createAccount(name, description, source, destination);
   logger.info(`Collateral asset address: ${collateralAddress}`);
 
-  const collateralAccount = new AssetCollateralAccount(signer, collateralAddress, logger);
+  const collateralAccount = new AssetCollateralAccount(signer, collateralAddress);
 
   logger.info(`Setting allowable collateral for ${collateralAddress}...`);
   await collateralAccount.setAllowableCollateral(tokenAddresses);
