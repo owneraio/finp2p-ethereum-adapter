@@ -6,6 +6,16 @@ import FINP2P_COLLATERAL_ASSET_FACTORY
 import winston from "winston";
 
 
+
+export enum AssetStandard {
+  NETWORK, //ETHER,
+  FUNGIBLE, //ERC20,
+  NON_FUNGIBLE, //ERC721,
+  PART_FUNGIBLE, //ERC1155,
+  ITEM, //Composer non-fungible item
+  OTHER
+}
+
 export enum PriceType {
   DEFAULT,
   MARKET,
