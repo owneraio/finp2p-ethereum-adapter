@@ -5,7 +5,10 @@ import FINP2P_COLLATERAL_ASSET_FACTORY
   from "../../artifacts/contracts/token/collateral/finp2p/IFinP2PCollateralBasketFactory.sol/IFinP2PCollateralBasketFactory.json";
 import winston from "winston";
 
-
+export enum CollateralType {
+  CCP_MARGIN,
+  REPO
+}
 
 export enum AssetStandard {
   NETWORK, //ETHER,

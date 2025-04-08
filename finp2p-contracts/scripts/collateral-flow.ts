@@ -25,7 +25,7 @@ import {
   AssetStruct,
   LiabilityDataStruct
 } from "../typechain-types/contracts/token/collateral/IAssetCollateralAccount";
-import { AssetStandard, PriceType } from "../src/contracts/collateral";
+import { AssetStandard, CollateralType, PriceType } from "../src/contracts/collateral";
 
 const logger = winston.createLogger({
   level: "info", transports: [new transports.Console()], format: format.json()
@@ -45,11 +45,13 @@ class AccountFactory {
     name: string,
     description: string,
     source: string,
-    destination: string
+    destination: string,
+    assetContextList: AddressLike[] = [],
+    amountList: number[] = []
   ) {
     const strategyId = keccak256(toUtf8Bytes("Asset-Collateral-Account-Strategy"));
     const decimals = 18;
-    const collateralType = 1; // REPO
+    const collateralType = CollateralType.REPO;
 
     const liabilityFactor = await this.contract.getLiabilityFactory();
     const controller = await this.contract.controller();
@@ -59,17 +61,20 @@ class AccountFactory {
       [decimals, collateralType, 0, 0]
     );
 
+    const addressList = [
+      source, destination, liabilityFactor
+    ];
     const strategyInput = {
-      assetContextList: [ZeroAddress],
-      addressList: [
-        source, destination, liabilityFactor
-      ],
-      amountList: [],
+      assetContextList,
+      addressList,
+      amountList,
       effectiveTimeList: [],
       liabilityDataList: []
     };
 
-    const txResp = await this.contract.createAccount(name, description, strategyId, controller, initParams, strategyInput);
+    const txResp = await this.contract.createAccount(
+      name, description, strategyId, controller, initParams, strategyInput
+    );
     if (!txResp) {
       throw new Error("Failed to create repo agreement");
     }
@@ -163,7 +168,8 @@ class AssetCollateralAccount {
     haircutContext: AddressLike,
     priceService: AddressLike,
     pricedInToken: AddressLike,
-    liabilityAmount: number
+    liabilityAmount: number,
+    assetContextList: AddressLike[] = []
   ) {
     const targetRatio = parseUnits("12", 17);
     const defaultRatio = parseUnits("12", 17);
@@ -176,7 +182,6 @@ class AssetCollateralAccount {
       pricedInToken,
       effectiveTime: 1000 * 60 * 60 * 24
     };
-    const assetContextList: AddressLike[] = [];
     const rsp = await this.contract.setConfigurationBundle(
       targetRatio, defaultRatio, targetRatioLimit, defaultRatioLimit, priceType,
       haircutContext, priceService, pricedInToken, liabilityData, assetContextList
@@ -211,7 +216,7 @@ const collateralFlow = async (
 
   const accountFactory = new AccountFactory(signer, factoryAddress);
   const assetPriceContext = new AssetPriceContext(signer, priceServiceAddress);
-  const haircutContext = new HaircutContext(signer, haircutContextAddress,);
+  const haircutContext = new HaircutContext(signer, haircutContextAddress);
 
   const rate = parseUnits("1", 18); // = 1 ether
   for (const tokenAddress of tokenAddresses) {
@@ -231,18 +236,22 @@ const collateralFlow = async (
   const description = "Description of Asset Collateral Account";
 
   logger.info(`Creating collateral asset '${name}'...`);
-  const collateralAddress = await accountFactory.createAccount(name, description, source, destination);
+  const collateralAddress = await accountFactory.createAccount(
+    name, description, source, destination/*, tokenAddresses, amounts*/)
+  ;
   logger.info(`Collateral asset address: ${collateralAddress}`);
 
   const collateralAccount = new AssetCollateralAccount(signer, collateralAddress);
 
-  logger.info(`Setting allowable collateral for ${collateralAddress}...`);
-  await collateralAccount.setAllowableCollateral(tokenAddresses);
+  // logger.info(`Setting allowable collateral for ${collateralAddress}...`);
+  // await collateralAccount.setAllowableCollateral(tokenAddresses);
 
-  const liabilityAmount = 100;
+  const liabilityAmount = 1;
 
   logger.info(`Setting configuration bundle for ${collateralAddress}...`);
-  await collateralAccount.setConfigurationBundle(haircutContextAddress, priceServiceAddress, pricedInToken, liabilityAmount);
+  await collateralAccount.setConfigurationBundle(
+    haircutContextAddress, priceServiceAddress, pricedInToken, liabilityAmount
+  );
   for (let i = 0; i < tokenAddresses.length; i++) {
     const tokenAddress = tokenAddresses[i];
     const amount = amounts[i];
