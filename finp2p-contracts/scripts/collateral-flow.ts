@@ -1,7 +1,6 @@
 import process from "process";
 import { createProviderAndSigner } from "../src/contracts/config";
 import winston, { format, transports } from "winston";
-import console from "console";
 import {
   AbiCoder,
   AddressLike,
@@ -10,7 +9,6 @@ import {
   keccak256, parseUnits,
   Signer,
   toUtf8Bytes,
-  Wallet,
   ZeroAddress
 } from "ethers";
 import { IAccountFactory, IAssetCollateralAccount, IAssetPriceContext, IAssetHaircutContext } from "../typechain-types";
@@ -34,140 +32,171 @@ const logger = winston.createLogger({
 });
 
 
-const createAccount = async (
-  accountFactoryAddress: string,
-  name: string,
-  description: string,
-  source: string,
-  destination: string,
-  signer: Signer
-) => {
-  const factory = new ContractFactory<any[], IAccountFactory>(
-    ACCOUNT_FACTORY.abi, ACCOUNT_FACTORY.bytecode, signer
-  );
-  const accountFactory = factory.attach(accountFactoryAddress) as IAccountFactory;
+class AccountFactory {
+  contract: IAccountFactory;
 
-  const strategyId = keccak256(toUtf8Bytes("Asset-Collateral-Account-Strategy"));
-  const decimals = 18;
-  const collateralType = 1; // REPO
+  constructor(signer: Signer, contractAddress: string, logger: winston.Logger) {
+    this.contract = new ContractFactory<any[], IAccountFactory>(
+      ACCOUNT_FACTORY.abi, ACCOUNT_FACTORY.bytecode, signer
+    ).attach(contractAddress) as IAccountFactory;
+  }
 
-  const liabilityFactor = await accountFactory.getLiabilityFactory();
-  const controller = await accountFactory.controller();
+  async createAccount(
+    name: string,
+    description: string,
+    source: string,
+    destination: string
+  ) {
+    const strategyId = keccak256(toUtf8Bytes("Asset-Collateral-Account-Strategy"));
+    const decimals = 18;
+    const collateralType = 1; // REPO
 
-  const initParams = new AbiCoder().encode(
-    ["uint8", "uint8", "uint8", "uint8"],
-    [decimals, collateralType, 0, 0]
-  );
+    const liabilityFactor = await this.contract.getLiabilityFactory();
+    const controller = await this.contract.controller();
 
-  const strategyInput = {
-    assetContextList: [ZeroAddress],
-    addressList: [
-      source, destination, liabilityFactor
-    ],
-    amountList: [],
-    effectiveTimeList: [],
-    liabilityDataList: []
+    const initParams = new AbiCoder().encode(
+      ["uint8", "uint8", "uint8", "uint8"],
+      [decimals, collateralType, 0, 0]
+    );
+
+    const strategyInput = {
+      assetContextList: [ZeroAddress],
+      addressList: [
+        source, destination, liabilityFactor
+      ],
+      amountList: [],
+      effectiveTimeList: [],
+      liabilityDataList: []
+    };
+
+    const txResp = await this.contract.createAccount(name, description, strategyId, controller, initParams, strategyInput);
+    if (!txResp) {
+      throw new Error("Failed to create repo agreement");
+    }
+    const receipt = await txResp.wait();
+    if (!receipt) {
+      throw new Error("Failed to get transaction receipt");
+    }
+    const { address: collateralAddress } = parseCreateAccount(receipt, this.contract.interface);
+
+    return collateralAddress;
   };
 
-  const txResp = await accountFactory.createAccount(name, description, strategyId, controller, initParams, strategyInput);
-  if (!txResp) {
-    throw new Error("Failed to create repo agreement");
+}
+
+class AssetPriceContext {
+  contract: IAssetPriceContext;
+
+  constructor(signer: Signer, contractAddress: string, logger: winston.Logger) {
+    this.contract = new ContractFactory<any[], IAssetPriceContext>(
+      ASSET_PRICE_CONTEXT.abi, ASSET_PRICE_CONTEXT.bytecode, signer
+    ).attach(contractAddress) as IAssetPriceContext;
   }
-  const receipt = await txResp.wait();
-  if (!receipt) {
-    throw new Error("Failed to get transaction receipt");
+
+  async setAssetRate(
+    tokenAddress: AddressLike,
+    pricedIn: AddressLike,
+    rate: BigNumberish
+  ) {
+    const asset: AssetStruct = { standard: AssetStandard.FUNGIBLE, addr: tokenAddress, tokenId: 0 };
+    const txResp = await this.contract.setAssetRate(asset, pricedIn, rate);
+    if (!txResp) {
+      throw new Error("Failed to set asset rate");
+    }
+    const receipt = await txResp.wait();
+    if (!receipt) {
+      throw new Error("Failed to get transaction receipt");
+    }
   }
-  const { address: collateralAddress, id: collateralId } = parseCreateAccount(receipt, accountFactory.interface);
 
-  console.log("Collateral address: ", collateralAddress);
-  console.log("Collateral id: ", collateralId);
-  return collateralAddress;
-};
+  async getAssetRate(
+    tokenAddress: AddressLike,
+    pricedIn: AddressLike
+  ) {
+    const asset: AssetStruct = { standard: AssetStandard.FUNGIBLE, addr: tokenAddress, tokenId: 0 };
+    return await this.contract.getAssetRate(asset, pricedIn);
+  }
+}
 
-const setAssetRate = async (contractAddress: string, tokenAddress: AddressLike, pricedIn: AddressLike, rate: BigNumberish, signer: Signer) => {
-  const factory = new ContractFactory<any[], IAssetPriceContext>(
-    ASSET_PRICE_CONTEXT.abi, ASSET_PRICE_CONTEXT.bytecode, signer
-  );
-  const contract = factory.attach(contractAddress) as IAssetPriceContext;
+class HaircutContext {
+  contract: IAssetHaircutContext;
 
-  const asset: AssetStruct = { standard: AssetStandard.FUNGIBLE, addr: tokenAddress, tokenId: 0 };
-  await contract.setAssetRate(asset, pricedIn, rate);
-};
+  constructor(signer: Signer, contractAddress: string, logger: winston.Logger) {
+    this.contract = new ContractFactory<any[], IAssetHaircutContext>(
+      ASSET_HAIRCUT_CONTEXT.abi, ASSET_HAIRCUT_CONTEXT.bytecode, signer
+    ).attach(contractAddress) as IAssetHaircutContext;
+  }
 
-const getAssetRate = async (contractAddress: string, tokenAddress: AddressLike, pricedIn: AddressLike, signer: Signer) => {
-  const factory = new ContractFactory<any[], IAssetPriceContext>(
-    ASSET_PRICE_CONTEXT.abi, ASSET_PRICE_CONTEXT.bytecode, signer
-  );
-  const contract = factory.attach(contractAddress) as IAssetPriceContext;
-
-  const asset: AssetStruct = { standard: AssetStandard.FUNGIBLE, addr: tokenAddress, tokenId: 0 };
-  return await contract.getAssetRate(asset, pricedIn);
-};
-
-const setAssetHaircut = async (contractAddress: string, tokenAddress: AddressLike, haircut: BigNumberish, signer: Signer) => {
-  const factory = new ContractFactory<any[], IAssetHaircutContext>(
-    ASSET_HAIRCUT_CONTEXT.abi, ASSET_HAIRCUT_CONTEXT.bytecode, signer
-  );
-  const contract = factory.attach(contractAddress) as IAssetHaircutContext;
-  const asset: AssetStruct = { standard: AssetStandard.FUNGIBLE, addr: tokenAddress, tokenId: 0 };
-  await contract.setAssetHaircut(asset, haircut);
-};
+  async setAssetHaircut(
+    tokenAddress: AddressLike,
+    haircut: BigNumberish
+  ) {
+    const asset: AssetStruct = { standard: AssetStandard.FUNGIBLE, addr: tokenAddress, tokenId: 0 };
+    const txResp = await this.contract.setAssetHaircut(asset, haircut);
+    if (!txResp) {
+      throw new Error("Failed to set asset haircut");
+    }
+    const receipt = await txResp.wait();
+    if (!receipt) {
+      throw new Error("Failed to get transaction receipt");
+    }
+  }
+}
 
 
-const setAllowableCollateral = async (contractAddress: string, assetList: AddressLike[], signer: Signer) => {
-  const factory = new ContractFactory<any[], IAssetCollateralAccount>(
-    ASSET_COLLATERAL_CONTRACT.abi, ASSET_COLLATERAL_CONTRACT.bytecode, signer
-  );
-  const contract = factory.attach(contractAddress) as IAssetCollateralAccount;
-  const rsp = await contract.setAllowableCollateral(assetList);
-  await rsp.wait();
-};
+class AssetCollateralAccount {
+  contract: IAssetCollateralAccount;
 
-const setConfigurationBundle = async (
-  contractAddress: string,
-  haircutContext: AddressLike,
-  priceService: AddressLike,
-  pricedInToken: AddressLike,
-  liabilityAmount: number,
-  signer: Signer
-) => {
-  const factory = new ContractFactory<any[], IAssetCollateralAccount>(
-    ASSET_COLLATERAL_CONTRACT.abi, ASSET_COLLATERAL_CONTRACT.bytecode, signer
-  );
-  const contract = factory.attach(contractAddress) as IAssetCollateralAccount;
-  const targetRatio = parseUnits("12", 17);
-  const defaultRatio = parseUnits("12", 17);
-  const targetRatioLimit = 2;
-  const defaultRatioLimit = 2;
-  const priceType = PriceType.DEFAULT;
-  const liabilityData: LiabilityDataStruct = {
-    liabilityAddress: ZeroAddress,
-    amount: liabilityAmount,
-    pricedInToken,
-    effectiveTime: 1000 * 60 * 60 * 24
+  constructor(signer: Signer, contractAddress: string, logger: winston.Logger) {
+    this.contract = new ContractFactory<any[], IAssetCollateralAccount>(
+      ASSET_COLLATERAL_CONTRACT.abi, ASSET_COLLATERAL_CONTRACT.bytecode, signer
+    ).attach(contractAddress) as IAssetCollateralAccount;
+  }
+
+
+  async setAllowableCollateral(assetList: AddressLike[]) {
+    const rsp = await this.contract.setAllowableCollateral(assetList);
+    await rsp.wait();
   };
-  const assetContextList: AddressLike[] = [];
-  const rsp = await contract.setConfigurationBundle(
-    targetRatio, defaultRatio, targetRatioLimit, defaultRatioLimit, priceType,
-    haircutContext, priceService, pricedInToken, liabilityData, assetContextList
-  );
-  await rsp.wait();
-};
+
+  async setConfigurationBundle(
+    haircutContext: AddressLike,
+    priceService: AddressLike,
+    pricedInToken: AddressLike,
+    liabilityAmount: number
+  ) {
+    const targetRatio = parseUnits("12", 17);
+    const defaultRatio = parseUnits("12", 17);
+    const targetRatioLimit = 2;
+    const defaultRatioLimit = 2;
+    const priceType = PriceType.DEFAULT;
+    const liabilityData: LiabilityDataStruct = {
+      liabilityAddress: ZeroAddress,
+      amount: liabilityAmount,
+      pricedInToken,
+      effectiveTime: 1000 * 60 * 60 * 24
+    };
+    const assetContextList: AddressLike[] = [];
+    const rsp = await this.contract.setConfigurationBundle(
+      targetRatio, defaultRatio, targetRatioLimit, defaultRatioLimit, priceType,
+      haircutContext, priceService, pricedInToken, liabilityData, assetContextList
+    );
+    await rsp.wait();
+  };
 
 
-const deposit = async (contractAddress: string, asset: AssetStruct, amount: BigNumberish, signer: Signer) => {
-  const factory = new ContractFactory<any[], IAssetCollateralAccount>(
-    ASSET_COLLATERAL_CONTRACT.abi, ASSET_COLLATERAL_CONTRACT.bytecode, signer
-  );
-  const contract = factory.attach(contractAddress) as IAssetCollateralAccount;
-  const rsp = await contract.deposit(asset, amount);
-  await rsp.wait();
-};
+  async deposit(tokenAddress: AddressLike, amount: BigNumberish) {
+    const asset: AssetStruct = { standard: AssetStandard.FUNGIBLE, addr: tokenAddress, tokenId: 0 };
+    const rsp = await this.contract.deposit(asset, amount);
+    await rsp.wait();
+  };
+}
+
 
 const collateralFlow = async (
   factoryAddress: string,
-  haircutContext: string,
-  priceService: string,
+  haircutContextAddress: string,
+  priceServiceAddress: string,
   pricedInToken: string,
   tokenAddresses: string[],
   amounts: number[],
@@ -180,31 +209,46 @@ const collateralFlow = async (
   const chainId = network.chainId;
   logger.info(`Network chainId: ${chainId}`);
 
+  const accountFactory = new AccountFactory(signer, factoryAddress, logger);
+  const assetPriceContext = new AssetPriceContext(signer, priceServiceAddress, logger);
+  const haircutContext = new HaircutContext(signer, haircutContextAddress, logger);
+
   const rate = parseUnits("1", 18); // = 1 ether
   for (const tokenAddress of tokenAddresses) {
-    await setAssetRate(priceService, tokenAddress, pricedInToken, rate, signer);
+    logger.info(`Setting asset rate for ${tokenAddress}...`);
+    await assetPriceContext.setAssetRate(tokenAddress, pricedInToken, rate);
   }
 
   const haircut = 10_000; // Meaning 1% of haircut as we have Haircut Decimals = 4
   for (const tokenAddress of tokenAddresses) {
-    await setAssetHaircut(haircutContext, tokenAddress, haircut, signer);
+    logger.info(`Setting asset haircut for ${tokenAddress}...`);
+    await haircutContext.setAssetHaircut(tokenAddress, haircut);
   }
 
-  // -------
+  // ------------------------------------------------------------------------
 
   const name = "Asset Collateral Account";
   const description = "Description of Asset Collateral Account";
 
-  const collateralAddress = await createAccount(factoryAddress, name, description, source, destination, signer);
+  logger.info(`Creating collateral asset ${name}...`);
+  const collateralAddress = await accountFactory.createAccount(name, description, source, destination);
+  logger.info(`Collateral asset address: ${collateralAddress}`);
 
-  await setAllowableCollateral(collateralAddress, tokenAddresses, signer);
+  const collateralAccount = new AssetCollateralAccount(signer, collateralAddress, logger);
+
+  logger.info(`Setting allowable collateral for ${collateralAddress}...`);
+  await collateralAccount.setAllowableCollateral(tokenAddresses);
 
   const liabilityAmount = 100;
-  await setConfigurationBundle(collateralAddress, haircutContext, priceService, pricedInToken, liabilityAmount, signer);
+
+  logger.info(`Setting configuration bundle for ${collateralAddress}...`);
+  await collateralAccount.setConfigurationBundle(haircutContextAddress, priceServiceAddress, pricedInToken, liabilityAmount);
   for (let i = 0; i < tokenAddresses.length; i++) {
     const tokenAddress = tokenAddresses[i];
     const amount = amounts[i];
-    await deposit(collateralAddress, { standard: 1, addr: tokenAddress, tokenId: 0 }, amount, signer);
+
+    logger.info(`Setting configuration bundle for ${collateralAddress}...`);
+    await collateralAccount.deposit(tokenAddress, amount);
   }
 
 };
@@ -254,5 +298,5 @@ if (!destination) {
 collateralFlow(factoryAddress, haircutContext, priceService, pricedInToken, tokenAddresses, amounts, source, destination)
   .then(() => {
   }).catch(e => {
-  console.error(e);
+  logger.error(e);
 });
