@@ -26,8 +26,8 @@ interface IAssetCollateralAccount {
     function setConfigurationBundle(
         int256 targetRatio,
         int256 defaultRatio,
-        int256 targetRatioLimit,
-        int256 defaultRatioLimit,
+        uint256 targetRatioLimit,
+        uint256 defaultRatioLimit,
         uint256 priceType,
         address haircutContext,
         address priceService,

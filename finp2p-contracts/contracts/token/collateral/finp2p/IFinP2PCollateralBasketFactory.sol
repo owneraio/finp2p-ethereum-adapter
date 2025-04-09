@@ -34,7 +34,7 @@ interface IFinP2PCollateralBasketFactory {
         address haircutContext;
         address priceService;
         address pricedInToken;
-        uint256 liabilityAmount;
+        int256 liabilityAmount;
 //        address liabilityAddress;
         address[] assetContextList;
     }

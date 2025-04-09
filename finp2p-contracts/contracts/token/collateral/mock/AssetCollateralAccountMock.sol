@@ -18,9 +18,9 @@ contract AssetCollateralAccountMock is IAssetCollateralAccount {
     uint256 private amountKept;
 
     int256 private targetRatio;
-    int256 private targetRatioLimit;
+    uint256 private targetRatioLimit;
     int256 private defaultRatio;
-    int256 private defaultRatioLimit;
+    uint256 private defaultRatioLimit;
     uint256 private priceType;
     address private haircutContext;
     address private priceService;
@@ -68,8 +68,8 @@ contract AssetCollateralAccountMock is IAssetCollateralAccount {
     function setConfigurationBundle(
         int256 _targetRatio,
         int256 _defaultRatio,
-        int256 _targetRatioLimit,
-        int256 _defaultRatioLimit,
+        uint256 _targetRatioLimit,
+        uint256 _defaultRatioLimit,
         uint256 _priceType,
         address _haircutContext,
         address _priceService,

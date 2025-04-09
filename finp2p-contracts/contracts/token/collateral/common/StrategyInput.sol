@@ -11,7 +11,7 @@ struct StrategyInput {
 
 struct LiabilityData {
     address liabilityAddress;
-    uint256 amount;
+    int256 amount;
     address pricedInToken;
     uint256 effectiveTime;
 }
