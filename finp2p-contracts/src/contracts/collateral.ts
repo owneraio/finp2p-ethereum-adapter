@@ -45,7 +45,7 @@ export interface CollateralAssetParams {
 
 export class FinP2PCollateralAssetFactoryContract extends ContractsManager {
 
-  collateralAssetFactory: IFinP2PCollateralBasketFactory;
+  contract: IFinP2PCollateralBasketFactory;
 
   constructor(provider: Provider, signer: Signer, contractAddress: string, logger: winston.Logger) {
     super(provider, signer, logger);
@@ -53,14 +53,22 @@ export class FinP2PCollateralAssetFactoryContract extends ContractsManager {
       FINP2P_COLLATERAL_ASSET_FACTORY.abi, FINP2P_COLLATERAL_ASSET_FACTORY.bytecode, this.signer
     );
     const contract = factory.attach(contractAddress);
-    this.collateralAssetFactory = contract as IFinP2PCollateralBasketFactory;
+    this.contract = contract as IFinP2PCollateralBasketFactory;
   }
 
   async createCollateralAsset(name: string, description: string, basketId: string,
                               tokenAddresses: string[], quantities: string[],
                               source: string, destination: string, params: CollateralAssetParams) {
-    return await this.collateralAssetFactory.createCollateralAsset(
+    return await this.contract.createCollateralAsset(
       name, description, basketId, tokenAddresses, quantities, source, destination, params);
+  }
+
+  async getBasketAccount(basketId: string) {
+    return await this.contract.getBasketAccount(basketId);
+  }
+
+  async getBasketState(basketId: string) {
+    return await this.contract.getBasketState(basketId);
   }
 
 }

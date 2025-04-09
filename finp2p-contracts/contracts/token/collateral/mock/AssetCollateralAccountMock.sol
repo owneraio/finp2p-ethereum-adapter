@@ -12,7 +12,7 @@ contract AssetCollateralAccountMock is IAssetCollateralAccount {
 
     CollateralType private collateralType;
     uint8 private decimals;
-    address private source;
+    address private _source;
     address private destination;
     address private liabilityOwner;
     uint256 private amountKept;
@@ -43,7 +43,7 @@ contract AssetCollateralAccountMock is IAssetCollateralAccount {
     ) {
         collateralType = _collateralType;
         decimals = _decimals;
-        source = _source;
+        _source = _source;
         destination = _destination;
         liabilityOwner = address(this);
         amountKept = 0;
@@ -99,7 +99,7 @@ contract AssetCollateralAccountMock is IAssetCollateralAccount {
 //        uint256 valueAfterHaircut = baseValue * (100 - haircut) / 100;
 
 
-        IERC20(_asset.addr).transferFrom(source, liabilityOwner, _amount);
+        IERC20(_asset.addr).transferFrom(_source, liabilityOwner, _amount);
         locks.push(Lock(_asset.addr, _amount));
 
 //        amountKept += valueAfterHaircut;
@@ -109,7 +109,7 @@ contract AssetCollateralAccountMock is IAssetCollateralAccount {
     function release() external {
         for (uint i = 0; i < locks.length; i++) {
             require(locks[i].amount > 0, "Lock is not active");
-            IERC20(locks[i].tokenAddress).transferFrom(liabilityOwner, source, locks[i].amount);
+            IERC20(locks[i].tokenAddress).transferFrom(liabilityOwner, _source, locks[i].amount);
             locks[i].amount = 0;
         }
     }
@@ -126,7 +126,7 @@ contract AssetCollateralAccountMock is IAssetCollateralAccount {
     function partialRelease(Asset[] calldata _assets, uint256[] calldata _amounts) external {
         for (uint i = 0; i < _assets.length; i++) {
             require(locks[i].amount > _amounts[i], "Amount exceeds lock");
-            IERC20(_assets[i].addr).transferFrom(liabilityOwner, source, _amounts[i]);
+            IERC20(_assets[i].addr).transferFrom(liabilityOwner, _source, _amounts[i]);
             locks[i].amount -= _amounts[i];
         }
     }
@@ -139,6 +139,13 @@ contract AssetCollateralAccountMock is IAssetCollateralAccount {
         }
     }
 
+    function getHaircutContext() external view returns (address) {
+        return haircutContext;
+    }
+
+    function source() external view returns (address) {
+        return _source;
+    }
 }
 
 

@@ -26,11 +26,6 @@ contract FinP2PCollateralBasket is IFinP2PCollateralBasketManager, IFinP2PCollat
     bytes32 private constant BASKET_FACTORY = keccak256("BASKET_FACTORY");
     bytes32 private constant BASKET_MANAGER = keccak256("BASKET_MANAGER");
 
-    enum CollateralBasketState {
-        CREATED,
-        DEPOSITED,
-        RELEASED
-    }
 
     struct CollateralBasket {
         address collateralAccount;
@@ -66,6 +61,14 @@ contract FinP2PCollateralBasket is IFinP2PCollateralBasketManager, IFinP2PCollat
 
     function setAccountFactoryAddress(address _accountFactoryAddress) external {
         accountFactoryAddress = _accountFactoryAddress;
+    }
+
+    function getBasketAccount(string memory basketId) external view returns (address) {
+        return baskets[basketId].collateralAccount;
+    }
+
+    function getBasketState(string memory basketId) external view returns (CollateralBasketState) {
+        return baskets[basketId].state;
     }
 
     function createCollateralAsset(

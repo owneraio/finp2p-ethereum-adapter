@@ -7,6 +7,12 @@ import {PriceType} from "../price/AssetPriceStructs.sol";
 
 interface IFinP2PCollateralBasketFactory {
 
+    enum CollateralBasketState {
+        CREATED,
+        DEPOSITED,
+        RELEASED
+    }
+
     /// @notice Collateral Account parameters
     /// @param targetRatio Defines the desired collateralization ratio (in basis points)
     /// @param defaultRatio Defines the minimum collateralization ratio (in basis points) below which a Collateral Agreement is considered in "Default"
@@ -43,5 +49,9 @@ interface IFinP2PCollateralBasketFactory {
         string memory destinationFinId,
         CollateralAssetParameters memory config
     ) external;
+
+    function getBasketAccount(string memory basketId) external view returns (address);
+
+    function getBasketState(string memory basketId) external view returns (CollateralBasketState);
 
 }

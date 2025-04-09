@@ -52,7 +52,8 @@ export class PaymentsService extends CommonService {
     const priceService = details["priceService"] as string;
     const paymentAssetId = details["paymentAssetId"] as string; // asset twin address
     const liabilityAmount = details["liabilityAmount"] as number; //  = REPO OPEN AMOUNT
-    const pricedInToken = await this.policyGetter.getAssetToken(paymentAssetId);
+    // const pricedInToken = await this.policyGetter.getAssetToken(paymentAssetId);
+    const pricedInToken = paymentAssetId;
 
     await this.collateralAssetFactoryContract.createCollateralAsset(
       basketId, agreementName, agreementDescription, tokenAddresses, quantities, borrower, lender, {
@@ -68,10 +69,9 @@ export class PaymentsService extends CommonService {
     const issuerId = borrowerId;
     const tokenId = basketId;
     const intentTypes: IntentType[] = ["loanIntent"];
-    const config = JSON.stringify({});
     const metadata = { tokenType: "COLLATERAL" };
     const res = await this.finApiClient.createAsset(
-      assetName, assetType, issuerId, tokenId, intentTypes, config, metadata);
+      assetName, assetType, issuerId, tokenId, intentTypes, metadata);
     logger.info(`Collateral asset creation result: ${res}`);
     const { id: collateralAssetId } = res as FinAPIComponents.Schemas.ResourceIdResponse;
 

@@ -12,11 +12,10 @@ export class FinAPIClient {
     this.authTokenResolver = authTokenResolver;
   }
 
-  async createAsset(name: string, type: string, issuerId: string, tokenId: string, intentTypes: IntentType[], config: string, metadata: any) {
+  async createAsset(name: string, type: string, issuerId: string, tokenId: string, intentTypes: IntentType[], metadata: any) {
     return await this.post<CreateAssetProfile.RequestBody, FinAPIComponents.Schemas.ResourceIdResponse | FinAPIComponents.Schemas.OperationBase | FinAPIComponents.Schemas.ApiAnyError>(
       `/profiles/asset`, {
         metadata,
-        config,
         intentTypes,
         name,
         type,

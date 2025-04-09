@@ -51,4 +51,18 @@ interface IAssetCollateralAccount {
     function partialForward(Asset[] calldata _assets, uint256[] calldata _amounts) external;
 
     function partialRelease(Asset[] calldata _assets, uint256[] calldata _amounts) external;
+
+    function getHaircutContext() external view returns (address);
+
+    function source() external view returns (address);
+
+//    function getLiabilityItem() external view returns (address);
+//
+//    function getPriceContext() external view returns (address);
+//
+////    function getStatus() external view returns (Status);
+//
+//    function getStartDate() external view returns (uint256);
+//
+//    function getEndDate() external view returns (uint256);
 }

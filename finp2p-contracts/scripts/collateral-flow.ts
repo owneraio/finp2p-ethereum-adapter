@@ -8,7 +8,7 @@ import {
   ContractFactory,
   keccak256, parseUnits,
   Signer,
-  toUtf8Bytes,
+  toUtf8Bytes, uuidV4,
   ZeroAddress
 } from "ethers";
 import { IAccountFactory, IAssetCollateralAccount, IAssetPriceContext, IAssetHaircutContext } from "../typechain-types";
@@ -16,7 +16,7 @@ import ACCOUNT_FACTORY
   from "../artifacts/contracts/token/collateral/IAccountFactory.sol/IAccountFactory.json";
 import ASSET_COLLATERAL_CONTRACT
   from "../artifacts/contracts/token/collateral/IAssetCollateralAccount.sol/IAssetCollateralAccount.json";
-import { parseCreateAccount } from "../src/contracts/utils";
+import { createAccount, parseCreateAccount, privateKeyToFinId } from "../src/contracts/utils";
 import ASSET_PRICE_CONTEXT
   from "../artifacts/contracts/token/collateral/price/IAssetPriceContext.sol/IAssetPriceContext.json";
 import ASSET_HAIRCUT_CONTEXT
@@ -25,7 +25,15 @@ import {
   AssetStruct,
   LiabilityDataStruct
 } from "../typechain-types/contracts/token/collateral/IAssetCollateralAccount";
-import { AssetStandard, CollateralType, PriceType } from "../src/contracts/collateral";
+import {
+  AssetStandard,
+  CollateralType,
+  FinP2PCollateralAssetFactoryContract,
+  PriceType
+} from "../src/contracts/collateral";
+import console from "console";
+import { ContractsManager } from "../src/contracts/manager";
+import { v4 as uuid } from "uuid";
 
 const logger = winston.createLogger({
   level: "info", transports: [new transports.Console()], format: format.json()
@@ -158,6 +166,14 @@ class AssetCollateralAccount {
     ).attach(contractAddress) as IAssetCollateralAccount;
   }
 
+  async getHaircutContext() {
+    return await this.contract.getHaircutContext();
+  };
+
+  async source() {
+    return await this.contract.source();
+  };
+
 
   async setAllowableCollateral(assetList: AddressLike[]) {
     const rsp = await this.contract.setAllowableCollateral(assetList);
@@ -168,25 +184,29 @@ class AssetCollateralAccount {
     haircutContext: AddressLike,
     priceService: AddressLike,
     pricedInToken: AddressLike,
-    liabilityAmount: number,
+    liabilityAmount: BigNumberish,
     assetContextList: AddressLike[] = []
   ) {
     const targetRatio = parseUnits("12", 17);
     const defaultRatio = parseUnits("12", 17);
     const targetRatioLimit = 2;
     const defaultRatioLimit = 2;
-    const priceType = PriceType.DEFAULT;
+    const priceType = 0                           //PriceType.DEFAULT;
     const liabilityData: LiabilityDataStruct = {
       liabilityAddress: ZeroAddress,
       amount: liabilityAmount,
       pricedInToken,
-      effectiveTime: 1000 * 60 * 60 * 24
+      effectiveTime: 0
     };
-    const rsp = await this.contract.setConfigurationBundle(
-      targetRatio, defaultRatio, targetRatioLimit, defaultRatioLimit, priceType,
-      haircutContext, priceService, pricedInToken, liabilityData, assetContextList
-    );
-    await rsp.wait();
+    try {
+      const rsp = await this.contract.setConfigurationBundle(
+        targetRatio, defaultRatio, targetRatioLimit, defaultRatioLimit, priceType,
+        haircutContext, priceService, pricedInToken, liabilityData, assetContextList
+      );
+      await rsp.wait();
+    } catch (e) {
+      console.log(e)
+    }
   };
 
 
@@ -195,6 +215,10 @@ class AssetCollateralAccount {
     const rsp = await this.contract.deposit(asset, amount);
     await rsp.wait();
   };
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 
@@ -214,51 +238,88 @@ const collateralFlow = async (
   const chainId = network.chainId;
   logger.info(`Network chainId: ${chainId}`);
 
-  const accountFactory = new AccountFactory(signer, factoryAddress);
-  const assetPriceContext = new AssetPriceContext(signer, priceServiceAddress);
-  const haircutContext = new HaircutContext(signer, haircutContextAddress);
-
-  const rate = parseUnits("1", 18); // = 1 ether
-  for (const tokenAddress of tokenAddresses) {
-    logger.info(`Setting asset rate for ${tokenAddress}...`);
-    await assetPriceContext.setAssetRate(tokenAddress, pricedInToken, rate);
-  }
-
-  const haircut = 10_000; // Meaning 1% of haircut as we have Haircut Decimals = 4
-  for (const tokenAddress of tokenAddresses) {
-    logger.info(`Setting asset haircut for ${tokenAddress}...`);
-    await haircutContext.setAssetHaircut(tokenAddress, haircut);
-  }
-
-  // ------------------------------------------------------------------------
-
   const name = "Asset Collateral Account";
   const description = "Description of Asset Collateral Account";
 
-  logger.info(`Creating collateral asset '${name}'...`);
-  const collateralAddress = await accountFactory.createAccount(
-    name, description, source, destination/*, tokenAddresses, amounts*/)
-  ;
-  logger.info(`Collateral asset address: ${collateralAddress}`);
+  const manager = new ContractsManager(provider, signer, logger);
+  const { address: finP2PCollateralAddress, contract: basket } = await manager.deployFinP2PCollateralBasket()
+  const afar = await basket.setAccountFactoryAddress(factoryAddress);
+  await afar.wait()
 
-  const collateralAccount = new AssetCollateralAccount(signer, collateralAddress);
+  logger.info(`Deployed FinP2P collateral contract: ${finP2PCollateralAddress}`);
+  const collateralContract = new FinP2PCollateralAssetFactoryContract(provider, signer, finP2PCollateralAddress, logger);
+  const basketId = uuid();
+  const quantities: string[] = ["10.00"];
 
-  // logger.info(`Setting allowable collateral for ${collateralAddress}...`);
-  // await collateralAccount.setAllowableCollateral(tokenAddresses);
-
-  const liabilityAmount = 1;
-
-  logger.info(`Setting configuration bundle for ${collateralAddress}...`);
-  await collateralAccount.setConfigurationBundle(
-    haircutContextAddress, priceServiceAddress, pricedInToken, liabilityAmount
+  const sourceAccount = createAccount();
+  const destinationAccount = createAccount();
+  const sourceFinId = privateKeyToFinId(sourceAccount.privateKey);
+  const destinationFinId = privateKeyToFinId(destinationAccount.privateKey);
+  const res = await collateralContract.createCollateralAsset(
+    name, description, basketId, tokenAddresses, quantities, sourceFinId, destinationFinId, {
+      haircutContext: haircutContextAddress,
+      priceService: priceServiceAddress,
+      pricedInToken: pricedInToken,
+      liabilityAmount: 10000000000000,
+      assetContextList: ['0x00BD803dfbEdBbbB138a7e2248B57Fd43cF4b4Ea']
+    }
   );
-  for (let i = 0; i < tokenAddresses.length; i++) {
-    const tokenAddress = tokenAddresses[i];
-    const amount = amounts[i];
+  const r = await res.wait();
+  console.log(r)
+  console.log(`Created basket account: ${await collateralContract.getBasketAccount(basketId)}`)
+  console.log(`Created basket state: ${await collateralContract.getBasketState(basketId)}`)
 
-    logger.info(`Setting configuration bundle for ${collateralAddress}...`);
-    await collateralAccount.deposit(tokenAddress, amount);
-  }
+  //
+  //
+  // const accountFactory = new AccountFactory(signer, factoryAddress);
+  // const assetPriceContext = new AssetPriceContext(signer, priceServiceAddress);
+  // const haircutContext = new HaircutContext(signer, haircutContextAddress);
+  //
+  // const rate = parseUnits("1", 18); // = 1 ether
+  // for (const tokenAddress of tokenAddresses) {
+  //   logger.info(`Setting asset rate for ${tokenAddress}...`);
+  //   await assetPriceContext.setAssetRate(tokenAddress, pricedInToken, rate);
+  // }
+  //
+  // const haircut = 10_000; // Meaning 1% of haircut as we have Haircut Decimals = 4
+  // for (const tokenAddress of tokenAddresses) {
+  //   logger.info(`Setting asset haircut for ${tokenAddress}...`);
+  //   await haircutContext.setAssetHaircut(tokenAddress, haircut);
+  // }
+  //
+  // // ------------------------------------------------------------------------
+  //
+
+  //
+  // logger.info(`Creating collateral asset '${name}'...`);
+  // const collateralAddress = await accountFactory.createAccount(
+  //   name, description, source, destination/*, tokenAddresses, amounts*/)
+  // ;
+  // logger.info(`Collateral asset address: ${collateralAddress}`);
+  //
+  // await sleep(3000);
+  //
+  // const collateralAccount = new AssetCollateralAccount(signer, collateralAddress);
+  // console.log(`source: ${await collateralAccount.source()}`)
+  // console.log(`getHaircutContext: ${await  collateralAccount.getHaircutContext()}`)
+  // // logger.info(`Setting allowable collateral for ${collateralAddress}...`);
+  // // await collateralAccount.setAllowableCollateral(tokenAddresses);
+  //
+  // await new Promise(resolve => setTimeout(resolve, 3000));
+  //
+  // const liabilityAmount = parseUnits("1000", 18);
+  // logger.info(`Setting configuration bundle for ${collateralAddress}...`);
+  // await collateralAccount.setConfigurationBundle(
+  //   haircutContextAddress, priceServiceAddress, pricedInToken,
+  //   liabilityAmount, tokenAddresses
+  // );
+  // // for (let i = 0; i < tokenAddresses.length; i++) {
+  // //   const tokenAddress = tokenAddresses[i];
+  // //   const amount = amounts[i];
+  // //
+  // //   logger.info(`Setting configuration bundle for ${collateralAddress}...`);
+  // //   await collateralAccount.deposit(tokenAddress, amount);
+  // // }
 
 };
 
