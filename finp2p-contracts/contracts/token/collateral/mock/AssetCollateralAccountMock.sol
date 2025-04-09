@@ -25,8 +25,8 @@ contract AssetCollateralAccountMock is IAssetCollateralAccount {
     address private haircutContext;
     address private priceService;
     address private pricedInToken;
-    LiabilityData  private liabilityData;
-    address [] private assetContextList;
+    LiabilityData private liabilityData;
+    address[] private assetContextList;
 
     struct Lock {
         address tokenAddress;
@@ -50,9 +50,9 @@ contract AssetCollateralAccountMock is IAssetCollateralAccount {
     }
 
     function setAllowableCollateral(
-        address[] memory assetList
+        Asset[] memory assetList
     ) external {
-    assetContextList = assetList;
+//        assetContextList = assetList;
     }
 
     function setPricedItemConfiguration(

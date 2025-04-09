@@ -14,7 +14,7 @@ interface IAssetCollateralAccount {
     }
 
     function setAllowableCollateral(
-        address[] memory assetList
+        Asset[] memory assetList
     ) external;
 
     function setPricedItemConfiguration(

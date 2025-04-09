@@ -21,7 +21,7 @@ import {
   IAccountFactory,
   IAssetCollateralAccount,
   IAssetHaircutContext,
-  IAssetPriceContext
+  IAssetPriceContext, IERC20
 } from "../typechain-types";
 import ERC20 from "../artifacts/contracts/token/ERC20/ERC20WithOperator.sol/ERC20WithOperator.json";
 import ACCOUNT_FACTORY from "../artifacts/contracts/token/collateral/IAccountFactory.sol/IAccountFactory.json";
@@ -36,13 +36,9 @@ import {
   AssetStruct,
   LiabilityDataStruct
 } from "../typechain-types/contracts/token/collateral/IAssetCollateralAccount";
-import { AssetStandard, CollateralType } from "../src/contracts/collateral";
+import { AssetStandard, CollateralType, PriceType } from "../src/contracts/collateral";
 import console from "console";
 import { ERC20Contract } from "../src/contracts/erc20";
-import { FinP2PContract } from "../src/contracts/finp2p";
-import { AssetType } from "../src/contracts/model";
-import { v4 as uuid } from "uuid";
-import { ContractsManager } from "../src/contracts/manager";
 
 const logger = winston.createLogger({
   level: "info", transports: [new transports.Console()], format: format.json()
@@ -180,13 +176,13 @@ class AssetCollateralAccount {
     priceService: AddressLike,
     pricedInToken: AddressLike,
     liabilityAmount: BigNumberish,
-    assetContextList: AddressLike[] = []
+    assetContextList: AddressLike[] = [],
+    targetRatio: BigNumberish = parseUnits("1", 18),
+    defaultRatio: BigNumberish = parseUnits("1", 18),
+    targetRatioLimit: BigNumberish = 2,
+    defaultRatioLimit: BigNumberish = 2,
+    priceType: PriceType = PriceType.DEFAULT
   ) {
-    const targetRatio = parseUnits("12", 17);
-    const defaultRatio = parseUnits("12", 17);
-    const targetRatioLimit = 2;
-    const defaultRatioLimit = 2;
-    const priceType = 0;                           //PriceType.DEFAULT;
     const liabilityData: LiabilityDataStruct = {
       liabilityAddress: ZeroAddress,
       amount: liabilityAmount,
@@ -204,6 +200,16 @@ class AssetCollateralAccount {
     }
   };
 
+  async setAllowableCollateral(
+    tokenAddresses: AddressLike[]
+  ) {
+    const standard = AssetStandard.FUNGIBLE;
+    const tokenId = 0;
+    const assetList = tokenAddresses.map(addr =>
+      ({ standard, addr, tokenId } as AssetStruct));
+    await this.contract.setAllowableCollateral(assetList);
+  }
+
 
   async deposit(tokenAddress: AddressLike, amount: BigNumberish) {
     const asset: AssetStruct = { standard: AssetStandard.FUNGIBLE, addr: tokenAddress, tokenId: 0 };
@@ -212,10 +218,21 @@ class AssetCollateralAccount {
   };
 }
 
-
-const deployERC20 = async (provider: Provider, signer: Signer, name: string, symbol: string, decimals: number, finP2PContractAddress: AddressLike) => {
+const getErc20Details = async (signer: Signer, tokenAddress: AddressLike) => {
   const factory = new ContractFactory<any[], ERC20WithOperator>(ERC20.abi, ERC20.bytecode, signer);
-  const contract = await factory.deploy(name, symbol, decimals, finP2PContractAddress);
+  const erc20 = factory.attach(tokenAddress as string) as ERC20WithOperator;
+  const name = await erc20.name();
+  const symbol = await erc20.symbol();
+  const decimals = await erc20.decimals();
+  return {
+    name, symbol, decimals
+  };
+};
+
+const deployERC20 = async (signer: Signer, name: string, symbol: string, decimals: number) => {
+  const factory = new ContractFactory<any[], ERC20WithOperator>(ERC20.abi, ERC20.bytecode, signer);
+  const operatorAddress = await signer.getAddress();
+  const contract = await factory.deploy(name, symbol, decimals, operatorAddress);
   await contract.waitForDeployment();
   return await contract.getAddress();
 };
@@ -225,11 +242,11 @@ const prefundBorrower = async (signer: Signer, borrower: AddressLike, tokenAddre
   for (let i = 0; i < tokenAddresses.length; i++) {
     const tokenAddress = tokenAddresses[i];
     const amount = amounts[i];
-    const erc20 = factory.attach(tokenAddress as string) as ERC20WithOperator
+    const erc20 = factory.attach(tokenAddress as string) as ERC20WithOperator;
     const tokenName = await erc20.name();
     const tokenTicker = await erc20.symbol();
-    logger.info(`Prefund borrower ${borrower} with ${amount} of ${tokenName} (${tokenTicker})...`);
-    const res =  await erc20.mint(borrower, amount);
+    logger.info(`Prefund borrower ${borrower} with ${amount} of ${tokenName} (${tokenTicker}), address: ${tokenAddress}...`);
+    const res = await erc20.mint(borrower, amount);
     await res.wait();
   }
 };
@@ -254,7 +271,7 @@ const collateralFlow = async (
   haircutContextAddress: AddressLike,
   priceServiceAddress: AddressLike,
   pricedInToken: AddressLike,
-  assetContextListAddress: AddressLike,
+  assetContextList: AddressLike[] = [],
   tokenAddresses: AddressLike[] = [],
   amounts: BigNumberish[] = []
 ) => {
@@ -264,14 +281,18 @@ const collateralFlow = async (
   const chainId = network.chainId;
   logger.info(`Network chainId: ${chainId}`);
 
+  const { name: cashERC20Name, symbol: cashERC20Symbol, decimals: cashERC20Decimals } = await getErc20Details(signer, pricedInToken);
+  logger.info(`Cash ERC20 '${cashERC20Name}' (${cashERC20Symbol}), decimals: ${cashERC20Decimals}`);
+
   const borrower = createAccount();
   const lender = createAccount();
 
-  const tokenAddress = await deployERC20(provider, signer, "Test Bond Token", "TBT", 18, await signer.getAddress());
-  tokenAddresses = [tokenAddress];
-  amounts = [10000];
-  await prefundBorrower(signer, borrower.address, tokenAddresses, amounts);
-
+  if (tokenAddresses.length === 0) {
+    const tokenAddress = await deployERC20(signer, "Test Bond Token", "TBT", 18);
+    tokenAddresses = [tokenAddress];
+    amounts = [10000];
+    await prefundBorrower(signer, borrower.address, tokenAddresses, amounts);
+  }
 
   const name = "Asset Collateral Account";
   const description = "Description of Asset Collateral Account";
@@ -309,38 +330,38 @@ const collateralFlow = async (
   // // -------------------------------------------------------------------------
 
 
-  const accountFactory = new AccountFactory(signer, factoryAddress);
+  const collateralAccountFactory = new AccountFactory(signer, factoryAddress);
   const assetPriceContext = new AssetPriceContext(signer, priceServiceAddress);
   const haircutContext = new HaircutContext(signer, haircutContextAddress);
 
   const rate = parseUnits("1", 18); // = 1 ether
   for (const tokenAddress of tokenAddresses) {
-    logger.info(`Setting asset rate for ${tokenAddress}...`);
+    logger.info(`Setting asset rate ${rate} for ${tokenAddress}...`);
     await assetPriceContext.setAssetRate(tokenAddress, pricedInToken, rate);
   }
 
   const haircut = 10_000; // Meaning 1% of haircut as we have Haircut Decimals = 4
   for (const tokenAddress of tokenAddresses) {
-    logger.info(`Setting asset haircut for ${tokenAddress}...`);
+    logger.info(`Setting asset haircut ${haircut} for ${tokenAddress}...`);
     await haircutContext.setAssetHaircut(tokenAddress, haircut);
   }
 
   // ------------------------------------------------------------------------
 
-
-  logger.info(`Creating collateral asset '${name}'...`);
-  const collateralAddress = await accountFactory.createAccount(
-    name, description, borrower.address, lender.address /*, [assetContextListAddress], amounts*/)
-  ;
+  logger.info(`Creating collateral asset account '${name}'...`);
+  const collateralAddress = await collateralAccountFactory.createAccount(
+    name, description, borrower.address, lender.address);
   logger.info(`Collateral asset address: ${collateralAddress}`);
   const collateralAccount = new AssetCollateralAccount(signer, collateralAddress);
 
   const liabilityAmount = parseUnits("1000", 18);
   logger.info(`Setting configuration bundle for ${collateralAddress}...`);
   await collateralAccount.setConfigurationBundle(
-    haircutContextAddress, priceServiceAddress, pricedInToken,
-    liabilityAmount, [assetContextListAddress]
+    haircutContextAddress, priceServiceAddress, pricedInToken, liabilityAmount, assetContextList
   );
+
+  logger.info(`Whitelisting assets for ${collateralAddress}...`);
+  await collateralAccount.setAllowableCollateral(tokenAddresses);
 
   await allowBorrowerWithAssets(borrower.privateKey, collateralAddress, tokenAddresses, amounts);
 
@@ -348,7 +369,7 @@ const collateralFlow = async (
     const tokenAddress = tokenAddresses[i];
     const amount = amounts[i];
 
-    logger.info(`Depositing ${collateralAddress}...`);
+    logger.info(`Depositing to ${collateralAddress}...`);
     await collateralAccount.deposit(tokenAddress, amount);
   }
 
@@ -374,9 +395,10 @@ if (!pricedInToken) {
   throw new Error("PRICED_IN_TOKEN is not set");
 }
 
-const assetContextListAddress = process.env.ASSET_CONTEXT_LIST;
-if (!assetContextListAddress) {
-  throw new Error("ASSET_CONTEXT_LIST is not set");
+let assetContextList: AddressLike[] = [];
+const assetContextListStr = process.env.ASSET_CONTEXT_LIST;
+if (assetContextListStr) {
+  assetContextList = assetContextListStr.split(",").map((address) => address.trim());
 }
 
 let tokenAddresses: AddressLike[] = [];
@@ -391,7 +413,7 @@ if (amountsStr) {
   amounts = amountsStr.split(",").map((amount) => parseUnits(amount.trim(), 18));
 }
 
-collateralFlow(factoryAddress, haircutContext, priceService, pricedInToken, assetContextListAddress, tokenAddresses, amounts)
+collateralFlow(factoryAddress, haircutContext, priceService, pricedInToken, assetContextList, tokenAddresses, amounts)
   .then(() => {
   }).catch(e => {
   logger.error(e);
