@@ -56,6 +56,8 @@ interface IAssetCollateralAccount {
 
     function source() external view returns (address);
 
+    function destination() external view returns (address);
+
 //    function getLiabilityItem() external view returns (address);
 //
 //    function getPriceContext() external view returns (address);

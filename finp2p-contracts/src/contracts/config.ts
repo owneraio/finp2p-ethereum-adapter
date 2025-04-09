@@ -29,6 +29,24 @@ export const createLocalProviderFromConfig = async (config: ContractManagerConfi
   return { provider, signer };
 };
 
+export const getNetworkRpcUrl = (): string => {
+  let networkHost = process.env.NETWORK_HOST;
+  if (!networkHost) {
+    throw new Error("NETWORK_HOST is not set");
+  }
+  const ethereumRPCAuth = process.env.NETWORK_AUTH;
+  if (ethereumRPCAuth) {
+    if (networkHost.startsWith("https://")) {
+      networkHost = "https://" + ethereumRPCAuth + "@" + networkHost.replace("https://", "");
+    } else if (networkHost.startsWith("http://")) {
+      networkHost = "http://" + ethereumRPCAuth + "@" + networkHost.replace("http://", "");
+    } else {
+      networkHost = ethereumRPCAuth + "@" + networkHost;
+    }
+  }
+  return networkHost;
+}
+
 const createLocalProvider = async (logger: winston.Logger, userNonceManager: boolean = true): Promise<ProviderAndSigner> => {
   let ethereumRPCUrl: string;
   let operatorPrivateKey: string;
@@ -38,21 +56,7 @@ const createLocalProvider = async (logger: winston.Logger, userNonceManager: boo
     ethereumRPCUrl = config.rpcURL;
     operatorPrivateKey = config.signerPrivateKey;
   } else {
-    let networkHost = process.env.NETWORK_HOST;
-    if (!networkHost) {
-      throw new Error("NETWORK_HOST is not set");
-    }
-    const ethereumRPCAuth = process.env.NETWORK_AUTH;
-    if (ethereumRPCAuth) {
-      if (networkHost.startsWith("https://")) {
-        networkHost = "https://" + ethereumRPCAuth + "@" + networkHost.replace("https://", "");
-      } else if (networkHost.startsWith("http://")) {
-        networkHost = "http://" + ethereumRPCAuth + "@" + networkHost.replace("http://", "");
-      } else {
-        networkHost = ethereumRPCAuth + "@" + networkHost;
-      }
-    }
-    ethereumRPCUrl = networkHost;
+    ethereumRPCUrl = getNetworkRpcUrl();
     operatorPrivateKey = process.env.OPERATOR_PRIVATE_KEY || "";
     if (!operatorPrivateKey) {
       throw new Error("OPERATOR_PRIVATE_KEY is not set");

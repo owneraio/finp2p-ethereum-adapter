@@ -13,7 +13,7 @@ contract AssetCollateralAccountMock is IAssetCollateralAccount {
     CollateralType private collateralType;
     uint8 private decimals;
     address private _source;
-    address private destination;
+    address private _destination;
     address private liabilityOwner;
     uint256 private amountKept;
 
@@ -44,7 +44,7 @@ contract AssetCollateralAccountMock is IAssetCollateralAccount {
         collateralType = _collateralType;
         decimals = _decimals;
         _source = _source;
-        destination = _destination;
+        _destination = _destination;
         liabilityOwner = address(this);
         amountKept = 0;
     }
@@ -117,7 +117,7 @@ contract AssetCollateralAccountMock is IAssetCollateralAccount {
     function forward() external {
         for (uint i = 0; i < locks.length; i++) {
             require(locks[i].amount > 0, "Lock is not active");
-            IERC20(locks[i].tokenAddress).transferFrom(liabilityOwner, destination, locks[i].amount);
+            IERC20(locks[i].tokenAddress).transferFrom(liabilityOwner, _destination, locks[i].amount);
             locks[i].amount = 0;
         }
     }
@@ -134,7 +134,7 @@ contract AssetCollateralAccountMock is IAssetCollateralAccount {
     function partialForward(Asset[] calldata _assets, uint256[] calldata _amounts) external {
         for (uint i = 0; i < _assets.length; i++) {
             require(locks[i].amount > _amounts[i], "Amount exceeds lock");
-            IERC20(_assets[i].addr).transferFrom(liabilityOwner, destination, _amounts[i]);
+            IERC20(_assets[i].addr).transferFrom(liabilityOwner, _destination, _amounts[i]);
             locks[i].amount -= _amounts[i];
         }
     }
@@ -145,6 +145,10 @@ contract AssetCollateralAccountMock is IAssetCollateralAccount {
 
     function source() external view returns (address) {
         return _source;
+    }
+
+    function destination() external view returns (address) {
+        return _destination;
     }
 }
 
