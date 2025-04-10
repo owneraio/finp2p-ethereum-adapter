@@ -92,9 +92,10 @@ export class PaymentsService extends CommonService {
         break;
     }
 
+    const controller = this.finP2PContract.finP2PContractAddress;
     await this.collateralAssetFactoryContract.createCollateralAsset(
       basketId, agreementName, agreementDescription, tokenAddresses, assetList.map(a => a.quantity), borrower, lender, {
-        haircutContext, priceService, pricedInToken, liabilityAmount,
+        controller, haircutContext, priceService, pricedInToken, liabilityAmount,
         assetContextList: []
       }
     );

@@ -35,6 +35,7 @@ export interface CollateralAssetParams {
   // targetRatioLimit: number;
   // defaultRatioLimit: number;
   // priceType: PriceType;
+  controller: string;
   haircutContext: string;
   priceService: string;
   pricedInToken: string;
