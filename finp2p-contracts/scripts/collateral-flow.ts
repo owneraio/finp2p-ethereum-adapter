@@ -209,6 +209,11 @@ class AssetCollateralAccount {
     const rsp = await this.contract.deposit(asset, amount);
     await rsp.wait();
   };
+
+  async release() {
+    const rsp = await this.contract.release();
+    await rsp.wait();
+  };
 }
 
 const getErc20Details = async (signer: Signer, tokenAddress: AddressLike) => {
@@ -238,6 +243,12 @@ const prefundBorrower = async (signer: Signer, borrower: AddressLike, tokenAddre
   logger.info(`Prefund borrower ${borrower} with ${amount} of ${tokenName} (${tokenTicker}), address: ${tokenAddress}...`);
   const res = await erc20.mint(borrower, amount);
   await res.wait();
+};
+
+const getERC20Balance = async (signer: Signer, tokenAddress: AddressLike, borrower: AddressLike) => {
+  const factory = new ContractFactory<any[], ERC20WithOperator>(ERC20.abi, ERC20.bytecode, signer);
+  const erc20 = factory.attach(tokenAddress as string) as ERC20WithOperator;
+  return await erc20.balanceOf(borrower);
 };
 
 const allowBorrowerWithAssets = async (borrowerPrivateKey: string, collateralAccount: AddressLike, tokenAddress: AddressLike, amount: BigNumberish) => {
@@ -301,6 +312,8 @@ const collateralFlow = async (
     asset.tokenAddress = await deployERC20(signer, name, symbol, decimals);
     logger.info(`Asset address: ${asset.tokenAddress}`);
     await prefundBorrower(signer, borrower.address, asset.tokenAddress, amount);
+
+    logger.info(`Borrower balance: ${await getERC20Balance(signer, asset.tokenAddress, borrower.address)}`);
 
     const assetPriceContext = new AssetPriceContext(signer, priceServiceAddress);
     const haircutContext = new HaircutContext(signer, haircutContextAddress);
@@ -366,20 +379,32 @@ const collateralFlow = async (
   await collateralAccount.setAllowableCollateral(tokenAddresses);
 
 
+  logger.info(`Whitelisted assets: ${await collateralAccount.getAllowableCollateral()}`);
 
-  console.log(`alowables: ${await collateralAccount.getAllowableCollateral()}`);
-
+  const collateralAccountBorrower = new AssetCollateralAccount(new Wallet(borrower.privateKey).connect(provider), collateralAddress);
   for (const asset of assets) {
     const { tokenAddress, amount } = asset;
     await allowBorrowerWithAssets(borrower.privateKey, collateralAddress, tokenAddress, amount);
 
     logger.info(`Depositing to ${collateralAddress}...`);
-    try {
-      await collateralAccount.deposit(tokenAddress, amount);
-    } catch (e) {
-      console.log(e);
-    }
+    await collateralAccountBorrower.deposit(tokenAddress, amount);
+
+    logger.info(`Borrower balance: ${await getERC20Balance(signer, tokenAddress, borrower.address)}`);
+    logger.info(`Lender balance: ${await getERC20Balance(signer, tokenAddress, lender.address)}`);
   }
+
+  logger.info(`Waiting for 5 seconds...`);
+  await sleep(5000);
+
+  logger.info(`Releasing ${collateralAddress}...`);
+  await collateralAccount.release();
+
+  for (const asset of assets) {
+    const { tokenAddress } = asset;
+    logger.info(`Borrower balance: ${await getERC20Balance(signer, tokenAddress, borrower.address)}`);
+    logger.info(`Lender balance: ${await getERC20Balance(signer, tokenAddress, lender.address)}`);
+  }
+
 
 };
 
