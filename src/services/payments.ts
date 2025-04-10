@@ -10,6 +10,9 @@ import IntentType = FinAPIComponents.Schemas.IntentType;
 import { logger } from "../helpers/logger";
 import process from "process";
 import { OssClient } from "../finp2p/oss.client";
+import OperationBase = FinAPIComponents.Schemas.OperationBase;
+import ProfileOperation = FinAPIComponents.Schemas.ProfileOperation;
+import ProfileOperationResponse = FinAPIComponents.Schemas.ProfileOperationResponse;
 
 type CollateralAssetDetails = {
   "assetList": [
@@ -62,7 +65,7 @@ export class PaymentsService extends CommonService {
     const { id: borrowerId } = await this.ossClient.getOwnerByFinId(borrower);
     let tokenAddresses: string[] = [];
     for (const a of assetList) {
-      const { ledgerAssetInfo: { tokenId: tokenAddress }}  = await this.ossClient.getAsset(a.assetId);
+      const { ledgerAssetInfo: { tokenId: tokenAddress } } = await this.ossClient.getAsset(a.assetId);
       tokenAddresses.push(tokenAddress);
     }
     const haircutContext = process.env.HAIRCUT_CONTEXT;
@@ -81,11 +84,11 @@ export class PaymentsService extends CommonService {
     switch (cashAsset.assetType) {
       case "fiat":
         //TODO
-        pricedInToken = process.env.PRICED_IN_TOKEN || '';
+        pricedInToken = process.env.PRICED_IN_TOKEN || "";
 
         break;
       case "finp2p":
-        ({ ledgerAssetInfo: { tokenId: pricedInToken }}  = await this.ossClient.getAsset(cashAsset.assetId));
+        ({ ledgerAssetInfo: { tokenId: pricedInToken } } = await this.ossClient.getAsset(cashAsset.assetId));
         break;
     }
 
@@ -98,17 +101,17 @@ export class PaymentsService extends CommonService {
 
     // STEP 2   ----------------------------------------------------------------
 
-    const assetName = agreementName;
+    const assetName = `collateral-${uuid()}`;
     const assetType = "collateral";
     const issuerId = borrowerId;
     const tokenId = basketId;
     const intentTypes: IntentType[] = ["loanIntent"];
     const metadata = { tokenType: "COLLATERAL" };
-    const res = await this.finApiClient.createAsset(
+    const rsp = await this.finApiClient.createAsset(
       assetName, assetType, issuerId, tokenId, intentTypes, metadata);
-    logger.info(`Collateral asset creation result: ${res}`);
-    const { id: collateralAssetId } = res as FinAPIComponents.Schemas.ResourceIdResponse;
-
+    const rs = await this.waitForCompletion((rsp as OperationBase).cid);
+    const { id: collateralAssetId } = (rs as ProfileOperation);
+    logger.info(`Collateral asset id: ${collateralAssetId}`);
     return {
       isCompleted: true, cid: uuid(),
       response: {
@@ -133,5 +136,20 @@ export class PaymentsService extends CommonService {
         }
       }
     } as Paths.Payout.Responses.$200;
+  }
+
+  private async waitForCompletion(id: string, tries: number = 3000) {
+    if (!this.finApiClient) {
+      throw new Error("finApiClient not set");
+    }
+    for (let i = 1; i < tries; i++) {
+      const rsp = await this.finApiClient.getOperationStatus(id);
+      if (!rsp.isCompleted) {
+        await new Promise((r) => setTimeout(r, 500));
+      } else {
+        return rsp.response;
+      }
+    }
+    throw new Error(`no result after ${tries} retries`);
   }
 }

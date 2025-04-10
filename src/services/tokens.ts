@@ -49,7 +49,7 @@ export class TokenService extends CommonService {
 
         let txHash: string;
         if (metadata && metadata["tokenType"] === "COLLATERAL") {
-
+          logger.info(`Creating collateral asset ${assetId} with tokenId ${tokenId}`);
           txHash = await this.finP2PContract.associateCollateralAsset(assetId, tokenId);
 
         } else {
