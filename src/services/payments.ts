@@ -10,6 +10,8 @@ import { FinAPIClient } from "../finp2p/finapi/finapi.client";
 import IntentType = FinAPIComponents.Schemas.IntentType;
 import { logger } from "../helpers/logger";
 
+
+
 export class PaymentsService extends CommonService {
 
   collateralAssetFactoryContract: FinP2PCollateralAssetFactoryContract;

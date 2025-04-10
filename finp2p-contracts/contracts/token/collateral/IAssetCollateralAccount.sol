@@ -13,6 +13,8 @@ interface IAssetCollateralAccount {
         REPO
     }
 
+    function getAllowableCollateral() external view returns (Asset[] memory);
+
     function setAllowableCollateral(
         Asset[] memory assetList
     ) external;

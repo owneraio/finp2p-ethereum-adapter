@@ -55,6 +55,11 @@ contract AssetCollateralAccountMock is IAssetCollateralAccount {
 //        assetContextList = assetList;
     }
 
+    function getAllowableCollateral() external view returns (Asset[] memory) {
+        Asset[] memory assets = new Asset[](0);
+        return assets;
+    }
+
     function setPricedItemConfiguration(
         address _priceService,
         address _pricedInToken,
