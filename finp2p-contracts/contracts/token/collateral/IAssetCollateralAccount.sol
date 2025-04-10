@@ -40,7 +40,7 @@ interface IAssetCollateralAccount {
 
     function processInterval(uint256 triggerId, uint256 timestamp) external;
 
-    function deposit(Asset calldata _asset, uint256 _amount) external;
+    function deposit(Asset memory _asset, uint256 _amount) external;
 
     event EscrowReleased(address _source);
     event EscrowForwarded(address _destination);

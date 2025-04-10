@@ -96,7 +96,7 @@ contract AssetCollateralAccountMock is IAssetCollateralAccount {
 
     function processInterval(uint256 triggerId, uint256 timestamp) external {}
 
-    function deposit(Asset calldata _asset, uint256 _amount) external {
+    function deposit(Asset memory _asset, uint256 _amount) external {
 
 //        uint256 price = IPriceService(priceService).getAssetRate(_asset.addr);
 //        uint256 haircut = IHaircutService(haircutContext).getAssetHaircut(_asset.addr);

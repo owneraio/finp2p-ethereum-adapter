@@ -67,7 +67,6 @@ class AccountFactory {
     collateralType: CollateralType = CollateralType.REPO
   ) {
     const liabilityFactory = await this.contract.getLiabilityFactory();
-    // const controller = await this.contract.controller();
 
     const initParams = new AbiCoder().encode(
       ["uint8", "uint8", "uint8", "uint8"],
@@ -86,13 +85,10 @@ class AccountFactory {
       liabilityDataList: []
     };
 
-    const txResp = await this.contract.createAccount(
+    const rsp = await this.contract.createAccount(
       name, description, strategyId, controller, initParams, strategyInput
     );
-    if (!txResp) {
-      throw new Error("Failed to create repo agreement");
-    }
-    const receipt = await txResp.wait();
+    const receipt = await rsp.wait();
     if (!receipt) {
       throw new Error("Failed to get transaction receipt");
     }
@@ -151,14 +147,8 @@ class HaircutContext {
     haircut: BigNumberish
   ) {
     const asset: AssetStruct = { standard: AssetStandard.FUNGIBLE, addr: tokenAddress, tokenId: 0 };
-    const txResp = await this.contract.setAssetHaircut(asset, haircut);
-    if (!txResp) {
-      throw new Error("Failed to set asset haircut");
-    }
-    const receipt = await txResp.wait();
-    if (!receipt) {
-      throw new Error("Failed to get transaction receipt");
-    }
+    const rsp = await this.contract.setAssetHaircut(asset, haircut);
+    await rsp.wait();
   }
 }
 
@@ -209,7 +199,8 @@ class AssetCollateralAccount {
     const tokenId = 0;
     const assetList = tokenAddresses.map(addr =>
       ({ standard, addr, tokenId } as AssetStruct));
-    await this.contract.setAllowableCollateral(assetList);
+    const rsp = await this.contract.setAllowableCollateral(assetList);
+    await rsp.wait();
   }
 
 
@@ -274,6 +265,10 @@ type AccountInfo = {
   address: AddressLike
   finId: string
   privateKey: string
+}
+
+const sleep = (ms: number) => {
+  return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 const collateralFlow = async (
@@ -370,17 +365,20 @@ const collateralFlow = async (
   let tokenAddresses = assets.map(a => a.tokenAddress);
   await collateralAccount.setAllowableCollateral(tokenAddresses);
 
+
+
   console.log(`alowables: ${await collateralAccount.getAllowableCollateral()}`);
 
   for (const asset of assets) {
     const { tokenAddress, amount } = asset;
-
-    logger.info(`Allowed spending of assets owned by borrower ${borrower.address}...`);
     await allowBorrowerWithAssets(borrower.privateKey, collateralAddress, tokenAddress, amount);
 
-
     logger.info(`Depositing to ${collateralAddress}...`);
-    await collateralAccount.deposit(tokenAddress, amount);
+    try {
+      await collateralAccount.deposit(tokenAddress, amount);
+    } catch (e) {
+      console.log(e);
+    }
   }
 
 };
