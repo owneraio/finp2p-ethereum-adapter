@@ -15,19 +15,20 @@ import ProfileOperation = FinAPIComponents.Schemas.ProfileOperation;
 import ProfileOperationResponse = FinAPIComponents.Schemas.ProfileOperationResponse;
 
 type CollateralAssetDetails = {
-  "assetList": [
+  assetList: [
     {
-      "assetId": string,
-      "quantity": string
+      assetId: string,
+      quantity: string
     }
   ],
-  "cashAsset": {
-    "assetId": string,
-    "assetType": "fiat" | "finp2p",
+  cashAsset: {
+    assetId: string,
+    assetType: "fiat" | "finp2p",
   }
-  "borrower": string,
-  "lender": string,
-  "liabilityAmount": number
+  borrower: string,
+  lender: string,
+  liabilityAmount: number,
+  orgsToShare: string[]
 }
 
 export class PaymentsService extends CommonService {
@@ -113,6 +114,10 @@ export class PaymentsService extends CommonService {
     const rs = await this.waitForCompletion((rsp as OperationBase).cid);
     const { id: collateralAssetId } = (rs as ProfileOperation);
     logger.info(`Collateral asset id: ${collateralAssetId}`);
+
+    logger.info(`Sharing profile with organizations: ${details.orgsToShare}`);
+    await this.finApiClient.shareProfile(collateralAssetId, details.orgsToShare);
+
     return {
       isCompleted: true, cid: uuid(),
       response: {

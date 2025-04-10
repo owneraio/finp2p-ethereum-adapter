@@ -1,4 +1,5 @@
 import CreateAssetProfile = FinAPIPaths.CreateAssetProfile;
+import ShareProfile = FinAPIPaths.ShareProfile;
 import OperationBase = FinAPIComponents.Schemas.OperationBase;
 import IntentType = FinAPIComponents.Schemas.IntentType;
 import * as axios from "axios";
@@ -33,6 +34,13 @@ export class FinAPIClient {
         assetPolicies: {
           proof: undefined // TBD
         }
+      });
+  }
+
+  async shareProfile(id: string, organizations: string[]) {
+    return await this.post<ShareProfile.RequestBody, ShareProfile.Responses.$200>(
+      `/profiles/${id}/share`, {
+        organizations
       });
   }
 
