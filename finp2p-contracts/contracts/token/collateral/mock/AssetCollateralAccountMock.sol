@@ -38,13 +38,13 @@ contract AssetCollateralAccountMock is IAssetCollateralAccount {
     constructor(
         CollateralType _collateralType,
         uint8 _decimals,
-        address _source,
-        address _destination
+        address source_,
+        address destination_
     ) {
         collateralType = _collateralType;
         decimals = _decimals;
-        _source = _source;
-        _destination = _destination;
+        _source = source_;
+        _destination = destination_;
         liabilityOwner = address(this);
         amountKept = 0;
     }

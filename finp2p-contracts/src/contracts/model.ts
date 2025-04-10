@@ -19,6 +19,12 @@ export const enum AssetType {
   Cryptocurrency = 2
 }
 
+export const enum CollateralBasketState {
+  CREATED,
+  DEPOSITED,
+  RELEASED
+}
+
 export const assetTypeFromNumber = (assetType: bigint): AssetType => {
   switch (assetType) {
     case 0n:

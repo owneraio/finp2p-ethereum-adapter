@@ -31,6 +31,7 @@ interface IFinP2PCollateralBasketFactory {
 //        int256 targetRatioLimit;
 //        int256 defaultRatioLimit;
 //        PriceType priceType;
+        address controller;
         address haircutContext;
         address priceService;
         address pricedInToken;

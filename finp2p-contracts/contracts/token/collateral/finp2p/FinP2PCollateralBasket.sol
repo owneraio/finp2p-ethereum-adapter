@@ -67,6 +67,10 @@ contract FinP2PCollateralBasket is IFinP2PCollateralBasketManager, IFinP2PCollat
         return baskets[basketId].collateralAccount;
     }
 
+    function getBasketTokens(string memory basketId) external view returns (address[] memory ) {
+        return baskets[basketId].tokenAddresses;
+    }
+
     function getBasketState(string memory basketId) external view returns (CollateralBasketState) {
         return baskets[basketId].state;
     }
@@ -92,7 +96,6 @@ contract FinP2PCollateralBasket is IFinP2PCollateralBasketManager, IFinP2PCollat
         addressList[0] = sourceFinId.toAddress();
         addressList[1] = destinationFinId.toAddress();
         addressList[2] = accountFactory.getLiabilityFactory();
-        address controller = accountFactory.controller();
 
         StrategyInput memory strategyInput = StrategyInput({
             assetContextList: new address[](0), // TODO: when should we provide asset list here?
@@ -103,7 +106,7 @@ contract FinP2PCollateralBasket is IFinP2PCollateralBasketManager, IFinP2PCollat
             name,
             description,
             COLLATERAL_STRATEGY_ID,
-            controller,
+            param.controller,
             initParams,
             strategyInput
         );
@@ -184,6 +187,7 @@ contract FinP2PCollateralBasket is IFinP2PCollateralBasketManager, IFinP2PCollat
         IAssetCollateralAccount collateralAccount = IAssetCollateralAccount(baskets[basketId].collateralAccount);
         for (uint256 i = 0; i < baskets[basketId].tokenAddresses.length; i++) {
             address tokenAddress = baskets[basketId].tokenAddresses[i];
+            require(tokenAddress != address(8), "Token address cannot be zero");
             if (phase == FinP2PSignatureVerifier.Phase.INITIATE) {
                 uint256 tokenAmount = baskets[basketId].amounts[i];
                 collateralAccount.deposit(
