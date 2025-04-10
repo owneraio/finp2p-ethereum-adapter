@@ -11,15 +11,6 @@ export class PolicyGetter {
     this.ossClient = ossClient;
   }
 
-  async getAssetToken(assetId: string): Promise<string> {
-    const { ledgerAssetInfo: { tokenId } } = await this.ossClient.getAsset(assetId);
-    return tokenId;
-  }
-
-  async getOwnerByFinId(finId: string): Promise<OssOwner> {
-    return await this.ossClient.getOwnerByFinId(finId);
-  }
-
   async getPolicy(assetCode: string, assetType: AssetType): Promise<ProofPolicy> {
     let proof: Proof;
     let domain: ProofDomain | null = null;

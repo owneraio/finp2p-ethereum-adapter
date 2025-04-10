@@ -90,11 +90,12 @@ const init = async () => {
   const finp2pContract = new FinP2PContract(provider, signer, finP2PContractAddress, logger);
   const finp2pCollateralContract = new FinP2PCollateralAssetFactoryContract(provider, signer, finP2PContractAddress, logger);
   const assetCreationPolicy = await createAssetCreationPolicy(finp2pContract);
-  const policyGetter = new PolicyGetter(new OssClient(ossUrl, undefined));
+  const ossClient = new OssClient(ossUrl, undefined);
+  const policyGetter = new PolicyGetter(ossClient);
   const finApiClient = new FinAPIClient(finApiUrl);
   const execDetailsStore = new InMemoryExecDetailsStore();
 
-  createApp(finp2pContract, finp2pCollateralContract, assetCreationPolicy, policyGetter, finApiClient, execDetailsStore, logger).listen(port, () => {
+  createApp(finp2pContract, finp2pCollateralContract, assetCreationPolicy, ossClient, policyGetter, finApiClient, execDetailsStore, logger).listen(port, () => {
     logger.info(`listening at http://localhost:${port}`);
   });
 };

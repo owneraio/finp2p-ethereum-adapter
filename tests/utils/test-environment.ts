@@ -112,7 +112,7 @@ class CustomTestEnvironment extends NodeEnvironment {
     const port = randomPort();
     const assetCreationPolicy = { type: "deploy-new-token", decimals: 0 } as AssetCreationPolicy;
 
-    const app = createApp(finP2PContract, finP2PCollateralBaContract, assetCreationPolicy, undefined, undefined, new InMemoryExecDetailsStore(), logger);
+    const app = createApp(finP2PContract, finP2PCollateralBaContract, assetCreationPolicy, undefined, undefined, undefined, new InMemoryExecDetailsStore(), logger);
     console.log("App created successfully.");
 
     this.httpServer = app.listen(port, () => {

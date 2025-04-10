@@ -102,6 +102,7 @@ const deployERC20Contract = async (provider: Provider, signer: Signer, finp2pTok
 const startApp = async (port: number, provider: Provider, signer: Signer,
                         finP2PContractAddress: string,
                         policyGetter: PolicyGetter | undefined,
+                        ossClient: OssClient | undefined,
                         finApiClient: FinAPIClient | undefined,
                         execDetailsStore: ExecDetailsStore | undefined,
                         logger: winston.Logger) => {
@@ -114,7 +115,7 @@ const startApp = async (port: number, provider: Provider, signer: Signer,
   } as AssetCreationPolicy;
 
 
-  const app = createApp(finP2PContract, finP2PCollateralBaContract, assetCreationPolicy, policyGetter, finApiClient, execDetailsStore, logger);
+  const app = createApp(finP2PContract, finP2PCollateralBaContract, assetCreationPolicy, ossClient, policyGetter, finApiClient, execDetailsStore, logger);
   logger.info("App created successfully.");
 
   httpServer = app.listen(port, () => {
@@ -143,10 +144,12 @@ const start = async () => {
   const accountFactoryAddress = await deployAccountFactory(signer);
   const finP2PContractAddress = await deployContract(provider, signer, operatorAddress, undefined, accountFactoryAddress);
 
+  let ossClient: OssClient | undefined;
   let policyGetter: PolicyGetter | undefined;
   const ossUrl = process.env.OSS_URL;
   if (ossUrl) {
-    policyGetter = new PolicyGetter(new OssClient(ossUrl, undefined));
+    ossClient = new OssClient(ossUrl, undefined);
+    policyGetter = new PolicyGetter(ossClient);
   }
   const execDetailsStore = new InMemoryExecDetailsStore();
 
@@ -155,7 +158,7 @@ const start = async () => {
     throw new Error("FINP2P_ADDRESS is not set");
   }
   const finApiClient = new FinAPIClient(finApiUrl);
-  await startApp(port, provider, signer, finP2PContractAddress, policyGetter, finApiClient, execDetailsStore, logger);
+  await startApp(port, provider, signer, finP2PContractAddress, policyGetter, ossClient, finApiClient, execDetailsStore, logger);
 };
 
 
