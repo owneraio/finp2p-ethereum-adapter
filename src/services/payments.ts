@@ -58,7 +58,7 @@ export class PaymentsService extends CommonService {
         }
       } as Paths.DepositInstruction.Responses.$200;
     }
-    const { assetList, borrower, lender, cashAsset, liabilityAmount } = details as CollateralAssetDetails;
+    const { assetList, borrower, lender, cashAsset, liabilityAmount, orgsToShare } = details as CollateralAssetDetails;
 
     // STEP 1   ----------------------------------------------------------------
 
@@ -113,11 +113,20 @@ export class PaymentsService extends CommonService {
       assetName, assetType, issuerId, tokenId, intentTypes, metadata);
     const rs = await this.waitForCompletion((rsp as OperationBase).cid);
     const { id: collateralAssetId } = (rs as ProfileOperation);
+    if (!collateralAssetId) {
+      return {
+        isCompleted: true, cid: uuid(),
+        error: {
+          code: 1, message: "Failed to create asset profile"
+        }
+      } as Paths.DepositInstruction.Responses.$200;
+    }
     logger.info(`Collateral asset id: ${collateralAssetId}`);
 
-    logger.info(`Sharing profile with organizations: ${details.orgsToShare}`);
-    await this.finApiClient.shareProfile(collateralAssetId, details.orgsToShare);
-
+    if (orgsToShare.length > 0) {
+      logger.info(`Sharing profile with organizations: ${orgsToShare}`);
+      await this.finApiClient.shareProfile(collateralAssetId, orgsToShare);
+    }
     return {
       isCompleted: true, cid: uuid(),
       response: {
