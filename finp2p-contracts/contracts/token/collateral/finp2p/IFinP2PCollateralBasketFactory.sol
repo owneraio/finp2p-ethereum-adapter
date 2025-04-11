@@ -37,7 +37,7 @@ interface IFinP2PCollateralBasketFactory {
         address pricedInToken;
         int256 liabilityAmount;
 //        address liabilityAddress;
-        address[] assetContextList;
+//        address[] assetContextList;
     }
 
     function createCollateralAsset(

@@ -67,7 +67,7 @@ contract FinP2PCollateralBasket is IFinP2PCollateralBasketManager, IFinP2PCollat
         return baskets[basketId].collateralAccount;
     }
 
-    function getBasketTokens(string memory basketId) external view returns (address[] memory ) {
+    function getBasketTokens(string memory basketId) external view returns (address[] memory) {
         return baskets[basketId].tokenAddresses;
     }
 
@@ -127,6 +127,20 @@ contract FinP2PCollateralBasket is IFinP2PCollateralBasketManager, IFinP2PCollat
         );
 
         _configureCollateralAsset(basketId, param);
+
+        _whitelistTokens(basketId, tokenAddresses);
+    }
+
+    function _whitelistTokens(string memory basketId, address[] memory tokenAddresses) internal {
+        address accountAddress = baskets[basketId].collateralAccount;
+        require(accountAddress != address(0), "Basket does not exist");
+        IAssetCollateralAccount account = IAssetCollateralAccount(baskets[basketId].collateralAccount);
+        Asset [] memory assets = new Asset[](tokenAddresses.length);
+        for (uint256 i = 0; i < tokenAddresses.length; i++) {
+            require(tokenAddresses[i] != address(0), "Token address cannot be zero");
+            assets[i] = Asset(AssetStandard.FUNGIBLE, tokenAddresses[i], 0);
+        }
+        account.setAllowableCollateral(assets);
     }
 
 
@@ -138,6 +152,7 @@ contract FinP2PCollateralBasket is IFinP2PCollateralBasketManager, IFinP2PCollat
         require(accountAddress != address(0), "Basket does not exist");
         IAssetCollateralAccount account = IAssetCollateralAccount(baskets[basketId].collateralAccount);
 
+        address [] memory assetContextList = new address[](0);
         account.setConfigurationBundle(
 //            param.targetRatio,
 //            param.defaultRatio,
@@ -152,7 +167,7 @@ contract FinP2PCollateralBasket is IFinP2PCollateralBasketManager, IFinP2PCollat
             param.priceService,
             param.pricedInToken,
             LiabilityData(address(0)/*param.liabilityAddress*/, param.liabilityAmount, param.pricedInToken, 1),
-            param.assetContextList
+            assetContextList
         );
     }
 

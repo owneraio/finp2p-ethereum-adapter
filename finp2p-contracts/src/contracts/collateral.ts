@@ -41,7 +41,7 @@ export interface CollateralAssetParams {
   pricedInToken: string;
   liabilityAmount: number;
   // liabilityAddress: string;
-  assetContextList: string[];
+  // assetContextList: string[];
 }
 
 export class FinP2PCollateralAssetFactoryContract extends ContractsManager {
@@ -63,6 +63,10 @@ export class FinP2PCollateralAssetFactoryContract extends ContractsManager {
     return await this.contract.createCollateralAsset(
       name, description, basketId, tokenAddresses, quantities, source, destination, params);
   }
+
+  // async whitelistTokens(basketId: string, tokenAddresses: string[]) {
+  //   return await this.contract.whitelistTokens(basketId, tokenAddresses);
+  // }
 
   async getBasketAccount(basketId: string) {
     return await this.contract.getBasketAccount(basketId);
