@@ -26,7 +26,7 @@ const startMigration = async (ossUrl: string, providerType: ProviderType, finp2p
   }
 
   const { provider, signer } = await createProviderAndSigner(providerType, logger);
-  const finP2PContract = new FinP2PContract(provider, signer, finp2pContractAddress, logger);
+  const finP2PContract = await FinP2PContract.create(provider, signer, finp2pContractAddress, logger);
 
   let migrated = 0;
   let skipped = 0;

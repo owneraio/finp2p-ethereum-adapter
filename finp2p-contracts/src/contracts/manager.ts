@@ -4,16 +4,18 @@ import {
   ContractTransactionResponse,
   NonceManager,
   Provider,
-  Signer, TypedDataField
+  Signer, TypedDataField,
 } from "ethers";
-import FINP2P from "../../artifacts/contracts/token/ERC20/FINP2POperatorERC20.sol/FINP2POperatorERC20.json";
+import FINP2P_OPERATOR_ERC20 from "../../artifacts/contracts/token/ERC20/FINP2POperatorERC20.sol/FINP2POperatorERC20.json";
+import EXECUTION_CONTEXT_MANAGER from "../../artifacts/contracts/utils/finp2p/ExecutionContextManager.sol/ExecutionContextManager.json";
+import FINP2P_LIB from "../../artifacts/contracts/utils/finp2p/FinP2P.sol/FinP2P.json";
 import ERC20 from "../../artifacts/contracts/token/ERC20/ERC20WithOperator.sol/ERC20WithOperator.json";
-import { ERC20WithOperator, FINP2POperatorERC20 } from "../../typechain-types";
+import { ERC20WithOperator, FINP2POperatorERC20, ExecutionContextManager, FinP2P } from "../../typechain-types";
 import winston from "winston";
 import { PayableOverrides } from "../../typechain-types/common";
 import { detectError, EthereumTransactionError, NonceAlreadyBeenUsedError, NonceToHighError } from "./model";
 import { hash as typedHash, sign } from "./eip712";
-import { compactSerialize } from "./utils";
+import { compactSerialize, linkLibrary } from "./utils";
 
 const DefaultDecimalsCurrencies = 2;
 
@@ -61,35 +63,50 @@ export class ContractsManager {
                              } | undefined = undefined
   ) {
     this.logger.info("Deploying FinP2P contract...");
-    const factory = new ContractFactory<any[], FINP2POperatorERC20>(
-      FINP2P.abi, FINP2P.bytecode, this.signer
+    const finP2PLibFactory = new ContractFactory<any[], FinP2P>(
+      FINP2P_LIB.abi, FINP2P_LIB.bytecode, this.signer
     );
-    const contract = await factory.deploy();
-    await contract.waitForDeployment();
+    const finP2PLibContract = await finP2PLibFactory.deploy();
+    await finP2PLibContract.waitForDeployment();
+    const finP2PLibAddress = await finP2PLibContract.getAddress();
 
-    const address = await contract.getAddress();
-    this.logger.info(`FinP2P contract deployed successfully at: ${address}`);
+    const linkedExCtxManagerBytecode= linkLibrary(EXECUTION_CONTEXT_MANAGER.bytecode, 'FinP2P', finP2PLibAddress);
+    const exCtxManagerFactory = new ContractFactory<any[], ExecutionContextManager>(
+      EXECUTION_CONTEXT_MANAGER.abi, linkedExCtxManagerBytecode, this.signer
+    );
+    const exCtxManagerContract = await exCtxManagerFactory.deploy();
+    await exCtxManagerContract.waitForDeployment();
+    const exCtxManagerAddress = await exCtxManagerContract.getAddress();
+
+    const finP2POperatorFactory = new ContractFactory<any[], FINP2POperatorERC20>(
+      FINP2P_OPERATOR_ERC20.abi, FINP2P_OPERATOR_ERC20.bytecode, this.signer
+    );
+    const finP2POperatorContract = await finP2POperatorFactory.deploy(exCtxManagerAddress);
+    await finP2POperatorContract.waitForDeployment();
+    const finP2PContractAddress = await finP2POperatorContract.getAddress();
+
+    this.logger.info(`FinP2P contract deployed successfully at: ${finP2PContractAddress}`);
 
     if (signerAddress) {
-      await this.grantAssetManagerRole(address, signerAddress);
-      await this.grantTransactionManagerRole(address, signerAddress);
+      await this.grantAssetManagerRole(finP2PContractAddress, signerAddress);
+      await this.grantTransactionManagerRole(finP2PContractAddress, signerAddress);
     }
 
     if (paymentAssetCode) {
-      await this.preCreatePaymentAsset(factory, address, paymentAssetCode, DefaultDecimalsCurrencies);
+      await this.preCreatePaymentAsset(finP2POperatorFactory, finP2PContractAddress, paymentAssetCode, DefaultDecimalsCurrencies);
     }
 
-    if (extraDomain) {
-      const { chainId, verifyingContract } = extraDomain;
-      await this.addAllowedDomain(address, chainId, verifyingContract);
-    }
-    return address;
+    // if (extraDomain) {
+    //   const { chainId, verifyingContract } = extraDomain;
+    //   await this.addAllowedDomain(address, chainId, verifyingContract);
+    // }
+    return finP2PContractAddress;
   }
 
   async isFinP2PContractHealthy(finP2PContractAddress: string): Promise<boolean> {
     // logger.info(`Check FinP2P contract at ${finP2PContractAddress} on chain`);
     const factory = new ContractFactory<any[], FINP2POperatorERC20>(
-      FINP2P.abi, FINP2P.bytecode, this.signer
+      FINP2P_OPERATOR_ERC20.abi, FINP2P_OPERATOR_ERC20.bytecode, this.signer
     );
     const contract = factory.attach(finP2PContractAddress);
     try {
@@ -120,7 +137,7 @@ export class ContractsManager {
   async grantAssetManagerRole(finP2PContractAddress: string, to: string) {
     this.logger.info(`Granting asset manager role to ${to}...`);
     const factory = new ContractFactory<any[], FINP2POperatorERC20>(
-      FINP2P.abi, FINP2P.bytecode, this.signer
+      FINP2P_OPERATOR_ERC20.abi, FINP2P_OPERATOR_ERC20.bytecode, this.signer
     );
     const contract = factory.attach(finP2PContractAddress) as FINP2POperatorERC20;
     const txHash = await this.safeExecuteTransaction(contract, async (finP2P: FINP2POperatorERC20, txParams: PayableOverrides) => {
@@ -132,7 +149,7 @@ export class ContractsManager {
   async grantTransactionManagerRole(finP2PContractAddress: string, to: string) {
     this.logger.info(`Granting transaction manager role to ${to}...`);
     const factory = new ContractFactory<any[], FINP2POperatorERC20>(
-      FINP2P.abi, FINP2P.bytecode, this.signer
+      FINP2P_OPERATOR_ERC20.abi, FINP2P_OPERATOR_ERC20.bytecode, this.signer
     );
     const contract = factory.attach(finP2PContractAddress) as FINP2POperatorERC20;
     const txHash = await this.safeExecuteTransaction(contract, async (finP2P: FINP2POperatorERC20, txParams: PayableOverrides) => {
@@ -141,17 +158,17 @@ export class ContractsManager {
     await this.waitForCompletion(txHash);
   }
 
-  async addAllowedDomain(finP2PContractAddress: string, chainId: number | bigint, verifyingContract: string) {
-    this.logger.info(`Adding allowed domain for chainId ${chainId} and verifying contract ${verifyingContract}...`);
-    const factory = new ContractFactory<any[], FINP2POperatorERC20>(
-      FINP2P.abi, FINP2P.bytecode, this.signer
-    );
-    const contract = factory.attach(finP2PContractAddress) as FINP2POperatorERC20;
-    const txHash = await this.safeExecuteTransaction(contract, async (finP2P: FINP2POperatorERC20, txParams: PayableOverrides) => {
-      return finP2P.addAllowedDomain(chainId, verifyingContract, txParams);
-    });
-    await this.waitForCompletion(txHash);
-  }
+  // async addAllowedDomain(finP2PContractAddress: string, chainId: number | bigint, verifyingContract: string) {
+  //   this.logger.info(`Adding allowed domain for chainId ${chainId} and verifying contract ${verifyingContract}...`);
+  //   const factory = new ContractFactory<any[], FINP2POperatorERC20>(
+  //     FINP2P.abi, FINP2P.bytecode, this.signer
+  //   );
+  //   const contract = factory.attach(finP2PContractAddress) as FINP2POperatorERC20;
+  //   const txHash = await this.safeExecuteTransaction(contract, async (finP2P: FINP2POperatorERC20, txParams: PayableOverrides) => {
+  //     return finP2P.addAllowedDomain(chainId, verifyingContract, txParams);
+  //   });
+  //   await this.waitForCompletion(txHash);
+  // }
 
   async signEIP712(chainId: bigint | number, verifyingContract: string, types: Record<string, Array<TypedDataField>>, message: Record<string, any>): Promise<{
     hash: string,

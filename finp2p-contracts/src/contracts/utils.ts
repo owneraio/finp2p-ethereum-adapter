@@ -1,17 +1,8 @@
-import {
-  concat,
-  HDNodeWallet,
-  hexlify,
-  isAddress,
-  keccak256,
-  Signature,
-  toUtf8Bytes,
-  TransactionReceipt,
-  Wallet
-} from "ethers";
-import { assetTypeFromNumber, FinP2PReceipt } from "./model";
+import { concat, HDNodeWallet, isAddress, keccak256, Signature, TransactionReceipt, Wallet } from "ethers";
+import { assetTypeFromNumber, FinP2PReceipt, ReceiptOperationType, ReceiptTradeDetails } from "./model";
 import * as secp256k1 from "secp256k1";
 import {
+  FinP2P,
   FINP2POperatorERC20Interface,
   HoldEvent,
   IssueEvent,
@@ -23,6 +14,7 @@ import {
   ERC20WithOperatorInterface,
   TransferEvent as ERC20TransferEvent
 } from "../../typechain-types/contracts/token/ERC20/ERC20WithOperator";
+import ExecutionContextStructOutput = FinP2P.ExecutionContextStructOutput;
 
 export const compactSerialize = (signature: string): string => {
   const { r, s } = Signature.from(signature);
@@ -52,6 +44,42 @@ export const addressFromPrivateKey = (privateKey: string): string => {
   return new Wallet(privateKey).address;
 };
 
+export const createReceipt = (
+  id: string,
+  operationType: ReceiptOperationType,
+  assetId: string,
+  assetType: bigint,
+  source: string | undefined,
+  destination: string | undefined,
+  quantity: string,
+  operationId: string | undefined,
+  executionContext: ExecutionContextStructOutput,
+  timestamp: number
+): FinP2PReceipt => {
+  const { planId, sequence } = executionContext;
+  let tradeDetails: ReceiptTradeDetails | undefined;
+  if (planId !== "" && sequence !== 0n) {
+    tradeDetails = {
+      executionContext: {
+        executionPlanId: planId,
+        instructionSequenceNumber: Number(sequence)
+      }
+    };
+  }
+  return {
+    id,
+    operationType,
+    assetId,
+    assetType: assetTypeFromNumber(assetType),
+    quantity,
+    source,
+    destination,
+    operationId,
+    tradeDetails,
+    timestamp
+  };
+};
+
 export const parseTransactionReceipt = (
   receipt: TransactionReceipt,
   contractInterface: FINP2POperatorERC20Interface,
@@ -67,88 +95,59 @@ export const parseTransactionReceipt = (
       }
 
       switch (parsedLog.signature) {
-        case "Issue(string,uint8,string,string)": {
-          const { assetId, assetType, quantity, issuerFinId } = parsedLog.args as unknown as IssueEvent.OutputObject;
-          return {
-            id,
-            assetId,
-            assetType: assetTypeFromNumber(assetType),
-            quantity,
-            destination: issuerFinId,
-            timestamp,
-            operationType: "issue"
-          };
-        }
-        case "Transfer(string,uint8,string,string,string)": {
+        case "Issue(string,uint8,string,string,ExecutionContext)": {
           const {
             assetId,
             assetType,
             quantity,
-            sourceFinId,
-            destinationFinId
-          } = parsedLog.args as unknown as TransferEvent.OutputObject;
-          return {
-            id,
-            assetId,
-            assetType: assetTypeFromNumber(assetType),
-            quantity,
-            source: sourceFinId,
-            destination: destinationFinId,
-            timestamp,
-            operationType: "transfer"
-          };
+            issuerFinId,
+            executionContext
+          } = parsedLog.args as unknown as IssueEvent.OutputObject;
+          return createReceipt(id, ReceiptOperationType.ISSUE, assetId, assetType, undefined, issuerFinId, quantity, undefined, executionContext, timestamp);
         }
-        case "Redeem(string,uint8,string,string,string)": {
-          const { assetId, assetType, quantity, ownerFinId } = parsedLog.args as unknown as RedeemEvent.OutputObject;
-          return {
-            id,
-            assetId,
-            assetType: assetTypeFromNumber(assetType),
-            quantity,
-            source: ownerFinId,
-            timestamp,
-            operationType: "redeem"
-          };
-        }
-        case "Hold(string,uint8,string,string,string)": {
-          const {
-            assetId,
-            assetType,
-            quantity,
-            finId,
-            operationId
-          } = parsedLog.args as unknown as HoldEvent.OutputObject;
-          return {
-            id,
-            assetId,
-            assetType: assetTypeFromNumber(assetType),
-            quantity,
-            source: finId,
-            timestamp,
-            operationType: "hold",
-            operationId
-          };
-        }
-        case "Release(string,uint8,string,string,string,string)": {
+        case "Transfer(string,uint8,string,string,string,ExecutionContext)": {
           const {
             assetId,
             assetType,
             quantity,
             sourceFinId,
             destinationFinId,
-            operationId
-          } = parsedLog.args as unknown as ReleaseEvent.OutputObject;
-          return {
-            id,
+            executionContext
+          } = parsedLog.args as unknown as TransferEvent.OutputObject;
+          return createReceipt(id, ReceiptOperationType.TRANSFER, assetId, assetType, sourceFinId, destinationFinId, quantity, undefined, executionContext, timestamp);
+        }
+        case "Redeem(string,uint8,string,string,string,ExecutionContext)": {
+          const {
             assetId,
-            assetType: assetTypeFromNumber(assetType),
+            assetType,
             quantity,
-            source: sourceFinId,
-            destination: destinationFinId,
-            timestamp,
-            operationType: "release",
-            operationId
-          };
+            ownerFinId,
+            executionContext
+          } = parsedLog.args as unknown as RedeemEvent.OutputObject;
+          return createReceipt(id, ReceiptOperationType.REDEEM, assetId, assetType, ownerFinId, undefined, quantity, undefined, executionContext, timestamp);
+        }
+        case "Hold(string,uint8,string,string,string,ExecutionContext)": {
+          const {
+            assetId,
+            assetType,
+            quantity,
+            finId,
+            operationId,
+            executionContext
+          } = parsedLog.args as unknown as HoldEvent.OutputObject;
+          return createReceipt(id, ReceiptOperationType.HOLD, assetId, assetType, finId, undefined, quantity, operationId, executionContext, timestamp);
+        }
+        case "Release(string,uint8,string,string,string,string,ExecutionContext)": {
+          const {
+            assetId,
+            assetType,
+            quantity,
+            sourceFinId,
+            destinationFinId,
+            operationId,
+            executionContext
+          } = parsedLog.args as unknown as ReleaseEvent.OutputObject;
+          return createReceipt(id, ReceiptOperationType.RELEASE, assetId, assetType, sourceFinId, destinationFinId, quantity, operationId, executionContext, timestamp);
         }
       }
     } catch (e) {
@@ -181,6 +180,15 @@ export const parseERC20Transfer = (receipt: TransactionReceipt,
     }
   }
 };
+
+export const linkLibrary = (bytecode: string, libraryName: string, libraryAddress: string) : string => {
+  const formattedAddress = libraryAddress.replace("0x", "").toLowerCase();
+  const placeholder = new RegExp(`_\\$${libraryName}\\$__`, "g"); // Matches __$LibraryName$__
+  if (!bytecode.match(placeholder)) {
+    throw new Error(`Library placeholder for ${libraryName} not found in bytecode.`);
+  }
+  return bytecode.replace(placeholder, formattedAddress);
+}
 
 export const isEthereumAddress = (address: string): boolean => {
   return isAddress(address);

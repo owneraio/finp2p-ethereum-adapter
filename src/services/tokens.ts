@@ -1,19 +1,21 @@
-import { CommonService, ExecDetailsStore } from "./common";
+import { CommonService } from "./common";
 import {
   assetCreationResult,
-  assetFromAPI,
-  extractEIP712Params,
+  assetFromAPI, executionContextFromAPI,
   failedAssetCreation,
   failedTransaction,
-  getRandomNumber, RequestParams, RequestValidationError
+  getRandomNumber
 } from "./mapping";
-import { assetTypeFromString, EthereumTransactionError, term } from "../../finp2p-contracts/src/contracts/model";
+import {
+  EthereumTransactionError
+} from "../../finp2p-contracts/src/contracts/model";
 import { logger } from "../helpers/logger";
 import { FinP2PContract } from "../../finp2p-contracts/src/contracts/finp2p";
 import { isEthereumAddress } from "../../finp2p-contracts/src/contracts/utils";
 import { PolicyGetter } from "../finp2p/policy";
 import CreateAssetResponse = Components.Schemas.CreateAssetResponse;
 import LedgerTokenId = Components.Schemas.LedgerTokenId;
+import { ExecutionPlanGetter } from "../finp2p/execution.plan";
 
 export type AssetCreationPolicy = | { type: "deploy-new-token"; decimals: number } | {
   type: "reuse-existing-token";
@@ -24,9 +26,10 @@ export class TokenService extends CommonService {
 
   assetCreationPolicy: AssetCreationPolicy;
 
-  constructor(finP2PContract: FinP2PContract, assetCreationPolicy: AssetCreationPolicy, policyGetter: PolicyGetter | undefined,
-              execDetailsStore: ExecDetailsStore | undefined) {
-    super(finP2PContract, policyGetter, execDetailsStore);
+  constructor(finP2PContract: FinP2PContract, assetCreationPolicy: AssetCreationPolicy,
+              policyGetter: PolicyGetter | undefined,
+              executionGetter: ExecutionPlanGetter | undefined) {
+    super(finP2PContract, policyGetter, executionGetter);
     this.assetCreationPolicy = assetCreationPolicy;
   }
 
@@ -87,20 +90,26 @@ export class TokenService extends CommonService {
         return failedAssetCreation(1, `${e}`);
       }
     }
-
   }
 
   public async issue(request: Paths.IssueAssets.RequestBody): Promise<Paths.IssueAssets.Responses.$200> {
-    const { asset, quantity, destination: { finId: issuerFinId }, executionContext } = request;
+    const {
+      asset,
+      quantity,
+      destination: { finId: issuerFinId },
+      executionContext
+    } = request;
     const { assetId, assetType } = assetFromAPI(asset);
+    const exCtx = executionContextFromAPI(executionContext);
 
-    let txHash: string;
     try {
+      await this.providePreviousInstructionProofIfExists(exCtx.planId, exCtx.sequence);
+
       logger.info(`Issue asset ${assetId} to ${issuerFinId} with amount ${quantity}`);
-      txHash = await this.finP2PContract.issue(issuerFinId, term(assetId, assetTypeFromString(assetType), quantity));
-      if (executionContext) {
-        this.execDetailsStore?.addExecutionContext(txHash, executionContext.executionPlanId, executionContext.instructionSequenceNumber);
-      }
+      const txHash = await this.finP2PContract.issueWithContext(issuerFinId, assetId, assetType, quantity, exCtx);
+      return {
+        isCompleted: false, cid: txHash
+      } as Components.Schemas.ReceiptOperation;
     } catch (e) {
       logger.error(`Error on asset issuance: ${e}`);
       if (e instanceof EthereumTransactionError) {
@@ -110,31 +119,25 @@ export class TokenService extends CommonService {
         return failedTransaction(1, `${e}`);
       }
     }
-    return {
-      isCompleted: false, cid: txHash
-    } as Components.Schemas.ReceiptOperation;
+
   }
 
   public async transfer(request: Paths.TransferAsset.RequestBody): Promise<Paths.TransferAsset.Responses.$200> {
-    const { executionContext } = request;
-    const requestParams: RequestParams = { ...request, type: "transfer" };
-    const eip712Params = extractEIP712Params(requestParams);
-    try {
-      this.validateRequest(requestParams, eip712Params);
-    } catch (e) {
-      if (e instanceof RequestValidationError) {
-        logger.error(`Validation error: ${e.reason}`);
-        return failedTransaction(1, e.reason);
-      }
-    }
-    const { buyerFinId, sellerFinId, asset, settlement, loan, params } = eip712Params;
-    const { nonce, signature: { signature } } = request;
+    const {
+      asset,
+      quantity,
+      source: { finId: source },
+      destination: { finId: destination },
+      executionContext
+    } = request;
+    const { assetId, assetType } = assetFromAPI(asset);
+    const exCtx = executionContextFromAPI(executionContext);
+
 
     try {
-      const txHash = await this.finP2PContract.transfer(nonce, sellerFinId, buyerFinId, asset, settlement, loan, params, signature);
-      if (executionContext) {
-        this.execDetailsStore?.addExecutionContext(txHash, executionContext.executionPlanId, executionContext.instructionSequenceNumber);
-      }
+      await this.providePreviousInstructionProofIfExists(exCtx.planId, exCtx.sequence);
+
+      const txHash = await this.finP2PContract.transferWithContext(source, destination, assetId, assetType, quantity, exCtx);
       return {
         isCompleted: false, cid: txHash
       } as Components.Schemas.ReceiptOperation;

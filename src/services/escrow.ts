@@ -1,35 +1,28 @@
 import { logger } from "../helpers/logger";
 import { CommonService } from "./common";
 import { EthereumTransactionError } from "../../finp2p-contracts/src/contracts/model";
-import { extractEIP712Params, failedTransaction, RequestParams, RequestValidationError } from "./mapping";
+import { assetFromAPI, executionContextFromAPI, failedTransaction } from "./mapping";
 
 export class EscrowService extends CommonService {
 
   public async hold(request: Paths.HoldOperation.RequestBody): Promise<Paths.HoldOperation.Responses.$200> {
-    const { executionContext } = request;
-    const requestParams: RequestParams = {...request, type: 'hold'};
-    const eip712Params = extractEIP712Params(requestParams);
-    try {
-      this.validateRequest(requestParams, eip712Params);
-    } catch (e) {
-      if (e instanceof RequestValidationError) {
-        logger.error(`Validation error: ${e.reason}`);
-        return failedTransaction(1, e.reason);
-      }
-    }
-    const { buyerFinId, sellerFinId, asset, settlement, loan, params } = eip712Params;
-    const { nonce, signature: { signature } } = request;
+    const {
+      asset,
+      quantity,
+      source: { finId: source },
+      operationId,
+      executionContext
+    } = request;
+    const { assetId, assetType } = assetFromAPI(asset);
+    const exCtx = executionContextFromAPI(executionContext);
 
     try {
-      const txHash = await this.finP2PContract.hold(nonce, sellerFinId, buyerFinId,
-        asset, settlement, loan, params, signature);
-      if (executionContext) {
-        this.execDetailsStore?.addExecutionContext(txHash, executionContext.executionPlanId, executionContext.instructionSequenceNumber);
-      }
+      await this.providePreviousInstructionProofIfExists(exCtx.planId, exCtx.sequence);
+
+      const txHash = await this.finP2PContract.holdWithContext(source, "", assetId, assetType, quantity, operationId, exCtx);
       return {
         isCompleted: false, cid: txHash
       } as Components.Schemas.ReceiptOperation;
-
     } catch (e) {
       logger.error(`Error asset hold: ${e}`);
       if (e instanceof EthereumTransactionError) {
@@ -42,12 +35,21 @@ export class EscrowService extends CommonService {
   }
 
   public async releaseTo(request: Paths.ReleaseOperation.RequestBody): Promise<Paths.ReleaseOperation.Responses.$200> {
-    const { operationId, destination, quantity, executionContext } = request;
+    const {
+      asset,
+      quantity,
+      source: { finId: source },
+      destination: { finId: destination },
+      operationId,
+      executionContext
+    } = request;
+    const { assetId, assetType } = assetFromAPI(asset);
+    const exCtx = executionContextFromAPI(executionContext);
+
     try {
-      const txHash = await this.finP2PContract.releaseTo(operationId, destination.finId, quantity);
-      if (executionContext) {
-        this.execDetailsStore?.addExecutionContext(txHash, executionContext.executionPlanId, executionContext.instructionSequenceNumber);
-      }
+      await this.providePreviousInstructionProofIfExists(exCtx.planId, exCtx.sequence);
+
+      const txHash = await this.finP2PContract.releaseToWithContext(source, destination, assetId, assetType, quantity, operationId, exCtx);
       return {
         isCompleted: false, cid: txHash
       } as Components.Schemas.ReceiptOperation;
@@ -63,12 +65,12 @@ export class EscrowService extends CommonService {
 
   public async releaseBack(request: Paths.RollbackOperation.RequestBody): Promise<Paths.RollbackOperation.Responses.$200> {
     const { operationId, executionContext } = request;
+    const exCtx = executionContextFromAPI(executionContext);
 
     try {
+      await this.providePreviousInstructionProofIfExists(exCtx.planId, exCtx.sequence);
+
       const txHash = await this.finP2PContract.releaseBack(operationId);
-      if (executionContext) {
-        this.execDetailsStore?.addExecutionContext(txHash, executionContext.executionPlanId, executionContext.instructionSequenceNumber);
-      }
       return {
         isCompleted: false, cid: txHash
       } as Components.Schemas.ReceiptOperation;
@@ -84,17 +86,24 @@ export class EscrowService extends CommonService {
   }
 
   public async releaseAndRedeem(request: Paths.RedeemAssets.RequestBody): Promise<Paths.RedeemAssets.Responses.$200> {
-    const { operationId, source, quantity, executionContext } = request;
+    const {
+      asset,
+      quantity,
+      source: { finId: source },
+      operationId,
+      executionContext
+    } = request;
+    const { assetId, assetType } = assetFromAPI(asset);
+    const exCtx = executionContextFromAPI(executionContext);
     if (!operationId) {
       logger.error('No operationId provided');
       return failedTransaction(1, "operationId is required");
     }
 
     try {
-      const txHash = await this.finP2PContract.releaseAndRedeem(operationId, source.finId, quantity);
-      if (executionContext) {
-        this.execDetailsStore?.addExecutionContext(txHash, executionContext.executionPlanId, executionContext.instructionSequenceNumber);
-      }
+      await this.providePreviousInstructionProofIfExists(exCtx.planId, exCtx.sequence);
+
+      const txHash = await this.finP2PContract.releaseAndRedeemWithContext(source, assetId, assetType, quantity, operationId, exCtx);
       return {
         isCompleted: false, cid: txHash
       } as Components.Schemas.ReceiptOperation;
