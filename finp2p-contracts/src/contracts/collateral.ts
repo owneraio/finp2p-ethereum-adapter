@@ -64,12 +64,12 @@ export class FinP2PCollateralAssetFactoryContract extends ContractsManager {
       name, description, basketId, tokenAddresses, quantities, source, destination, params);
   }
 
-  async getEscrowSource() {
-    return await this.contract.getEscrowSource();
+  async getEscrowBorrower() {
+    return await this.contract.getEscrowBorrower();
   }
 
-  async getEscrowDestination() {
-    return await this.contract.getEscrowDestination();
+  async getEscrowLender() {
+    return await this.contract.getEscrowLender();
   }
 
 

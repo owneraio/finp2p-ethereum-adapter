@@ -1,7 +1,6 @@
 import { ContractFactory, Provider, Signer } from "ethers";
 import FINP2P from "../../artifacts/contracts/token/collateral/finp2p/FINP2POperatorERC20Collateral.sol/FINP2POperatorERC20Collateral.json";
 import {
-  assetTypeFromNumber,
   completedOperation,
   failedOperation,
   FinP2PReceipt, LockInfo, OperationParams,

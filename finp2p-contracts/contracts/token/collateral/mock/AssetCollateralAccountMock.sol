@@ -10,43 +10,43 @@ import {IHaircutService} from "./IHaircutService.sol";
 
 contract AssetCollateralAccountMock is IAssetCollateralAccount {
 
-    CollateralType private collateralType;
-    uint8 private decimals;
-    address private _source;
-    address private _destination;
-    address private liabilityOwner;
-    uint256 private amountKept;
+    CollateralType private _collateralType;
+    uint8 private _decimals;
+    address private _borrower;
+    address private _lender;
+    address private _liabilityOwner;
+    uint256 private _amountKept;
 
-    int256 private targetRatio;
-    uint256 private targetRatioLimit;
-    int256 private defaultRatio;
-    uint256 private defaultRatioLimit;
-    uint256 private priceType;
-    address private haircutContext;
-    address private priceService;
-    address private pricedInToken;
-    LiabilityData private liabilityData;
-    address[] private assetContextList;
+    int256 private _targetRatio;
+    uint256 private _targetRatioLimit;
+    int256 private _defaultRatio;
+    uint256 private _defaultRatioLimit;
+    uint256 private _priceType;
+    address private _haircutContext;
+    address private _priceService;
+    address private _pricedInToken;
+    LiabilityData private _liabilityData;
+    address[] private _assetContextList;
 
     struct Lock {
         address tokenAddress;
         uint256 amount;
     }
 
-    Lock[] private locks;
+    Lock[] private _locks;
 
     constructor(
-        CollateralType _collateralType,
-        uint8 _decimals,
-        address source_,
-        address destination_
+        CollateralType collateralType,
+        uint8 decimals,
+        address borrower,
+        address lender
     ) {
-        collateralType = _collateralType;
-        decimals = _decimals;
-        _source = source_;
-        _destination = destination_;
-        liabilityOwner = address(this);
-        amountKept = 0;
+        _collateralType = collateralType;
+        _decimals = decimals;
+        _borrower = borrower;
+        _lender = lender;
+        _liabilityOwner = address(this);
+        _amountKept = 0;
     }
 
     function setAllowableCollateral(
@@ -65,95 +65,95 @@ contract AssetCollateralAccountMock is IAssetCollateralAccount {
         address _pricedInToken,
         uint256 _priceType
     ) external {
-        priceService = _priceService;
-        pricedInToken = _pricedInToken;
-        priceType = _priceType;
+        _priceService = _priceService;
+        _pricedInToken = _pricedInToken;
+        _priceType = _priceType;
     }
 
     function setConfigurationBundle(
-        int256 _targetRatio,
-        int256 _defaultRatio,
-        uint256 _targetRatioLimit,
-        uint256 _defaultRatioLimit,
-        uint256 _priceType,
-        address _haircutContext,
-        address _priceService,
-        address _pricedInToken,
-        LiabilityData memory _liabilityData,
-        address[] memory _assetContextList
+        int256 targetRatio,
+        int256 defaultRatio,
+        uint256 targetRatioLimit,
+        uint256 defaultRatioLimit,
+        uint256 priceType,
+        address haircutContext,
+        address priceService,
+        address pricedInToken,
+        LiabilityData memory liabilityData,
+        address[] memory assetContextList
     ) external {
-        targetRatio = _targetRatio;
-        defaultRatio = _defaultRatio;
-        targetRatioLimit = _targetRatioLimit;
-        defaultRatioLimit = _defaultRatioLimit;
-        priceType = _priceType;
-        haircutContext = _haircutContext;
-        priceService = _priceService;
-        pricedInToken = _pricedInToken;
-        liabilityData = _liabilityData;
-        assetContextList = _assetContextList;
+        _targetRatio = targetRatio;
+        _defaultRatio = defaultRatio;
+        _targetRatioLimit = targetRatioLimit;
+        _defaultRatioLimit = defaultRatioLimit;
+        _priceType = priceType;
+        _haircutContext = haircutContext;
+        _priceService = priceService;
+        _pricedInToken = pricedInToken;
+        _liabilityData = liabilityData;
+        _assetContextList = assetContextList;
     }
 
     function processInterval(uint256 triggerId, uint256 timestamp) external {}
 
-    function deposit(Asset memory _asset, uint256 _amount) external {
+    function deposit(Asset memory asset, uint256 amount) external {
 
 //        uint256 price = IPriceService(priceService).getAssetRate(_asset.addr);
 //        uint256 haircut = IHaircutService(haircutContext).getAssetHaircut(_asset.addr);
 //        uint256 baseValue = price * _amount / 1e18;
 //        uint256 valueAfterHaircut = baseValue * (100 - haircut) / 100;
+        require(msg.sender == _borrower, "Only source can deposit");
 
-
-        IERC20(_asset.addr).transferFrom(_source, liabilityOwner, _amount);
-        locks.push(Lock(_asset.addr, _amount));
+        IERC20(asset.addr).transferFrom(_borrower, _liabilityOwner, amount);
+        _locks.push(Lock(asset.addr, amount));
 
 //        amountKept += valueAfterHaircut;
     }
 
     /// @notice [permission] controller or Role:EscrowAgent
     function release() external {
-        for (uint i = 0; i < locks.length; i++) {
-            require(locks[i].amount > 0, "Lock is not active");
-            IERC20(locks[i].tokenAddress).transferFrom(liabilityOwner, _source, locks[i].amount);
-            locks[i].amount = 0;
+        for (uint i = 0; i < _locks.length; i++) {
+            require(_locks[i].amount > 0, "Lock is not active");
+            IERC20(_locks[i].tokenAddress).transferFrom(_liabilityOwner, _borrower, _locks[i].amount);
+            _locks[i].amount = 0;
         }
     }
 
     function forward() external {
-        for (uint i = 0; i < locks.length; i++) {
-            require(locks[i].amount > 0, "Lock is not active");
-            IERC20(locks[i].tokenAddress).transferFrom(liabilityOwner, _destination, locks[i].amount);
-            locks[i].amount = 0;
+        for (uint i = 0; i < _locks.length; i++) {
+            require(_locks[i].amount > 0, "Lock is not active");
+            IERC20(_locks[i].tokenAddress).transferFrom(_liabilityOwner, _lender, _locks[i].amount);
+            _locks[i].amount = 0;
         }
     }
 
 
     function partialRelease(Asset[] calldata _assets, uint256[] calldata _amounts) external {
         for (uint i = 0; i < _assets.length; i++) {
-            require(locks[i].amount > _amounts[i], "Amount exceeds lock");
-            IERC20(_assets[i].addr).transferFrom(liabilityOwner, _source, _amounts[i]);
-            locks[i].amount -= _amounts[i];
+            require(_locks[i].amount > _amounts[i], "Amount exceeds lock");
+            IERC20(_assets[i].addr).transferFrom(_liabilityOwner, _borrower, _amounts[i]);
+            _locks[i].amount -= _amounts[i];
         }
     }
 
     function partialForward(Asset[] calldata _assets, uint256[] calldata _amounts) external {
         for (uint i = 0; i < _assets.length; i++) {
-            require(locks[i].amount > _amounts[i], "Amount exceeds lock");
-            IERC20(_assets[i].addr).transferFrom(liabilityOwner, _destination, _amounts[i]);
-            locks[i].amount -= _amounts[i];
+            require(_locks[i].amount > _amounts[i], "Amount exceeds lock");
+            IERC20(_assets[i].addr).transferFrom(_liabilityOwner, _lender, _amounts[i]);
+            _locks[i].amount -= _amounts[i];
         }
     }
 
     function getHaircutContext() external view returns (address) {
-        return haircutContext;
+        return _haircutContext;
     }
 
     function source() external view returns (address) {
-        return _source;
+        return _borrower;
     }
 
     function destination() external view returns (address) {
-        return _destination;
+        return _lender;
     }
 }
 

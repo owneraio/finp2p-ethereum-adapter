@@ -115,9 +115,9 @@ const collateralFlow2 = async (
   logger.info(`Created basket account: ${collateralAccount}`);
   logger.info(`Created basket state: ${await collateralContract.getBasketState(basketId)}`);
   logger.info(`Created basket amounts: ${await collateralContract.getBasketAmounts(basketId)}`);
-  const escrowSource = await collateralContract.getEscrowSource();
+  const escrowSource = await collateralContract.getEscrowBorrower();
   logger.info(`Escrow source: ${escrowSource}`);
-  const escrowDestination = await collateralContract.getEscrowDestination();
+  const escrowDestination = await collateralContract.getEscrowLender();
   logger.info(`Escrow destination: ${escrowDestination}`);
 
   const collateralAssetId = generateAssetId();

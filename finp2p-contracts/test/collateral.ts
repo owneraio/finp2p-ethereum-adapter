@@ -3,7 +3,7 @@ import { loadFixture } from "@nomicfoundation/hardhat-toolbox/network-helpers";
 import { ethers } from "hardhat";
 import { v4 as uuid } from "uuid";
 import { getFinId } from "../src/contracts/utils";
-import { AddressLike, Signer, Wallet, ZeroAddress } from "ethers";
+import { AddressLike, parseUnits, Signer, Wallet, ZeroAddress } from "ethers";
 import {
   FinP2PCollateralBasket,
   FINP2POperatorERC20Collateral, IAssetCollateralAccount
@@ -83,7 +83,7 @@ describe("Collateral contract test", function() {
       const borrower = generateInvestor();
       const lender = generateInvestor();
 
-      const assetDecimals = 2;
+      const assetDecimals = 18;
       const assetId = generateAssetId();
       const {
         contract: erc20Token,
@@ -119,12 +119,16 @@ describe("Collateral contract test", function() {
 
       expect(await collateralBasket.getBasketState(basketId)).to.equal(CollateralBasketState.CREATED);
       expect((await collateralBasket.getBasketTokens(basketId))[0]).to.equal(erc20TokenAddress);
+      const escrowBorrower = await collateralBasket.getEscrowBorrower();
+      const escrowLender = await collateralBasket.getEscrowLender();
 
       const collateralAssetId = generateAssetId();
       await finP2P.associateCollateralAsset(collateralAssetId, basketId);
 
       expect(await finP2P.getBalance(collateralAssetId, borrower.finId)).to.equal("1");
       expect(await finP2P.getBalance(collateralAssetId, lender.finId)).to.equal("0");
+      expect(await erc20Token.balanceOf(escrowBorrower)).to.equal(0n);
+      expect(await erc20Token.balanceOf(escrowLender)).to.equal(0n);
 
 
       // await erc20Token.connect(borrower);
@@ -161,11 +165,19 @@ describe("Collateral contract test", function() {
       expect(await finP2P.getBalance(collateralAssetId, borrower.finId)).to.equal("0");
       expect(await finP2P.getBalance(collateralAssetId, lender.finId)).to.equal("0");
       expect(await finP2P.getBalance(assetId, borrower.finId)).to.equal(`${(initialAmount - borrowedAmount).toFixed(assetDecimals)}`);
-      // assets are yet kept in collateral asset basket
       expect(await finP2P.getBalance(assetId, lender.finId)).to.equal(`${(0).toFixed(assetDecimals)}`);
+      expect(await erc20Token.balanceOf(escrowBorrower)).to.equal(parseUnits(`${borrowedAmount}`, assetDecimals));
+      expect(await erc20Token.balanceOf(escrowLender)).to.equal(0n);
 
       await expect(finP2P.releaseTo(dvp1, lender.finId, collateralAmount))
         .to.emit(finP2P, "Release").withArgs(collateralAssetId, AssetType.FinP2P, borrower.finId, lender.finId, collateralAmount, dvp1);
+
+      expect(await finP2P.getBalance(collateralAssetId, borrower.finId)).to.equal("0");
+      expect(await finP2P.getBalance(collateralAssetId, lender.finId)).to.equal("1");
+      expect(await finP2P.getBalance(assetId, borrower.finId)).to.equal(`${(initialAmount - borrowedAmount).toFixed(assetDecimals)}`);
+      expect(await finP2P.getBalance(assetId, lender.finId)).to.equal(`${(0).toFixed(assetDecimals)}`);
+      expect(await erc20Token.balanceOf(escrowBorrower)).to.equal(0n);
+      expect(await erc20Token.balanceOf(escrowLender)).to.equal(0n);
 
       // ----------------------------------------
 
@@ -174,15 +186,22 @@ describe("Collateral contract test", function() {
         operationParams({ chainId, verifyingContract }, PrimaryType.Loan, LegType.Asset, Phase.Close, dvp2),
         lenderSignature)).to.emit(finP2P, "Hold").withArgs(collateralAssetId, AssetType.FinP2P, lender.finId, collateralAmount, dvp2);
 
+      expect(await finP2P.getBalance(collateralAssetId, borrower.finId)).to.equal("0");
+      expect(await finP2P.getBalance(collateralAssetId, lender.finId)).to.equal("0");
+      expect(await finP2P.getBalance(assetId, borrower.finId)).to.equal(`${(initialAmount - borrowedAmount).toFixed(assetDecimals)}`);
+      expect(await finP2P.getBalance(assetId, lender.finId)).to.equal(`${(0).toFixed(assetDecimals)}`);
+      expect(await erc20Token.balanceOf(escrowBorrower)).to.equal(parseUnits(`${borrowedAmount}`, assetDecimals));
+      expect(await erc20Token.balanceOf(escrowLender)).to.equal(0n);
+
       await expect(finP2P.releaseTo(dvp2, borrower.finId, collateralAmount))
         .to.emit(finP2P, "Release").withArgs(collateralAssetId, AssetType.FinP2P, lender.finId, borrower.finId, collateralAmount, dvp2);
 
-      // collateral asset burned for both investors
       expect(await finP2P.getBalance(collateralAssetId, borrower.finId)).to.equal("0");
       expect(await finP2P.getBalance(collateralAssetId, lender.finId)).to.equal("0");
-      // assets returned to borrower from lender
       expect(await finP2P.getBalance(assetId, borrower.finId)).to.equal(`${(initialAmount).toFixed(assetDecimals)}`);
       expect(await finP2P.getBalance(assetId, lender.finId)).to.equal(`${(0).toFixed(assetDecimals)}`);
+      expect(await erc20Token.balanceOf(escrowBorrower)).to.equal(0n);
+      expect(await erc20Token.balanceOf(escrowLender)).to.equal(0n);
     });
 
   });

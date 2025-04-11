@@ -218,8 +218,7 @@ contract FinP2PCollateralBasket is IFinP2PCollateralBasketManager, IFinP2PCollat
 
     function getBalance(string memory basketId, address owner) external view returns (string memory) {
         CollateralBasket storage basket = baskets[basketId];
-        if (basket.state == CollateralBasketState.CREATED ||
-            basket.state == CollateralBasketState.CLOSED) {
+        if (basket.state == CollateralBasketState.CREATED) {
             if (basket.borrower == owner) {
                 return "1";
             } else {
@@ -232,8 +231,11 @@ contract FinP2PCollateralBasket is IFinP2PCollateralBasketManager, IFinP2PCollat
                 return "0";
             }
 
-        } else if (basket.state == CollateralBasketState.WITHHELD ||
-            basket.state == CollateralBasketState.RELEASED) {
+        } else if (
+            basket.state == CollateralBasketState.WITHHELD ||
+            basket.state == CollateralBasketState.RELEASED ||
+            basket.state == CollateralBasketState.CLOSED
+        ) {
             return "0";
         } else {
             revert("Unknown basket state");
