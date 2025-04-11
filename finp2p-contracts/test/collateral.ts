@@ -3,10 +3,10 @@ import { loadFixture } from "@nomicfoundation/hardhat-toolbox/network-helpers";
 import { ethers } from "hardhat";
 import { v4 as uuid } from "uuid";
 import { getFinId } from "../src/contracts/utils";
-import { AddressLike, parseUnits, Signer, Wallet, ZeroAddress } from "ethers";
+import { parseUnits, Signer, Wallet, ZeroAddress } from "ethers";
 import {
   FinP2PCollateralBasket,
-  FINP2POperatorERC20Collateral, IAssetCollateralAccount
+  FINP2POperatorERC20Collateral
 } from "../typechain-types";
 import { AssetType, CollateralBasketState, operationParams, Phase, term, termToEIP712 } from "../src/contracts/model";
 import { expect } from "chai";

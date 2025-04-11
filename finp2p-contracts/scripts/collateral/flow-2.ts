@@ -16,7 +16,6 @@ import { v4 as uuid } from "uuid";
 import { FinP2PContract } from "../../src/contracts/finp2p";
 import { AssetType, operationParams, Phase, term, termToEIP712 } from "../../src/contracts/model";
 import { LegType, loanTerms, newInvestmentMessage, PrimaryType, sign } from "../../src/contracts/eip712";
-import { generateNonce } from "../../test/utils";
 import {
   AccountInfo, allowBorrowerWithAssets, AssetCollateralAccount,
   AssetInfo,
@@ -26,11 +25,22 @@ import {
   getErc20Details, HaircutContext,
   prefundBorrower, sleep
 } from "./common";
+import crypto from "crypto";
 
 const logger = winston.createLogger({
   level: "info", transports: [new transports.Console()], format: format.json()
 });
 
+export const generateNonce = (): Buffer => {
+  const buffer = Buffer.alloc(32);
+  buffer.fill(crypto.randomBytes(24), 0, 24);
+
+  const nowEpochSeconds = Math.floor(new Date().getTime() / 1000);
+  const t = BigInt(nowEpochSeconds);
+  buffer.writeBigInt64BE(t, 24);
+
+  return buffer;
+};
 
 const collateralFlow2 = async (
   factoryAddress: AddressLike,
