@@ -363,14 +363,14 @@ contract FINP2POperatorERC20Collateral is AccessControl, FinP2PSignatureVerifier
         delete locks[operationId];
     }
 
-    /// @notice Get the lock info
-    /// @param operationId The operation id
-    /// @return The lock info
-    function getLockInfo(string memory operationId) external view returns (LockInfo memory) {
-        require(_haveContract(operationId), "Contract not found");
-        Lock storage l = locks[operationId];
-        return LockInfo(l.assetId, l.assetType, l.source, l.destination, l.amount);
-    }
+//    /// @notice Get the lock info
+//    /// @param operationId The operation id
+//    /// @return The lock info
+//    function getLockInfo(string memory operationId) external view returns (LockInfo memory) {
+//        require(_haveContract(operationId), "Contract not found");
+//        Lock storage l = locks[operationId];
+//        return LockInfo(l.assetId, l.assetType, l.source, l.destination, l.amount);
+//    }
 
 //    function addAllowedDomain(uint256 chainId, address verifyingContract) external {
 //        require(hasRole(DEFAULT_ADMIN_ROLE, _msgSender()), "FINP2POperatorERC20: must have admin role to add allowed domains");
@@ -397,6 +397,7 @@ contract FINP2POperatorERC20Collateral is AccessControl, FinP2PSignatureVerifier
         Mintable(asset.tokenAddress).mint(to, tokenAmount);
     }
 
+
     function _transfer(address from, address to, string memory assetId, string memory quantity, Phase phase) internal {
         require(_haveAsset(assetId), "Asset not found");
         Asset memory asset = assets[assetId];
@@ -411,8 +412,22 @@ contract FINP2POperatorERC20Collateral is AccessControl, FinP2PSignatureVerifier
 
         } else if (asset.tokenType == TokenType.COLLATERAL) {
             require(collateralAssetManagerAddress != address(0), "Collateral asset manager address not set");
-            IFinP2PCollateralBasketManager(collateralAssetManagerAddress).process(asset.basketId, quantity, phase);
+            IFinP2PCollateralBasketManager basket = IFinP2PCollateralBasketManager(collateralAssetManagerAddress);
+            if (phase == FinP2PSignatureVerifier.Phase.INITIATE) {
+                if (to == _getEscrow()) {                           // hold
+                    basket.hold(asset.basketId);
 
+                } else {                                            // release or transfer
+                    basket.initiate(asset.basketId);
+                }
+            } else if (phase == FinP2PSignatureVerifier.Phase.CLOSE) {
+                if (from == _getEscrow()) {                         // release
+                    basket.release(asset.basketId);
+
+                } else {                                            // hold or transfer
+                    basket.close(asset.basketId);
+                }
+            }
         } else {
             revert("Invalid token type");
         }
@@ -429,13 +444,13 @@ contract FINP2POperatorERC20Collateral is AccessControl, FinP2PSignatureVerifier
         Burnable(asset.tokenAddress).burn(from, tokenAmount);
     }
 
-    /// @notice Extract the direction of the operation
-    /// @param sellerFinId The FinID of the seller
-    /// @param buyerFinId The FinID of the buyer
-    /// @param assetTerm The asset term
-    /// @param settlementTerm The settlement term
-    /// @param op The operation parameters
-    /// @return The source FinID, the destination FinID, the asset id, the asset type, the amount
+/// @notice Extract the direction of the operation
+/// @param sellerFinId The FinID of the seller
+/// @param buyerFinId The FinID of the buyer
+/// @param assetTerm The asset term
+/// @param settlementTerm The settlement term
+/// @param op The operation parameters
+/// @return The source FinID, the destination FinID, the asset id, the asset type, the amount
     function _extractDetails(
         string memory sellerFinId,
         string memory buyerFinId,

@@ -172,20 +172,21 @@ export class FinP2PContract extends ContractsManager {
   }
 
   async getLockInfo(operationId: string): Promise<LockInfo> {
-    const info = await this.finP2P.getLockInfo(operationId);
-    if (info === null) {
-      throw new Error("Failed to get lock info");
-    }
-    if (info.length < 4) {
-      throw new Error("Failed to get lock info");
-    }
-    return {
-      assetId: info[0],
-      assetType: assetTypeFromNumber(info[1]),
-      source: info[2],
-      destination: info[3],
-      amount: info[4]
-    };
+    // const info = await this.finP2P.getLockInfo(operationId);
+    // if (info === null) {
+    //   throw new Error("Failed to get lock info");
+    // }
+    // if (info.length < 4) {
+    //   throw new Error("Failed to get lock info");
+    // }
+    // return {
+    //   assetId: info[0],
+    //   assetType: assetTypeFromNumber(info[1]),
+    //   source: info[2],
+    //   destination: info[3],
+    //   amount: info[4]
+    // };
+    return {} as LockInfo
   }
 
 }

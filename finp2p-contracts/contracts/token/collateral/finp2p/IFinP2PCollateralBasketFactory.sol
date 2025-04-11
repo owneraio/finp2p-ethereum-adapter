@@ -9,7 +9,9 @@ interface IFinP2PCollateralBasketFactory {
 
     enum CollateralBasketState {
         CREATED,
-        DEPOSITED,
+        WITHHELD,
+        OPENED,
+        CLOSED,
         RELEASED
     }
 

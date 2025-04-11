@@ -7,7 +7,7 @@ import {
   Wallet,
   ZeroAddress
 } from "ethers";
-import { createAccount, privateKeyToFinId } from "../../src/contracts/utils";
+import { createAccount } from "../../src/contracts/utils";
 import {
   FinP2PCollateralAssetFactoryContract
 } from "../../src/contracts/collateral";
@@ -18,13 +18,13 @@ import { AssetType, operationParams, Phase, term, termToEIP712 } from "../../src
 import { LegType, loanTerms, newInvestmentMessage, PrimaryType, sign } from "../../src/contracts/eip712";
 import { generateNonce } from "../../test/utils";
 import {
-  AccountInfo,
+  AccountInfo, allowBorrowerWithAssets, AssetCollateralAccount,
   AssetInfo,
   AssetPriceContext,
   deployERC20, generateAssetId,
   getERC20Balance,
   getErc20Details, HaircutContext,
-  prefundBorrower
+  prefundBorrower, sleep
 } from "./common";
 
 const logger = winston.createLogger({
@@ -71,6 +71,11 @@ const collateralFlow2 = async (
     logger.info(`Creating asset ${name} (${symbol}), decimals: ${decimals}...`);
     asset.tokenAddress = await deployERC20(signer, name, symbol, decimals);
     logger.info(`Asset address: ${asset.tokenAddress}`);
+
+    const assetId = generateAssetId();
+    logger.info(`Associating asset ${assetId} with token ${asset.tokenAddress}...`);
+    await finP2P.waitForCompletion(await finP2P.associateAsset(assetId, asset.tokenAddress));
+
     await prefundBorrower(signer, borrower.address, asset.tokenAddress, amount, logger);
 
     logger.info(`Borrower balance: ${await getERC20Balance(signer, asset.tokenAddress, borrower.address)}`);
@@ -95,10 +100,11 @@ const collateralFlow2 = async (
   const quantities = assets.map(a => a.amount.toString());
   const liabilityAmount = 100000000000;
 
+  logger.info(`Creating collateral asset account...`);
   const rsp = await collateralContract.createCollateralAsset(
     name, description, basketId, tokenAddresses,
     quantities, borrower.finId, lender.finId, {
-      controller,
+      controller: finP2PCollateralAddress,
       haircutContext: haircutContextAddress as string,
       priceService: priceServiceAddress as string,
       pricedInToken: pricedInToken as string,
@@ -106,7 +112,8 @@ const collateralFlow2 = async (
     }
   );
   await rsp.wait();
-  logger.info(`Created basket account: ${await collateralContract.getBasketAccount(basketId)}`);
+  const collateralAccount = await collateralContract.getBasketAccount(basketId);
+  logger.info(`Created basket account: ${collateralAccount}`);
   logger.info(`Created basket state: ${await collateralContract.getBasketState(basketId)}`);
 
   const collateralAssetId = generateAssetId();
@@ -114,7 +121,8 @@ const collateralFlow2 = async (
   await finP2P.associateCollateralAsset(collateralAssetId, basketId);
 
   const verifyingContract = finP2PContractAddress;
-  const asset = term(collateralAssetId, AssetType.FinP2P, "1.00");
+  let repoQuantity = "1.00";
+  const asset = term(collateralAssetId, AssetType.FinP2P, repoQuantity);
   const settlementAssetCode = "USDT";
   const settlement = term(settlementAssetCode, AssetType.FinP2P, "100000000.00");
   const borrowedMoneyAmount = "10000000.00";
@@ -135,16 +143,54 @@ const collateralFlow2 = async (
 
   logger.info(`Initializing repo...`);
 
-  await finP2P.transfer(borrowerNonce, borrower.finId, lender.finId, asset, settlement, loan,
-    operationParams({ chainId, verifyingContract }, PrimaryType.Loan, LegType.Asset, Phase.Initiate),
-    borrowerSignature);
+  for (const asset of assets) {
+    const { tokenAddress, amount } = asset;
+    await allowBorrowerWithAssets(borrower.privateKey, collateralAccount, tokenAddress, amount, logger);
 
+    logger.info(`Borrower balance: ${await getERC20Balance(signer, tokenAddress, borrower.address)}`);
+    logger.info(`Lender balance: ${await getERC20Balance(signer, tokenAddress, lender.address)}`);
+  }
+
+  let txHash: string;
+  const dvp1 = uuid();
+  logger.info(`Hold 1 ${dvp1}`);
+  txHash = await finP2P.hold(borrowerNonce, borrower.finId, lender.finId, asset, settlement, loan,
+    operationParams({ chainId, verifyingContract }, PrimaryType.Loan, LegType.Asset, Phase.Initiate, dvp1),
+    borrowerSignature.slice(2));
+  await finP2P.waitForCompletion(txHash);
+
+  logger.info("Release 1 ${dvp1}");
+  txHash = await finP2P.releaseTo(dvp1, lender.finId, repoQuantity);
+  await finP2P.waitForCompletion(txHash);
+
+  logger.info(`Waiting for 5 seconds...`);
+  await sleep(5000);
+
+  for (const asset of assets) {
+    const { tokenAddress } = asset;
+    logger.info(`Borrower balance: ${await getERC20Balance(signer, tokenAddress, borrower.address)}`);
+    logger.info(`Lender balance: ${await getERC20Balance(signer, tokenAddress, lender.address)}`);
+  }
 
   logger.info(`Closing repo...`);
 
-  await finP2P.transfer(lenderNonce, borrower.finId, lender.finId, asset, settlement, loan,
-    operationParams({ chainId, verifyingContract }, PrimaryType.Loan, LegType.Asset, Phase.Close),
-    lenderSignature);
+  const dvp2 = uuid();
+  logger.info(`Hold 2: ${dvp2}`);
+  txHash = await finP2P.hold(lenderNonce, borrower.finId, lender.finId, asset, settlement, loan,
+    operationParams({ chainId, verifyingContract }, PrimaryType.Loan, LegType.Asset, Phase.Close, dvp2),
+    lenderSignature.slice(2));
+  await finP2P.waitForCompletion(txHash);
+
+  logger.info("Release 2 ${dvp2}");
+  txHash = await finP2P.releaseTo(dvp2, borrower.finId, repoQuantity);
+  await finP2P.waitForCompletion(txHash);
+
+
+  for (const asset of assets) {
+    const { tokenAddress } = asset;
+    logger.info(`Borrower balance: ${await getERC20Balance(signer, tokenAddress, borrower.address)}`);
+    logger.info(`Lender balance: ${await getERC20Balance(signer, tokenAddress, lender.address)}`);
+  }
 
 };
 

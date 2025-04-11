@@ -26,23 +26,26 @@ contract FinP2PCollateralBasket is IFinP2PCollateralBasketManager, IFinP2PCollat
     bytes32 private constant BASKET_FACTORY = keccak256("BASKET_FACTORY");
     bytes32 private constant BASKET_MANAGER = keccak256("BASKET_MANAGER");
 
-
     struct CollateralBasket {
         address collateralAccount;
-        address source;
-        address destination;
+        address borrower;
+        address lender;
         address[] tokenAddresses;
         uint256[] amounts;
         CollateralBasketState state;
     }
 
     address private accountFactoryAddress;
+    address private escrow1;
+    address private escrow2;
     mapping(string => CollateralBasket) private baskets;
 
     constructor() {
         _grantRole(DEFAULT_ADMIN_ROLE, _msgSender());
         _grantRole(BASKET_FACTORY, _msgSender());
         _grantRole(BASKET_MANAGER, _msgSender());
+        escrow1 = address(this);
+        escrow2 = _msgSender();
     }
 
     /// @notice Grant the asset manager role to an account
@@ -81,8 +84,8 @@ contract FinP2PCollateralBasket is IFinP2PCollateralBasketManager, IFinP2PCollat
         string memory basketId,
         address[] memory tokenAddresses,
         string[] memory quantities,
-        string memory sourceFinId,
-        string memory destinationFinId,
+        string memory borrower,
+        string memory lender,
         CollateralAssetParameters memory param
     ) external {
         require(hasRole(BASKET_FACTORY, _msgSender()), "FinP2PCollateralBasket: must have basket factory role to create collateral asset");
@@ -93,8 +96,8 @@ contract FinP2PCollateralBasket is IFinP2PCollateralBasketManager, IFinP2PCollat
         bytes memory initParams = abi.encode(DECIMALS, IAssetCollateralAccount.CollateralType.REPO, 0, 0);
 
         address[] memory addressList = new address[](3);
-        addressList[0] = sourceFinId.toAddress();
-        addressList[1] = destinationFinId.toAddress();
+        addressList[0] = escrow1;
+        addressList[1] = escrow2;
         addressList[2] = accountFactory.getLiabilityFactory();
 
         StrategyInput memory strategyInput = StrategyInput({
@@ -119,8 +122,8 @@ contract FinP2PCollateralBasket is IFinP2PCollateralBasketManager, IFinP2PCollat
 
         baskets[basketId] = CollateralBasket(
             collateralAccount,
-            sourceFinId.toAddress(),
-            destinationFinId.toAddress(),
+            borrower.toAddress(),
+            lender.toAddress(),
             tokenAddresses,
             amounts,
             CollateralBasketState.CREATED
@@ -174,46 +177,71 @@ contract FinP2PCollateralBasket is IFinP2PCollateralBasketManager, IFinP2PCollat
     function getBalance(string memory basketId, address owner) external view returns (string memory) {
         CollateralBasket storage basket = baskets[basketId];
         if (basket.state == CollateralBasketState.CREATED) {
-            if (basket.source == owner) {
+            if (basket.borrower == owner) {
                 return "1";
             } else {
                 return "0";
             }
-        } else if (basket.state == CollateralBasketState.DEPOSITED) {
-            if (basket.destination == owner) {
+        } else if (basket.state == CollateralBasketState.WITHHELD || basket.state == CollateralBasketState.OPENED) {
+            if (basket.lender == owner) {
                 return "1";
             } else {
                 return "0";
             }
 
-        } else if (basket.state == CollateralBasketState.RELEASED) {
+        } else if (basket.state == CollateralBasketState.CLOSED || basket.state == CollateralBasketState.RELEASED) {
             return "0";
         } else {
             revert("Unknown basket state");
         }
     }
 
-    function process(string memory basketId, string memory quantity, FinP2PSignatureVerifier.Phase phase) external {
-        require(hasRole(BASKET_MANAGER, _msgSender()), "FinP2PCollateralBasket: must have basket manager role to process account transactions");
-
-        require(baskets[basketId].collateralAccount != address(0), "Basket does not exist");
-        require(quantity.stringToUint(18) == 10 ** 18, "Quantity must be 1");
-
-        IAssetCollateralAccount collateralAccount = IAssetCollateralAccount(baskets[basketId].collateralAccount);
-        for (uint256 i = 0; i < baskets[basketId].tokenAddresses.length; i++) {
-            address tokenAddress = baskets[basketId].tokenAddresses[i];
+    function hold(string memory basketId) external {
+        CollateralBasket memory basket = baskets[basketId];
+        require(basket.collateralAccount != address(0), "Basket does not exist");
+        for (uint256 i = 0; i < basket.tokenAddresses.length; i++) {
+            address tokenAddress = basket.tokenAddresses[i];
             require(tokenAddress != address(8), "Token address cannot be zero");
-            if (phase == FinP2PSignatureVerifier.Phase.INITIATE) {
-                uint256 tokenAmount = baskets[basketId].amounts[i];
-                collateralAccount.deposit(
-                    Asset(AssetStandard.FUNGIBLE, tokenAddress, 0),
-                    tokenAmount
-                );
-                baskets[basketId].state = CollateralBasketState.DEPOSITED;
-            } else if (phase == FinP2PSignatureVerifier.Phase.CLOSE) {
-                collateralAccount.release();
-                baskets[basketId].state = CollateralBasketState.RELEASED;
-            }
+            uint256 tokenAmount = basket.amounts[i];
+            IERC20(tokenAddress).transferFrom(basket.borrower, escrow1, tokenAmount);
         }
+        basket.state = CollateralBasketState.WITHHELD;
+    }
+
+    function initiate(string memory basketId) external {
+        CollateralBasket memory basket = baskets[basketId];
+        require(basket.collateralAccount != address(0), "Basket does not exist");
+        IAssetCollateralAccount collateral = IAssetCollateralAccount(basket.collateralAccount);
+        for (uint256 i = 0; i < basket.tokenAddresses.length; i++) {
+            address tokenAddress = basket.tokenAddresses[i];
+            require(tokenAddress != address(8), "Token address cannot be zero");
+            uint256 tokenAmount = basket.amounts[i];
+            collateral.deposit(Asset(AssetStandard.FUNGIBLE, tokenAddress, 0), tokenAmount);
+        }
+        basket.state = CollateralBasketState.OPENED;
+    }
+
+    function close(string memory basketId) external {
+        CollateralBasket memory basket = baskets[basketId];
+        require(basket.collateralAccount != address(0), "Basket does not exist");
+        IAssetCollateralAccount collateralAccount = IAssetCollateralAccount(basket.collateralAccount);
+        for (uint256 i = 0; i < basket.tokenAddresses.length; i++) {
+            address tokenAddress = basket.tokenAddresses[i];
+            require(tokenAddress != address(8), "Token address cannot be zero");
+            collateralAccount.release();
+        }
+        basket.state = CollateralBasketState.CLOSED;
+    }
+
+    function release(string memory basketId) external {
+        CollateralBasket memory basket = baskets[basketId];
+        require(basket.collateralAccount != address(0), "Basket does not exist");
+        for (uint256 i = 0; i < basket.tokenAddresses.length; i++) {
+            address tokenAddress = basket.tokenAddresses[i];
+            require(tokenAddress != address(8), "Token address cannot be zero");
+            uint256 tokenAmount = basket.amounts[i];
+            IERC20(tokenAddress).transferFrom(escrow2, basket.lender, tokenAmount);
+        }
+        basket.state = CollateralBasketState.RELEASED;
     }
 }

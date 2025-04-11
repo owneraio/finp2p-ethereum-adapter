@@ -6,7 +6,15 @@ import "../../../utils/finp2p/FinP2PSignatureVerifier.sol";
 
 interface IFinP2PCollateralBasketManager {
 
+    function hold(string memory basketId) external;
+
+    function initiate(string memory basketId) external;
+
+    function close(string memory basketId) external;
+
+    function release(string memory basketId) external;
+
     function getBalance(string memory basketId, address owner) external view returns (string memory);
 
-    function process(string memory basketId, string memory quantity, FinP2PSignatureVerifier.Phase phase) external;
+
 }
