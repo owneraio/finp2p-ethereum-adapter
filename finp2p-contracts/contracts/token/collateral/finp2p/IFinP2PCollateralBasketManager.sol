@@ -8,9 +8,13 @@ interface IFinP2PCollateralBasketManager {
 
     function hold(string memory basketId) external;
 
+    // open collateral
     function initiate(string memory basketId) external;
 
     function close(string memory basketId) external;
+
+    // collateral default
+    function reverse(string memory basketId) external;
 
     function release(string memory basketId) external;
 

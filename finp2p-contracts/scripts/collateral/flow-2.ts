@@ -115,6 +115,10 @@ const collateralFlow2 = async (
   logger.info(`Created basket account: ${collateralAccount}`);
   logger.info(`Created basket state: ${await collateralContract.getBasketState(basketId)}`);
   logger.info(`Created basket amounts: ${await collateralContract.getBasketAmounts(basketId)}`);
+  const escrowSource = await collateralContract.getEscrowSource();
+  logger.info(`Escrow source: ${escrowSource}`);
+  const escrowDestination = await collateralContract.getEscrowDestination();
+  logger.info(`Escrow destination: ${escrowDestination}`);
 
   const collateralAssetId = generateAssetId();
   logger.info(`Associating collateral asset ${collateralAssetId} with basket ${basketId}...`);
@@ -149,8 +153,13 @@ const collateralFlow2 = async (
 
     logger.info(`Borrower balance: ${await getERC20Balance(signer, tokenAddress, borrower.address)}`);
     logger.info(`Lender balance: ${await getERC20Balance(signer, tokenAddress, lender.address)}`);
-    logger.info(`Escrow1 balance: ${await getERC20Balance(signer, collateralAccount, lender.address)}`);
-    logger.info(`Escrow2 balance: ${await getERC20Balance(signer, controller, lender.address)}`);
+    logger.info(`Escrow source balance: ${await getERC20Balance(signer, tokenAddress, escrowSource)}`);
+    logger.info(`Escrow destination balance: ${await getERC20Balance(signer, tokenAddress, escrowDestination)}`);
+  }
+
+  for (const asset of assets) {
+    const { tokenAddress, amount } = asset;
+    await allowBorrowerWithAssets(borrower.privateKey, collateralAccount, tokenAddress, amount, logger);
   }
 
   let txHash: string;
@@ -162,29 +171,26 @@ const collateralFlow2 = async (
   await finP2P.waitForCompletion(txHash);
 
   for (const asset of assets) {
-    const { tokenAddress, amount } = asset;
-    await allowBorrowerWithAssets(borrower.privateKey, collateralAccount, tokenAddress, amount, logger);
-
+    const { tokenAddress } = asset;
     logger.info(`Borrower balance: ${await getERC20Balance(signer, tokenAddress, borrower.address)}`);
     logger.info(`Lender balance: ${await getERC20Balance(signer, tokenAddress, lender.address)}`);
-    logger.info(`Escrow1 balance: ${await getERC20Balance(signer, collateralAccount, lender.address)}`);
-    logger.info(`Escrow2 balance: ${await getERC20Balance(signer, controller, lender.address)}`);
+    logger.info(`Escrow source balance: ${await getERC20Balance(signer, tokenAddress, escrowSource)}`);
+    logger.info(`Escrow destination balance: ${await getERC20Balance(signer, tokenAddress, escrowDestination)}`);
   }
 
   logger.info("Release 1 ${dvp1}");
   txHash = await finP2P.releaseTo(dvp1, lender.finId, repoQuantity);
   await finP2P.waitForCompletion(txHash);
 
-  logger.info(`Waiting for 5 seconds...`);
-
   for (const asset of assets) {
     const { tokenAddress } = asset;
     logger.info(`Borrower balance: ${await getERC20Balance(signer, tokenAddress, borrower.address)}`);
     logger.info(`Lender balance: ${await getERC20Balance(signer, tokenAddress, lender.address)}`);
-    logger.info(`Escrow1 balance: ${await getERC20Balance(signer, collateralAccount, lender.address)}`);
-    logger.info(`Escrow2 balance: ${await getERC20Balance(signer, controller, lender.address)}`);
+    logger.info(`Escrow source balance: ${await getERC20Balance(signer, tokenAddress, escrowSource)}`);
+    logger.info(`Escrow destination balance: ${await getERC20Balance(signer, tokenAddress, escrowDestination)}`);
   }
 
+  logger.info(`Waiting for 5 seconds...`);
   await sleep(5000);
 
   logger.info(`Closing repo...`);
@@ -200,8 +206,8 @@ const collateralFlow2 = async (
     const { tokenAddress } = asset;
     logger.info(`Borrower balance: ${await getERC20Balance(signer, tokenAddress, borrower.address)}`);
     logger.info(`Lender balance: ${await getERC20Balance(signer, tokenAddress, lender.address)}`);
-    logger.info(`Escrow1 balance: ${await getERC20Balance(signer, collateralAccount, lender.address)}`);
-    logger.info(`Escrow2 balance: ${await getERC20Balance(signer, controller, lender.address)}`);
+    logger.info(`Escrow source balance: ${await getERC20Balance(signer, tokenAddress, escrowSource)}`);
+    logger.info(`Escrow destination balance: ${await getERC20Balance(signer, tokenAddress, escrowDestination)}`);
   }
 
   logger.info("Release 2 ${dvp2}");
@@ -213,8 +219,8 @@ const collateralFlow2 = async (
     const { tokenAddress } = asset;
     logger.info(`Borrower balance: ${await getERC20Balance(signer, tokenAddress, borrower.address)}`);
     logger.info(`Lender balance: ${await getERC20Balance(signer, tokenAddress, lender.address)}`);
-    logger.info(`Escrow1 balance: ${await getERC20Balance(signer, collateralAccount, lender.address)}`);
-    logger.info(`Escrow2 balance: ${await getERC20Balance(signer, controller, lender.address)}`);
+    logger.info(`Escrow source balance: ${await getERC20Balance(signer, tokenAddress, escrowSource)}`);
+    logger.info(`Escrow destination balance: ${await getERC20Balance(signer, tokenAddress, escrowDestination)}`);
   }
 
 };

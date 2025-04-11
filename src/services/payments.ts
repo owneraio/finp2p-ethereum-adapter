@@ -12,7 +12,6 @@ import process from "process";
 import { OssClient } from "../finp2p/oss.client";
 import OperationBase = FinAPIComponents.Schemas.OperationBase;
 import ProfileOperation = FinAPIComponents.Schemas.ProfileOperation;
-import ProfileOperationResponse = FinAPIComponents.Schemas.ProfileOperationResponse;
 
 type CollateralAssetDetails = {
   assetList: [
@@ -66,17 +65,14 @@ export class PaymentsService extends CommonService {
     const { id: borrowerId } = await this.ossClient.getOwnerByFinId(borrower);
     let tokenAddresses: string[] = [];
     for (const a of assetList) {
-      const { ledgerAssetInfo: { tokenId: tokenAddress } } = await this.ossClient.getAsset(a.assetId);
-      tokenAddresses.push(tokenAddress);
+      try {
+        const { ledgerAssetInfo: { tokenId: tokenAddress } } = await this.ossClient.getAsset(a.assetId);
+        tokenAddresses.push(tokenAddress);
+      } catch (e) {
+        logger.error(`Unable to get asset ${a.assetId} from OSS: ${e}`);
+      }
     }
-    const haircutContext = process.env.HAIRCUT_CONTEXT;
-    if (!haircutContext) {
-      throw new Error("HAIRCUT_CONTEXT not set");
-    }
-    const priceService = process.env.PRICE_SERVICE;
-    if (!priceService) {
-      throw new Error("PRICE_SERVICE not set");
-    }
+
     const basketId = uuid();
     const agreementName = "FinP2P Asset Collateral Account";
     const agreementDescription = "A collateral account created as part of FinP2P asset agreement";
@@ -93,13 +89,33 @@ export class PaymentsService extends CommonService {
         break;
     }
 
+    const haircutContext = process.env.HAIRCUT_CONTEXT;
+    if (!haircutContext) {
+      throw new Error("HAIRCUT_CONTEXT not set");
+    }
+    const priceService = process.env.PRICE_SERVICE;
+    if (!priceService) {
+      throw new Error("PRICE_SERVICE not set");
+    }
     const controller = this.finP2PContract.finP2PContractAddress;
-    await this.collateralAssetFactoryContract.createCollateralAsset(
-      basketId, agreementName, agreementDescription, tokenAddresses, assetList.map(a => a.quantity), borrower, lender, {
-        controller, haircutContext, priceService, pricedInToken, liabilityAmount,
-        assetContextList: []
-      }
-    );
+    const quantities = assetList.map(a => a.quantity);
+    try {
+
+      await this.collateralAssetFactoryContract.createCollateralAsset(
+        basketId, agreementName, agreementDescription, tokenAddresses, quantities, borrower, lender, {
+          controller, haircutContext, priceService, pricedInToken, liabilityAmount
+        }
+      );
+    } catch (e) {
+      logger.error(`Unable to create collateral asset: ${e}`);
+      return {
+        isCompleted: true, cid: uuid(),
+        error: {
+          code: 1,
+          message: "Unable to create collateral asset",
+        }
+      } as Paths.DepositInstruction.Responses.$200
+    }
 
     // STEP 2   ----------------------------------------------------------------
 

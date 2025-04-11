@@ -12,6 +12,7 @@ interface IFinP2PCollateralBasketFactory {
         WITHHELD,
         OPENED,
         CLOSED,
+        REVERSED,
         RELEASED
     }
 
@@ -60,4 +61,8 @@ interface IFinP2PCollateralBasketFactory {
     function getBasketTokens(string memory basketId) external view returns (address[] memory);
 
     function getBasketAmounts(string memory basketId) external view returns (uint256[] memory);
+
+    function getEscrowBorrower() external view returns (address);
+
+    function getEscrowLender() external view returns (address);
 }

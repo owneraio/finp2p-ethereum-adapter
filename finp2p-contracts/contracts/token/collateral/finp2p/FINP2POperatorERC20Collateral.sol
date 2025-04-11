@@ -96,6 +96,7 @@ contract FINP2POperatorERC20Collateral is AccessControl, FinP2PSignatureVerifier
         string source;
         string destination;
         string amount;
+        Phase phase;
     }
 
     address private escrowWalletAddress;
@@ -301,9 +302,9 @@ contract FINP2POperatorERC20Collateral is AccessControl, FinP2PSignatureVerifier
 
         _transfer(source.toAddress(), _getEscrow(), assetId, amount, op.phase);
         if (op.releaseType == ReleaseType.RELEASE) {
-            locks[op.operationId] = Lock(assetId, assetType, source, destination, amount);
+            locks[op.operationId] = Lock(assetId, assetType, source, destination, amount, op.phase);
         } else if (op.releaseType == ReleaseType.REDEEM) {
-            locks[op.operationId] = Lock(assetId, assetType, source, '', amount);
+            locks[op.operationId] = Lock(assetId, assetType, source, '', amount, op.phase);
         } else {
             revert("Invalid release type");
         }
@@ -325,7 +326,7 @@ contract FINP2POperatorERC20Collateral is AccessControl, FinP2PSignatureVerifier
         require(lock.amount.equals(quantity), "Trying to release amount different from the one held");
         require(lock.destination.equals(toFinId), "Trying to release to different destination than the one expected in the lock");
 
-        _transfer(_getEscrow(), toFinId.toAddress(), lock.assetId, lock.amount, Phase.NONE);
+        _transfer(_getEscrow(), toFinId.toAddress(), lock.assetId, lock.amount, lock.phase);
         emit Release(lock.assetId, lock.assetType, lock.source, lock.destination, quantity, operationId);
         delete locks[operationId];
     }

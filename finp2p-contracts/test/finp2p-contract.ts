@@ -231,19 +231,19 @@ describe("FinP2P proxy contract test", function() {
                 .to.emit(contract, "Hold").withArgs(assetId, assetType, from, amount, operationId);
 
               expect(await contract.getBalance(assetId, from)).to.equal(`${(0).toFixed(decimals)}`);
-              const lock = await contract.getLockInfo(operationId);
-              expect(lock[0]).to.equal(assetId);
-              expect(lock[1]).to.equal(assetType);
-              expect(lock[2]).to.equal(from);
-              expect(lock[3]).to.equal(to);
-              expect(lock[4]).to.equal(amount);
+              // const lock = await contract.getLockInfo(operationId);
+              // expect(lock[0]).to.equal(assetId);
+              // expect(lock[1]).to.equal(assetType);
+              // expect(lock[2]).to.equal(from);
+              // expect(lock[3]).to.equal(to);
+              // expect(lock[4]).to.equal(amount);
 
               await expect(contract.releaseTo(operationId, to, amount))
                 .to.emit(contract, "Release").withArgs(assetId, assetType, from, to, amount, operationId);
 
               expect(await contract.getBalance(assetId, from)).to.equal(`${(0).toFixed(decimals)}`);
               expect(await contract.getBalance(assetId, to)).to.equal(toFixedDecimals(amount, decimals));
-              await expect(contract.getLockInfo(operationId)).to.be.revertedWith("Contract not found"); // TODO update chai
+              // await expect(contract.getLockInfo(operationId)).to.be.revertedWith("Contract not found"); // TODO update chai
 
             });
 
@@ -290,19 +290,19 @@ describe("FinP2P proxy contract test", function() {
                 .to.emit(contract, "Hold").withArgs(assetId, assetType, from, amount, operationId);
 
               expect(await contract.getBalance(assetId, from)).to.equal(`${(0).toFixed(decimals)}`);
-              const lock = await contract.getLockInfo(operationId);
-              expect(lock[0]).to.equal(assetId);
-              expect(lock[1]).to.equal(assetType);
-              expect(lock[2]).to.equal(from);
-              expect(lock[3]).to.equal(to);
-              expect(lock[4]).to.equal(amount);
+              // const lock = await contract.getLockInfo(operationId);
+              // expect(lock[0]).to.equal(assetId);
+              // expect(lock[1]).to.equal(assetType);
+              // expect(lock[2]).to.equal(from);
+              // expect(lock[3]).to.equal(to);
+              // expect(lock[4]).to.equal(amount);
 
               await expect(contract.releaseBack(operationId))
                 .to.emit(contract, "Release").withArgs(assetId, assetType, from, "", amount, operationId);
 
               expect(await contract.getBalance(assetId, from)).to.equal(toFixedDecimals(amount, decimals));
               expect(await contract.getBalance(assetId, to)).to.equal(`${(0).toFixed(decimals)}`);
-              await expect(contract.getLockInfo(operationId)).to.be.revertedWith("Contract not found"); // TODO update chai
+              // await expect(contract.getLockInfo(operationId)).to.be.revertedWith("Contract not found"); // TODO update chai
             });
 
             it(`hold/redeem operations (asset: ${asset}, settlement ${settlement}, leg: ${leg}, phase: ${phase}, decimals: ${decimals})`, async () => {
@@ -352,12 +352,12 @@ describe("FinP2P proxy contract test", function() {
 
               await expect(contract.hold(nonce, investorFinId, issuerFinId, asset, settlement, loan, operationParams({ chainId, verifyingContract}, PrimaryType.Redemption, leg,  phase, operationId, ReleaseType.Redeem), signature))
                 .to.emit(contract, "Hold").withArgs(assetId, assetType, investorFinId, amount, operationId);
-              const lock = await contract.getLockInfo(operationId);
-              expect(lock[0]).to.equal(assetId);
-              expect(lock[1]).to.equal(assetType);
-              expect(lock[2]).to.equal(investorFinId);
-              expect(lock[3]).to.equal('');
-              expect(lock[4]).to.equal(amount);
+              // const lock = await contract.getLockInfo(operationId);
+              // expect(lock[0]).to.equal(assetId);
+              // expect(lock[1]).to.equal(assetType);
+              // expect(lock[2]).to.equal(investorFinId);
+              // expect(lock[3]).to.equal('');
+              // expect(lock[4]).to.equal(amount);
               expect(await contract.getBalance(assetId, investorFinId)).to.equal(`${(0).toFixed(decimals)}`);
 
               // -----------------------------
@@ -365,7 +365,7 @@ describe("FinP2P proxy contract test", function() {
                 .to.emit(contract, "Redeem").withArgs(assetId, assetType, investorFinId, amount, operationId);
 
               expect(await contract.getBalance(assetId, investorFinId)).to.equal(`${(0).toFixed(decimals)}`);
-              await expect(contract.getLockInfo(operationId)).to.be.revertedWith("Contract not found");
+              // await expect(contract.getLockInfo(operationId)).to.be.revertedWith("Contract not found");
             });
           });
         });

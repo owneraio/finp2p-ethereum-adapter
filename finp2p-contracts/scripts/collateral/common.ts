@@ -244,7 +244,7 @@ export const getERC20Balance = async (signer: Signer, tokenAddress: AddressLike,
   try {
     return await erc20.balanceOf(borrower);
   } catch (e) {
-    console.error(e)
+    // console.error(e)
     return 0n;
   }
 };

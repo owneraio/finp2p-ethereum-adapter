@@ -64,9 +64,14 @@ export class FinP2PCollateralAssetFactoryContract extends ContractsManager {
       name, description, basketId, tokenAddresses, quantities, source, destination, params);
   }
 
-  // async whitelistTokens(basketId: string, tokenAddresses: string[]) {
-  //   return await this.contract.whitelistTokens(basketId, tokenAddresses);
-  // }
+  async getEscrowSource() {
+    return await this.contract.getEscrowSource();
+  }
+
+  async getEscrowDestination() {
+    return await this.contract.getEscrowDestination();
+  }
+
 
   async getBasketAccount(basketId: string) {
     return await this.contract.getBasketAccount(basketId);
@@ -79,5 +84,7 @@ export class FinP2PCollateralAssetFactoryContract extends ContractsManager {
   async getBasketState(basketId: string) {
     return await this.contract.getBasketState(basketId);
   }
+
+
 
 }
