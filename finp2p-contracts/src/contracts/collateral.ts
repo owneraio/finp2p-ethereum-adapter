@@ -72,6 +72,10 @@ export class FinP2PCollateralAssetFactoryContract extends ContractsManager {
     return await this.contract.getBasketAccount(basketId);
   }
 
+  async getBasketAmounts(basketId: string) {
+    return await this.contract.getBasketAmounts(basketId);
+  }
+
   async getBasketState(basketId: string) {
     return await this.contract.getBasketState(basketId);
   }

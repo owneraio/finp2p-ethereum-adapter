@@ -75,8 +75,8 @@ const collateralFlow2 = async (
     const assetId = generateAssetId();
     logger.info(`Associating asset ${assetId} with token ${asset.tokenAddress}...`);
     await finP2P.waitForCompletion(await finP2P.associateAsset(assetId, asset.tokenAddress));
-
-    await prefundBorrower(signer, borrower.address, asset.tokenAddress, amount, logger);
+    let q = parseUnits(amount, decimals);
+    await prefundBorrower(signer, borrower.address, asset.tokenAddress, q, logger);
 
     logger.info(`Borrower balance: ${await getERC20Balance(signer, asset.tokenAddress, borrower.address)}`);
 
@@ -91,7 +91,6 @@ const collateralFlow2 = async (
   }
 
   // -------------------------------------------------------------------------
-
 
   const name = "Asset Collateral Account";
   const description = "Description of Asset Collateral Account";
@@ -115,6 +114,7 @@ const collateralFlow2 = async (
   const collateralAccount = await collateralContract.getBasketAccount(basketId);
   logger.info(`Created basket account: ${collateralAccount}`);
   logger.info(`Created basket state: ${await collateralContract.getBasketState(basketId)}`);
+  logger.info(`Created basket amounts: ${await collateralContract.getBasketAmounts(basketId)}`);
 
   const collateralAssetId = generateAssetId();
   logger.info(`Associating collateral asset ${collateralAssetId} with basket ${basketId}...`);
@@ -149,6 +149,8 @@ const collateralFlow2 = async (
 
     logger.info(`Borrower balance: ${await getERC20Balance(signer, tokenAddress, borrower.address)}`);
     logger.info(`Lender balance: ${await getERC20Balance(signer, tokenAddress, lender.address)}`);
+    logger.info(`Escrow1 balance: ${await getERC20Balance(signer, collateralAccount, lender.address)}`);
+    logger.info(`Escrow2 balance: ${await getERC20Balance(signer, controller, lender.address)}`);
   }
 
   let txHash: string;
@@ -159,18 +161,31 @@ const collateralFlow2 = async (
     borrowerSignature.slice(2));
   await finP2P.waitForCompletion(txHash);
 
+  for (const asset of assets) {
+    const { tokenAddress, amount } = asset;
+    await allowBorrowerWithAssets(borrower.privateKey, collateralAccount, tokenAddress, amount, logger);
+
+    logger.info(`Borrower balance: ${await getERC20Balance(signer, tokenAddress, borrower.address)}`);
+    logger.info(`Lender balance: ${await getERC20Balance(signer, tokenAddress, lender.address)}`);
+    logger.info(`Escrow1 balance: ${await getERC20Balance(signer, collateralAccount, lender.address)}`);
+    logger.info(`Escrow2 balance: ${await getERC20Balance(signer, controller, lender.address)}`);
+  }
+
   logger.info("Release 1 ${dvp1}");
   txHash = await finP2P.releaseTo(dvp1, lender.finId, repoQuantity);
   await finP2P.waitForCompletion(txHash);
 
   logger.info(`Waiting for 5 seconds...`);
-  await sleep(5000);
 
   for (const asset of assets) {
     const { tokenAddress } = asset;
     logger.info(`Borrower balance: ${await getERC20Balance(signer, tokenAddress, borrower.address)}`);
     logger.info(`Lender balance: ${await getERC20Balance(signer, tokenAddress, lender.address)}`);
+    logger.info(`Escrow1 balance: ${await getERC20Balance(signer, collateralAccount, lender.address)}`);
+    logger.info(`Escrow2 balance: ${await getERC20Balance(signer, controller, lender.address)}`);
   }
+
+  await sleep(5000);
 
   logger.info(`Closing repo...`);
 
@@ -181,6 +196,14 @@ const collateralFlow2 = async (
     lenderSignature.slice(2));
   await finP2P.waitForCompletion(txHash);
 
+  for (const asset of assets) {
+    const { tokenAddress } = asset;
+    logger.info(`Borrower balance: ${await getERC20Balance(signer, tokenAddress, borrower.address)}`);
+    logger.info(`Lender balance: ${await getERC20Balance(signer, tokenAddress, lender.address)}`);
+    logger.info(`Escrow1 balance: ${await getERC20Balance(signer, collateralAccount, lender.address)}`);
+    logger.info(`Escrow2 balance: ${await getERC20Balance(signer, controller, lender.address)}`);
+  }
+
   logger.info("Release 2 ${dvp2}");
   txHash = await finP2P.releaseTo(dvp2, borrower.finId, repoQuantity);
   await finP2P.waitForCompletion(txHash);
@@ -190,6 +213,8 @@ const collateralFlow2 = async (
     const { tokenAddress } = asset;
     logger.info(`Borrower balance: ${await getERC20Balance(signer, tokenAddress, borrower.address)}`);
     logger.info(`Lender balance: ${await getERC20Balance(signer, tokenAddress, lender.address)}`);
+    logger.info(`Escrow1 balance: ${await getERC20Balance(signer, collateralAccount, lender.address)}`);
+    logger.info(`Escrow2 balance: ${await getERC20Balance(signer, controller, lender.address)}`);
   }
 
 };

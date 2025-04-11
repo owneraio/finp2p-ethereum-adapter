@@ -57,4 +57,7 @@ interface IFinP2PCollateralBasketFactory {
 
     function getBasketState(string memory basketId) external view returns (CollateralBasketState);
 
+    function getBasketTokens(string memory basketId) external view returns (address[] memory);
+
+    function getBasketAmounts(string memory basketId) external view returns (uint256[] memory);
 }

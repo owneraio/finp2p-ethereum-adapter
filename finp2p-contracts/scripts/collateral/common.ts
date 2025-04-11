@@ -241,7 +241,12 @@ export const prefundBorrower = async (
 export const getERC20Balance = async (signer: Signer, tokenAddress: AddressLike, borrower: AddressLike) => {
   const factory = new ContractFactory<any[], ERC20WithOperator>(ERC20.abi, ERC20.bytecode, signer);
   const erc20 = factory.attach(tokenAddress as string) as ERC20WithOperator;
-  return await erc20.balanceOf(borrower);
+  try {
+    return await erc20.balanceOf(borrower);
+  } catch (e) {
+    console.error(e)
+    return 0n;
+  }
 };
 
 export const allowBorrowerWithAssets = async (
@@ -265,7 +270,7 @@ export type AssetInfo = {
   name: string
   symbol: string
   decimals: number
-  amount: BigNumberish
+  amount: string
   rate: BigNumberish
   haircut: BigNumberish
   tokenAddress: AddressLike
@@ -283,4 +288,4 @@ export const sleep = (ms: number) => {
 
 export const generateAssetId = (): string => {
   return `bank-us:102:${uuid()}`;
-}
+};

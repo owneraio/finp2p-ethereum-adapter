@@ -107,14 +107,13 @@ describe("Collateral contract test", function() {
       const priceService = ZeroAddress;
       const pricedInToken = ZeroAddress;
       const liabilityAmount = 1000;
-      const assetContextList: AddressLike[] = [];
       const controller = finP2PAddress;
 
       const basketId = uuid();
       await collateralBasket.createCollateralAsset(
         name, description, basketId, tokenAddressList, amountList, borrower.finId, lender.finId,
         {
-          haircutContext, priceService, pricedInToken, liabilityAmount, assetContextList, controller
+          haircutContext, priceService, pricedInToken, liabilityAmount, controller
         }
       );
 

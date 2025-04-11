@@ -36,16 +36,16 @@ contract FinP2PCollateralBasket is IFinP2PCollateralBasketManager, IFinP2PCollat
     }
 
     address private accountFactoryAddress;
-    address private escrow1;
-    address private escrow2;
+    address private escrowSource;
+    address private escrowDestination;
     mapping(string => CollateralBasket) private baskets;
 
     constructor() {
         _grantRole(DEFAULT_ADMIN_ROLE, _msgSender());
         _grantRole(BASKET_FACTORY, _msgSender());
         _grantRole(BASKET_MANAGER, _msgSender());
-        escrow1 = address(this);
-        escrow2 = _msgSender();
+        escrowSource = address(this);
+        escrowDestination = _msgSender();
     }
 
     /// @notice Grant the asset manager role to an account
@@ -74,6 +74,10 @@ contract FinP2PCollateralBasket is IFinP2PCollateralBasketManager, IFinP2PCollat
         return baskets[basketId].tokenAddresses;
     }
 
+    function getBasketAmounts(string memory basketId) external view returns (uint256[] memory) {
+        return baskets[basketId].amounts;
+    }
+
     function getBasketState(string memory basketId) external view returns (CollateralBasketState) {
         return baskets[basketId].state;
     }
@@ -89,15 +93,12 @@ contract FinP2PCollateralBasket is IFinP2PCollateralBasketManager, IFinP2PCollat
         CollateralAssetParameters memory param
     ) external {
         require(hasRole(BASKET_FACTORY, _msgSender()), "FinP2PCollateralBasket: must have basket factory role to create collateral asset");
-
         require(tokenAddresses.length == quantities.length, "AssetId and quantities length mismatch");
-
         IAccountFactory accountFactory = IAccountFactory(accountFactoryAddress);
         bytes memory initParams = abi.encode(DECIMALS, IAssetCollateralAccount.CollateralType.REPO, 0, 0);
-
         address[] memory addressList = new address[](3);
-        addressList[0] = escrow1;
-        addressList[1] = escrow2;
+        addressList[0] = escrowSource;
+        addressList[1] = escrowDestination;
         addressList[2] = accountFactory.getLiabilityFactory();
 
         StrategyInput memory strategyInput = StrategyInput({
@@ -130,71 +131,9 @@ contract FinP2PCollateralBasket is IFinP2PCollateralBasketManager, IFinP2PCollat
         );
 
         _configureCollateralAsset(basketId, param);
-
         _whitelistTokens(basketId, tokenAddresses);
     }
 
-    function _whitelistTokens(string memory basketId, address[] memory tokenAddresses) internal {
-        address accountAddress = baskets[basketId].collateralAccount;
-        require(accountAddress != address(0), "Basket does not exist");
-        IAssetCollateralAccount account = IAssetCollateralAccount(baskets[basketId].collateralAccount);
-        Asset [] memory assets = new Asset[](tokenAddresses.length);
-        for (uint256 i = 0; i < tokenAddresses.length; i++) {
-            require(tokenAddresses[i] != address(0), "Token address cannot be zero");
-            assets[i] = Asset(AssetStandard.FUNGIBLE, tokenAddresses[i], 0);
-        }
-        account.setAllowableCollateral(assets);
-    }
-
-
-    function _configureCollateralAsset(
-        string memory basketId,
-        CollateralAssetParameters memory param
-    ) internal {
-        address accountAddress = baskets[basketId].collateralAccount;
-        require(accountAddress != address(0), "Basket does not exist");
-        IAssetCollateralAccount account = IAssetCollateralAccount(baskets[basketId].collateralAccount);
-
-        address [] memory assetContextList = new address[](0);
-        account.setConfigurationBundle(
-//            param.targetRatio,
-//            param.defaultRatio,
-//            param.targetRatioLimit,
-//            param.defaultRatioLimit,
-            12 * 10 ** 17,
-            12 * 10 ** 17,
-            2,
-            2,
-            uint256(PriceType.DEFAULT),
-            param.haircutContext,
-            param.priceService,
-            param.pricedInToken,
-            LiabilityData(address(0)/*param.liabilityAddress*/, param.liabilityAmount, param.pricedInToken, 1),
-            assetContextList
-        );
-    }
-
-    function getBalance(string memory basketId, address owner) external view returns (string memory) {
-        CollateralBasket storage basket = baskets[basketId];
-        if (basket.state == CollateralBasketState.CREATED) {
-            if (basket.borrower == owner) {
-                return "1";
-            } else {
-                return "0";
-            }
-        } else if (basket.state == CollateralBasketState.WITHHELD || basket.state == CollateralBasketState.OPENED) {
-            if (basket.lender == owner) {
-                return "1";
-            } else {
-                return "0";
-            }
-
-        } else if (basket.state == CollateralBasketState.CLOSED || basket.state == CollateralBasketState.RELEASED) {
-            return "0";
-        } else {
-            revert("Unknown basket state");
-        }
-    }
 
     function hold(string memory basketId) external {
         CollateralBasket memory basket = baskets[basketId];
@@ -203,7 +142,9 @@ contract FinP2PCollateralBasket is IFinP2PCollateralBasketManager, IFinP2PCollat
             address tokenAddress = basket.tokenAddresses[i];
             require(tokenAddress != address(8), "Token address cannot be zero");
             uint256 tokenAmount = basket.amounts[i];
-            IERC20(tokenAddress).transferFrom(basket.borrower, escrow1, tokenAmount);
+            require(IERC20(tokenAddress).balanceOf(basket.borrower) > 0, "Zero balance of a borrower");
+            require(IERC20(tokenAddress).balanceOf(basket.borrower) >= tokenAmount, "Borrower does not have enough tokens");
+            IERC20(tokenAddress).transferFrom(basket.borrower, escrowSource, tokenAmount);
         }
         basket.state = CollateralBasketState.WITHHELD;
     }
@@ -240,8 +181,79 @@ contract FinP2PCollateralBasket is IFinP2PCollateralBasketManager, IFinP2PCollat
             address tokenAddress = basket.tokenAddresses[i];
             require(tokenAddress != address(8), "Token address cannot be zero");
             uint256 tokenAmount = basket.amounts[i];
-            IERC20(tokenAddress).transferFrom(escrow2, basket.lender, tokenAmount);
+            IERC20(tokenAddress).transferFrom(escrowDestination, basket.lender, tokenAmount);
         }
         basket.state = CollateralBasketState.RELEASED;
     }
+
+    function getBalance(string memory basketId, address owner) external view returns (string memory) {
+        CollateralBasket storage basket = baskets[basketId];
+        if (basket.state == CollateralBasketState.CREATED) {
+            if (basket.borrower == owner) {
+                return "1";
+            } else {
+                return "0";
+            }
+        } else if (basket.state == CollateralBasketState.WITHHELD || basket.state == CollateralBasketState.OPENED) {
+            if (basket.lender == owner) {
+                return "1";
+            } else {
+                return "0";
+            }
+
+        } else if (basket.state == CollateralBasketState.CLOSED || basket.state == CollateralBasketState.RELEASED) {
+            return "0";
+        } else {
+            revert("Unknown basket state");
+        }
+    }
+
+    // ------------------------------------------------------------------------------------
+
+
+    function _whitelistTokens(string memory basketId, address[] memory tokenAddresses) internal {
+        address accountAddress = baskets[basketId].collateralAccount;
+        require(accountAddress != address(0), "Basket does not exist");
+        IAssetCollateralAccount collateral = IAssetCollateralAccount(baskets[basketId].collateralAccount);
+        Asset [] memory assets = new Asset[](tokenAddresses.length);
+        for (uint256 i = 0; i < tokenAddresses.length; i++) {
+            require(tokenAddresses[i] != address(0), "Token address cannot be zero");
+            assets[i] = Asset(AssetStandard.FUNGIBLE, tokenAddresses[i], 0);
+        }
+        collateral.setAllowableCollateral(assets);
+    }
+
+
+    function _configureCollateralAsset(
+        string memory basketId,
+        CollateralAssetParameters memory param
+    ) internal {
+        address accountAddress = baskets[basketId].collateralAccount;
+        require(accountAddress != address(0), "Basket does not exist");
+        IAssetCollateralAccount collateral = IAssetCollateralAccount(baskets[basketId].collateralAccount);
+
+        address [] memory assetContextList = new address[](0); // no asset context list for now
+        collateral.setConfigurationBundle(
+//            param.targetRatio,
+//            param.defaultRatio,
+//            param.targetRatioLimit,
+//            param.defaultRatioLimit,
+            12 * 10 ** 17,
+            12 * 10 ** 17,
+            2,
+            2,
+            uint256(PriceType.DEFAULT),
+            param.haircutContext,
+            param.priceService,
+            param.pricedInToken,
+            LiabilityData(address(0)/*param.liabilityAddress*/,
+                param.liabilityAmount,
+                param.pricedInToken,
+                1 // effective time
+            ),
+            assetContextList
+        );
+    }
+
+
 }
