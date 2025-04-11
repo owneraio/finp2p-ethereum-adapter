@@ -337,11 +337,6 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
         return LockInfo(l.assetId, l.assetType, l.source, l.destination, l.amount);
     }
 
-    function addAllowedDomain(uint256 chainId, address verifyingContract) external {
-        require(hasRole(DEFAULT_ADMIN_ROLE, _msgSender()), "FINP2POperatorERC20: must have admin role to add allowed domains");
-        _addAllowedDomain(chainId, verifyingContract);
-    }
-
     // ------------------------------------------------------------------------------------------
 
     function _haveAsset(string memory assetId) internal view returns (bool exists) {

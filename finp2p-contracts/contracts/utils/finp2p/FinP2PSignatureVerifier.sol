@@ -28,7 +28,6 @@ contract FinP2PSignatureVerifier is EIP712 {
     }
 
     struct OperationParams {
-        Domain domain;
         PrimaryType primaryType;
         LegType leg;
         Phase phase;
@@ -180,81 +179,81 @@ contract FinP2PSignatureVerifier is EIP712 {
         LoanTerm memory loan
     ) public view returns (bytes32) {
         if (params.primaryType == PrimaryType.PRIMARY_SALE) {
-            return _hashTypedDataV4(params.domain,
+            return _hashTypedDataV4(
                 keccak256(abi.encode(
-                PRIMARY_SALE_TYPE_HASH,
-                keccak256(bytes(nonce)),
-                hashFinId(buyerFinId),
-                hashFinId(sellerFinId), // issuer
-                hashTerm(asset),
-                hashTerm(settlement)
-            )));
+                    PRIMARY_SALE_TYPE_HASH,
+                    keccak256(bytes(nonce)),
+                    hashFinId(buyerFinId),
+                    hashFinId(sellerFinId), // issuer
+                    hashTerm(asset),
+                    hashTerm(settlement)
+                )));
 
         } else if (params.primaryType == PrimaryType.BUYING) {
-            return _hashTypedDataV4(params.domain,
+            return _hashTypedDataV4(
                 keccak256(abi.encode(
-                BUYING_TYPE_HASH,
-                keccak256(bytes(nonce)),
-                hashFinId(buyerFinId),
-                hashFinId(sellerFinId),
-                hashTerm(asset),
-                hashTerm(settlement)
-            )));
+                    BUYING_TYPE_HASH,
+                    keccak256(bytes(nonce)),
+                    hashFinId(buyerFinId),
+                    hashFinId(sellerFinId),
+                    hashTerm(asset),
+                    hashTerm(settlement)
+                )));
 
         } else if (params.primaryType == PrimaryType.SELLING) {
-            return _hashTypedDataV4(params.domain,
+            return _hashTypedDataV4(
                 keccak256(abi.encode(
-                SELLING_TYPE_HASH,
-                keccak256(bytes(nonce)),
-                hashFinId(buyerFinId),
-                hashFinId(sellerFinId),
-                hashTerm(asset),
-                hashTerm(settlement)
-            )));
+                    SELLING_TYPE_HASH,
+                    keccak256(bytes(nonce)),
+                    hashFinId(buyerFinId),
+                    hashFinId(sellerFinId),
+                    hashTerm(asset),
+                    hashTerm(settlement)
+                )));
 
         } else if (params.primaryType == PrimaryType.REDEMPTION) {
-            return _hashTypedDataV4(params.domain,
+            return _hashTypedDataV4(
                 keccak256(abi.encode(
-                REDEMPTION_TYPE_HASH,
-                keccak256(bytes(nonce)),
-                hashFinId(sellerFinId),
-                hashFinId(buyerFinId), // issuer
-                hashTerm(asset),
-                hashTerm(settlement)
-            )));
+                    REDEMPTION_TYPE_HASH,
+                    keccak256(bytes(nonce)),
+                    hashFinId(sellerFinId),
+                    hashFinId(buyerFinId), // issuer
+                    hashTerm(asset),
+                    hashTerm(settlement)
+                )));
 
         } else if (params.primaryType == PrimaryType.REQUEST_FOR_TRANSFER) {
-            return _hashTypedDataV4(params.domain,
+            return _hashTypedDataV4(
                 keccak256(abi.encode(
-                REQUEST_FOR_TRANSFER_TYPE_HASH,
-                keccak256(bytes(nonce)),
-                hashFinId(buyerFinId),
-                hashFinId(sellerFinId),
-                hashTerm(asset)  // only asset, no settlement
-            )));
+                    REQUEST_FOR_TRANSFER_TYPE_HASH,
+                    keccak256(bytes(nonce)),
+                    hashFinId(buyerFinId),
+                    hashFinId(sellerFinId),
+                    hashTerm(asset)  // only asset, no settlement
+                )));
 
         } else if (params.primaryType == PrimaryType.PRIVATE_OFFER) {
-            return _hashTypedDataV4(params.domain,
+            return _hashTypedDataV4(
                 keccak256(abi.encode(
-                PRIVATE_OFFER_TYPE_HASH,
-                keccak256(bytes(nonce)),
-                hashFinId(buyerFinId),
-                hashFinId(sellerFinId),
-                hashTerm(asset),
-                hashTerm(settlement)
-            )));
+                    PRIVATE_OFFER_TYPE_HASH,
+                    keccak256(bytes(nonce)),
+                    hashFinId(buyerFinId),
+                    hashFinId(sellerFinId),
+                    hashTerm(asset),
+                    hashTerm(settlement)
+                )));
 
         } else if (params.primaryType == PrimaryType.LOAN) {
-            return _hashTypedDataV4(params.domain,
+            return _hashTypedDataV4(
                 keccak256(abi.encode(
-                LOAN_TYPE_HASH,
-                keccak256(bytes(nonce)),
-                hashFinId(sellerFinId),
-                hashFinId(buyerFinId),
-                hashTerm(asset),
-                hashTerm(settlement),
-                hashLoanTerms(loan)
-            )));
+                    LOAN_TYPE_HASH,
+                    keccak256(bytes(nonce)),
+                    hashFinId(sellerFinId),
+                    hashFinId(buyerFinId),
+                    hashTerm(asset),
+                    hashTerm(settlement),
+                    hashLoanTerms(loan)
+                )));
         } else {
             revert("Invalid eip712 transfer signature type");
         }
