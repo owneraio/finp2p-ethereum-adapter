@@ -5,7 +5,6 @@ import {
   AddressLike,
   parseUnits,
   Wallet,
-  ZeroAddress
 } from "ethers";
 
 import { createAccount } from "../../src/contracts/utils";
@@ -17,7 +16,7 @@ import {
   deployERC20,
   getERC20Balance,
   getErc20Details, HaircutContext, parseAssetsToCreate,
-  prefundBorrower, sleep
+  prefundBorrower, sleep, AssetInfo
 } from "./common";
 
 
@@ -32,7 +31,7 @@ const collateralFlow1 = async (
   priceServiceAddress: AddressLike,
   pricedInToken: AddressLike,
   assetContextList: AddressLike[] = [],
-  assets: AssetToCreate[] = [],
+  assetsToCreate: AssetToCreate[] = [],
   borrower: AccountInfo = createAccount(),
   lender: AccountInfo = createAccount()
 ) => {
@@ -50,23 +49,26 @@ const collateralFlow1 = async (
   } = await getErc20Details(signer, pricedInToken);
   logger.info(`Cash ERC20 '${cashERC20Name}' (${cashERC20Symbol}), decimals: ${cashERC20Decimals}`);
 
-  for (let asset of assets) {
+  let assets: AssetInfo[] = [];
+  for (let asset of assetsToCreate) {
     const { name, symbol, decimals, amount, rate, haircut } = asset;
     logger.info(`Creating asset ${name} (${symbol}), decimals: ${decimals}...`);
-    asset.tokenAddress = await deployERC20(signer, name, symbol, decimals);
-    logger.info(`Asset address: ${asset.tokenAddress}`);
-    await prefundBorrower(signer, borrower.address, asset.tokenAddress, amount, logger);
+    const tokenAddress = await deployERC20(signer, name, symbol, decimals, await signer.getAddress());
+    logger.info(`Asset address: ${tokenAddress}`);
+    await prefundBorrower(signer, borrower.address, tokenAddress, amount, logger);
 
-    logger.info(`Borrower balance: ${await getERC20Balance(signer, asset.tokenAddress, borrower.address)}`);
+    logger.info(`Borrower balance: ${await getERC20Balance(signer, tokenAddress, borrower.address)}`);
 
     const assetPriceContext = new AssetPriceContext(signer, priceServiceAddress);
     const haircutContext = new HaircutContext(signer, haircutContextAddress);
 
     logger.info(`Setting asset rate ${rate}...`);
-    await assetPriceContext.setAssetRate(asset.tokenAddress, pricedInToken, rate);
+    await assetPriceContext.setAssetRate(tokenAddress, pricedInToken, rate);
 
     logger.info(`Setting asset haircut ${haircut}...`);
-    await haircutContext.setAssetHaircut(asset.tokenAddress, haircut);
+    await haircutContext.setAssetHaircut(tokenAddress, haircut);
+
+    assets.push({ assetId: '', tokenAddress, amount });
   }
 
   const collateralAccountFactory = new AccountFactory(signer, factoryAddress);

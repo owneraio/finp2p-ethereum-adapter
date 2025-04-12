@@ -226,13 +226,27 @@ export const getERC20Balance = async (signer: Signer, tokenAddress: AddressLike,
   }
 };
 
-
-export const deployERC20 = async (signer: Signer, name: string, symbol: string, decimals: number) => {
+export const deployERC20 = async (signer: Signer, name: string, symbol: string, decimals: number, operatorAddress: string) => {
   const factory = new ContractFactory<any[], ERC20WithOperator>(ERC20.abi, ERC20.bytecode, signer);
-  const operatorAddress = await signer.getAddress();
   const contract = await factory.deploy(name, symbol, decimals, operatorAddress);
   await contract.waitForDeployment();
   return await contract.getAddress();
+};
+
+export const prefundBorrower = async (
+  signer: Signer,
+  borrower: AddressLike,
+  tokenAddress: AddressLike,
+  amount: BigNumberish,
+  logger: Logger
+) => {
+  const factory = new ContractFactory<any[], ERC20WithOperator>(ERC20.abi, ERC20.bytecode, signer);
+  const erc20 = factory.attach(tokenAddress as string) as ERC20WithOperator;
+  const tokenName = await erc20.name();
+  const tokenTicker = await erc20.symbol();
+  logger.info(`Prefund borrower ${borrower} with ${amount} of ${tokenName} (${tokenTicker}), address: ${tokenAddress}...`);
+  const res = await erc20.mint(borrower, amount);
+  await res.wait();
 };
 
 export const allowBorrowerWithAssets = async (

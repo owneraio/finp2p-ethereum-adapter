@@ -1,7 +1,7 @@
 import process from "process";
 import { createProviderAndSigner } from "../../src/contracts/config";
 import winston, { format, transports } from "winston";
-import { Wallet } from "ethers";
+import { parseUnits, Wallet } from "ethers";
 import { FinP2PCollateralAssetFactoryContract } from "../../src/contracts/collateral";
 import { ContractsManager } from "../../src/contracts/manager";
 import { v4 as uuid } from "uuid";
@@ -81,7 +81,7 @@ const collateralFlow2 = async (
     for (let asset of assetsToCreate) {
       let { name, symbol, decimals, rate, haircut, amount } = asset;
       logger.info(`Creating asset ${name} (${symbol}), decimals: ${decimals}...`);
-      const tokenAddress = await deployERC20(signer, name, symbol, decimals);
+      const tokenAddress = await deployERC20(signer, name, symbol, decimals, finP2PContractAddress);
       logger.info(`Asset address: ${tokenAddress}`);
 
       const assetId = generateAssetId();
@@ -140,7 +140,7 @@ const collateralFlow2 = async (
   const description = "Description of Asset Collateral Account";
   const basketId = uuid();
   const tokenAddresses = assets.map(a => a.tokenAddress) as string[];
-  const quantities = assets.map(a => a.amount.toString());
+  const quantities = assets.map(a => a.amount);
   const liabilityAmount = 100000000000;
 
   logger.info(`Creating collateral asset...`);
