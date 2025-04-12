@@ -101,11 +101,12 @@ export class PaymentsService extends CommonService {
     const quantities = assetList.map(a => a.quantity);
     try {
 
-      await this.collateralAssetFactoryContract.createCollateralAsset(
-        basketId, agreementName, agreementDescription, tokenAddresses, quantities, borrower, lender, {
+      const rsp = await this.collateralAssetFactoryContract.createCollateralAsset(
+        agreementName, agreementDescription, basketId, tokenAddresses, quantities, borrower, lender, {
           controller, haircutContext, priceService, pricedInToken, liabilityAmount
         }
       );
+      await rsp.wait()
     } catch (e) {
       logger.error(`Unable to create collateral asset: ${e}`);
       return {
@@ -116,6 +117,9 @@ export class PaymentsService extends CommonService {
         }
       } as Paths.DepositInstruction.Responses.$200
     }
+
+    const account = await this.collateralAssetFactoryContract.getBasketAccount(basketId);
+    logger.info(`Basket ${basketId} created, account address: ${account}`);
 
     // STEP 2   ----------------------------------------------------------------
 
@@ -138,6 +142,11 @@ export class PaymentsService extends CommonService {
       } as Paths.DepositInstruction.Responses.$200;
     }
     logger.info(`Collateral asset id: ${collateralAssetId}`);
+
+    const associatedBasketId = await this.finP2PContract.getBasketId(collateralAssetId);
+    if (associatedBasketId !== basketId) {
+      logger.warn(`Basket id ${basketId} does not match asset profile id ${collateralAssetId}`);
+    }
 
     if (orgsToShare.length > 0) {
       logger.info(`Sharing profile with organizations: ${orgsToShare}`);

@@ -16,7 +16,7 @@ import {
   AssetPriceContext,
   deployERC20,
   getERC20Balance,
-  getErc20Details, HaircutContext,
+  getErc20Details, HaircutContext, parseAssets,
   prefundBorrower, sleep
 } from "./common";
 
@@ -142,27 +142,7 @@ if (assetContextListStr) {
   assetContextList = assetContextListStr.split(",").map((address) => address.trim());
 }
 
-let assets: AssetInfo[] = [];
-const assetsStr = process.env.ASSETS;
-if (assetsStr) {
-  const assetList = assetsStr.split(";");
-  for (const assetStr of assetList) {
-    const [name, symbol, decimalsStr, amount, rateStr, haircutStr] = assetStr.split(",").map((s) => s.trim());
-    const decimals = parseInt(decimalsStr);
-    const rate = parseUnits(rateStr, decimals);
-    const haircut = parseInt(haircutStr);
-    const tokenAddress = ZeroAddress;
-    assets.push({
-      name,
-      symbol,
-      decimals,
-      amount,
-      rate,
-      haircut,
-      tokenAddress
-    });
-  }
-}
+const assets = parseAssets(process.env.ASSETS);
 
 collateralFlow1(factoryAddress, haircutContext, priceService, pricedInToken, assetContextList, assets)
   .then(() => {

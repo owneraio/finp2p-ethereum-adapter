@@ -102,6 +102,7 @@ contract FinP2PCollateralBasket is IFinP2PCollateralBasketManager, IFinP2PCollat
     ) external {
         require(hasRole(BASKET_FACTORY, _msgSender()), "FinP2PCollateralBasket: must have basket factory role to create collateral asset");
         require(tokenAddresses.length == quantities.length, "AssetId and quantities length mismatch");
+        require(baskets[basketId].collateralAccount == address(0), "Basket already exists");
         IAccountFactory accountFactory = IAccountFactory(accountFactoryAddress);
         bytes memory initParams = abi.encode(DECIMALS, IAssetCollateralAccount.CollateralType.REPO, 0, 0);
         address[] memory addressList = new address[](3);
@@ -151,7 +152,7 @@ contract FinP2PCollateralBasket is IFinP2PCollateralBasketManager, IFinP2PCollat
             address tokenAddress = basket.tokenAddresses[i];
             require(tokenAddress != address(8), "Token address cannot be zero");
             uint256 tokenAmount = basket.amounts[i];
-            require(IERC20(tokenAddress).balanceOf(basket.borrower) > 0, "Zero balance of a borrower");
+            require(IERC20(tokenAddress).balanceOf(basket.borrower) > 0, "Borrower has zero balance");
             require(IERC20(tokenAddress).balanceOf(basket.borrower) >= tokenAmount, "Borrower does not have enough tokens");
             IERC20(tokenAddress).transferFrom(basket.borrower, escrowBorrower, tokenAmount);
         }

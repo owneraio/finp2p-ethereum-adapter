@@ -59,6 +59,10 @@ export class FinP2PContract extends ContractsManager {
     return this.finP2P.getAssetAddress(assetId);
   }
 
+  async getBasketId(assetId: string) {
+    return this.finP2P.getBasketId(assetId);
+  }
+
   async associateAsset(assetId: string, tokenAddress: string) {
     return this.safeExecuteTransaction(this.finP2P, async (finP2P: FINP2POperatorERC20Collateral, txParams: PayableOverrides) => {
       return finP2P.associateAsset(assetId, tokenAddress, txParams);

@@ -22,7 +22,7 @@ import {
   AssetPriceContext,
   deployERC20, generateAssetId,
   getERC20Balance,
-  getErc20Details, HaircutContext,
+  getErc20Details, HaircutContext, parseAssets,
   prefundBorrower, sleep
 } from "./common";
 import crypto from "crypto";
@@ -255,27 +255,7 @@ if (!pricedInToken) {
   throw new Error("PRICED_IN_TOKEN is not set");
 }
 
-let assets: AssetInfo[] = [];
-const assetsStr = process.env.ASSETS;
-if (assetsStr) {
-  const assetList = assetsStr.split(";");
-  for (const assetStr of assetList) {
-    const [name, symbol, decimalsStr, amount, rateStr, haircutStr] = assetStr.split(",").map((s) => s.trim());
-    const decimals = parseInt(decimalsStr);
-    const rate = parseUnits(rateStr, decimals);
-    const haircut = parseInt(haircutStr);
-    const tokenAddress = ZeroAddress;
-    assets.push({
-      name,
-      symbol,
-      decimals,
-      amount,
-      rate,
-      haircut,
-      tokenAddress
-    });
-  }
-}
+const assets = parseAssets(process.env.ASSETS);
 
 collateralFlow2(factoryAddress, haircutContext, priceService, pricedInToken, assets)
   .then(() => {

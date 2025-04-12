@@ -30,6 +30,7 @@ import { getNetworkRpcUrl } from "../../src/contracts/config";
 import { ERC20Contract } from "../../src/contracts/erc20";
 import { Logger } from "winston";
 import { v4 as uuid } from "uuid";
+import process from "process";
 
 
 export class AccountFactory {
@@ -276,6 +277,23 @@ export type AssetInfo = {
   tokenAddress: AddressLike
 }
 
+export const parseAssets = (assetsStr: string | undefined): AssetInfo[] => {
+  if (!assetsStr) {
+    return [];
+  }
+  const assetStrs = assetsStr.split(";").map((s) => s.trim());
+  return assetStrs.map(parseAsset);
+}
+
+const parseAsset = (assetStr: string): AssetInfo => {
+  const [name, symbol, decimalsStr, amount, rateStr, haircutStr] = assetStr.split(",").map((s) => s.trim());
+  const decimals = parseInt(decimalsStr);
+  const rate = parseUnits(rateStr, decimals);
+  const haircut = parseInt(haircutStr);
+  const tokenAddress = ZeroAddress;
+  return { name, symbol, decimals, amount, rate, haircut, tokenAddress } as AssetInfo;
+};
+
 export type AccountInfo = {
   address: AddressLike
   finId: string
@@ -289,3 +307,4 @@ export const sleep = (ms: number) => {
 export const generateAssetId = (): string => {
   return `bank-us:102:${uuid()}`;
 };
+

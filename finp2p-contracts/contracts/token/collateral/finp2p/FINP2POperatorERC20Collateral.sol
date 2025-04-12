@@ -175,6 +175,10 @@ contract FINP2POperatorERC20Collateral is AccessControl, FinP2PSignatureVerifier
         return asset.tokenAddress;
     }
 
+    function getBasketId(string calldata assetId) external view returns (string memory) {
+        return assets[assetId].basketId;
+    }
+
     /// @notice Get the balance of an asset for a FinID
     /// @param assetId The asset id
     /// @param finId The FinID
