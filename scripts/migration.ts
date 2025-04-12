@@ -15,7 +15,13 @@ const logger = winston.createLogger({
 });
 
 
-const startMigration = async (ossUrl: string, providerType: ProviderType, finp2pContractAddress: string, grantOperator: boolean) => {
+const startMigration = async (
+  ossUrl: string,
+  providerType: ProviderType,
+  finp2pContractAddress: string,
+  organizationId: string,
+  grantOperator: boolean
+) => {
   const ossClient = new OssClient(ossUrl, undefined);
   const assets = await ossClient.getAssetsWithTokens()
   logger.info(`Got a list of ${assets.length} assets to migrate`);
@@ -31,8 +37,14 @@ const startMigration = async (ossUrl: string, providerType: ProviderType, finp2p
   let migrated = 0;
   let skipped = 0;
   for (const { assetId, tokenAddress } of assets) {
+    if (organizationId !== assetId.split(":")[0]) {
+      logger.info(`Asset ${assetId} does not belong to organization ${organizationId}, skipping`);
+      skipped++;
+      continue
+    }
     if (!isEthereumAddress(tokenAddress)) {
       logger.info(`Token address ${tokenAddress} for asset ${assetId} is not a valid Ethereum address, skipping`);
+      skipped++;
       continue
     }
     try {
@@ -88,11 +100,7 @@ if (!ossUrl) {
   process.exit(1);
 }
 
-const providerType = process.env.PROVIDER_TYPE as ProviderType;
-if (!providerType) {
-  console.error('Env variable PROVIDER_TYPE was not set');
-  process.exit(1);
-}
+const providerType = process.env.PROVIDER_TYPE as ProviderType || 'local';
 
 const contractAddress = process.env.FINP2P_CONTRACT_ADDRESS;
 if (!contractAddress) {
@@ -100,6 +108,12 @@ if (!contractAddress) {
   process.exit(1);
 }
 
+const organizationId = process.env.ORGANIZATION_ID;
+if (!organizationId) {
+  console.error('Env variable ORGANIZATION_ID was not set');
+  process.exit(1);
+}
+
 const grantOperator = process.env.GRANT_OPERATOR === 'yes';
 
-startMigration(ossUrl, providerType, contractAddress, grantOperator).then(() => {});
+startMigration(ossUrl, providerType, contractAddress, organizationId, grantOperator).then(() => {});
