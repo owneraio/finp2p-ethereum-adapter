@@ -12,11 +12,11 @@ import { createAccount } from "../../src/contracts/utils";
 import {
   AccountFactory,
   AccountInfo, allowBorrowerWithAssets, AssetCollateralAccount,
-  AssetInfo,
+  AssetToCreate,
   AssetPriceContext,
   deployERC20,
   getERC20Balance,
-  getErc20Details, HaircutContext, parseAssets,
+  getErc20Details, HaircutContext, parseAssetsToCreate,
   prefundBorrower, sleep
 } from "./common";
 
@@ -32,7 +32,7 @@ const collateralFlow1 = async (
   priceServiceAddress: AddressLike,
   pricedInToken: AddressLike,
   assetContextList: AddressLike[] = [],
-  assets: AssetInfo[] = [],
+  assets: AssetToCreate[] = [],
   borrower: AccountInfo = createAccount(),
   lender: AccountInfo = createAccount()
 ) => {
@@ -142,7 +142,7 @@ if (assetContextListStr) {
   assetContextList = assetContextListStr.split(",").map((address) => address.trim());
 }
 
-const assets = parseAssets(process.env.ASSETS);
+const assets = parseAssetsToCreate(process.env.ASSETS);
 
 collateralFlow1(factoryAddress, haircutContext, priceService, pricedInToken, assetContextList, assets)
   .then(() => {

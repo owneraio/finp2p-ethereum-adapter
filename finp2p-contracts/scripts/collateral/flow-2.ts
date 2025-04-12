@@ -11,14 +11,14 @@ import { LegType, loanTerms, newInvestmentMessage, PrimaryType, sign } from "../
 import {
   AccountInfo,
   allowBorrowerWithAssets,
-  AssetInfo,
+  AssetToCreate,
   AssetPriceContext,
   deployERC20,
   generateAssetId, getERC20Balance,
   getErc20Details,
   HaircutContext, parseAccountInfo,
-  parseAssets,
-  sleep
+  parseAssetsToCreate,
+  sleep, ExistingAsset, parseExistingAssets, AssetInfo
 } from "./common";
 import crypto from "crypto";
 import { createAccount } from "../../src/contracts/utils";
@@ -44,7 +44,8 @@ const collateralFlow2 = async (
   haircutContextAddress: string,
   priceServiceAddress: string,
   pricedInToken: string,
-  assets: AssetInfo[] = [],
+  assetsToCreate: AssetToCreate[] = [],
+  existingAssets: ExistingAsset[] = [],
   borrower: AccountInfo | undefined,
   lender: AccountInfo | undefined
 ) => {
@@ -58,35 +59,52 @@ const collateralFlow2 = async (
 
   const manager = new ContractsManager(provider, signer, logger);
   if (!finP2PContractAddress) {
+    logger.info(`Deploying FinP2P contract...`);
     finP2PContractAddress = await manager.deployFinP2PContract(
       controller, undefined, factoryAddress as string
     );
+    logger.info(`FinP2P contract address: ${finP2PContractAddress}`);
+  } else {
+    logger.info(`Using FinP2P provided contract address: ${finP2PContractAddress}`);
   }
   const finP2P = new FinP2PContract(provider, signer, finP2PContractAddress, logger);
   const finP2PCollateralAddress = await finP2P.getCollateralAssetManagerAddress();
   const collateralContract = new FinP2PCollateralAssetFactoryContract(provider, signer, finP2PCollateralAddress, logger);
-
   // const domain = { chainId: network.chainId, verifyingContract: finP2PCollateralAddress };
   const domain = { chainId: 1n, verifyingContract: '0xCcCCccccCCCCcCCCCCCcCcCccCcCCCcCcccccccC' };
-  // -------------------------------------------------------------------------
 
-  const {
-    name: cashERC20Name,
-    symbol: cashERC20Symbol,
-    decimals: cashERC20Decimals
-  } = await getErc20Details(signer, pricedInToken);
-  logger.info(`Cash ERC20 '${cashERC20Name}' (${cashERC20Symbol}), decimals: ${cashERC20Decimals}`);
+  let assets: AssetInfo[] = [];
+  if (assetsToCreate.length > 0) {
+    logger.info(`Got a list of ${assetsToCreate.length} assets to create`);
+    const assetPriceContext = new AssetPriceContext(signer, priceServiceAddress);
+    const haircutContext = new HaircutContext(signer, haircutContextAddress);
+    for (let asset of assetsToCreate) {
+      let { name, symbol, decimals, rate, haircut, amount } = asset;
+      logger.info(`Creating asset ${name} (${symbol}), decimals: ${decimals}...`);
+      const tokenAddress = await deployERC20(signer, name, symbol, decimals);
+      logger.info(`Asset address: ${tokenAddress}`);
 
-  for (let asset of assets) {
-    let { assetId, name, symbol, decimals } = asset;
-    if (assetId) continue;
-    logger.info(`Creating asset ${name} (${symbol}), decimals: ${decimals}...`);
-    asset.tokenAddress = await deployERC20(signer, name, symbol, decimals);
-    logger.info(`Asset address: ${asset.tokenAddress}`);
+      const assetId = generateAssetId();
+      logger.info(`Associating asset ${assetId} with token ${tokenAddress}...`);
+      await finP2P.waitForCompletion(await finP2P.associateAsset(assetId, tokenAddress));
 
-    assetId = generateAssetId();
-    logger.info(`Associating asset ${assetId} with token ${asset.tokenAddress}...`);
-    await finP2P.waitForCompletion(await finP2P.associateAsset(assetId, asset.tokenAddress));
+      logger.info(`Setting asset rate ${rate}...`);
+      await assetPriceContext.setAssetRate(tokenAddress, pricedInToken, rate);
+
+      logger.info(`Setting asset haircut ${haircut}...`);
+      await haircutContext.setAssetHaircut(tokenAddress, haircut);
+
+      assets.push({ assetId, tokenAddress, amount });
+    }
+  }
+
+  if (existingAssets.length > 0) {
+    logger.info(`Got a list of ${existingAssets.length} existing assets to use`);
+    for (let asset of existingAssets) {
+      const { assetId, amount } = asset;
+      const tokenAddress = await finP2P.getAssetAddress(assetId);
+      assets.push({ assetId, tokenAddress, amount });
+    }
   }
 
   if (!borrower) {
@@ -97,27 +115,24 @@ const collateralFlow2 = async (
     for (let asset of assets) {
       const { assetId, amount } = asset;
       if (!assetId) continue;
-      await finP2P.issue(borrower.finId, term(assetId, AssetType.FinP2P, amount));
+      const txHash = await finP2P.issue(borrower.finId, term(assetId, AssetType.FinP2P, amount));
+      await finP2P.waitForCompletion(txHash);
       logger.info(`Borrower balance: ${await finP2P.balance(assetId, borrower.finId)}`);
     }
   }
+
   if (!lender) {
     logger.info(`Creating lender account...`);
     lender = createAccount();
     logger.info(`Lender finId: ${lender.finId}`);
   }
 
-  for (let asset of assets) {
-    const { rate, haircut } = asset;
-    const assetPriceContext = new AssetPriceContext(signer, priceServiceAddress);
-    const haircutContext = new HaircutContext(signer, haircutContextAddress);
-
-    logger.info(`Setting asset rate ${rate}...`);
-    await assetPriceContext.setAssetRate(asset.tokenAddress, pricedInToken, rate);
-
-    logger.info(`Setting asset haircut ${haircut}...`);
-    await haircutContext.setAssetHaircut(asset.tokenAddress, haircut);
-  }
+  const {
+    name: cashERC20Name,
+    symbol: cashERC20Symbol,
+    decimals: cashERC20Decimals
+  } = await getErc20Details(signer, pricedInToken);
+  logger.info(`Cash ERC20 '${cashERC20Name}' (${cashERC20Symbol}), decimals: ${cashERC20Decimals}`);
 
   // -------------------------------------------------------------------------
 
@@ -128,7 +143,7 @@ const collateralFlow2 = async (
   const quantities = assets.map(a => a.amount.toString());
   const liabilityAmount = 100000000000;
 
-  logger.info(`Creating collateral asset account...`);
+  logger.info(`Creating collateral asset...`);
   const rsp = await collateralContract.createCollateralAsset(
     name, description, basketId, tokenAddresses,
     quantities, borrower.finId, lender.finId, {
@@ -141,9 +156,7 @@ const collateralFlow2 = async (
   );
   await rsp.wait();
   const collateralAccount = await collateralContract.getBasketAccount(basketId);
-  logger.info(`Created basket account: ${collateralAccount}`);
-  logger.info(`Created basket state: ${await collateralContract.getBasketState(basketId)}`);
-  logger.info(`Created basket amounts: ${await collateralContract.getBasketAmounts(basketId)}`);
+  logger.info(`Created account: ${collateralAccount}`);
   const escrowSource = await collateralContract.getEscrowBorrower();
   logger.info(`Escrow source: ${escrowSource}`);
   const escrowDestination = await collateralContract.getEscrowLender();
@@ -155,8 +168,7 @@ const collateralFlow2 = async (
 
   let repoQuantity = "1.00";
   const asset = term(collateralAssetId, AssetType.FinP2P, repoQuantity);
-  const settlementAssetCode = "USDT";
-  const settlement = term(settlementAssetCode, AssetType.FinP2P, "100000000.00");
+  const settlement = term(cashERC20Symbol, AssetType.FinP2P, "100000000.00");
   const borrowedMoneyAmount = "10000000.00";
   const returnedMoneyAmount = "10000030.00";
   const openTime = "2025-02-01";
@@ -282,7 +294,8 @@ if (!pricedInToken) {
   throw new Error("PRICED_IN_TOKEN is not set");
 }
 
-const assets = parseAssets(process.env.ASSETS);
+const assetsToCreate = parseAssetsToCreate(process.env.ASSETS_TO_CREATE);
+const existingAssets = parseExistingAssets(process.env.EXISTING_ASSETS);
 const borrower = parseAccountInfo(process.env.BORROWER);
 const lender = parseAccountInfo(process.env.LENDER);
 
@@ -292,7 +305,8 @@ collateralFlow2(
   haircutContext,
   priceService,
   pricedInToken,
-  assets,
+  assetsToCreate,
+  existingAssets,
   borrower,
   lender
 ).then(() => {

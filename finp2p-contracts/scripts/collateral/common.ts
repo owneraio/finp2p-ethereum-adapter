@@ -253,32 +253,55 @@ export const allowBorrowerWithAssets = async (
 };
 
 export type AssetInfo = {
-  assetId: string | undefined
+  assetId: string,
+  tokenAddress: string,
+  amount: string
+}
+
+export type AssetToCreate = {
   name: string
   symbol: string
   decimals: number
   amount: string
   rate: BigNumberish
   haircut: BigNumberish
-  tokenAddress: AddressLike
 }
 
-export const parseAssets = (assetsStr: string | undefined): AssetInfo[] => {
+export const parseAssetsToCreate = (assetsStr: string | undefined): AssetToCreate[] => {
   if (!assetsStr) {
     return [];
   }
   const assetStrs = assetsStr.split(";").map((s) => s.trim());
-  return assetStrs.map(parseAsset);
-}
+  return assetStrs.map(parseAssetToCreate);
+};
 
-const parseAsset = (assetStr: string): AssetInfo => {
+const parseAssetToCreate = (assetStr: string): AssetToCreate => {
   const [name, symbol, decimalsStr, amount, rateStr, haircutStr] = assetStr.split(",").map((s) => s.trim());
   const decimals = parseInt(decimalsStr);
   const rate = parseUnits(rateStr, decimals);
   const haircut = parseInt(haircutStr);
   const tokenAddress = ZeroAddress;
-  return { name, symbol, decimals, amount, rate, haircut, tokenAddress } as AssetInfo;
+  return { name, symbol, decimals, amount, rate, haircut, tokenAddress } as AssetToCreate;
 };
+
+
+export type ExistingAsset = {
+  assetId: string,
+  amount: string
+}
+
+export const parseExistingAssets = (assetsStr: string | undefined): ExistingAsset[] => {
+  if (!assetsStr) {
+    return [];
+  }
+  const assetStrs = assetsStr.split(";").map((s) => s.trim());
+  return assetStrs.map(parseExistingAsset);
+}
+
+const parseExistingAsset = (assetStr: string): ExistingAsset => {
+  const [assetId, amount] = assetStr.split(",").map((s) => s.trim());
+  return { assetId, amount } as ExistingAsset;
+}
 
 export type AccountInfo = {
   address: AddressLike
@@ -292,7 +315,7 @@ export const parseAccountInfo = (accountStr: string | undefined): AccountInfo | 
   }
   const [address, finId, privateKey] = accountStr.split(",").map((s) => s.trim());
   return { address, finId, privateKey } as AccountInfo;
-}
+};
 
 export const sleep = (ms: number) => {
   return new Promise(resolve => setTimeout(resolve, ms));
