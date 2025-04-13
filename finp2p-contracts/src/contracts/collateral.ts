@@ -47,6 +47,7 @@ export interface CollateralAssetParams {
 export class FinP2PCollateralAssetFactoryContract extends ContractsManager {
 
   contract: IFinP2PCollateralBasketFactory;
+  contractAddress: string
 
   constructor(provider: Provider, signer: Signer, contractAddress: string, logger: winston.Logger) {
     super(provider, signer, logger);
@@ -54,6 +55,7 @@ export class FinP2PCollateralAssetFactoryContract extends ContractsManager {
       FINP2P_COLLATERAL_ASSET_FACTORY.abi, FINP2P_COLLATERAL_ASSET_FACTORY.bytecode, this.signer
     );
     const contract = factory.attach(contractAddress);
+    this.contractAddress = contractAddress;
     this.contract = contract as IFinP2PCollateralBasketFactory;
   }
 

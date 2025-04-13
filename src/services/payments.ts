@@ -115,7 +115,11 @@ export class PaymentsService extends CommonService {
       logger.info(`Escrow borrower address: ${await this.collateralAssetFactoryContract.getEscrowBorrower()}`);
       logger.info(`Escrow lender address: ${await this.collateralAssetFactoryContract.getEscrowLender()}`);
       logger.info(`Seting factory address;`)
-      await setAccountFactoryAddress(this.collateralAssetFactoryContract.signer, '0x63ECd6118f198049Fd5bF1CcCD6928241a22C677')
+      await setAccountFactoryAddress(
+        this.collateralAssetFactoryContract.signer,
+        this.collateralAssetFactoryContract.contractAddress,
+        '0x63ECd6118f198049Fd5bF1CcCD6928241a22C677'
+      );
 
       logger.info(`Creating collateral asset with basketId: ${basketId}`);
       const rsp = await this.collateralAssetFactoryContract.createCollateralAsset(

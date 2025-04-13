@@ -219,10 +219,10 @@ const undefinedIfEmpty = (value: string): string | undefined => {
 };
 
 
-export const setAccountFactoryAddress = async (signer: Signer, collateralBasketAddress: string) => {
+export const setAccountFactoryAddress = async (signer: Signer, collateralBasketAddress: string, factoryAddress: string) => {
   const factory = new ContractFactory<any[], FinP2PCollateralBasket>(FIN2P2P_COLLATERAL_ASSET_FACTORY.abi, FIN2P2P_COLLATERAL_ASSET_FACTORY.bytecode, signer);
   const contract = await factory.attach(collateralBasketAddress) as FinP2PCollateralBasket;
-  const rsp = await contract.setAccountFactoryAddress(collateralBasketAddress);
+  const rsp = await contract.setAccountFactoryAddress(factoryAddress);
   await rsp.wait();
 };
 
