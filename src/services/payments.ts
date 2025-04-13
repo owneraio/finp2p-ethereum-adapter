@@ -102,41 +102,51 @@ export class PaymentsService extends CommonService {
     }
     const controller = this.finP2PContract.finP2PContractAddress;
     const quantities = assetList.map(a => a.quantity);
-    logger.info(`Preparing tokens to collatorilize: ${tokenAddresses.join(',')}, 
+    logger.info(`Preparing tokens to collatorilize: ${tokenAddresses.join(",")}, 
     borrower: ${borrower}, 
     lender: ${lender}.
-    quantities: ${quantities.join(',')},
+    quantities: ${quantities.join(",")},
     haircutContext: ${haircutContext},
     priceService: ${priceService},
     pricedInToken: ${pricedInToken},
+    collateralBasket: ${this.collateralAssetFactoryContract.contractAddress}
     `);
 
     try {
       logger.info(`Escrow borrower address: ${await this.collateralAssetFactoryContract.getEscrowBorrower()}`);
       logger.info(`Escrow lender address: ${await this.collateralAssetFactoryContract.getEscrowLender()}`);
-      logger.info(`Seting factory address;`)
+    } catch (e) {
+      console.log(`Unable to get escrow addresses: ${e}`);
+    }
+    try {
+      logger.info(`Setting factory address:`);
+      let collateralBasketAddress = this.collateralAssetFactoryContract.contractAddress;
       await setAccountFactoryAddress(
         this.collateralAssetFactoryContract.signer,
-        this.collateralAssetFactoryContract.contractAddress,
-        '0x63ECd6118f198049Fd5bF1CcCD6928241a22C677'
+        collateralBasketAddress,
+        "0x63ECd6118f198049Fd5bF1CcCD6928241a22C677"
       );
+    } catch (e) {
+      console.log(`Unable to set factory address: ${e}`);
+    }
 
+    try {
       logger.info(`Creating collateral asset with basketId: ${basketId}`);
       const rsp = await this.collateralAssetFactoryContract.createCollateralAsset(
         agreementName, agreementDescription, basketId, tokenAddresses, quantities, borrower, lender, {
           controller, haircutContext, priceService, pricedInToken, liabilityAmount
         }
       );
-      await rsp.wait()
+      await rsp.wait();
     } catch (e) {
       logger.error(`Unable to create collateral asset: ${e}`);
       return {
         isCompleted: true, cid: uuid(),
         error: {
           code: 1,
-          message: "Unable to create collateral asset",
+          message: "Unable to create collateral asset"
         }
-      } as Paths.DepositInstruction.Responses.$200
+      } as Paths.DepositInstruction.Responses.$200;
     }
 
     const account = await this.collateralAssetFactoryContract.getBasketAccount(basketId);

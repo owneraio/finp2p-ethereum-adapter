@@ -88,7 +88,8 @@ const init = async () => {
   const useNonceManager = process.env.NONCE_POLICY === "fast";
   const { provider, signer } = await createProviderAndSigner(providerType, logger, useNonceManager);
   const finp2pContract = new FinP2PContract(provider, signer, finP2PContractAddress, logger);
-  const finp2pCollateralContract = new FinP2PCollateralAssetFactoryContract(provider, signer, finP2PContractAddress, logger);
+  const collateralManagerAddress = await finp2pContract.getCollateralAssetManagerAddress();
+  const finp2pCollateralContract = new FinP2PCollateralAssetFactoryContract(provider, signer, collateralManagerAddress, logger);
   const assetCreationPolicy = await createAssetCreationPolicy(finp2pContract);
   const ossClient = new OssClient(ossUrl, undefined);
   const policyGetter = new PolicyGetter(ossClient);
