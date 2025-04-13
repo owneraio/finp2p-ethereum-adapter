@@ -99,7 +99,6 @@ export class PaymentsService extends CommonService {
     if (!priceService) {
       throw new Error("PRICE_SERVICE not set");
     }
-    const controller = this.finP2PContract.finP2PContractAddress;
     const quantities = assetList.map(a => a.quantity);
     logger.info(`Preparing tokens to collatorilize: ${tokenAddresses.join(",")}, 
     borrower: ${borrower}, 
@@ -110,6 +109,7 @@ export class PaymentsService extends CommonService {
     pricedInToken: ${pricedInToken},
     collateralBasket: ${this.collateralAssetFactoryContract.contractAddress}
     `);
+    const controller = this.collateralAssetFactoryContract.contractAddress;
 
     try {
       logger.info(`Escrow borrower address: ${await this.collateralAssetFactoryContract.getEscrowBorrower()}`);
