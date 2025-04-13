@@ -161,7 +161,7 @@ export class PaymentsService extends CommonService {
         logger.warn(`Basket id ${basketId} does not match asset profile id ${collateralAssetId}`);
       }
 
-      if (orgsToShare.length > 0) {
+      if (orgsToShare && orgsToShare.length > 0) {
         logger.info(`Sharing profile with organizations: ${orgsToShare}`);
         await this.finApiClient.shareProfile(collateralAssetId, orgsToShare);
       }
