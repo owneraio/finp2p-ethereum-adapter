@@ -12,6 +12,12 @@ import process from "process";
 import { OssClient } from "../finp2p/oss.client";
 import OperationBase = FinAPIComponents.Schemas.OperationBase;
 import ProfileOperation = FinAPIComponents.Schemas.ProfileOperation;
+import { ERC20WithOperator, FinP2PCollateralBasket } from "../../finp2p-contracts/typechain-types";
+import ERC20 from "../../finp2p-contracts/artifacts/contracts/token/ERC20/ERC20WithOperator.sol/ERC20WithOperator.json";
+import FIN2P2P_COLLATERAL_ASSET_FACTORY
+  from "../../artifacts/contracts/token/collateral/finp2p/FinP2PCollateralBasket.sol/FinP2PCollateralBasket.json";
+import { ContractFactory, Signer } from "ethers";
+
 
 type CollateralAssetDetails = {
   assetList: [
@@ -29,6 +35,24 @@ type CollateralAssetDetails = {
   liabilityAmount: number,
   orgsToShare: string[]
 }
+
+export const setAccountFactoryAddress = async (signer: Signer, collateralBasketAddress: string) => {
+  const factory = new ContractFactory<any[], FinP2PCollateralBasket>(FIN2P2P_COLLATERAL_ASSET_FACTORY.abi, FIN2P2P_COLLATERAL_ASSET_FACTORY.bytecode, signer);
+  const contract = await factory.attach(collateralBasketAddress) as FinP2PCollateralBasket;
+  const rsp = await contract.setAccountFactoryAddress(collateralBasketAddress);
+  await rsp.wait();
+};
+
+export const getErc20Details = async (signer: Signer, tokenAddress: string) => {
+  const factory = new ContractFactory<any[], ERC20WithOperator>(ERC20.abi, ERC20.bytecode, signer);
+  const erc20 = factory.attach(tokenAddress as string) as ERC20WithOperator;
+  const name = await erc20.name();
+  const symbol = await erc20.symbol();
+  const decimals = await erc20.decimals();
+  return {
+    name, symbol, decimals
+  };
+};
 
 export class PaymentsService extends CommonService {
 
@@ -112,7 +136,10 @@ export class PaymentsService extends CommonService {
     try {
       logger.info(`Escrow borrower address: ${await this.collateralAssetFactoryContract.getEscrowBorrower()}`);
       logger.info(`Escrow lender address: ${await this.collateralAssetFactoryContract.getEscrowLender()}`);
+      logger.info(`Seting factory address;`)
+      await setAccountFactoryAddress(this.collateralAssetFactoryContract.signer, '0x63ECd6118f198049Fd5bF1CcCD6928241a22C677')
 
+      logger.info(`Creating collateral asset with basketId: ${basketId}`);
       const rsp = await this.collateralAssetFactoryContract.createCollateralAsset(
         agreementName, agreementDescription, basketId, tokenAddresses, quantities, borrower, lender, {
           controller, haircutContext, priceService, pricedInToken, liabilityAmount
