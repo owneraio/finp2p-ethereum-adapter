@@ -12,7 +12,6 @@ import process from "process";
 import { OssClient } from "../finp2p/oss.client";
 import OperationBase = FinAPIComponents.Schemas.OperationBase;
 import ProfileOperation = FinAPIComponents.Schemas.ProfileOperation;
-import { setAccountFactoryAddress } from "../../finp2p-contracts/src/contracts/utils";
 
 
 type CollateralAssetDetails = {
@@ -117,17 +116,6 @@ export class PaymentsService extends CommonService {
       logger.info(`Escrow lender address: ${await this.collateralAssetFactoryContract.getEscrowLender()}`);
     } catch (e) {
       console.log(`Unable to get escrow addresses: ${e}`);
-    }
-    try {
-      logger.info(`Setting factory address:`);
-      let collateralBasketAddress = this.collateralAssetFactoryContract.contractAddress;
-      await setAccountFactoryAddress(
-        this.collateralAssetFactoryContract.signer,
-        collateralBasketAddress,
-        "0x63ECd6118f198049Fd5bF1CcCD6928241a22C677"
-      );
-    } catch (e) {
-      console.log(`Unable to set factory address: ${e}`);
     }
 
     try {

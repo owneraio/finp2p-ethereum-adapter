@@ -1,9 +1,9 @@
 import {
-  concat, ContractFactory,
+  concat,
   HDNodeWallet,
   isAddress,
   keccak256,
-  Signature, Signer,
+  Signature,
   TransactionReceipt,
   Wallet
 } from "ethers";
@@ -25,9 +25,6 @@ import {
   AccountCreatedEvent,
   IAccountFactoryInterface
 } from "../../typechain-types/contracts/token/collateral/IAccountFactory";
-import { FinP2PCollateralBasket } from "../../typechain-types";
-import FIN2P2P_COLLATERAL_ASSET_FACTORY
-  from "../../artifacts/contracts/token/collateral/finp2p/FinP2PCollateralBasket.sol/FinP2PCollateralBasket.json";
 
 export const compactSerialize = (signature: string): string => {
   const { r, s } = Signature.from(signature);
@@ -216,13 +213,5 @@ export const finIdToEthereumAddress = (finId: string): string => {
 
 const undefinedIfEmpty = (value: string): string | undefined => {
   return value === "" ? undefined : value;
-};
-
-
-export const setAccountFactoryAddress = async (signer: Signer, collateralBasketAddress: string, factoryAddress: string) => {
-  const factory = new ContractFactory<any[], FinP2PCollateralBasket>(FIN2P2P_COLLATERAL_ASSET_FACTORY.abi, FIN2P2P_COLLATERAL_ASSET_FACTORY.bytecode, signer);
-  const contract = await factory.attach(collateralBasketAddress) as FinP2PCollateralBasket;
-  const rsp = await contract.setAccountFactoryAddress(factoryAddress);
-  await rsp.wait();
 };
 
