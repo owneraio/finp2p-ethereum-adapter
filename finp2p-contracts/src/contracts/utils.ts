@@ -1,13 +1,13 @@
 import {
-  concat,
+  concat, ContractFactory,
   HDNodeWallet,
   isAddress,
   keccak256,
-  Signature,
+  Signature, Signer,
   TransactionReceipt,
   Wallet
 } from "ethers";
-import { assetTypeFromNumber, ERC20Transfer, FinP2PReceipt } from "./model";
+import { assetTypeFromNumber, FinP2PReceipt } from "./model";
 import * as secp256k1 from "secp256k1";
 import {
   FINP2POperatorERC20Interface,
@@ -17,10 +17,7 @@ import {
   ReleaseEvent,
   TransferEvent
 } from "../../typechain-types/contracts/token/ERC20/FINP2POperatorERC20";
-import {
-  ERC20WithOperatorInterface,
-  TransferEvent as ERC20TransferEvent
-} from "../../typechain-types/contracts/token/ERC20/ERC20WithOperator";
+
 import {
   FINP2POperatorERC20CollateralInterface
 } from "../../typechain-types/contracts/token/collateral/finp2p/FINP2POperatorERC20Collateral";
@@ -28,7 +25,9 @@ import {
   AccountCreatedEvent,
   IAccountFactoryInterface
 } from "../../typechain-types/contracts/token/collateral/IAccountFactory";
-import { IERC20Interface } from "../../typechain-types/@openzeppelin/contracts/token/ERC20/IERC20";
+import { FinP2PCollateralBasket } from "../../typechain-types";
+import FIN2P2P_COLLATERAL_ASSET_FACTORY
+  from "../../artifacts/contracts/token/collateral/finp2p/FinP2PCollateralBasket.sol/FinP2PCollateralBasket.json";
 
 export const compactSerialize = (signature: string): string => {
   const { r, s } = Signature.from(signature);
@@ -218,3 +217,12 @@ export const finIdToEthereumAddress = (finId: string): string => {
 const undefinedIfEmpty = (value: string): string | undefined => {
   return value === "" ? undefined : value;
 };
+
+
+export const setAccountFactoryAddress = async (signer: Signer, collateralBasketAddress: string) => {
+  const factory = new ContractFactory<any[], FinP2PCollateralBasket>(FIN2P2P_COLLATERAL_ASSET_FACTORY.abi, FIN2P2P_COLLATERAL_ASSET_FACTORY.bytecode, signer);
+  const contract = await factory.attach(collateralBasketAddress) as FinP2PCollateralBasket;
+  const rsp = await contract.setAccountFactoryAddress(collateralBasketAddress);
+  await rsp.wait();
+};
+
