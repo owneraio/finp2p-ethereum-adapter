@@ -73,6 +73,7 @@ export class PaymentsService extends CommonService {
       }
     }
 
+
     const basketId = uuid();
     const agreementName = "FinP2P Asset Collateral Account";
     const agreementDescription = "A collateral account created as part of FinP2P asset agreement";
@@ -99,7 +100,18 @@ export class PaymentsService extends CommonService {
     }
     const controller = this.finP2PContract.finP2PContractAddress;
     const quantities = assetList.map(a => a.quantity);
+    logger.info(`Preparing tokens to collatorilize: ${tokenAddresses.join(',')}, 
+    borrower: ${borrower}, 
+    lender: ${lender}.
+    quantities: ${quantities.join(',')},
+    haircutContext: ${haircutContext},
+    priceService: ${priceService},
+    pricedInToken: ${pricedInToken},
+    `);
+
     try {
+      logger.info(`Escrow borrower address: ${await this.collateralAssetFactoryContract.getEscrowBorrower()}`);
+      logger.info(`Escrow lender address: ${await this.collateralAssetFactoryContract.getEscrowLender()}`);
 
       const rsp = await this.collateralAssetFactoryContract.createCollateralAsset(
         agreementName, agreementDescription, basketId, tokenAddresses, quantities, borrower, lender, {

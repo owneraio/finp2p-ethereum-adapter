@@ -22,7 +22,6 @@ import {
 } from "./common";
 import crypto from "crypto";
 import { createAccount } from "../../src/contracts/utils";
-import console from "console";
 
 const logger = winston.createLogger({
   level: "info", transports: [new transports.Console()], format: format.json()
