@@ -90,6 +90,14 @@ contract FinP2PCollateralBasket is IFinP2PCollateralBasketManager, IFinP2PCollat
         return escrowLender;
     }
 
+    enum AssetType {
+        FINP2P,
+        FIAT,
+        CRYPTOCURRENCY
+    }
+
+    event Transfer(string assetId, AssetType assetType, string sourceFinId, string destinationFinId, string quantity);
+
     function createCollateralAsset(
         string memory name,
         string memory description,

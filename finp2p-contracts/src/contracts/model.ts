@@ -201,10 +201,10 @@ export type FinP2PReceipt = {
 };
 
 export type ERC20Transfer = {
-  tokenAddress: string
+  address: string
   from: string
   to: string
-  amount: number
+  value: bigint
 }
 
 export type FailedTransaction = {

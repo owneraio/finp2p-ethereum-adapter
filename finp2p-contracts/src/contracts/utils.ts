@@ -7,7 +7,7 @@ import {
   TransactionReceipt,
   Wallet
 } from "ethers";
-import { assetTypeFromNumber, FinP2PReceipt } from "./model";
+import { assetTypeFromNumber, ERC20Transfer, FinP2PReceipt } from "./model";
 import * as secp256k1 from "secp256k1";
 import {
   FINP2POperatorERC20Interface,
@@ -28,6 +28,7 @@ import {
   AccountCreatedEvent,
   IAccountFactoryInterface
 } from "../../typechain-types/contracts/token/collateral/IAccountFactory";
+import { IERC20Interface } from "../../typechain-types/@openzeppelin/contracts/token/ERC20/IERC20";
 
 export const compactSerialize = (signature: string): string => {
   const { r, s } = Signature.from(signature);
@@ -183,28 +184,28 @@ export const parseCreateAccount = (receipt: TransactionReceipt,
   throw new Error("Failed to parse create account");
 };
 
-export const parseERC20Transfer = (receipt: TransactionReceipt,
-                                   contractInterface: ERC20WithOperatorInterface): {
-  from: string,
-  to: string,
-  value: bigint
-} | undefined => {
-  for (const log of receipt.logs) {
-    try {
-      const parsedLog = contractInterface.parseLog(log);
-      if (parsedLog === null) {
-        continue;
-      }
 
-      if (parsedLog.signature === "Transfer(address,address,uint256)") {
-        const { from, to, value } = parsedLog.args as unknown as ERC20TransferEvent.OutputObject;
-        return { from, to, value };
-      }
-    } catch (e) {
-      // do nothing
-    }
-  }
-};
+// export const parseERC20Transfers = (receipt: TransactionReceipt,
+//                                    contractInterface: IERC20Interface): ERC20Transfer[] => {
+//   let transfers: ERC20Transfer[] = []
+//   for (const log of receipt.logs) {
+//     try {
+//       const parsedLog = contractInterface.parseLog(log);
+//       if (parsedLog === null) {
+//         continue;
+//       }
+//
+//       if (parsedLog.signature === "Transfer(address,address,uint256)") {
+//         const { address } = log;
+//         const { from, to, value } = parsedLog.args as unknown as ERC20TransferEvent.OutputObject;
+//         transfers.push({ address, from, to, value });
+//       }
+//     } catch (e) {
+//       // do nothing
+//     }
+//   }
+//   return transfers;
+// };
 
 export const isEthereumAddress = (address: string): boolean => {
   return isAddress(address);

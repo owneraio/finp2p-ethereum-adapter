@@ -3,7 +3,6 @@ import { createProviderAndSigner } from "../../src/contracts/config";
 import winston, { format, transports } from "winston";
 import {
   AddressLike,
-  parseUnits,
   Wallet,
 } from "ethers";
 
@@ -16,7 +15,7 @@ import {
   deployERC20,
   getERC20Balance,
   getErc20Details, HaircutContext, parseAssetsToCreate,
-  prefundBorrower, sleep, AssetInfo
+  prefundBorrower, sleep, AssetInfo, ExistingAsset, parseExistingAssets, parseAccountInfo
 } from "./common";
 
 
@@ -30,8 +29,9 @@ const collateralFlow1 = async (
   haircutContextAddress: AddressLike,
   priceServiceAddress: AddressLike,
   pricedInToken: AddressLike,
-  assetContextList: AddressLike[] = [],
   assetsToCreate: AssetToCreate[] = [],
+  existingAssets: ExistingAsset[] = [],
+  liabilityAmount: number,
   borrower: AccountInfo = createAccount(),
   lender: AccountInfo = createAccount()
 ) => {
@@ -50,25 +50,37 @@ const collateralFlow1 = async (
   logger.info(`Cash ERC20 '${cashERC20Name}' (${cashERC20Symbol}), decimals: ${cashERC20Decimals}`);
 
   let assets: AssetInfo[] = [];
-  for (let asset of assetsToCreate) {
-    const { name, symbol, decimals, amount, rate, haircut } = asset;
-    logger.info(`Creating asset ${name} (${symbol}), decimals: ${decimals}...`);
-    const tokenAddress = await deployERC20(signer, name, symbol, decimals, await signer.getAddress());
-    logger.info(`Asset address: ${tokenAddress}`);
-    await prefundBorrower(signer, borrower.address, tokenAddress, amount, logger);
-
-    logger.info(`Borrower balance: ${await getERC20Balance(signer, tokenAddress, borrower.address)}`);
-
+  if (assetsToCreate.length > 0) {
     const assetPriceContext = new AssetPriceContext(signer, priceServiceAddress);
     const haircutContext = new HaircutContext(signer, haircutContextAddress);
+    for (let asset of assetsToCreate) {
+      const { name, symbol, decimals, amount, rate, haircut } = asset;
+      logger.info(`Creating asset ${name} (${symbol}), decimals: ${decimals}...`);
+      const tokenAddress = await deployERC20(signer, name, symbol, decimals, await signer.getAddress());
+      logger.info(`Asset address: ${tokenAddress}`);
+      await prefundBorrower(signer, borrower.address, tokenAddress, amount, logger);
 
-    logger.info(`Setting asset rate ${rate}...`);
-    await assetPriceContext.setAssetRate(tokenAddress, pricedInToken, rate);
+      logger.info(`Borrower balance: ${await getERC20Balance(signer, tokenAddress, borrower.address)}`);
 
-    logger.info(`Setting asset haircut ${haircut}...`);
-    await haircutContext.setAssetHaircut(tokenAddress, haircut);
+      logger.info(`Setting asset rate ${rate}...`);
+      await assetPriceContext.setAssetRate(tokenAddress, pricedInToken, rate);
 
-    assets.push({ assetId: '', tokenAddress, amount });
+      logger.info(`Setting asset haircut ${haircut}...`);
+      await haircutContext.setAssetHaircut(tokenAddress, haircut);
+
+      assets.push({ assetId: '', tokenAddress, amount });
+    }
+  }
+
+  if (existingAssets.length > 0) {
+    logger.info(`Got a list of ${existingAssets.length} existing assets to use`);
+    for (let asset of existingAssets) {
+      const { assetId, tokenAddress, amount } = asset;
+      const { name, symbol, decimals } = await getErc20Details(signer, tokenAddress);
+      logger.info(`Found token for existing asset ${assetId}:\naddress: ${tokenAddress}, 
+      name: '${name}', symbol: ${symbol}, decimals: ${decimals}`);
+      assets.push({ assetId, tokenAddress, amount });
+    }
   }
 
   const collateralAccountFactory = new AccountFactory(signer, factoryAddress);
@@ -80,10 +92,9 @@ const collateralFlow1 = async (
   logger.info(`Collateral asset address: ${collateralAddress}`);
   const collateralAccount = new AssetCollateralAccount(signer, collateralAddress);
 
-  const liabilityAmount = parseUnits("1000", 18);
   logger.info(`Setting configuration bundle for ${collateralAddress}...`);
   await collateralAccount.setConfigurationBundle(
-    haircutContextAddress, priceServiceAddress, pricedInToken, liabilityAmount, assetContextList
+    haircutContextAddress, priceServiceAddress, pricedInToken, liabilityAmount, []
   );
 
   logger.info(`Whitelisting assets for ${collateralAddress}...`);
@@ -138,16 +149,22 @@ if (!pricedInToken) {
   throw new Error("PRICED_IN_TOKEN is not set");
 }
 
-let assetContextList: AddressLike[] = [];
-const assetContextListStr = process.env.ASSET_CONTEXT_LIST;
-if (assetContextListStr) {
-  assetContextList = assetContextListStr.split(",").map((address) => address.trim());
-}
+const assetsToCreate = parseAssetsToCreate(process.env.ASSETS);
+const existingAssets = parseExistingAssets(process.env.EXISTING_ASSETS);
+const liabilityAmount = parseInt(process.env.LIABILITY_AMOUNT || "10000000");
+const borrower = parseAccountInfo(process.env.BORROWER);
+const lender = parseAccountInfo(process.env.LENDER);
 
-const assets = parseAssetsToCreate(process.env.ASSETS);
-
-collateralFlow1(factoryAddress, haircutContext, priceService, pricedInToken, assetContextList, assets)
+collateralFlow1(
+  factoryAddress,
+  haircutContext,
+  priceService,
+  pricedInToken,
+  assetsToCreate,
+  existingAssets,
+  liabilityAmount,
+  borrower,
+  lender
+)
   .then(() => {
-  }).catch(e => {
-  logger.error(e);
-});
+  }).catch(logger.error);

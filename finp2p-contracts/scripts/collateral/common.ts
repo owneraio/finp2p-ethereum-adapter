@@ -11,13 +11,13 @@ import {
   BigNumberish,
   ContractFactory, JsonRpcProvider,
   keccak256, NonceManager,
-  parseUnits,
+  parseUnits, Provider,
   Signer,
-  toUtf8Bytes, Wallet, ZeroAddress
+  toUtf8Bytes, TransactionReceipt, Wallet, ZeroAddress
 } from "ethers";
 import ACCOUNT_FACTORY from "../../artifacts/contracts/token/collateral/IAccountFactory.sol/IAccountFactory.json";
 import { AssetStandard, CollateralType, PriceType } from "../../src/contracts/collateral";
-import { parseCreateAccount } from "../../src/contracts/utils";
+import { parseCreateAccount, parseTransactionReceipt } from "../../src/contracts/utils";
 import ASSET_PRICE_CONTEXT
   from "../../artifacts/contracts/token/collateral/price/IAssetPriceContext.sol/IAssetPriceContext.json";
 import { AssetStruct } from "../../typechain-types/contracts/token/collateral/IAssetCollateralAccount";
@@ -31,6 +31,13 @@ import { ERC20Contract } from "../../src/contracts/erc20";
 import { Logger } from "winston";
 import { v4 as uuid } from "uuid";
 import process from "process";
+import {
+  completedOperation,
+  ERC20Transfer,
+  failedOperation,
+  FinP2PReceipt,
+  pendingOperation
+} from "../../src/contracts/model";
 
 
 export class AccountFactory {
@@ -301,6 +308,7 @@ const parseAssetToCreate = (assetStr: string): AssetToCreate => {
 
 export type ExistingAsset = {
   assetId: string,
+  tokenAddress: string,
   amount: string
 }
 
@@ -310,12 +318,12 @@ export const parseExistingAssets = (assetsStr: string | undefined): ExistingAsse
   }
   const assetStrs = assetsStr.split(";").map((s) => s.trim());
   return assetStrs.map(parseExistingAsset);
-}
+};
 
 const parseExistingAsset = (assetStr: string): ExistingAsset => {
-  const [assetId, amount] = assetStr.split(",").map((s) => s.trim());
-  return { assetId, amount } as ExistingAsset;
-}
+  const [assetId, tokenAddress, amount] = assetStr.split(",").map((s) => s.trim());
+  return { assetId, tokenAddress, amount } as ExistingAsset;
+};
 
 export type AccountInfo = {
   address: AddressLike
@@ -339,3 +347,20 @@ export const generateAssetId = (): string => {
   return `bank-us:102:${uuid()}`;
 };
 
+// export type Receipt = FinP2PReceipt | ERC20Transfer;
+//
+// export const getReceipts = async (txHash: string, provider: Provider) => {
+//   let receipts: Receipt[] = [];
+//   const txReceipt = await provider.getTransactionReceipt(txHash);
+//   if (txReceipt && txReceipt?.status === 1) {
+//     const block = await provider.getBlock(txReceipt.blockNumber);
+//     const timestamp = block?.timestamp || 0;
+//     const receipt = parseTransactionReceipt(txReceipt, this.contractInterface, timestamp);
+//     if (receipt) {
+//       receipts.push(receipt);
+//     }
+//     const erc20Transfers = parseERC20Transfers(txReceipt);
+//     receipts.push(...erc20Transfers);
+//     return receipts;
+//   }
+// };

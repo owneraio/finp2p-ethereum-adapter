@@ -1,7 +1,7 @@
 import process from "process";
 import { createProviderAndSigner } from "../../src/contracts/config";
 import winston, { format, transports } from "winston";
-import { parseUnits, Wallet } from "ethers";
+import { formatUnits, Wallet } from "ethers";
 import { FinP2PCollateralAssetFactoryContract } from "../../src/contracts/collateral";
 import { ContractsManager } from "../../src/contracts/manager";
 import { v4 as uuid } from "uuid";
@@ -22,6 +22,7 @@ import {
 } from "./common";
 import crypto from "crypto";
 import { createAccount } from "../../src/contracts/utils";
+import console from "console";
 
 const logger = winston.createLogger({
   level: "info", transports: [new transports.Console()], format: format.json()
@@ -46,6 +47,7 @@ const collateralFlow2 = async (
   pricedInToken: string,
   assetsToCreate: AssetToCreate[] = [],
   existingAssets: ExistingAsset[] = [],
+  liabilityAmount: number,
   borrower: AccountInfo | undefined,
   lender: AccountInfo | undefined
 ) => {
@@ -69,9 +71,19 @@ const collateralFlow2 = async (
   }
   const finP2P = new FinP2PContract(provider, signer, finP2PContractAddress, logger);
   const finP2PCollateralAddress = await finP2P.getCollateralAssetManagerAddress();
+  logger.info(`FinP2P Collateral Asset Manager address: ${finP2PCollateralAddress}`);
+
   const collateralContract = new FinP2PCollateralAssetFactoryContract(provider, signer, finP2PCollateralAddress, logger);
+  logger.info(`Escrow borrower address: ${await collateralContract.getEscrowBorrower()}`);
+  logger.info(`Escrow lender address: ${await collateralContract.getEscrowLender()}`);
+  // try {
+  //  await collateralContract.setAccountFactoryAddress(factoryAddress);
+  // } catch (e) {
+  //   console.log(e)
+  // }
+
   // const domain = { chainId: network.chainId, verifyingContract: finP2PCollateralAddress };
-  const domain = { chainId: 1n, verifyingContract: '0xCcCCccccCCCCcCCCCCCcCcCccCcCCCcCcccccccC' };
+  const domain = { chainId: 1n, verifyingContract: "0xCcCCccccCCCCcCCCCCCcCcCccCcCCCcCcccccccC" };
 
   let assets: AssetInfo[] = [];
   if (assetsToCreate.length > 0) {
@@ -103,6 +115,9 @@ const collateralFlow2 = async (
     for (let asset of existingAssets) {
       const { assetId, amount } = asset;
       const tokenAddress = await finP2P.getAssetAddress(assetId);
+      const { name, symbol, decimals } = await getErc20Details(signer, tokenAddress);
+      logger.info(`Found token for existing asset ${assetId}:\naddress: ${tokenAddress}, 
+      name: '${name}', symbol: ${symbol}, decimals: ${decimals}`);
       assets.push({ assetId, tokenAddress, amount });
     }
   }
@@ -141,7 +156,6 @@ const collateralFlow2 = async (
   const basketId = uuid();
   const tokenAddresses = assets.map(a => a.tokenAddress) as string[];
   const quantities = assets.map(a => a.amount);
-  const liabilityAmount = 100000000000;
 
   logger.info(`Creating collateral asset...`);
   const rsp = await collateralContract.createCollateralAsset(
@@ -186,17 +200,18 @@ const collateralFlow2 = async (
   const lenderSignature = await sign(domain.chainId, domain.verifyingContract, lenderMessage.types, lenderMessage.message, new Wallet(lender.privateKey));
 
   logger.info(`Initializing repo ----------------------------`);
+  const printBalances = async () => {
+    for (const asset of assets) {
+      const { assetId, tokenAddress } = asset;
+      if (!borrower || !lender) continue;
+      logger.info(`Borrower balance: ${await finP2P.balance(assetId, borrower.finId)}`);
+      logger.info(`Lender balance: ${await finP2P.balance(assetId, lender.finId)}`);
+      logger.info(`Escrow source balance: ${formatUnits(await getERC20Balance(signer, tokenAddress, escrowSource), 18)}`);
+      logger.info(`Escrow destination balance: ${formatUnits(await getERC20Balance(signer, tokenAddress, escrowDestination), 18)}`);
+    }
+  };
 
-  for (const asset of assets) {
-    const { assetId, tokenAddress, amount } = asset;
-    if (!assetId) continue;
-    await allowBorrowerWithAssets(borrower.privateKey, collateralAccount, tokenAddress, amount, logger);
-
-    logger.info(`Borrower balance: ${await finP2P.balance(assetId, borrower.finId)}`);
-    logger.info(`Lender balance: ${await finP2P.balance(assetId, lender.finId)}`);
-    logger.info(`Escrow source balance: ${await getERC20Balance(signer, tokenAddress, escrowSource)}`);
-    logger.info(`Escrow destination balance: ${await getERC20Balance(signer, tokenAddress, escrowDestination)}`);
-  }
+  await printBalances();
 
   for (const asset of assets) {
     const { tokenAddress, amount } = asset;
@@ -213,27 +228,13 @@ const collateralFlow2 = async (
     borrowerSignature.slice(2));
   await finP2P.waitForCompletion(txHash);
 
-  for (const asset of assets) {
-    const { assetId, tokenAddress } = asset;
-    if (!assetId) continue;
-    logger.info(`Borrower balance: ${await finP2P.balance(assetId, borrower.finId)}`);
-    logger.info(`Lender balance: ${await finP2P.balance(assetId, lender.finId)}`);
-    logger.info(`Escrow source balance: ${await getERC20Balance(signer, tokenAddress, escrowSource)}`);
-    logger.info(`Escrow destination balance: ${await getERC20Balance(signer, tokenAddress, escrowDestination)}`);
-  }
+  await printBalances();
 
   logger.info("Release 1 ${dvp1}");
   txHash = await finP2P.releaseTo(dvp1, lender.finId, repoQuantity);
   await finP2P.waitForCompletion(txHash);
 
-  for (const asset of assets) {
-    const { assetId, tokenAddress } = asset;
-    if (!assetId) continue;
-    logger.info(`Borrower balance: ${await finP2P.balance(assetId, borrower.finId)}`);
-    logger.info(`Lender balance: ${await finP2P.balance(assetId, lender.finId)}`);
-    logger.info(`Escrow source balance: ${await getERC20Balance(signer, tokenAddress, escrowSource)}`);
-    logger.info(`Escrow destination balance: ${await getERC20Balance(signer, tokenAddress, escrowDestination)}`);
-  }
+  await printBalances();
 
   logger.info(`Waiting for 5 seconds...`);
   await sleep(5000);
@@ -247,28 +248,14 @@ const collateralFlow2 = async (
     lenderSignature.slice(2));
   await finP2P.waitForCompletion(txHash);
 
-  for (const asset of assets) {
-    const { assetId, tokenAddress } = asset;
-    if (!assetId) continue;
-    logger.info(`Borrower balance: ${await finP2P.balance(assetId, borrower.finId)}`);
-    logger.info(`Lender balance: ${await finP2P.balance(assetId, lender.finId)}`);
-    logger.info(`Escrow source balance: ${await getERC20Balance(signer, tokenAddress, escrowSource)}`);
-    logger.info(`Escrow destination balance: ${await getERC20Balance(signer, tokenAddress, escrowDestination)}`);
-  }
+  await printBalances();
 
   logger.info("Release 2 ${dvp2}");
   txHash = await finP2P.releaseTo(dvp2, borrower.finId, repoQuantity);
   await finP2P.waitForCompletion(txHash);
 
 
-  for (const asset of assets) {
-    const { assetId, tokenAddress } = asset;
-    if (!assetId) continue;
-    logger.info(`Borrower balance: ${await finP2P.balance(assetId, borrower.finId)}`);
-    logger.info(`Lender balance: ${await finP2P.balance(assetId, lender.finId)}`);
-    logger.info(`Escrow source balance: ${await getERC20Balance(signer, tokenAddress, escrowSource)}`);
-    logger.info(`Escrow destination balance: ${await getERC20Balance(signer, tokenAddress, escrowDestination)}`);
-  }
+  await printBalances();
 
 };
 
@@ -296,6 +283,7 @@ if (!pricedInToken) {
 
 const assetsToCreate = parseAssetsToCreate(process.env.ASSETS_TO_CREATE);
 const existingAssets = parseExistingAssets(process.env.EXISTING_ASSETS);
+const liabilityAmount = parseInt(process.env.LIABILITY_AMOUNT || "10000000");
 const borrower = parseAccountInfo(process.env.BORROWER);
 const lender = parseAccountInfo(process.env.LENDER);
 
@@ -307,6 +295,7 @@ collateralFlow2(
   pricedInToken,
   assetsToCreate,
   existingAssets,
+  liabilityAmount,
   borrower,
   lender
 ).then(() => {
