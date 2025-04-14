@@ -24,10 +24,28 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
     using StringUtils for uint256;
     using FinIdUtils for string;
 
-    string public constant VERSION = "0.23.2";
+    enum Phase {
+        INITIATE,
+        CLOSE
+    }
+
+    enum ReleaseType {
+        RELEASE,
+        REDEEM
+    }
+
+    string public constant VERSION = "0.23.1_domain-registry_1";
 
     bytes32 private constant ASSET_MANAGER = keccak256("ASSET_MANAGER");
     bytes32 private constant TRANSACTION_MANAGER = keccak256("TRANSACTION_MANAGER");
+
+    struct OperationParams {
+        LegType leg;
+        Phase phase;
+        PrimaryType eip712PrimaryType;
+        string operationId;
+        ReleaseType releaseType;
+    }
 
     struct LockInfo {
         string assetId;
@@ -184,7 +202,6 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
     /// @param loanTerm The loan term to transfer, could be empty
     /// @param op The operation parameters
     /// @param signature The investor signature
-    /// @param signature The investor signature
     function transfer(
         string memory nonce,
         string memory sellerFinId,
@@ -202,7 +219,7 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
             AssetType assetType,
             string memory amount) = _extractDetails(sellerFinId, buyerFinId, assetTerm, settlementTerm, op);
         require(verifyInvestmentSignature(
-            op,
+            op.eip712PrimaryType,
             nonce,
             buyerFinId,
             sellerFinId,
@@ -253,7 +270,7 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
             string memory assetId, AssetType assetType,
             string memory amount) = _extractDetails(sellerFinId, buyerFinId, assetTerm, settlementTerm, op);
         require(verifyInvestmentSignature(
-            op,
+            op.eip712PrimaryType,
             nonce,
             buyerFinId,
             sellerFinId,

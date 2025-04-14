@@ -3,10 +3,30 @@
 
 pragma solidity ^0.8.20;
 
-import {Asset} from "./common/AssetHelpers.sol";
-import {LiabilityData} from "./common/StrategyInput.sol";
 
 interface IAssetCollateralAccount {
+
+    enum AssetStandard {
+        NETWORK, //ETHER,
+        FUNGIBLE, //ERC20,
+        NON_FUNGIBLE, //ERC721,
+        PART_FUNGIBLE, //ERC1155,
+        ITEM, //Composer non-fungible item
+        OTHER
+    }
+
+    struct Asset {
+        AssetStandard standard;
+        address addr;
+        uint256 tokenId;
+    }
+
+    struct LiabilityData {
+        address liabilityAddress;
+        int256 amount;
+        address pricedInToken;
+        uint256 effectiveTime;
+    }
 
     enum CollateralType {
         CCP_MARGIN,
