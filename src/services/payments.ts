@@ -98,89 +98,110 @@ export class PaymentsService extends CommonService {
       throw new Error("PRICE_SERVICE not set");
     }
     const quantities = assetList.map(a => a.quantity);
-    logger.info(`Preparing tokens to collatorilize: ${tokenAddresses.join(",")}, 
-    borrower: ${borrower}, 
-    lender: ${lender}.
-    quantities: ${quantities.join(",")},
-    haircutContext: ${haircutContext},
-    priceService: ${priceService},
-    pricedInToken: ${pricedInToken},
-    collateralBasket: ${this.collateralAssetFactoryContract.contractAddress}
-    `);
+
     const controller = this.collateralAssetFactoryContract.contractAddress;
+    const cid = uuid();
 
-    try {
-      logger.info(`Creating collateral asset with basketId: ${basketId}`);
-      const rsp = await this.collateralAssetFactoryContract.createCollateralAsset(
-        agreementName, agreementDescription, basketId, tokenAddresses, quantities, borrower, lender, {
-          controller, haircutContext, priceService, pricedInToken, liabilityAmount
-        }
-      );
-      await rsp.wait();
-    } catch (e) {
-      logger.error(`Unable to create collateral asset: ${e}`);
-      return {
-        isCompleted: true, cid: uuid(),
-        error: {
-          code: 1,
-          message: "Unable to create collateral asset"
-        }
-      } as Paths.DepositInstruction.Responses.$200;
-    }
+    (async () => {
+      if (!this.finApiClient) {
+        throw new Error("finApiClient not set");
+      }
+      logger.info(`Preparing tokens to collatorilize: ${tokenAddresses.join(",")}, quantities: ${quantities.join(",")},` +
+        `borrower: ${borrower}, lender: ${lender}, haircutContext: ${haircutContext}, ` +
+        `priceService: ${priceService}, pricedInToken: ${pricedInToken}, controller: ${controller}`);
 
-    const account = await this.collateralAssetFactoryContract.getBasketAccount(basketId);
-    logger.info(`Basket ${basketId} created, account address: ${account}`);
-
-    // STEP 2   ----------------------------------------------------------------
-
-    const assetName = `Collateral asset [${account}]`;
-    const assetType = "collateral";
-    const issuerId = borrowerId;
-    const tokenId = basketId;
-    const intentTypes: IntentType[] = ["loanIntent"];
-    const metadata = { tokenType: "COLLATERAL" };
-    try {
-      const rsp = await this.finApiClient.createAsset(
-        assetName, assetType, issuerId, tokenId, intentTypes, metadata);
-      const rs = await this.waitForCompletion((rsp as OperationBase).cid);
-      const { id: collateralAssetId } = (rs as ProfileOperation);
-      if (!collateralAssetId) {
-        return {
-          isCompleted: true, cid: uuid(),
-          error: {
-            code: 1, message: "Failed to create asset profile"
+      try {
+        logger.info(`Creating collateral asset with basketId: ${basketId}`);
+        const rsp = await this.collateralAssetFactoryContract.createCollateralAsset(
+          agreementName, agreementDescription, basketId, tokenAddresses, quantities, borrower, lender, {
+            controller, haircutContext, priceService, pricedInToken, liabilityAmount
           }
-        } as Paths.DepositInstruction.Responses.$200;
-      }
-      logger.info(`Collateral asset id: ${collateralAssetId}`);
-
-      const associatedBasketId = await this.finP2PContract.getBasketId(collateralAssetId);
-      if (associatedBasketId !== basketId) {
-        logger.warn(`Basket id ${basketId} does not match asset profile id ${collateralAssetId}`);
-      }
-
-      if (orgsToShare && orgsToShare.length > 0) {
-        logger.info(`Sharing profile with organizations: ${orgsToShare}`);
-        await this.finApiClient.shareProfile(collateralAssetId, orgsToShare);
-      }
-      return {
-        isCompleted: true, cid: uuid(),
-        response: {
-          account: request.destination, description: "", details: {
-            collateralAssetId
+        );
+        await rsp.wait();
+      } catch (e) {
+        logger.error(`Unable to create collateral asset: ${e}`);
+        await this.finApiClient.sendCallback(cid, {
+          type: 'deposit',
+          operation: {
+            cid,
+            isCompleted: true,
+            error: { code: 1, message: "Unable to create collateral asset" }
           }
+        });
+        return;
+      }
+
+      const account = await this.collateralAssetFactoryContract.getBasketAccount(basketId);
+      logger.info(`Basket ${basketId} created, account address: ${account}`);
+
+      // STEP 2   ----------------------------------------------------------------
+
+      const assetName = `Collateral asset [${account}]`;
+      const assetType = "collateral";
+      const issuerId = borrowerId;
+      const tokenId = basketId;
+      const intentTypes: IntentType[] = ["loanIntent"];
+      const metadata = { tokenType: "COLLATERAL" };
+      try {
+        const rsp = await this.finApiClient.createAsset(
+          assetName, assetType, issuerId, tokenId, intentTypes, metadata);
+        const rs = await this.waitForCompletion((rsp as OperationBase).cid);
+        const { id: collateralAssetId } = (rs as ProfileOperation);
+        if (!collateralAssetId) {
+          await this.finApiClient.sendCallback(cid, {
+            type: 'deposit',
+            operation: {
+              cid,
+              isCompleted: true,
+              error: { code: 1, message: "Failed to create asset profile" }
+            }
+          });
+          return;
         }
-      } as Paths.DepositInstruction.Responses.$200;
-    } catch (e) {
-      logger.info(e);
-      return {
-        isCompleted: true, cid: uuid(),
-        error: {
-          code: 1,
-          message: `Unable to create collateral asset ${e}`
+        logger.info(`Collateral asset id: ${collateralAssetId}`);
+
+        const associatedBasketId = await this.finP2PContract.getBasketId(collateralAssetId);
+        if (associatedBasketId !== basketId) {
+          logger.warn(`Basket id ${basketId} does not match asset profile id ${collateralAssetId}`);
         }
-      } as Paths.DepositInstruction.Responses.$200;
-    }
+
+        if (orgsToShare && orgsToShare.length > 0) {
+          logger.info(`Sharing profile with organizations: ${orgsToShare}`);
+          await this.finApiClient.shareProfile(collateralAssetId, orgsToShare);
+        }
+
+        await this.finApiClient.sendCallback(cid, {
+          type: 'deposit',
+          operation: {
+            cid,
+            isCompleted: true,
+            response: {
+              account: request.destination, description: "", details: {
+                collateralAssetId
+              }
+            }
+          }
+        });
+      } catch (e) {
+        logger.warn(e);
+        await this.finApiClient.sendCallback(cid, {
+          type: 'deposit',
+          operation: {
+            cid,
+            isCompleted: true,
+            error: { code: 1, message: `Unable to create collateral asset ${e}` }
+          }
+        });
+        return;
+      }
+    })().then(r => {});
+
+    return {
+      isCompleted: false, cid,
+      operationMetadata: {
+        operationResponseStrategy: { type: "callback" }
+      }
+    } as Paths.DepositInstruction.Responses.$200;
   }
 
   public async payout(request: Paths.Payout.RequestBody): Promise<Paths.Payout.Responses.$200> {
