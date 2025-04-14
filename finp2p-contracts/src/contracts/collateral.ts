@@ -20,11 +20,20 @@ import {
   IAccountFactoryInterface
 } from "../../typechain-types/contracts/token/collateral/IAccountFactory";
 
+
+
+export type CollateralAsset = {
+  collateralAccount: string
+  tokenAddresses: string[],
+  amounts: bigint[],
+  borrower: string,
+  lender: string
+}
+
 export enum CollateralType {
   CCP_MARGIN,
   REPO
 }
-
 
 export enum AssetStandard {
   NETWORK, //ETHER,

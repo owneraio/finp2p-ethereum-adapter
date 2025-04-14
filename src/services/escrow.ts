@@ -1,13 +1,15 @@
 import { logger } from "../helpers/logger";
 import { CommonService } from "./common";
-import { EthereumTransactionError } from "../../finp2p-contracts/src/contracts/model";
+import { EthereumTransactionError, Phase } from "../../finp2p-contracts/src/contracts/model";
 import { extractEIP712Params, failedTransaction, RequestParams, RequestValidationError } from "./mapping";
+import { AssetCollateralAccount } from "../../finp2p-contracts/src/contracts/collateral";
+import { PrimaryType } from "../../finp2p-contracts/src/contracts/eip712";
 
 export class EscrowService extends CommonService {
 
   public async hold(request: Paths.HoldOperation.RequestBody): Promise<Paths.HoldOperation.Responses.$200> {
     const { executionContext } = request;
-    const requestParams: RequestParams = {...request, type: 'hold'};
+    const requestParams: RequestParams = { ...request, type: "hold" };
     const eip712Params = extractEIP712Params(requestParams);
     try {
       this.validateRequest(requestParams, eip712Params);
@@ -26,6 +28,28 @@ export class EscrowService extends CommonService {
       if (executionContext) {
         this.execDetailsStore?.addExecutionContext(txHash, executionContext.executionPlanId, executionContext.instructionSequenceNumber);
       }
+
+      if (params.eip712PrimaryType === PrimaryType.Loan) {
+        const collateralAsset = await this.policyGetter?.getCollateralAsset(asset.assetId);
+        if (collateralAsset) {
+          const { collateralAccount, tokenAddresses, amounts } = collateralAsset;
+          const { signer } = this.finP2PContract;
+          const collateralContract = new AssetCollateralAccount(signer, collateralAccount);
+          if (params.phase === Phase.Initiate) {
+            for (let i = 0; i < tokenAddresses.length; i++) {
+              const tokenAddress = tokenAddresses[i];
+              const amount = amounts[i];
+              await collateralContract.deposit(tokenAddress, amount);
+            }
+
+          } else {
+            await collateralContract.release();
+          }
+
+          // todo: send receipts
+        }
+      }
+
       return {
         isCompleted: false, cid: txHash
       } as Components.Schemas.ReceiptOperation;
@@ -86,7 +110,7 @@ export class EscrowService extends CommonService {
   public async releaseAndRedeem(request: Paths.RedeemAssets.RequestBody): Promise<Paths.RedeemAssets.Responses.$200> {
     const { operationId, source, quantity, executionContext } = request;
     if (!operationId) {
-      logger.error('No operationId provided');
+      logger.error("No operationId provided");
       return failedTransaction(1, "operationId is required");
     }
 
