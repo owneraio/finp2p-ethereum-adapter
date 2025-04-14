@@ -16,7 +16,6 @@ import {
   eip712TransactionDetails,
   emptyLoanTerms,
   hash,
-  LegType,
   loanTerms,
   newInvestmentMessage,
   newReceiptMessage,
@@ -25,13 +24,12 @@ import {
   sign,
   verify
 } from "../src/contracts/eip712";
-import { AssetType, operationParams, Phase, ReleaseType, term, Term, termToEIP712 } from "../src/contracts/model";
-import type { FINP2POperatorERC20 } from "../typechain-types";
+import { AssetType, term, Term, termToEIP712 } from "../src/contracts/model";
 
 
 describe("Signing test", function() {
   async function deployFinP2PSignatureVerifier() {
-    const deployer = await ethers.getContractFactory("FINP2POperatorERC20");
+    const deployer = await ethers.getContractFactory("FinP2PSignatureVerifier");
     const contract = await deployer.deploy();
     const address = await contract.getAddress();
     return { contract, address };
@@ -40,10 +38,7 @@ describe("Signing test", function() {
   const buyer = Wallet.createRandom();
   const seller = Wallet.createRandom();
 
-  let verifier: FINP2POperatorERC20;
-
   const testCases: {
-    domain?: {chainId: number | bigint, verifyingContract: string},
     primaryType: PrimaryType,
     nonce: string,
     buyerFinId: string,
@@ -116,20 +111,10 @@ describe("Signing test", function() {
     loan: loanTerms("2025-01-01", "2025-01-02", "1000000.00", "1000123.71"),
     signer: seller
   }];
-
-  before(async () => {
-    ({ contract: verifier } = await loadFixture(deployFinP2PSignatureVerifier));
-  });
-
-  testCases.forEach(({ domain, primaryType, nonce, buyerFinId, sellerFinId, asset, settlement, loan, signer }) => {
+  testCases.forEach(({ primaryType, nonce, buyerFinId, sellerFinId, asset, settlement, loan, signer }) => {
     it(`Investor signatures (primary type: ${primaryType})`, async function() {
-      let chainId: number | bigint;
-      let verifyingContract: string;
-      if (domain) {
-        ({ chainId, verifyingContract } = domain);
-      } else {
-        ({ chainId, verifyingContract } = await verifier.eip712Domain());
-      }
+      const { contract: verifier } = await loadFixture(deployFinP2PSignatureVerifier);
+      const { chainId, verifyingContract } = await verifier.eip712Domain();
       const signerAddress = await signer.getAddress();
       const {
         types,
@@ -138,67 +123,44 @@ describe("Signing test", function() {
       const signature = await sign(chainId, verifyingContract, types, message, signer);
       const offChainHash = hash(chainId, verifyingContract, types, message);
       expect(verify(chainId, verifyingContract, types, message, signerAddress, signature)).to.equal(true);
-      const op = operationParams({ chainId, verifyingContract } , primaryType, LegType.Asset, Phase.Initiate, '', ReleaseType.Release);
-      const onChainHash = await verifier.hashInvestment(op, nonce, buyerFinId, sellerFinId, asset, settlement, loan);
+      const onChainHash = await verifier.hashInvestment(primaryType, nonce, buyerFinId, sellerFinId, asset, settlement, loan);
       expect(offChainHash).to.equal(onChainHash);
-      expect(await verifier.verifyInvestmentSignature(op, nonce, buyerFinId, sellerFinId, asset, settlement, loan, getFinId(signer), signature)).to.equal(true);
-    });
-
-    it(`Failed investor signatures (primary type: ${primaryType})`, async function() {
-      let chainId: number | bigint;
-      let verifyingContract: string;
-      if (domain) {
-        ({ chainId, verifyingContract } = domain);
-      } else {
-        ({ chainId, verifyingContract } = await verifier.eip712Domain());
-      }
-      const { types, message } = newInvestmentMessage(primaryType, nonce, buyerFinId, sellerFinId, termToEIP712(asset), termToEIP712(settlement), loan);
-      const signature = await sign(chainId, verifyingContract, types, message, signer);
-
-      const fakeNonce = `${generateNonce().toString("hex")}`;
-      expect(await verifier.verifyInvestmentSignature(operationParams({ chainId, verifyingContract } , primaryType, LegType.Asset, Phase.Initiate, '', ReleaseType.Release),
-        fakeNonce, buyerFinId, sellerFinId, asset, settlement, loan, getFinId(signer), signature)).to.equal(false);
-
-      const fakeSigner = Wallet.createRandom();
-      expect(await verifier.verifyInvestmentSignature(operationParams({ chainId, verifyingContract } , primaryType, LegType.Asset, Phase.Initiate, '', ReleaseType.Release),
-        nonce, buyerFinId, sellerFinId, asset, settlement, loan, getFinId(fakeSigner), signature)).to.equal(false);
+      expect(await verifier.verifyInvestmentSignature(primaryType, nonce, buyerFinId, sellerFinId, asset, settlement, loan, getFinId(signer), signature)).to.equal(true);
     });
   });
 
-  // it.skip("Investor signature from platform", async function() {
-  //   const chainId = 1337;
-  //   const verifyingContract = "0x5FbDB2315678afecb367f032d93F642f64180aa3";
-  //   const nonce = "e78c3a7f564c19667a7d90285e7fe443eca8403d45a2eea80000000067d1907d";
-  //   // borrower
-  //   const sellerFinId = "03da4a23d6385d7f591350f55d98176902580b8ed0412fe54de28a59d5fd5d1af7";
-  //   // lender
-  //   const buyerFinId = "02d34fde92bcd3baef081118e1e5fe9154ff47176a4118cc27b10f5347a56bec23";
-  //   const asset = term("bank-us:102:66fe5a05-ffc6-4754-8d46-68e8abd0e083", AssetType.FinP2P, "1");
-  //   const settlement = term("USD", AssetType.Fiat, "900");
-  //   const loan = loanTerms("1741787256", "1741787271", "900", "900.25");
-  //   const domain = {
-  //     chainId,
-  //     verifyingContract
-  //   }
-  //   const primaryType = PrimaryType.Loan;
-  //   const {
-  //     message,
-  //     types
-  //   } = newInvestmentMessage(primaryType, nonce, buyerFinId, sellerFinId, termToEIP712(asset), termToEIP712(settlement), loan);
-  //   const offChainHash = hash(chainId, verifyingContract, types, message);
-  //   const onChainHash = await verifier.hashInvestment({domain, primaryType}, nonce, buyerFinId, sellerFinId, asset, settlement, loan);
-  //
-  //   const platformHash = "0x28fc646eb6470c62252c9d4c2092bf34d86e590983429580b04578a8ff37e171";
-  //   const platformSignature = "0xd9c145d6f0f020276f268a83178ba08767eaab8fb71475a14f0a5c13275675885f6e89270cfca55cd9e9da29a9412564a2840af5680782f61cb7646181efbe941c";
-  //   expect(offChainHash).to.equal(platformHash);
-  //   expect(offChainHash).to.equal(onChainHash);
-  //
-  //   // const signerAddress = finIdToEthereumAddress(sellerFinId);
-  //   // expect(verify(chainId, verifyingContract, types, message, signerAddress, platformSignature)).to.equal(true);
-  //   // expect(await verifier.verifyInvestmentSignature(primaryType, nonce, buyerFinId, sellerFinId, asset, settlement, loan, sellerFinId, platformSignature)).to.equal(true);
-  // });
+  it.skip("Investor signature from platform", async function() {
+    const { contract: verifier } = await loadFixture(deployFinP2PSignatureVerifier);
+    const chainId = 1337;
+    const verifyingContract = "0x5FbDB2315678afecb367f032d93F642f64180aa3";
+    const nonce = "e78c3a7f564c19667a7d90285e7fe443eca8403d45a2eea80000000067d1907d";
+    // borrower
+    const sellerFinId = "03da4a23d6385d7f591350f55d98176902580b8ed0412fe54de28a59d5fd5d1af7";
+    // lender
+    const buyerFinId = "02d34fde92bcd3baef081118e1e5fe9154ff47176a4118cc27b10f5347a56bec23";
+    const asset = term("bank-us:102:66fe5a05-ffc6-4754-8d46-68e8abd0e083", AssetType.FinP2P, "1");
+    const settlement = term("USD", AssetType.Fiat, "900");
+    const loan = loanTerms("1741787256", "1741787271", "900", "900.25");
+    const primaryType = PrimaryType.Loan;
+    const {
+      message,
+      types
+    } = newInvestmentMessage(primaryType, nonce, buyerFinId, sellerFinId, termToEIP712(asset), termToEIP712(settlement), loan);
+    const offChainHash = hash(chainId, verifyingContract, types, message);
+    const onChainHash = await verifier.hashInvestment(primaryType, nonce, buyerFinId, sellerFinId, asset, settlement, loan);
+
+    const platformHash = "0x28fc646eb6470c62252c9d4c2092bf34d86e590983429580b04578a8ff37e171";
+    const platformSignature = "0xd9c145d6f0f020276f268a83178ba08767eaab8fb71475a14f0a5c13275675885f6e89270cfca55cd9e9da29a9412564a2840af5680782f61cb7646181efbe941c";
+    expect(offChainHash).to.equal(platformHash);
+    expect(offChainHash).to.equal(onChainHash);
+
+    // const signerAddress = finIdToEthereumAddress(sellerFinId);
+    // expect(verify(chainId, verifyingContract, types, message, signerAddress, platformSignature)).to.equal(true);
+    expect(await verifier.verifyInvestmentSignature(primaryType, nonce, buyerFinId, sellerFinId, asset, settlement, loan, sellerFinId, platformSignature)).to.equal(true);
+  });
 
   it("Receipt proof signature", async function() {
+    const { contract: verifier } = await loadFixture(deployFinP2PSignatureVerifier);
     const { chainId, verifyingContract } = await verifier.eip712Domain();
     const id = uuidv4();
     const operationType = "issue";

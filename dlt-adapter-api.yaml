@@ -1445,7 +1445,6 @@ components:
           type: string
           description: 'the token id binding'
 
-
     ApproveExecutionPlanRequest:
       type: object
       required:

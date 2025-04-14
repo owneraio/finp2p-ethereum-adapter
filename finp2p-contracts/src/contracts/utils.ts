@@ -1,9 +1,11 @@
 import {
   concat,
   HDNodeWallet,
+  hexlify,
   isAddress,
   keccak256,
   Signature,
+  toUtf8Bytes,
   TransactionReceipt,
   Wallet
 } from "ethers";
@@ -17,14 +19,10 @@ import {
   ReleaseEvent,
   TransferEvent
 } from "../../typechain-types/contracts/token/ERC20/FINP2POperatorERC20";
-
 import {
-  FINP2POperatorERC20CollateralInterface
-} from "../../typechain-types/contracts/token/collateral/finp2p/FINP2POperatorERC20Collateral";
-import {
-  AccountCreatedEvent,
-  IAccountFactoryInterface
-} from "../../typechain-types/contracts/token/collateral/IAccountFactory";
+  ERC20WithOperatorInterface,
+  TransferEvent as ERC20TransferEvent
+} from "../../typechain-types/contracts/token/ERC20/ERC20WithOperator";
 
 export const compactSerialize = (signature: string): string => {
   const { r, s } = Signature.from(signature);
@@ -56,7 +54,7 @@ export const addressFromPrivateKey = (privateKey: string): string => {
 
 export const parseTransactionReceipt = (
   receipt: TransactionReceipt,
-  contractInterface: FINP2POperatorERC20Interface | FINP2POperatorERC20CollateralInterface,
+  contractInterface: FINP2POperatorERC20Interface,
   timestamp: number
 ): FinP2PReceipt | null => {
   const id = receipt.hash;
@@ -161,47 +159,28 @@ export const parseTransactionReceipt = (
   return null;
 };
 
-export const parseCreateAccount = (receipt: TransactionReceipt,
-                                   contractInterface: IAccountFactoryInterface): {
-  address: string,
-  id: bigint
-} => {
+export const parseERC20Transfer = (receipt: TransactionReceipt,
+                                   contractInterface: ERC20WithOperatorInterface): {
+  from: string,
+  to: string,
+  value: bigint
+} | undefined => {
   for (const log of receipt.logs) {
     try {
-      const parsed = contractInterface.parseLog(log);
-      if (parsed && parsed.name === "AccountCreated") {
-        const { account, accountId } = parsed.args as unknown as AccountCreatedEvent.OutputObject;
-        return { address: account, id: accountId };
+      const parsedLog = contractInterface.parseLog(log);
+      if (parsedLog === null) {
+        continue;
+      }
+
+      if (parsedLog.signature === "Transfer(address,address,uint256)") {
+        const { from, to, value } = parsedLog.args as unknown as ERC20TransferEvent.OutputObject;
+        return { from, to, value };
       }
     } catch (e) {
       // do nothing
     }
   }
-  throw new Error("Failed to parse create account");
 };
-
-
-// export const parseERC20Transfers = (receipt: TransactionReceipt,
-//                                    contractInterface: IERC20Interface): ERC20Transfer[] => {
-//   let transfers: ERC20Transfer[] = []
-//   for (const log of receipt.logs) {
-//     try {
-//       const parsedLog = contractInterface.parseLog(log);
-//       if (parsedLog === null) {
-//         continue;
-//       }
-//
-//       if (parsedLog.signature === "Transfer(address,address,uint256)") {
-//         const { address } = log;
-//         const { from, to, value } = parsedLog.args as unknown as ERC20TransferEvent.OutputObject;
-//         transfers.push({ address, from, to, value });
-//       }
-//     } catch (e) {
-//       // do nothing
-//     }
-//   }
-//   return transfers;
-// };
 
 export const isEthereumAddress = (address: string): boolean => {
   return isAddress(address);
@@ -214,4 +193,3 @@ export const finIdToEthereumAddress = (finId: string): string => {
 const undefinedIfEmpty = (value: string): string | undefined => {
   return value === "" ? undefined : value;
 };
-

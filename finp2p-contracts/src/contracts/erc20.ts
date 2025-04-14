@@ -1,5 +1,5 @@
 import { ContractsManager } from "./manager";
-import { AddressLike, BigNumberish, ContractFactory, Interface, Provider, Signer } from "ethers";
+import { ContractFactory, Interface, Provider, Signer } from "ethers";
 import { ERC20WithOperator } from "../../typechain-types";
 import ERC20 from "../../artifacts/contracts/token/ERC20/ERC20WithOperator.sol/ERC20WithOperator.json";
 import winston from "winston";
@@ -11,15 +11,15 @@ export class ERC20Contract extends ContractsManager {
 
   erc20: ERC20WithOperator;
 
-  tokenAddress: AddressLike;
+  tokenAddress: string;
 
-  constructor(provider: Provider, signer: Signer, tokenAddress: AddressLike, logger: winston.Logger) {
+  constructor(provider: Provider, signer: Signer, tokenAddress: string, logger: winston.Logger) {
     super(provider, signer, logger);
     this.tokenAddress = tokenAddress;
     const factory = new ContractFactory<any[], ERC20WithOperator>(
       ERC20.abi, ERC20.bytecode, this.signer
     );
-    const contract = factory.attach(tokenAddress as string);
+    const contract = factory.attach(tokenAddress);
     this.contractInterface = contract.interface;
     this.erc20 = contract as ERC20WithOperator;
   }
@@ -40,35 +40,35 @@ export class ERC20Contract extends ContractsManager {
     return this.erc20.totalSupply();
   }
 
-  async balanceOf(account: AddressLike) {
+  async balanceOf(account: string) {
     return this.erc20.balanceOf(account);
   }
 
-  async allowance(owner: AddressLike, spender: AddressLike) {
+  async allowance(owner: string, spender: string) {
     return this.erc20.allowance(owner, spender);
   }
 
-  async approve(spender: AddressLike, quantity: BigNumberish) {
+  async approve(spender: string, quantity: bigint) {
     return this.erc20.approve(spender, quantity);
   }
 
-  async mint(toAddress: AddressLike, quantity: BigNumberish) {
+  async mint(toAddress: string, quantity: number) {
     return this.erc20.mint(toAddress, quantity);
   }
 
-  async transfer(fromAddress: AddressLike, toAddress: AddressLike, quantity: BigNumberish) {
+  async transfer(fromAddress: string, toAddress: string, quantity: number) {
     return this.erc20.transferFrom(fromAddress, toAddress, quantity);
   }
 
-  async burn(fromAddress: AddressLike, quantity: BigNumberish) {
+  async burn(fromAddress: string, quantity: number) {
     return this.erc20.burn(fromAddress, quantity);
   }
 
-  async hasRole(role: string, address: AddressLike) {
+  async hasRole(role: string, address: string) {
     return this.erc20.hasRole(role, address);
   }
 
-  async grantOperatorTo(address: AddressLike) {
+  async grantOperatorTo(address: string) {
     return this.erc20.grantOperatorTo(address);
   }
 }
