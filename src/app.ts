@@ -9,20 +9,11 @@ import { PlanService } from "./services/plans";
 import { FinP2PContract } from "../finp2p-contracts/src/contracts/finp2p";
 import { PolicyGetter } from "./finp2p/policy";
 import { ExecDetailsStore } from "./services/common";
-import { FinAPIClient } from "./finp2p/finapi/finapi.client";
-import { FinP2PCollateralAssetFactoryContract } from "../finp2p-contracts/src/contracts/collateral";
-import { OssClient } from "./finp2p/oss.client";
 
 
 function createApp(finP2PContract: FinP2PContract,
-                   collateralAssetFactoryContract: FinP2PCollateralAssetFactoryContract,
                    assetCreationPolicy: AssetCreationPolicy,
-                   ossClient: OssClient | undefined,
-                   policyGetter: PolicyGetter | undefined,
-                   finApiClient: FinAPIClient | undefined,
-                   execDetailsStore: ExecDetailsStore | undefined,
-                   logger: winston.Logger
-) {
+                   policyGetter: PolicyGetter | undefined, execDetailsStore: ExecDetailsStore | undefined, logger: winston.Logger) {
   const app = express();
   app.use(express.json({ limit: "50mb" }));
   app.use(expressLogger({
@@ -34,9 +25,9 @@ function createApp(finP2PContract: FinP2PContract,
   }));
 
   routes.register(app,
-    new TokenService(finP2PContract, assetCreationPolicy, policyGetter, finApiClient, execDetailsStore),
-    new EscrowService(finP2PContract, policyGetter, finApiClient, execDetailsStore),
-    new PaymentsService(finP2PContract, collateralAssetFactoryContract, ossClient, finApiClient, policyGetter, execDetailsStore, ),
+    new TokenService(finP2PContract, assetCreationPolicy, policyGetter, execDetailsStore),
+    new EscrowService(finP2PContract, policyGetter, execDetailsStore),
+    new PaymentsService(finP2PContract, policyGetter, execDetailsStore),
     new PlanService());
 
   return app;

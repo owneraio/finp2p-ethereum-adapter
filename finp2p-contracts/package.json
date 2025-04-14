@@ -13,7 +13,9 @@
     "deploy-contract-job": "node dist/scripts/deploy-job.js",
     "grant-operator-roles": "node dist/scripts/grant.js",
     "associate-asset": "node dist/scripts/associate.js",
-    "generate-wallet": "ts-node scripts/generate-wallet.ts"
+    "generate-wallet": "node dist/scripts/generate-wallet.js",
+    "erc20-approve": "node dist/scripts/erc20-approve.js",
+    "amend-asset": "node dist/scripts/amend-asset.js"
   },
   "keywords": [],
   "author": "",
