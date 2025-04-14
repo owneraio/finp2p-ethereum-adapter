@@ -14,7 +14,6 @@ import { AssetCreationPolicy } from "../../src/services/tokens";
 import { createProviderAndSigner, ProviderType } from "../../finp2p-contracts/src/contracts/config";
 import winston, { format, transports } from "winston";
 import { InMemoryExecDetailsStore } from "../../src/services/exec-details-store";
-import { FinP2PCollateralAssetFactoryContract } from "../../finp2p-contracts/src/contracts/collateral";
 
 const providerType: ProviderType = "local";
 
@@ -106,13 +105,11 @@ class CustomTestEnvironment extends NodeEnvironment {
   private async startApp(finP2PContractAddress: string) {
     const { provider, signer } = await createProviderAndSigner(providerType, logger, false);
     const finP2PContract = new FinP2PContract(provider, signer, finP2PContractAddress, logger);
-    const collateralAddress = await finP2PContract.getCollateralAssetManagerAddress();
-    const finP2PCollateralBaContract = new FinP2PCollateralAssetFactoryContract(provider, signer, collateralAddress, logger);
 
     const port = randomPort();
     const assetCreationPolicy = { type: "deploy-new-token", decimals: 0 } as AssetCreationPolicy;
 
-    const app = createApp(finP2PContract, finP2PCollateralBaContract, assetCreationPolicy, undefined, undefined, undefined, new InMemoryExecDetailsStore(), logger);
+    const app = createApp(finP2PContract, assetCreationPolicy, undefined,  new InMemoryExecDetailsStore(), logger);
     console.log("App created successfully.");
 
     this.httpServer = app.listen(port, () => {

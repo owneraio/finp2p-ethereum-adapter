@@ -10,8 +10,6 @@ import { PolicyGetter } from "./finp2p/policy";
 import { OssClient } from "./finp2p/oss.client";
 import winston, { format, transports } from "winston";
 import { InMemoryExecDetailsStore } from "./services/exec-details-store";
-import { FinAPIClient } from "./finp2p/finapi/finapi.client";
-import { FinP2PCollateralAssetFactoryContract } from "../finp2p-contracts/src/contracts/collateral";
 
 const createAssetCreationPolicy = async (contractManager: FinP2PContract | undefined): Promise<AssetCreationPolicy> => {
   const type = (process.env.ASSET_CREATION_POLICY || "deploy-new-token");
@@ -62,11 +60,6 @@ const init = async () => {
     throw new Error("OSS_URL is not set");
   }
 
-  const finApiUrl = process.env.FINP2P_ADDRESS;
-  if (!finApiUrl) {
-    throw new Error("FINP2P_ADDRESS is not set");
-  }
-
   const level = process.env.LOG_LEVEL || "info";
   const logger = winston.createLogger({
     level,
@@ -88,15 +81,11 @@ const init = async () => {
   const useNonceManager = process.env.NONCE_POLICY === "fast";
   const { provider, signer } = await createProviderAndSigner(providerType, logger, useNonceManager);
   const finp2pContract = new FinP2PContract(provider, signer, finP2PContractAddress, logger);
-  const collateralManagerAddress = await finp2pContract.getCollateralAssetManagerAddress();
-  const finp2pCollateralContract = new FinP2PCollateralAssetFactoryContract(provider, signer, collateralManagerAddress, logger);
   const assetCreationPolicy = await createAssetCreationPolicy(finp2pContract);
-  const ossClient = new OssClient(ossUrl, undefined);
-  const policyGetter = new PolicyGetter(ossClient);
-  const finApiClient = new FinAPIClient(finApiUrl);
+  const policyGetter = new PolicyGetter(new OssClient(ossUrl, undefined));
   const execDetailsStore = new InMemoryExecDetailsStore();
 
-  createApp(finp2pContract, finp2pCollateralContract, assetCreationPolicy, ossClient, policyGetter, finApiClient, execDetailsStore, logger).listen(port, () => {
+  createApp(finp2pContract, assetCreationPolicy, policyGetter, execDetailsStore, logger).listen(port, () => {
     logger.info(`listening at http://localhost:${port}`);
   });
 };
