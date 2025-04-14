@@ -30,24 +30,8 @@ export class EscrowService extends CommonService {
       }
 
       if (params.eip712PrimaryType === PrimaryType.Loan) {
-        const collateralAsset = await this.policyGetter?.getCollateralAsset(asset.assetId);
-        if (collateralAsset) {
-          const { collateralAccount, tokenAddresses, amounts } = collateralAsset;
-          const { signer } = this.finP2PContract;
-          const collateralContract = new AssetCollateralAccount(signer, collateralAccount);
-          if (params.phase === Phase.Initiate) {
-            for (let i = 0; i < tokenAddresses.length; i++) {
-              const tokenAddress = tokenAddresses[i];
-              const amount = amounts[i];
-              await collateralContract.deposit(tokenAddress, amount);
-            }
-
-          } else {
-            await collateralContract.release();
-          }
-
-          // todo: send receipts
-        }
+        this.operateCollateralAsset(asset.assetId, params.phase).then(_ => {
+        }).catch(logger.error);
       }
 
       return {
@@ -129,6 +113,29 @@ export class EscrowService extends CommonService {
       } else {
         return failedTransaction(1, `${e}`);
       }
+    }
+  }
+
+  private async operateCollateralAsset(assetId: string, phase: Phase) {
+    const collateralAsset = await this.policyGetter?.getCollateralAsset(assetId);
+    if (collateralAsset) {
+      const { collateralAccount, tokenAddresses, amounts } = collateralAsset;
+      const { signer } = this.finP2PContract;
+      const collateralContract = new AssetCollateralAccount(signer, collateralAccount);
+      if (phase === Phase.Initiate) {
+        for (let i = 0; i < tokenAddresses.length; i++) {
+          const tokenAddress = tokenAddresses[i];
+          const amount = amounts[i];
+          logger.info(`Depositing ${amount} of ${tokenAddress} to ${collateralAccount}`);
+          await collateralContract.deposit(tokenAddress, amount);
+        }
+
+      } else {
+        logger.info(`Releasing collateral from ${collateralAccount}`);
+        await collateralContract.release();
+      }
+
+      // todo: send receipts
     }
   }
 

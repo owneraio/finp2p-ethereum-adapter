@@ -74,7 +74,6 @@ export class PaymentsService extends CommonService {
 
     // STEP 1   ----------------------------------------------------------------
 
-
     const osshost = process.env.OSS_HOST;
     if (!osshost) {
       throw new Error("OSS_HOST not set");
@@ -163,22 +162,6 @@ export class PaymentsService extends CommonService {
     } as Paths.DepositInstruction.Responses.$200;
   }
 
-  public async payout(request: Paths.Payout.RequestBody): Promise<Paths.Payout.Responses.$200> {
-    return {
-      isCompleted: true, cid: uuid(), response: {
-        id: uuid(),
-        source: request.source,
-        destination: request.destination,
-        quantity: request.quantity,
-        asset: request.asset,
-        timestamp: Date.now(),
-        transactionDetails: {
-          transactionId: uuid()
-        }
-      }
-    } as Paths.Payout.Responses.$200;
-  }
-
   private async createCollateralAccount(params: {
     borrower: string,
     borrowerId: string,
@@ -196,6 +179,10 @@ export class PaymentsService extends CommonService {
       tokenAddresses, amounts, pricedInToken, currency, finApiClient
     } = params;
 
+    const factoryAddress = process.env.FACTORY_ADDRESS;
+    if (!factoryAddress) {
+      throw new Error("FACTORY_ADDRESS not set");
+    }
     const haircutContext = process.env.HAIRCUT_CONTEXT;
     if (!haircutContext) {
       throw new Error("HAIRCUT_CONTEXT not set");
@@ -206,24 +193,14 @@ export class PaymentsService extends CommonService {
     }
     const signer = this.finP2PContract.signer;
     const controller = await signer.getAddress();
-
-    const agreementName = "FinP2P Asset Collateral Account";
-    const agreementDescription = "A collateral account created as part of FinP2P asset agreement";
+    const borrowerAddress = finIdToAddress(borrower);
+    const lenderAddress = finIdToAddress(lender);
 
     logger.info(`Preparing tokens to collatorilize: ${tokenAddresses.join(",")}, amounts: ${amounts.join(",")},` +
       `borrower: ${borrower}, lender: ${lender}, haircutContext: ${haircutContext}, ` +
       `priceService: ${priceService}, pricedInToken: ${pricedInToken}, controller: ${controller}`);
 
-
-    // const controller = this.collateralAssetFactoryContract.contractAddress;
-    const factoryAddress = process.env.FACTORY_ADDRESS;
-    if (!factoryAddress) {
-      throw new Error("FACTORY_ADDRESS not set");
-    }
-
     const collateralAccountFactory = new AccountFactory(signer, factoryAddress);
-    const borrowerAddress = finIdToAddress(borrower);
-    const lenderAddress = finIdToAddress(lender);
     const collateralAccount = await collateralAccountFactory.createAccount(
       borrowerAddress, lenderAddress, controller
     );
@@ -236,7 +213,6 @@ export class PaymentsService extends CommonService {
 
     logger.info(`Whitelisting assets for ${collateralAccount}...`);
     await collateralContract.setAllowableCollateral(tokenAddresses);
-
 
     // STEP 2   ----------------------------------------------------------------
 
@@ -262,8 +238,7 @@ export class PaymentsService extends CommonService {
       await finApiClient.shareProfile(collateralAssetId, orgsToShare);
     }
 
-    // TODO: mint 1 asset
-
+    logger.info(`Issuing 1 collateral asset ${collateralAssetId}...`);
     const issuerFinId = borrower;
     const amount = "1";
     const txHash = await this.finP2PContract.issue(issuerFinId, {
@@ -272,8 +247,26 @@ export class PaymentsService extends CommonService {
       amount
     });
     await this.finP2PContract.waitForCompletion(txHash);
+    // todo send receipts
 
     return collateralAssetId;
+  }
+
+
+  public async payout(request: Paths.Payout.RequestBody): Promise<Paths.Payout.Responses.$200> {
+    return {
+      isCompleted: true, cid: uuid(), response: {
+        id: uuid(),
+        source: request.source,
+        destination: request.destination,
+        quantity: request.quantity,
+        asset: request.asset,
+        timestamp: Date.now(),
+        transactionDetails: {
+          transactionId: uuid()
+        }
+      }
+    } as Paths.Payout.Responses.$200;
   }
 
 }
