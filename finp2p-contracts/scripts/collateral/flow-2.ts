@@ -18,7 +18,7 @@ import {
   getErc20Details,
   HaircutContext, parseAccountInfo,
   parseAssetsToCreate,
-  sleep, ExistingAsset, parseExistingAssets, AssetInfo
+  sleep, ExistingAsset, parseExistingAssets, AssetInfo, AssetCollateralAccount, AccountFactory
 } from "./common";
 import crypto from "crypto";
 import { createAccount } from "../../src/contracts/utils";
@@ -75,6 +75,7 @@ const collateralFlow2 = async (
   const collateralContract = new FinP2PCollateralAssetFactoryContract(provider, signer, finP2PCollateralAddress, logger);
   logger.info(`Escrow borrower address: ${await collateralContract.getEscrowBorrower()}`);
   logger.info(`Escrow lender address: ${await collateralContract.getEscrowLender()}`);
+  console.log(`basket account: ${await collateralContract.getBasketAccount(`8f79c765-88ab-4ac3-ae68-20892c59c8e8`)}`);
   // try {
   //  await collateralContract.setAccountFactoryAddress(factoryAddress);
   // } catch (e) {
@@ -157,19 +158,43 @@ const collateralFlow2 = async (
   const quantities = assets.map(a => a.amount);
 
   logger.info(`Creating collateral asset...`);
-  const rsp = await collateralContract.createCollateralAsset(
-    name, description, basketId, tokenAddresses,
-    quantities, borrower.finId, lender.finId, {
-      controller: finP2PCollateralAddress,
-      haircutContext: haircutContextAddress as string,
-      priceService: priceServiceAddress as string,
-      pricedInToken: pricedInToken as string,
-      liabilityAmount
-    }
+
+  const collateralAccountFactory = new AccountFactory(signer, factoryAddress);
+  logger.info(`Creating collateral asset account...`);
+  const collateralAccount = await collateralAccountFactory.createAccount(
+    borrower.address, lender.address, controller, name, description
+  );
+  logger.info(`Collateral asset address: ${collateralAccount}`);
+  const collateralAccountContract = new AssetCollateralAccount(signer, collateralAccount);
+
+  logger.info(`Setting configuration bundle for ${collateralAccount}...`);
+  await collateralAccountContract.setConfigurationBundle(
+    haircutContextAddress, priceServiceAddress, pricedInToken, liabilityAmount, []
+  );
+
+  logger.info(`Whitelisting assets for ${collateralAccount}...`);
+  await collateralAccountContract.setAllowableCollateral(tokenAddresses);
+
+  const rsp = await collateralContract.associateCollateralAsset(
+    basketId, tokenAddresses, quantities, borrower.finId, lender.finId, collateralAccount
   );
   await rsp.wait();
-  const collateralAccount = await collateralContract.getBasketAccount(basketId);
-  logger.info(`Created account: ${collateralAccount}`);
+
+  // const rsp = await collateralContract.createCollateralAsset(
+  //   name, description, basketId, tokenAddresses,
+  //   quantities, borrower.finId, lender.finId, {
+  //     controller: finP2PCollateralAddress,
+  //     haircutContext: haircutContextAddress as string,
+  //     priceService: priceServiceAddress as string,
+  //     pricedInToken: pricedInToken as string,
+  //     liabilityAmount
+  //   }
+  // );
+  // await rsp.wait();
+  // const collateralAccount = await collateralContract.getBasketAccount(basketId);
+  //
+  // logger.info(`Created account: ${collateralAccount}`);
+
   const escrowSource = await collateralContract.getEscrowBorrower();
   logger.info(`Escrow source: ${escrowSource}`);
   const escrowDestination = await collateralContract.getEscrowLender();

@@ -149,7 +149,7 @@ if (!pricedInToken) {
   throw new Error("PRICED_IN_TOKEN is not set");
 }
 
-const assetsToCreate = parseAssetsToCreate(process.env.ASSETS);
+const assetsToCreate = parseAssetsToCreate(process.env.ASSETS_TO_CREATE);
 const existingAssets = parseExistingAssets(process.env.EXISTING_ASSETS);
 const liabilityAmount = parseInt(process.env.LIABILITY_AMOUNT || "10000000");
 const borrower = parseAccountInfo(process.env.BORROWER);

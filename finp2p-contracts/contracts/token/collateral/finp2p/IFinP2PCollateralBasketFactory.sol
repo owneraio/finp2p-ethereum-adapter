@@ -54,6 +54,15 @@ interface IFinP2PCollateralBasketFactory {
         CollateralAssetParameters memory config
     ) external;
 
+    function associateCollateralAsset(
+        string memory basketId,
+        address[] memory tokenAddresses,
+        string[] memory quantities,
+        string memory borrower,
+        string memory lender,
+        address collateralAccount
+    ) external;
+
     function getBasketAccount(string memory basketId) external view returns (address);
 
     function getBasketState(string memory basketId) external view returns (CollateralBasketState);

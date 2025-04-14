@@ -53,6 +53,11 @@ export class FinAPIClient {
     return await this.get(`/operations/status/${id}`);
   }
 
+  async sendCallback(cid: string, operationStatus: Components.Schemas.OperationStatus): Promise<{}> {
+    return await this.post<Components.Schemas.OperationStatus, {}>(
+      `/operations/callback/${cid}`, operationStatus);
+  }
+
   private async get<Response>(path: string): Promise<Response> {
     let headers = {
       "Accept": "application/json"

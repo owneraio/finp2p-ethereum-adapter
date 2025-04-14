@@ -47,7 +47,7 @@ export interface CollateralAssetParams {
 export class FinP2PCollateralAssetFactoryContract extends ContractsManager {
 
   contract: IFinP2PCollateralBasketFactory;
-  contractAddress: string
+  contractAddress: string;
 
   constructor(provider: Provider, signer: Signer, contractAddress: string, logger: winston.Logger) {
     super(provider, signer, logger);
@@ -64,6 +64,13 @@ export class FinP2PCollateralAssetFactoryContract extends ContractsManager {
                               source: string, destination: string, params: CollateralAssetParams) {
     return await this.contract.createCollateralAsset(
       name, description, basketId, tokenAddresses, quantities, source, destination, params);
+  }
+
+  async associateCollateralAsset(basketId: string, tokenAddresses: string[], quantities: string[],
+                                 borrower: string, lender: string, collateralAccount: string) {
+    return await this.contract.associateCollateralAsset(
+      basketId, tokenAddresses, quantities, borrower, lender, collateralAccount
+    );
   }
 
   async getEscrowBorrower() {
@@ -86,7 +93,6 @@ export class FinP2PCollateralAssetFactoryContract extends ContractsManager {
   async getBasketState(basketId: string) {
     return await this.contract.getBasketState(basketId);
   }
-
 
 
 }
