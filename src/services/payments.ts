@@ -12,6 +12,7 @@ import process from "process";
 import { OssClient } from "../finp2p/oss.client";
 import OperationBase = FinAPIComponents.Schemas.OperationBase;
 import ProfileOperation = FinAPIComponents.Schemas.ProfileOperation;
+import { Logger } from "winston";
 
 
 type CollateralAssetDetails = {
@@ -30,6 +31,19 @@ type CollateralAssetDetails = {
   liabilityAmount: number,
   orgsToShare: string[] | undefined
 }
+
+const waitForCompletion = async (finApiClient: FinAPIClient, id: string, tries: number = 3000) => {
+  for (let i = 1; i < tries; i++) {
+    const rsp = await finApiClient.getOperationStatus(id);
+    if (!rsp.isCompleted) {
+      await new Promise((r) => setTimeout(r, 500));
+    } else {
+      return rsp.response;
+    }
+  }
+  throw new Error(`no result after ${tries} retries`);
+};
+
 
 export class PaymentsService extends CommonService {
 
@@ -74,7 +88,7 @@ export class PaymentsService extends CommonService {
       }
     }
 
-    const basketId =  uuid();
+    const basketId = uuid();
     const agreementName = "FinP2P Asset Collateral Account";
     const agreementDescription = "A collateral account created as part of FinP2P asset agreement";
 
@@ -102,17 +116,18 @@ export class PaymentsService extends CommonService {
     const controller = this.collateralAssetFactoryContract.contractAddress;
     const cid = uuid();
 
-    (async () => {
-      if (!this.finApiClient) {
-        throw new Error("finApiClient not set");
-      }
+    (async (finP2PContract: FinP2PContract,
+            collateralAssetFactoryContract: FinP2PCollateralAssetFactoryContract,
+            finApiClient: FinAPIClient,
+            logger: Logger) => {
+
       logger.info(`Preparing tokens to collatorilize: ${tokenAddresses.join(",")}, quantities: ${quantities.join(",")},` +
         `borrower: ${borrower}, lender: ${lender}, haircutContext: ${haircutContext}, ` +
         `priceService: ${priceService}, pricedInToken: ${pricedInToken}, controller: ${controller}`);
 
       try {
         logger.info(`Creating collateral asset with basketId: ${basketId}`);
-        const rsp = await this.collateralAssetFactoryContract.createCollateralAsset(
+        const rsp = await collateralAssetFactoryContract.createCollateralAsset(
           agreementName, agreementDescription, basketId, tokenAddresses, quantities, borrower, lender, {
             controller, haircutContext, priceService, pricedInToken, liabilityAmount
           }
@@ -120,8 +135,8 @@ export class PaymentsService extends CommonService {
         await rsp.wait();
       } catch (e) {
         logger.error(`Unable to create collateral asset: ${e}`);
-        await this.finApiClient.sendCallback(cid, {
-          type: 'deposit',
+        await finApiClient.sendCallback(cid, {
+          type: "deposit",
           operation: {
             cid,
             isCompleted: true,
@@ -131,25 +146,25 @@ export class PaymentsService extends CommonService {
         return;
       }
 
-      const account = await this.collateralAssetFactoryContract.getBasketAccount(basketId);
+      const account = await collateralAssetFactoryContract.getBasketAccount(basketId);
       logger.info(`Basket ${basketId} created, account address: ${account}`);
 
       // STEP 2   ----------------------------------------------------------------
 
-      const assetName = `Collateral asset [${account}]`;
+      const assetName = `Collateral asset ${/*account*/uuid()}`;
       const assetType = "collateral";
       const issuerId = borrowerId;
       const tokenId = basketId;
       const intentTypes: IntentType[] = ["loanIntent"];
       const metadata = { tokenType: "COLLATERAL" };
       try {
-        const rsp = await this.finApiClient.createAsset(
+        const rsp = await finApiClient.createAsset(
           assetName, assetType, issuerId, tokenId, intentTypes, metadata);
-        const rs = await this.waitForCompletion((rsp as OperationBase).cid);
+        const rs = await waitForCompletion(finApiClient, (rsp as OperationBase).cid);
         const { id: collateralAssetId } = (rs as ProfileOperation);
         if (!collateralAssetId) {
-          await this.finApiClient.sendCallback(cid, {
-            type: 'deposit',
+          await finApiClient.sendCallback(cid, {
+            type: "deposit",
             operation: {
               cid,
               isCompleted: true,
@@ -159,19 +174,18 @@ export class PaymentsService extends CommonService {
           return;
         }
         logger.info(`Collateral asset id: ${collateralAssetId}`);
-
-        const associatedBasketId = await this.finP2PContract.getBasketId(collateralAssetId);
+        const associatedBasketId = await finP2PContract.getBasketId(collateralAssetId);
         if (associatedBasketId !== basketId) {
           logger.warn(`Basket id ${basketId} does not match asset profile id ${collateralAssetId}`);
         }
 
         if (orgsToShare && orgsToShare.length > 0) {
           logger.info(`Sharing profile with organizations: ${orgsToShare}`);
-          await this.finApiClient.shareProfile(collateralAssetId, orgsToShare);
+          await finApiClient.shareProfile(collateralAssetId, orgsToShare);
         }
 
-        await this.finApiClient.sendCallback(cid, {
-          type: 'deposit',
+        await finApiClient.sendCallback(cid, {
+          type: "deposit",
           operation: {
             cid,
             isCompleted: true,
@@ -183,9 +197,9 @@ export class PaymentsService extends CommonService {
           }
         });
       } catch (e) {
-        logger.warn(e);
-        await this.finApiClient.sendCallback(cid, {
-          type: 'deposit',
+        logger.error(e);
+        await finApiClient.sendCallback(cid, {
+          type: "deposit",
           operation: {
             cid,
             isCompleted: true,
@@ -194,12 +208,18 @@ export class PaymentsService extends CommonService {
         });
         return;
       }
-    })().then(r => {});
+    })(this.finP2PContract, this.collateralAssetFactoryContract, this.finApiClient, logger).then(_ => {
+    });
 
     return {
       isCompleted: false, cid,
       operationMetadata: {
-        operationResponseStrategy: { type: "callback" }
+        operationResponseStrategy: {
+          type: "callback",
+          callback: {
+            type: "endpoint"
+          }
+        }
       }
     } as Paths.DepositInstruction.Responses.$200;
   }
@@ -220,18 +240,5 @@ export class PaymentsService extends CommonService {
     } as Paths.Payout.Responses.$200;
   }
 
-  private async waitForCompletion(id: string, tries: number = 3000) {
-    if (!this.finApiClient) {
-      throw new Error("finApiClient not set");
-    }
-    for (let i = 1; i < tries; i++) {
-      const rsp = await this.finApiClient.getOperationStatus(id);
-      if (!rsp.isCompleted) {
-        await new Promise((r) => setTimeout(r, 500));
-      } else {
-        return rsp.response;
-      }
-    }
-    throw new Error(`no result after ${tries} retries`);
-  }
+
 }
