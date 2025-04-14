@@ -17,34 +17,34 @@ tags:
     description: sync long running operation results with the finp2p node
 
 paths:
-#  /operations/callback/{cid}:
-#    post:
-#      tags:
-#        - operation
-#      summary: callback operation
-#      operationId: callback operation
-#      parameters:
-#        - in: header
-#          name: Idempotency-Key
-#          schema:
-#            $ref: '#/components/schemas/nonce'
-#        - name: cid
-#          in: path
-#          description: correlation id of operation
-#          required: true
-#          schema:
-#            type: string
-#      requestBody:
-#        content:
-#          application/json:
-#            schema:
-#              $ref: 'dlt-adapter-api.yaml#/components/schemas/operationStatus'
-#      responses:
-#        '200':
-#          description: successful operation
-#        '500':
-#          description: System error
-#          content: { }
+  /operations/callback/{cid}:
+    post:
+      tags:
+        - operation
+      summary: callback operation
+      operationId: callback operation
+      parameters:
+        - in: header
+          name: Idempotency-Key
+          schema:
+            $ref: '#/components/schemas/nonce'
+        - name: cid
+          in: path
+          description: correlation id of operation
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: 'dlt-adapter-api.yaml#/components/schemas/operationStatus'
+      responses:
+        '200':
+          description: successful operation
+        '500':
+          description: System error
+          content: { }
 
   /ledger/transaction/import:
     post:
@@ -1873,6 +1873,24 @@ components:
         awaitTarget:
           type: string
           enum: ["close", "open"]
+        awaitBackwardScheduling:
+          $ref: '#/components/schemas/AwaitBackwardScheduling'
+
+    AwaitBackwardScheduling:
+      type: object
+      nullable: true
+      required: [ maxAllowedDuration, schedule ]
+      properties:
+        maxAllowedDuration:
+          type: string
+          format: duration
+          description: duration in seconds (e.g., "3.045646s")
+          pattern: '^\d+(\.\d{1,9})?s$'
+        schedule:
+          type: string
+          format: duration
+          description: duration in seconds (e.g., "3.045646s")
+          pattern: '^\d+(\.\d{1,9})?s$'
 
     IntentType:
       type: string
@@ -1895,12 +1913,12 @@ components:
       nullable: true
       required: [type, status]
       properties:
-         type:
-           type: string
-           enum: ["status"]
-         status:
-           type: string
-           enum: ["proposed", "approved", "rejected", "completed", "failed", "halted"]
+        type:
+          type: string
+          enum: ["status"]
+        status:
+          type: string
+          enum: ["proposed", "approved", "rejected", "completed", "failed", "halted"]
 
     instructionTransition:
       type: object
@@ -1949,7 +1967,6 @@ components:
         - $ref: '#/components/schemas/ApiErrorClient4XX'
         - $ref: '#/components/schemas/ApiErrorServer5XX'
 
-
     ApiErrorClient4XX:
       type: object
       required: [ status, errors, type ]
@@ -1986,6 +2003,7 @@ components:
           items:
             $ref: '#/components/schemas/GeneralServerError'
 
+
     AssetMetadataAndConfigError:
       type: object
       required: [ code, message ]
@@ -1997,7 +2015,6 @@ components:
           type: string
           enum: [ 'Asset metadata and config cannot be provided at the same time' ]
 
-    # 10xx General Client Errors
     GeneralClientError:
       type: object
       required: [ code, message ]
@@ -2009,8 +2026,6 @@ components:
           type: string
           enum: [ 'General client error' ]
 
-
-    # 20xx General Server Errors
     GeneralServerError:
       type: object
       required: [ code, message ]

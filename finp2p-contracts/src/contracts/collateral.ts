@@ -66,13 +66,6 @@ export class FinP2PCollateralAssetFactoryContract extends ContractsManager {
       name, description, basketId, tokenAddresses, quantities, source, destination, params);
   }
 
-  async associateCollateralAsset(basketId: string, tokenAddresses: string[], quantities: string[],
-                                 borrower: string, lender: string, collateralAccount: string) {
-    return await this.contract.associateCollateralAsset(
-      basketId, tokenAddresses, quantities, borrower, lender, collateralAccount
-    );
-  }
-
   async getEscrowBorrower() {
     return await this.contract.getEscrowBorrower();
   }

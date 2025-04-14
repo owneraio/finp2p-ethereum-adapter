@@ -149,37 +149,7 @@ contract FinP2PCollateralBasket is IFinP2PCollateralBasketManager, IFinP2PCollat
 
         _configureCollateralAsset(basketId, param);
         _whitelistTokens(basketId, tokenAddresses);
-
     }
-
-    function associateCollateralAsset(
-        string memory basketId,
-        address[] memory tokenAddresses,
-        string[] memory quantities,
-        string memory borrower,
-        string memory lender,
-        address collateralAccount
-    ) external {
-        require(hasRole(BASKET_FACTORY, _msgSender()), "FinP2PCollateralBasket: must have basket factory role to create collateral asset");
-        require(tokenAddresses.length == quantities.length, "AssetId and quantities length mismatch");
-        require(baskets[basketId].collateralAccount == address(0), "Basket already exists");
-
-        uint256[] memory amounts = new uint256[](quantities.length);
-        for (uint256 i = 0; i < quantities.length; i++) {
-            uint8 tokenDecimals = IERC20Metadata(tokenAddresses[i]).decimals();
-            amounts[i] = quantities[i].stringToUint(tokenDecimals);
-        }
-
-        baskets[basketId] = CollateralBasket(
-            collateralAccount,
-            borrower.toAddress(),
-            lender.toAddress(),
-            tokenAddresses,
-            amounts,
-            CollateralBasketState.CREATED
-        );
-    }
-
 
     function hold(string memory basketId) external {
         CollateralBasket memory basket = baskets[basketId];
