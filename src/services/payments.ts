@@ -14,7 +14,6 @@ import OperationBase = FinAPIComponents.Schemas.OperationBase;
 import ProfileOperation = FinAPIComponents.Schemas.ProfileOperation;
 import { Logger } from "winston";
 
-
 type CollateralAssetDetails = {
   assetList: [
     {
@@ -151,7 +150,7 @@ export class PaymentsService extends CommonService {
 
       // STEP 2   ----------------------------------------------------------------
 
-      const assetName = `Collateral asset ${/*account*/uuid()}`;
+      const assetName = `Collateral asset ${account}`;
       const assetType = "collateral";
       const issuerId = borrowerId;
       const tokenId = basketId;
