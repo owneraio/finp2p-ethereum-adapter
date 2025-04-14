@@ -133,7 +133,7 @@ export class PaymentsService extends CommonService {
 
     // STEP 2   ----------------------------------------------------------------
 
-    const assetName = `Collateral asset [${account}]`;
+    const assetName = `collateral-${account}`;
     const assetType = "collateral";
     const issuerId = borrowerId;
     const tokenId = basketId;
