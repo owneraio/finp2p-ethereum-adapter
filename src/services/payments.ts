@@ -16,6 +16,7 @@ import IntentType = FinAPIComponents.Schemas.IntentType;
 import OperationBase = FinAPIComponents.Schemas.OperationBase;
 import ProfileOperation = FinAPIComponents.Schemas.ProfileOperation;
 import { parseUnits } from "ethers";
+import { finIdToAddress } from "../../finp2p-contracts/src/contracts/utils";
 
 type Asset = {
   assetId: string,
@@ -221,8 +222,10 @@ export class PaymentsService extends CommonService {
     }
 
     const collateralAccountFactory = new AccountFactory(signer, factoryAddress);
+    const borrowerAddress = finIdToAddress(borrower);
+    const lenderAddress = finIdToAddress(lender);
     const collateralAccount = await collateralAccountFactory.createAccount(
-      borrower.address, lender.address, controller
+      borrowerAddress, lenderAddress, controller
     );
     logger.info(`Collateral asset address: ${collateralAccount}`);
     const collateralContract = new AssetCollateralAccount(signer, collateralAccount);

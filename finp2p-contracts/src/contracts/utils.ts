@@ -52,6 +52,10 @@ export const addressFromPrivateKey = (privateKey: string): string => {
   return new Wallet(privateKey).address;
 };
 
+export const finIdToAddress = (finId: string): string => {
+  return ''
+};
+
 export const parseTransactionReceipt = (
   receipt: TransactionReceipt,
   contractInterface: FINP2POperatorERC20Interface,
