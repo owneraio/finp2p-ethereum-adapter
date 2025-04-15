@@ -72,7 +72,6 @@ export class CollateralService {
       pricedInToken,
       currency,
       orgsToShare
-    }).then(_ => {
     });
     return cid;
   }
