@@ -62,7 +62,7 @@ export class CollateralService {
     const { tokenAddresses, amounts } = await this.prepareTokens(assetList);
     const { currency, pricedInToken } = await this.prepareCash(cashAsset);
     const cid = uuid();
-    this.createCollateralAgreement({
+    this.createCollateralAgreement(cid, {
       borrower,
       borrowerId,
       lender,
@@ -72,13 +72,8 @@ export class CollateralService {
       pricedInToken,
       currency,
       orgsToShare
-    })
-      .then(collateralAssetId => {
-        this.finAPIClient.sendCallback(cid, successfulOperation(cid, borrower, collateralAssetId));
-      })
-      .catch(e => {
-        this.finAPIClient.sendCallback(cid, failedOperation(cid, 1, `Failed to create collateral asset: ${e}`));
-      });
+    }).then(_ => {
+    });
     return cid;
   }
 
@@ -104,46 +99,51 @@ export class CollateralService {
     }
   }
 
-  private async createCollateralAgreement(data: CollateralAgreementData) {
-    const {
-      borrower,
-      lender,
-      tokenAddresses,
-      amounts,
-      liabilityAmount,
-      pricedInToken,
-      borrowerId,
-      currency,
-      orgsToShare
-    } = data;
-
-    const collateralAccount = await this.createCollateralAccount(
-      borrower,
-      lender,
-      tokenAddresses,
-      pricedInToken,
-      liabilityAmount
-    );
-
-    const collateralAssetId = await this.createFinP2PAsset(
-      collateralAccount,
-      borrowerId,
-      currency,
-      {
-        collateralAccount,
+  private async createCollateralAgreement(cid: string, data: CollateralAgreementData) {
+    try {
+      const {
+        borrower,
+        lender,
         tokenAddresses,
         amounts,
+        liabilityAmount,
+        pricedInToken,
+        borrowerId,
+        currency,
+        orgsToShare
+      } = data;
+
+      const collateralAccount = await this.createCollateralAccount(
         borrower,
-        lender
-      } as CollateralAssetMetadata
-    );
-    logger.info(`Collateral asset created: ${collateralAssetId}`);
+        lender,
+        tokenAddresses,
+        pricedInToken,
+        liabilityAmount
+      );
 
-    await this.shareFinP2PAsset(collateralAssetId, orgsToShare || []);
+      const collateralAssetId = await this.createFinP2PAsset(
+        collateralAccount,
+        borrowerId,
+        currency,
+        {
+          collateralAccount,
+          tokenAddresses,
+          amounts,
+          borrower,
+          lender
+        } as CollateralAssetMetadata
+      );
+      logger.info(`Collateral asset created: ${collateralAssetId}`);
 
-    await this.issueAssets(borrower, "1", collateralAssetId);
+      await this.shareFinP2PAsset(collateralAssetId, orgsToShare || []);
 
-    return collateralAssetId;
+      await this.issueAssets(borrower, "1", collateralAssetId);
+
+      await this.finAPIClient.sendCallback(cid, successfulOperation(cid, borrower, collateralAssetId));
+
+    } catch (e) {
+      await this.finAPIClient.sendCallback(cid, failedOperation(cid, 1, `Failed to create collateral asset: ${e}`));
+    }
   }
 
 
