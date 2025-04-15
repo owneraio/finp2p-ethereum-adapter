@@ -246,7 +246,7 @@ export class CollateralService {
       try {
         const { ledgerAssetInfo: { tokenId: tokenAddress } } = await this.ossClient.getAsset(a.assetId);
         tokenAddresses.push(tokenAddress);
-        const decimals = 18; // TODO: get from ERC20
+        const decimals = 2; // TODO: get from ERC20
         amounts.push(String(parseUnits(a.quantity, decimals)));
       } catch (e) {
         logger.error(`Unable to get asset ${a.assetId} from OSS: ${e}`);
