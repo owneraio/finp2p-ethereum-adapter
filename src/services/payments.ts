@@ -20,7 +20,18 @@ export class PaymentsService extends CommonService {
         }
       } as Paths.DepositInstruction.Responses.$200;
     }
-    const cid = await this.collateralService.startCollateralAgreement(details as CollateralAssetDetails);
+
+    let cid: string
+    try {
+      cid = await this.collateralService.startCollateralAgreement(details as CollateralAssetDetails);
+    } catch (e) {
+      logger.error(e)
+      return {
+        isCompleted: true, cid: uuid(), error: {
+          code: 1, message: e
+        }
+      } as Paths.DepositInstruction.Responses.$200;
+    }
 
     return {
       isCompleted: false, cid,
