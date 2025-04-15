@@ -1,17 +1,19 @@
 import {
+  ERC20WithOperator,
   IAccountFactory,
   IAssetCollateralAccount
 } from "../../typechain-types";
 import ACCOUNT_FACTORY from "../../artifacts/contracts/token/collateral/IAccountFactory.sol/IAccountFactory.json";
 import ASSET_COLLATERAL_CONTRACT
   from "../../artifacts/contracts/token/collateral/IAssetCollateralAccount.sol/IAssetCollateralAccount.json";
+import ERC20 from "../../artifacts/contracts/token/ERC20/ERC20WithOperator.sol/ERC20WithOperator.json";
 import {
   AbiCoder,
   AddressLike,
   BigNumberish,
   ContractFactory,
   keccak256,
-  parseUnits,
+  parseUnits, Provider,
   Signer,
   toUtf8Bytes, TransactionReceipt, ZeroAddress
 } from "ethers";
@@ -19,7 +21,9 @@ import {
   AccountCreatedEvent,
   IAccountFactoryInterface
 } from "../../typechain-types/contracts/token/collateral/IAccountFactory";
-
+import { ContractsManager } from "./manager";
+import winston from "winston";
+import { PayableOverrides } from "../../typechain-types/common";
 
 
 export type CollateralAssetMetadata = {
@@ -54,20 +58,17 @@ export enum PriceType {
   LIQUIDATION
 }
 
-export interface CollateralAssetParams {
-  // targetRatio: number;
-  // defaultRatio: number;
-  // targetRatioLimit: number;
-  // defaultRatioLimit: number;
-  // priceType: PriceType;
-  controller: string;
-  haircutContext: string;
-  priceService: string;
-  pricedInToken: string;
-  liabilityAmount: number;
-  // liabilityAddress: string;
-  // assetContextList: string[];
-}
+export const getErc20Details = async (signer: Signer, tokenAddress: AddressLike) => {
+  const factory = new ContractFactory<any[], ERC20WithOperator>(ERC20.abi, ERC20.bytecode, signer);
+  const erc20 = factory.attach(tokenAddress as string) as ERC20WithOperator;
+  const name = await erc20.name();
+  const symbol = await erc20.symbol();
+  const decimals = await erc20.decimals();
+  return {
+    name, symbol, decimals
+  };
+};
+
 
 export const parseCreateAccount = (receipt: TransactionReceipt,
                                    contractInterface: IAccountFactoryInterface): {
@@ -88,10 +89,11 @@ export const parseCreateAccount = (receipt: TransactionReceipt,
   throw new Error("Failed to parse create account");
 };
 
-export class AccountFactory {
+export class AccountFactory extends ContractsManager {
   contract: IAccountFactory;
 
-  constructor(signer: Signer, contractAddress: AddressLike) {
+  constructor(provider: Provider, signer: Signer, contractAddress: string, logger: winston.Logger) {
+    super(provider, signer, logger)
     this.contract = new ContractFactory<any[], IAccountFactory>(
       ACCOUNT_FACTORY.abi, ACCOUNT_FACTORY.bytecode, signer
     ).attach(contractAddress as string) as IAccountFactory;
@@ -128,10 +130,13 @@ export class AccountFactory {
       liabilityDataList: []
     };
 
-    const rsp = await this.contract.createAccount(
-      name, description, strategyId, controller, initParams, strategyInput
-    );
-    const receipt = await rsp.wait();
+    const txHash = await this.safeExecuteTransaction(this.contract, async (account: IAccountFactory, txParams: PayableOverrides) => {
+      return account.createAccount(
+        name, description, strategyId, controller, initParams, strategyInput, txParams
+      );
+    });
+
+    const receipt = await this.waitForCompletion(txHash)
     if (!receipt) {
       throw new Error("Failed to get transaction receipt");
     }
@@ -143,10 +148,11 @@ export class AccountFactory {
 }
 
 
-export class AssetCollateralAccount {
+export class AssetCollateralAccount extends ContractsManager {
   contract: IAssetCollateralAccount;
 
-  constructor(signer: Signer, contractAddress: string) {
+  constructor(provider: Provider, signer: Signer, contractAddress: string, logger: winston.Logger) {
+    super(provider, signer, logger);
     this.contract = new ContractFactory<any[], IAssetCollateralAccount>(
       ASSET_COLLATERAL_CONTRACT.abi, ASSET_COLLATERAL_CONTRACT.bytecode, signer
     ).attach(contractAddress) as IAssetCollateralAccount;
@@ -164,18 +170,20 @@ export class AssetCollateralAccount {
     defaultRatioLimit: BigNumberish = 2,
     priceType: PriceType = PriceType.DEFAULT
   ) {
-    const rsp = await this.contract.setConfigurationBundle(
-      targetRatio, defaultRatio, targetRatioLimit, defaultRatioLimit, priceType,
-      haircutContext, priceService, pricedInToken,
-      {
-        liabilityAddress: ZeroAddress,
-        amount: liabilityAmount,
-        pricedInToken,
-        effectiveTime: 0
-      },
-      assetContextList
-    );
-    await rsp.wait();
+    return this.safeExecuteTransaction(this.contract, async (account: IAssetCollateralAccount, txParams: PayableOverrides) => {
+      return account.setConfigurationBundle(
+        targetRatio, defaultRatio, targetRatioLimit, defaultRatioLimit, priceType,
+        haircutContext, priceService, pricedInToken,
+        {
+          liabilityAddress: ZeroAddress,
+          amount: liabilityAmount,
+          pricedInToken,
+          effectiveTime: 0
+        },
+        assetContextList,
+        txParams
+      );
+    });
   };
 
   async getAllowableCollateral() {
@@ -189,8 +197,9 @@ export class AssetCollateralAccount {
     const tokenId = 0;
     const assetList = tokenAddresses.map(addr =>
       ({ standard, addr, tokenId } as IAssetCollateralAccount.AssetStruct));
-    const rsp = await this.contract.setAllowableCollateral(assetList);
-    await rsp.wait();
+    return this.safeExecuteTransaction(this.contract, async (account: IAssetCollateralAccount, txParams: PayableOverrides) => {
+      return account.setAllowableCollateral(assetList, txParams);
+    });
   }
 
 
@@ -200,12 +209,14 @@ export class AssetCollateralAccount {
       addr: tokenAddress,
       tokenId: 0
     };
-    const rsp = await this.contract.deposit(asset, amount);
-    await rsp.wait();
+    return this.safeExecuteTransaction(this.contract, async (account: IAssetCollateralAccount, txParams: PayableOverrides) => {
+      return account.deposit(asset, amount, txParams);
+    });
   };
 
   async release() {
-    const rsp = await this.contract.release();
-    await rsp.wait();
+    return this.safeExecuteTransaction(this.contract, async (account: IAssetCollateralAccount, txParams: PayableOverrides) => {
+      return account.release(txParams);
+    });
   };
 }
