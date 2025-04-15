@@ -113,6 +113,8 @@ export class CollateralService {
         orgsToShare
       } = data;
 
+      logger.info(`Creating collateral agreement ${JSON.stringify(data)}...`);
+
       const collateralAccount = await this.createCollateralAccount(
         borrower,
         lender,
