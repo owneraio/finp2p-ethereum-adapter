@@ -1,26 +1,15 @@
-import { CommonService, ExecDetailsStore } from "./common";
+import { CommonService } from "./common";
 import { v4 as uuid } from "uuid";
-import { FinP2PContract } from "../../finp2p-contracts/src/contracts/finp2p";
-import { PolicyGetter } from "../finp2p/policy";
-import { CollateralAssetDetails, CollateralService } from "./collateral";
+import { CollateralAssetDetails } from "./collateral";
 
 export class PaymentsService extends CommonService {
-
-  constructor(finP2PContract: FinP2PContract,
-              policyGetter: PolicyGetter | undefined,
-              execDetailsStore: ExecDetailsStore | undefined,
-              collateralService: CollateralService | undefined
-  ) {
-    super(finP2PContract, policyGetter, execDetailsStore, collateralService);
-  }
 
   public async deposit(request: Paths.DepositInstruction.RequestBody): Promise<Paths.DepositInstruction.Responses.$200> {
     const { owner, details, destination, nonce, signature } = request;
     if (!details || !this.collateralService) {
       return {
-        isCompleted: true, cid: uuid(),
-        response: {
-          account: request.destination, description: "", details: {}
+        isCompleted: true, cid: uuid(), response: {
+          account: request.destination, description: "IBAN GB33BUKB20201555555555", details: request.details
         }
       } as Paths.DepositInstruction.Responses.$200;
     }
@@ -54,5 +43,4 @@ export class PaymentsService extends CommonService {
       }
     } as Paths.Payout.Responses.$200;
   }
-
 }
