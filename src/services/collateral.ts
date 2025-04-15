@@ -9,7 +9,7 @@ import { FinAPIClient } from "../finp2p/finapi/finapi.client";
 import process from "process";
 import { finIdToAddress } from "../../finp2p-contracts/src/contracts/utils";
 import { OssClient } from "../finp2p/oss.client";
-import { AddressLike, parseUnits } from "ethers";
+import { AddressLike, parseUnits, Wallet } from "ethers";
 import { FinP2PContract } from "../../finp2p-contracts/src/contracts/finp2p";
 import IntentType = FinAPIComponents.Schemas.IntentType;
 import OperationBase = Components.Schemas.OperationBase;
@@ -83,7 +83,9 @@ export class CollateralService {
       const collateralAsset = await this.getCollateralAsset(assetId);
       if (collateralAsset) {
         const { collateralAccount, tokenAddresses, amounts } = collateralAsset;
-        const { provider, signer } = this.finP2PContract;
+        const { provider, /*signer*/ } = this.finP2PContract;
+        // collateralAsset.borrower
+        const signer = new Wallet('0xbdfcd5a2fe367b321d35d05635d425b2e326475deb8119a556f7dc24d220f063').connect(provider);
         const collateralContract = new AssetCollateralAccount(provider, signer, collateralAccount, logger);
         if (phase === Phase.Initiate) {
           for (let i = 0; i < tokenAddresses.length; i++) {
@@ -162,7 +164,8 @@ export class CollateralService {
     logger.info(`Creating collateral account, borrower: ${borrower}, lender: ${lender}`);
 
     const { provider, signer } = this.finP2PContract;
-    const borrowerAddress = finIdToAddress(borrower);
+    // const borrowerAddress = finIdToAddress(borrower);
+    const borrowerAddress = `0xAFc770Ac2A5d46F12b020A7c558B918a6e318522`;
     const lenderAddress = finIdToAddress(lender);
     const controller = await signer.getAddress();
     const collateralAccount = await this.accountFactory.createAccount(
