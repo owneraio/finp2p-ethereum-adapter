@@ -1,4 +1,5 @@
 import {
+  computeAddress,
   concat,
   HDNodeWallet,
   hexlify,
@@ -53,7 +54,7 @@ export const addressFromPrivateKey = (privateKey: string): string => {
 };
 
 export const finIdToAddress = (finId: string): string => {
-  return ''
+  return computeAddress(`0x${finId}`)
 };
 
 export const parseTransactionReceipt = (

@@ -13,7 +13,6 @@ import { AddressLike, parseUnits, Signer } from "ethers";
 import { FinP2PContract } from "../../finp2p-contracts/src/contracts/finp2p";
 import IntentType = FinAPIComponents.Schemas.IntentType;
 import OperationBase = Components.Schemas.OperationBase;
-import { v4 as uuid } from "uuid";
 import OperationStatusDeposit = Components.Schemas.OperationStatusDeposit;
 import ResourceIdResponse = FinAPIComponents.Schemas.ResourceIdResponse;
 import ApiAnyError = Components.Schemas.ApiAnyError;
@@ -62,7 +61,7 @@ export class CollateralService {
       const { id: borrowerId } = await this.ossClient.getOwnerByFinId(borrower);
       const { tokenAddresses, amounts } = await this.prepareTokens(assetList);
       const { currency, pricedInToken } = await this.prepareCash(cashAsset);
-      const collateralAssetId = await this.createCollateralAgreement(cid, {
+      const collateralAssetId = await this.createCollateralAgreement({
         borrower,
         borrowerId,
         lender,
@@ -103,7 +102,7 @@ export class CollateralService {
     }
   }
 
-  private async createCollateralAgreement(cid: string, data: CollateralAgreementData) {
+  private async createCollateralAgreement(data: CollateralAgreementData) {
     const {
       borrower,
       lender,
