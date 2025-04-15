@@ -29,8 +29,7 @@ export class EscrowService extends CommonService {
       }
 
       if (params.eip712PrimaryType === PrimaryType.Loan && this.collateralService) {
-        this.collateralService.processCollateralAgreement(asset.assetId, params.phase).then(_ => {
-        }).catch(logger.error);
+        this.collateralService.processCollateralAgreement(asset.assetId, params.phase).catch(logger.error);
       }
 
       return {

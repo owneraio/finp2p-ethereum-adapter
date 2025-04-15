@@ -81,24 +81,28 @@ export class CollateralService {
   }
 
   async processCollateralAgreement(assetId: string, phase: Phase) {
-    const collateralAsset = await this.getCollateralAsset(assetId);
-    if (collateralAsset) {
-      const { collateralAccount, tokenAddresses, amounts } = collateralAsset;
-      const { signer } = this.finP2PContract;
-      const collateralContract = new AssetCollateralAccount(signer, collateralAccount);
-      if (phase === Phase.Initiate) {
-        for (let i = 0; i < tokenAddresses.length; i++) {
-          const tokenAddress = tokenAddresses[i];
-          const amount = amounts[i];
-          logger.info(`Depositing ${amount} of ${tokenAddress} to ${collateralAccount}`);
-          await collateralContract.deposit(tokenAddress, amount);
-        }
+    try {
+      const collateralAsset = await this.getCollateralAsset(assetId);
+      if (collateralAsset) {
+        const { collateralAccount, tokenAddresses, amounts } = collateralAsset;
+        const { signer } = this.finP2PContract;
+        const collateralContract = new AssetCollateralAccount(signer, collateralAccount);
+        if (phase === Phase.Initiate) {
+          for (let i = 0; i < tokenAddresses.length; i++) {
+            const tokenAddress = tokenAddresses[i];
+            const amount = amounts[i];
+            logger.info(`Depositing ${amount} of ${tokenAddress} to ${collateralAccount}`);
+            await collateralContract.deposit(tokenAddress, amount);
+          }
 
-      } else {
-        logger.info(`Releasing collateral from ${collateralAccount}`);
-        await collateralContract.release();
+        } else {
+          logger.info(`Releasing collateral from ${collateralAccount}`);
+          await collateralContract.release();
+        }
+        // todo: send receipts
       }
-      // todo: send receipts
+    } catch (e) {
+      logger.error(`Error processing collateral agreement: ${e}`);
     }
   }
 
@@ -189,7 +193,6 @@ export class CollateralService {
     const rsp = await this.finAPIClient.createAsset(
       assetName, assetType, borrowerId, currency, intentTypes, metadata
     );
-    logger.info(`Got response from FinAPI: ${JSON.stringify(rsp)}`);
     if ((rsp as ResourceIdResponse).id) {
       const { id } = rsp as ResourceIdResponse;
       return id;
@@ -200,7 +203,6 @@ export class CollateralService {
 
     } else if ((rsp as OperationBase).cid) {
       const { cid } = rsp as OperationBase;
-      logger.info(`Waiting for profile completion ${cid}`);
       const { id } = await this.waitForProfileCompletion(cid);
       return id;
 
