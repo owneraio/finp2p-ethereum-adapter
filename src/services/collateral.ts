@@ -56,13 +56,13 @@ export class CollateralService {
     }
   }
 
-  async startCollateralAgreement(details: CollateralAssetDetails) {
+  async startCollateralAgreement(cid: string, details: CollateralAssetDetails) {
     const { assetList, cashAsset, borrower, lender, liabilityAmount, orgsToShare } = details;
     const { id: borrowerId } = await this.ossClient.getOwnerByFinId(borrower);
     const { tokenAddresses, amounts } = await this.prepareTokens(assetList);
     const { currency, pricedInToken } = await this.prepareCash(cashAsset);
-    const cid = uuid();
-    this.createCollateralAgreement(cid, {
+    // const cid = uuid();
+    await this.createCollateralAgreement(cid, {
       borrower,
       borrowerId,
       lender,
@@ -73,7 +73,7 @@ export class CollateralService {
       currency,
       orgsToShare
     });
-    return cid;
+    // return cid;
   }
 
   async processCollateralAgreement(assetId: string, phase: Phase) {
