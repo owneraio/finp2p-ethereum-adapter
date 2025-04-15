@@ -9,6 +9,7 @@ import {
   RECEIPT_PROOF_TYPES
 } from "../../finp2p-contracts/src/contracts/eip712";
 import { ProofDomain } from "../finp2p/model";
+import { CollateralService } from "./collateral";
 
 export interface ExecDetailsStore {
   addExecutionContext(txHash: string, executionPlanId: string, instructionSequenceNumber: number): void;
@@ -20,11 +21,18 @@ export class CommonService {
   finP2PContract: FinP2PContract;
   policyGetter: PolicyGetter | undefined;
   execDetailsStore: ExecDetailsStore  | undefined;
+  collateralService: CollateralService | undefined
 
-  constructor(finP2PContract: FinP2PContract, policyGetter: PolicyGetter | undefined, execDetailsStore: ExecDetailsStore  | undefined) {
+  constructor(
+    finP2PContract: FinP2PContract,
+    policyGetter: PolicyGetter | undefined,
+    execDetailsStore: ExecDetailsStore | undefined,
+    collateralService: CollateralService | undefined
+  ) {
     this.finP2PContract = finP2PContract;
     this.policyGetter = policyGetter;
     this.execDetailsStore = execDetailsStore;
+    this.collateralService = collateralService;
   }
 
   public async balance(request: Paths.GetAssetBalance.RequestBody): Promise<Paths.GetAssetBalance.Responses.$200> {

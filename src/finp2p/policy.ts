@@ -3,7 +3,7 @@ import { parseProofDomain, Proof, ProofDomain, ProofPolicy } from "./model";
 import process from "process";
 import console from "console";
 import { AssetType } from "../../finp2p-contracts/src/contracts/model";
-import { CollateralAsset } from "../../finp2p-contracts/src/contracts/collateral";
+import { CollateralAssetMetadata } from "../../finp2p-contracts/src/contracts/collateral";
 
 export class PolicyGetter {
   ossClient: OssClient;
@@ -44,11 +44,5 @@ export class PolicyGetter {
     }
   }
 
-  async getCollateralAsset(assetId: string): Promise<CollateralAsset | undefined> {
-    const { type, config } = await this.ossClient.getAsset(assetId);
-    if (type === 'collateral') {
-      return JSON.parse(config) as CollateralAsset
-    }
-  }
 
 }

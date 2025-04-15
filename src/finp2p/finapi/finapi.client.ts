@@ -4,6 +4,8 @@ import OperationBase = FinAPIComponents.Schemas.OperationBase;
 import IntentType = FinAPIComponents.Schemas.IntentType;
 import * as axios from "axios";
 import ResourceIdResponse = FinAPIComponents.Schemas.ResourceIdResponse;
+import AssetMetadataAndConfigError = Components.Schemas.AssetMetadataAndConfigError;
+import GeneralClientError = Components.Schemas.GeneralClientError;
 
 export class FinAPIClient {
 
@@ -44,11 +46,12 @@ export class FinAPIClient {
       });
   }
 
-  async getOperationStatus(id: Paths.GetOperation.Parameters.Cid): Promise<{
+  async getProfileOperationStatus(id: Paths.GetOperation.Parameters.Cid): Promise<{
     cid?: string;
     isCompleted: boolean;
     type: "profile";
     response?: ResourceIdResponse;
+    errors: (AssetMetadataAndConfigError | GeneralClientError)[]
   } > {
     return await this.get(`/operations/status/${id}`);
   }

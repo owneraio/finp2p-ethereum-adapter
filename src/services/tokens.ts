@@ -14,6 +14,7 @@ import { isEthereumAddress } from "../../finp2p-contracts/src/contracts/utils";
 import { PolicyGetter } from "../finp2p/policy";
 import CreateAssetResponse = Components.Schemas.CreateAssetResponse;
 import LedgerTokenId = Components.Schemas.LedgerTokenId;
+import { CollateralService } from "./collateral";
 
 export type AssetCreationPolicy = | { type: "deploy-new-token"; decimals: number } | {
   type: "reuse-existing-token";
@@ -24,9 +25,14 @@ export class TokenService extends CommonService {
 
   assetCreationPolicy: AssetCreationPolicy;
 
-  constructor(finP2PContract: FinP2PContract, assetCreationPolicy: AssetCreationPolicy, policyGetter: PolicyGetter | undefined,
-              execDetailsStore: ExecDetailsStore | undefined) {
-    super(finP2PContract, policyGetter, execDetailsStore);
+  constructor(
+    finP2PContract: FinP2PContract,
+    assetCreationPolicy: AssetCreationPolicy,
+    policyGetter: PolicyGetter | undefined,
+    execDetailsStore: ExecDetailsStore | undefined,
+    collateralService: CollateralService | undefined
+  ) {
+    super(finP2PContract, policyGetter, execDetailsStore, collateralService);
     this.assetCreationPolicy = assetCreationPolicy;
   }
 

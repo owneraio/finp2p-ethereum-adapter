@@ -1,8 +1,7 @@
 import { logger } from "../helpers/logger";
 import { CommonService } from "./common";
-import { EthereumTransactionError, Phase } from "../../finp2p-contracts/src/contracts/model";
+import { EthereumTransactionError } from "../../finp2p-contracts/src/contracts/model";
 import { extractEIP712Params, failedTransaction, RequestParams, RequestValidationError } from "./mapping";
-import { AssetCollateralAccount } from "../../finp2p-contracts/src/contracts/collateral";
 import { PrimaryType } from "../../finp2p-contracts/src/contracts/eip712";
 
 export class EscrowService extends CommonService {
@@ -29,8 +28,8 @@ export class EscrowService extends CommonService {
         this.execDetailsStore?.addExecutionContext(txHash, executionContext.executionPlanId, executionContext.instructionSequenceNumber);
       }
 
-      if (params.eip712PrimaryType === PrimaryType.Loan) {
-        this.operateCollateralAsset(asset.assetId, params.phase).then(_ => {
+      if (params.eip712PrimaryType === PrimaryType.Loan && this.collateralService) {
+        this.collateralService.processCollateralAgreement(asset.assetId, params.phase).then(_ => {
         }).catch(logger.error);
       }
 
@@ -113,29 +112,6 @@ export class EscrowService extends CommonService {
       } else {
         return failedTransaction(1, `${e}`);
       }
-    }
-  }
-
-  private async operateCollateralAsset(assetId: string, phase: Phase) {
-    const collateralAsset = await this.policyGetter?.getCollateralAsset(assetId);
-    if (collateralAsset) {
-      const { collateralAccount, tokenAddresses, amounts } = collateralAsset;
-      const { signer } = this.finP2PContract;
-      const collateralContract = new AssetCollateralAccount(signer, collateralAccount);
-      if (phase === Phase.Initiate) {
-        for (let i = 0; i < tokenAddresses.length; i++) {
-          const tokenAddress = tokenAddresses[i];
-          const amount = amounts[i];
-          logger.info(`Depositing ${amount} of ${tokenAddress} to ${collateralAccount}`);
-          await collateralContract.deposit(tokenAddress, amount);
-        }
-
-      } else {
-        logger.info(`Releasing collateral from ${collateralAccount}`);
-        await collateralContract.release();
-      }
-
-      // todo: send receipts
     }
   }
 

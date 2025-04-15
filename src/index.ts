@@ -10,6 +10,8 @@ import { PolicyGetter } from "./finp2p/policy";
 import { OssClient } from "./finp2p/oss.client";
 import winston, { format, transports } from "winston";
 import { InMemoryExecDetailsStore } from "./services/exec-details-store";
+import { CollateralService } from "./services/collateral";
+import { FinAPIClient } from "./finp2p/finapi/finapi.client";
 
 const createAssetCreationPolicy = async (contractManager: FinP2PContract | undefined): Promise<AssetCreationPolicy> => {
   const type = (process.env.ASSET_CREATION_POLICY || "deploy-new-token");
@@ -60,6 +62,11 @@ const init = async () => {
     throw new Error("OSS_URL is not set");
   }
 
+  const finP2PAddress = process.env.FINP2P_ADDRESS;
+  if (!finP2PAddress) {
+    throw new Error("FINP2P_ADDRESS is not set");
+  }
+
   const level = process.env.LOG_LEVEL || "info";
   const logger = winston.createLogger({
     level,
@@ -82,10 +89,14 @@ const init = async () => {
   const { provider, signer } = await createProviderAndSigner(providerType, logger, useNonceManager);
   const finp2pContract = new FinP2PContract(provider, signer, finP2PContractAddress, logger);
   const assetCreationPolicy = await createAssetCreationPolicy(finp2pContract);
-  const policyGetter = new PolicyGetter(new OssClient(ossUrl, undefined));
+  const ossClient = new OssClient(ossUrl, undefined);
+  const finAPIClient = new FinAPIClient(finP2PAddress);
+  const policyGetter = new PolicyGetter(ossClient);
   const execDetailsStore = new InMemoryExecDetailsStore();
+  const collateralService = new CollateralService(finp2pContract, ossClient, finAPIClient, signer)
 
-  createApp(finp2pContract, assetCreationPolicy, policyGetter, execDetailsStore, logger).listen(port, () => {
+  createApp(finp2pContract, assetCreationPolicy, policyGetter, execDetailsStore,
+    collateralService, logger).listen(port, () => {
     logger.info(`listening at http://localhost:${port}`);
   });
 };

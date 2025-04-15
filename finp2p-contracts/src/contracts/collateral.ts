@@ -22,7 +22,7 @@ import {
 
 
 
-export type CollateralAsset = {
+export type CollateralAssetMetadata = {
   collateralAccount: string
   tokenAddresses: string[],
   amounts: bigint[],
