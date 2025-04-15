@@ -189,7 +189,7 @@ export class CollateralService {
     assetType: string = "collateral",
     intentTypes: IntentType[] = ["loanIntent"]
   ) {
-    logger.info(`Creation FinP2P Collateral asset`)
+    logger.info(`Creating FinP2P Collateral asset`)
     const rsp = await this.finAPIClient.createAsset(
       assetName, assetType, borrowerId, currency, intentTypes, metadata
     );
@@ -239,15 +239,15 @@ export class CollateralService {
     }
   }
 
-  private async prepareTokens(assetList: Asset[]): Promise<{ tokenAddresses: string[], amounts: number[] }> {
+  private async prepareTokens(assetList: Asset[]): Promise<{ tokenAddresses: string[], amounts: string[] }> {
     let tokenAddresses: string[] = [];
-    let amounts: number[] = [];
+    let amounts: string[] = [];
     for (const a of assetList) {
       try {
         const { ledgerAssetInfo: { tokenId: tokenAddress } } = await this.ossClient.getAsset(a.assetId);
         tokenAddresses.push(tokenAddress);
         const decimals = 18; // TODO: get from ERC20
-        amounts.push(Number(parseUnits(a.quantity, decimals)));
+        amounts.push(String(parseUnits(a.quantity, decimals)));
       } catch (e) {
         logger.error(`Unable to get asset ${a.assetId} from OSS: ${e}`);
       }
@@ -354,7 +354,7 @@ type CollateralAgreementData = {
   borrowerId: string,
   lender: string,
   tokenAddresses: string[],
-  amounts: number[],
+  amounts: string[],
   currency: string,
   pricedInToken: string,
   liabilityAmount: number,

@@ -25,7 +25,7 @@ import {
 export type CollateralAssetMetadata = {
   collateralAccount: string
   tokenAddresses: string[],
-  amounts: number[],
+  amounts: string[],
   borrower: string,
   lender: string
 }
@@ -194,7 +194,7 @@ export class AssetCollateralAccount {
   }
 
 
-  async deposit(tokenAddress: AddressLike, amount: number) {
+  async deposit(tokenAddress: AddressLike, amount: BigNumberish) {
     const asset: IAssetCollateralAccount.AssetStruct = {
       standard: AssetStandard.FUNGIBLE,
       addr: tokenAddress,
