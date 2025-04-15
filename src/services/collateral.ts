@@ -57,24 +57,28 @@ export class CollateralService {
   }
 
   async startCollateralAgreement(cid: string, details: CollateralAssetDetails) {
-    const { assetList, cashAsset, borrower, lender, liabilityAmount, orgsToShare } = details;
-    const { id: borrowerId } = await this.ossClient.getOwnerByFinId(borrower);
-    const { tokenAddresses, amounts } = await this.prepareTokens(assetList);
-    const { currency, pricedInToken } = await this.prepareCash(cashAsset);
-    // const cid = uuid();
-    await this.createCollateralAgreement(cid, {
-      borrower,
-      borrowerId,
-      lender,
-      tokenAddresses,
-      amounts,
-      liabilityAmount,
-      pricedInToken,
-      currency,
-      orgsToShare
-    });
+    try {
+      const { assetList, cashAsset, borrower, lender, liabilityAmount, orgsToShare } = details;
+      const { id: borrowerId } = await this.ossClient.getOwnerByFinId(borrower);
+      const { tokenAddresses, amounts } = await this.prepareTokens(assetList);
+      const { currency, pricedInToken } = await this.prepareCash(cashAsset);
+      const collateralAssetId = await this.createCollateralAgreement(cid, {
+        borrower,
+        borrowerId,
+        lender,
+        tokenAddresses,
+        amounts,
+        liabilityAmount,
+        pricedInToken,
+        currency,
+        orgsToShare
+      });
+      await this.finAPIClient.sendCallback(cid, successfulOperation(cid, borrower, collateralAssetId));
 
-    // return cid;
+    } catch (e) {
+      logger.error(`Error creating collateral asset: ${e}`);
+      await this.finAPIClient.sendCallback(cid, failedOperation(cid, 1, `Failed to create collateral asset`));
+    }
   }
 
   async processCollateralAgreement(assetId: string, phase: Phase) {
@@ -100,53 +104,47 @@ export class CollateralService {
   }
 
   private async createCollateralAgreement(cid: string, data: CollateralAgreementData) {
-    try {
-      const {
-        borrower,
-        lender,
+    const {
+      borrower,
+      lender,
+      tokenAddresses,
+      amounts,
+      liabilityAmount,
+      pricedInToken,
+      borrowerId,
+      currency,
+      orgsToShare
+    } = data;
+
+    logger.info(`Creating collateral agreement ${JSON.stringify(data)}...`);
+
+    const collateralAccount = await this.createCollateralAccount(
+      borrower,
+      lender,
+      tokenAddresses,
+      pricedInToken,
+      liabilityAmount
+    );
+
+    const collateralAssetId = await this.createFinP2PAsset(
+      collateralAccount,
+      borrowerId,
+      currency,
+      {
+        collateralAccount,
         tokenAddresses,
         amounts,
-        liabilityAmount,
-        pricedInToken,
-        borrowerId,
-        currency,
-        orgsToShare
-      } = data;
-
-      logger.info(`Creating collateral agreement ${JSON.stringify(data)}...`);
-
-      const collateralAccount = await this.createCollateralAccount(
         borrower,
-        lender,
-        tokenAddresses,
-        pricedInToken,
-        liabilityAmount
-      );
+        lender
+      } as CollateralAssetMetadata
+    );
+    logger.info(`Collateral asset created: ${collateralAssetId}`);
 
-      const collateralAssetId = await this.createFinP2PAsset(
-        collateralAccount,
-        borrowerId,
-        currency,
-        {
-          collateralAccount,
-          tokenAddresses,
-          amounts,
-          borrower,
-          lender
-        } as CollateralAssetMetadata
-      );
-      logger.info(`Collateral asset created: ${collateralAssetId}`);
+    await this.shareFinP2PAsset(collateralAssetId, orgsToShare || []);
 
-      await this.shareFinP2PAsset(collateralAssetId, orgsToShare || []);
+    await this.issueAssets(borrower, "1", collateralAssetId);
 
-      await this.issueAssets(borrower, "1", collateralAssetId);
-
-      await this.finAPIClient.sendCallback(cid, successfulOperation(cid, borrower, collateralAssetId));
-
-    } catch (e) {
-      logger.error(`Error creating collateral asset: ${e}`);
-      await this.finAPIClient.sendCallback(cid, failedOperation(cid, 1, `Failed to create collateral asset`));
-    }
+    return collateralAssetId;
   }
 
 
