@@ -144,7 +144,8 @@ export class CollateralService {
       await this.finAPIClient.sendCallback(cid, successfulOperation(cid, borrower, collateralAssetId));
 
     } catch (e) {
-      await this.finAPIClient.sendCallback(cid, failedOperation(cid, 1, `Failed to create collateral asset: ${e}`));
+      logger.error(`Error creating collateral asset: ${e}`);
+      await this.finAPIClient.sendCallback(cid, failedOperation(cid, 1, `Failed to create collateral asset`));
     }
   }
 
