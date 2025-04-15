@@ -22,16 +22,11 @@ export class PaymentsService extends CommonService {
     }
 
     const cid = uuid();
-    try {
-      this.collateralService.startCollateralAgreement(cid, details as CollateralAssetDetails);
-    } catch (e) {
-      logger.error(e)
-      return {
-        isCompleted: true, cid: uuid(), error: {
-          code: 1, message: e
-        }
-      } as Paths.DepositInstruction.Responses.$200;
-    }
+    this.collateralService.startCollateralAgreement(cid, details as CollateralAssetDetails)
+      .catch(e => {
+        logger.error(e);
+      });
+
 
     return {
       isCompleted: false, cid,

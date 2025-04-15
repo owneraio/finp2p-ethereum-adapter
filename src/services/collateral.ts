@@ -73,6 +73,7 @@ export class CollateralService {
       currency,
       orgsToShare
     });
+
     // return cid;
   }
 
