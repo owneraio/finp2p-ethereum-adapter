@@ -25,7 +25,7 @@ import {
 export type CollateralAssetMetadata = {
   collateralAccount: string
   tokenAddresses: string[],
-  amounts: bigint[],
+  amounts: number[],
   borrower: string,
   lender: string
 }

@@ -24,7 +24,7 @@ export class PaymentsService extends CommonService {
     const cid = uuid();
     this.collateralService.startCollateralAgreement(cid, details as CollateralAssetDetails)
       .catch(e => {
-        logger.error(`Collateral service error: ${e}`);
+        logger.error(`Collateral service error: ${JSON.stringify(e)}`);
       });
 
 

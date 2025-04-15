@@ -155,7 +155,7 @@ export class CollateralService {
     lender: string,
     tokenAddresses: AddressLike[],
     pricedInToken: AddressLike,
-    liabilityAmount: bigint
+    liabilityAmount: number
   ) {
     logger.info(`Creating collateral account, borrower: ${borrower}, lender: ${lender}`);
 
@@ -225,15 +225,15 @@ export class CollateralService {
     await this.finP2PContract.waitForCompletion(txHash);
   }
 
-  private async prepareTokens(assetList: Asset[]): Promise<{ tokenAddresses: string[], amounts: bigint[] }> {
+  private async prepareTokens(assetList: Asset[]): Promise<{ tokenAddresses: string[], amounts: number[] }> {
     let tokenAddresses: string[] = [];
-    let amounts: bigint[] = [];
+    let amounts: number[] = [];
     for (const a of assetList) {
       try {
         const { ledgerAssetInfo: { tokenId: tokenAddress } } = await this.ossClient.getAsset(a.assetId);
         tokenAddresses.push(tokenAddress);
         const decimals = 18; // TODO: get from ERC20
-        amounts.push(parseUnits(a.quantity, decimals));
+        amounts.push(Number(parseUnits(a.quantity, decimals)));
       } catch (e) {
         logger.error(`Unable to get asset ${a.assetId} from OSS: ${e}`);
       }
@@ -331,7 +331,7 @@ export type CollateralAssetDetails = {
   cashAsset: CashAsset
   borrower: string,
   lender: string,
-  liabilityAmount: bigint,
+  liabilityAmount: number,
   orgsToShare: string[] | undefined
 }
 
@@ -340,9 +340,9 @@ type CollateralAgreementData = {
   borrowerId: string,
   lender: string,
   tokenAddresses: string[],
-  amounts: bigint[],
+  amounts: number[],
   currency: string,
   pricedInToken: string,
-  liabilityAmount: bigint,
+  liabilityAmount: number,
   orgsToShare: string[] | undefined
 }
