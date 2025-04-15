@@ -185,9 +185,11 @@ export class CollateralService {
     assetType: string = "collateral",
     intentTypes: IntentType[] = ["loanIntent"]
   ) {
+    logger.info(`Creation FinP2P Collateral asset`)
     const rsp = await this.finAPIClient.createAsset(
       assetName, assetType, borrowerId, currency, intentTypes, metadata
     );
+    logger.info(`Got response from FinAPI: ${JSON.stringify(rsp)}`);
     if ((rsp as ResourceIdResponse).id) {
       const { id } = rsp as ResourceIdResponse;
       return id;
@@ -198,6 +200,7 @@ export class CollateralService {
 
     } else if ((rsp as OperationBase).cid) {
       const { cid } = rsp as OperationBase;
+      logger.info(`Waiting for profile completion ${cid}`);
       const { id } = await this.waitForProfileCompletion(cid);
       return id;
 
@@ -264,7 +267,7 @@ export class CollateralService {
         await new Promise((r) => setTimeout(r, 500));
       } else {
         const { errors, response } = rsp;
-        if (errors.length > 0) {
+        if (errors && errors.length > 0) {
           throw new Error(`Error processing operation ${cid}: ${errors}`);
         } else if (response) {
           return response;
