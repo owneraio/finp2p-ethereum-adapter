@@ -1,11 +1,18 @@
 import { CommonService } from "./common";
 import { v4 as uuid } from "uuid";
 import { CollateralAssetDetails } from "./collateral";
+import { logger } from "../helpers/logger";
 
 export class PaymentsService extends CommonService {
 
   public async deposit(request: Paths.DepositInstruction.RequestBody): Promise<Paths.DepositInstruction.Responses.$200> {
     const { owner, details, destination, nonce, signature } = request;
+    if (!this.collateralService) {
+      logger.info(`No collateral service available, skipping deposit instruction`);
+    }
+    if (!details) {
+      logger.info(`No details provided for deposit instruction`);
+    }
     if (!details || !this.collateralService) {
       return {
         isCompleted: true, cid: uuid(), response: {
