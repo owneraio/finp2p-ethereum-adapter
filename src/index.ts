@@ -93,7 +93,7 @@ const init = async () => {
   const finAPIClient = new FinAPIClient(finP2PAddress);
   const policyGetter = new PolicyGetter(ossClient);
   const execDetailsStore = new InMemoryExecDetailsStore();
-  const collateralService = new CollateralService(finp2pContract, ossClient, finAPIClient, signer)
+  const collateralService = new CollateralService(finp2pContract, ossClient, finAPIClient)
 
   createApp(finp2pContract, assetCreationPolicy, policyGetter, execDetailsStore,
     collateralService, logger).listen(port, () => {

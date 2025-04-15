@@ -139,7 +139,7 @@ const start = async () => {
 
   const execDetailsStore = new InMemoryExecDetailsStore();
   const finP2PContract = new FinP2PContract(provider, signer, finP2PContractAddress, logger);
-  const collateralService = new CollateralService(finP2PContract, ossClient, finAPIClient, signer);
+  const collateralService = new CollateralService(finP2PContract, ossClient, finAPIClient);
 
   await startApp(port, provider, signer, finP2PContract, tokenAddress, policyGetter, execDetailsStore,
     collateralService, logger);
