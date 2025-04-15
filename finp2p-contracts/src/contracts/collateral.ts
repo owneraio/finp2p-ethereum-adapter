@@ -194,7 +194,7 @@ export class AssetCollateralAccount {
   }
 
 
-  async deposit(tokenAddress: AddressLike, amount: BigNumberish) {
+  async deposit(tokenAddress: AddressLike, amount: number) {
     const asset: IAssetCollateralAccount.AssetStruct = {
       standard: AssetStandard.FUNGIBLE,
       addr: tokenAddress,

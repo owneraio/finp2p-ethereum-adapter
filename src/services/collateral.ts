@@ -145,7 +145,7 @@ export class CollateralService {
 
     await this.shareFinP2PAsset(collateralAssetId, orgsToShare || []);
 
-    await this.issueAssets(borrower, "1", collateralAssetId);
+    await this.mint(borrower, "1", collateralAssetId);
 
     return collateralAssetId;
   }
@@ -218,13 +218,25 @@ export class CollateralService {
     }
   }
 
-  private async issueAssets(issuerFinId: string, amount: string,
+  private async mint(issuerFinId: string, amount: string,
                             assetId: string, assetType: AssetType = AssetType.FinP2P
   ) {
     logger.info(`Issuing ${amount} asset ${assetId}...`);
     const txHash = await this.finP2PContract.issue(issuerFinId,
       { assetId, assetType, amount });
     await this.finP2PContract.waitForCompletion(txHash);
+    const status = await this.finP2PContract.getOperationStatus(txHash);
+    switch (status.status) {
+      case "completed":
+        const { receipt } = status;
+        logger.info(`Issue receipt to be imported: ${JSON.stringify(receipt)}`);
+        // todo: send receipt
+        break
+      case "failed":
+        const { error } = status;
+        logger.info(`Issue failed with status: ${error}`);
+        break;
+    }
   }
 
   private async prepareTokens(assetList: Asset[]): Promise<{ tokenAddresses: string[], amounts: number[] }> {
