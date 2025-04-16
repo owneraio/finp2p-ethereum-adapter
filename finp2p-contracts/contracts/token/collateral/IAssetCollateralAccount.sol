@@ -33,6 +33,23 @@ interface IAssetCollateralAccount {
         REPO
     }
 
+
+    enum Status {
+        NOT_INITIATED,
+        SOME_STATUS1,
+        SOME_STATUS2,
+        SOME_STATUS3,
+        SOME_STATUS4,
+        SOME_STATUS5,
+        SOME_STATUS6,
+        //        HEALTHY,
+        //        CLOSED,
+        //        WARNING_TARGET,
+        //        DEFAULT_PENDING
+        CLOSED
+    }
+
+
     function getAllowableCollateral() external view returns (Asset[] memory);
 
     function setAllowableCollateral(
@@ -79,6 +96,8 @@ interface IAssetCollateralAccount {
     function source() external view returns (address);
 
     function destination() external view returns (address);
+
+    function getStatus() external view returns (Status);
 
 //    function getLiabilityItem() external view returns (address);
 //

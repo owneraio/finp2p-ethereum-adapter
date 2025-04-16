@@ -2,7 +2,7 @@ import { AssetType, Phase } from "../../finp2p-contracts/src/contracts/model";
 import {
   AccountFactory,
   AssetCollateralAccount,
-  CollateralAssetMetadata, getErc20Details
+  CollateralAssetMetadata, CollateralType, getErc20Details
 } from "../../finp2p-contracts/src/contracts/collateral";
 import { logger } from "../helpers/logger";
 import { FinAPIClient } from "../finp2p/finapi/finapi.client";
@@ -90,11 +90,12 @@ export class CollateralService {
       const collateralAsset = await this.getCollateralAsset(assetId);
       if (collateralAsset) {
         const { collateralAccount, tokenAddresses, amounts } = collateralAsset;
-        const { provider /*signer*/ } = this.finP2PContract;
-        // collateralAsset.borrower
-        const signer = new Wallet("0xbdfcd5a2fe367b321d35d05635d425b2e326475deb8119a556f7dc24d220f063").connect(provider);
-        const collateralContract = new AssetCollateralAccount(provider, signer, collateralAccount, logger);
+        const { provider } = this.finP2PContract;
+
         if (phase === Phase.Initiate) {
+          // collateralAsset.borrower
+          const signer = new Wallet("0xbdfcd5a2fe367b321d35d05635d425b2e326475deb8119a556f7dc24d220f063").connect(provider);
+          const collateralContract = new AssetCollateralAccount(provider, signer, collateralAccount, logger);
           for (let i = 0; i < tokenAddresses.length; i++) {
             const tokenAddress = tokenAddresses[i];
             const amount = amounts[i];
@@ -105,6 +106,8 @@ export class CollateralService {
           }
 
         } else {
+          const { signer } = this.finP2PContract
+          const collateralContract = new AssetCollateralAccount(provider, signer, collateralAccount, logger);
           logger.info(`Releasing collateral from ${collateralAccount}`);
           const txHash = await collateralContract.release();
           logger.info(`Waiting for release transaction ${txHash}`);
@@ -178,12 +181,13 @@ export class CollateralService {
     controller: string,
     agreementName: string
   ) {
-    logger.info(`Creating collateral account, borrower: ${borrower}, lender: ${lender}`);
 
     const { provider, signer } = this.finP2PContract;
     // const borrowerAddress = finIdToAddress(borrower);
     const borrowerAddress = `0xAFc770Ac2A5d46F12b020A7c558B918a6e318522`;
     const lenderAddress = finIdToAddress(lender);
+
+
     const collateralAccount = await this.accountFactory.createAccount(
       borrowerAddress, lenderAddress, controller, agreementName
     );

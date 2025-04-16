@@ -24,6 +24,7 @@ import {
 import { ContractsManager } from "./manager";
 import winston from "winston";
 import { PayableOverrides } from "../../typechain-types/common";
+import { logger } from "../../../src/helpers/logger";
 
 
 export type CollateralAssetMetadata = {
@@ -100,8 +101,8 @@ export class AccountFactory extends ContractsManager {
   }
 
   async createAccount(
-    borrower: AddressLike,
-    lender: AddressLike,
+    provider: AddressLike,
+    receiver: AddressLike,
     controller: AddressLike,
     name: string = "Asset Collateral Account",
     description: string = "Description of Asset Collateral Account",
@@ -119,7 +120,7 @@ export class AccountFactory extends ContractsManager {
     );
 
     const addressList = [
-      borrower, lender, liabilityFactory
+      provider, receiver, liabilityFactory
     ];
 
     const strategyInput = {
@@ -129,6 +130,8 @@ export class AccountFactory extends ContractsManager {
       effectiveTimeList: [],
       liabilityDataList: []
     };
+
+    logger.info(`Creating collateral account, name: ${name}, type: REPO, provider: ${provider}, receiver: ${receiver}`);
 
     const txHash = await this.safeExecuteTransaction(this.contract, async (account: IAccountFactory, txParams: PayableOverrides) => {
       return account.createAccount(
@@ -168,6 +171,7 @@ export class AssetCollateralAccount extends ContractsManager {
     defaultRatio: BigNumberish = parseUnits("12", 17),
     targetRatioLimit: BigNumberish = 2,
     defaultRatioLimit: BigNumberish = 2,
+    effectiveTime: number = 0, // Open ended
     priceType: PriceType = PriceType.DEFAULT
   ) {
     return this.safeExecuteTransaction(this.contract, async (account: IAssetCollateralAccount, txParams: PayableOverrides) => {
@@ -178,7 +182,7 @@ export class AssetCollateralAccount extends ContractsManager {
           liabilityAddress: ZeroAddress,
           amount: liabilityAmount,
           pricedInToken,
-          effectiveTime: 0
+          effectiveTime
         },
         assetContextList,
         txParams
