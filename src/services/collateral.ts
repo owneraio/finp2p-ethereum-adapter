@@ -16,6 +16,7 @@ import OperationBase = Components.Schemas.OperationBase;
 import OperationStatusDeposit = Components.Schemas.OperationStatusDeposit;
 import ResourceIdResponse = FinAPIComponents.Schemas.ResourceIdResponse;
 import ApiAnyError = Components.Schemas.ApiAnyError;
+import { ERC20Contract } from "../../finp2p-contracts/src/contracts/erc20";
 
 const getEnvOrThrow = (name: string): string => {
   const value = process.env[name];
@@ -56,7 +57,11 @@ export class CollateralService {
   async startCollateralAgreement(cid: string, details: CollateralAssetDetails) {
     try {
       const { assetList, cashAsset, borrower, lender, liabilityAmount, orgsToShare } = details;
-      const { id: borrowerId } = await this.ossClient.getOwnerByFinId(borrower);
+      const { id: borrowerId, certificates: { nodes } } = await this.ossClient.getOwnerByFinId(borrower);
+      const borrowerName = extractOwnerName(nodes) || "Borrower";
+      const agreementName = `REPO collateral of ${borrowerName}`;
+      const { signer } = this.finP2PContract;
+      const controller = await signer.getAddress();
       const { tokenAddresses, amounts } = await this.prepareTokens(assetList);
       const { currency, pricedInToken } = await this.prepareCash(cashAsset);
       const collateralAssetId = await this.createCollateralAgreement({
@@ -68,7 +73,9 @@ export class CollateralService {
         liabilityAmount,
         pricedInToken,
         currency,
-        orgsToShare
+        orgsToShare,
+        controller,
+        agreementName
       });
       await this.finAPIClient.sendCallback(cid, successfulOperation(cid, borrower, collateralAssetId));
 
@@ -83,9 +90,9 @@ export class CollateralService {
       const collateralAsset = await this.getCollateralAsset(assetId);
       if (collateralAsset) {
         const { collateralAccount, tokenAddresses, amounts } = collateralAsset;
-        const { provider, /*signer*/ } = this.finP2PContract;
+        const { provider /*signer*/ } = this.finP2PContract;
         // collateralAsset.borrower
-        const signer = new Wallet('0xbdfcd5a2fe367b321d35d05635d425b2e326475deb8119a556f7dc24d220f063').connect(provider);
+        const signer = new Wallet("0xbdfcd5a2fe367b321d35d05635d425b2e326475deb8119a556f7dc24d220f063").connect(provider);
         const collateralContract = new AssetCollateralAccount(provider, signer, collateralAccount, logger);
         if (phase === Phase.Initiate) {
           for (let i = 0; i < tokenAddresses.length; i++) {
@@ -119,7 +126,9 @@ export class CollateralService {
       pricedInToken,
       borrowerId,
       currency,
-      orgsToShare
+      orgsToShare,
+      controller,
+      agreementName
     } = data;
 
     logger.info(`Creating collateral agreement ${JSON.stringify(data)}...`);
@@ -129,7 +138,9 @@ export class CollateralService {
       lender,
       tokenAddresses,
       pricedInToken,
-      liabilityAmount
+      liabilityAmount,
+      controller,
+      agreementName
     );
 
     const collateralAssetId = await this.createFinP2PAsset(
@@ -150,6 +161,10 @@ export class CollateralService {
 
     await this.mint(borrower, "1", collateralAssetId);
 
+    logger.info(`Approving collateral for ${borrower}...`);
+    await this.erc20ApproveCollateral(tokenAddresses, borrower, collateralAccount, amounts);
+    // await this.erc20ApproveCollateral(tokenAddresses, controller, collateralAccount, amounts);
+
     return collateralAssetId;
   }
 
@@ -159,7 +174,9 @@ export class CollateralService {
     lender: string,
     tokenAddresses: AddressLike[],
     pricedInToken: AddressLike,
-    liabilityAmount: number
+    liabilityAmount: number,
+    controller: string,
+    agreementName: string
   ) {
     logger.info(`Creating collateral account, borrower: ${borrower}, lender: ${lender}`);
 
@@ -167,9 +184,8 @@ export class CollateralService {
     // const borrowerAddress = finIdToAddress(borrower);
     const borrowerAddress = `0xAFc770Ac2A5d46F12b020A7c558B918a6e318522`;
     const lenderAddress = finIdToAddress(lender);
-    const controller = await signer.getAddress();
     const collateralAccount = await this.accountFactory.createAccount(
-      borrowerAddress, lenderAddress, controller
+      borrowerAddress, lenderAddress, controller, agreementName
     );
     logger.info(`Collateral asset address: ${collateralAccount}`);
 
@@ -242,6 +258,21 @@ export class CollateralService {
         const { error } = status;
         logger.info(`Issue failed with status: ${error}`);
         break;
+    }
+  }
+
+  private async erc20ApproveCollateral(tokenAddresses: string[], ownerFinId: string, collateralAccount: string, amounts: string[]) {
+    const { provider, /*signer*/ } = this.finP2PContract;
+    const signer = new Wallet("0xbdfcd5a2fe367b321d35d05635d425b2e326475deb8119a556f7dc24d220f063").connect(provider);
+    for (let i = 0; i < tokenAddresses.length; i++) {
+      const tokenAddress = tokenAddresses[i];
+      const amount = amounts[i];
+      const erc20 = new ERC20Contract(provider, signer, tokenAddress, logger);
+      const tokenName = await erc20.name();
+      const tokenTicker = await erc20.symbol();
+      logger.info(`Approve spending for borrower with ${amount} of '${tokenName} (${tokenTicker})', address: ${tokenAddress}...`);
+      const res = await erc20.approve(collateralAccount, amount);
+      await res.wait();
     }
   }
 
@@ -337,6 +368,16 @@ const failedOperation = (cid: string, code: number, message: string): OperationS
   };
 };
 
+const extractOwnerName = (certificates: { type: string, data: string }[]) => {
+  const data = certificates.find(n => n.type === "individual_info")?.data;
+  if (data) {
+    const { type, name } = JSON.parse(data) as { type: string, name: string };
+    if (type === "individual") {
+      return name;
+    }
+  }
+};
+
 export type Asset = {
   assetId: string,
   quantity: string
@@ -366,4 +407,6 @@ type CollateralAgreementData = {
   pricedInToken: string,
   liabilityAmount: number,
   orgsToShare: string[] | undefined
+  controller: string
+  agreementName: string
 }
