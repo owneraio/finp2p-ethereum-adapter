@@ -24,7 +24,6 @@ import {
 import { ContractsManager } from "./manager";
 import winston from "winston";
 import { PayableOverrides } from "../../typechain-types/common";
-import { logger } from "../../../src/helpers/logger";
 
 
 export type CollateralAssetMetadata = {
@@ -130,8 +129,6 @@ export class AccountFactory extends ContractsManager {
       effectiveTimeList: [],
       liabilityDataList: []
     };
-
-    logger.info(`Creating collateral account, name: ${name}, type: REPO, provider: ${provider}, receiver: ${receiver}`);
 
     const txHash = await this.safeExecuteTransaction(this.contract, async (account: IAccountFactory, txParams: PayableOverrides) => {
       return account.createAccount(

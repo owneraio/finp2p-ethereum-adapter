@@ -187,6 +187,7 @@ export class CollateralService {
     const borrowerAddress = `0xAFc770Ac2A5d46F12b020A7c558B918a6e318522`;
     const lenderAddress = finIdToAddress(lender);
 
+    logger.info(`Creating collateral account, name: ${agreementName}, type: REPO, provider: ${borrowerAddress}, receiver: ${lenderAddress}`);
 
     const collateralAccount = await this.accountFactory.createAccount(
       borrowerAddress, lenderAddress, controller, agreementName
