@@ -16,7 +16,7 @@ export const register = (app: express.Application,
 
   app.get('/liveness', (req, res) => {
     asyncMiddleware(async (req, res) => {
-      await tokenService.readiness()
+      await tokenService.liveness()
       return res.send('OK');
     })
   });
@@ -24,7 +24,7 @@ export const register = (app: express.Application,
   app.get('/readiness', (req, res) => {
     // todo: check ethereum connection
     asyncMiddleware(async (req, res) => {
-      await tokenService.liveness()
+      await tokenService.readiness()
       return res.send('OK');
     })
   });
