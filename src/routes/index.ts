@@ -1,5 +1,5 @@
 import * as express from 'express';
-import * as tokens from './routes';
+import * as routes from './routes';
 import { TokenService } from '../services/tokens';
 import { EscrowService } from '../services/escrow';
 import { PaymentsService } from '../services/payments';
@@ -15,14 +15,5 @@ export const register = (app: express.Application,
     res.send('OK');
   });
 
-  app.get('/liveness', (req, res) => {
-    res.send('OK');
-  });
-
-  app.get('/readiness', (req, res) => {
-    // todo: check ethereum connection
-    res.send('OK');
-  });
-
-  tokens.register(app, tokenService, escrowService, paymentService, planService);
+  routes.register(app, tokenService, escrowService, paymentService, planService);
 };
