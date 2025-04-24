@@ -14,20 +14,19 @@ export const register = (app: express.Application,
   planService: PlanService,
 ) => {
 
-  app.get('/liveness', (req, res) => {
+  app.get('/liveness',
     asyncMiddleware(async (req, res) => {
-      await tokenService.liveness()
-      return res.send('OK');
+      await tokenService.liveness();
+      res.send('OK');
     })
-  });
+  );
 
-  app.get('/readiness', (req, res) => {
-    // todo: check ethereum connection
+  app.get('/readiness',
     asyncMiddleware(async (req, res) => {
       await tokenService.readiness()
       return res.send('OK');
     })
-  });
+  );
 
   app.post(
     '/api/plan/approve',
