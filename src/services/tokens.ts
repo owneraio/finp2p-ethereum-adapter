@@ -116,21 +116,16 @@ export class TokenService extends CommonService {
   }
 
   public async transfer(request: Paths.TransferAsset.RequestBody): Promise<Paths.TransferAsset.Responses.$200> {
-    const { executionContext } = request;
-    const requestParams: RequestParams = { ...request, type: "transfer" };
-    const eip712Params = extractEIP712Params(requestParams);
-    try {
-      this.validateRequest(requestParams, eip712Params);
-    } catch (e) {
-      if (e instanceof RequestValidationError) {
-        logger.error(`Validation error: ${e.reason}`);
-        return failedTransaction(1, e.reason);
-      }
-    }
-    const { buyerFinId, sellerFinId, asset, settlement, loan, params } = eip712Params;
-    const { nonce, signature: { signature } } = request;
 
     try {
+      const { executionContext } = request;
+      const requestParams: RequestParams = { ...request, type: "transfer" };
+      const eip712Params = extractEIP712Params(requestParams);
+      this.validateRequest(requestParams, eip712Params);
+
+      const { buyerFinId, sellerFinId, asset, settlement, loan, params } = eip712Params;
+      const { nonce, signature: { signature } } = request;
+
       const txHash = await this.finP2PContract.transfer(nonce, sellerFinId, buyerFinId, asset, settlement, loan, params, signature);
       if (executionContext) {
         this.execDetailsStore?.addExecutionContext(txHash, executionContext.executionPlanId, executionContext.instructionSequenceNumber);
