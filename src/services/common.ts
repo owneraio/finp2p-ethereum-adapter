@@ -27,6 +27,14 @@ export class CommonService {
     this.execDetailsStore = execDetailsStore;
   }
 
+  public async readiness() {
+    await this.finP2PContract.provider.getNetwork()
+  }
+
+  public async liveness() {
+    await this.finP2PContract.provider.getBlockNumber()
+  }
+
   public async balance(request: Paths.GetAssetBalance.RequestBody): Promise<Paths.GetAssetBalance.Responses.$200> {
     logger.debug("balance", { request });
 
