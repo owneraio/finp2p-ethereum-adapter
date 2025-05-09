@@ -9,6 +9,7 @@ import {
   RECEIPT_PROOF_TYPES
 } from "../../finp2p-contracts/src/contracts/eip712";
 import { ProofDomain } from "../finp2p/model";
+import { FinAPIClient } from "../finp2p/finapi/finapi.client";
 
 export interface ExecDetailsStore {
   addExecutionContext(txHash: string, executionPlanId: string, instructionSequenceNumber: number): void;
@@ -19,11 +20,17 @@ export class CommonService {
 
   finP2PContract: FinP2PContract;
   policyGetter: PolicyGetter | undefined;
+  finApiClient: FinAPIClient | undefined;
   execDetailsStore: ExecDetailsStore  | undefined;
 
-  constructor(finP2PContract: FinP2PContract, policyGetter: PolicyGetter | undefined, execDetailsStore: ExecDetailsStore  | undefined) {
+  constructor(finP2PContract: FinP2PContract,
+              policyGetter: PolicyGetter | undefined,
+              finApiClient: FinAPIClient | undefined,
+              execDetailsStore: ExecDetailsStore  | undefined
+  ) {
     this.finP2PContract = finP2PContract;
     this.policyGetter = policyGetter;
+    this.finApiClient = finApiClient;
     this.execDetailsStore = execDetailsStore;
   }
 

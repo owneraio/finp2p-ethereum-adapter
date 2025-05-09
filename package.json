@@ -7,6 +7,8 @@
   "scripts": {
     "clean": "rm -rf dist",
     "api-generate": "dtsgen -o ./src/services/model-gen.ts dlt-adapter-api.yaml",
+    "api-generate-finapi": "dtsgen -o ./src/finp2p/finapi/model-gen.ts application-api.yaml",
+    "api-generate-finapi-op": "dtsgen -o ./src/finp2p/finapi/model-gen-op.ts operational-api.yaml",
     "prebuild": "eslint ./src --ext .ts --fix",
     "build": "tsc",
     "postbuild": "cpx 'src/**/*.graphql' dist/src/",
@@ -21,6 +23,7 @@
   "author": "",
   "license": "TBD",
   "dependencies": {
+    "@dtsgenerator/replace-namespace": "^1.7.0",
     "@fireblocks/fireblocks-web3-provider": "^1.3.12",
     "axios": "^1.1.3",
     "ethers": "^6.11.1",

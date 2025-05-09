@@ -7,13 +7,18 @@ import {
   failedTransaction,
   getRandomNumber, RequestParams, RequestValidationError
 } from "./mapping";
-import { assetTypeFromString, EthereumTransactionError, term } from "../../finp2p-contracts/src/contracts/model";
+import {
+  assetTypeFromString,
+  EthereumTransactionError,
+  term
+} from "../../finp2p-contracts/src/contracts/model";
 import { logger } from "../helpers/logger";
 import { FinP2PContract } from "../../finp2p-contracts/src/contracts/finp2p";
 import { isEthereumAddress } from "../../finp2p-contracts/src/contracts/utils";
 import { PolicyGetter } from "../finp2p/policy";
 import CreateAssetResponse = Components.Schemas.CreateAssetResponse;
 import LedgerTokenId = Components.Schemas.LedgerTokenId;
+import { FinAPIClient } from "../finp2p/finapi/finapi.client";
 
 export type AssetCreationPolicy = | { type: "deploy-new-token"; decimals: number } | {
   type: "reuse-existing-token";
@@ -24,29 +29,41 @@ export class TokenService extends CommonService {
 
   assetCreationPolicy: AssetCreationPolicy;
 
-  constructor(finP2PContract: FinP2PContract, assetCreationPolicy: AssetCreationPolicy, policyGetter: PolicyGetter | undefined,
-              execDetailsStore: ExecDetailsStore | undefined) {
-    super(finP2PContract, policyGetter, execDetailsStore);
+  constructor(finP2PContract: FinP2PContract,
+              assetCreationPolicy: AssetCreationPolicy,
+              policyGetter: PolicyGetter | undefined,
+              finApiClient: FinAPIClient | undefined,
+              execDetailsStore: ExecDetailsStore | undefined
+  ) {
+    super(finP2PContract, policyGetter, finApiClient, execDetailsStore);
     this.assetCreationPolicy = assetCreationPolicy;
   }
 
   public async createAsset(request: Paths.CreateAsset.RequestBody): Promise<Paths.CreateAsset.Responses.$200> {
-    const { assetId } = assetFromAPI(request.asset);
+    const { asset, ledgerAssetBinding, metadata } = request;
+    const { assetId } = assetFromAPI(asset);
     try {
 
-      if (request.ledgerAssetBinding) {
-        const { tokenId: tokenAddress } = request.ledgerAssetBinding as LedgerTokenId;
-        if (!isEthereumAddress(tokenAddress)) {
-          return {
-            isCompleted: true, error: {
-              code: 1, message: `Token ${tokenAddress} does not exist`
-            }
-          } as CreateAssetResponse;
-        }
+      if (ledgerAssetBinding) {
+        const { tokenId } = ledgerAssetBinding as LedgerTokenId;
 
-        const txHash = await this.finP2PContract.associateAsset(assetId, tokenAddress);
+        let txHash: string;
+        if (metadata && metadata["tokenType"] === "COLLATERAL") {
+          logger.info(`Creating collateral asset ${assetId} with tokenId ${tokenId}`);
+          txHash = await this.finP2PContract.associateCollateralAsset(assetId, tokenId);
+
+        } else {
+          if (!isEthereumAddress(tokenId)) {
+            return {
+              isCompleted: true, error: {
+                code: 1, message: `Token ${tokenId} does not exist`
+              }
+            } as CreateAssetResponse;
+          }
+          txHash = await this.finP2PContract.associateAsset(assetId, tokenId);
+        }
         await this.finP2PContract.waitForCompletion(txHash);
-        return assetCreationResult(tokenAddress, tokenAddress, this.finP2PContract.finP2PContractAddress);
+        return assetCreationResult(tokenId, tokenId, this.finP2PContract.finP2PContractAddress);
 
 
       } else {

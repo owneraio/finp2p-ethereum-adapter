@@ -1,5 +1,5 @@
 import { OssClient } from "./oss.client";
-import { parseProofDomain, Proof, ProofDomain, ProofPolicy } from "./model";
+import { OssOwner, parseProofDomain, Proof, ProofDomain, ProofPolicy } from "./model";
 import process from "process";
 import console from "console";
 import { AssetType } from "../../finp2p-contracts/src/contracts/model";

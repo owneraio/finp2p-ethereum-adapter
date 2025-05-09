@@ -184,6 +184,7 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
     /// @param loanTerm The loan term to transfer, could be empty
     /// @param op The operation parameters
     /// @param signature The investor signature
+    /// @param signature The investor signature
     function transfer(
         string memory nonce,
         string memory sellerFinId,
@@ -334,11 +335,6 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
         require(_haveContract(operationId), "Contract not found");
         Lock storage l = locks[operationId];
         return LockInfo(l.assetId, l.assetType, l.source, l.destination, l.amount);
-    }
-
-    function addAllowedDomain(uint256 chainId, address verifyingContract) external {
-        require(hasRole(DEFAULT_ADMIN_ROLE, _msgSender()), "FINP2POperatorERC20: must have admin role to add allowed domains");
-        _addAllowedDomain(chainId, verifyingContract);
     }
 
     // ------------------------------------------------------------------------------------------
