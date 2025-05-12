@@ -1,11 +1,9 @@
 import {
   concat,
   HDNodeWallet,
-  hexlify,
   isAddress,
   keccak256,
   Signature,
-  toUtf8Bytes,
   TransactionReceipt,
   Wallet
 } from "ethers";
@@ -187,7 +185,8 @@ export const isEthereumAddress = (address: string): boolean => {
 };
 
 export const finIdToEthereumAddress = (finId: string): string => {
-  return "0x" + keccak256(`0x${finId}`).slice(-40);
+  const val = secp256k1.publicKeyConvert(Buffer.from(finId, "hex"), false).slice(1);
+  return "0x" + keccak256(val).slice(-40);
 };
 
 const undefinedIfEmpty = (value: string): string | undefined => {
