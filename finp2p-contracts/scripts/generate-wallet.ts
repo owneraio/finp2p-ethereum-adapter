@@ -8,9 +8,9 @@ const logger = winston.createLogger({
 const generateWallet = async () => {
   const account = createAccount();
   logger.info("New wallet:");
-  logger.info("\tprivate key:\t", account.privateKey);
-  logger.info("\taddress:\t", account.address);
-  logger.info("\tfinId:\t", privateKeyToFinId(account.privateKey));
+  logger.info(`\tprivate key: ${account.privateKey}\t`);
+  logger.info(`\taddress:\t ${account.address}`);
+  logger.info(`\tfinId:\t: ${privateKeyToFinId(account.privateKey)}`);
 };
 
 generateWallet()
