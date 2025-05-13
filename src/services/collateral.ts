@@ -17,6 +17,7 @@ import OperationStatusDeposit = Components.Schemas.OperationStatusDeposit;
 import ResourceIdResponse = FinAPIComponents.Schemas.ResourceIdResponse;
 import ApiAnyError = Components.Schemas.ApiAnyError;
 import { ERC20Contract } from "../../finp2p-contracts/src/contracts/erc20";
+import { CustodyService } from "./custody";
 
 const getEnvOrThrow = (name: string): string => {
   const value = process.env[name];
@@ -32,6 +33,7 @@ export class CollateralService {
   private ossClient: OssClient;
   private finAPIClient: FinAPIClient;
   private accountFactory: AccountFactory;
+  private custodyService: CustodyService;
   private accountFactoryAddress: string;
   private haircutContextAddress: string;
   private priceServiceAddress: string;
@@ -40,6 +42,7 @@ export class CollateralService {
     this.finP2PContract = finP2PContract;
     this.ossClient = ossClient;
     this.finAPIClient = finAPIClient;
+    this.custodyService = new CustodyService(getEnvOrThrow("CUSTODY_PRIVATE_KEYS"));
     this.accountFactoryAddress = getEnvOrThrow("FACTORY_ADDRESS");
     this.haircutContextAddress = getEnvOrThrow("HAIRCUT_CONTEXT");
     this.priceServiceAddress = getEnvOrThrow("PRICE_SERVICE_ADDRESS");
@@ -93,8 +96,7 @@ export class CollateralService {
         const { provider } = this.finP2PContract;
 
         if (phase === Phase.Initiate) {
-          // collateralAsset.borrower
-          const signer = new Wallet("0xbdfcd5a2fe367b321d35d05635d425b2e326475deb8119a556f7dc24d220f063").connect(provider);
+          const signer = this.custodyService.createWalletByFinId(collateralAsset.borrower).connect(provider);
           const collateralContract = new AssetCollateralAccount(provider, signer, collateralAccount, logger);
           for (let i = 0; i < tokenAddresses.length; i++) {
             const tokenAddress = tokenAddresses[i];
@@ -267,8 +269,8 @@ export class CollateralService {
   }
 
   private async erc20ApproveCollateral(tokenAddresses: string[], ownerFinId: string, collateralAccount: string, amounts: string[]) {
-    const { provider, /*signer*/ } = this.finP2PContract;
-    const signer = new Wallet("0xbdfcd5a2fe367b321d35d05635d425b2e326475deb8119a556f7dc24d220f063").connect(provider);
+    const { provider } = this.finP2PContract;
+    const signer = this.custodyService.createWalletByFinId(ownerFinId).connect(provider);
     for (let i = 0; i < tokenAddresses.length; i++) {
       const tokenAddress = tokenAddresses[i];
       const amount = amounts[i];
