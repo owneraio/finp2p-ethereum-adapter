@@ -276,8 +276,10 @@ export const finIdFromAPI = (finId: Components.Schemas.EIP712TypeObject): string
 
 const compareAssets = (reqAsset: Components.Schemas.Asset, eipAsset: EIP712TypeObject): boolean => {
   const { assetId, assetType } = assetFromAPI(reqAsset);
+  if (eipAsset.assetType === 'cryptocurrency' && eipAsset.assetId === 'USDC' && assetId === 'USD' && assetType === 'fiat') {
+    return true;
+  }
   return (eipAsset.assetId === assetId && eipAsset.assetType === assetType);
-
 };
 
 export type RequestType = 'issue' | 'transfer' | 'redeem' | 'hold' | 'release' | 'rollback';
