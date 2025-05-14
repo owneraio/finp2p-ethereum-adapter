@@ -63,37 +63,42 @@ export class CommonService {
   }
 
   public async operationStatus(cid: string): Promise<Paths.GetOperation.Responses.$200> {
-    const status = await this.finP2PContract.getOperationStatus(cid);
-    switch (status.status) {
-      case "completed":
-        let { receipt } = status;
-        const executionContext = this.execDetailsStore?.getExecutionContext(receipt.id)
-        if (executionContext) {
-          logger.info('Found execution context for receipt', executionContext)
-          receipt = { ...receipt, tradeDetails: { executionContext } }
-        } else {
-          logger.info('No execution context found for receipt', { receiptId: receipt.id })
-        }
-        const receiptResponse = receiptToAPI(await this.ledgerProof(receipt));
-        return {
-          type: "receipt", operation: {
-            isCompleted: true, response: receiptResponse
+    try {
+      const status = await this.finP2PContract.getOperationStatus(cid);
+      switch (status.status) {
+        case "completed":
+          let { receipt } = status;
+          const executionContext = this.execDetailsStore?.getExecutionContext(receipt.id)
+          if (executionContext) {
+            logger.info('Found execution context for receipt', executionContext)
+            receipt = { ...receipt, tradeDetails: { executionContext } }
+          } else {
+            logger.info('No execution context found for receipt', { receiptId: receipt.id })
           }
-        } as Components.Schemas.OperationStatus;
+          const receiptResponse = receiptToAPI(await this.ledgerProof(receipt));
+          return {
+            type: "receipt", operation: {
+              isCompleted: true, response: receiptResponse
+            }
+          } as Components.Schemas.OperationStatus;
 
-      case "pending":
-        return {
-          type: "receipt", operation: {
-            isCompleted: false, cid: cid
-          }
-        } as Components.Schemas.OperationStatus;
+        case "pending":
+          return {
+            type: "receipt", operation: {
+              isCompleted: false, cid: cid
+            }
+          } as Components.Schemas.OperationStatus;
 
-      case "failed":
-        return {
-          type: "receipt", operation: {
-            isCompleted: true, error: status.error
-          }
-        } as Components.Schemas.OperationStatus;
+        case "failed":
+          return {
+            type: "receipt", operation: {
+              isCompleted: true, error: status.error
+            }
+          } as Components.Schemas.OperationStatus;
+      }
+    } catch (e) {
+      logger.error(`Got error: ${e}`);
+      throw e;
     }
   }
 
