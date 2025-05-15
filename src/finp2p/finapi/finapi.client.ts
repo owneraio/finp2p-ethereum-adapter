@@ -17,7 +17,7 @@ export class FinAPIClient {
     this.authTokenResolver = authTokenResolver;
   }
 
-  async createAsset(name: string, type: string, issuerId: string, currency: string, intentTypes: IntentType[], metadata: any) {
+  async createAsset(name: string, type: string, issuerId: string, currency: string, currencyType: 'fiat' | 'cryptocurrency', intentTypes: IntentType[], metadata: any) {
     return await this.post<CreateAssetProfile.RequestBody, FinAPIComponents.Schemas.ResourceIdResponse | OperationBase | FinAPIComponents.Schemas.ApiAnyError>(
       `/profiles/asset`, {
         metadata,
@@ -26,7 +26,7 @@ export class FinAPIClient {
         type,
         issuerId,
         denomination: {
-          type: "fiat",
+          type: currencyType,
           code: currency
         },
         // ledgerAssetBinding: {

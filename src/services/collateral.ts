@@ -66,7 +66,7 @@ export class CollateralService {
       const { signer } = this.finP2PContract;
       const controller = await signer.getAddress();
       const { tokenAddresses, amounts } = await this.prepareTokens(assetList);
-      const { currency, pricedInToken } = await this.prepareCash(cashAsset);
+      const { currency, currencyType, pricedInToken } = await this.prepareCash(cashAsset);
       const collateralAssetId = await this.createCollateralAgreement({
         borrower,
         borrowerId,
@@ -76,6 +76,7 @@ export class CollateralService {
         liabilityAmount,
         pricedInToken,
         currency,
+        currencyType,
         orgsToShare,
         controller,
         agreementName
@@ -131,6 +132,7 @@ export class CollateralService {
       pricedInToken,
       borrowerId,
       currency,
+      currencyType,
       orgsToShare,
       controller,
       agreementName
@@ -152,6 +154,7 @@ export class CollateralService {
       collateralAccount,
       borrowerId,
       currency,
+      currencyType,
       {
         collateralAccount,
         tokenAddresses,
@@ -213,6 +216,7 @@ export class CollateralService {
     collateralAccount: AddressLike,
     borrowerId: string,
     currency: string,
+    currencyType: 'fiat' | 'cryptocurrency',
     metadata: CollateralAssetMetadata,
     assetName: string = `Collateral asset ${collateralAccount}`,
     assetType: string = "collateral",
@@ -220,7 +224,7 @@ export class CollateralService {
   ) {
     logger.info(`Creating FinP2P Collateral asset`);
     const rsp = await this.finAPIClient.createAsset(
-      assetName, assetType, borrowerId, currency, intentTypes, metadata
+      assetName, assetType, borrowerId, currency, currencyType, intentTypes, metadata
     );
     if ((rsp as ResourceIdResponse).id) {
       const { id } = rsp as ResourceIdResponse;
@@ -302,21 +306,27 @@ export class CollateralService {
     };
   }
 
-  private async prepareCash(cashAsset: CashAsset): Promise<{ currency: string, pricedInToken: string }> {
+  private async prepareCash(cashAsset: CashAsset): Promise<{ currency: string, currencyType: 'fiat' | 'cryptocurrency', pricedInToken: string }> {
     let currency = "";
+    let currencyType: 'fiat' | 'cryptocurrency' = "fiat"
     let pricedInToken = "";
     switch (cashAsset.assetType) {
       case "fiat":
         //TODO pick priced in token based on cashAsset.assetId
         pricedInToken = process.env.PRICED_IN_TOKEN || "";
         currency = cashAsset.assetId;
-        break;
+        break
+      case "cryptocurrency":
+        pricedInToken = process.env.PRICED_IN_TOKEN || "";
+        currency = cashAsset.assetId;
+        currencyType = 'cryptocurrency'
+        break
       case "finp2p":
         ({ ledgerAssetInfo: { tokenId: pricedInToken } } = await this.ossClient.getAsset(cashAsset.assetId));
         currency = "USD"; // TODO
         break;
     }
-    return { currency, pricedInToken };
+    return { currency, currencyType, pricedInToken };
   }
 
   private async waitForProfileCompletion(cid: string, tries: number = 3000) {
@@ -392,7 +402,7 @@ export type Asset = {
 
 export type CashAsset = {
   assetId: string,
-  assetType: "fiat" | "finp2p",
+  assetType: "fiat" | "finp2p" | "cryptocurrency",
 };
 
 export type CollateralAssetDetails = {
@@ -411,6 +421,7 @@ type CollateralAgreementData = {
   tokenAddresses: string[],
   amounts: string[],
   currency: string,
+  currencyType: 'fiat' | 'cryptocurrency'
   pricedInToken: string,
   liabilityAmount: number,
   orgsToShare: string[] | undefined
