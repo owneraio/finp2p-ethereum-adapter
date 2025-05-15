@@ -188,8 +188,7 @@ export class CollateralService {
   ) {
 
     const { provider, signer } = this.finP2PContract;
-    // const borrowerAddress = finIdToAddress(borrower);
-    const borrowerAddress = `0xAFc770Ac2A5d46F12b020A7c558B918a6e318522`;
+    const borrowerAddress = finIdToAddress(borrower);
     const lenderAddress = finIdToAddress(lender);
 
     logger.info(`Creating collateral account, name: ${agreementName}, type: REPO, provider: ${borrowerAddress}, receiver: ${lenderAddress}`);
