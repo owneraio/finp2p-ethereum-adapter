@@ -210,12 +210,12 @@ export const tradeDetailsToAPI = (tradeDetails: TradeDetails | undefined): Recei
     return {};
   }
   const { executionContext } = tradeDetails;
-  return { executionContext: executionContextToAPI(executionContext) }
+  return { executionContext: executionContextToAPI(executionContext) };
 };
 
 export const executionContextToAPI = (executionContext: ExecutionContext): ReceiptExecutionContext => {
   const { executionPlanId, instructionSequenceNumber } = executionContext;
-  return { executionPlanId, instructionSequenceNumber }
+  return { executionPlanId, instructionSequenceNumber };
 };
 
 export const assetCreationResult = (tokenId: string, tokenAddress: string, finp2pTokenAddress: string) => {
@@ -276,13 +276,14 @@ export const finIdFromAPI = (finId: Components.Schemas.EIP712TypeObject): string
 
 const compareAssets = (reqAsset: Components.Schemas.Asset, eipAsset: EIP712TypeObject): boolean => {
   const { assetId, assetType } = assetFromAPI(reqAsset);
-  if (eipAsset.assetType === 'cryptocurrency' && eipAsset.assetId === 'USDC' && assetId === 'USD' && assetType === 'fiat') {
+  if (isIn(eipAsset.assetType as string, "fiat", "cryptocurrency") && isIn(eipAsset.assetId as string, "USD", "USDC") &&
+    isIn(assetType as string, "fiat", "cryptocurrency") && isIn(assetId, "USD", "USDC")) {
     return true;
   }
   return (eipAsset.assetId === assetId && eipAsset.assetType === assetType);
 };
 
-export type RequestType = 'issue' | 'transfer' | 'redeem' | 'hold' | 'release' | 'rollback';
+export type RequestType = "issue" | "transfer" | "redeem" | "hold" | "release" | "rollback";
 
 export type RequestParams = {
   type: RequestType
@@ -306,7 +307,7 @@ export type EIP712Params = {
 
 
 export const detectLeg = (request: RequestParams): LegType => {
-  const { signature: { template }, asset } = request
+  const { signature: { template }, asset } = request;
   if (template.type != "EIP712") {
     throw new Error(`Unsupported signature template type: ${template.type}`);
   }
@@ -320,17 +321,17 @@ export const detectLeg = (request: RequestParams): LegType => {
 };
 
 export const detectReleaseType = (request: RequestParams): ReleaseType => {
-  const { type, destination } = request
+  const { type, destination } = request;
   switch (type) {
     case "hold":
       return destination ? ReleaseType.Release : ReleaseType.Redeem;
     default:
       return ReleaseType.Release;
   }
-}
+};
 
 export const extractEIP712Params = (request: RequestParams): EIP712Params => {
-  const { signature: { template }, operationId, executionContext } = request
+  const { signature: { template }, operationId, executionContext } = request;
   if (template.type != "EIP712") {
     throw new Error(`Unsupported signature template type: ${template.type}`);
   }
@@ -431,3 +432,5 @@ export class RequestValidationError extends Error {
     super(reason);
   }
 }
+
+const isIn = (str: string, ...args: string[]): boolean => args.includes(str);
