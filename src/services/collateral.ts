@@ -98,11 +98,12 @@ export class CollateralService {
 
         if (phase === Phase.Initiate) {
           const signer = this.custodyService.createWalletByFinId(collateralAsset.borrower).connect(provider);
+          logger.info(`Found borrower wallet ${signer.address} by finId ${collateralAsset.borrower}`);
           const collateralContract = new AssetCollateralAccount(provider, signer, collateralAccount, logger);
           for (let i = 0; i < tokenAddresses.length; i++) {
             const tokenAddress = tokenAddresses[i];
             const amount = amounts[i];
-            logger.info(`Depositing ${amount} of ${tokenAddress} to ${collateralAccount}`);
+            logger.info(`Depositing ${amount} of tokens (${tokenAddress}) to collateral account (${collateralAccount})`);
             const txHash = await collateralContract.deposit(tokenAddress, amount);
             logger.info(`Waiting for deposit transaction ${txHash}`);
             await collateralContract.waitForCompletion(txHash);
@@ -111,7 +112,7 @@ export class CollateralService {
         } else {
           const { signer } = this.finP2PContract
           const collateralContract = new AssetCollateralAccount(provider, signer, collateralAccount, logger);
-          logger.info(`Releasing collateral from ${collateralAccount}`);
+          logger.info(`Releasing collateral from collateral account (${collateralAccount})`);
           const txHash = await collateralContract.release();
           logger.info(`Waiting for release transaction ${txHash}`);
         }
