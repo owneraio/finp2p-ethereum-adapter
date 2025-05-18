@@ -2,14 +2,14 @@ import { AssetType, Phase } from "../../finp2p-contracts/src/contracts/model";
 import {
   AccountFactory,
   AssetCollateralAccount,
-  CollateralAssetMetadata, CollateralType, getErc20Details
+  CollateralAssetMetadata, getErc20Details, DEFAULT_COL_DECIMALS
 } from "../../finp2p-contracts/src/contracts/collateral";
 import { logger } from "../helpers/logger";
 import { FinAPIClient } from "../finp2p/finapi/finapi.client";
 import process from "process";
 import { finIdToAddress } from "../../finp2p-contracts/src/contracts/utils";
 import { OssClient } from "../finp2p/oss.client";
-import { AddressLike, parseUnits, Wallet } from "ethers";
+import { AddressLike, parseUnits } from "ethers";
 import { FinP2PContract } from "../../finp2p-contracts/src/contracts/finp2p";
 import IntentType = FinAPIComponents.Schemas.IntentType;
 import OperationBase = Components.Schemas.OperationBase;
@@ -73,7 +73,7 @@ export class CollateralService {
         lender,
         tokenAddresses,
         amounts,
-        liabilityAmount,
+        liabilityAmount: `${liabilityAmount}`,
         pricedInToken,
         currency,
         currencyType,
@@ -183,9 +183,9 @@ export class CollateralService {
     lender: string,
     tokenAddresses: AddressLike[],
     pricedInToken: AddressLike,
-    liabilityAmount: number,
+    liabilityAmount: string,
     controller: string,
-    agreementName: string
+    agreementName: string,
   ) {
 
     const { provider, signer } = this.finP2PContract;
@@ -202,7 +202,8 @@ export class CollateralService {
     logger.info(`Setting configuration bundle for ${collateralAccount}...`);
     const collateralContract = new AssetCollateralAccount(provider, signer, collateralAccount, logger);
     let txHash = await collateralContract.setConfigurationBundle(
-      this.haircutContextAddress, this.priceServiceAddress, pricedInToken, liabilityAmount, []
+      this.haircutContextAddress, this.priceServiceAddress, pricedInToken,
+      parseUnits(liabilityAmount, DEFAULT_COL_DECIMALS), []
     );
     await collateralContract.waitForCompletion(txHash);
 
@@ -423,7 +424,7 @@ type CollateralAgreementData = {
   currency: string,
   currencyType: 'fiat' | 'cryptocurrency'
   pricedInToken: string,
-  liabilityAmount: number,
+  liabilityAmount: string,
   orgsToShare: string[] | undefined
   controller: string
   agreementName: string

@@ -25,6 +25,7 @@ import { ContractsManager } from "./manager";
 import winston from "winston";
 import { PayableOverrides } from "../../typechain-types/common";
 
+export const DEFAULT_COL_DECIMALS = 18;
 
 export type CollateralAssetMetadata = {
   collateralAccount: string
@@ -108,7 +109,7 @@ export class AccountFactory extends ContractsManager {
     assetContextList: AddressLike[] = [],
     amountList: number[] = [],
     strategyId: string = keccak256(toUtf8Bytes("Asset-Collateral-Account-Strategy")),
-    decimals: number = 18,
+    decimals: number = DEFAULT_COL_DECIMALS,
     collateralType: CollateralType = CollateralType.REPO
   ) {
     const liabilityFactory = await this.contract.getLiabilityFactory();
@@ -148,6 +149,7 @@ export class AccountFactory extends ContractsManager {
 }
 
 
+
 export class AssetCollateralAccount extends ContractsManager {
   contract: IAssetCollateralAccount;
 
@@ -164,10 +166,10 @@ export class AssetCollateralAccount extends ContractsManager {
     pricedInToken: AddressLike,
     liabilityAmount: BigNumberish,
     assetContextList: AddressLike[] = [],
-    targetRatio: BigNumberish = parseUnits("12", 17),
-    defaultRatio: BigNumberish = parseUnits("12", 17),
-    targetRatioLimit: BigNumberish = 2,
-    defaultRatioLimit: BigNumberish = 2,
+    targetRatio: BigNumberish = parseUnits("1.2", DEFAULT_COL_DECIMALS),
+    defaultRatio: BigNumberish = parseUnits("1.2", DEFAULT_COL_DECIMALS),
+    targetRatioLimit: BigNumberish = parseUnits("2", DEFAULT_COL_DECIMALS),
+    defaultRatioLimit: BigNumberish = parseUnits("2", DEFAULT_COL_DECIMALS),
     effectiveTime: number = 0, // Open ended
     priceType: PriceType = PriceType.DEFAULT
   ) {
