@@ -217,7 +217,7 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
             string memory destination,
             string memory assetId,
             AssetType assetType,
-            string memory amount) = _extractDetails(sellerFinId, buyerFinId, assetTerm, settlementTerm, op);
+            string memory amount) = _extractDetails(sellerFinId, buyerFinId, assetTerm, settlementTerm, loanTerm,op);
         require(verifyInvestmentSignature(
             op.eip712PrimaryType,
             nonce,
@@ -268,7 +268,7 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
         (string memory source,
             string memory destination,
             string memory assetId, AssetType assetType,
-            string memory amount) = _extractDetails(sellerFinId, buyerFinId, assetTerm, settlementTerm, op);
+            string memory amount) = _extractDetails(sellerFinId, buyerFinId, assetTerm, settlementTerm, loanTerm,op);
         require(verifyInvestmentSignature(
             op.eip712PrimaryType,
             nonce,
@@ -409,6 +409,7 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
         string memory buyerFinId,
         Term memory assetTerm,
         Term memory settlementTerm,
+        LoanTerm memory loanTerm,
         OperationParams memory op
     ) internal pure returns (string memory, string memory, string memory, AssetType, string memory) {
         if (op.leg == LegType.ASSET) {
@@ -420,13 +421,18 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
                 revert("Invalid phase");
             }
         } else if (op.leg == LegType.SETTLEMENT) {
-            if (op.phase == Phase.INITIATE) {
-                return (buyerFinId, sellerFinId, settlementTerm.assetId, settlementTerm.assetType, settlementTerm.amount);
-            } else if (op.phase == Phase.CLOSE) {
-                return (sellerFinId, buyerFinId, settlementTerm.assetId, settlementTerm.assetType, settlementTerm.amount);
+            if (op.eip712PrimaryType == PrimaryType.LOAN) {
+                if (op.phase == Phase.INITIATE) {
+                    return (buyerFinId, sellerFinId, settlementTerm.assetId, settlementTerm.assetType, loanTerm.borrowedMoneyAmount);
+                } else if (op.phase == Phase.CLOSE) {
+                    return (sellerFinId, buyerFinId, settlementTerm.assetId, settlementTerm.assetType, loanTerm.returnedMoneyAmount);
+                } else {
+                    revert("Invalid phase");
+                }
             } else {
-                revert("Invalid phase");
+                return (buyerFinId, sellerFinId, settlementTerm.assetId, settlementTerm.assetType, settlementTerm.amount);
             }
+
         } else {
             revert("Invalid leg");
         }
