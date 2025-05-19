@@ -15,7 +15,7 @@ import {
   PrimaryType,
   sign
 } from "../src/contracts/eip712";
-import type { FINP2POperatorERC20 } from "../typechain-types";
+import { FINP2POperatorERC20, FinP2PSignatureVerifier } from "../typechain-types";
 import {
   AssetType,
   emptyTerm,
@@ -87,7 +87,15 @@ describe("FinP2P proxy contract test", function() {
     }
   }
 
-  function extractAsset(asset: Term, settlement: Term, leg: LegType): Term {
+  function extractAsset(asset: Term, settlement: Term, loan:  FinP2PSignatureVerifier.LoanTermStruct, primaryType: PrimaryType, leg: LegType, phase: Phase): Term {
+    if (primaryType === PrimaryType.Loan && leg === LegType.Settlement) {
+      switch (phase) {
+        case Phase.Initiate:
+          return term(settlement.assetId, settlement.assetType, loan.borrowedMoneyAmount);
+        case Phase.Close:
+          return term(settlement.assetId, settlement.assetType, loan.returnedMoneyAmount);
+      }
+    }
     switch (leg) {
       case LegType.Asset:
         return asset;
@@ -185,7 +193,7 @@ describe("FinP2P proxy contract test", function() {
               const buyer = generateInvestor();
               const seller = generateInvestor();
               const { from, to, signer } = extractInvestors(buyer, seller, leg, phase);
-              const { assetId, assetType, amount } = extractAsset(asset, settlement, leg);
+              const { assetId, assetType, amount } = extractAsset(asset, settlement, loan, primaryType, leg, phase);
 
               expect(await contract.getBalance(assetId, from)).to.equal(`${(0).toFixed(decimals)}`);
               await expect(contract.issue(from, term(assetId, assetType, amount), { from: operator }))
@@ -212,7 +220,7 @@ describe("FinP2P proxy contract test", function() {
               const buyer = generateInvestor();
               const seller = generateInvestor();
               const { from, to, signer } = extractInvestors(buyer, seller, leg, phase);
-              const { assetId, assetType, amount } = extractAsset(asset, settlement, leg);
+              const { assetId, assetType, amount } = extractAsset(asset, settlement, loan, primaryType, leg, phase);
 
               expect(await contract.getBalance(assetId, from)).to.equal(`${(0).toFixed(decimals)}`);
               await expect(contract.issue(from, term(assetId, assetType, amount), { from: operator }))
@@ -264,6 +272,16 @@ describe("FinP2P proxy contract test", function() {
                   break;
                 case LegType.Settlement:
                   ({ assetId, assetType, amount } = settlement);
+                  if (primaryType === PrimaryType.Loan) {
+                    switch (phase) {
+                      case Phase.Initiate:
+                        amount = loan.borrowedMoneyAmount;
+                        break
+                      case Phase.Close:
+                        amount = loan.returnedMoneyAmount;
+                        break
+                    }
+                  }
                   signer = buyer;
                   from = buyerFinId;
                   to = sellerFinId;
@@ -271,6 +289,7 @@ describe("FinP2P proxy contract test", function() {
                 default:
                   throw new Error("Invalid leg");
               }
+
 
               expect(await contract.getBalance(assetId, from)).to.equal(`${(0).toFixed(decimals)}`);
               await expect(contract.issue(from, term(assetId, assetType, amount), { from: operator }))
@@ -355,7 +374,7 @@ describe("FinP2P proxy contract test", function() {
               expect(lock[0]).to.equal(assetId);
               expect(lock[1]).to.equal(assetType);
               expect(lock[2]).to.equal(investorFinId);
-              expect(lock[3]).to.equal('');
+              expect(lock[3]).to.equal("");
               expect(lock[4]).to.equal(amount);
               expect(await contract.getBalance(assetId, investorFinId)).to.equal(`${(0).toFixed(decimals)}`);
 

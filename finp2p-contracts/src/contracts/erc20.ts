@@ -1,5 +1,5 @@
 import { ContractsManager } from "./manager";
-import { ContractFactory, Interface, Provider, Signer } from "ethers";
+import { BigNumberish, ContractFactory, Interface, Provider, Signer } from "ethers";
 import { ERC20WithOperator } from "../../typechain-types";
 import ERC20 from "../../artifacts/contracts/token/ERC20/ERC20WithOperator.sol/ERC20WithOperator.json";
 import winston from "winston";
@@ -48,7 +48,7 @@ export class ERC20Contract extends ContractsManager {
     return this.erc20.allowance(owner, spender);
   }
 
-  async approve(spender: string, quantity: bigint) {
+  async approve(spender: string, quantity: BigNumberish) {
     return this.erc20.approve(spender, quantity);
   }
 

@@ -1,4 +1,5 @@
 import {
+  computeAddress,
   concat,
   HDNodeWallet,
   hexlify,
@@ -52,6 +53,10 @@ export const addressFromPrivateKey = (privateKey: string): string => {
   return new Wallet(privateKey).address;
 };
 
+export const finIdToAddress = (finId: string): string => {
+  return computeAddress(`0x${finId}`)
+};
+
 export const parseTransactionReceipt = (
   receipt: TransactionReceipt,
   contractInterface: FINP2POperatorERC20Interface,
@@ -99,7 +104,7 @@ export const parseTransactionReceipt = (
           };
         }
         case "Redeem(string,uint8,string,string,string)": {
-          const { assetId, assetType, quantity, ownerFinId } = parsedLog.args as unknown as RedeemEvent.OutputObject;
+          const { assetId, assetType, quantity, ownerFinId, operationId } = parsedLog.args as unknown as RedeemEvent.OutputObject;
           return {
             id,
             assetId,
@@ -107,7 +112,8 @@ export const parseTransactionReceipt = (
             quantity,
             source: ownerFinId,
             timestamp,
-            operationType: "redeem"
+            operationType: "redeem",
+            operationId
           };
         }
         case "Hold(string,uint8,string,string,string)": {
