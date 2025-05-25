@@ -49,6 +49,15 @@ export const register = (app: express.Application,
   app.post(
     '/api/assets/getBalance',
     asyncMiddleware(async (req, res) => {
+      const balance = await tokenService.getBalance(req.body);
+      res.send(balance);
+    }),
+  );
+
+  /* Get token balance. */
+  app.post(
+    '/api/assets/balance',
+    asyncMiddleware(async (req, res) => {
       const balance = await tokenService.balance(req.body);
       res.send(balance);
     }),

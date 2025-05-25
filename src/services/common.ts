@@ -1,6 +1,11 @@
 import { logger } from "../helpers/logger";
 import { FinP2PContract } from "../../finp2p-contracts/src/contracts/finp2p";
-import { FinP2PReceipt, ExecutionContext, Phase, receiptToEIP712Message } from "../../finp2p-contracts/src/contracts/model";
+import {
+  FinP2PReceipt,
+  ExecutionContext,
+  Phase,
+  receiptToEIP712Message
+} from "../../finp2p-contracts/src/contracts/model";
 import { assetFromAPI, EIP712Params, receiptToAPI, RequestParams, RequestValidationError } from "./mapping";
 import { PolicyGetter } from "../finp2p/policy";
 import {
@@ -12,6 +17,7 @@ import { ProofDomain } from "../finp2p/model";
 
 export interface ExecDetailsStore {
   addExecutionContext(txHash: string, executionPlanId: string, instructionSequenceNumber: number): void;
+
   getExecutionContext(txHash: string): ExecutionContext;
 }
 
@@ -19,24 +25,24 @@ export class CommonService {
 
   finP2PContract: FinP2PContract;
   policyGetter: PolicyGetter | undefined;
-  execDetailsStore: ExecDetailsStore  | undefined;
+  execDetailsStore: ExecDetailsStore | undefined;
 
-  constructor(finP2PContract: FinP2PContract, policyGetter: PolicyGetter | undefined, execDetailsStore: ExecDetailsStore  | undefined) {
+  constructor(finP2PContract: FinP2PContract, policyGetter: PolicyGetter | undefined, execDetailsStore: ExecDetailsStore | undefined) {
     this.finP2PContract = finP2PContract;
     this.policyGetter = policyGetter;
     this.execDetailsStore = execDetailsStore;
   }
 
   public async readiness() {
-    await this.finP2PContract.provider.getNetwork()
+    await this.finP2PContract.provider.getNetwork();
   }
 
   public async liveness() {
-    await this.finP2PContract.provider.getBlockNumber()
+    await this.finP2PContract.provider.getBlockNumber();
   }
 
-  public async balance(request: Paths.GetAssetBalance.RequestBody): Promise<Paths.GetAssetBalance.Responses.$200> {
-    logger.debug("balance", { request });
+  public async getBalance(request: Paths.GetAssetBalance.RequestBody): Promise<Paths.GetAssetBalance.Responses.$200> {
+    logger.debug("getBalance", { request });
 
     const { assetId } = assetFromAPI(request.asset);
     const balance = await this.finP2PContract.balance(assetId, request.owner.finId);
@@ -44,6 +50,23 @@ export class CommonService {
     return {
       asset: request.asset, balance: `${balance}`
     } as Components.Schemas.Balance;
+  }
+
+  public async balance(request: Paths.GetAssetBalanceInfo.RequestBody): Promise<Paths.GetAssetBalanceInfo.Responses.$200> {
+    logger.debug("balance", { request });
+    const { asset, account: { account: { finId } } } = request;
+    const { assetId } = assetFromAPI(asset);
+    const balance = await this.finP2PContract.balance(assetId, finId);
+    return {
+      account: { account: { type: "finId", finId } },
+      asset: request.asset,
+      balanceInfo: {
+        asset,
+        current: balance,
+        available: balance,
+        held: "0"
+      }
+    } as Components.Schemas.AssetBalanceInfoResponse;
   }
 
   public async getReceipt(id: Paths.GetReceipt.Parameters.TransactionId): Promise<Paths.GetReceipt.Responses.$200> {
@@ -67,12 +90,12 @@ export class CommonService {
     switch (status.status) {
       case "completed":
         let { receipt } = status;
-        const executionContext = this.execDetailsStore?.getExecutionContext(receipt.id)
+        const executionContext = this.execDetailsStore?.getExecutionContext(receipt.id);
         if (executionContext) {
-          logger.info('Found execution context for receipt', executionContext)
-          receipt = { ...receipt, tradeDetails: { executionContext } }
+          logger.info("Found execution context for receipt", executionContext);
+          receipt = { ...receipt, tradeDetails: { executionContext } };
         } else {
-          logger.info('No execution context found for receipt', { receiptId: receipt.id })
+          logger.info("No execution context found for receipt", { receiptId: receipt.id });
         }
         const receiptResponse = receiptToAPI(await this.ledgerProof(receipt));
         return {

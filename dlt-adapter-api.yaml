@@ -116,6 +116,7 @@ paths:
 
   /assets/getBalance:
     post:
+      deprecated: true
       tags:
         - transactions
       summary: Get asset balance
@@ -427,6 +428,33 @@ paths:
           description: System error
           content: { }
 
+  /asset/balance:
+    post:
+      tags:
+        - transaction
+      summary: Get asset balance information
+      description: Get asset balance information for finId
+      operationId: GetAssetBalanceInfo
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AssetBalanceInfoRequest'
+      responses:
+        '200':
+          description: successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AssetBalanceInfoResponse'
+        '404':
+          description: Owner not found
+          content: { }
+        '500':
+          description: System error
+          content: { }
+
 
 components:
   schemas:
@@ -512,6 +540,14 @@ components:
           $ref: '#/components/schemas/asset'
         ledgerAssetBinding:
           $ref: '#/components/schemas/ledgerAssetBinding'
+        name:
+          $ref: '#/components/schemas/assetName'
+        issuerId:
+          $ref: '#/components/schemas/ownerResourceId'
+        denomination:
+          $ref: '#/components/schemas/assetDenomination'
+        assetIdentifier:
+          $ref: '#/components/schemas/assetIdentifier'
 
     CreateAssetResponse:
       allOf:
@@ -1445,6 +1481,109 @@ components:
           type: string
           description: 'the token id binding'
 
+    AssetBalanceInfoRequest:
+      type: object
+      required:
+        - account
+        - asset
+      properties:
+        account:
+          $ref: '#/components/schemas/assetBalanceAccount'
+        asset:
+          $ref: '#/components/schemas/asset'
+        marker:
+          $ref: '#/components/schemas/balanceMarker'
+
+    assetBalanceAccount:
+      type: object
+      required:
+        - account
+      properties:
+        account:
+          oneOf:
+            - $ref: '#/components/schemas/finIdAccount'
+          discriminator:
+            propertyName: type
+            mapping:
+              finId: '#/components/schemas/finIdAccount'
+
+    balanceMarker:
+      description: marker of balance to denote the balance as of marker
+      discriminator:
+        propertyName: type
+        mapping:
+          timestamp: '#/components/schemas/balanceMarkerTimestamp'
+          transactionBlock: '#/components/schemas/balanceMarkerTransactionBlock'
+      oneOf:
+        - $ref: '#/components/schemas/balanceMarkerTimestamp'
+        - $ref: '#/components/schemas/balanceMarkerTransactionBlock'
+
+    balanceMarkerTimestamp:
+      type: object
+      required: [ type, timestamp ]
+      properties:
+        type:
+          type: string
+          enum: [ timestamp ]
+        timestamp:
+          type: integer
+          format: int64
+          description: epoch timestamp in seconds
+
+    balanceMarkerTransactionBlock:
+      type: object
+      required: [ type, blockNumber, transaction ]
+      properties:
+        type:
+          type: string
+          enum: [ transactionBlock ]
+        blockNumber:
+          type: integer
+          format: int64
+        transaction:
+          type: string
+
+    AssetBalanceInfoResponse:
+      type: object
+      required:
+        - account
+        - asset
+      properties:
+        account:
+          $ref: '#/components/schemas/assetBalanceAccount'
+        asset:
+          $ref: '#/components/schemas/asset'
+        balanceInfo:
+          $ref: '#/components/schemas/assetBalance'
+
+    assetBalance:
+      type: object
+      required:
+        - asset
+        - current
+        - available
+        - held
+      properties:
+        asset:
+          $ref: '#/components/schemas/asset'
+        current:
+          type: string
+          format: '^-?\d+(\.\d+)?$'
+          description: current balance
+        available:
+          type: string
+          format: '^-?\d+(\.\d+)?$'
+          description: available balance
+        held:
+          type: string
+          format: '^-?\d+(\.\d+)?$'
+          description: held balance
+        receipts:
+          description: list of receipt associated with the balance info
+          type: array
+          items:
+            $ref: '#/components/schemas/receipt'
+
     ApproveExecutionPlanRequest:
       type: object
       required:
@@ -1539,6 +1678,15 @@ components:
         - $ref: '#/components/schemas/ApiErrorClient4XX'
         - $ref: '#/components/schemas/ApiErrorServer5XX'
 
+    CustomError:
+      type: object
+      required: [ code, message ]
+      properties:
+        code:
+          type: integer
+        message:
+          type: string
+
     ExecutionPlanApprovalOperation:
       allOf:
         - $ref: '#/components/schemas/OperationBase'
@@ -1568,7 +1716,7 @@ components:
 
     PlanRejected:
       type: object
-      required: [ status, reason ]
+      required: [ status ]
       properties:
         status:
           type: string
@@ -1592,7 +1740,7 @@ components:
       properties:
         failureType:
           type: string
-          enum: [ ValidationFailure ]
+          enum: [ validationFailure ]
         code:
           type: integer
           format: uint32
@@ -1608,7 +1756,7 @@ components:
       properties:
         failureType:
           type: string
-          enum: [ RegulationFailure ]
+          enum: [ regulationFailure ]
         errors:
           type: array
           items:
@@ -1795,7 +1943,7 @@ components:
 
     wireTransferUSA:
       type: object
-      required: [ type, accountNumber, routingNumber, line1, city, postalCode, country, state ]
+      required: [ type, accountNumber, routingNumber ]
       properties:
         type:
           type: string
@@ -1817,7 +1965,7 @@ components:
 
     wireTransfer:
       type: object
-      required: [ type, accountHolderName, bankName, wireDetails, line1, city, postalCode, country, state ]
+      required: [ type, accountHolderName, bankName, wireDetails ]
       properties:
         type:
           type: string
@@ -1843,9 +1991,11 @@ components:
         mapping:
           iban: '#/components/schemas/ibanAccountDetails'
           swift: '#/components/schemas/swiftAccountDetails'
+          sortCode: '#/components/schemas/sortCodeDetails'
       oneOf:
         - $ref: '#/components/schemas/ibanAccountDetails'
         - $ref: '#/components/schemas/swiftAccountDetails'
+        - $ref: '#/components/schemas/sortCodeDetails'
 
     ibanAccountDetails:
       type: object
@@ -1868,3 +2018,60 @@ components:
           type: string
         accountNumber:
           type: string
+
+    sortCodeDetails:
+      type: object
+      required: [ type, code ]
+      properties:
+        type:
+          type: string
+          enum: [ 'sortCode' ]
+        code:
+          type: string
+          description: sort code has XX-XX-XX format
+          pattern: "^\\d{2}-\\d{2}-\\d{2}$"
+
+    assetName:
+      type: string
+      pattern: '^[a-zA-Z0-9\-_. /]*$'
+      maxLength: 150
+      description: The name of the asset
+
+    ownerResourceId:
+      type: string
+      description: 'Owner resource id'
+      pattern: '^[^:](?:.+):101:(?:.+)'
+      maxLength: 150
+      example: 'bank-x:101:511c1d7f-4ed8-410d-887c-a10e3e499a01'
+
+    assetIdentifierType:
+      type: string
+      enum: [ ISIN, CUSIP, SEDOL, DTI, CMU, FIGI, CUSTOM ]
+      description: Classification type standards
+
+    assetIdentifier:
+      type: object
+      required: [ assetIdentifierType, assetIdentifierValue ]
+      properties:
+        assetIdentifierType:
+          $ref: '#/components/schemas/assetIdentifierType'
+        assetIdentifierValue:
+          type: string
+          description: The classification standard used to identify the asset
+
+    assetDenominationType:
+      type: string
+      enum: [ fiat, cryptocurrency ]
+      description: Indicates how the asset is denominated
+
+    assetDenomination:
+      type: object
+      required: [ type, code ]
+      properties:
+        type:
+          $ref: '#/components/schemas/assetDenominationType'
+        code:
+          type: string
+          description: Unique code identifying the denomination asset type
+          pattern: '^[a-zA-Z0-9]*$'
+          maxLength: 150
