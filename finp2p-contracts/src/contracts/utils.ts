@@ -204,7 +204,6 @@ export const isEthereumAddress = (address: string): boolean => {
 };
 
 
-
 const undefinedIfEmpty = (value: string): string | undefined => {
   return value === "" ? undefined : value;
 };
