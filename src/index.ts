@@ -85,6 +85,9 @@ const init = async () => {
   const policyGetter = new PolicyGetter(new OssClient(ossUrl, undefined));
   const execDetailsStore = new InMemoryExecDetailsStore();
 
+  const version = await finp2pContract.getVersion()
+  logger.info(`FinP2P contract version: ${version}`);
+
   createApp(finp2pContract, assetCreationPolicy, policyGetter, execDetailsStore, logger).listen(port, () => {
     logger.info(`listening at http://localhost:${port}`);
   });
