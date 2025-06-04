@@ -320,16 +320,6 @@ export const detectLeg = (request: RequestParams): LegType => {
   }
 };
 
-export const detectReleaseType = (request: RequestParams): ReleaseType => {
-  const { type, destination } = request;
-  switch (type) {
-    case "hold":
-      return destination ? ReleaseType.Release : ReleaseType.Redeem;
-    default:
-      return ReleaseType.Release;
-  }
-};
-
 export const extractEIP712Params = (request: RequestParams): EIP712Params => {
   const { signature: { template }, operationId, executionContext } = request;
   if (template.type != "EIP712") {
@@ -338,7 +328,6 @@ export const extractEIP712Params = (request: RequestParams): EIP712Params => {
 
   const leg = detectLeg(request);
   const eip712PrimaryType = eip71212PrimaryTypeFromTemplate(template);
-  // const releaseType = detectReleaseType(request);
 
   switch (template.primaryType) {
     case "PrimarySale": {
