@@ -83,36 +83,27 @@ export const enum ReleaseType {
 }
 
 export interface OperationParams {
-  domain: {
-    chainId: number | bigint
-    verifyingContract: string
-  }
-  primaryType: PrimaryType;
   leg: LegType;
+  eip712PrimaryType: PrimaryType;
   phase: Phase;
   operationId: string;
   releaseType: ReleaseType
 }
 
 export const operationParams = (
-  domain: {
-    chainId: number | bigint,
-    verifyingContract: string
-  },
-  primaryType: PrimaryType,
   leg: LegType,
+  eip712PrimaryType: PrimaryType,
   phase: Phase = Phase.Initiate,
   operationId: string = '',
   releaseType: ReleaseType = ReleaseType.Release): OperationParams => {
   return {
-    domain,
-    primaryType,
     leg,
+    eip712PrimaryType,
     phase,
     operationId,
     releaseType
   };
-}
+};
 
 export type OperationStatus = PendingTransaction | SuccessfulTransaction | FailedTransaction;
 
