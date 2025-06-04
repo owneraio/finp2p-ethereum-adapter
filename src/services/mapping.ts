@@ -276,8 +276,11 @@ export const finIdFromAPI = (finId: Components.Schemas.EIP712TypeObject): string
 
 const compareAssets = (reqAsset: Components.Schemas.Asset, eipAsset: EIP712TypeObject): boolean => {
   const { assetId, assetType } = assetFromAPI(reqAsset);
+  if (isIn(eipAsset.assetType as string, "fiat", "cryptocurrency") && isIn(eipAsset.assetId as string, "USD", "USDC") &&
+    isIn(assetType as string, "fiat", "cryptocurrency") && isIn(assetId, "USD", "USDC")) {
+    return true;
+  }
   return (eipAsset.assetId === assetId && eipAsset.assetType === assetType);
-
 };
 
 export type RequestType = "issue" | "transfer" | "redeem" | "hold" | "release" | "rollback";
@@ -317,15 +320,25 @@ export const detectLeg = (request: RequestParams): LegType => {
   }
 };
 
+export const detectReleaseType = (request: RequestParams): ReleaseType => {
+  const { type, destination } = request;
+  switch (type) {
+    case "hold":
+      return destination ? ReleaseType.Release : ReleaseType.Redeem;
+    default:
+      return ReleaseType.Release;
+  }
+};
+
 export const extractEIP712Params = (request: RequestParams): EIP712Params => {
   const { signature: { template }, operationId, executionContext } = request;
   if (template.type != "EIP712") {
     throw new Error(`Unsupported signature template type: ${template.type}`);
   }
 
-  const domain = eip712DomainFromTemplate(template);
-  const primaryType = eip712PrimaryTypeFromTemplate(template);
   const leg = detectLeg(request);
+  const eip712PrimaryType = eip71212PrimaryTypeFromTemplate(template);
+  // const releaseType = detectReleaseType(request);
 
   switch (template.primaryType) {
     case "PrimarySale": {
@@ -335,7 +348,7 @@ export const extractEIP712Params = (request: RequestParams): EIP712Params => {
         asset: termFromAPI(template.message.asset as EIP712TypeObject),
         settlement: termFromAPI(template.message.settlement as EIP712TypeObject),
         loan: emptyLoanTerms(),
-        params: operationParams(domain, primaryType, leg, Phase.Initiate, operationId, ReleaseType.Release)
+        params: operationParams(leg, eip712PrimaryType, Phase.Initiate, operationId, ReleaseType.Release)
       };
     }
     case "Buying":
@@ -346,7 +359,7 @@ export const extractEIP712Params = (request: RequestParams): EIP712Params => {
         asset: termFromAPI(template.message.asset as EIP712TypeObject),
         settlement: termFromAPI(template.message.settlement as EIP712TypeObject),
         loan: emptyLoanTerms(),
-        params: operationParams(domain, primaryType, leg, Phase.Initiate, operationId, ReleaseType.Release)
+        params: operationParams(leg, eip712PrimaryType, Phase.Initiate, operationId, ReleaseType.Release)
       };
     }
     case "RequestForTransfer": {
@@ -356,7 +369,7 @@ export const extractEIP712Params = (request: RequestParams): EIP712Params => {
         asset: termFromAPI(template.message.asset as EIP712TypeObject),
         settlement: emptyTerm(),
         loan: emptyLoanTerms(),
-        params: operationParams(domain, primaryType, leg, Phase.Initiate, operationId, ReleaseType.Release)
+        params: operationParams(leg, eip712PrimaryType, Phase.Initiate, operationId, ReleaseType.Release)
       };
     }
     case "Redemption": {
@@ -366,7 +379,7 @@ export const extractEIP712Params = (request: RequestParams): EIP712Params => {
         asset: termFromAPI(template.message.asset as EIP712TypeObject),
         settlement: termFromAPI(template.message.settlement as EIP712TypeObject),
         loan: emptyLoanTerms(),
-        params: operationParams(domain, primaryType, leg, Phase.Initiate, operationId, ReleaseType.Redeem)
+        params: operationParams(leg, eip712PrimaryType, Phase.Initiate, operationId, ReleaseType.Redeem)
       };
     }
     case "Loan": {
@@ -380,7 +393,7 @@ export const extractEIP712Params = (request: RequestParams): EIP712Params => {
         asset: termFromAPI(template.message.asset as EIP712TypeObject),
         settlement: termFromAPI(template.message.settlement as EIP712TypeObject),
         loan: loanTermFromAPI(template.message.loanTerms as EIP712TypeObject),
-        params: operationParams(domain, primaryType, leg, phase, operationId, ReleaseType.Release)
+        params: operationParams(leg, eip712PrimaryType, phase, operationId, ReleaseType.Release)
       };
     }
     default:
@@ -388,18 +401,7 @@ export const extractEIP712Params = (request: RequestParams): EIP712Params => {
   }
 };
 
-export const eip712DomainFromTemplate = (template: Components.Schemas.EIP712Template): {
-  chainId: number | bigint,
-  verifyingContract: string
-} => {
-  if (!template.domain.chainId || !template.domain.verifyingContract) {
-    throw new Error("Invalid EIP712 domain");
-  }
-  const { chainId, verifyingContract } = template.domain;
-  return { chainId, verifyingContract };
-};
-
-export const eip712PrimaryTypeFromTemplate = (template: Components.Schemas.EIP712Template): PrimaryType => {
+export const eip71212PrimaryTypeFromTemplate = (template: Components.Schemas.EIP712Template): PrimaryType => {
   switch (template.primaryType) {
     case "PrimarySale":
       return PrimaryType.PrimarySale;
@@ -430,3 +432,5 @@ export class RequestValidationError extends Error {
     super(reason);
   }
 }
+
+const isIn = (str: string, ...args: string[]): boolean => args.includes(str);

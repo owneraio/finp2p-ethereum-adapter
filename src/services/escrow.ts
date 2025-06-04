@@ -1,31 +1,25 @@
 import { logger } from "../helpers/logger";
 import { CommonService } from "./common";
 import { EthereumTransactionError } from "../../finp2p-contracts/src/contracts/model";
-import { extractEIP712Params, failedTransaction, RequestParams, RequestValidationError } from "./mapping";
+import { extractEIP712Params, failedTransaction, RequestParams } from "./mapping";
 
 export class EscrowService extends CommonService {
 
   public async hold(request: Paths.HoldOperation.RequestBody): Promise<Paths.HoldOperation.Responses.$200> {
     const { executionContext } = request;
-    const requestParams: RequestParams = {...request, type: 'hold'};
-    const eip712Params = extractEIP712Params(requestParams);
     try {
+      const requestParams: RequestParams = { ...request, type: "hold" };
+      const eip712Params = extractEIP712Params(requestParams);
       this.validateRequest(requestParams, eip712Params);
-    } catch (e) {
-      if (e instanceof RequestValidationError) {
-        logger.error(`Validation error: ${e.reason}`);
-        return failedTransaction(1, e.reason);
-      }
-    }
-    const { buyerFinId, sellerFinId, asset, settlement, loan, params } = eip712Params;
-    const { nonce, signature: { signature } } = request;
+      const { buyerFinId, sellerFinId, asset, settlement, loan, params } = eip712Params;
+      const { nonce, signature: { signature } } = request;
 
-    try {
       const txHash = await this.finP2PContract.hold(nonce, sellerFinId, buyerFinId,
         asset, settlement, loan, params, signature);
       if (executionContext) {
         this.execDetailsStore?.addExecutionContext(txHash, executionContext.executionPlanId, executionContext.instructionSequenceNumber);
       }
+
       return {
         isCompleted: false, cid: txHash
       } as Components.Schemas.ReceiptOperation;
@@ -86,7 +80,7 @@ export class EscrowService extends CommonService {
   public async releaseAndRedeem(request: Paths.RedeemAssets.RequestBody): Promise<Paths.RedeemAssets.Responses.$200> {
     const { operationId, source, quantity, executionContext } = request;
     if (!operationId) {
-      logger.error('No operationId provided');
+      logger.error("No operationId provided");
       return failedTransaction(1, "operationId is required");
     }
 
