@@ -118,6 +118,10 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
         _grantRole(TRANSACTION_MANAGER, _msgSender());
     }
 
+    function getVersion() external pure returns (string memory) {
+        return VERSION;
+    }
+
     /// @notice Grant the asset manager role to an account
     /// @param account The account to grant the role
     function grantAssetManagerRole(address account) external {
