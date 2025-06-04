@@ -36,7 +36,7 @@ export class OssClient {
 
   async getPaymentAsset(orgId: string, assetCode: string) {
     const resp = await this.queryOss<OssAssetNodes>(GET_PAYMENT_ASSET, { orgId });
-    return resp.assets.nodes[0];
+    return resp && resp.assets && resp.assets.nodes.length > 0 ? resp.assets.nodes[0] : undefined;
   }
 
   async getAssetsWithTokens(): Promise<{assetId: string, tokenAddress: string}[]> {

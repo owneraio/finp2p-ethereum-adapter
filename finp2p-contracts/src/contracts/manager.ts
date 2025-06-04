@@ -53,13 +53,7 @@ export class ContractsManager {
     return await this.provider.getTransactionCount(this.signer.getAddress(), "latest");
   }
 
-  async deployFinP2PContract(signerAddress: string | undefined,
-                             paymentAssetCode: string | undefined = undefined,
-                             extraDomain: {
-                               chainId: number | bigint,
-                               verifyingContract: string
-                             } | undefined = undefined
-  ) {
+  async deployFinP2PContract(signerAddress: string | undefined, paymentAssetCode: string | undefined = undefined) {
     this.logger.info("Deploying FinP2P contract...");
     const factory = new ContractFactory<any[], FINP2POperatorERC20>(
       FINP2P.abi, FINP2P.bytecode, this.signer
@@ -79,10 +73,6 @@ export class ContractsManager {
       await this.preCreatePaymentAsset(factory, address, paymentAssetCode, DefaultDecimalsCurrencies);
     }
 
-    if (extraDomain) {
-      const { chainId, verifyingContract } = extraDomain;
-      await this.addAllowedDomain(address, chainId, verifyingContract);
-    }
     return address;
   }
 
@@ -141,18 +131,6 @@ export class ContractsManager {
     await this.waitForCompletion(txHash);
   }
 
-  async addAllowedDomain(finP2PContractAddress: string, chainId: number | bigint, verifyingContract: string) {
-    this.logger.info(`Adding allowed domain for chainId ${chainId} and verifying contract ${verifyingContract}...`);
-    const factory = new ContractFactory<any[], FINP2POperatorERC20>(
-      FINP2P.abi, FINP2P.bytecode, this.signer
-    );
-    const contract = factory.attach(finP2PContractAddress) as FINP2POperatorERC20;
-    const txHash = await this.safeExecuteTransaction(contract, async (finP2P: FINP2POperatorERC20, txParams: PayableOverrides) => {
-      return finP2P.addAllowedDomain(chainId, verifyingContract, txParams);
-    });
-    await this.waitForCompletion(txHash);
-  }
-
   async signEIP712(chainId: bigint | number, verifyingContract: string, types: Record<string, Array<TypedDataField>>, message: Record<string, any>): Promise<{
     hash: string,
     signature: string
@@ -167,7 +145,7 @@ export class ContractsManager {
       const txReceipt = await this.provider.getTransactionReceipt(txHash);
       if (txReceipt !== null) {
         if (txReceipt.status === 1) {
-          return;
+          return txReceipt;
         } else {
           throw new Error(`transaction failed: ${txHash}`);
         }
@@ -181,9 +159,9 @@ export class ContractsManager {
   protected async safeExecuteTransaction<C extends BaseContract>(contract: C, call: (contract: C, overrides: PayableOverrides) => Promise<ContractTransactionResponse>, maxAttempts: number = 10) {
     for (let i = 0; i < maxAttempts; i++) {
       try {
-        let nonce: number;
+        let nonce: number
         if (this.signer instanceof NonceManager) {
-          nonce = await (this.signer as NonceManager).getNonce();
+          nonce = await (this.signer as NonceManager).getNonce()
         } else {
           nonce = await this.getLatestTransactionCount();
         }

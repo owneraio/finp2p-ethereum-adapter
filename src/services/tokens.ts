@@ -116,13 +116,11 @@ export class TokenService extends CommonService {
   }
 
   public async transfer(request: Paths.TransferAsset.RequestBody): Promise<Paths.TransferAsset.Responses.$200> {
-
+    const { executionContext } = request;
     try {
-      const { executionContext } = request;
       const requestParams: RequestParams = { ...request, type: "transfer" };
       const eip712Params = extractEIP712Params(requestParams);
       this.validateRequest(requestParams, eip712Params);
-
       const { buyerFinId, sellerFinId, asset, settlement, loan, params } = eip712Params;
       const { nonce, signature: { signature } } = request;
 
