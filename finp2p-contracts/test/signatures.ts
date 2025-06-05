@@ -5,7 +5,7 @@ import { ethers } from "hardhat";
 import { generateNonce } from "./utils";
 import { v4 as uuidv4 } from "uuid";
 import { HDNodeWallet, Wallet } from "ethers";
-import { getFinId } from "../src/contracts/utils";
+import { finIdToAddress, getFinId } from "../src/contracts/utils";
 import {
   eip712Asset,
   eip712Destination,
@@ -116,6 +116,7 @@ describe("Signing test", function() {
       const { contract: verifier } = await loadFixture(deployFinP2PSignatureVerifier);
       const { chainId, verifyingContract } = await verifier.eip712Domain();
       const signerAddress = await signer.getAddress();
+      expect(signerAddress.toLowerCase()).to.equal(finIdToAddress(sellerFinId).toLowerCase());
       const {
         types,
         message

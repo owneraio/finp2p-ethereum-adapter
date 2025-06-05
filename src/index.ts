@@ -98,6 +98,9 @@ const init = async () => {
     collateralService = new CollateralService(finp2pContract, ossClient, finAPIClient)
   }
 
+  const version = await finp2pContract.getVersion()
+  logger.info(`FinP2P contract version: ${version}`);
+
   createApp(finp2pContract, assetCreationPolicy, policyGetter, execDetailsStore,
     collateralService, logger).listen(port, () => {
     logger.info(`listening at http://localhost:${port}`);

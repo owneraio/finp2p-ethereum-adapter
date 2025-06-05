@@ -109,6 +109,9 @@ class CustomTestEnvironment extends NodeEnvironment {
     const port = randomPort();
     const assetCreationPolicy = { type: "deploy-new-token", decimals: 0 } as AssetCreationPolicy;
 
+    const version = await finP2PContract.getVersion()
+    console.log(`FinP2P contract version: ${version}`);
+
     const app = createApp(finP2PContract, assetCreationPolicy, undefined, new InMemoryExecDetailsStore(), undefined, logger);
     console.log("App created successfully.");
 

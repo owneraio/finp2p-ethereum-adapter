@@ -34,7 +34,7 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
         REDEEM
     }
 
-    string public constant VERSION = "0.23.1_domain-registry_1";
+    string public constant VERSION = "0.23.3";
 
     bytes32 private constant ASSET_MANAGER = keccak256("ASSET_MANAGER");
     bytes32 private constant TRANSACTION_MANAGER = keccak256("TRANSACTION_MANAGER");
@@ -116,6 +116,10 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
         _grantRole(DEFAULT_ADMIN_ROLE, _msgSender());
         _grantRole(ASSET_MANAGER, _msgSender());
         _grantRole(TRANSACTION_MANAGER, _msgSender());
+    }
+
+    function getVersion() external pure returns (string memory) {
+        return VERSION;
     }
 
     /// @notice Grant the asset manager role to an account

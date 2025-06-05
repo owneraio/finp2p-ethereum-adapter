@@ -20,7 +20,7 @@ describe(`token service test`, () => {
   let orgId: string;
   let hashFunction: string;
   const chainId = 1;
-  const verifyingContract = "0xCcCCccccCCCCcCCCCCCcCcCccCcCCCcCcccccccC";
+  const verifyingContract = "0x0000000000000000000000000000000000000000";
 
   beforeAll(async () => {
     // @ts-ignore

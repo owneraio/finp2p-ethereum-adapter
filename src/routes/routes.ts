@@ -14,6 +14,20 @@ export const register = (app: express.Application,
   planService: PlanService,
 ) => {
 
+  app.get('/liveness',
+    asyncMiddleware(async (req, res) => {
+      await tokenService.liveness();
+      res.send('OK');
+    })
+  );
+
+  app.get('/readiness',
+    asyncMiddleware(async (req, res) => {
+      await tokenService.readiness()
+      return res.send('OK');
+    })
+  );
+
   app.post(
     '/api/plan/approve',
     asyncMiddleware(async (req, res) => {
@@ -34,6 +48,15 @@ export const register = (app: express.Application,
   /* Get token balance. */
   app.post(
     '/api/assets/getBalance',
+    asyncMiddleware(async (req, res) => {
+      const balance = await tokenService.getBalance(req.body);
+      res.send(balance);
+    }),
+  );
+
+  /* Get token balance. */
+  app.post(
+    '/api/asset/balance',
     asyncMiddleware(async (req, res) => {
       const balance = await tokenService.balance(req.body);
       res.send(balance);

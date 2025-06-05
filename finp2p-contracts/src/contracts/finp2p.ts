@@ -38,6 +38,10 @@ export class FinP2PContract extends ContractsManager {
     this.finP2PContractAddress = finP2PContractAddress;
   }
 
+  async getVersion() {
+    return await this.finP2P.getVersion();
+  }
+
   async eip712Domain(): Promise<EIP712Domain> {
     const domain = await this.finP2P.eip712Domain();
     if (domain === null) {

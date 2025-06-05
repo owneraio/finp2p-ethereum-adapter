@@ -42,19 +42,93 @@ declare namespace Components {
             approval: PlanApproved | PlanRejected;
         }
         export type Asset = CryptocurrencyAsset | FiatAsset | Finp2pAsset;
+        export interface AssetBalance {
+            asset: Asset;
+            /**
+             * current balance
+             */
+            current: string; // ^-?\d+(\.\d+)?$
+            /**
+             * available balance
+             */
+            available: string; // ^-?\d+(\.\d+)?$
+            /**
+             * held balance
+             */
+            held: string; // ^-?\d+(\.\d+)?$
+            /**
+             * list of receipt associated with the balance info
+             */
+            receipts?: Receipt[];
+        }
+        export interface AssetBalanceAccount {
+            account: FinIdAccount;
+        }
+        export interface AssetBalanceInfoRequest {
+            account: AssetBalanceAccount;
+            asset: Asset;
+            marker?: /* marker of balance to denote the balance as of marker */ BalanceMarker;
+        }
+        export interface AssetBalanceInfoResponse {
+            account: AssetBalanceAccount;
+            asset: Asset;
+            balanceInfo?: AssetBalance;
+        }
         export interface AssetCreateResponse {
             ledgerAssetInfo: LedgerAssetInfo;
         }
+        export interface AssetDenomination {
+            type: /* Indicates how the asset is denominated */ AssetDenominationType;
+            /**
+             * Unique code identifying the denomination asset type
+             */
+            code: string; // ^[a-zA-Z0-9]*$
+        }
+        /**
+         * Indicates how the asset is denominated
+         */
+        export type AssetDenominationType = "fiat" | "cryptocurrency";
+        export interface AssetIdentifier {
+            assetIdentifierType: /* Classification type standards */ AssetIdentifierType;
+            /**
+             * The classification standard used to identify the asset
+             */
+            assetIdentifierValue: string;
+        }
+        /**
+         * Classification type standards
+         */
+        export type AssetIdentifierType = "ISIN" | "CUSIP" | "SEDOL" | "DTI" | "CMU" | "FIGI" | "CUSTOM";
         export interface AssetMetadataAndConfigError {
             code: 4108;
             message: "Asset metadata and config cannot be provided at the same time";
         }
+        /**
+         * The name of the asset
+         */
+        export type AssetName = string; // ^[a-zA-Z0-9\-_. /]*$
         export interface Balance {
             asset: Asset;
             /**
              * the number of asset tokens
              */
             balance: string;
+        }
+        /**
+         * marker of balance to denote the balance as of marker
+         */
+        export type BalanceMarker = /* marker of balance to denote the balance as of marker */ BalanceMarkerTimestamp | BalanceMarkerTransactionBlock;
+        export interface BalanceMarkerTimestamp {
+            type: "timestamp";
+            /**
+             * epoch timestamp in seconds
+             */
+            timestamp: number; // int64
+        }
+        export interface BalanceMarkerTransactionBlock {
+            type: "transactionBlock";
+            blockNumber: number; // int64
+            transaction: string;
         }
         export interface CallbackEndpoint {
             type: "endpoint";
@@ -108,6 +182,15 @@ declare namespace Components {
             };
             asset: Asset;
             ledgerAssetBinding?: LedgerAssetBinding;
+            name?: /* The name of the asset */ AssetName /* ^[a-zA-Z0-9\-_. /]*$ */;
+            issuerId?: /**
+             * Owner resource id
+             * example:
+             * bank-x:101:511c1d7f-4ed8-410d-887c-a10e3e499a01
+             */
+            OwnerResourceId /* ^[^:](?:.+):101:(?:.+) */;
+            denomination?: AssetDenomination;
+            assetIdentifier?: AssetIdentifier;
         }
         export interface CreateAssetResponse {
             /**
@@ -144,6 +227,10 @@ declare namespace Components {
         }
         export interface CustomAsset {
             type: "custom";
+        }
+        export interface CustomError {
+            code: number;
+            message: string;
         }
         export type DepositAsset = CryptocurrencyAsset | FiatAsset | Finp2pAsset | CustomAsset;
         export interface DepositInstruction {
@@ -575,6 +662,12 @@ declare namespace Components {
             operation: ReceiptOperation;
         }
         export type OperationType = "issue" | "transfer" | "hold" | "release" | "redeem";
+        /**
+         * Owner resource id
+         * example:
+         * bank-x:101:511c1d7f-4ed8-410d-887c-a10e3e499a01
+         */
+        export type OwnerResourceId = string; // ^[^:](?:.+):101:(?:.+)
         export interface PaymentInstructions {
             type: "paymentInstructions";
             instruction: string;
@@ -754,7 +847,7 @@ declare namespace Components {
             details: string;
         }
         export interface RegulationFailure {
-            failureType: "RegulationFailure";
+            failureType: "regulationFailure";
             errors: RegulationError[];
         }
         export interface RelativePollingInterval {
@@ -835,6 +928,13 @@ declare namespace Components {
             signature?: /* represent a signature template information */ Signature;
         }
         export type SignatureTemplate = /* ordered list of hash groups */ HashListTemplate | EIP712Template;
+        export interface SortCodeDetails {
+            type: "sortCode";
+            /**
+             * sort code has XX-XX-XX format
+             */
+            code: string; // ^\d{2}-\d{2}-\d{2}$
+        }
         export interface Source {
             /**
              * FinID, public key of the user
@@ -901,33 +1001,33 @@ declare namespace Components {
             response?: Receipt;
         }
         export interface ValidationFailure {
-            failureType: "ValidationFailure";
+            failureType: "validationFailure";
             /**
              * ledger error code for validation
              */
             code: number; // uint32
             message: string;
         }
-        export type WireDetails = IbanAccountDetails | SwiftAccountDetails;
+        export type WireDetails = IbanAccountDetails | SwiftAccountDetails | SortCodeDetails;
         export interface WireTransfer {
             type: "wireTransfer";
             accountHolderName: string;
             bankName: string;
             wireDetails: WireDetails;
-            line1: string;
-            city: string;
-            postalCode: string;
-            country: string;
+            line1?: string;
+            city?: string;
+            postalCode?: string;
+            country?: string;
         }
         export interface WireTransferUSA {
             type: "wireTransferUSA";
             accountNumber: string;
             routingNumber: string;
-            line1: string;
-            city: string;
-            postalCode: string;
-            country: string;
-            state: string;
+            line1?: string;
+            city?: string;
+            postalCode?: string;
+            country?: string;
+            state?: string;
         }
     }
 }
@@ -966,6 +1066,12 @@ declare namespace Paths {
         export type RequestBody = Components.Schemas.GetAssetBalanceRequest;
         namespace Responses {
             export type $200 = Components.Schemas.GetAssetBalanceResponse;
+        }
+    }
+    namespace GetAssetBalanceInfo {
+        export type RequestBody = Components.Schemas.AssetBalanceInfoRequest;
+        namespace Responses {
+            export type $200 = Components.Schemas.AssetBalanceInfoResponse;
         }
     }
     namespace GetOperation {

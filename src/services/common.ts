@@ -42,8 +42,16 @@ export class CommonService {
     this.collateralService = collateralService;
   }
 
-  public async balance(request: Paths.GetAssetBalance.RequestBody): Promise<Paths.GetAssetBalance.Responses.$200> {
-    logger.debug("balance", { request });
+  public async readiness() {
+    await this.finP2PContract.provider.getNetwork();
+  }
+
+  public async liveness() {
+    await this.finP2PContract.provider.getBlockNumber();
+  }
+
+  public async getBalance(request: Paths.GetAssetBalance.RequestBody): Promise<Paths.GetAssetBalance.Responses.$200> {
+    logger.debug("getBalance", { request });
 
     const { assetId } = assetFromAPI(request.asset);
     const balance = await this.finP2PContract.balance(assetId, request.owner.finId);
@@ -51,6 +59,23 @@ export class CommonService {
     return {
       asset: request.asset, balance: `${balance}`
     } as Components.Schemas.Balance;
+  }
+
+  public async balance(request: Paths.GetAssetBalanceInfo.RequestBody): Promise<Paths.GetAssetBalanceInfo.Responses.$200> {
+    logger.debug("balance", { request });
+    const { asset, account: { account: { finId } } } = request;
+    const { assetId } = assetFromAPI(asset);
+    const balance = await this.finP2PContract.balance(assetId, finId);
+    return {
+      account: { account: { type: "finId", finId } },
+      asset: request.asset,
+      balanceInfo: {
+        asset,
+        current: balance,
+        available: balance,
+        held: "0"
+      }
+    } as Components.Schemas.AssetBalanceInfoResponse;
   }
 
   public async getReceipt(id: Paths.GetReceipt.Parameters.TransactionId): Promise<Paths.GetReceipt.Responses.$200> {
@@ -75,12 +100,12 @@ export class CommonService {
       switch (status.status) {
         case "completed":
           let { receipt } = status;
-          const executionContext = this.execDetailsStore?.getExecutionContext(receipt.id)
+          const executionContext = this.execDetailsStore?.getExecutionContext(receipt.id);
           if (executionContext) {
-            logger.info('Found execution context for receipt', executionContext)
-            receipt = { ...receipt, tradeDetails: { executionContext } }
+            logger.info("Found execution context for receipt", executionContext);
+            receipt = { ...receipt, tradeDetails: { executionContext } };
           } else {
-            logger.info('No execution context found for receipt', { receiptId: receipt.id })
+            logger.info("No execution context found for receipt", { receiptId: receipt.id });
           }
           const receiptResponse = receiptToAPI(await this.ledgerProof(receipt));
           return {
