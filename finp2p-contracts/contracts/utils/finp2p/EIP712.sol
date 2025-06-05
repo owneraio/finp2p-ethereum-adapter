@@ -51,7 +51,7 @@ abstract contract EIP712 is IERC5267 {
     }
 
     function _buildDomainSeparator() private view returns (bytes32) {
-        return keccak256(abi.encode(TYPE_HASH, _hashedName, _hashedVersion, 1, 0xCcCCccccCCCCcCCCCCCcCcCccCcCCCcCcccccccC));
+        return keccak256(abi.encode(TYPE_HASH, _hashedName, _hashedVersion, 1, 0x0000000000000000000000000000000000000000));
     }
 
     /**
@@ -95,7 +95,7 @@ abstract contract EIP712 is IERC5267 {
             _EIP712Name(),
             _EIP712Version(),
             1,
-            0xCcCCccccCCCCcCCCCCCcCcCccCcCCCcCcccccccC,
+            0x0000000000000000000000000000000000000000,
             bytes32(0),
             new uint256[](0)
         );
