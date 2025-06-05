@@ -92,3 +92,15 @@ jobs:
 #          trivy image "ghcr.io/owneraio/hardhat:${{ env.IMAGE_TAG }}"
 #          trivy image "ghcr.io/owneraio/finp2p-contracts:${{ env.IMAGE_TAG }}"
 
+
+      - name: Adapter Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          sbom: false
+          provenance: false
+          file: ./Dockerfile
+          tags: |
+            ownera/finp2p-ethereum-adapter:${{ env.IMAGE_TAG }}
+            ghcr.io/owneraio/finp2p-ethereum-adapter:${{ env.IMAGE_TAG }}
