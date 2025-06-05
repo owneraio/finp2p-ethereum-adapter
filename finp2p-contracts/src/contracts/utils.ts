@@ -1,11 +1,10 @@
 import {
+  computeAddress,
   concat,
   HDNodeWallet,
-  hexlify,
   isAddress,
   keccak256,
   Signature,
-  toUtf8Bytes,
   TransactionReceipt,
   Wallet
 } from "ethers";
@@ -51,6 +50,17 @@ export const createAccount = () => {
 export const addressFromPrivateKey = (privateKey: string): string => {
   return new Wallet(privateKey).address;
 };
+
+// ethers version
+export const finIdToAddress = (finId: string): string => {
+  return computeAddress(`0x${finId}`);
+};
+
+// secp version
+// export const finIdToAddress = (finId: string): string => {
+//   const val = secp256k1.publicKeyConvert(Buffer.from(finId, "hex"), false).slice(1);
+//   return "0x" + keccak256(val).slice(-40);
+// };
 
 export const parseTransactionReceipt = (
   receipt: TransactionReceipt,
@@ -99,7 +109,13 @@ export const parseTransactionReceipt = (
           };
         }
         case "Redeem(string,uint8,string,string,string)": {
-          const { assetId, assetType, quantity, ownerFinId } = parsedLog.args as unknown as RedeemEvent.OutputObject;
+          const {
+            assetId,
+            assetType,
+            quantity,
+            ownerFinId,
+            operationId
+          } = parsedLog.args as unknown as RedeemEvent.OutputObject;
           return {
             id,
             assetId,
@@ -107,7 +123,8 @@ export const parseTransactionReceipt = (
             quantity,
             source: ownerFinId,
             timestamp,
-            operationType: "redeem"
+            operationType: "redeem",
+            operationId
           };
         }
         case "Hold(string,uint8,string,string,string)": {
@@ -186,9 +203,6 @@ export const isEthereumAddress = (address: string): boolean => {
   return isAddress(address);
 };
 
-export const finIdToEthereumAddress = (finId: string): string => {
-  return "0x" + keccak256(`0x${finId}`).slice(-40);
-};
 
 const undefinedIfEmpty = (value: string): string | undefined => {
   return value === "" ? undefined : value;

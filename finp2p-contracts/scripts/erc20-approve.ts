@@ -22,7 +22,14 @@ const erc20Approve = async (providerType: ProviderType, finp2pContractAddress: s
   logger.info("ERC20 token details: ");
   logger.info(`\tname: ${await erc20.name()}`);
 
-  await erc20.approve(spender, amount);
+  const allowance = await erc20.allowance(await signer.getAddress(), spender);
+  logger.info(`\tallowance before: ${allowance}`);
+  const txResp = await erc20.approve(spender, amount);
+  logger.info(`\terc20 approve tx-hash: ${txResp.hash}`);
+  await txResp.wait();
+
+  logger.info(`\tallowance after: ${allowance}`);
+
 
   logger.info(`Approved ${amount} tokens for ${spender} (${spender})`);
 };

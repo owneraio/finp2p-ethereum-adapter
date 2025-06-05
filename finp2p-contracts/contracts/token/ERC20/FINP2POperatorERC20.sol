@@ -24,10 +24,28 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
     using StringUtils for uint256;
     using FinIdUtils for string;
 
-    string public constant VERSION = "0.23.2";
+    enum Phase {
+        INITIATE,
+        CLOSE
+    }
+
+    enum ReleaseType {
+        RELEASE,
+        REDEEM
+    }
+
+    string public constant VERSION = "0.23.3";
 
     bytes32 private constant ASSET_MANAGER = keccak256("ASSET_MANAGER");
     bytes32 private constant TRANSACTION_MANAGER = keccak256("TRANSACTION_MANAGER");
+
+    struct OperationParams {
+        LegType leg;
+        Phase phase;
+        PrimaryType eip712PrimaryType;
+        string operationId;
+        ReleaseType releaseType;
+    }
 
     struct LockInfo {
         string assetId;
@@ -98,6 +116,10 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
         _grantRole(DEFAULT_ADMIN_ROLE, _msgSender());
         _grantRole(ASSET_MANAGER, _msgSender());
         _grantRole(TRANSACTION_MANAGER, _msgSender());
+    }
+
+    function getVersion() external pure returns (string memory) {
+        return VERSION;
     }
 
     /// @notice Grant the asset manager role to an account
@@ -199,9 +221,9 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
             string memory destination,
             string memory assetId,
             AssetType assetType,
-            string memory amount) = _extractDetails(sellerFinId, buyerFinId, assetTerm, settlementTerm, op);
+            string memory amount) = _extractDetails(sellerFinId, buyerFinId, assetTerm, settlementTerm, loanTerm,op);
         require(verifyInvestmentSignature(
-            op,
+            op.eip712PrimaryType,
             nonce,
             buyerFinId,
             sellerFinId,
@@ -250,9 +272,9 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
         (string memory source,
             string memory destination,
             string memory assetId, AssetType assetType,
-            string memory amount) = _extractDetails(sellerFinId, buyerFinId, assetTerm, settlementTerm, op);
+            string memory amount) = _extractDetails(sellerFinId, buyerFinId, assetTerm, settlementTerm, loanTerm,op);
         require(verifyInvestmentSignature(
-            op,
+            op.eip712PrimaryType,
             nonce,
             buyerFinId,
             sellerFinId,
@@ -336,11 +358,6 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
         return LockInfo(l.assetId, l.assetType, l.source, l.destination, l.amount);
     }
 
-    function addAllowedDomain(uint256 chainId, address verifyingContract) external {
-        require(hasRole(DEFAULT_ADMIN_ROLE, _msgSender()), "FINP2POperatorERC20: must have admin role to add allowed domains");
-        _addAllowedDomain(chainId, verifyingContract);
-    }
-
     // ------------------------------------------------------------------------------------------
 
     function _haveAsset(string memory assetId) internal view returns (bool exists) {
@@ -396,6 +413,7 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
         string memory buyerFinId,
         Term memory assetTerm,
         Term memory settlementTerm,
+        LoanTerm memory loanTerm,
         OperationParams memory op
     ) internal pure returns (string memory, string memory, string memory, AssetType, string memory) {
         if (op.leg == LegType.ASSET) {
@@ -407,13 +425,18 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
                 revert("Invalid phase");
             }
         } else if (op.leg == LegType.SETTLEMENT) {
-            if (op.phase == Phase.INITIATE) {
-                return (buyerFinId, sellerFinId, settlementTerm.assetId, settlementTerm.assetType, settlementTerm.amount);
-            } else if (op.phase == Phase.CLOSE) {
-                return (sellerFinId, buyerFinId, settlementTerm.assetId, settlementTerm.assetType, settlementTerm.amount);
+            if (op.eip712PrimaryType == PrimaryType.LOAN) {
+                if (op.phase == Phase.INITIATE) {
+                    return (buyerFinId, sellerFinId, settlementTerm.assetId, settlementTerm.assetType, loanTerm.borrowedMoneyAmount);
+                } else if (op.phase == Phase.CLOSE) {
+                    return (sellerFinId, buyerFinId, settlementTerm.assetId, settlementTerm.assetType, loanTerm.returnedMoneyAmount);
+                } else {
+                    revert("Invalid phase");
+                }
             } else {
-                revert("Invalid phase");
+                return (buyerFinId, sellerFinId, settlementTerm.assetId, settlementTerm.assetType, settlementTerm.amount);
             }
+
         } else {
             revert("Invalid leg");
         }
