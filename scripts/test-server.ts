@@ -16,6 +16,7 @@ import { OssClient } from "../src/finp2p/oss.client";
 import winston, { format, transports } from "winston";
 import { InMemoryExecDetailsStore } from "../src/services/exec-details-store";
 import { ExecDetailsStore } from "../src/services/common";
+import { CollateralService } from "../src/services/collateral";
 import { FinAPIClient } from "../src/finp2p/finapi/finapi.client";
 
 let ethereumNodeContainer: StartedTestContainer | undefined;
@@ -85,6 +86,7 @@ const deployERC20Contract = async (provider: Provider, signer: Signer, finp2pTok
 const startApp = async (port: number, provider: Provider, signer: Signer,
                         finP2PContract: FinP2PContract, tokenAddress: string, policyGetter: PolicyGetter | undefined,
                         execDetailsStore: ExecDetailsStore | undefined,
+                        collateralService: CollateralService | undefined,
                         logger: winston.Logger) => {
 
   const assetCreationPolicy = {
@@ -93,7 +95,8 @@ const startApp = async (port: number, provider: Provider, signer: Signer,
   } as AssetCreationPolicy;
 
 
-  const app = createApp(finP2PContract, assetCreationPolicy, policyGetter, execDetailsStore, logger);
+  const app = createApp(finP2PContract, assetCreationPolicy, policyGetter, execDetailsStore,
+    collateralService, logger);
   logger.info("App created successfully.");
 
   httpServer = app.listen(port, () => {
@@ -136,8 +139,10 @@ const start = async () => {
 
   const execDetailsStore = new InMemoryExecDetailsStore();
   const finP2PContract = new FinP2PContract(provider, signer, finP2PContractAddress, logger);
+  const collateralService = new CollateralService(finP2PContract, ossClient, finAPIClient);
 
-  await startApp(port, provider, signer, finP2PContract, tokenAddress, policyGetter, execDetailsStore, logger);
+  await startApp(port, provider, signer, finP2PContract, tokenAddress, policyGetter, execDetailsStore,
+    collateralService, logger);
 };
 
 
