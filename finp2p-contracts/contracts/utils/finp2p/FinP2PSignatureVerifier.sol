@@ -33,8 +33,7 @@ contract FinP2PSignatureVerifier is EIP712 {
         REDEMPTION,
         REQUEST_FOR_TRANSFER,
         PRIVATE_OFFER,
-        LOAN,
-        TRANSFER
+        LOAN
     }
 
     bytes32 private constant ASSET_TYPE_FINP2P_HASH = keccak256("finp2p");
@@ -80,10 +79,6 @@ contract FinP2PSignatureVerifier is EIP712 {
 
     bytes32 private constant LOAN_TYPE_HASH = keccak256(
         "Loan(string nonce,FinId borrower,FinId lender,Term asset,Term settlement,LoanTerms loanTerms)FinId(string idkey)LoanTerms(string openTime,string closeTime,string borrowedMoneyAmount,string returnedMoneyAmount)Term(string assetId,string assetType,string amount)"
-    );
-
-    bytes32 private constant TRANSFER_TYPE_HASH = keccak256(
-        "Transfer(string nonce,FinId buyer,FinId seller,Term asset)FinId(string idkey)Term(string assetId,string assetType,string amount)"
     );
 
     struct Term {
@@ -232,17 +227,6 @@ contract FinP2PSignatureVerifier is EIP712 {
                 hashTerm(settlement),
                 hashLoanTerms(loan)
             )));
-        } else if (primaryType == PrimaryType.TRANSFER) {
-            return _hashTypedDataV4(keccak256(abi.encode(
-                TRANSFER_TYPE_HASH,
-                keccak256(bytes(nonce)),
-                hashFinId(sellerFinId),
-                keccak256(bytes("finId")),
-                hashFinId(buyerFinId),
-                keccak256(bytes("finId")),
-                hashTerm(asset)  // only asset, no settlement
-            )));
-
         } else {
             revert("Invalid eip712 transfer signature type");
         }

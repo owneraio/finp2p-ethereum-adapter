@@ -14,8 +14,7 @@ export const enum PrimaryType {
   Redemption = 3,
   RequestForTransfer = 4,
   PrivateOffer = 5,
-  Loan = 6,
-  Transfer = 7
+  Loan = 6
 }
 
 export type EIP712Domain = {
