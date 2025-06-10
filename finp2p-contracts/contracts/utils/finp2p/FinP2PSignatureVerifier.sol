@@ -234,10 +234,12 @@ contract FinP2PSignatureVerifier is EIP712 {
             )));
         } else if (primaryType == PrimaryType.TRANSFER) {
             return _hashTypedDataV4(keccak256(abi.encode(
-                REQUEST_FOR_TRANSFER_TYPE_HASH,
+                TRANSFER_TYPE_HASH,
                 keccak256(bytes(nonce)),
-                hashFinId(buyerFinId),
                 hashFinId(sellerFinId),
+                keccak256(bytes("finId")),
+                hashFinId(buyerFinId),
+                keccak256(bytes("finId")),
                 hashTerm(asset)  // only asset, no settlement
             )));
 
