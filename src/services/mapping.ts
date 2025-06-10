@@ -362,13 +362,20 @@ export const extractEIP712Params = (request: RequestParams): EIP712Params => {
       };
     }
     case "Redemption": {
+      const { destination } = request;
+      let releaseType: ReleaseType;
+      if (destination && destination.finId) {
+        releaseType = ReleaseType.Release;
+      } else {
+        releaseType = ReleaseType.Redeem;
+      }
       return {
         buyerFinId: finIdFromAPI(template.message.issuer as EIP712TypeObject),
         sellerFinId: finIdFromAPI(template.message.seller as EIP712TypeObject),
         asset: termFromAPI(template.message.asset as EIP712TypeObject),
         settlement: termFromAPI(template.message.settlement as EIP712TypeObject),
         loan: emptyLoanTerms(),
-        params: operationParams(leg, eip712PrimaryType, Phase.Initiate, operationId, ReleaseType.Redeem)
+        params: operationParams(leg, eip712PrimaryType, Phase.Initiate, operationId, releaseType)
       };
     }
     case "Loan": {
