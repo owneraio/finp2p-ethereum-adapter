@@ -400,8 +400,6 @@ export const eip71212PrimaryTypeFromTemplate = (template: Components.Schemas.EIP
       return PrimaryType.Selling;
     case "Redemption":
       return PrimaryType.Redemption;
-    case "RequestForTransfer":
-      return PrimaryType.Transfer;
     case "PrivateOffer":
       return PrimaryType.PrivateOffer;
     case "Loan":
