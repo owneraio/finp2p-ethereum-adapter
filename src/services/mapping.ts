@@ -400,12 +400,12 @@ export const eip71212PrimaryTypeFromTemplate = (template: Components.Schemas.EIP
       return PrimaryType.Selling;
     case "Redemption":
       return PrimaryType.Redemption;
-    case "RequestForTransfer":
-      return PrimaryType.RequestForTransfer;
     case "PrivateOffer":
       return PrimaryType.PrivateOffer;
     case "Loan":
       return PrimaryType.Loan;
+    case "Transfer":
+      return PrimaryType.Transfer;
     default:
       throw new Error(`Unsupported EIP712 primary type: ${template.primaryType}`);
   }

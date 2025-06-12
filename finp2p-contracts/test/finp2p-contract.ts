@@ -147,7 +147,7 @@ describe("FinP2P proxy contract test", function() {
       loan: emptyLoanTerms(),
       decimals: 4
     }, {
-      primaryTypes: [PrimaryType.RequestForTransfer],
+      primaryTypes: [PrimaryType.Transfer],
       legs: [LegType.Asset],
       phases: [Phase.Initiate, Phase.Close],
       asset: term(generateAssetId(), AssetType.FinP2P, "30"),

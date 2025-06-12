@@ -12,9 +12,9 @@ export const enum PrimaryType {
   Buying = 1,
   Selling = 2,
   Redemption = 3,
-  RequestForTransfer = 4,
+  Transfer = 4,
   PrivateOffer = 5,
-  Loan = 6
+  Loan = 6,
 }
 
 export type EIP712Domain = {
@@ -102,10 +102,10 @@ export const REDEMPTION_TYPES = {
   ]
 };
 
-export const REQUEST_FOR_TRANSFER_TYPES = {
+export const TRANSFER_TYPES = {
   ...FINID_TYPE,
   ...TERM_TYPE,
-  RequestForTransfer: [
+  Transfer: [
     { name: "nonce", type: "string" },
     { name: "buyer", type: "FinId" },
     { name: "seller", type: "FinId" },
@@ -410,8 +410,8 @@ export const newInvestmentMessage = (
       types = REDEMPTION_TYPES;
       message = newRedemptionMessage(nonce, finId(buyerFinId), finId(sellerFinId), asset, settlement);
       break;
-    case PrimaryType.RequestForTransfer:
-      types = REQUEST_FOR_TRANSFER_TYPES;
+    case PrimaryType.Transfer:
+      types = TRANSFER_TYPES;
       message = newRequestForTransferMessage(nonce, finId(buyerFinId), finId(sellerFinId), asset);
       break;
     case PrimaryType.PrivateOffer:
