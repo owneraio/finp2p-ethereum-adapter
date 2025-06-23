@@ -4,7 +4,7 @@ import { FinP2PContract } from "../finp2p-contracts/src/contracts/finp2p";
 import { createProviderAndSigner, ProviderType } from "../finp2p-contracts/src/contracts/config";
 import console from "console";
 import { EthereumTransactionError } from "../finp2p-contracts/src/contracts/model";
-import { ERC20Contract } from "../finp2p-contracts/src/contracts/erc20";
+import { ERC20Contract, OPERATOR_ROLE } from "../finp2p-contracts/src/contracts/erc20";
 import winston, { format, transports } from "winston";
 import { isEthereumAddress } from "../finp2p-contracts/src/contracts/utils";
 
@@ -39,6 +39,15 @@ const startMigration = async (ossUrl: string, providerType: ProviderType, finp2p
       const foundAddress = await finP2PContract.getAssetAddress(assetId);
       if (foundAddress === tokenAddress) {
         logger.info(`Asset ${assetId} already associated with token ${tokenAddress}`);
+        if (grantOperator) {
+          const erc20 = new ERC20Contract(provider, signer, tokenAddress, logger)
+          if (!await erc20.hasRole(OPERATOR_ROLE, foundAddress)) {
+            await erc20.grantOperatorTo(finp2pContractAddress);
+            logger.info('       granting new operator [done]')
+          } else {
+            logger.info(`       operator already granted for ${tokenAddress}`);
+          }
+        }
         skipped++;
         continue;
       }
