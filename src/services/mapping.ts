@@ -351,7 +351,8 @@ export const extractEIP712Params = (request: RequestParams): EIP712Params => {
         params: operationParams(leg, eip712PrimaryType, Phase.Initiate, operationId, ReleaseType.Release)
       };
     }
-    case "RequestForTransfer": {
+    case "Transfer":
+    case "RequestForTransfer": { // RequestForTransfer deprecated, use Transfer
       return {
         buyerFinId: finIdFromAPI(template.message.buyer as EIP712TypeObject),
         sellerFinId: finIdFromAPI(template.message.seller as EIP712TypeObject),

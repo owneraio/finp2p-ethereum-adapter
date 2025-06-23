@@ -291,7 +291,7 @@ export interface EIP712RedemptionMessage extends EIP712Message {
   settlement: EIP712Term
 }
 
-export interface EIP712RequestForTransferMessage extends EIP712Message {
+export interface EIP712TransferMessage extends EIP712Message {
   nonce: string,
   buyer: EIP712FinId,
   seller: EIP712FinId,
@@ -412,7 +412,7 @@ export const newInvestmentMessage = (
       break;
     case PrimaryType.Transfer:
       types = TRANSFER_TYPES;
-      message = newRequestForTransferMessage(nonce, finId(buyerFinId), finId(sellerFinId), asset);
+      message = newTransferMessage(nonce, finId(buyerFinId), finId(sellerFinId), asset);
       break;
     case PrimaryType.PrivateOffer:
       types = PRIVATE_OFFER_TYPES;
@@ -447,7 +447,7 @@ export const newRedemptionMessage = (nonce: string, issuer: EIP712FinId, seller:
   return { nonce, issuer, seller, asset, settlement };
 };
 
-export const newRequestForTransferMessage = (nonce: string, buyer: EIP712FinId, seller: EIP712FinId, asset: EIP712Term): EIP712RequestForTransferMessage => {
+export const newTransferMessage = (nonce: string, buyer: EIP712FinId, seller: EIP712FinId, asset: EIP712Term): EIP712TransferMessage => {
   return { nonce, buyer, seller, asset };
 };
 
