@@ -2,6 +2,7 @@ import { OssClient } from "./oss.client";
 import { parseProofDomain, Proof, ProofDomain, ProofPolicy } from "./model";
 import process from "process";
 import { AssetType } from "../../finp2p-contracts/src/contracts/model";
+import { CollateralAssetMetadata } from "../../finp2p-contracts/src/contracts/collateral";
 
 export class PolicyGetter {
   ossClient: OssClient;

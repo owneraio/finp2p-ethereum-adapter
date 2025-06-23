@@ -1,7 +1,8 @@
 import { logger } from "../helpers/logger";
 import { CommonService } from "./common";
 import { EthereumTransactionError } from "../../finp2p-contracts/src/contracts/model";
-import { extractEIP712Params, failedTransaction, RequestParams } from "./mapping";
+import { extractEIP712Params, failedTransaction, RequestParams, RequestValidationError } from "./mapping";
+import { PrimaryType } from "../../finp2p-contracts/src/contracts/eip712";
 
 export class EscrowService extends CommonService {
 
@@ -18,6 +19,10 @@ export class EscrowService extends CommonService {
         asset, settlement, loan, params, signature);
       if (executionContext) {
         this.execDetailsStore?.addExecutionContext(txHash, executionContext.executionPlanId, executionContext.instructionSequenceNumber);
+      }
+
+      if (params.eip712PrimaryType === PrimaryType.Loan && this.collateralService) {
+        this.collateralService.processCollateralAgreement(asset.assetId, params.phase).catch(logger.error);
       }
 
       return {
