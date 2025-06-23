@@ -41,7 +41,7 @@ const startMigration = async (ossUrl: string, providerType: ProviderType, finp2p
         logger.info(`Asset ${assetId} already associated with token ${tokenAddress}`);
         if (grantOperator) {
           const erc20 = new ERC20Contract(provider, signer, tokenAddress, logger)
-          if (!await erc20.hasRole(OPERATOR_ROLE, foundAddress)) {
+          if (!await erc20.hasRole(OPERATOR_ROLE, finp2pContractAddress)) {
             await erc20.grantOperatorTo(finp2pContractAddress);
             logger.info('       granting new operator [done]')
           } else {
@@ -64,8 +64,12 @@ const startMigration = async (ossUrl: string, providerType: ProviderType, finp2p
       logger.info('       asset association [done]')
       if (grantOperator) {
         const erc20 = new ERC20Contract(provider, signer, tokenAddress, logger)
-        await erc20.grantOperatorTo(finp2pContractAddress);
-        logger.info('       granting new operator [done]')
+        if (!await erc20.hasRole(OPERATOR_ROLE, finp2pContractAddress)) {
+          await erc20.grantOperatorTo(finp2pContractAddress);
+          logger.info('       granting new operator [done]')
+        } else {
+          logger.info(`       operator already granted for ${tokenAddress}`);
+        }
       }
       migrated++;
     } catch (e) {
