@@ -4,7 +4,7 @@ import {
   EIP712Template,
   eip712ExecutionContext, LegType, PrimaryType,
   eip712TradeDetails,
-  eip712TransactionDetails, EIP712Term, EIP712AssetType
+  eip712TransactionDetails, EIP712Term, EIP712AssetType,
 } from "./eip712";
 
 export interface Term {
@@ -30,7 +30,7 @@ export const assetTypeFromNumber = (assetType: bigint): AssetType => {
     default:
       throw new Error("Invalid asset type");
   }
-};
+}
 
 export const assetTypeFromString = (assetType: string): AssetType => {
   switch (assetType) {
@@ -43,7 +43,7 @@ export const assetTypeFromString = (assetType: string): AssetType => {
     default:
       throw new Error("Invalid asset type");
   }
-};
+}
 
 export const term = (assetId: string, assetType: AssetType, amount: string): Term => {
   return { assetId, assetType, amount };
@@ -62,7 +62,7 @@ export const assetTypeToEIP712 = (assetType: AssetType): EIP712AssetType => {
     case AssetType.Cryptocurrency:
       return "cryptocurrency";
   }
-};
+}
 
 export const termToEIP712 = (term: Term): EIP712Term => {
   return {
@@ -70,7 +70,7 @@ export const termToEIP712 = (term: Term): EIP712Term => {
     assetType: assetTypeToEIP712(term.assetType),
     amount: term.amount
   };
-};
+}
 
 export const enum Phase {
   Initiate = 0,
@@ -87,14 +87,14 @@ export interface OperationParams {
   eip712PrimaryType: PrimaryType;
   phase: Phase;
   operationId: string;
-  releaseType: ReleaseType;
+  releaseType: ReleaseType
 }
 
 export const operationParams = (
   leg: LegType,
   eip712PrimaryType: PrimaryType,
   phase: Phase = Phase.Initiate,
-  operationId: string = "",
+  operationId: string = '',
   releaseType: ReleaseType = ReleaseType.Release): OperationParams => {
   return {
     leg,
@@ -163,8 +163,8 @@ export const receiptToEIP712Message = (receipt: FinP2PReceipt): EIP712ReceiptMes
     quantity,
     asset: eip712Asset(assetId, assetTypeToEIP712(assetType)),
     tradeDetails: eip712TradeDetails(eip712ExecutionContext(
-      receipt?.tradeDetails?.executionContext.executionPlanId || "",
-      `${receipt?.tradeDetails?.executionContext.instructionSequenceNumber || ""}`)),
+      receipt?.tradeDetails?.executionContext.executionPlanId || '',
+      `${receipt?.tradeDetails?.executionContext.instructionSequenceNumber || ''}`)),
     transactionDetails: eip712TransactionDetails(operationId || "", id)
   };
 };
@@ -229,13 +229,11 @@ export const detectError = (e: any): EthereumTransactionError | NonceToHighError
   if ("code" in e && "action" in e && "message" in e && "reason" in e && "data" in e && e.reason !== undefined && e.reason !== null) {
     return new EthereumTransactionError(e.reason);
   } else if ("code" in e && "error" in e && "code" in e.error && "message" in e.error) {
-    if (e.error.code === -32000 &&
-      (e.error.message.startsWith("Nonce too high") ||
-        e.error.message.startsWith("replacement transaction underpriced"))
+    if (e.error.code === -32000 || e.error.message.startsWith("Nonce too high")
     ) {
       return new NonceToHighError(e.error.message);
     }
-  } else if (`${e}`.includes("nonce has already been used")) {
+  } else if (e.code === 'REPLACEMENT_UNDERPRICED' || `${e}`.includes("nonce has already been used")) {
     return new NonceAlreadyBeenUsedError(`${e}`);
   }
   return e;
