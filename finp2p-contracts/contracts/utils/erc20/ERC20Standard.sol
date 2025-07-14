@@ -9,7 +9,7 @@ import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {Burnable} from "./Burnable.sol";
 import {Mintable} from "./Mintable.sol";
 
-abstract contract ERC20Standard is AssetStandard {
+contract ERC20Standard is AssetStandard {
     using StringUtils for string;
     using StringUtils for uint256;
 

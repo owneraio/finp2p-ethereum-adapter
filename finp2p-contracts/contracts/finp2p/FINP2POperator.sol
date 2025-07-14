@@ -111,10 +111,11 @@ contract FINP2POperator is AccessControl, FinP2PSignatureVerifier {
     mapping(string => Lock) private locks;
     address private assetRegistry;
 
-    constructor() {
+    constructor(address _assetRegistry) {
         _grantRole(DEFAULT_ADMIN_ROLE, _msgSender());
         _grantRole(ASSET_MANAGER, _msgSender());
         _grantRole(TRANSACTION_MANAGER, _msgSender());
+        assetRegistry = _assetRegistry;
     }
 
     function getVersion() external pure returns (string memory) {
@@ -179,7 +180,7 @@ contract FINP2POperator is AccessControl, FinP2PSignatureVerifier {
         require(_haveAsset(assetId), "Asset not found");
         address addr = finId.toAddress();
         Asset memory asset = assets[assetId];
-        AssetStandard standard = AssetRegistry(assetRegistry).getAssetStandard(asset.standard);
+        AssetStandard standard = AssetStandard(AssetRegistry(assetRegistry).getAssetStandard(asset.standard));
         return standard.balanceOf(asset.tokenAddress, addr);
     }
 
@@ -370,21 +371,21 @@ contract FINP2POperator is AccessControl, FinP2PSignatureVerifier {
     function _mint(address to, string memory assetId, string memory quantity) internal {
         require(_haveAsset(assetId), "Asset not found");
         Asset memory asset = assets[assetId];
-        AssetStandard standard = AssetRegistry(assetRegistry).getAssetStandard(asset.standard);
+        AssetStandard standard = AssetStandard(AssetRegistry(assetRegistry).getAssetStandard(asset.standard));
         standard.mint(asset.tokenAddress, to, quantity);
     }
 
     function _transfer(address from, address to, string memory assetId, string memory quantity) internal {
         require(_haveAsset(assetId), "Asset not found");
         Asset memory asset = assets[assetId];
-        AssetStandard standard = AssetRegistry(assetRegistry).getAssetStandard(asset.standard);
+        AssetStandard standard = AssetStandard(AssetRegistry(assetRegistry).getAssetStandard(asset.standard));
         standard.transferFrom(asset.tokenAddress, from, to, quantity);
     }
 
     function _burn(address from, string memory assetId, string memory quantity) internal {
         require(_haveAsset(assetId), "Asset not found");
         Asset memory asset = assets[assetId];
-        AssetStandard standard = AssetRegistry(assetRegistry).getAssetStandard(asset.standard);
+        AssetStandard standard = AssetStandard(AssetRegistry(assetRegistry).getAssetStandard(asset.standard));
         standard.burn(asset.tokenAddress, from, quantity);
     }
 
