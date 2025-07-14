@@ -2,14 +2,12 @@
 
 pragma solidity ^0.8.20;
 
-import {StringUtils} from "../../utils/StringUtils.sol";
-import {Burnable} from "../../utils/erc20/Burnable.sol";
-import {Mintable} from "../../utils/erc20/Mintable.sol";
-import {FinIdUtils} from "../../utils/finp2p/FinIdUtils.sol";
-import {FinP2PSignatureVerifier} from "../../utils/finp2p/FinP2PSignatureVerifier.sol";
+import "../utils/StringUtils.sol";
 import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
+import {AssetRegistry} from "../utils/finp2p/AssetRegistry.sol";
+import {AssetStandard} from "../utils/finp2p/AssetStandard.sol";
+import {FinIdUtils} from "../utils/finp2p/FinIdUtils.sol";
+import {FinP2PSignatureVerifier} from "../utils/finp2p/FinP2PSignatureVerifier.sol";
 
 /**
  * @dev FINP2POperatorERC20
@@ -19,9 +17,8 @@ import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IER
  * It also allows to hold and release tokens in escrow.
  *
  */
-contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
+contract FINP2POperator is AccessControl, FinP2PSignatureVerifier {
     using StringUtils for string;
-    using StringUtils for uint256;
     using FinIdUtils for string;
 
     enum Phase {
@@ -97,6 +94,7 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
 
     struct Asset {
         string id;
+        uint16 standard;
         address tokenAddress;
     }
 
@@ -111,6 +109,7 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
     address private escrowWalletAddress;
     mapping(string => Asset) private assets;
     mapping(string => Lock) private locks;
+    address private assetRegistry;
 
     constructor() {
         _grantRole(DEFAULT_ADMIN_ROLE, _msgSender());
@@ -146,10 +145,10 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
     /// @notice Associate an asset with a token address
     /// @param assetId The asset id
     /// @param tokenAddress The token address
-    function associateAsset(string calldata assetId, address tokenAddress) external {
+    function associateAsset(string calldata assetId, uint16 assetStandard, address tokenAddress) external {
         require(hasRole(ASSET_MANAGER, _msgSender()), "FINP2POperatorERC20: must have asset manager role to associate asset");
         require(!_haveAsset(assetId), "Asset already exists");
-        assets[assetId] = Asset(assetId, tokenAddress);
+        assets[assetId] = Asset(assetId, assetStandard, tokenAddress);
     }
 
     /// @notice Remove an asset
@@ -180,9 +179,8 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
         require(_haveAsset(assetId), "Asset not found");
         address addr = finId.toAddress();
         Asset memory asset = assets[assetId];
-        uint8 tokenDecimals = IERC20Metadata(asset.tokenAddress).decimals();
-        uint256 tokenBalance = IERC20(asset.tokenAddress).balanceOf(addr);
-        return tokenBalance.uintToString(tokenDecimals);
+        AssetStandard standard = AssetRegistry(assetRegistry).getAssetStandard(asset.standard);
+        return standard.balanceOf(asset.tokenAddress, addr);
     }
 
     /// @notice Issue asset to the issuer
@@ -221,7 +219,7 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
             string memory destination,
             string memory assetId,
             AssetType assetType,
-            string memory amount) = _extractDetails(sellerFinId, buyerFinId, assetTerm, settlementTerm, loanTerm,op);
+            string memory amount) = _extractDetails(sellerFinId, buyerFinId, assetTerm, settlementTerm, loanTerm, op);
         require(verifyInvestmentSignature(
             op.eip712PrimaryType,
             nonce,
@@ -272,7 +270,7 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
         (string memory source,
             string memory destination,
             string memory assetId, AssetType assetType,
-            string memory amount) = _extractDetails(sellerFinId, buyerFinId, assetTerm, settlementTerm, loanTerm,op);
+            string memory amount) = _extractDetails(sellerFinId, buyerFinId, assetTerm, settlementTerm, loanTerm, op);
         require(verifyInvestmentSignature(
             op.eip712PrimaryType,
             nonce,
@@ -372,33 +370,22 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
     function _mint(address to, string memory assetId, string memory quantity) internal {
         require(_haveAsset(assetId), "Asset not found");
         Asset memory asset = assets[assetId];
-
-        uint8 tokenDecimals = IERC20Metadata(asset.tokenAddress).decimals();
-        uint256 tokenAmount = quantity.stringToUint(tokenDecimals);
-        Mintable(asset.tokenAddress).mint(to, tokenAmount);
+        AssetStandard standard = AssetRegistry(assetRegistry).getAssetStandard(asset.standard);
+        standard.mint(asset.tokenAddress, to, quantity);
     }
 
     function _transfer(address from, address to, string memory assetId, string memory quantity) internal {
         require(_haveAsset(assetId), "Asset not found");
         Asset memory asset = assets[assetId];
-
-        uint8 tokenDecimals = IERC20Metadata(asset.tokenAddress).decimals();
-        uint256 tokenAmount = quantity.stringToUint(tokenDecimals);
-        uint256 balance = IERC20(asset.tokenAddress).balanceOf(from);
-        require(balance >= tokenAmount, "Not sufficient balance to transfer");
-
-        IERC20(asset.tokenAddress).transferFrom(from, to, tokenAmount);
+        AssetStandard standard = AssetRegistry(assetRegistry).getAssetStandard(asset.standard);
+        standard.transferFrom(asset.tokenAddress, from, to, quantity);
     }
 
     function _burn(address from, string memory assetId, string memory quantity) internal {
         require(_haveAsset(assetId), "Asset not found");
         Asset memory asset = assets[assetId];
-
-        uint8 tokenDecimals = IERC20Metadata(asset.tokenAddress).decimals();
-        uint256 tokenAmount = quantity.stringToUint(tokenDecimals);
-        uint256 balance = IERC20(asset.tokenAddress).balanceOf(from);
-        require(balance >= tokenAmount, "Not sufficient balance to burn");
-        Burnable(asset.tokenAddress).burn(from, tokenAmount);
+        AssetStandard standard = AssetRegistry(assetRegistry).getAssetStandard(asset.standard);
+        standard.burn(asset.tokenAddress, from, quantity);
     }
 
     /// @notice Extract the direction of the operation

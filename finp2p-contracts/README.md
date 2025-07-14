@@ -2,7 +2,7 @@
 # Contracts
 
 ## The FinP2P operator contract
-[ FINP2POperatorERC20.sol](./contracts/token/ERC20/FINP2POperatorERC20.sol) is the FinP2P operator contracts, it implements FinP2P related interfaces such as `IFinP2PAsset` and `IFinP2PEscrow` providing basic functionality for managing FinP2P assets and maintaining escrow operation on them.
+[ FINP2POperator.sol](contracts/finp2p/FINP2POperator.sol) is the FinP2P operator contracts, it implements FinP2P related interfaces such as `IFinP2PAsset` and `IFinP2PEscrow` providing basic functionality for managing FinP2P assets and maintaining escrow operation on them.
 
 Acting as a pivotal link, the FinP2P Operator Contract facilitates the connection between the FinP2P adapter and the underlying token contracts. Upon receiving a FinP2P instruction, the adapter invokes the appropriate methods within the operator contract. It effectively connects FinP2P assets and the actual token addresses, ensures the integrity of signatures and payloads, and relays instructions to the targeted token contract.
 
