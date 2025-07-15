@@ -5,7 +5,7 @@ import { ethers } from "hardhat";
 import { v4 as uuid } from "uuid";
 import { generateNonce, toFixedDecimals } from "./utils";
 import { getFinId } from "../src/contracts/utils";
-import { Signer, Wallet } from "ethers";
+import { keccak256, Signer, toUtf8Bytes, Wallet } from "ethers";
 import {
   EIP712LoanTerms,
   emptyLoanTerms,
@@ -26,6 +26,7 @@ import {
   Term,
   termToEIP712
 } from "../src/contracts/model";
+import { ERC20_STANDARD_ID } from "../src/contracts/erc20";
 
 
 describe("FinP2P proxy contract test", function() {
@@ -52,12 +53,11 @@ describe("FinP2P proxy contract test", function() {
     return { contract, address };
   }
 
-  const ERC20_STANDARD = 1;
 
   async function deployFinP2PProxyFixture() {
     const { contract: ar, address: assetRegistry } = await deployAssetRegistry();
     const { address: erc20Standard } = await deployERC20Standard();
-    await ar.registerAssetStandard(ERC20_STANDARD, erc20Standard)
+    await ar.registerAssetStandard(ERC20_STANDARD_ID, erc20Standard)
 
     const deployer = await ethers.getContractFactory("FINP2POperator");
     const contract = await deployer.deploy(assetRegistry);
@@ -198,10 +198,10 @@ describe("FinP2P proxy contract test", function() {
       ({ chainId, verifyingContract } = await contract.eip712Domain());
       for (const term of testCases) {
         const asset = await deployERC20(term.asset.assetId, term.asset.assetId, term.decimals, erc20Standard);
-        await contract.associateAsset(term.asset.assetId, ERC20_STANDARD, asset, { from: operator });
+        await contract.associateAsset(term.asset.assetId, ERC20_STANDARD_ID, asset, { from: operator });
 
         const settlement = await deployERC20(term.settlement.assetId, term.settlement.assetId, term.decimals, erc20Standard);
-        await contract.associateAsset(term.settlement.assetId, ERC20_STANDARD, settlement, { from: operator });
+        await contract.associateAsset(term.settlement.assetId, ERC20_STANDARD_ID, settlement, { from: operator });
       }
     });
 

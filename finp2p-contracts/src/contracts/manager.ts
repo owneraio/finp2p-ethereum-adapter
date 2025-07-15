@@ -1,5 +1,5 @@
 import {
-  BaseContract,
+  BaseContract, BytesLike,
   ContractFactory,
   ContractTransactionResponse,
   NonceManager,
@@ -16,6 +16,7 @@ import { PayableOverrides } from "../../typechain-types/common";
 import { detectError, EthereumTransactionError, NonceAlreadyBeenUsedError, NonceToHighError } from "./model";
 import { hash as typedHash, sign } from "./eip712";
 import { compactSerialize } from "./utils";
+import { ERC20_STANDARD_ID } from "./erc20";
 
 const DefaultDecimalsCurrencies = 2;
 
@@ -37,8 +38,7 @@ export class ContractsManager {
   }
 
   async deployERC20(name: string, symbol: string, decimals: number, finP2PContractAddress: string) {
-    const tokenStandard = 1;
-    const standardAddress = await this.getAssetStandardViaFinP2PContract(finP2PContractAddress, tokenStandard);
+    const standardAddress = await this.getAssetStandardViaFinP2PContract(finP2PContractAddress, ERC20_STANDARD_ID);
 
     const factory = new ContractFactory<any[], ERC20WithOperator>(
       ERC20.abi,
@@ -87,7 +87,7 @@ export class ContractsManager {
     const erc20StandardAddress = await this.deployERC20StandardContract();
     this.logger.info(`ERC20 standard deployed at: ${erc20StandardAddress}`);
 
-    await this.registerAssetStandard(assetRegistryAddress, 1, erc20StandardAddress);
+    await this.registerAssetStandard(assetRegistryAddress, ERC20_STANDARD_ID, erc20StandardAddress);
 
     this.logger.info("Deploying FinP2P contract...");
     const factory = new ContractFactory<any[], FINP2POperator>(
@@ -132,13 +132,12 @@ export class ContractsManager {
 
   async preCreatePaymentAsset(factory: ContractFactory<any[], FINP2POperator>, finP2PContractAddress: string, assetId: string, decimals: number): Promise<void> {
     this.logger.info(`Pre-creating payment asset ${assetId}...`);
-    const tokenStandard = 1;
     const tokenAddress = await this.deployERC20(assetId, assetId, decimals, finP2PContractAddress);
 
     const contract = factory.attach(finP2PContractAddress) as FINP2POperator;
     this.logger.info(`Associating asset ${assetId} with token ${tokenAddress}...`);
     const txHash = await this.safeExecuteTransaction(contract, async (finP2P: FINP2POperator, txParams: PayableOverrides) => {
-      return finP2P.associateAsset(assetId, tokenStandard, tokenAddress, txParams);
+      return finP2P.associateAsset(assetId, ERC20_STANDARD_ID, tokenAddress, txParams);
     });
     await this.waitForCompletion(txHash);
   }
@@ -167,19 +166,19 @@ export class ContractsManager {
     await this.waitForCompletion(txHash);
   }
 
-  async registerAssetStandard(assetRegistryAddress: string, standardId: number, erc20StandardAddress: string) {
+  async registerAssetStandard(assetRegistryAddress: string, standardId: BytesLike, erc20StandardAddress: string) {
     const assetRegistryFactory = new ContractFactory<any[], AssetRegistry>(ASSET_REGISTRY.abi, ASSET_REGISTRY.bytecode, this.signer);
     const assetRegistry = assetRegistryFactory.attach(assetRegistryAddress);
     await assetRegistry.registerAssetStandard(standardId, erc20StandardAddress);
   }
 
-  async getAssetStandard(assetRegistryAddress: string, tokenStandard: number) {
+  async getAssetStandard(assetRegistryAddress: string, tokenStandard: BytesLike) {
     const assetRegistryFactory = new ContractFactory<any[], AssetRegistry>(ASSET_REGISTRY.abi, ASSET_REGISTRY.bytecode, this.signer);
     const assetRegistry = assetRegistryFactory.attach(assetRegistryAddress);
     return await assetRegistry.getAssetStandard(tokenStandard);
   }
 
-  async getAssetStandardViaFinP2PContract(finP2PContractAddress: string, tokenStandard: number) {
+  async getAssetStandardViaFinP2PContract(finP2PContractAddress: string, tokenStandard: BytesLike) {
     const finp2PFactory = new ContractFactory<any[], FINP2POperator>(FINP2P.abi, FINP2P.bytecode, this.signer);
     const finP2PContract = finp2PFactory.attach(finP2PContractAddress);
 

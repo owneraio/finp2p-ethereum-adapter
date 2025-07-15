@@ -15,6 +15,7 @@ import { PolicyGetter } from "../finp2p/policy";
 import CreateAssetResponse = Components.Schemas.CreateAssetResponse;
 import LedgerTokenId = Components.Schemas.LedgerTokenId;
 import { AssetRegistryContract } from "../../finp2p-contracts/src/contracts/asset-registry";
+import { ERC20_STANDARD_ID } from "../../finp2p-contracts/src/contracts/erc20";
 
 export type AssetCreationPolicy = | { type: "deploy-new-token"; decimals: number } | {
   type: "reuse-existing-token";
@@ -33,7 +34,7 @@ export class TokenService extends CommonService {
 
   public async createAsset(request: Paths.CreateAsset.RequestBody): Promise<Paths.CreateAsset.Responses.$200> {
     const { assetId } = assetFromAPI(request.asset);
-    const tokenStandard = 1;
+    const tokenStandard = ERC20_STANDARD_ID;
 
     try {
 
