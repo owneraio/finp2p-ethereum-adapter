@@ -153,6 +153,12 @@ contract FINP2POperator is AccessControl, FinP2PSignatureVerifier {
     function associateAsset(string calldata assetId, bytes32 assetStandard, address tokenAddress) external {
         require(hasRole(ASSET_MANAGER, _msgSender()), "FINP2POperatorERC20: must have asset manager role to associate asset");
         require(!_haveAsset(assetId), "Asset already exists");
+        require(tokenAddress != address(0), "Token address cannot be zero");
+
+        AssetRegistry memory registry = AssetRegistry(assetRegistry);
+        address standardAddress = registry.getAssetStandard(assetStandard);
+        require(standardAddress != address(0), "Asset standard not found");
+
         assets[assetId] = Asset(assetId, assetStandard, tokenAddress);
     }
 
