@@ -59,7 +59,8 @@ const startMigration = async (ossUrl: string, providerType: ProviderType, finp2p
 
     try {
       logger.info(`Migrating asset ${assetId} with token address ${tokenAddress}`);
-      const txHash = await finP2PContract.associateAsset(assetId, tokenAddress);
+      const tokenStandard = 1;
+      const txHash = await finP2PContract.associateAsset(assetId, tokenStandard, tokenAddress);
       await finP2PContract.waitForCompletion(txHash)
       logger.info('       asset association [done]')
       if (grantOperator) {

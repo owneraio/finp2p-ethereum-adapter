@@ -122,6 +122,10 @@ contract FINP2POperator is AccessControl, FinP2PSignatureVerifier {
         return VERSION;
     }
 
+    function getAssetRegistry() external view returns (address) {
+        return assetRegistry;
+    }
+
     /// @notice Grant the asset manager role to an account
     /// @param account The account to grant the role
     function grantAssetManagerRole(address account) external {

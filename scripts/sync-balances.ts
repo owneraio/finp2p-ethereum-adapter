@@ -12,6 +12,8 @@ const logger = winston.createLogger({
   format: format.json(),
 });
 
+
+
 const syncBalanceFromOssToEthereum = async (ossUrl: string, providerType: ProviderType, finp2pContractAddress: string) => {
   const ossClient = new OssClient(ossUrl, undefined);
   const assets = await ossClient.getAssetsWithTokens()
@@ -34,7 +36,8 @@ const syncBalanceFromOssToEthereum = async (ossUrl: string, providerType: Provid
         logger.info(`Deploying new token for asset ${assetId}`);
         const erc20Address = await contract.deployERC20(assetId, assetId, 0, finp2pContractAddress);
         logger.info(`Associating asset ${assetId} with token ${erc20Address}`);
-        const associateTxHash = await contract.associateAsset(assetId, erc20Address);
+        const tokenStandard = 1;
+        const associateTxHash = await contract.associateAsset(assetId, tokenStandard, erc20Address);
         await contract.waitForCompletion(associateTxHash);
       } else {
         logger.error(`Error migrating asset ${assetId}: ${e}`);

@@ -14,6 +14,7 @@ import { isEthereumAddress } from "../../finp2p-contracts/src/contracts/utils";
 import { PolicyGetter } from "../finp2p/policy";
 import CreateAssetResponse = Components.Schemas.CreateAssetResponse;
 import LedgerTokenId = Components.Schemas.LedgerTokenId;
+import { AssetRegistryContract } from "../../finp2p-contracts/src/contracts/asset-registry";
 
 export type AssetCreationPolicy = | { type: "deploy-new-token"; decimals: number } | {
   type: "reuse-existing-token";
@@ -32,6 +33,8 @@ export class TokenService extends CommonService {
 
   public async createAsset(request: Paths.CreateAsset.RequestBody): Promise<Paths.CreateAsset.Responses.$200> {
     const { assetId } = assetFromAPI(request.asset);
+    const tokenStandard = 1;
+
     try {
 
       if (request.ledgerAssetBinding) {
@@ -44,10 +47,9 @@ export class TokenService extends CommonService {
           } as CreateAssetResponse;
         }
 
-        const txHash = await this.finP2PContract.associateAsset(assetId, tokenAddress);
+        const txHash = await this.finP2PContract.associateAsset(assetId, tokenStandard, tokenAddress);
         await this.finP2PContract.waitForCompletion(txHash);
         return assetCreationResult(tokenAddress, tokenAddress, this.finP2PContract.finP2PContractAddress);
-
 
       } else {
 
@@ -72,8 +74,7 @@ export class TokenService extends CommonService {
               }
             } as CreateAssetResponse;
         }
-
-        const txHash = await this.finP2PContract.associateAsset(assetId, tokenAddress);
+        const txHash = await this.finP2PContract.associateAsset(assetId, tokenStandard, tokenAddress);
         await this.finP2PContract.waitForCompletion(txHash);
         return assetCreationResult(tokenId, tokenAddress, this.finP2PContract.finP2PContractAddress);
       }
