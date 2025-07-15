@@ -5,7 +5,7 @@ import {
   extractEIP712Params,
   failedAssetCreation,
   failedTransaction,
-  getRandomNumber, RequestParams, RequestValidationError
+  getRandomNumber, RequestParams
 } from "./mapping";
 import { assetTypeFromString, EthereumTransactionError, term } from "../../finp2p-contracts/src/contracts/model";
 import { logger } from "../helpers/logger";
@@ -14,8 +14,7 @@ import { isEthereumAddress } from "../../finp2p-contracts/src/contracts/utils";
 import { PolicyGetter } from "../finp2p/policy";
 import CreateAssetResponse = Components.Schemas.CreateAssetResponse;
 import LedgerTokenId = Components.Schemas.LedgerTokenId;
-import { AssetRegistryContract } from "../../finp2p-contracts/src/contracts/asset-registry";
-import { ERC20_STANDARD_ID } from "../../finp2p-contracts/src/contracts/erc20";
+import { ERC20_STANDARD_ID } from "../../finp2p-contracts/src/contracts/config";
 
 export type AssetCreationPolicy = | { type: "deploy-new-token"; decimals: number } | {
   type: "reuse-existing-token";

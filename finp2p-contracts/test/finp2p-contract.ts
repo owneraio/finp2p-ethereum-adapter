@@ -26,7 +26,7 @@ import {
   Term,
   termToEIP712
 } from "../src/contracts/model";
-import { ERC20_STANDARD_ID } from "../src/contracts/erc20";
+import { ERC20_STANDARD_ID } from "../src/contracts/config";
 
 
 describe("FinP2P proxy contract test", function() {

@@ -1,6 +1,6 @@
 import { BytesLike, ContractFactory, Provider, Signer } from "ethers";
 import FINP2P from "../../artifacts/contracts/finp2p/FINP2POperator.sol/FINP2POperator.json";
-import { AssetRegistry, FINP2POperator } from "../../typechain-types";
+import { FINP2POperator } from "../../typechain-types";
 import {
   assetTypeFromNumber,
   completedOperation,

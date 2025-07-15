@@ -1,7 +1,7 @@
 import { OssClient } from "../src/finp2p/oss.client";
 import process from "process";
 import { FinP2PContract } from "../finp2p-contracts/src/contracts/finp2p";
-import { createProviderAndSigner, ProviderType } from "../finp2p-contracts/src/contracts/config";
+import { createProviderAndSigner, ERC20_STANDARD_ID, ProviderType } from "../finp2p-contracts/src/contracts/config";
 import console from "console";
 import { EthereumTransactionError } from "../finp2p-contracts/src/contracts/model";
 import { ERC20Contract, OPERATOR_ROLE } from "../finp2p-contracts/src/contracts/erc20";
@@ -59,7 +59,7 @@ const startMigration = async (ossUrl: string, providerType: ProviderType, finp2p
 
     try {
       logger.info(`Migrating asset ${assetId} with token address ${tokenAddress}`);
-      const tokenStandard = 1;
+      const tokenStandard = ERC20_STANDARD_ID; // TODO: get from asset metadata if available
       const txHash = await finP2PContract.associateAsset(assetId, tokenStandard, tokenAddress);
       await finP2PContract.waitForCompletion(txHash)
       logger.info('       asset association [done]')

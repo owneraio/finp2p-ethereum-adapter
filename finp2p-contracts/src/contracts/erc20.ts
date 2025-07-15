@@ -5,7 +5,6 @@ import ERC20 from "../../artifacts/contracts/token/ERC20/ERC20WithOperator.sol/E
 import winston from "winston";
 
 export const OPERATOR_ROLE = keccak256(toUtf8Bytes('OPERATOR_ROLE'));
-export const ERC20_STANDARD_ID = keccak256(toUtf8Bytes('ERC20_WITH_OPERATOR'));
 
 export class ERC20Contract extends ContractsManager {
 

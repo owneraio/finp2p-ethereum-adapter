@@ -1,7 +1,7 @@
 import { OssClient } from "../src/finp2p/oss.client";
 import process from "process";
 import { FinP2PContract } from "../finp2p-contracts/src/contracts/finp2p";
-import { createProviderAndSigner, ProviderType } from "../finp2p-contracts/src/contracts/config";
+import { createProviderAndSigner, ERC20_STANDARD_ID, ProviderType } from "../finp2p-contracts/src/contracts/config";
 import console from "console";
 import winston, { format, transports } from "winston";
 import { AssetType, term } from "../finp2p-contracts/src/contracts/model";
@@ -36,7 +36,7 @@ const syncBalanceFromOssToEthereum = async (ossUrl: string, providerType: Provid
         logger.info(`Deploying new token for asset ${assetId}`);
         const erc20Address = await contract.deployERC20(assetId, assetId, 0, finp2pContractAddress);
         logger.info(`Associating asset ${assetId} with token ${erc20Address}`);
-        const tokenStandard = 1;
+        const tokenStandard = ERC20_STANDARD_ID; // TODO: make it configurable
         const associateTxHash = await contract.associateAsset(assetId, tokenStandard, erc20Address);
         await contract.waitForCompletion(associateTxHash);
       } else {

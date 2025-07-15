@@ -16,7 +16,7 @@ import { PayableOverrides } from "../../typechain-types/common";
 import { detectError, EthereumTransactionError, NonceAlreadyBeenUsedError, NonceToHighError } from "./model";
 import { hash as typedHash, sign } from "./eip712";
 import { compactSerialize } from "./utils";
-import { ERC20_STANDARD_ID } from "./erc20";
+import { ERC20_STANDARD_ID } from "./config";
 
 const DefaultDecimalsCurrencies = 2;
 
