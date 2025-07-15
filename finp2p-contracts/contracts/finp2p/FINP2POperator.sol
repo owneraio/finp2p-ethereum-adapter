@@ -155,8 +155,7 @@ contract FINP2POperator is AccessControl, FinP2PSignatureVerifier {
         require(!_haveAsset(assetId), "Asset already exists");
         require(tokenAddress != address(0), "Token address cannot be zero");
 
-        AssetRegistry memory registry = AssetRegistry(assetRegistry);
-        address standardAddress = registry.getAssetStandard(assetStandard);
+        address standardAddress = AssetRegistry(assetRegistry).getAssetStandard(assetStandard);
         require(standardAddress != address(0), "Asset standard not found");
 
         assets[assetId] = Asset(assetId, assetStandard, tokenAddress);
