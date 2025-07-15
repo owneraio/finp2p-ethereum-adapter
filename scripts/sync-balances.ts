@@ -5,6 +5,7 @@ import { createProviderAndSigner, ERC20_STANDARD_ID, ProviderType } from "../fin
 import console from "console";
 import winston, { format, transports } from "winston";
 import { AssetType, term } from "../finp2p-contracts/src/contracts/model";
+import { keccak256, toUtf8Bytes } from "ethers";
 
 const logger = winston.createLogger({
   level: 'info',
@@ -27,7 +28,7 @@ const syncBalanceFromOssToEthereum = async (ossUrl: string, providerType: Provid
   const { provider, signer } = await createProviderAndSigner(providerType, logger);
   const contract = new FinP2PContract(provider, signer, finp2pContractAddress, logger);
 
-  for (const { assetId } of assets) {
+  for (const { assetId, identifier } of assets) {
     try {
       const erc20Address =  await contract.getAssetAddress(assetId);
       logger.info(`Found asset ${assetId} with token address ${erc20Address}`);
@@ -36,7 +37,13 @@ const syncBalanceFromOssToEthereum = async (ossUrl: string, providerType: Provid
         logger.info(`Deploying new token for asset ${assetId}`);
         const erc20Address = await contract.deployERC20(assetId, assetId, 0, finp2pContractAddress);
         logger.info(`Associating asset ${assetId} with token ${erc20Address}`);
-        const tokenStandard = ERC20_STANDARD_ID; // TODO: make it configurable
+        let tokenStandard = ERC20_STANDARD_ID;
+        if (identifier) {
+          const { type, value } = identifier;
+          if (type === 'CUSTOM' && value) {
+            tokenStandard = keccak256(toUtf8Bytes(value))
+          }
+        }
         const associateTxHash = await contract.associateAsset(assetId, tokenStandard, erc20Address);
         await contract.waitForCompletion(associateTxHash);
       } else {

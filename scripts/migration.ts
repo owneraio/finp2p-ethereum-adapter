@@ -7,6 +7,7 @@ import { EthereumTransactionError } from "../finp2p-contracts/src/contracts/mode
 import { ERC20Contract, OPERATOR_ROLE } from "../finp2p-contracts/src/contracts/erc20";
 import winston, { format, transports } from "winston";
 import { isEthereumAddress } from "../finp2p-contracts/src/contracts/utils";
+import { keccak256, toUtf8Bytes } from "ethers";
 
 const logger = winston.createLogger({
   level: 'info',
@@ -30,7 +31,7 @@ const startMigration = async (ossUrl: string, providerType: ProviderType, finp2p
 
   let migrated = 0;
   let skipped = 0;
-  for (const { assetId, tokenAddress } of assets) {
+  for (const { assetId, tokenAddress, identifier } of assets) {
     if (!isEthereumAddress(tokenAddress)) {
       logger.info(`Token address ${tokenAddress} for asset ${assetId} is not a valid Ethereum address, skipping`);
       continue
@@ -59,7 +60,13 @@ const startMigration = async (ossUrl: string, providerType: ProviderType, finp2p
 
     try {
       logger.info(`Migrating asset ${assetId} with token address ${tokenAddress}`);
-      const tokenStandard = ERC20_STANDARD_ID; // TODO: get from asset metadata if available
+      let tokenStandard = ERC20_STANDARD_ID;
+      if (identifier) {
+        const { type, value } = identifier;
+        if (type === 'CUSTOM' && value) {
+          tokenStandard = keccak256(toUtf8Bytes(value))
+        }
+      }
       const txHash = await finP2PContract.associateAsset(assetId, tokenStandard, tokenAddress);
       await finP2PContract.waitForCompletion(txHash)
       logger.info('       asset association [done]')

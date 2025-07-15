@@ -7,6 +7,7 @@ export type OssAsset = {
     code: string
   },
   issuerId: string,
+  assetIdentifier: AssetIdentifier,
   config: string,
   allowedIntents: string[],
   regulationVerifiers: {
@@ -90,6 +91,11 @@ export type ProofPolicy = {
   verifyingKey: string,
   signatureTemplate: string,
   domain: ProofDomain | null
+}
+
+export type AssetIdentifier = {
+  type: 'CMU' | 'CUSIP' | 'CUSTOM' | 'DTI' | 'FIGI' | 'ISIN' | 'SEDOL' | 'UNSPECIFIED',
+  value: string
 }
 
 export const parseProofDomain = (jsonString: string): ProofDomain | null => {

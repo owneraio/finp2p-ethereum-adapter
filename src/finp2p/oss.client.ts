@@ -5,7 +5,7 @@ import GET_ASSET from './graphql/asset.graphql';
 import GET_ALL_ASSETS from './graphql/all-assets.graphql';
 import GET_PAYMENT_ASSET from './graphql/paymentAsset.graphql';
 import * as axios from 'axios';
-import { OssAssetNodes, OssOwnerNodes } from "./model";
+import { AssetIdentifier, OssAssetNodes, OssOwnerNodes } from "./model";
 
 export class OssClient {
 
@@ -39,11 +39,11 @@ export class OssClient {
     return resp && resp.assets && resp.assets.nodes.length > 0 ? resp.assets.nodes[0] : undefined;
   }
 
-  async getAssetsWithTokens(): Promise<{assetId: string, tokenAddress: string}[]> {
+  async getAssetsWithTokens(): Promise<{assetId: string, tokenAddress: string, identifier: AssetIdentifier}[]> {
     const resp = await this.queryOss<OssAssetNodes>(GET_ALL_ASSETS, {});
     return resp.assets.nodes.
       filter(a => a.ledgerAssetInfo.tokenId.length > 0).
-      map(a => ({ assetId: a.id, tokenAddress: a.ledgerAssetInfo.tokenId}));
+      map(a => ({ assetId: a.id, tokenAddress: a.ledgerAssetInfo.tokenId, identifier: a.assetIdentifier}));
   }
 
   async queryOss<T>(queryDoc: DocumentNode, variables: Record<string, any>): Promise<T> {
