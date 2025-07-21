@@ -64,12 +64,12 @@ export class CommonService {
 
   public async balance(request: Paths.GetAssetBalanceInfo.RequestBody): Promise<Paths.GetAssetBalanceInfo.Responses.$200> {
     logger.debug("balance", { request });
-    const { asset, account: { account: { finId } } } = request;
+    const { asset, account: { finId } } = request;
     const { assetId } = assetFromAPI(asset);
     const balance = await this.finP2PContract.balance(assetId, finId);
     const truncated = truncateDecimals(balance, this.defaultDecimals);
     return {
-      account: { account: { type: "finId", finId } },
+      account: { type: "finId", finId },
       asset: request.asset,
       balanceInfo: {
         asset,
