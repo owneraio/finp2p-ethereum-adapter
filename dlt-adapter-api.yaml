@@ -48,6 +48,59 @@ paths:
           description: System error
           content: { }
 
+
+  /plan/proposal:
+    post:
+      tags:
+        - execution
+      summary: Approve a plan proposal plan
+      description: Request adapter approval or rejection to a proposal in an execution plan
+      operationId: executionPlanProposal
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/executionPlanProposalRequest'
+      responses:
+        '200':
+          description: successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApproveExecutionPlanResponse'
+        '400':
+          description: Invalid Input
+          content: { }
+        '500':
+          description: System error
+          content: { }
+
+  /plan/proposal/status:
+    post:
+      tags:
+        - execution
+      summary: Notify the adapter on the agreement status (Approve/Rejected) for a specific proposal
+      description: notify the adapter on proposal status
+      operationId: executionPlanProposalStatus
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/executionPlanProposalStatusRequest'
+      responses:
+        '200':
+          description: successful operation
+          content: { }
+        '204':
+          description: successful operation
+          content: { }
+        '400':
+          description: Invalid Input
+          content: { }
+        '500':
+          description: System error
+          content: { }
+
   /payments/depositInstruction:
     post:
       tags:
@@ -1495,17 +1548,12 @@ components:
           $ref: '#/components/schemas/balanceMarker'
 
     assetBalanceAccount:
-      type: object
-      required:
-        - account
-      properties:
-        account:
-          oneOf:
-            - $ref: '#/components/schemas/finIdAccount'
-          discriminator:
-            propertyName: type
-            mapping:
-              finId: '#/components/schemas/finIdAccount'
+      oneOf:
+        - $ref: '#/components/schemas/finIdAccount'
+      discriminator:
+        propertyName: type
+        mapping:
+          finId: '#/components/schemas/finIdAccount'
 
     balanceMarker:
       description: marker of balance to denote the balance as of marker
@@ -1569,21 +1617,41 @@ components:
         current:
           type: string
           format: '^-?\d+(\.\d+)?$'
-          description: current balance
+          description: The total amount currently in or owed by the account
         available:
           type: string
           format: '^-?\d+(\.\d+)?$'
-          description: available balance
+          description: The amount immediately usable from the account
         held:
           type: string
           format: '^-?\d+(\.\d+)?$'
-          description: held balance
+          description: The amount pending or on hold within the account
         receipts:
           description: list of receipt associated with the balance info
           type: array
           items:
             $ref: '#/components/schemas/receipt'
 
+    APIError:
+      type: object
+      required: [ code, message ]
+      properties:
+        code:
+          type: integer
+          description: |
+            Error code indicating the specific failure - for more information see [API Errors](./api-error-codes-reference).
+        message:
+          type: string
+          description: A descriptive message providing context about the error.
+    APIErrors:
+      type: object
+      required: [errors]
+      properties:
+        errors:
+          type: array
+          minLength: 1
+          items:
+            $ref: "#/components/schemas/APIError"
     ApproveExecutionPlanRequest:
       type: object
       required:
@@ -1601,6 +1669,61 @@ components:
     ApproveExecutionPlanResponse:
       allOf:
         - $ref: '#/components/schemas/ExecutionPlanApprovalOperation'
+
+    executionPlanProposalRequest:
+      type: object
+      required:
+        - executionPlan
+      properties:
+        executionPlan:
+          type: object
+          description: execution plan information
+          required: [ id, proposal ]
+          properties:
+            id:
+              type: string
+              description: execution plan id
+            proposal:
+              type: object
+              description: type of proposal payload
+              oneOf:
+                - $ref: '#/components/schemas/executionPlanCancellationProposal'
+              #                        - $ref: '#/components/schemas/executionPlanProposal'
+              #                        - $ref: '#/components/schemas/executionPlanInstructionProposal'
+              discriminator:
+                propertyName: proposalType
+                mapping:
+                  cancel: '#/components/schemas/executionPlanCancellationProposal'
+    #                          plan: '#/components/schemas/executionPlanProposal'
+    #                          instruction: '#/components/schemas/executionPlanInstructionProposal'
+
+    executionPlanProposalStatusRequest:
+      type: object
+      description: provides status update on the agreement reached for a specific proposal
+      required:  [ status, request ]
+      properties:
+        status:
+          type: string
+          enum: [ "approved", "rejected" ]
+        request:
+          allOf:
+            - $ref: '#/components/schemas/executionPlanProposalRequest'
+
+    executionPlanCancellationProposal:
+      type: object
+      required: [ proposalType ]
+      properties:
+        proposalType:
+          type: string
+          enum: [ 'cancel' ]
+
+    executionPlanProposal:
+      type: object
+      required: [ proposalType ]
+      properties:
+        proposalType:
+          type: string
+          enum: [ 'plan' ]
 
     ApiErrorClient4XX:
       type: object
@@ -1694,7 +1817,6 @@ components:
 
     PlanApprovalResponse:
       type: object
-      required: [ approval ]
       properties:
         approval:
           oneOf:
@@ -2021,7 +2143,7 @@ components:
 
     sortCodeDetails:
       type: object
-      required: [ type, code ]
+      required: [ type, code, accountNumber]
       properties:
         type:
           type: string
@@ -2030,6 +2152,8 @@ components:
           type: string
           description: sort code has XX-XX-XX format
           pattern: "^\\d{2}-\\d{2}-\\d{2}$"
+        accountNumber:
+          type: string
 
     assetName:
       type: string
