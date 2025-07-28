@@ -5,7 +5,7 @@ import {
   extractEIP712Params,
   failedAssetCreation,
   failedTransaction,
-  getRandomNumber, RequestParams, RequestValidationError
+  getRandomNumber, RequestParams
 } from "./mapping";
 import { assetTypeFromString, EthereumTransactionError, term } from "../../finp2p-contracts/src/contracts/model";
 import { logger } from "../helpers/logger";
@@ -14,6 +14,8 @@ import { isEthereumAddress } from "../../finp2p-contracts/src/contracts/utils";
 import { PolicyGetter } from "../finp2p/policy";
 import CreateAssetResponse = Components.Schemas.CreateAssetResponse;
 import LedgerTokenId = Components.Schemas.LedgerTokenId;
+import { ERC20_STANDARD_ID } from "../../finp2p-contracts/src/contracts/config";
+import { keccak256, toUtf8Bytes } from "ethers";
 
 export type AssetCreationPolicy = | { type: "deploy-new-token"; decimals: number } | {
   type: "reuse-existing-token";
@@ -31,7 +33,16 @@ export class TokenService extends CommonService {
   }
 
   public async createAsset(request: Paths.CreateAsset.RequestBody): Promise<Paths.CreateAsset.Responses.$200> {
-    const { assetId } = assetFromAPI(request.asset);
+    const { asset, assetIdentifier } = request;
+    const { assetId } = assetFromAPI(asset);
+    let tokenStandard = ERC20_STANDARD_ID;
+    if (assetIdentifier) {
+      const { assetIdentifierType: type, assetIdentifierValue: value } = assetIdentifier;
+      if (type === 'CUSTOM') {
+        tokenStandard = keccak256(toUtf8Bytes(value));
+      }
+    }
+
     try {
 
       if (request.ledgerAssetBinding) {
@@ -44,10 +55,9 @@ export class TokenService extends CommonService {
           } as CreateAssetResponse;
         }
 
-        const txHash = await this.finP2PContract.associateAsset(assetId, tokenAddress);
+        const txHash = await this.finP2PContract.associateAsset(assetId, tokenStandard, tokenAddress);
         await this.finP2PContract.waitForCompletion(txHash);
         return assetCreationResult(tokenAddress, tokenAddress, this.finP2PContract.finP2PContractAddress);
-
 
       } else {
 
@@ -72,8 +82,7 @@ export class TokenService extends CommonService {
               }
             } as CreateAssetResponse;
         }
-
-        const txHash = await this.finP2PContract.associateAsset(assetId, tokenAddress);
+        const txHash = await this.finP2PContract.associateAsset(assetId, tokenStandard, tokenAddress);
         await this.finP2PContract.waitForCompletion(txHash);
         return assetCreationResult(tokenId, tokenAddress, this.finP2PContract.finP2PContractAddress);
       }
