@@ -23,7 +23,7 @@ jobs:
 
       - name: Finp2p-Contracts npm install
         working-directory: ./finp2p-contracts
-        run: npm install
+        run: npm ci
 
       - name: Finp2p-Contracts npm run compile
         working-directory: ./finp2p-contracts
@@ -34,7 +34,7 @@ jobs:
         run: npm run test
 
       - name: Adapter npm install
-        run: npm install
+        run: npm ci
 
       - name: Adapter npm run build
         run: npm run build
