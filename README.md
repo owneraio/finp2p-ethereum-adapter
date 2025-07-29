@@ -16,7 +16,7 @@ The Adapter communicated with a FinP2P proxy contract on Ethereum network which 
 #### Install dependencies
 
 
-`npm install`
+`npm ci`
 
 #### Compile contracts and generate typescript bindings
 
