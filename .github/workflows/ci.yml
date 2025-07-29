@@ -21,9 +21,9 @@ jobs:
         with:
           node-version: '18.x'
 
-      - name: Finp2p-Contracts npm install
+      - name: Finp2p-Contracts npm clean-install
         working-directory: ./finp2p-contracts
-        run: npm ci
+        run: npm clean-install
 
       - name: Finp2p-Contracts npm run compile
         working-directory: ./finp2p-contracts
@@ -33,8 +33,8 @@ jobs:
         working-directory: ./finp2p-contracts
         run: npm run test
 
-      - name: Adapter npm install
-        run: npm ci
+      - name: Adapter npm clean-install
+        run: npm clean-install
 
       - name: Adapter npm run build
         run: npm run build
