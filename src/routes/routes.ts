@@ -15,14 +15,14 @@ export const register = (app: express.Application,
 ) => {
 
   // shouldn't it be /health/liveness?
-  app.get('/liveness',
+  app.get('/health/liveness',
     asyncMiddleware(async (req, res) => {
       await tokenService.liveness();
       res.send('OK');
     })
   );
 
-  app.get('/readiness',
+  app.get('/health/readiness',
     asyncMiddleware(async (req, res) => {
       await tokenService.readiness()
       return res.send('OK');
@@ -31,7 +31,6 @@ export const register = (app: express.Application,
 
   app.get('/health',
     asyncMiddleware(async (req, res) => {
-      await tokenService.health();
       res.send('OK');
     })
   );
