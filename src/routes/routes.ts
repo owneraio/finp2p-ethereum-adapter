@@ -14,7 +14,6 @@ export const register = (app: express.Application,
   planService: PlanService,
 ) => {
 
-  // shouldn't it be /health/liveness?
   app.get('/health/liveness',
     asyncMiddleware(async (req, res) => {
       await tokenService.liveness();
