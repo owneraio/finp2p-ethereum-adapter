@@ -50,6 +50,10 @@ export class CommonService {
     await this.finP2PContract.provider.getBlockNumber();
   }
 
+  public async health() {
+    await this.finP2PContract.provider.getNetwork();
+  }
+
   public async getBalance(request: Paths.GetAssetBalance.RequestBody): Promise<Paths.GetAssetBalance.Responses.$200> {
     logger.debug("getBalance", { request });
 

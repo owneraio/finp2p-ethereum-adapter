@@ -14,6 +14,7 @@ export const register = (app: express.Application,
   planService: PlanService,
 ) => {
 
+  // shouldn't it be /health/liveness?
   app.get('/liveness',
     asyncMiddleware(async (req, res) => {
       await tokenService.liveness();
@@ -25,6 +26,13 @@ export const register = (app: express.Application,
     asyncMiddleware(async (req, res) => {
       await tokenService.readiness()
       return res.send('OK');
+    })
+  );
+
+  app.get('/health',
+    asyncMiddleware(async (req, res) => {
+      await tokenService.health();
+      res.send('OK');
     })
   );
 
