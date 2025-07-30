@@ -3,7 +3,7 @@ import { expect } from "chai";
 // @ts-ignore
 import { ethers } from "hardhat";
 import { v4 as uuid } from "uuid";
-import { generateNonce, toFixedDecimals } from "./utils";
+import { generateNonce, toFixedDecimals, packAssetBalance } from "./utils";
 import { getFinId } from "../src/contracts/utils";
 import { Signer, Wallet } from "ethers";
 import {
@@ -195,10 +195,14 @@ describe("FinP2P proxy contract test", function() {
               const { from, to, signer } = extractInvestors(buyer, seller, leg, phase);
               const { assetId, assetType, amount } = extractAsset(asset, settlement, loan, primaryType, leg, phase);
 
-              expect(await contract.getBalance(assetId, from)).to.equal(`${(0).toFixed(decimals)}`);
+              expect(await contract.getAssetBalance(assetId, from)).to.deep.equal(
+                packAssetBalance({
+                  available: toFixedDecimals(0, decimals),
+                  held: toFixedDecimals(0, decimals),
+                  current: toFixedDecimals(0, decimals)
+                }))
               await expect(contract.issue(from, term(assetId, assetType, amount), { from: operator }))
                 .to.emit(contract, "Issue").withArgs(assetId, assetType, from, amount);
-              expect(await contract.getBalance(assetId, from)).to.equal(toFixedDecimals(amount, decimals));
 
               const nonce = `${generateNonce().toString("hex")}`;
               const {
@@ -209,11 +213,30 @@ describe("FinP2P proxy contract test", function() {
               await expect(contract.transfer(nonce, seller.finId, buyer.finId, asset, settlement, loan, operationParams(leg, primaryType, phase), signature, { from: operator }))
                 .to.emit(contract, "Transfer").withArgs(assetId, assetType, from, to, amount);
 
-              expect(await contract.getBalance(assetId, from)).to.equal(`${(0).toFixed(decimals)}`);
-              expect(await contract.getBalance(assetId, to)).to.equal(toFixedDecimals(amount, decimals));
+              expect(await contract.getAssetBalance(assetId, from)).to.deep.equal(
+                packAssetBalance({
+                  available: toFixedDecimals(0, decimals),
+                  held: toFixedDecimals(0, decimals),
+                  current: toFixedDecimals(0, decimals)
+                })
+              )
+
+              expect(await contract.getAssetBalance(assetId, to)).to.deep.equal(
+                packAssetBalance({
+                  available: toFixedDecimals(amount, decimals),
+                  held: toFixedDecimals(0, decimals),
+                  current: toFixedDecimals(amount, decimals)
+                })
+              )
 
               await contract.redeem(to, term(assetId, assetType, amount), { from: operator });
-              expect(await contract.getBalance(assetId, to)).to.equal(`${(0).toFixed(decimals)}`);
+              expect(await contract.getAssetBalance(assetId, to)).to.deep.equal(
+                packAssetBalance({
+                  available: toFixedDecimals(0, decimals),
+                  held: toFixedDecimals(0, decimals),
+                  current: toFixedDecimals(0, decimals)
+                })
+              )
             });
 
             it(`hold/release operations (asset: ${asset}, settlement ${settlement}, primaryType: ${primaryType}, leg: ${leg}, phase: ${phase},decimals: ${decimals})`, async () => {
@@ -222,10 +245,22 @@ describe("FinP2P proxy contract test", function() {
               const { from, to, signer } = extractInvestors(buyer, seller, leg, phase);
               const { assetId, assetType, amount } = extractAsset(asset, settlement, loan, primaryType, leg, phase);
 
-              expect(await contract.getBalance(assetId, from)).to.equal(`${(0).toFixed(decimals)}`);
+              expect(await contract.getAssetBalance(assetId, from)).to.deep.equal(
+                packAssetBalance({
+                  available: toFixedDecimals(0, decimals),
+                  held: toFixedDecimals(0, decimals),
+                  current: toFixedDecimals(0, decimals)
+                })
+              )
               await expect(contract.issue(from, term(assetId, assetType, amount), { from: operator }))
                 .to.emit(contract, "Issue").withArgs(assetId, assetType, from, amount);
-              expect(await contract.getBalance(assetId, from)).to.equal(toFixedDecimals(amount, decimals));
+              expect(await contract.getAssetBalance(assetId, from)).to.deep.equal(
+                packAssetBalance({
+                  available: toFixedDecimals(amount, decimals),
+                  held: toFixedDecimals(0, decimals),
+                  current: toFixedDecimals(amount, decimals)
+                })
+              )
 
               const operationId = uuid();
               const nonce = `${generateNonce().toString("hex")}`;
@@ -237,7 +272,13 @@ describe("FinP2P proxy contract test", function() {
               await expect(contract.hold(nonce, seller.finId, buyer.finId, asset, settlement, loan, operationParams(leg, primaryType, phase, operationId, ReleaseType.Release), signature, { from: operator }))
                 .to.emit(contract, "Hold").withArgs(assetId, assetType, from, amount, operationId);
 
-              expect(await contract.getBalance(assetId, from)).to.equal(`${(0).toFixed(decimals)}`);
+              expect(await contract.getAssetBalance(assetId, from)).to.deep.equal(
+                packAssetBalance({
+                  available: toFixedDecimals(0, decimals),
+                  held: toFixedDecimals(amount, decimals),
+                  current: toFixedDecimals(amount, decimals)
+                })
+              )
               const lock = await contract.getLockInfo(operationId);
               expect(lock[0]).to.equal(assetId);
               expect(lock[1]).to.equal(assetType);
@@ -248,8 +289,20 @@ describe("FinP2P proxy contract test", function() {
               await expect(contract.releaseTo(operationId, to, amount, { from: operator }))
                 .to.emit(contract, "Release").withArgs(assetId, assetType, from, to, amount, operationId);
 
-              expect(await contract.getBalance(assetId, from)).to.equal(`${(0).toFixed(decimals)}`);
-              expect(await contract.getBalance(assetId, to)).to.equal(toFixedDecimals(amount, decimals));
+              expect(await contract.getAssetBalance(assetId, from)).to.deep.equal(
+                packAssetBalance({
+                  available: toFixedDecimals(0, decimals),
+                  held: toFixedDecimals(0, decimals),
+                  current: toFixedDecimals(0, decimals)
+                })
+              )
+              expect(await contract.getAssetBalance(assetId, to)).to.deep.equal(
+                packAssetBalance({
+                  available: toFixedDecimals(amount, decimals),
+                  held: toFixedDecimals(0, decimals),
+                  current: toFixedDecimals(amount, decimals)
+                })
+              )
               await expect(contract.getLockInfo(operationId)).to.be.revertedWith("Contract not found"); // TODO update chai
 
             });
@@ -290,11 +343,22 @@ describe("FinP2P proxy contract test", function() {
                   throw new Error("Invalid leg");
               }
 
-
-              expect(await contract.getBalance(assetId, from)).to.equal(`${(0).toFixed(decimals)}`);
+              expect(await contract.getAssetBalance(assetId, from)).to.deep.equal(
+                packAssetBalance({
+                  available: toFixedDecimals(0, decimals),
+                  held: toFixedDecimals(0, decimals),
+                  current: toFixedDecimals(0, decimals)
+                })
+              )
               await expect(contract.issue(from, term(assetId, assetType, amount), { from: operator }))
                 .to.emit(contract, "Issue").withArgs(assetId, assetType, from, amount);
-              expect(await contract.getBalance(assetId, from)).to.equal(toFixedDecimals(amount, decimals));
+              expect(await contract.getAssetBalance(assetId, from)).to.deep.equal(
+                packAssetBalance({
+                  available: toFixedDecimals(amount, decimals),
+                  held: toFixedDecimals(0, decimals),
+                  current: toFixedDecimals(amount, decimals)
+                })
+              )
 
               const operationId = uuid();
               const nonce = `${generateNonce().toString("hex")}`;
@@ -307,7 +371,13 @@ describe("FinP2P proxy contract test", function() {
                 operationParams(leg, primaryType, Phase.Initiate, operationId, ReleaseType.Release), signature, { from: operator }))
                 .to.emit(contract, "Hold").withArgs(assetId, assetType, from, amount, operationId);
 
-              expect(await contract.getBalance(assetId, from)).to.equal(`${(0).toFixed(decimals)}`);
+              expect(await contract.getAssetBalance(assetId, from)).to.deep.equal(
+                packAssetBalance({
+                  available: toFixedDecimals(0, decimals),
+                  held: toFixedDecimals(amount, decimals),
+                  current: toFixedDecimals(amount, decimals)
+                })
+              )
               const lock = await contract.getLockInfo(operationId);
               expect(lock[0]).to.equal(assetId);
               expect(lock[1]).to.equal(assetType);
@@ -318,8 +388,20 @@ describe("FinP2P proxy contract test", function() {
               await expect(contract.releaseBack(operationId, { from: operator }))
                 .to.emit(contract, "Release").withArgs(assetId, assetType, from, "", amount, operationId);
 
-              expect(await contract.getBalance(assetId, from)).to.equal(toFixedDecimals(amount, decimals));
-              expect(await contract.getBalance(assetId, to)).to.equal(`${(0).toFixed(decimals)}`);
+              expect(await contract.getAssetBalance(assetId, from)).to.deep.equal(
+                packAssetBalance({
+                  available: toFixedDecimals(amount, decimals),
+                  held: toFixedDecimals(0, decimals),
+                  current: toFixedDecimals(amount, decimals)
+                })
+              )
+              expect(await contract.getAssetBalance(assetId, to)).to.deep.equal(
+                packAssetBalance({
+                  available: toFixedDecimals(0, decimals),
+                  held: toFixedDecimals(0, decimals),
+                  current: toFixedDecimals(0, decimals)
+                })
+              )
               await expect(contract.getLockInfo(operationId)).to.be.revertedWith("Contract not found"); // TODO update chai
             });
 
@@ -353,10 +435,22 @@ describe("FinP2P proxy contract test", function() {
 
               // ----------------------------------------------------------
 
-              expect(await contract.getBalance(assetId, investorFinId)).to.equal(`${(0).toFixed(decimals)}`);
+              expect(await contract.getAssetBalance(assetId, investorFinId)).to.deep.equal(
+                packAssetBalance({
+                  available: toFixedDecimals(0, decimals),
+                  held: toFixedDecimals(0, decimals),
+                  current: toFixedDecimals(0, decimals)
+                })
+              )
               await expect(contract.issue(investorFinId, term(assetId, assetType, amount), { from: operator }))
                 .to.emit(contract, "Issue").withArgs(assetId, assetType, investorFinId, amount);
-              expect(await contract.getBalance(assetId, investorFinId)).to.equal(toFixedDecimals(amount, decimals));
+              expect(await contract.getAssetBalance(assetId, investorFinId)).to.deep.equal(
+                packAssetBalance({
+                  available: toFixedDecimals(amount, decimals),
+                  held: toFixedDecimals(0, decimals),
+                  current: toFixedDecimals(amount, decimals)
+                })
+              )
 
               // -----------------------------
 
@@ -376,13 +470,25 @@ describe("FinP2P proxy contract test", function() {
               expect(lock[2]).to.equal(investorFinId);
               expect(lock[3]).to.equal("");
               expect(lock[4]).to.equal(amount);
-              expect(await contract.getBalance(assetId, investorFinId)).to.equal(`${(0).toFixed(decimals)}`);
+              expect(await contract.getAssetBalance(assetId, investorFinId)).to.deep.equal(
+                packAssetBalance({
+                  available: toFixedDecimals(0, decimals),
+                  held: toFixedDecimals(amount, decimals),
+                  current: toFixedDecimals(amount, decimals)
+                })
+              )
 
               // -----------------------------
               await expect(contract.releaseAndRedeem(operationId, investorFinId, amount, { from: operator }))
                 .to.emit(contract, "Redeem").withArgs(assetId, assetType, investorFinId, amount, operationId);
 
-              expect(await contract.getBalance(assetId, investorFinId)).to.equal(`${(0).toFixed(decimals)}`);
+              expect(await contract.getAssetBalance(assetId, investorFinId)).to.deep.equal(
+                packAssetBalance({
+                  available: toFixedDecimals(0, decimals),
+                  held: toFixedDecimals(0, decimals),
+                  current: toFixedDecimals(0, decimals)
+                })
+              )
               await expect(contract.getLockInfo(operationId)).to.be.revertedWith("Contract not found");
             });
           });

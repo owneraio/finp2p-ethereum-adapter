@@ -1,6 +1,5 @@
 import { ClientBase } from "./base";
 
-
 export class APIClient {
 
   public readonly tokens: TokensAPI;
@@ -23,11 +22,11 @@ export class APIClient {
     }
   };
 
-  async expectBalance(owner: Components.Schemas.Source, asset: Components.Schemas.Asset, amount: number) {
-    const balance = await this.common.balance({ asset: asset, owner: owner });
-    expect(parseInt(balance.balance)).toBe(amount);
-  };
-
+  async expectAssetBalance(owner: Components.Schemas.Source, asset: Components.Schemas.Asset, balances: { held: number, available: number }) {
+    const balance = await this.common.balance({ asset, account: owner.account })
+    expect(parseInt(balance.balanceInfo?.held ?? "0")).toBe(balances.held)
+    expect(parseInt(balance.balanceInfo?.available ?? "0")).toBe(balances.available)
+  }
 }
 
 export class TokensAPI extends ClientBase {
@@ -103,8 +102,12 @@ export class CommonAPI extends ClientBase {
     return await this.get(`/operations/status/${id}`);
   }
 
-  public async balance(req: Paths.GetAssetBalance.RequestBody): Promise<Paths.GetAssetBalance.Responses.$200> {
+  public async getBalance(req: Paths.GetAssetBalance.RequestBody): Promise<Paths.GetAssetBalance.Responses.$200> {
     return await this.post("/assets/getBalance", req);
+  }
+
+  public async balance(req: Paths.GetAssetBalanceInfo.RequestBody): Promise<Paths.GetAssetBalanceInfo.Responses.$200> {
+    return await this.post("/asset/balance", req)
   }
 
   public async waitForReceipt(id: string, tries: number = 30): Promise<Components.Schemas.Receipt> {

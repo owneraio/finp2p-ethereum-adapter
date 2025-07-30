@@ -7,7 +7,7 @@ import {
   failedOperation,
   FinP2PReceipt, LockInfo, OperationParams,
   OperationStatus,
-  pendingOperation, Term
+  pendingOperation, Term, AssetBalance
 } from "./model";
 import { parseTransactionReceipt } from "./utils";
 import { ContractsManager } from "./manager";
@@ -26,6 +26,7 @@ export class FinP2PContract extends ContractsManager {
   finP2P: FINP2POperatorERC20;
 
   finP2PContractAddress: string;
+
 
   constructor(provider: Provider, signer: Signer, finP2PContractAddress: string, logger: winston.Logger) {
     super(provider, signer, logger);
@@ -112,8 +113,8 @@ export class FinP2PContract extends ContractsManager {
     });
   }
 
-  async balance(assetId: string, finId: string) {
-    return this.finP2P.getBalance(assetId, finId);
+  async assetBalance(assetId: string, finId: string): Promise<AssetBalance> {
+    return this.finP2P.getAssetBalance(assetId, finId)
   }
 
   async hasRole(role: string, address: string) {
@@ -172,5 +173,4 @@ export class FinP2PContract extends ContractsManager {
       amount: info[4]
     };
   }
-
 }

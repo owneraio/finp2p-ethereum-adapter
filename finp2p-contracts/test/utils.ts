@@ -1,10 +1,17 @@
 import * as secp256k1 from "secp256k1";
 import * as crypto from "crypto";
 import createKeccakHash from "keccak";
+import { AssetBalance } from "../src/contracts/model"
 
+export const toFixedDecimals = (value: string | number, decimals: number): string => {
+  let strValue: string;
+  if (typeof value === 'string') {
+    strValue = value
+  } else {
+    strValue = value.toFixed(decimals)
+  }
 
-export const toFixedDecimals = (value: string, decimals: number): string => {
-  const [integer, fraction = ""] = value.split(".");
+  const [integer, fraction = ""] = strValue.split(".");
   const paddedFraction = fraction.padEnd(decimals, "0").slice(0, decimals);
   if (decimals === 0) {
     return integer;
@@ -50,3 +57,6 @@ export const sign = (privateKey: string, payload: Buffer): Buffer => {
   return Buffer.from(sigObj.signature);
 };
 
+export const packAssetBalance = (value: AssetBalance): [string, string, string] => ([
+  value.available, value.held, value.current
+])

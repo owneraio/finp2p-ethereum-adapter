@@ -43,7 +43,7 @@ const syncBalanceFromOssToEthereum = async (ossUrl: string, providerType: Provid
 
     const owners = await ossClient.getOwnerBalances(assetId);
     for (const { finId, balance: expectedBalance } of owners) {
-      const actualBalance = await contract.balance(assetId, finId);
+      const actualBalance = (await contract.assetBalance(assetId, finId)).available;
       const balance = parseFloat(expectedBalance) - parseFloat(actualBalance);
       if (balance > 0) {
 
