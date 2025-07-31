@@ -238,6 +238,7 @@ describe("FinP2P proxy contract test", function() {
                 .to.emit(contract, "Hold").withArgs(assetId, assetType, from, amount, operationId);
 
               expect(await contract.getBalance(assetId, from)).to.equal(`${(0).toFixed(decimals)}`);
+              expect(await contract.getHeldBalance(assetId, from)).to.equal(toFixedDecimals(amount, decimals));
               const lock = await contract.getLockInfo(operationId);
               expect(lock[0]).to.equal(assetId);
               expect(lock[1]).to.equal(assetType);
@@ -249,7 +250,9 @@ describe("FinP2P proxy contract test", function() {
                 .to.emit(contract, "Release").withArgs(assetId, assetType, from, to, amount, operationId);
 
               expect(await contract.getBalance(assetId, from)).to.equal(`${(0).toFixed(decimals)}`);
+              expect(await contract.getHeldBalance(assetId, from)).to.equal(`${(0).toFixed(decimals)}`);
               expect(await contract.getBalance(assetId, to)).to.equal(toFixedDecimals(amount, decimals));
+              expect(await contract.getHeldBalance(assetId, to)).to.equal(`${(0).toFixed(decimals)}`);
               await expect(contract.getLockInfo(operationId)).to.be.revertedWith("Contract not found"); // TODO update chai
 
             });
@@ -308,6 +311,7 @@ describe("FinP2P proxy contract test", function() {
                 .to.emit(contract, "Hold").withArgs(assetId, assetType, from, amount, operationId);
 
               expect(await contract.getBalance(assetId, from)).to.equal(`${(0).toFixed(decimals)}`);
+              expect(await contract.getHeldBalance(assetId, from)).to.equal(toFixedDecimals(amount, decimals));
               const lock = await contract.getLockInfo(operationId);
               expect(lock[0]).to.equal(assetId);
               expect(lock[1]).to.equal(assetType);
@@ -319,6 +323,7 @@ describe("FinP2P proxy contract test", function() {
                 .to.emit(contract, "Release").withArgs(assetId, assetType, from, "", amount, operationId);
 
               expect(await contract.getBalance(assetId, from)).to.equal(toFixedDecimals(amount, decimals));
+              expect(await contract.getHeldBalance(assetId, from)).to.equal(`${(0).toFixed(decimals)}`);
               expect(await contract.getBalance(assetId, to)).to.equal(`${(0).toFixed(decimals)}`);
               await expect(contract.getLockInfo(operationId)).to.be.revertedWith("Contract not found"); // TODO update chai
             });
