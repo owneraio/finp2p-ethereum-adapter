@@ -397,8 +397,11 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
       if (opcode == HoldOpCode.INCREMENT) {
         helds[assetId].amountForFinId[finId] = currentHeld + changeAmount;
       } else {
-        require(currentHeld >= changeAmount, "Current held amount is less then release: run migration tool");
-        helds[assetId].amountForFinId[finId] = currentHeld - changeAmount;
+        if (currentHeld >= changeAmount) {
+          helds[assetId].amountForFinId[finId] = currentHeld - changeAmount;
+        } else {
+          helds[assetId].amountForFinId[finId] = 0;
+        }
       }
     }
 
