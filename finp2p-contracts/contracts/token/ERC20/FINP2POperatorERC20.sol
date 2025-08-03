@@ -304,7 +304,7 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
         ), "Signature is not verified");
 
         _transfer(source.toAddress(), _getEscrow(), assetId, amount);
-        _changeHold(assetId, source, amount, HoldOpCode.INCREMENT);
+        _changeHold(assetId, source, amount, ChangeHoldOpCode.INCREMENT);
         if (op.releaseType == ReleaseType.RELEASE) {
             locks[op.operationId] = Lock(assetId, assetType, source, destination, amount);
         } else if (op.releaseType == ReleaseType.REDEEM) {
@@ -331,7 +331,7 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
         require(lock.destination.equals(toFinId), "Trying to release to different destination than the one expected in the lock");
 
         _transfer(_getEscrow(), toFinId.toAddress(), lock.assetId, lock.amount);
-        _changeHold(lock.assetId, lock.source, lock.amount, HoldOpCode.DECREMENT);
+        _changeHold(lock.assetId, lock.source, lock.amount, ChangeHoldOpCode.DECREMENT);
 
         emit Release(lock.assetId, lock.assetType, lock.source, lock.destination, quantity, operationId);
         delete locks[operationId];
@@ -353,7 +353,7 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
         require(bytes(lock.destination).length == 0, "Trying to redeem asset with non-empty destination");
         require(lock.amount.equals(quantity), "Trying to redeem amount different from the one held");
         _burn(_getEscrow(), lock.assetId, lock.amount);
-        _changeHold(lock.assetId, lock.source, lock.amount, HoldOpCode.DECREMENT);
+        _changeHold(lock.assetId, lock.source, lock.amount, ChangeHoldOpCode.DECREMENT);
         emit Redeem(lock.assetId, lock.assetType, ownerFinId, quantity, operationId);
         delete locks[operationId];
     }
@@ -367,7 +367,7 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
         require(_haveContract(operationId), "contract does not exists");
         Lock storage lock = locks[operationId];
         _transfer(_getEscrow(), lock.source.toAddress(), lock.assetId, lock.amount);
-        _changeHold(lock.assetId, lock.source, lock.amount, HoldOpCode.DECREMENT);
+        _changeHold(lock.assetId, lock.source, lock.amount, ChangeHoldOpCode.DECREMENT);
         emit Release(lock.assetId, lock.assetType, lock.source, "", lock.amount, operationId);
         delete locks[operationId];
     }
@@ -383,18 +383,18 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
 
     // ------------------------------------------------------------------------------------------
 
-    enum HoldOpCode {
+    enum ChangeHoldOpCode {
       INCREMENT,
       DECREMENT
     }
 
-    function _changeHold(string memory assetId, string memory finId, string memory amount, HoldOpCode opcode) internal {
+    function _changeHold(string memory assetId, string memory finId, string memory amount, ChangeHoldOpCode opcode) internal {
       Asset memory asset = assets[assetId];
       uint8 tokenDecimals = IERC20Metadata(asset.tokenAddress).decimals();
       uint256 currentHeld = helds[assetId].amountForFinId[finId];
       uint256 changeAmount = amount.stringToUint(tokenDecimals);
 
-      if (opcode == HoldOpCode.INCREMENT) {
+      if (opcode == ChangeHoldOpCode.INCREMENT) {
         helds[assetId].amountForFinId[finId] = currentHeld + changeAmount;
       } else {
         if (currentHeld >= changeAmount) {
