@@ -15,6 +15,7 @@ import { EIP712Domain, EIP712LoanTerms } from "./eip712";
 import winston from "winston";
 import { FINP2POperatorERC20Interface } from "../../typechain-types/contracts/token/ERC20/FINP2POperatorERC20";
 import { PayableOverrides } from "../../typechain-types/common";
+import semver from "semver"
 
 
 const ETH_COMPLETED_TRANSACTION_STATUS = 1;
@@ -27,6 +28,8 @@ export class FinP2PContract extends ContractsManager {
 
   finP2PContractAddress: string;
 
+  private _canUseGetAssetBalance: Promise<boolean>;
+
   constructor(provider: Provider, signer: Signer, finP2PContractAddress: string, logger: winston.Logger) {
     super(provider, signer, logger);
     const factory = new ContractFactory<any[], FINP2POperatorERC20>(
@@ -36,6 +39,7 @@ export class FinP2PContract extends ContractsManager {
     this.contractInterface = contract.interface as FINP2POperatorERC20Interface;
     this.finP2P = contract as FINP2POperatorERC20;
     this.finP2PContractAddress = finP2PContractAddress;
+    this._canUseGetAssetBalance = this.finP2P.getVersion().then(version => semver.gte(version, "0.25.0"))
   }
 
   async getVersion() {
@@ -118,7 +122,8 @@ export class FinP2PContract extends ContractsManager {
   }
 
   async assetBalance(assetId: string, finId: string): Promise<{ available: string, held: string }> {
-    return this.finP2P.getAssetBalance(assetId, finId)
+    const canUseGetAssetBalance = await this._canUseGetAssetBalance;
+    return canUseGetAssetBalance ? this.finP2P.getAssetBalance(assetId, finId) : ({ available: await this.balance(assetId, finId), held: "0"})
   }
 
   async hasRole(role: string, address: string) {
@@ -177,5 +182,4 @@ export class FinP2PContract extends ContractsManager {
       amount: info[4]
     };
   }
-
 }
