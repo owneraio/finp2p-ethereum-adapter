@@ -66,17 +66,16 @@ export class CommonService {
     logger.debug("balance", { request });
     const { asset, account: { finId } } = request;
     const { assetId } = assetFromAPI(asset);
-    const balance = await this.finP2PContract.balance(assetId, finId);
-    const held = await this.finP2PContract.held(assetId, finId);
-    const truncatedBalance = truncateDecimals(balance, this.defaultDecimals);
-    const truncatedHeld = truncateDecimals(held, this.defaultDecimals);
+    const assetBalance = await this.finP2PContract.assetBalance(assetId, finId);
+    const truncatedAvailable = truncateDecimals(assetBalance.available, this.defaultDecimals);
+    const truncatedHeld = truncateDecimals(assetBalance.held, this.defaultDecimals);
     return {
       account: { type: "finId", finId },
       asset: request.asset,
       balanceInfo: {
         asset,
-        current: (Number(truncatedBalance) + Number(truncatedHeld)).toFixed(this.defaultDecimals),
-        available: truncatedBalance,
+        current: (Number(truncatedAvailable) + Number(truncatedHeld)).toFixed(this.defaultDecimals),
+        available: truncatedAvailable,
         held: truncatedHeld
       }
     } as Components.Schemas.AssetBalanceInfoResponse;

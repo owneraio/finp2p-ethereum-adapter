@@ -174,34 +174,40 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
         return asset.tokenAddress;
     }
 
+    struct AssetBalance {
+      string available;
+      string held;
+    }
+
     /// @notice Get the balance of an asset for a FinID
     /// @param assetId The asset id
     /// @param finId The FinID
-    /// @return The balance of the asset
-    function getBalance(
+    /// @return The available balance of the asset for FinID and how much is held in escrow
+    function getAssetBalance(
         string calldata assetId,
         string calldata finId
-    ) external view returns (string memory) {
+    ) external view returns (AssetBalance memory) {
         require(_haveAsset(assetId), "Asset not found");
         address addr = finId.toAddress();
         Asset memory asset = assets[assetId];
         uint8 tokenDecimals = IERC20Metadata(asset.tokenAddress).decimals();
         uint256 tokenBalance = IERC20(asset.tokenAddress).balanceOf(addr);
-        return tokenBalance.uintToString(tokenDecimals);
+        uint256 heldBalance = helds[assetId].amountForFinId[finId];
+        return AssetBalance(
+          tokenBalance.uintToString(tokenDecimals),
+          heldBalance.uintToString(tokenDecimals)
+        );
     }
 
-    function getHeldBalance(
+    /// @notice Deprecated, exists for ABI compatibility, use getAssetBalance
+    /// @param assetId The asset id
+    /// @param finId The FinID
+    function getBalance(
       string calldata assetId,
       string calldata finId
     ) external view returns (string memory) {
-        require(_haveAsset(assetId), "Asset not found");
-        address addr = finId.toAddress();
-        Asset memory asset = assets[assetId];
-        uint8 tokenDecimals = IERC20Metadata(asset.tokenAddress).decimals();
-        uint256 heldBalance = helds[assetId].amountForFinId[finId];
-        return heldBalance.uintToString(tokenDecimals);
+      return this.getAssetBalance(assetId, finId).available;
     }
-
 
     /// @notice Issue asset to the issuer
     /// @param issuerFinId The FinID of the issuer

@@ -112,12 +112,13 @@ export class FinP2PContract extends ContractsManager {
     });
   }
 
+  /// @deprecated use `assetBalance` method
   async balance(assetId: string, finId: string) {
     return this.finP2P.getBalance(assetId, finId);
   }
 
-  async held(assetId: string, finId: string) {
-    return this.finP2P.getHeldBalance(assetId, finId)
+  async assetBalance(assetId: string, finId: string): Promise<{ available: string, held: string }> {
+    return this.finP2P.getAssetBalance(assetId, finId)
   }
 
   async hasRole(role: string, address: string) {

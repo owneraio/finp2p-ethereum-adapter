@@ -50,3 +50,6 @@ export const sign = (privateKey: string, payload: Buffer): Buffer => {
   return Buffer.from(sigObj.signature);
 };
 
+export const packAssetBalance = (value: { available: string, held: string }): [string, string] => ([
+  value.available, value.held
+])
