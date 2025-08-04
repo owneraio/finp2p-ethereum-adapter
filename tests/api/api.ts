@@ -24,8 +24,13 @@ export class APIClient {
   };
 
   async expectBalance(owner: Components.Schemas.Source, asset: Components.Schemas.Asset, amount: number) {
-    const balance = await this.common.balance({ asset: asset, owner: owner });
+    const balance = await this.common.getBalance({ asset: asset, owner: owner });
     expect(parseInt(balance.balance)).toBe(amount);
+  };
+
+  async expectHeldBalance(owner: Components.Schemas.Source, asset: Components.Schemas.Asset, amount: number) {
+    const balance = await this.common.balance({ asset: asset, account: owner.account })
+    expect(parseInt(balance.balanceInfo?.held ?? "0")).toBe(amount);
   };
 
 }
@@ -103,8 +108,12 @@ export class CommonAPI extends ClientBase {
     return await this.get(`/operations/status/${id}`);
   }
 
-  public async balance(req: Paths.GetAssetBalance.RequestBody): Promise<Paths.GetAssetBalance.Responses.$200> {
+  public async getBalance(req: Paths.GetAssetBalance.RequestBody): Promise<Paths.GetAssetBalance.Responses.$200> {
     return await this.post("/assets/getBalance", req);
+  }
+
+  public async balance(req: Paths.GetAssetBalanceInfo.RequestBody): Promise<Paths.GetAssetBalanceInfo.Responses.$200> {
+    return await this.post("/asset/balance", req)
   }
 
   public async waitForReceipt(id: string, tries: number = 30): Promise<Components.Schemas.Receipt> {
