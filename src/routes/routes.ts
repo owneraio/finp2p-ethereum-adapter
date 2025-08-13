@@ -14,14 +14,14 @@ export const register = (app: express.Application,
   planService: PlanService,
 ) => {
 
-  app.get('/health/liveness',
+  app.get('/liveness',
     asyncMiddleware(async (req, res) => {
       await tokenService.liveness();
       res.send('OK');
     })
   );
 
-  app.get('/health/readiness',
+  app.get('/readiness',
     asyncMiddleware(async (req, res) => {
       await tokenService.readiness()
       return res.send('OK');
