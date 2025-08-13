@@ -6,7 +6,7 @@ FROM base AS prebuild
 
 COPY finp2p-contracts ./finp2p-contracts
 WORKDIR /usr/app/finp2p-contracts
-RUN npm install
+RUN npm clean-install
 RUN npm run compile
 
 # ------------------------
