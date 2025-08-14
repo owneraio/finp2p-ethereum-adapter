@@ -393,6 +393,16 @@ export const extractEIP712Params = (request: RequestParams): EIP712Params => {
         params: operationParams(leg, eip712PrimaryType, phase, operationId, ReleaseType.Release)
       };
     }
+    case "PrivateOffer": {
+      return {
+        buyerFinId: finIdFromAPI(template.message.buyer as EIP712TypeObject),
+        sellerFinId: finIdFromAPI(template.message.seller as EIP712TypeObject),
+        asset: termFromAPI(template.message.asset as EIP712TypeObject),
+        settlement: termFromAPI(template.message.settlement as EIP712TypeObject),
+        loan: emptyLoanTerms(),
+        params: operationParams(leg, eip712PrimaryType, Phase.Initiate, operationId, ReleaseType.Release)
+      };
+    }
     default:
       throw new Error(`Unsupported signature template primary type: ${template.primaryType}`);
   }
