@@ -108,14 +108,10 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
         string amount;
     }
 
-    struct HeldAsset {
-      mapping(string => uint256) amountForFinId;
-    }
-
     address private escrowWalletAddress;
     mapping(string => Asset) private assets;
     mapping(string => Lock) private locks;
-    mapping(string => HeldAsset) private helds;
+    mapping(string => string[]) private finIdLocks;
 
     constructor() {
         _grantRole(DEFAULT_ADMIN_ROLE, _msgSender());
@@ -193,7 +189,17 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
         Asset memory asset = assets[assetId];
         uint8 tokenDecimals = IERC20Metadata(asset.tokenAddress).decimals();
         uint256 tokenBalance = IERC20(asset.tokenAddress).balanceOf(addr);
-        uint256 heldBalance = helds[assetId].amountForFinId[finId];
+        uint256 heldBalance = 0;
+
+        string[] storage operationIds = finIdLocks[finId];
+        for (uint256 i = 0; i < operationIds.length; i++) {
+          string storage opId = operationIds[i];
+          Lock storage l = locks[opId];
+          if (l.assetId.equals(assetId)) {
+            heldBalance += l.amount.stringToUint(tokenDecimals);
+          }
+        }
+
         return AssetBalance(
           tokenBalance.uintToString(tokenDecimals),
           heldBalance.uintToString(tokenDecimals),
@@ -302,7 +308,7 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
         ), "Signature is not verified");
 
         _transfer(source.toAddress(), _getEscrow(), assetId, amount);
-        _changeHold(assetId, source, amount, ChangeHoldOpCode.INCREMENT);
+        _addFinIdLockInfo(source, op.operationId);
         if (op.releaseType == ReleaseType.RELEASE) {
             locks[op.operationId] = Lock(assetId, assetType, source, destination, amount);
         } else if (op.releaseType == ReleaseType.REDEEM) {
@@ -329,7 +335,7 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
         require(lock.destination.equals(toFinId), "Trying to release to different destination than the one expected in the lock");
 
         _transfer(_getEscrow(), toFinId.toAddress(), lock.assetId, lock.amount);
-        _changeHold(lock.assetId, lock.source, lock.amount, ChangeHoldOpCode.DECREMENT);
+        _removeFinIdLockInfo(toFinId, operationId);
 
         emit Release(lock.assetId, lock.assetType, lock.source, lock.destination, quantity, operationId);
         delete locks[operationId];
@@ -351,7 +357,7 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
         require(bytes(lock.destination).length == 0, "Trying to redeem asset with non-empty destination");
         require(lock.amount.equals(quantity), "Trying to redeem amount different from the one held");
         _burn(_getEscrow(), lock.assetId, lock.amount);
-        _changeHold(lock.assetId, lock.source, lock.amount, ChangeHoldOpCode.DECREMENT);
+        _removeFinIdLockInfo(lock.source, operationId);
         emit Redeem(lock.assetId, lock.assetType, ownerFinId, quantity, operationId);
         delete locks[operationId];
     }
@@ -365,7 +371,7 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
         require(_haveContract(operationId), "contract does not exists");
         Lock storage lock = locks[operationId];
         _transfer(_getEscrow(), lock.source.toAddress(), lock.assetId, lock.amount);
-        _changeHold(lock.assetId, lock.source, lock.amount, ChangeHoldOpCode.DECREMENT);
+        _removeFinIdLockInfo(lock.source, operationId);
         emit Release(lock.assetId, lock.assetType, lock.source, "", lock.amount, operationId);
         delete locks[operationId];
     }
@@ -380,24 +386,24 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
     }
 
     // ------------------------------------------------------------------------------------------
-
-    enum ChangeHoldOpCode {
-      INCREMENT,
-      DECREMENT
+    function _removeFinIdLockInfo(string memory finId, string memory operationId) internal {
+      string[] storage operations = finIdLocks[finId];
+      for (uint256 i = 0; i < operations.length; i++) {
+        if (operations[i].equals(operationId)) {
+          delete operations[i];
+        }
+      }
     }
 
-    function _changeHold(string memory assetId, string memory finId, string memory amount, ChangeHoldOpCode opcode) internal {
-      Asset memory asset = assets[assetId];
-      uint8 tokenDecimals = IERC20Metadata(asset.tokenAddress).decimals();
-      uint256 currentHeld = helds[assetId].amountForFinId[finId];
-      uint256 changeAmount = amount.stringToUint(tokenDecimals);
-
-      if (opcode == ChangeHoldOpCode.INCREMENT) {
-        helds[assetId].amountForFinId[finId] = currentHeld + changeAmount;
-      } else {
-        require(currentHeld >= changeAmount, "Cannot release more than previously held");
-        helds[assetId].amountForFinId[finId] = currentHeld - changeAmount;
+    function _addFinIdLockInfo(string memory finId, string memory operationId) internal {
+      string[] storage operations = finIdLocks[finId];
+      for (uint256 i = 0; i < operations.length; i++) {
+        if (operations[i].equals("")) {
+          operations[i] = operationId;
+          return;
+        }
       }
+      operations.push(operationId);
     }
 
     function _haveAsset(string memory assetId) internal view returns (bool exists) {
