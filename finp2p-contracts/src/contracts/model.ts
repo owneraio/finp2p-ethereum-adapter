@@ -19,6 +19,12 @@ export const enum AssetType {
   Cryptocurrency = 2
 }
 
+export interface AssetBalance {
+  available: string;
+  held: string;
+  current: string;
+}
+
 export const assetTypeFromNumber = (assetType: bigint): AssetType => {
   switch (assetType) {
     case 0n:

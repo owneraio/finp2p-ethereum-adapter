@@ -54,8 +54,8 @@ export class CommonService {
     logger.debug("getBalance", { request });
 
     const { assetId } = assetFromAPI(request.asset);
-    const balance = await this.finP2PContract.balance(assetId, request.owner.finId);
-    const truncated = truncateDecimals(balance, this.defaultDecimals);
+    const assets = await this.finP2PContract.assetBalance(assetId, request.owner.finId)
+    const truncated = truncateDecimals(assets.available, this.defaultDecimals);
 
     return {
       asset: request.asset, balance: truncated
@@ -66,16 +66,17 @@ export class CommonService {
     logger.debug("balance", { request });
     const { asset, account: { finId } } = request;
     const { assetId } = assetFromAPI(asset);
-    const balance = await this.finP2PContract.balance(assetId, finId);
-    const truncated = truncateDecimals(balance, this.defaultDecimals);
+    const assetBalance = await this.finP2PContract.assetBalance(assetId, finId);
+
+    const [truncatedAvailable, truncatedHeld, truncatedCurrent] = [assetBalance.available, assetBalance.held, assetBalance.current].map(value => truncateDecimals(value, this.defaultDecimals))
     return {
       account: { type: "finId", finId },
       asset: request.asset,
       balanceInfo: {
         asset,
-        current: truncated,
-        available: truncated,
-        held: "0"
+        available: truncatedAvailable,
+        held: truncatedHeld,
+        current: truncatedCurrent
       }
     } as Components.Schemas.AssetBalanceInfoResponse;
   }

@@ -34,7 +34,7 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
         REDEEM
     }
 
-    string public constant VERSION = "0.24.0";
+    string public constant VERSION = "0.24.5";
 
     bytes32 private constant ASSET_MANAGER = keccak256("ASSET_MANAGER");
     bytes32 private constant TRANSACTION_MANAGER = keccak256("TRANSACTION_MANAGER");
@@ -111,6 +111,7 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
     address private escrowWalletAddress;
     mapping(string => Asset) private assets;
     mapping(string => Lock) private locks;
+    mapping(bytes32 => string[]) private finIdLocks;
 
     constructor() {
         _grantRole(DEFAULT_ADMIN_ROLE, _msgSender());
@@ -169,20 +170,40 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
         return asset.tokenAddress;
     }
 
+    struct AssetBalance {
+      string available;
+      string held;
+      string current;
+    }
+
     /// @notice Get the balance of an asset for a FinID
     /// @param assetId The asset id
     /// @param finId The FinID
-    /// @return The balance of the asset
-    function getBalance(
+    /// @return The available balance of the asset for FinID and how much is held in escrow
+    function getAssetBalance(
         string calldata assetId,
         string calldata finId
-    ) external view returns (string memory) {
+    ) external view returns (AssetBalance memory) {
         require(_haveAsset(assetId), "Asset not found");
         address addr = finId.toAddress();
         Asset memory asset = assets[assetId];
         uint8 tokenDecimals = IERC20Metadata(asset.tokenAddress).decimals();
         uint256 tokenBalance = IERC20(asset.tokenAddress).balanceOf(addr);
-        return tokenBalance.uintToString(tokenDecimals);
+        uint256 heldBalance = 0;
+
+        bytes32 lockKey = keccak256(abi.encodePacked(finId, assetId));
+        string[] storage operationIds = finIdLocks[lockKey];
+        for (uint256 i = 0; i < operationIds.length; i++) {
+          string storage opId = operationIds[i];
+          Lock storage l = locks[opId];
+          heldBalance += l.amount.stringToUint(tokenDecimals);
+        }
+
+        return AssetBalance(
+          tokenBalance.uintToString(tokenDecimals),
+          heldBalance.uintToString(tokenDecimals),
+          (tokenBalance + heldBalance).uintToString(tokenDecimals)
+        );
     }
 
     /// @notice Issue asset to the issuer
@@ -286,6 +307,7 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
         ), "Signature is not verified");
 
         _transfer(source.toAddress(), _getEscrow(), assetId, amount);
+        _addFinIdLockInfo(source, assetId, op.operationId);
         if (op.releaseType == ReleaseType.RELEASE) {
             locks[op.operationId] = Lock(assetId, assetType, source, destination, amount);
         } else if (op.releaseType == ReleaseType.REDEEM) {
@@ -312,6 +334,8 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
         require(lock.destination.equals(toFinId), "Trying to release to different destination than the one expected in the lock");
 
         _transfer(_getEscrow(), toFinId.toAddress(), lock.assetId, lock.amount);
+        _removeFinIdLockInfo(lock.source, lock.assetId, operationId);
+
         emit Release(lock.assetId, lock.assetType, lock.source, lock.destination, quantity, operationId);
         delete locks[operationId];
     }
@@ -332,6 +356,7 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
         require(bytes(lock.destination).length == 0, "Trying to redeem asset with non-empty destination");
         require(lock.amount.equals(quantity), "Trying to redeem amount different from the one held");
         _burn(_getEscrow(), lock.assetId, lock.amount);
+        _removeFinIdLockInfo(lock.source, lock.assetId, operationId);
         emit Redeem(lock.assetId, lock.assetType, ownerFinId, quantity, operationId);
         delete locks[operationId];
     }
@@ -345,6 +370,7 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
         require(_haveContract(operationId), "contract does not exists");
         Lock storage lock = locks[operationId];
         _transfer(_getEscrow(), lock.source.toAddress(), lock.assetId, lock.amount);
+        _removeFinIdLockInfo(lock.source, lock.assetId, operationId);
         emit Release(lock.assetId, lock.assetType, lock.source, "", lock.amount, operationId);
         delete locks[operationId];
     }
@@ -359,6 +385,27 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
     }
 
     // ------------------------------------------------------------------------------------------
+    function _removeFinIdLockInfo(string memory finId, string memory assetId, string memory operationId) internal {
+      bytes32 lockKey = keccak256(abi.encodePacked(finId, assetId));
+      string[] storage operations = finIdLocks[lockKey];
+      for (uint256 i = 0; i < operations.length; i++) {
+        if (operations[i].equals(operationId)) {
+          delete operations[i];
+        }
+      }
+    }
+
+    function _addFinIdLockInfo(string memory finId, string memory assetId, string memory operationId) internal {
+      bytes32 lockKey = keccak256(abi.encodePacked(finId, assetId));
+      string[] storage operations = finIdLocks[lockKey];
+      for (uint256 i = 0; i < operations.length; i++) {
+        if (operations[i].equals("")) {
+          operations[i] = operationId;
+          return;
+        }
+      }
+      operations.push(operationId);
+    }
 
     function _haveAsset(string memory assetId) internal view returns (bool exists) {
         exists = (assets[assetId].tokenAddress != address(0));
@@ -367,7 +414,6 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
     function _haveContract(string memory operationId) internal view returns (bool exists) {
         exists = (bytes(locks[operationId].amount).length > 0);
     }
-
 
     function _mint(address to, string memory assetId, string memory quantity) internal {
         require(_haveAsset(assetId), "Asset not found");

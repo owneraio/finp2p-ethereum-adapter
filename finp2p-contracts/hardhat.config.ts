@@ -6,7 +6,7 @@ const config: HardhatUserConfig = {
   solidity: {
     version: "0.8.24", settings: {
       optimizer: {
-        enabled: true, runs: 200
+        enabled: true, runs: 25
       }
     }
   },
