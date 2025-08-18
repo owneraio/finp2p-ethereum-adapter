@@ -111,7 +111,7 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
     address private escrowWalletAddress;
     mapping(string => Asset) private assets;
     mapping(string => Lock) private locks;
-    mapping(string => string[]) private finIdLocks;
+    mapping(bytes32 => string[]) private finIdLocks;
 
     constructor() {
         _grantRole(DEFAULT_ADMIN_ROLE, _msgSender());
@@ -191,13 +191,12 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
         uint256 tokenBalance = IERC20(asset.tokenAddress).balanceOf(addr);
         uint256 heldBalance = 0;
 
-        string[] storage operationIds = finIdLocks[finId];
+        bytes32 lockKey = keccak256(abi.encodePacked(finId, assetId));
+        string[] storage operationIds = finIdLocks[lockKey];
         for (uint256 i = 0; i < operationIds.length; i++) {
           string storage opId = operationIds[i];
           Lock storage l = locks[opId];
-          if (l.assetId.equals(assetId)) {
-            heldBalance += l.amount.stringToUint(tokenDecimals);
-          }
+          heldBalance += l.amount.stringToUint(tokenDecimals);
         }
 
         return AssetBalance(
@@ -308,7 +307,7 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
         ), "Signature is not verified");
 
         _transfer(source.toAddress(), _getEscrow(), assetId, amount);
-        _addFinIdLockInfo(source, op.operationId);
+        _addFinIdLockInfo(source, assetId, op.operationId);
         if (op.releaseType == ReleaseType.RELEASE) {
             locks[op.operationId] = Lock(assetId, assetType, source, destination, amount);
         } else if (op.releaseType == ReleaseType.REDEEM) {
@@ -335,7 +334,7 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
         require(lock.destination.equals(toFinId), "Trying to release to different destination than the one expected in the lock");
 
         _transfer(_getEscrow(), toFinId.toAddress(), lock.assetId, lock.amount);
-        _removeFinIdLockInfo(toFinId, operationId);
+        _removeFinIdLockInfo(lock.source, lock.assetId, operationId);
 
         emit Release(lock.assetId, lock.assetType, lock.source, lock.destination, quantity, operationId);
         delete locks[operationId];
@@ -357,7 +356,7 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
         require(bytes(lock.destination).length == 0, "Trying to redeem asset with non-empty destination");
         require(lock.amount.equals(quantity), "Trying to redeem amount different from the one held");
         _burn(_getEscrow(), lock.assetId, lock.amount);
-        _removeFinIdLockInfo(lock.source, operationId);
+        _removeFinIdLockInfo(lock.source, lock.assetId, operationId);
         emit Redeem(lock.assetId, lock.assetType, ownerFinId, quantity, operationId);
         delete locks[operationId];
     }
@@ -371,7 +370,7 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
         require(_haveContract(operationId), "contract does not exists");
         Lock storage lock = locks[operationId];
         _transfer(_getEscrow(), lock.source.toAddress(), lock.assetId, lock.amount);
-        _removeFinIdLockInfo(lock.source, operationId);
+        _removeFinIdLockInfo(lock.source, lock.assetId, operationId);
         emit Release(lock.assetId, lock.assetType, lock.source, "", lock.amount, operationId);
         delete locks[operationId];
     }
@@ -386,8 +385,9 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
     }
 
     // ------------------------------------------------------------------------------------------
-    function _removeFinIdLockInfo(string memory finId, string memory operationId) internal {
-      string[] storage operations = finIdLocks[finId];
+    function _removeFinIdLockInfo(string memory finId, string memory assetId, string memory operationId) internal {
+      bytes32 lockKey = keccak256(abi.encodePacked(finId, assetId));
+      string[] storage operations = finIdLocks[lockKey];
       for (uint256 i = 0; i < operations.length; i++) {
         if (operations[i].equals(operationId)) {
           delete operations[i];
@@ -395,8 +395,9 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
       }
     }
 
-    function _addFinIdLockInfo(string memory finId, string memory operationId) internal {
-      string[] storage operations = finIdLocks[finId];
+    function _addFinIdLockInfo(string memory finId, string memory assetId, string memory operationId) internal {
+      bytes32 lockKey = keccak256(abi.encodePacked(finId, assetId));
+      string[] storage operations = finIdLocks[lockKey];
       for (uint256 i = 0; i < operations.length; i++) {
         if (operations[i].equals("")) {
           operations[i] = operationId;
