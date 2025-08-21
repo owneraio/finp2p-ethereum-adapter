@@ -1,16 +1,19 @@
 import { OssClient } from "../src/finp2p/oss.client";
 import process from "process";
 import { FinP2PContract } from "../finp2p-contracts/src/contracts/finp2p";
-import { createProviderAndSigner, ProviderType } from "../finp2p-contracts/src/contracts/config";
+import { createProviderAndSigner, ERC20_STANDARD_ID, ProviderType } from "../finp2p-contracts/src/contracts/config";
 import console from "console";
 import winston, { format, transports } from "winston";
 import { AssetType, term } from "../finp2p-contracts/src/contracts/model";
+import { keccak256, toUtf8Bytes } from "ethers";
 
 const logger = winston.createLogger({
   level: 'info',
   transports: [new transports.Console()],
   format: format.json(),
 });
+
+
 
 const syncBalanceFromOssToEthereum = async (ossUrl: string, providerType: ProviderType, finp2pContractAddress: string) => {
   const ossClient = new OssClient(ossUrl, undefined);
@@ -25,7 +28,7 @@ const syncBalanceFromOssToEthereum = async (ossUrl: string, providerType: Provid
   const { provider, signer } = await createProviderAndSigner(providerType, logger);
   const contract = new FinP2PContract(provider, signer, finp2pContractAddress, logger);
 
-  for (const { assetId } of assets) {
+  for (const { assetId, identifier } of assets) {
     try {
       const erc20Address =  await contract.getAssetAddress(assetId);
       logger.info(`Found asset ${assetId} with token address ${erc20Address}`);
@@ -34,7 +37,14 @@ const syncBalanceFromOssToEthereum = async (ossUrl: string, providerType: Provid
         logger.info(`Deploying new token for asset ${assetId}`);
         const erc20Address = await contract.deployERC20(assetId, assetId, 0, finp2pContractAddress);
         logger.info(`Associating asset ${assetId} with token ${erc20Address}`);
-        const associateTxHash = await contract.associateAsset(assetId, erc20Address);
+        let tokenStandard = ERC20_STANDARD_ID;
+        if (identifier) {
+          const { type, value } = identifier;
+          if (type === 'CUSTOM' && value) {
+            tokenStandard = keccak256(toUtf8Bytes(value))
+          }
+        }
+        const associateTxHash = await contract.associateAsset(assetId, tokenStandard, erc20Address);
         await contract.waitForCompletion(associateTxHash);
       } else {
         logger.error(`Error migrating asset ${assetId}: ${e}`);
