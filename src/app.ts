@@ -24,7 +24,7 @@ function createApp(finP2PContract: FinP2PContract,
     meta: true,
     expressFormat: true,
     statusLevels: true,
-    ignoreRoute: (req) => req.url.toLowerCase() === "/readiness" || req.url.toLowerCase() === "/liveness"
+    ignoreRoute: (req) => req.url.toLowerCase() === "/health/readiness" || req.url.toLowerCase() === "/health/liveness"
   }));
 
   routes.register(app,
