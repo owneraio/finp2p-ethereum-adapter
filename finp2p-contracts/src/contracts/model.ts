@@ -220,12 +220,23 @@ export class NonceAlreadyBeenUsedError extends Error {
   }
 }
 
+export class EthereumContractMethodSignatureError extends Error {
+  constructor(public readonly reason: string) {
+    super(reason)
+  }
+}
+
 export const enum HashType {
   HashList = 1,
   EIP712 = 2
 }
 
-export const detectError = (e: any): EthereumTransactionError | NonceToHighError | Error => {
+export type DetectedError = EthereumTransactionError |
+  NonceToHighError |
+  NonceAlreadyBeenUsedError |
+  EthereumContractMethodSignatureError
+
+export const detectError = (e: any): DetectedError | Error => {
   if ("code" in e && "action" in e && "message" in e && "reason" in e && "data" in e && e.reason !== undefined && e.reason !== null) {
     return new EthereumTransactionError(e.reason);
   } else if ("code" in e && "error" in e && "code" in e.error && "message" in e.error) {
@@ -235,6 +246,8 @@ export const detectError = (e: any): EthereumTransactionError | NonceToHighError
     }
   } else if (e.code === 'REPLACEMENT_UNDERPRICED' || `${e}`.includes("nonce has already been used")) {
     return new NonceAlreadyBeenUsedError(`${e}`);
+  } else if (`${e}`.includes("no data present; likely require(false) occurred")) {
+    return new EthereumContractMethodSignatureError(`${e}`)
   }
   return e;
 };
