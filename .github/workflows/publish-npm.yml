@@ -1,0 +1,108 @@
+name: Publish npm package
+
+on:
+  push:
+    tags:
+      - 'v*'
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  publish-api:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./finp2p-contracts
+    outputs:
+      version: ${{ steps.get_package_version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Branch name
+        id: get_branch
+        run: |
+          echo ${GITHUB_REF}
+          echo ${GITHUB_HEAD_REF}
+          echo ${{github.event_name}}
+          if [[ ${{ github.event_name }} == 'pull_request' ]]; then
+                 echo in pull request
+                 branch=${GITHUB_HEAD_REF}
+               else
+                 echo in push
+                 branch=${GITHUB_REF:11}
+          fi;
+          echo $branch
+          branch=$(echo $branch | sed 's/[/_*+#%&$@]/-/g' )
+          echo $branch
+          echo ::set-output name=branch::$branch
+
+      - name: Setup nodejs
+        uses: actions/setup-node@v2
+        with:
+          node-version: 18
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Install Yarn
+        run: npm install -g yarn
+
+      - name: Generate and build models
+        run: |
+          npm run compile
+          npm run build
+
+      - name: npm registry setup
+        if: ${{ startsWith(github.ref, 'refs/tags/v') }}
+        uses: actions/setup-node@v2
+        with:
+          registry-url: 'https://registry.npmjs.org'
+
+#      - name: Publish to public NPM repository
+#        if: ${{ startsWith(github.ref, 'refs/tags/v') }}
+#        run: yarn publish --access=public
+#        env:
+#          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: github npm registry setup
+        uses: actions/setup-node@v2
+        with:
+          node-version: 18
+          registry-url: https://npm.pkg.github.com/
+          scope: '@owneraio'
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Version
+        id: get_package_version
+        run: |
+          if [[ ${{ github.event_name }} == 'pull_request' ]]; then
+            yarn --no-git-tag-version version --prerelease --preid ${{ steps.get_branch.outputs.branch }}-$(date +%s)
+          fi;
+          PACKAGE_VERSION=$(cat package.json|grep version|head -1|awk -F: '{ print $2 }'|sed 's/[", ]//g')
+          echo $PACKAGE_VERSION
+          echo ::set-output name=version::$PACKAGE_VERSION
+
+      - name: Publish
+        run: |
+          packageVersion=${{ steps.get_branch.outputs.branch }}
+          ##Clean NPM package if exists
+          packagesInfo=$(curl --silent -X POST \
+                           -H "Accept: application/vnd.github.packages-preview+json" \
+                           -H "Authorization: bearer ${{secrets.GITHUB_TOKEN}}" \
+                           -d '{"query":"{repository(owner: \"owneraio\", name: \"finp2p-core\") { id   name packages(first:50, names:\"'"finp2p-core"'\") { nodes { name id packageType versions(first:50) { nodes { id version  } } } } }}"}' \
+                             https://api.github.com/graphql)
+          echo "$packagesInfo"
+          packageId=$(echo "$packagesInfo" | jq -r '.data.repository.packages.nodes[].versions.nodes[] | select(.version|test("'"$packageVersion"'")) | .id')
+          echo "id $packageId"
+          #delete version from registry if exists
+          if [[ ! -z "$packageId" ]]; then
+              echo removing package id "$packageId"
+               printf -v data '{"query":"mutation { deletePackageVersion(input:{packageVersionId:\\"%s\\"}) { success }}"}' $packageId
+               curl -X POST \
+                 -H "Accept: application/vnd.github.package-deletes-preview+json" \
+                 -H "Authorization: bearer ${{secrets.GITHUB_TOKEN}}" \
+                 -d "$data"  \
+                    https://api.github.com/graphql
+          fi;
+          yarn publish

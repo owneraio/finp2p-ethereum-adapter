@@ -1,5 +1,5 @@
 {
-  "name": "finp2p-contracts",
+  "name": "@owneraio/finp2p-contracts",
   "version": "0.1",
   "description": "",
   "homepage": "https://ownera.io/",
@@ -21,6 +21,10 @@
   "keywords": [],
   "author": "",
   "license": "TBD",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/owneraio/finp2p-ethereum-adapter"
+  },
   "dependencies": {
     "@fireblocks/fireblocks-web3-provider": "^1.3.12",
     "ethers": "^6.11.1",
