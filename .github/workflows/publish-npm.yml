@@ -85,24 +85,4 @@ jobs:
 
       - name: Publish
         run: |
-          packageVersion=${{ steps.get_branch.outputs.branch }}
-          ##Clean NPM package if exists
-          packagesInfo=$(curl --silent -X POST \
-                           -H "Accept: application/vnd.github.packages-preview+json" \
-                           -H "Authorization: bearer ${{secrets.GITHUB_TOKEN}}" \
-                           -d '{"query":"{repository(owner: \"owneraio\", name: \"finp2p-ethereum-adapter\") { id   name packages(first:50, names:\"'"finp2p-ethereum-adapter"'\") { nodes { name id packageType versions(first:50) { nodes { id version  } } } } }}"}' \
-                             https://api.github.com/graphql)
-          echo "$packagesInfo"
-          packageId=$(echo "$packagesInfo" | jq -r '.data.repository.packages.nodes[].versions.nodes[] | select(.version|test("'"$packageVersion"'")) | .id')
-          echo "id $packageId"
-          #delete version from registry if exists
-          if [[ ! -z "$packageId" ]]; then
-              echo removing package id "$packageId"
-               printf -v data '{"query":"mutation { deletePackageVersion(input:{packageVersionId:\\"%s\\"}) { success }}"}' $packageId
-               curl -X POST \
-                 -H "Accept: application/vnd.github.package-deletes-preview+json" \
-                 -H "Authorization: bearer ${{secrets.GITHUB_TOKEN}}" \
-                 -d "$data"  \
-                    https://api.github.com/graphql
-          fi;
           yarn publish
