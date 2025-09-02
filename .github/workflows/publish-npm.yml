@@ -90,7 +90,7 @@ jobs:
           packagesInfo=$(curl --silent -X POST \
                            -H "Accept: application/vnd.github.packages-preview+json" \
                            -H "Authorization: bearer ${{secrets.GITHUB_TOKEN}}" \
-                           -d '{"query":"{repository(owner: \"owneraio\", name: \"finp2p-core\") { id   name packages(first:50, names:\"'"finp2p-core"'\") { nodes { name id packageType versions(first:50) { nodes { id version  } } } } }}"}' \
+                           -d '{"query":"{repository(owner: \"owneraio\", name: \"finp2p-ethereum-adapter\") { id   name packages(first:50, names:\"'"finp2p-ethereum-adapter"'\") { nodes { name id packageType versions(first:50) { nodes { id version  } } } } }}"}' \
                              https://api.github.com/graphql)
           echo "$packagesInfo"
           packageId=$(echo "$packagesInfo" | jq -r '.data.repository.packages.nodes[].versions.nodes[] | select(.version|test("'"$packageVersion"'")) | .id')
