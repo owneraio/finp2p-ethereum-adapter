@@ -112,7 +112,7 @@ class CustomTestEnvironment extends NodeEnvironment {
     const version = await finP2PContract.getVersion()
     console.log(`FinP2P contract version: ${version}`);
 
-    const app = createApp(finP2PContract, assetCreationPolicy, undefined,  new InMemoryExecDetailsStore(), logger);
+    const app = createApp(finP2PContract, assetCreationPolicy, undefined,  new InMemoryExecDetailsStore(), 18, logger);
     console.log("App created successfully.");
 
     this.httpServer = app.listen(port, () => {

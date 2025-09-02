@@ -13,7 +13,10 @@ import { ExecDetailsStore } from "./services/common";
 
 function createApp(finP2PContract: FinP2PContract,
                    assetCreationPolicy: AssetCreationPolicy,
-                   policyGetter: PolicyGetter | undefined, execDetailsStore: ExecDetailsStore | undefined, logger: winston.Logger) {
+                   policyGetter: PolicyGetter | undefined,
+                   execDetailsStore: ExecDetailsStore | undefined,
+                   defaultDecimals: number,
+                   logger: winston.Logger) {
   const app = express();
   app.use(express.json({ limit: "50mb" }));
   app.use(expressLogger({
@@ -21,13 +24,13 @@ function createApp(finP2PContract: FinP2PContract,
     meta: true,
     expressFormat: true,
     statusLevels: true,
-    ignoreRoute: (req) => req.url.toLowerCase() === "/readiness" || req.url.toLowerCase() === "/liveness"
+    ignoreRoute: (req) => req.url.toLowerCase() === "/health/readiness" || req.url.toLowerCase() === "/health/liveness"
   }));
 
   routes.register(app,
-    new TokenService(finP2PContract, assetCreationPolicy, policyGetter, execDetailsStore),
-    new EscrowService(finP2PContract, policyGetter, execDetailsStore),
-    new PaymentsService(finP2PContract, policyGetter, execDetailsStore),
+    new TokenService(finP2PContract, assetCreationPolicy, policyGetter, execDetailsStore, defaultDecimals),
+    new EscrowService(finP2PContract, policyGetter, execDetailsStore, defaultDecimals),
+    new PaymentsService(finP2PContract, policyGetter, execDetailsStore, defaultDecimals),
     new PlanService());
 
   return app;

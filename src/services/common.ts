@@ -16,6 +16,7 @@ import {
   RECEIPT_PROOF_TYPES
 } from "../../finp2p-contracts/src/contracts/eip712";
 import { ProofDomain } from "../finp2p/model";
+import { truncateDecimals } from "../../finp2p-contracts/src/contracts/utils";
 
 export interface ExecDetailsStore {
   addExecutionContext(txHash: string, executionPlanId: string, instructionSequenceNumber: number): void;
@@ -27,15 +28,18 @@ export class CommonService {
   finP2PContract: FinP2PContract;
   policyGetter: PolicyGetter | undefined;
   execDetailsStore: ExecDetailsStore | undefined;
+  defaultDecimals: number
 
   constructor(
     finP2PContract: FinP2PContract,
     policyGetter: PolicyGetter | undefined,
-    execDetailsStore: ExecDetailsStore | undefined
+    execDetailsStore: ExecDetailsStore | undefined,
+    defaultDecimals: number = 18
   ) {
     this.finP2PContract = finP2PContract;
     this.policyGetter = policyGetter;
     this.execDetailsStore = execDetailsStore;
+    this.defaultDecimals = defaultDecimals;
   }
 
   public async readiness() {
@@ -51,24 +55,26 @@ export class CommonService {
 
     const { assetId } = assetFromAPI(request.asset);
     const balance = await this.finP2PContract.balance(assetId, request.owner.finId);
+    const truncated = truncateDecimals(balance, this.defaultDecimals);
 
     return {
-      asset: request.asset, balance: `${balance}`
+      asset: request.asset, balance: truncated
     } as Components.Schemas.Balance;
   }
 
   public async balance(request: Paths.GetAssetBalanceInfo.RequestBody): Promise<Paths.GetAssetBalanceInfo.Responses.$200> {
     logger.debug("balance", { request });
-    const { asset, account: { account: { finId } } } = request;
+    const { asset, account: { finId } } = request;
     const { assetId } = assetFromAPI(asset);
     const balance = await this.finP2PContract.balance(assetId, finId);
+    const truncated = truncateDecimals(balance, this.defaultDecimals);
     return {
-      account: { account: { type: "finId", finId } },
+      account: { type: "finId", finId },
       asset: request.asset,
       balanceInfo: {
         asset,
-        current: balance,
-        available: balance,
+        current: truncated,
+        available: truncated,
         held: "0"
       }
     } as Components.Schemas.AssetBalanceInfoResponse;
@@ -76,7 +82,9 @@ export class CommonService {
 
   public async getReceipt(id: Paths.GetReceipt.Parameters.TransactionId): Promise<Paths.GetReceipt.Responses.$200> {
     try {
-      const receipt = await this.ledgerProof(await this.finP2PContract.getReceipt(id));
+      let finp2pReceipt = await this.finP2PContract.getReceipt(id);
+      finp2pReceipt.quantity = truncateDecimals(finp2pReceipt.quantity, this.defaultDecimals);
+      const receipt = await this.ledgerProof(finp2pReceipt);
       return {
         isCompleted: true, response: receiptToAPI(receipt)
       } as Components.Schemas.ReceiptOperation;
@@ -96,6 +104,7 @@ export class CommonService {
       switch (status.status) {
         case "completed":
           let { receipt } = status;
+          receipt.quantity = truncateDecimals(receipt.quantity, this.defaultDecimals);
           const executionContext = this.execDetailsStore?.getExecutionContext(receipt.id);
           if (executionContext) {
             logger.info("Found execution context for receipt", executionContext);

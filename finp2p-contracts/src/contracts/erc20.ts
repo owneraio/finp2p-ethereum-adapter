@@ -1,9 +1,11 @@
 import { ContractsManager } from "./manager";
-import { BigNumberish, ContractFactory, Interface, Provider, Signer } from "ethers";
+import { BigNumberish, ContractFactory, Interface, keccak256, Provider, Signer, toUtf8Bytes } from "ethers";
 import { ERC20WithOperator } from "../../typechain-types";
 import ERC20 from "../../artifacts/contracts/token/ERC20/ERC20WithOperator.sol/ERC20WithOperator.json";
 import winston from "winston";
 
+export const OPERATOR_ROLE = keccak256(toUtf8Bytes('OPERATOR_ROLE'));
+export const MINTER_ROLE = keccak256(toUtf8Bytes('MINTER_ROLE'));
 
 export class ERC20Contract extends ContractsManager {
 
@@ -70,5 +72,9 @@ export class ERC20Contract extends ContractsManager {
 
   async grantOperatorTo(address: string) {
     return this.erc20.grantOperatorTo(address);
+  }
+
+  async grantMinterTo(address: string) {
+    return this.erc20.grantMinterTo(address);
   }
 }

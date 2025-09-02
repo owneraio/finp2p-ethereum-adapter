@@ -351,7 +351,8 @@ export const extractEIP712Params = (request: RequestParams): EIP712Params => {
         params: operationParams(leg, eip712PrimaryType, Phase.Initiate, operationId, ReleaseType.Release)
       };
     }
-    case "RequestForTransfer": {
+    case "Transfer":
+    case "RequestForTransfer": { // RequestForTransfer deprecated, use Transfer
       return {
         buyerFinId: finIdFromAPI(template.message.buyer as EIP712TypeObject),
         sellerFinId: finIdFromAPI(template.message.seller as EIP712TypeObject),
@@ -362,13 +363,20 @@ export const extractEIP712Params = (request: RequestParams): EIP712Params => {
       };
     }
     case "Redemption": {
+      const { destination } = request;
+      let releaseType: ReleaseType;
+      if (destination && destination.finId) {
+        releaseType = ReleaseType.Release;
+      } else {
+        releaseType = ReleaseType.Redeem;
+      }
       return {
         buyerFinId: finIdFromAPI(template.message.issuer as EIP712TypeObject),
         sellerFinId: finIdFromAPI(template.message.seller as EIP712TypeObject),
         asset: termFromAPI(template.message.asset as EIP712TypeObject),
         settlement: termFromAPI(template.message.settlement as EIP712TypeObject),
         loan: emptyLoanTerms(),
-        params: operationParams(leg, eip712PrimaryType, Phase.Initiate, operationId, ReleaseType.Redeem)
+        params: operationParams(leg, eip712PrimaryType, Phase.Initiate, operationId, releaseType)
       };
     }
     case "Loan": {
@@ -383,6 +391,16 @@ export const extractEIP712Params = (request: RequestParams): EIP712Params => {
         settlement: termFromAPI(template.message.settlement as EIP712TypeObject),
         loan: loanTermFromAPI(template.message.loanTerms as EIP712TypeObject),
         params: operationParams(leg, eip712PrimaryType, phase, operationId, ReleaseType.Release)
+      };
+    }
+    case "PrivateOffer": {
+      return {
+        buyerFinId: finIdFromAPI(template.message.buyer as EIP712TypeObject),
+        sellerFinId: finIdFromAPI(template.message.seller as EIP712TypeObject),
+        asset: termFromAPI(template.message.asset as EIP712TypeObject),
+        settlement: termFromAPI(template.message.settlement as EIP712TypeObject),
+        loan: emptyLoanTerms(),
+        params: operationParams(leg, eip712PrimaryType, Phase.Initiate, operationId, ReleaseType.Release)
       };
     }
     default:
@@ -400,12 +418,12 @@ export const eip71212PrimaryTypeFromTemplate = (template: Components.Schemas.EIP
       return PrimaryType.Selling;
     case "Redemption":
       return PrimaryType.Redemption;
-    case "RequestForTransfer":
-      return PrimaryType.RequestForTransfer;
     case "PrivateOffer":
       return PrimaryType.PrivateOffer;
     case "Loan":
       return PrimaryType.Loan;
+    case "Transfer":
+      return PrimaryType.Transfer;
     default:
       throw new Error(`Unsupported EIP712 primary type: ${template.primaryType}`);
   }

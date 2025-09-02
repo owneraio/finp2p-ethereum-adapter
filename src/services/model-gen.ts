@@ -1,5 +1,19 @@
 declare namespace Components {
     namespace Schemas {
+        export interface APIError {
+            /**
+             * Error code indicating the specific failure - for more information see [API Errors](./api-error-codes-reference).
+             *
+             */
+            code: number;
+            /**
+             * A descriptive message providing context about the error.
+             */
+            message: string;
+        }
+        export interface APIErrors {
+            errors: APIError[];
+        }
         export interface AbsolutePollingInterval {
             type: "absolute";
             /**
@@ -39,21 +53,21 @@ declare namespace Components {
              */
             isCompleted: boolean;
             operationMetadata?: /* additional metadata regarding the operation */ OperationMetadata;
-            approval: PlanApproved | PlanRejected;
+            approval?: PlanApproved | PlanRejected;
         }
         export type Asset = CryptocurrencyAsset | FiatAsset | Finp2pAsset;
         export interface AssetBalance {
             asset: Asset;
             /**
-             * current balance
+             * The total amount currently in or owed by the account
              */
             current: string; // ^-?\d+(\.\d+)?$
             /**
-             * available balance
+             * The amount immediately usable from the account
              */
             available: string; // ^-?\d+(\.\d+)?$
             /**
-             * held balance
+             * The amount pending or on hold within the account
              */
             held: string; // ^-?\d+(\.\d+)?$
             /**
@@ -61,9 +75,7 @@ declare namespace Components {
              */
             receipts?: Receipt[];
         }
-        export interface AssetBalanceAccount {
-            account: FinIdAccount;
-        }
+        export type AssetBalanceAccount = FinIdAccount;
         export interface AssetBalanceInfoRequest {
             account: AssetBalanceAccount;
             asset: Asset;
@@ -375,7 +387,49 @@ declare namespace Components {
              */
             isCompleted: boolean;
             operationMetadata?: /* additional metadata regarding the operation */ OperationMetadata;
-            approval: PlanApproved | PlanRejected;
+            approval?: PlanApproved | PlanRejected;
+        }
+        export interface ExecutionPlanCancellationProposal {
+            proposalType: "cancel";
+        }
+        export interface ExecutionPlanProposal {
+            proposalType: "plan";
+        }
+        export interface ExecutionPlanProposalRequest {
+            /**
+             * execution plan information
+             */
+            executionPlan: {
+                /**
+                 * execution plan id
+                 */
+                id: string;
+                /**
+                 * type of proposal payload
+                 */
+                proposal: /* type of proposal payload */ ExecutionPlanCancellationProposal;
+            };
+        }
+        /**
+         * provides status update on the agreement reached for a specific proposal
+         */
+        export interface ExecutionPlanProposalStatusRequest {
+            status: "approved" | "rejected";
+            request: {
+                /**
+                 * execution plan information
+                 */
+                executionPlan: {
+                    /**
+                     * execution plan id
+                     */
+                    id: string;
+                    /**
+                     * type of proposal payload
+                     */
+                    proposal: /* type of proposal payload */ ExecutionPlanCancellationProposal;
+                };
+            };
         }
         export interface FiatAccount {
             type: "fiatAccount";
@@ -725,7 +779,7 @@ declare namespace Components {
             response?: Receipt;
         }
         export interface PlanApprovalResponse {
-            approval: PlanApproved | PlanRejected;
+            approval?: PlanApproved | PlanRejected;
         }
         export interface PlanApproved {
             status: "approved";
@@ -934,6 +988,7 @@ declare namespace Components {
              * sort code has XX-XX-XX format
              */
             code: string; // ^\d{2}-\d{2}-\d{2}$
+            accountNumber: string;
         }
         export interface Source {
             /**
@@ -1061,6 +1116,15 @@ declare namespace Paths {
         namespace Responses {
             export type $200 = Components.Schemas.DepositInstructionResponse;
         }
+    }
+    namespace ExecutionPlanProposal {
+        export type RequestBody = Components.Schemas.ExecutionPlanProposalRequest;
+        namespace Responses {
+            export type $200 = Components.Schemas.ApproveExecutionPlanResponse;
+        }
+    }
+    namespace ExecutionPlanProposalStatus {
+        export type RequestBody = /* provides status update on the agreement reached for a specific proposal */ Components.Schemas.ExecutionPlanProposalStatusRequest;
     }
     namespace GetAssetBalance {
         export type RequestBody = Components.Schemas.GetAssetBalanceRequest;

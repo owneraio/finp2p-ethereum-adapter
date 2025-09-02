@@ -31,7 +31,7 @@ contract FinP2PSignatureVerifier is EIP712 {
         BUYING,
         SELLING,
         REDEMPTION,
-        REQUEST_FOR_TRANSFER,
+        TRANSFER,
         PRIVATE_OFFER,
         LOAN
     }
@@ -65,8 +65,8 @@ contract FinP2PSignatureVerifier is EIP712 {
         "Redemption(string nonce,FinId seller,FinId issuer,Term asset,Term settlement)FinId(string idkey)Term(string assetId,string assetType,string amount)"
     );
 
-    bytes32 private constant REQUEST_FOR_TRANSFER_TYPE_HASH = keccak256(
-        "RequestForTransfer(string nonce,FinId buyer,FinId seller,Term asset)FinId(string idkey)Term(string assetId,string assetType,string amount)"
+    bytes32 private constant TRANSFER_TYPE_HASH = keccak256(
+        "Transfer(string nonce,FinId buyer,FinId seller,Term asset)FinId(string idkey)Term(string assetId,string assetType,string amount)"
     );
 
     bytes32 private constant PRIVATE_OFFER_TYPE_HASH = keccak256(
@@ -198,9 +198,9 @@ contract FinP2PSignatureVerifier is EIP712 {
                 hashTerm(settlement)
             )));
 
-        } else if (primaryType == PrimaryType.REQUEST_FOR_TRANSFER) {
+        } else if (primaryType == PrimaryType.TRANSFER) {
             return _hashTypedDataV4(keccak256(abi.encode(
-                REQUEST_FOR_TRANSFER_TYPE_HASH,
+                TRANSFER_TYPE_HASH,
                 keccak256(bytes(nonce)),
                 hashFinId(buyerFinId),
                 hashFinId(sellerFinId),
