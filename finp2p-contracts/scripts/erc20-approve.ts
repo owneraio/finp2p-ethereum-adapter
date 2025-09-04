@@ -3,12 +3,13 @@ import { FinP2PContract } from "../src/contracts/finp2p";
 import { createProviderAndSigner, ProviderType } from "../src/contracts/config";
 import { ERC20Contract } from "../src/contracts/erc20";
 import winston, { format, transports } from "winston";
+import { formatUnits, parseUnits } from "ethers";
 
 const logger = winston.createLogger({
   level: "info", transports: [new transports.Console()], format: format.json()
 });
 
-const erc20Approve = async (providerType: ProviderType, finp2pContractAddress: string, assetId: string, spender: string, amount: bigint) => {
+const erc20Approve = async (providerType: ProviderType, finp2pContractAddress: string, assetId: string, spender: string, amount: string) => {
 
   const { provider, signer } = await createProviderAndSigner(providerType, logger);
   const network = await provider.getNetwork();
@@ -21,14 +22,17 @@ const erc20Approve = async (providerType: ProviderType, finp2pContractAddress: s
   const erc20 = new ERC20Contract(provider, signer, tokenAddress, logger);
   logger.info("ERC20 token details: ");
   logger.info(`\tname: ${await erc20.name()}`);
+  const decimals = await erc20.decimals();
 
-  const allowance = await erc20.allowance(await signer.getAddress(), spender);
-  logger.info(`\tallowance before: ${allowance}`);
-  const txResp = await erc20.approve(spender, amount);
+  const allowanceBefore = await erc20.allowance(await signer.getAddress(), spender);
+  logger.info(`\tallowance before: ${formatUnits(allowanceBefore, decimals)}`);
+
+  const txResp = await erc20.approve(spender, parseUnits(amount, decimals));
   logger.info(`\terc20 approve tx-hash: ${txResp.hash}`);
   await txResp.wait();
 
-  logger.info(`\tallowance after: ${allowance}`);
+  const allowanceAfter = await erc20.allowance(await signer.getAddress(), spender);
+  logger.info(`\tallowance after: ${formatUnits(allowanceAfter, decimals)}`);
 
 
   logger.info(`Approved ${amount} tokens for ${spender} (${spender})`);
@@ -48,11 +52,10 @@ const spender = process.env.SPENDER;
 if (!spender) {
   throw new Error("SPENDER is not set");
 }
-const amountStr = process.env.AMOUNT;
-if (!amountStr) {
+const amount = process.env.AMOUNT;
+if (!amount) {
   throw new Error("AMOUNT is not set");
 }
-const amount = BigInt(amountStr);
 
 erc20Approve(providerType, finp2pContractAddress, assetId, spender, amount)
   .then(() => {
