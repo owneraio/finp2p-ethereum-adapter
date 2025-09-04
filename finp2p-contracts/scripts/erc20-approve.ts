@@ -15,6 +15,8 @@ const erc20Approve = async (providerType: ProviderType, finp2pContractAddress: s
   const network = await provider.getNetwork();
   logger.info("Network name: ", network.name);
   logger.info("Network chainId: ", network.chainId);
+  const singerAddress = await signer.getAddress();
+
   const finp2p = new FinP2PContract(provider, signer, finp2pContractAddress, logger);
   const tokenAddress = await finp2p.getAssetAddress(assetId);
   logger.info(`ERC20 token associated with ${assetId} is: ${tokenAddress}`);
@@ -24,14 +26,14 @@ const erc20Approve = async (providerType: ProviderType, finp2pContractAddress: s
   logger.info(`\tname: ${await erc20.name()}`);
   const decimals = await erc20.decimals();
 
-  const allowanceBefore = await erc20.allowance(await signer.getAddress(), spender);
+  const allowanceBefore = await erc20.allowance(singerAddress, spender);
   logger.info(`\tallowance before: ${formatUnits(allowanceBefore, decimals)}`);
 
   const txResp = await erc20.approve(spender, parseUnits(amount, decimals));
   logger.info(`\terc20 approve tx-hash: ${txResp.hash}`);
   await txResp.wait();
 
-  const allowanceAfter = await erc20.allowance(await signer.getAddress(), spender);
+  const allowanceAfter = await erc20.allowance(singerAddress, spender);
   logger.info(`\tallowance after: ${formatUnits(allowanceAfter, decimals)}`);
 
 
