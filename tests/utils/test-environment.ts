@@ -10,10 +10,10 @@ import { ContractsManager } from "../../finp2p-contracts/src/contracts/manager";
 import { AdapterParameters, NetworkDetails, NetworkParameters } from "./models";
 import { randomPort } from "./utils";
 import { addressFromPrivateKey } from "../../finp2p-contracts/src/contracts/utils";
-import { AssetCreationPolicy } from "../../src/services/tokens";
+import { AssetCreationPolicy } from "../../src/services/impl/tokens";
 import { createProviderAndSigner, ProviderType } from "../../finp2p-contracts/src/contracts/config";
 import winston, { format, transports } from "winston";
-import { InMemoryExecDetailsStore } from "../../src/services/exec-details-store";
+import { InMemoryExecDetailsStore } from "../../src/services/impl/exec-details-store";
 
 const providerType: ProviderType = "local";
 

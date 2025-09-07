@@ -2,13 +2,13 @@ import express from "express";
 import { logger as expressLogger } from "express-winston";
 import winston from "winston";
 import * as routes from "./routes";
-import { AssetCreationPolicy, TokenService } from "./services/tokens";
-import { EscrowService } from "./services/escrow";
-import { PaymentsService } from "./services/payments";
-import { PlanService } from "./services/plans";
+import { AssetCreationPolicy, TokenServiceImpl } from "./services/impl/tokens";
+import { EscrowService } from "./services/impl/escrow";
+import { PaymentsService } from "./services/impl/payments";
+import { PlanService } from "./services/impl/plans";
 import { FinP2PContract } from "../finp2p-contracts/src/contracts/finp2p";
 import { PolicyGetter } from "./finp2p/policy";
-import { ExecDetailsStore } from "./services/common";
+import { ExecDetailsStore } from "./services/impl/common";
 
 
 function createApp(finP2PContract: FinP2PContract,
@@ -28,7 +28,7 @@ function createApp(finP2PContract: FinP2PContract,
   }));
 
   routes.register(app,
-    new TokenService(finP2PContract, assetCreationPolicy, policyGetter, execDetailsStore, defaultDecimals),
+    new TokenServiceImpl(finP2PContract, assetCreationPolicy, policyGetter, execDetailsStore, defaultDecimals),
     new EscrowService(finP2PContract, policyGetter, execDetailsStore, defaultDecimals),
     new PaymentsService(finP2PContract, policyGetter, execDetailsStore, defaultDecimals),
     new PlanService());

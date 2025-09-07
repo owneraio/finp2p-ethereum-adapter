@@ -10,12 +10,12 @@ import process from "process";
 import http from "http";
 import { Provider, Signer } from "ethers";
 import { createProviderAndSigner, ProviderType } from "../finp2p-contracts/src/contracts/config";
-import { AssetCreationPolicy } from "../src/services/tokens";
+import { AssetCreationPolicy } from "../src/services/impl/tokens";
 import { PolicyGetter } from "../src/finp2p/policy";
 import { OssClient } from "../src/finp2p/oss.client";
 import winston, { format, transports } from "winston";
-import { InMemoryExecDetailsStore } from "../src/services/exec-details-store";
-import { ExecDetailsStore } from "../src/services/common";
+import { InMemoryExecDetailsStore } from "../src/services/impl/exec-details-store";
+import { ExecDetailsStore } from "../src/services/impl/common";
 import { FinAPIClient } from "../src/finp2p/finapi/finapi.client";
 
 let ethereumNodeContainer: StartedTestContainer | undefined;

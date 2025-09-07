@@ -6,7 +6,7 @@
   "homepage": "https://ownera.io/",
   "scripts": {
     "clean": "rm -rf dist",
-    "api-generate": "dtsgen -o ./src/services/model-gen.ts dlt-adapter-api.yaml",
+    "api-generate": "dtsgen -o src/routes/model-gen.ts dlt-adapter-api.yaml",
     "prebuild": "eslint ./src --ext .ts --fix",
     "build": "tsc",
     "postbuild": "cpx 'src/**/*.graphql' dist/src/",

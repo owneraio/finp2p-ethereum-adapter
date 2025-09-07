@@ -1,7 +1,7 @@
-import { logger } from "../helpers/logger";
+import { logger } from "../../helpers/logger";
 import { CommonService } from "./common";
-import { EthereumTransactionError } from "../../finp2p-contracts/src/contracts/model";
-import { extractEIP712Params, failedTransaction, RequestParams } from "./mapping";
+import { EthereumTransactionError } from "../../../finp2p-contracts/src/contracts/model";
+import { extractEIP712Params, failedTransaction, RequestParams } from "../../routes/mapping";
 
 export class EscrowService extends CommonService {
 

@@ -1,165 +1,189 @@
-import * as express from 'express';
-import { asyncMiddleware } from '../helpers/middleware';
-import { TokenService } from '../services/tokens';
-import { EscrowService } from '../services/escrow';
-import { PaymentsService } from '../services/payments';
-import { PlanService } from '../services/plans';
-import e from "express";
+import * as express from "express";
+import { asyncMiddleware } from "../helpers/middleware";
+import { EscrowService } from "../services/impl/escrow";
+import { PaymentsService } from "../services/impl/payments";
+import { PlanService } from "../services/impl/plans";
+import { assetFromAPI, assetResultToResponse, extractEIP712Params, RequestParams, transactionToAPI } from "./mapping";
+import LedgerTokenId = FinAPIComponents.Schemas.LedgerTokenId;
+import { TokenService } from "../services/interfaces";
+import { logger } from "../helpers/logger";
 
 
 export const register = (app: express.Application,
-  tokenService: TokenService,
-  escrowService: EscrowService,
-  paymentService: PaymentsService,
-  planService: PlanService,
+                         tokenService: TokenService,
+                         escrowService: EscrowService,
+                         paymentService: PaymentsService,
+                         planService: PlanService
 ) => {
 
-  app.get('/health/liveness',
+  app.get("/health/liveness",
     asyncMiddleware(async (req, res) => {
-      if (req.headers['skip-vendor'] !== 'true') {
+      if (req.headers["skip-vendor"] !== "true") {
         await tokenService.liveness();
       }
-      res.send('OK');
+      res.send("OK");
     })
   );
 
-  app.get('/health/readiness',
+  app.get("/health/readiness",
     asyncMiddleware(async (req, res) => {
-      if (req.headers['skip-vendor'] !== 'true') {
+      if (req.headers["skip-vendor"] !== "true") {
         await tokenService.readiness();
       }
-      return res.send('OK');
+      return res.send("OK");
     })
   );
 
-  app.get('/health',
+  app.get("/health",
     asyncMiddleware(async (req, res) => {
-      res.send('OK');
+      res.send("OK");
     })
   );
 
   app.post(
-    '/api/plan/approve',
+    "/api/plan/approve",
     asyncMiddleware(async (req, res) => {
       const response = await planService.approvePlan(req.body);
       return res.send(response);
-    }),
+    })
   );
 
   /* POST create asset. */
   app.post(
-    '/api/assets/create',
+    "/api/assets/create",
     asyncMiddleware(async (req, res) => {
-      const response = await tokenService.createAsset(req.body);
-      return res.send(response);
-    }),
+      const request = req as Paths.CreateAsset.RequestBody;
+      const { assetId } = assetFromAPI(request);
+      let tokenId: string | undefined = undefined;
+      if (request.ledgerAssetBinding) {
+        ({ tokenId } = request.ledgerAssetBinding as LedgerTokenId);
+      }
+      const result = await tokenService.createAsset(assetId, tokenId);
+      return res.send(assetResultToResponse(result));
+    })
   );
 
   /* Get token balance. */
   app.post(
-    '/api/assets/getBalance',
+    "/api/assets/getBalance",
     asyncMiddleware(async (req, res) => {
-      const balance = await tokenService.getBalance(req.body);
-      res.send(balance);
-    }),
+      const request = req as Paths.GetAssetBalance.RequestBody;
+      logger.debug("getBalance", { request });
+      const { asset, owner: { finId } } = request;
+      const { assetId } = assetFromAPI(asset);
+      const balance = await tokenService.getBalance(assetId, finId);
+      res.send({ asset, balance } as Components.Schemas.Balance);
+    })
   );
 
   /* Get token balance. */
   app.post(
-    '/api/asset/balance',
+    "/api/asset/balance",
     asyncMiddleware(async (req, res) => {
+
+
       const balance = await tokenService.balance(req.body);
       res.send(balance);
-    }),
+    })
   );
 
   /* POST issue a token for a user. */
   app.post(
-    '/api/assets/issue',
+    "/api/assets/issue",
     asyncMiddleware(async (req, res) => {
-      const receipt = await tokenService.issue(req.body);
-      res.json(receipt);
-    }),
+      const request = req as Paths.IssueAssets.RequestBody;
+      const { asset, quantity, destination: { finId: issuerFinId }, executionContext } = request;
+
+      const result = await tokenService.issue(assetFromAPI(asset), issuerFinId, quantity, executionContext);
+      res.json(transactionToAPI(result));
+    })
   );
 
   /* POST transfer token. */
   app.post(
-    '/api/assets/transfer',
+    "/api/assets/transfer",
     asyncMiddleware(async (req, res) => {
-      const receipt = await tokenService.transfer(req.body);
-      res.json(receipt);
-    }),
+      const request = req as Paths.TransferAsset.RequestBody;
+      const { executionContext } = request;
+      // this.validateRequest(requestParams, eip712Params);
+      const { nonce, signature: { signature } } = request;
+
+      const result = await tokenService.transfer(
+        nonce
+      );
+      res.json(transactionToAPI(result));
+    })
   );
 
   /* POST redeem token. */
   app.post(
-    '/api/assets/redeem',
+    "/api/assets/redeem",
     asyncMiddleware(async (req, res) => {
       const receipt = await escrowService.releaseAndRedeem(req.body);
       res.json(receipt);
-    }),
+    })
   );
 
   app.get(
-    '/api/assets/receipts/:id',
+    "/api/assets/receipts/:id",
     asyncMiddleware(async (req, res) => {
       const { id } = req.params;
       const receipt = await tokenService.getReceipt(id);
       res.json(receipt);
-    }),
+    })
   );
 
   /* POST get deposit instruction. */
   app.post(
-    '/api/payments/depositInstruction/',
+    "/api/payments/depositInstruction/",
     asyncMiddleware(async (req, res) => {
       const receipt = await paymentService.deposit(req.body);
       res.json(receipt);
-    }),
+    })
   );
 
   /* POST hold token. */
   app.post(
-    '/api/assets/hold',
+    "/api/assets/hold",
     asyncMiddleware(async (req, res) => {
       const receipt = await escrowService.hold(req.body);
       res.json(receipt);
-    }),
+    })
   );
 
   /* POST release token. */
   app.post(
-    '/api/assets/release',
+    "/api/assets/release",
     asyncMiddleware(async (req, res) => {
       const receipt = await escrowService.releaseTo(req.body);
       res.json(receipt);
-    }),
+    })
   );
 
   /* POST rollback token. */
   app.post(
-    '/api/assets/rollback',
+    "/api/assets/rollback",
     asyncMiddleware(async (req, res) => {
       const receipt = await escrowService.releaseBack(req.body);
       res.json(receipt);
-    }),
+    })
   );
 
   /* POST payout funds. */
   app.post(
-    '/api/payments/payout',
+    "/api/payments/payout",
     asyncMiddleware(async (req, res) => {
       const receipt = await paymentService.payout(req.body);
       res.json(receipt);
-    }),
+    })
   );
 
   /* POST operation status. */
   app.get(
-    '/api/operations/status/:cid',
+    "/api/operations/status/:cid",
     asyncMiddleware(async (req, res) => {
       const status = await tokenService.operationStatus(req.params.cid);
       res.json(status);
-    }),
+    })
   );
 };

@@ -1,5 +1,5 @@
 import { v4 as uuid } from "uuid";
-import { logger } from "../helpers/logger";
+import { logger } from "../../helpers/logger";
 
 export class PlanService {
 

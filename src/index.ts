@@ -2,14 +2,14 @@ import { logger } from "./helpers/logger";
 import { FinP2PContract } from "../finp2p-contracts/src/contracts/finp2p";
 import * as process from "process";
 import createApp from "./app";
-import { AssetCreationPolicy } from "./services/tokens";
+import { AssetCreationPolicy } from "./services/impl/tokens";
 import {
   createProviderAndSigner, FinP2PContractConfig, ProviderType, readConfig
 } from "../finp2p-contracts/src/contracts/config";
 import { PolicyGetter } from "./finp2p/policy";
 import { OssClient } from "./finp2p/oss.client";
 import winston, { format, transports } from "winston";
-import { InMemoryExecDetailsStore } from "./services/exec-details-store";
+import { InMemoryExecDetailsStore } from "./services/impl/exec-details-store";
 
 const createAssetCreationPolicy = async (contractManager: FinP2PContract | undefined): Promise<AssetCreationPolicy> => {
   const type = (process.env.ASSET_CREATION_POLICY || "deploy-new-token");
