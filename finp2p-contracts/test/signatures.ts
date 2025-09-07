@@ -84,7 +84,7 @@ describe("Signing test", function() {
     loan: emptyLoanTerms(),
     signer: seller
   }, {
-    primaryType: PrimaryType.RequestForTransfer,
+    primaryType: PrimaryType.Transfer,
     nonce: `${generateNonce().toString("hex")}`,
     buyerFinId: getFinId(buyer),
     sellerFinId: getFinId(seller),

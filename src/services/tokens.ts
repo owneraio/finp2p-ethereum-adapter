@@ -25,14 +25,9 @@ export class TokenService extends CommonService {
 
   assetCreationPolicy: AssetCreationPolicy;
 
-  constructor(
-    finP2PContract: FinP2PContract,
-    assetCreationPolicy: AssetCreationPolicy,
-    policyGetter: PolicyGetter | undefined,
-    execDetailsStore: ExecDetailsStore | undefined,
-    collateralService: CollateralService | undefined
-  ) {
-    super(finP2PContract, policyGetter, execDetailsStore, collateralService);
+  constructor(finP2PContract: FinP2PContract, assetCreationPolicy: AssetCreationPolicy, policyGetter: PolicyGetter | undefined,
+              execDetailsStore: ExecDetailsStore | undefined,   collateralService: CollateralService | undefined, defaultDecimals: number = 18) {
+    super(finP2PContract, policyGetter, execDetailsStore, collateralService, defaultDecimals);
     this.assetCreationPolicy = assetCreationPolicy;
   }
 

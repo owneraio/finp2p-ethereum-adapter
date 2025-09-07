@@ -12,9 +12,9 @@ export const enum PrimaryType {
   Buying = 1,
   Selling = 2,
   Redemption = 3,
-  RequestForTransfer = 4,
+  Transfer = 4,
   PrivateOffer = 5,
-  Loan = 6
+  Loan = 6,
 }
 
 export type EIP712Domain = {
@@ -102,10 +102,10 @@ export const REDEMPTION_TYPES = {
   ]
 };
 
-export const REQUEST_FOR_TRANSFER_TYPES = {
+export const TRANSFER_TYPES = {
   ...FINID_TYPE,
   ...TERM_TYPE,
-  RequestForTransfer: [
+  Transfer: [
     { name: "nonce", type: "string" },
     { name: "buyer", type: "FinId" },
     { name: "seller", type: "FinId" },
@@ -291,7 +291,7 @@ export interface EIP712RedemptionMessage extends EIP712Message {
   settlement: EIP712Term
 }
 
-export interface EIP712RequestForTransferMessage extends EIP712Message {
+export interface EIP712TransferMessage extends EIP712Message {
   nonce: string,
   buyer: EIP712FinId,
   seller: EIP712FinId,
@@ -410,9 +410,9 @@ export const newInvestmentMessage = (
       types = REDEMPTION_TYPES;
       message = newRedemptionMessage(nonce, finId(buyerFinId), finId(sellerFinId), asset, settlement);
       break;
-    case PrimaryType.RequestForTransfer:
-      types = REQUEST_FOR_TRANSFER_TYPES;
-      message = newRequestForTransferMessage(nonce, finId(buyerFinId), finId(sellerFinId), asset);
+    case PrimaryType.Transfer:
+      types = TRANSFER_TYPES;
+      message = newTransferMessage(nonce, finId(buyerFinId), finId(sellerFinId), asset);
       break;
     case PrimaryType.PrivateOffer:
       types = PRIVATE_OFFER_TYPES;
@@ -447,7 +447,7 @@ export const newRedemptionMessage = (nonce: string, issuer: EIP712FinId, seller:
   return { nonce, issuer, seller, asset, settlement };
 };
 
-export const newRequestForTransferMessage = (nonce: string, buyer: EIP712FinId, seller: EIP712FinId, asset: EIP712Term): EIP712RequestForTransferMessage => {
+export const newTransferMessage = (nonce: string, buyer: EIP712FinId, seller: EIP712FinId, asset: EIP712Term): EIP712TransferMessage => {
   return { nonce, buyer, seller, asset };
 };
 

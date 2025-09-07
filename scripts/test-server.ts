@@ -86,7 +86,7 @@ const deployERC20Contract = async (provider: Provider, signer: Signer, finp2pTok
 const startApp = async (port: number, provider: Provider, signer: Signer,
                         finP2PContract: FinP2PContract, tokenAddress: string, policyGetter: PolicyGetter | undefined,
                         execDetailsStore: ExecDetailsStore | undefined,
-                        collateralService: CollateralService | undefined,
+                        collateralService: CollateralService | undefined,  defaultDecimals: number = 18,
                         logger: winston.Logger) => {
 
   const assetCreationPolicy = {
@@ -95,8 +95,7 @@ const startApp = async (port: number, provider: Provider, signer: Signer,
   } as AssetCreationPolicy;
 
 
-  const app = createApp(finP2PContract, assetCreationPolicy, policyGetter, execDetailsStore,
-    collateralService, logger);
+  const app = createApp(finP2PContract, assetCreationPolicy, policyGetter, execDetailsStore, collateralService, defaultDecimals, logger);
   logger.info("App created successfully.");
 
   httpServer = app.listen(port, () => {
@@ -141,8 +140,9 @@ const start = async () => {
   const finP2PContract = new FinP2PContract(provider, signer, finP2PContractAddress, logger);
   const collateralService = new CollateralService(finP2PContract, ossClient, finAPIClient);
 
-  await startApp(port, provider, signer, finP2PContract, tokenAddress, policyGetter, execDetailsStore,
-    collateralService, logger);
+  const defaultDecimals = parseInt(process.env.DEFAULT_DECIMALS || "18");
+
+  await startApp(port, provider, signer, finP2PContract, tokenAddress, policyGetter, execDetailsStore, collateralService, defaultDecimals, logger);
 };
 
 

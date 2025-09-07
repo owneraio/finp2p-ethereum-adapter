@@ -17,8 +17,8 @@ function createApp(finP2PContract: FinP2PContract,
                    policyGetter: PolicyGetter | undefined,
                    execDetailsStore: ExecDetailsStore | undefined,
                    collateralService: CollateralService | undefined,
-                   logger: winston.Logger
-) {
+                   defaultDecimals: number,
+                   logger: winston.Logger) {
   const app = express();
   app.use(express.json({ limit: "50mb" }));
   app.use(expressLogger({
@@ -26,13 +26,13 @@ function createApp(finP2PContract: FinP2PContract,
     meta: true,
     expressFormat: true,
     statusLevels: true,
-    ignoreRoute: (req) => req.url.toLowerCase() === "/readiness" || req.url.toLowerCase() === "/liveness"
+    ignoreRoute: (req) => req.url.toLowerCase() === "/health/readiness" || req.url.toLowerCase() === "/health/liveness"
   }));
 
   routes.register(app,
-    new TokenService(finP2PContract, assetCreationPolicy, policyGetter, execDetailsStore, collateralService),
-    new EscrowService(finP2PContract, policyGetter, execDetailsStore, collateralService),
-    new PaymentsService(finP2PContract, policyGetter, execDetailsStore, collateralService),
+    new TokenService(finP2PContract, assetCreationPolicy, policyGetter, execDetailsStore, defaultDecimals, collateralService),
+    new EscrowService(finP2PContract, policyGetter, execDetailsStore, defaultDecimals, collateralService),
+    new PaymentsService(finP2PContract, policyGetter, execDetailsStore, defaultDecimals, collateralService),
     new PlanService());
 
   return app;

@@ -34,7 +34,7 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
         REDEEM
     }
 
-    string public constant VERSION = "0.23.3";
+    string public constant VERSION = "0.24.0";
 
     bytes32 private constant ASSET_MANAGER = keccak256("ASSET_MANAGER");
     bytes32 private constant TRANSACTION_MANAGER = keccak256("TRANSACTION_MANAGER");
