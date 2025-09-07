@@ -30,9 +30,9 @@ function createApp(finP2PContract: FinP2PContract,
   }));
 
   routes.register(app,
-    new TokenService(finP2PContract, assetCreationPolicy, policyGetter, execDetailsStore, defaultDecimals, collateralService),
-    new EscrowService(finP2PContract, policyGetter, execDetailsStore, defaultDecimals, collateralService),
-    new PaymentsService(finP2PContract, policyGetter, execDetailsStore, defaultDecimals, collateralService),
+    new TokenService(finP2PContract, assetCreationPolicy, policyGetter, execDetailsStore, collateralService, defaultDecimals),
+    new EscrowService(finP2PContract, policyGetter, execDetailsStore, collateralService, defaultDecimals),
+    new PaymentsService(finP2PContract, policyGetter, execDetailsStore, collateralService, defaultDecimals),
     new PlanService());
 
   return app;
