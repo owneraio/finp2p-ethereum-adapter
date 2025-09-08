@@ -5,7 +5,7 @@ import {
   ExecutionContext,
   Signature,
   Source,
-  ReceiptOperation, Balance, OperationStatus, PlanApprovalStatus, DepositOperation
+  ReceiptOperation, Balance, OperationStatus, PlanApprovalStatus, DepositOperation, DepositAsset
 } from "./model";
 
 
@@ -56,12 +56,13 @@ export interface EscrowService {
 }
 
 export interface PaymentService {
-  deposit(owner: Source, destination: Destination, asset: Asset, amount: string,
+  deposit(owner: Source, destination: Destination, asset: DepositAsset, amount: string | undefined,
+          details: any | undefined,
           nonce: string | undefined, signature: Signature | undefined): Promise<DepositOperation>
 
-  payout(source: Source, destination: Destination, asset: Asset, quantity: string,
+  payout(source: Source, destination: Destination | undefined, asset: Asset, quantity: string,
          description: string | undefined, nonce: string | undefined,
-         signature: Signature | undefined, operationId: string | undefined): Promise<ReceiptOperation>
+         signature: Signature | undefined): Promise<ReceiptOperation>
 }
 
 export interface PlanApprovalService {

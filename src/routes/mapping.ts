@@ -7,7 +7,7 @@ import {
   AssetCreationStatus,
   ReceiptOperation,
   Balance, Receipt, OperationStatus, EIP712Template, EIP712Domain, EIP712Message, EIP712Types, TradeDetails,
-  TransactionDetails, ProofPolicy, PlanApprovalStatus
+  TransactionDetails, ProofPolicy, PlanApprovalStatus, DepositOperation, DepositInstruction, DepositAsset
 } from "../services/model";
 
 export const assetFromAPI = (asset: Components.Schemas.Asset): Asset => {
@@ -24,6 +24,17 @@ export const assetFromAPI = (asset: Components.Schemas.Asset): Asset => {
       return {
         assetId: asset.code, assetType: "cryptocurrency"
       };
+  }
+};
+
+export const depositAssetFromAPI = (asset: Components.Schemas.DepositAsset): DepositAsset => {
+  switch (asset.type) {
+    case "custom":
+      return {
+        assetType: "custom"
+      };
+    default:
+      return assetFromAPI(asset);
   }
 };
 
@@ -76,6 +87,13 @@ export const executionContextFromAPI = (ep: Components.Schemas.ExecutionContext)
   return { planId: executionPlanId, sequence: instructionSequenceNumber };
 };
 
+export const signatureOptFromAPI = (sg: Components.Schemas.Signature | undefined): Signature | undefined => {
+  if (!sg) {
+    return undefined;
+  }
+  return signatureFromAPI(sg);
+};
+
 export const signatureFromAPI = (sg: Components.Schemas.Signature): Signature => {
   const { template, signature } = sg;
   switch (template.type) {
@@ -87,7 +105,6 @@ export const signatureFromAPI = (sg: Components.Schemas.Signature): Signature =>
     default:
       throw new Error("hashList signature template not supported");
   }
-
 };
 
 export const eip712TemplateFromAPI = (template: Components.Schemas.EIP712Template): EIP712Template => {
@@ -102,7 +119,7 @@ export const eip712TemplateFromAPI = (template: Components.Schemas.EIP712Templat
 };
 
 
-export const planApprovalStatusToAPI = (status: PlanApprovalStatus): Components.Schemas.ExecutionPlanApprovalOperation => {
+export const planApprovalOperationToAPI = (status: PlanApprovalStatus): Components.Schemas.ExecutionPlanApprovalOperation => {
   switch (status.type) {
     case "approved":
       return {
@@ -135,7 +152,7 @@ export const planApprovalStatusToAPI = (status: PlanApprovalStatus): Components.
 
 };
 
-export const assetStatusToAPI = (result: AssetCreationStatus): Components.Schemas.CreateAssetResponse => {
+export const createAssetOperationToAPI = (result: AssetCreationStatus): Components.Schemas.CreateAssetResponse => {
   switch (result.type) {
     case "success":
       const { tokenId, tokenAddress, finp2pTokenAddress } = result;
@@ -175,28 +192,69 @@ export const assetStatusToAPI = (result: AssetCreationStatus): Components.Schema
   }
 };
 
-export const receiptResultToAPI = (result: ReceiptOperation): Components.Schemas.ReceiptOperation => {
-  switch (result.type) {
+export const receiptOperationToAPI = (op: ReceiptOperation): Components.Schemas.ReceiptOperation => {
+  switch (op.type) {
     case "pending":
-      const { correlationId: cid } = result;
+      const { correlationId: cid } = op;
       return {
         isCompleted: false, cid
       } as Components.Schemas.ReceiptOperation;
     case "failure":
-      const { code, message } = result.error;
+      const { code, message } = op.error;
       return {
         isCompleted: true, error: { code, message }
       } as Components.Schemas.ReceiptOperation;
     case "success":
-      const { receipt } = result;
+      const { receipt } = op;
       return {
         isCompleted: true, response: receiptToAPI(receipt)
       } as Components.Schemas.ReceiptOperation;
   }
 };
 
-export const operationStatusToAPI = (result: OperationStatus): Components.Schemas.OperationStatus => {
-  return {} as Components.Schemas.OperationStatus;
+export const depositOperationToAPI = (op: DepositOperation): Components.Schemas.DepositOperation => {
+  switch (op.type) {
+    case "pending":
+      const { correlationId: cid } = op;
+      return { isCompleted: false, cid } as Components.Schemas.DepositOperation;
+    case "failure":
+      // const { code, message } = op.error;
+      return {
+        isCompleted: true, error: {}
+      } as Components.Schemas.DepositOperation;
+    case "success":
+      const { instruction } = op;
+      return {
+        isCompleted: true,
+        response: depositInstructionToAPI(instruction)
+      } as Components.Schemas.DepositOperation;
+  }
+};
+
+export const operationStatusToAPI = (op: OperationStatus): Components.Schemas.OperationStatus => {
+  switch (op.operation) {
+    case "createAsset":
+      return {
+        type: "createAsset",
+        operation: createAssetOperationToAPI(op)
+      } as Components.Schemas.OperationStatusCreateAsset;
+    case "deposit":
+      return {
+        type: "deposit",
+        operation: depositOperationToAPI(op)
+      };
+    case "receipt":
+      return {
+        type: "receipt",
+        operation: receiptOperationToAPI(op)
+      } as Components.Schemas.OperationStatusReceipt;
+
+    case "approval":
+      return {
+        type: "approval",
+        operation: planApprovalOperationToAPI(op)
+      };
+  }
 };
 
 export const balanceToAPI = (
@@ -301,4 +359,15 @@ export const receiptToAPI = (receipt: Receipt): Components.Schemas.Receipt => {
     proof: proofPolicyOptToAPI(proof),
     timestamp
   } as Components.Schemas.Receipt;
+};
+
+export const depositInstructionToAPI = (instruction: DepositInstruction): Components.Schemas.DepositInstruction => {
+  const { account, description, paymentMethods, operationId, details } = instruction;
+  return {
+    account: {},
+    description,
+    paymentOptions: {},
+    operationId,
+    details
+  } as Components.Schemas.DepositInstruction;
 };

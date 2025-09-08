@@ -2,12 +2,13 @@ import * as express from "express";
 import { asyncMiddleware } from "../helpers/middleware";
 import {
   assetFromAPI,
-  assetStatusToAPI,
+  createAssetOperationToAPI,
   destinationFromAPI,
   executionContextFromAPI,
   signatureFromAPI,
   sourceFromAPI,
-  receiptResultToAPI, balanceToAPI, destinationOptFromAPI, operationStatusToAPI, planApprovalStatusToAPI
+  receiptOperationToAPI, balanceToAPI, destinationOptFromAPI, operationStatusToAPI, planApprovalOperationToAPI,
+  depositOperationToAPI, signatureOptFromAPI, depositAssetFromAPI
 } from "./mapping";
 import {
   CommonService,
@@ -55,7 +56,7 @@ export const register = (app: express.Application,
     "/api/plan/approve",
     asyncMiddleware(async (req, res) => {
       const approveOp = await planService.approvePlan(req.body);
-      return res.send(planApprovalStatusToAPI(approveOp));
+      return res.send(planApprovalOperationToAPI(approveOp));
     })
   );
 
@@ -70,7 +71,7 @@ export const register = (app: express.Application,
         ({ tokenId } = ledgerAssetBinding as Components.Schemas.LedgerTokenId);
       }
       const result = await tokenService.createAsset(assetId, tokenId);
-      return res.send(assetStatusToAPI(result));
+      return res.send(createAssetOperationToAPI(result));
     })
   );
 
@@ -110,7 +111,7 @@ export const register = (app: express.Application,
         quantity,
         executionContextFromAPI(executionContext!)
       );
-      res.json(receiptResultToAPI(receiptOp));
+      res.json(receiptOperationToAPI(receiptOp));
     })
   );
 
@@ -129,7 +130,7 @@ export const register = (app: express.Application,
         signatureFromAPI(signature),
         executionContextFromAPI(executionContext!)
       );
-      res.json(receiptResultToAPI(receiptOp));
+      res.json(receiptOperationToAPI(receiptOp));
     })
   );
 
@@ -148,7 +149,7 @@ export const register = (app: express.Application,
         signatureFromAPI(signature),
         executionContextFromAPI(executionContext!)
       );
-      res.json(receiptResultToAPI(receiptOp));
+      res.json(receiptOperationToAPI(receiptOp));
     })
   );
 
@@ -157,7 +158,7 @@ export const register = (app: express.Application,
     asyncMiddleware(async (req, res) => {
       const { id } = req.params;
       const receiptResult = await commonService.getReceipt(id);
-      res.json(receiptResultToAPI(receiptResult));
+      res.json(receiptOperationToAPI(receiptResult));
     })
   );
 
@@ -166,8 +167,16 @@ export const register = (app: express.Application,
     "/api/payments/depositInstruction/",
     asyncMiddleware(async (req, res) => {
       const { owner, destination, asset, amount, details, nonce, signature } = req as unknown as Paths.DepositInstruction.RequestBody;
-      const receipt = await paymentService.deposit(req.body);
-      res.json(receipt);
+      const depositOp = await paymentService.deposit(
+        sourceFromAPI(owner),
+        destinationFromAPI(destination),
+        depositAssetFromAPI(asset),
+        amount,
+        details,
+        nonce,
+        signatureOptFromAPI(signature)
+      );
+      res.json(depositOperationToAPI(depositOp));
     })
   );
 
@@ -187,7 +196,7 @@ export const register = (app: express.Application,
         operationId,
         executionContextFromAPI(executionContext!)
       );
-      res.json(receiptResultToAPI(receiptOp));
+      res.json(receiptOperationToAPI(receiptOp));
     })
   );
 
@@ -204,7 +213,7 @@ export const register = (app: express.Application,
         operationId,
         executionContextFromAPI(executionContext!)
       );
-      res.json(receiptResultToAPI(receiptOp));
+      res.json(receiptOperationToAPI(receiptOp));
     })
   );
 
@@ -220,7 +229,7 @@ export const register = (app: express.Application,
         operationId,
         executionContextFromAPI(executionContext!)
       );
-      res.json(receiptResultToAPI(receiptOp));
+      res.json(receiptOperationToAPI(receiptOp));
     })
   );
 
@@ -228,8 +237,21 @@ export const register = (app: express.Application,
   app.post(
     "/api/payments/payout",
     asyncMiddleware(async (req, res) => {
-      const receipt = await paymentService.payout(req.body);
-      res.json(receipt);
+      const { source, destination, quantity, asset, payoutInstruction, nonce, signature} = req as unknown as Paths.Payout.RequestBody;
+      let description: string | undefined = undefined;
+      if (payoutInstruction) {
+        description = payoutInstruction.description
+      }
+      const receiptOp = await paymentService.payout(
+        sourceFromAPI(source),
+        destinationOptFromAPI(destination),
+        assetFromAPI(asset),
+        quantity,
+        description,
+        nonce,
+        signatureOptFromAPI(signature)
+      );
+      res.json(receiptOperationToAPI(receiptOp));
     })
   );
 
