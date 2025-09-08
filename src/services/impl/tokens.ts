@@ -10,12 +10,12 @@ import { FinP2PContract } from "../../../finp2p-contracts/src/contracts/finp2p";
 import { isEthereumAddress, truncateDecimals } from "../../../finp2p-contracts/src/contracts/utils";
 import { PolicyGetter } from "../../finp2p/policy";
 import {
-  SrvAsset,
+  Asset,
   AssetCreationResult, Destination, EIP712Template,
   ExecutionContext,
-  failedAssetCreation, failedTransaction, Signature, Source,
-  successfulAssetCreation, successfulTransaction,
-  TransactionResult
+  failedAssetCreation, failedReceiptResult, Signature, Source,
+  successfulAssetCreation, pendingReceiptResult,
+  ReceiptResult, Balance
 } from "../model";
 import { TokenService } from "../interfaces";
 import { getRandomNumber } from "../utils";
@@ -83,7 +83,7 @@ export class TokenServiceImpl extends CommonService implements TokenService {
 
   }
 
-  public async issue(asset: SrvAsset, issuerFinId: string, quantity: string, executionContext: ExecutionContext): Promise<TransactionResult> {
+  public async issue(asset: Asset, issuerFinId: string, quantity: string, executionContext: ExecutionContext): Promise<ReceiptResult> {
     let txHash: string;
     try {
       logger.info(`Issue asset ${asset.assetId} to ${issuerFinId} with amount ${quantity}`);
@@ -94,23 +94,23 @@ export class TokenServiceImpl extends CommonService implements TokenService {
     } catch (e) {
       logger.error(`Error on asset issuance: ${e}`);
       if (e instanceof EthereumTransactionError) {
-        return failedTransaction(1, e.message);
+        return failedReceiptResult(1, e.message);
 
       } else {
-        return failedTransaction(1, `${e}`);
+        return failedReceiptResult(1, `${e}`);
       }
     }
-    return successfulTransaction(txHash);
+    return pendingReceiptResult(txHash);
   }
 
 
-  public async transfer(nonce: string, source: Source, destination: Destination, reqAsset: SrvAsset,
+  public async transfer(nonce: string, source: Source, destination: Destination, ast: Asset,
                         quantity: string, signature: Signature, executionContext: ExecutionContext
-  ): Promise<TransactionResult> {
+  ): Promise<ReceiptResult> {
     const { signature: sgn, template } = signature;
     try {
       const eip712Template = template as EIP712Template;
-      const eip712Params = extractEIP712Params(reqAsset, source, destination, undefined, eip712Template, executionContext);
+      const eip712Params = extractEIP712Params(ast, source, destination, undefined, eip712Template, executionContext);
       this.validateRequest(source, destination, quantity, eip712Params);
       const { buyerFinId, sellerFinId, asset, settlement, loan, params } = eip712Params;
 
@@ -118,17 +118,42 @@ export class TokenServiceImpl extends CommonService implements TokenService {
       if (executionContext) {
         this.execDetailsStore?.addExecutionContext(txHash, executionContext.planId, executionContext.sequence);
       }
-      return successfulTransaction(txHash);
+      return pendingReceiptResult(txHash);
     } catch (e) {
       logger.error(`Error on asset transfer: ${e}`);
       if (e instanceof EthereumTransactionError) {
-        return failedTransaction(1, e.message);
+        return failedReceiptResult(1, e.message);
 
       } else {
-        return failedTransaction(1, `${e}`);
+        return failedReceiptResult(1, `${e}`);
       }
     }
 
+  }
+
+  // public async redeem(request: Paths.RedeemAssets.RequestBody): Promise<Paths.RedeemAssets.Responses.$200> {
+  public async redeem(source: Source, destination: Destination, asset: Asset, quantity: string, operationId: string,
+                       executionContext: ExecutionContext
+  ): Promise<ReceiptResult> {
+    if (!operationId) {
+      logger.error("No operationId provided");
+      return failedReceiptResult(1, "operationId is required");
+    }
+
+    try {
+      const txHash = await this.finP2PContract.releaseAndRedeem(operationId, source.finId, quantity);
+      if (executionContext) {
+        this.execDetailsStore?.addExecutionContext(txHash, executionContext.planId, executionContext.sequence);
+      }
+      return pendingReceiptResult(txHash);
+    } catch (e) {
+      logger.error(`Error releasing asset: ${e}`);
+      if (e instanceof EthereumTransactionError) {
+        return failedReceiptResult(1, e.message);
+      } else {
+        return failedReceiptResult(1, `${e}`);
+      }
+    }
   }
 
   public async getBalance(assetId: string, finId: string): Promise<string> {
@@ -136,24 +161,15 @@ export class TokenServiceImpl extends CommonService implements TokenService {
     return truncateDecimals(balance, this.defaultDecimals);
   }
 
-  public async balance(request: Paths.GetAssetBalanceInfo.RequestBody): Promise<Paths.GetAssetBalanceInfo.Responses.$200> {
-    logger.debug("balance", { request });
-    const { asset, account: { finId } } = request;
-    const { assetId } = assetFromAPI(asset);
+  public async balance(assetId: string, finId: string): Promise<Balance> {
     const balance = await this.finP2PContract.balance(assetId, finId);
     const truncated = truncateDecimals(balance, this.defaultDecimals);
     return {
-      account: { type: "finId", finId },
-      asset: request.asset,
-      balanceInfo: {
-        asset,
-        current: truncated,
-        available: truncated,
-        held: "0"
-      }
-    } as Components.Schemas.AssetBalanceInfoResponse;
+      current: truncated,
+      available: truncated,
+      held: truncated
+    }
   }
-
 
 }
 

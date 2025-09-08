@@ -1,25 +1,157 @@
+export type AssetType = "finp2p" | "fiat" | "cryptocurrency";
 
-export type SrvAsset = {
+export type Asset = {
   assetId: string
-  assetType: "finp2p" | "fiat" | "cryptocurrency"
+  assetType: AssetType
 }
 
-export type Source = {}
+export type Source = {
+  finId: string
+}
 
-export type Destination = {}
+export const finIdSource = (finId: string | undefined): Source | undefined => {
+  if (!finId) {
+    return undefined;
+  }
+  return { finId };
+};
+
+export type Destination = {
+  finId: string
+}
+
+export const finIdDestination = (finId: string | undefined): Destination | undefined => {
+  if (!finId) {
+    return undefined;
+  }
+  return { finId };
+};
 
 export type Signature = {
   signature: string;
   template: SignatureTemplate;
 }
 
+export type SignatureTemplate = EIP712Template
+
+
+export type ExecutionContext = {
+  planId: string
+  sequence: number
+}
+
+export type ErrorDetails = {
+  code: number;
+  message: string;
+}
+
+export type SuccessfulAssetCreationResult = {
+  type: "success";
+  tokenId: string;
+  tokenAddress: string;
+  finp2pTokenAddress: string;
+}
+
+export type FailedAssetCreationResult = {
+  type: "failure";
+  error: ErrorDetails
+}
+
+export type AssetCreationResult = SuccessfulAssetCreationResult | FailedAssetCreationResult;
+
+export const failedAssetCreation = (code: number, message: string): AssetCreationResult => ({
+  type: "failure",
+  error: { code, message }
+});
+
+export const successfulAssetCreation = (tokenId: string, tokenAddress: string, finp2pTokenAddress: string): AssetCreationResult => ({
+  type: "success",
+  tokenId,
+  tokenAddress,
+  finp2pTokenAddress
+});
+
+export type PendingReceiptResult = {
+  type: "pending";
+  correlationId: string;
+};
+
+export type FailedReceiptResult = {
+  type: "failure";
+  error: ErrorDetails
+}
+
+export type SuccessReceiptResult = {
+  type: "success";
+  receipt: Receipt;
+}
+
+export type ReceiptResult = PendingReceiptResult | FailedReceiptResult | SuccessReceiptResult;
+
+export type OperationResult = ReceiptResult | AssetCreationResult;
+
+export const successfulReceiptResult = (receipt: Receipt): ReceiptResult => ({
+  type: "success",
+  receipt
+});
+
+export const failedReceiptResult = (code: number, message: string): ReceiptResult => ({
+  type: "failure",
+  error: { code, message }
+});
+
+export const pendingReceiptResult = (correlationId: string): ReceiptResult => ({
+  type: "pending",
+  correlationId
+});
+
+export type Balance = {
+  current: string
+  available: string
+  held: string
+}
+
+export type OperationType = "transfer" | "redeem" | "hold" | "release" | "issue";
+
+export type Receipt = {
+  id: string,
+  asset: Asset
+  source: Source | undefined,
+  destination: Destination | undefined,
+  quantity: string,
+  transactionDetails: TransactionDetails
+  tradeDetails: TradeDetails | undefined,
+  operationType: OperationType,
+  proof: ProofPolicy | undefined,
+  timestamp: number
+}
+
+export type TransactionDetails = {
+  transactionId: string
+  operationId: string | undefined
+}
+
+export type TradeDetails = {
+  executionContext: ExecutionContext | undefined
+}
+
+export type ProofPolicy = {}
+
+export class RequestValidationError extends Error {
+  constructor(public readonly reason: string) {
+    super(reason);
+  }
+}
+
+
+export type EIP712Domain = {}
+
+
 export type EIP712Template = {
   type: "EIP712"
   primaryType: string;
   message: EIP722Message;
 };
-
-export type SignatureTemplate = EIP712Template
 
 
 export type EIP722Message = {
@@ -45,54 +177,16 @@ export type EIP712TypedValue =
   | EIP712TypeObject
   | EIP712TypeArray;
 
-export type ExecutionContext = {
-  planId: string
-  sequence: number
+export type EIP712Types = {
+  [name: string]: EIP712TypeDefinition[];
 }
 
-export type AssetCreationResult = {
-  type: "success";
-  tokenId: string;
-  tokenAddress: string;
-  finp2pTokenAddress: string;
-} | {
-  type: "failure";
-  error: {
-    code: number;
-    message: string;
-  }
+export interface EIP712TypeDefinition {
+  name?: string;
+  fields?: EIP712FieldDefinition[];
 }
 
-export const failedAssetCreation = (code: number, message: string): AssetCreationResult => ({
-  type: "failure",
-  error: { code, message }
-});
-
-export const successfulAssetCreation = (tokenId: string, tokenAddress: string, finp2pTokenAddress: string): AssetCreationResult => ({
-  type: "success",
-  tokenId,
-  tokenAddress,
-  finp2pTokenAddress
-});
-
-export type TransactionResult = {
-  type: "success";
-  txHash: string;
-} | {
-  type: "failure";
-  error: {
-    code: number;
-    message: string;
-  }
+export interface EIP712FieldDefinition {
+  name?: string;
+  type?: string;
 }
-
-export const failedTransaction = (code: number, message: string): TransactionResult => ({
-  type: "failure",
-  error: { code, message }
-});
-
-export const successfulTransaction = (txHash: string): TransactionResult => ({
-  type: "success",
-  txHash
-});
-

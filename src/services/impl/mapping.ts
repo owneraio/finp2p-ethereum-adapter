@@ -1,31 +1,44 @@
-import { ExecutionContext } from "../model";
+import {
+  AssetType, EIP712Domain,
+  EIP712Template, EIP712TypeArray, EIP712TypeBool,
+  EIP712TypeByte,
+  EIP712TypedValue, EIP712TypeInteger, EIP712TypeObject, EIP712Types, EIP712TypeString,
+  ExecutionContext, finIdDestination, finIdSource,
+  ProofPolicy,
+  Receipt, TradeDetails
+} from "../model";
+import {
+  FinP2PReceipt,
+  ExecutionContext as ContractExecutionContext,
+  AssetType as ContractAssetType,
+  TradeDetails as ContractTradeDetails,
+  ReceiptProof as ContractReceiptProof
+} from "../../../finp2p-contracts/src/contracts/model";
+import {
+  EIP712Template as ContractEIP712Template,
+  EIP712Domain as ContractEIP712Domain,
+  EIP712Types as ContractEIP712Types,
+  EIP712Message as ContractEIP712Message,
+} from "../../../finp2p-contracts/src/contracts/eip712";
 
 
-export const assetToAPI = (assetId: string, assetType: AssetType): Asset => {
+export const assetTypeToService = (assetType: ContractAssetType): AssetType => {
   switch (assetType) {
-    case AssetType.Fiat:
-      return {
-        type: "fiat", code: assetId
-      };
-    case AssetType.FinP2P:
-      return {
-        type: "finp2p", resourceId: assetId
-      };
-    case AssetType.Cryptocurrency:
-      return {
-        type: "cryptocurrency", code: assetId
-      };
-    default:
-      throw new Error(`Unsupported asset type: ${assetType}`);
+    case ContractAssetType.Fiat:
+      return 'fiat'
+    case ContractAssetType.FinP2P:
+       return 'finp2p'
+    case ContractAssetType.Cryptocurrency:
+      return 'cryptocurrency';
   }
 };
 
-export const eip712DomainToAPI = (domain: EIP712Domain): Components.Schemas.EIP712Domain => {
+export const eip712DomainToService = (domain: ContractEIP712Domain): EIP712Domain => {
   const { name, version, chainId, verifyingContract } = domain;
-  return { name, version, chainId, verifyingContract } as Components.Schemas.EIP712Domain;
+  return { name, version, chainId, verifyingContract } as EIP712Domain;
 };
 
-export const eip712TypesToAPI = (types: EIP712Types): Components.Schemas.EIP712Types => {
+export const eip712TypesToService = (types: ContractEIP712Types): EIP712Types => {
   return {
     definitions: Object.entries(types).map(([name, fields]) => ({
       name,
@@ -34,49 +47,49 @@ export const eip712TypesToAPI = (types: EIP712Types): Components.Schemas.EIP712T
         type: field.type
       }))
     }))
-  } as Components.Schemas.EIP712Types;
+  } as EIP712Types;
 };
 
-export const eip712MessageToAPI = (message: EIP712Message): {
-  [name: string]: Components.Schemas.EIP712TypedValue;
+export const eip712MessageToAPI = (message: ContractEIP712Message): {
+  [name: string]: EIP712TypedValue;
 } => {
-  const convertValue = (value: any): Components.Schemas.EIP712TypedValue => {
+  const convertValue = (value: any): EIP712TypedValue => {
     if (typeof value === "string") {
-      return /^0x[0-9a-fA-F]+$/.test(value) ? (value as Components.Schemas.EIP712TypeByte) : (value as EIP712TypeString);
+      return /^0x[0-9a-fA-F]+$/.test(value) ? (value as EIP712TypeByte) : (value as EIP712TypeString);
     }
     if (typeof value === "number") {
-      return value as Components.Schemas.EIP712TypeInteger;
+      return value as EIP712TypeInteger;
     }
     if (typeof value === "boolean") {
-      return value as Components.Schemas.EIP712TypeBool;
+      return value as EIP712TypeBool;
     }
     if (Array.isArray(value)) {
-      return value.map(convertValue) as Components.Schemas.EIP712TypeArray;
+      return value.map(convertValue) as EIP712TypeArray;
     }
     if (typeof value === "object" && value !== null) {
       return Object.fromEntries(Object.entries(value)
-        .map(([key, val]) => [key, convertValue(val)])) as Components.Schemas.EIP712TypeObject;
+        .map(([key, val]) => [key, convertValue(val)])) as EIP712TypeObject;
     }
     throw new Error("Unsupported EIP712 message value type");
   };
 
   return Object.fromEntries(Object.entries(message)
-    .map(([key, val]) => [key, convertValue(val)])) as Components.Schemas.EIP712TypeObject;
+    .map(([key, val]) => [key, convertValue(val)])) as EIP712TypeObject;
 };
 
-export const eip712TemplateToAPI = (template: EIP712Template): Components.Schemas.EIP712Template => {
+export const eip712TemplateToService = (template: ContractEIP712Template): EIP712Template => {
   const { primaryType, domain, types, message, hash } = template;
   return {
     primaryType,
     type: "EIP712",
-    types: eip712TypesToAPI(types),
+    types: eip712TypesToService(types),
     message: eip712MessageToAPI(message),
-    domain: eip712DomainToAPI(domain),
+    domain: eip712DomainToService(domain),
     hash
-  } as Components.Schemas.EIP712Template;
+  } as EIP712Template;
 };
 
-export const proofToAPI = (proof: ReceiptProof | undefined): ProofPolicy | undefined => {
+export const proofToService = (proof: ContractReceiptProof | undefined): ProofPolicy | undefined => {
   if (!proof) {
     return undefined;
   }
@@ -89,7 +102,7 @@ export const proofToAPI = (proof: ReceiptProof | undefined): ProofPolicy | undef
       return {
         type: "signatureProofPolicy",
         signature: {
-          template: eip712TemplateToAPI(proof.template),
+          template: eip712TemplateToService(proof.template),
           hashFunc: "keccak_256",
           signature: proof.signature
         }
@@ -97,7 +110,7 @@ export const proofToAPI = (proof: ReceiptProof | undefined): ProofPolicy | undef
   }
 };
 
-export const receiptToAPI = (receipt: FinP2PReceipt): Receipt => {
+export const receiptToService = (receipt: FinP2PReceipt): Receipt => {
   const {
     id,
     assetId,
@@ -113,7 +126,10 @@ export const receiptToAPI = (receipt: FinP2PReceipt): Receipt => {
   } = receipt;
   return {
     id,
-    asset: assetToAPI(assetId, assetType),
+    asset: {
+      assetId,
+      assetType: assetTypeToService(assetType)
+    },
     quantity,
     source: finIdSource(source),
     destination: finIdDestination(destination),
@@ -121,21 +137,21 @@ export const receiptToAPI = (receipt: FinP2PReceipt): Receipt => {
       transactionId: id, operationId
     },
     timestamp,
-    tradeDetails: tradeDetailsToAPI(tradeDetails),
+    tradeDetails: tradeDetailsToService(tradeDetails),
     operationType,
-    proof: proofToAPI(proof)
+    proof: proofToService(proof)
   };
 };
 
-export const tradeDetailsToAPI = (tradeDetails: TradeDetails | undefined): ReceiptTradeDetails => {
+export const tradeDetailsToService = (tradeDetails: ContractTradeDetails | undefined): TradeDetails | undefined => {
   if (!tradeDetails) {
-    return {};
+    return undefined;
   }
   const { executionContext } = tradeDetails;
-  return { executionContext: executionContextToAPI(executionContext) };
+  return { executionContext: executionContextToService(executionContext) };
 };
 
-export const executionContextToAPI = (executionContext: ExecutionContext): ReceiptExecutionContext => {
+export const executionContextToService = (executionContext: ContractExecutionContext): ExecutionContext => {
   const { executionPlanId, instructionSequenceNumber } = executionContext;
-  return { executionPlanId, instructionSequenceNumber };
+  return { planId: executionPlanId, sequence: instructionSequenceNumber };
 };

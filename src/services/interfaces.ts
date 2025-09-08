@@ -1,13 +1,18 @@
 import {
-  SrvAsset,
+  Asset,
   AssetCreationResult,
   Destination,
   ExecutionContext,
   Signature,
   Source,
-  TransactionResult
+  ReceiptResult, Balance
 } from "./model";
 
+
+export interface HealthService {
+  liveness(): Promise<void>;
+  readiness(): Promise<void>;
+}
 
 export interface TokenService {
 
@@ -15,8 +20,30 @@ export interface TokenService {
 
   getBalance(assetId: string, finId: string): Promise<string>;
 
-  issue(asset: SrvAsset, issuerFinId: string, quantity: string, executionContext: ExecutionContext): Promise<TransactionResult>;
+  balance(assetId: string, finId: string): Promise<Balance>;
 
-  transfer(nonce: string, source: Source, destination: Destination, reqAsset: SrvAsset,
-           quantity: string, signature: Signature, executionContext: ExecutionContext): Promise<TransactionResult>;
+  issue(asset: Asset, issuerFinId: string, quantity: string, executionContext: ExecutionContext): Promise<ReceiptResult>;
+
+  transfer(nonce: string, source: Source, destination: Destination, reqAsset: Asset,
+           quantity: string, signature: Signature, executionContext: ExecutionContext): Promise<ReceiptResult>;
+
+  redeem(source: Source, destination: Destination, asset: Asset, quantity: string, operationId: string,
+                       executionContext: ExecutionContext
+  ): Promise<ReceiptResult>
+}
+
+export interface EscrowService {
+
+  hold(nonce: string, source: Source, destination: Destination, asset: Asset,
+       quantity: string, signature: Signature, operationId: string, executionContext: ExecutionContext
+  ): Promise<ReceiptResult>
+
+  release(destination: Destination, asset: Asset, quantity: string, operationId: string,
+          executionContext: ExecutionContext
+  ): Promise<ReceiptResult>
+
+  rollback(asset: Asset, quantity: string, operationId: string,
+          executionContext: ExecutionContext
+  ): Promise<ReceiptResult>
+
 }

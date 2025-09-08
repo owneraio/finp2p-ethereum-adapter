@@ -1,14 +1,13 @@
 import {
   assetTypeFromString, emptyTerm,
   operationParams,
-  OperationParams,
   Phase,
   ReleaseType,
   Term
 } from "../../finp2p-contracts/src/contracts/model";
 import { EIP712LoanTerms, emptyLoanTerms, LegType, PrimaryType } from "../../finp2p-contracts/src/contracts/eip712";
 import {
-  SrvAsset,
+  Asset,
   Destination,
   EIP712Template,
   EIP712TypeObject,
@@ -16,19 +15,10 @@ import {
   ExecutionContext,
   SignatureTemplate, Source
 } from "./model";
+import { EIP712Params } from "./impl/model";
 
 
-export type EIP712Params = {
-  buyerFinId: string,
-  sellerFinId: string,
-  asset: Term,
-  settlement: Term,
-  loan: EIP712LoanTerms,
-  params: OperationParams
-};
-
-
-export const detectLeg = (asset: SrvAsset, template: SignatureTemplate): LegType => {
+export const detectLeg = (asset: Asset, template: SignatureTemplate): LegType => {
   if (template.type != "EIP712") {
     throw new Error(`Unsupported signature template type: ${template.type}`);
   }
@@ -41,7 +31,7 @@ export const detectLeg = (asset: SrvAsset, template: SignatureTemplate): LegType
   }
 };
 
-export const extractEIP712Params = (asset: SrvAsset,
+export const extractEIP712Params = (asset: Asset,
                                     source: Source | undefined,
                                     destination: Destination | undefined,
                                     operationId: string | undefined,
@@ -178,12 +168,7 @@ export const finIdFromAPI = (finId: EIP712TypeObject): string => {
   return finId.idkey as EIP712TypeString;
 };
 
-
-
-
-
-
-const compareAssets = (asset: SrvAsset, eipAsset: EIP712TypeObject): boolean => {
+const compareAssets = (asset: Asset, eipAsset: EIP712TypeObject): boolean => {
   if (isIn(eipAsset.assetType as string, "fiat", "cryptocurrency") && isIn(eipAsset.assetId as string, "USD", "USDC") &&
     isIn(asset.assetType as string, "fiat", "cryptocurrency") && isIn(asset.assetId, "USD", "USDC")) {
     return true;

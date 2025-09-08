@@ -3,9 +3,17 @@ import { asyncMiddleware } from "../helpers/middleware";
 import { EscrowService } from "../services/impl/escrow";
 import { PaymentsService } from "../services/impl/payments";
 import { PlanService } from "../services/impl/plans";
-import { assetFromAPI, assetResultToResponse, extractEIP712Params, RequestParams, transactionToAPI } from "./mapping";
+import {
+  assetFromAPI,
+  assetResultToAPI,
+  destinationFromAPI,
+  executionContextFromAPI,
+  signatureFromAPI,
+  sourceFromAPI,
+  receiptResultToAPI, balanceToAPI
+} from "./mapping";
 import LedgerTokenId = FinAPIComponents.Schemas.LedgerTokenId;
-import { TokenService } from "../services/interfaces";
+import { HealthService, TokenService } from "../services/interfaces";
 import { logger } from "../helpers/logger";
 
 
@@ -13,13 +21,14 @@ export const register = (app: express.Application,
                          tokenService: TokenService,
                          escrowService: EscrowService,
                          paymentService: PaymentsService,
-                         planService: PlanService
+                         planService: PlanService,
+                         healthService: HealthService
 ) => {
 
   app.get("/health/liveness",
     asyncMiddleware(async (req, res) => {
       if (req.headers["skip-vendor"] !== "true") {
-        await tokenService.liveness();
+        await healthService.liveness();
       }
       res.send("OK");
     })
@@ -28,7 +37,7 @@ export const register = (app: express.Application,
   app.get("/health/readiness",
     asyncMiddleware(async (req, res) => {
       if (req.headers["skip-vendor"] !== "true") {
-        await tokenService.readiness();
+        await healthService.readiness();
       }
       return res.send("OK");
     })
@@ -52,14 +61,16 @@ export const register = (app: express.Application,
   app.post(
     "/api/assets/create",
     asyncMiddleware(async (req, res) => {
+      // @ts-ignore
       const request = req as Paths.CreateAsset.RequestBody;
-      const { assetId } = assetFromAPI(request);
+      const { asset, ledgerAssetBinding } = request;
+      const { assetId } = assetFromAPI(asset);
       let tokenId: string | undefined = undefined;
-      if (request.ledgerAssetBinding) {
-        ({ tokenId } = request.ledgerAssetBinding as LedgerTokenId);
+      if (ledgerAssetBinding) {
+        ({ tokenId } = ledgerAssetBinding as LedgerTokenId);
       }
       const result = await tokenService.createAsset(assetId, tokenId);
-      return res.send(assetResultToResponse(result));
+      return res.send(assetResultToAPI(result));
     })
   );
 
@@ -67,6 +78,7 @@ export const register = (app: express.Application,
   app.post(
     "/api/assets/getBalance",
     asyncMiddleware(async (req, res) => {
+      // @ts-ignore
       const request = req as Paths.GetAssetBalance.RequestBody;
       logger.debug("getBalance", { request });
       const { asset, owner: { finId } } = request;
@@ -80,10 +92,13 @@ export const register = (app: express.Application,
   app.post(
     "/api/asset/balance",
     asyncMiddleware(async (req, res) => {
-
-
-      const balance = await tokenService.balance(req.body);
-      res.send(balance);
+      // @ts-ignore
+      const request = req as Paths.GetAssetBalanceInfo.RequestBody;
+      const { asset, account } = request;
+      const { assetId } = assetFromAPI(asset);
+      const { finId } = account;
+      const balance = await tokenService.balance(assetId, finId);
+      res.send(balanceToAPI(asset, account, balance));
     })
   );
 
@@ -91,11 +106,17 @@ export const register = (app: express.Application,
   app.post(
     "/api/assets/issue",
     asyncMiddleware(async (req, res) => {
+      // @ts-ignore
       const request = req as Paths.IssueAssets.RequestBody;
       const { asset, quantity, destination: { finId: issuerFinId }, executionContext } = request;
 
-      const result = await tokenService.issue(assetFromAPI(asset), issuerFinId, quantity, executionContext);
-      res.json(transactionToAPI(result));
+      const result = await tokenService.issue(
+        assetFromAPI(asset),
+        issuerFinId,
+        quantity,
+        executionContextFromAPI(executionContext!)
+      );
+      res.json(receiptResultToAPI(result));
     })
   );
 
@@ -103,15 +124,19 @@ export const register = (app: express.Application,
   app.post(
     "/api/assets/transfer",
     asyncMiddleware(async (req, res) => {
+      // @ts-ignore
       const request = req as Paths.TransferAsset.RequestBody;
-      const { executionContext } = request;
-      // this.validateRequest(requestParams, eip712Params);
-      const { nonce, signature: { signature } } = request;
-
+      const { nonce, source, destination, asset, quantity, signature, executionContext } = request;
       const result = await tokenService.transfer(
-        nonce
+        nonce,
+        sourceFromAPI(source),
+        destinationFromAPI(destination),
+        assetFromAPI(asset),
+        quantity,
+        signatureFromAPI(signature),
+        executionContextFromAPI(executionContext!)
       );
-      res.json(transactionToAPI(result));
+      res.json(receiptResultToAPI(result));
     })
   );
 

@@ -1,20 +1,15 @@
+import {
+  Asset,
+  Source,
+  Destination,
+  Signature,
+  ExecutionContext,
+  AssetCreationResult,
+  ReceiptResult,
+  Balance
+} from "../services/model";
 
-import Asset = Components.Schemas.Asset;
-import Receipt = Components.Schemas.Receipt;
-import LedgerAssetInfo = Components.Schemas.LedgerAssetInfo;
-import CreateAssetResponse = Components.Schemas.CreateAssetResponse;
-import LedgerTokenId = Components.Schemas.LedgerTokenId;
-import ContractDetails = Components.Schemas.ContractDetails;
-import AssetCreateResponse = Components.Schemas.AssetCreateResponse;
-import FinP2PEVMOperatorDetails = Components.Schemas.FinP2PEVMOperatorDetails;
-import EIP712TypeString = Components.Schemas.EIP712TypeString;
-import ProofPolicy = Components.Schemas.ProofPolicy;
-import ReceiptExecutionContext = Components.Schemas.ReceiptExecutionContext;
-import ReceiptTradeDetails = Components.Schemas.ReceiptTradeDetails;
-import { ExecutionContext, AssetCreationResult, SrvAsset, TransactionResult } from "../services/model";
-import ReceiptOperation = Components.Schemas.ReceiptOperation;
-
-export const assetFromAPI = (asset: Components.Schemas.Asset): SrvAsset => {
+export const assetFromAPI = (asset: Components.Schemas.Asset): Asset => {
   switch (asset.type) {
     case "fiat":
       return {
@@ -29,6 +24,16 @@ export const assetFromAPI = (asset: Components.Schemas.Asset): SrvAsset => {
         assetId: asset.code, assetType: "cryptocurrency"
       };
   }
+};
+
+export const sourceFromAPI = (source: Components.Schemas.Source): Source => {
+  const { finId } = source;
+  return { finId };
+};
+
+export const destinationFromAPI = (destination: Components.Schemas.Destination): Destination => {
+  const { finId } = destination;
+  return { finId };
 };
 
 const finIdSource = (finId?: string): Components.Schemas.Source | undefined => {
@@ -53,14 +58,33 @@ const finIdDestination = (finId?: string): Components.Schemas.Destination | unde
   };
 };
 
-export const executionContextFromAPI = (ep: Components.Schemas.ExecutionContext): ExecutionContext  => {
+export const executionContextFromAPI = (ep: Components.Schemas.ExecutionContext): ExecutionContext => {
   const { executionPlanId, instructionSequenceNumber } = ep;
   return { planId: executionPlanId, sequence: instructionSequenceNumber };
-}
+};
+
+export const signatureFromAPI = (sg: Components.Schemas.Signature): Signature => {
+  const { template, signature } = sg;
+  switch (template.type) {
+    case "EIP712":
+      break;
+    case "hashList":
+      break;
+  }
+  const { type, domain, primaryType, messageTypes } = template;
+  return {
+    signature,
+    template: {
+      type: type as Components.Schemas.EIP712TypeString,
+      domain,
+      primaryType,
+      messageTypes
+    }
+  };
+};
 
 
-
-export const assetResultToResponse = (result: AssetCreationResult): CreateAssetResponse => {
+export const assetResultToAPI = (result: AssetCreationResult): Components.Schemas.CreateAssetResponse => {
   switch (result.type) {
     case "success":
       const { tokenId, tokenAddress, finp2pTokenAddress } = result;
@@ -69,33 +93,34 @@ export const assetResultToResponse = (result: AssetCreationResult): CreateAssetR
           ledgerAssetInfo: {
             ledgerTokenId: {
               type: "tokenId", tokenId: tokenId
-            } as LedgerTokenId, ledgerReference: {
+            } as Components.Schemas.LedgerTokenId,
+            ledgerReference: {
               type: "contractDetails",
               network: "ethereum",
               address: tokenAddress,
               TokenStandard: "TokenStandard_ERC20",
               additionalContractDetails: {
                 FinP2POperatorContractAddress: finp2pTokenAddress, allowanceRequired: true
-              } as FinP2PEVMOperatorDetails
-            } as ContractDetails
-          } as LedgerAssetInfo
-        } as AssetCreateResponse
-      } as CreateAssetResponse;
+              } as Components.Schemas.FinP2PEVMOperatorDetails
+            } as Components.Schemas.ContractDetails
+          } as Components.Schemas.LedgerAssetInfo
+        } as Components.Schemas.AssetCreateResponse
+      } as Components.Schemas.CreateAssetResponse;
 
     case "failure":
       const { code, message } = result.error;
       return {
         isCompleted: true, error: { code, message }
-      } as CreateAssetResponse;
+      } as Components.Schemas.CreateAssetResponse;
   }
 };
 
-export const transactionToAPI = (result: TransactionResult): ReceiptOperation => {
+export const receiptResultToAPI = (result: ReceiptResult): Components.Schemas.ReceiptOperation => {
   switch (result.type) {
-    case "success":
-      const { txHash } = result;
+    case "pending":
+      const { correlationId: cid } = result;
       return {
-        isCompleted: false, cid: txHash
+        isCompleted: false, cid
       } as Components.Schemas.ReceiptOperation;
     case "failure":
       const { code, message } = result.error;
@@ -113,9 +138,19 @@ export const failedTransaction = (code: number, message: string) => {
 };
 
 
-export class RequestValidationError extends Error {
-  constructor(public readonly reason: string) {
-    super(reason);
-  }
-}
-
+export const balanceToAPI = (
+  asset: Components.Schemas.Asset,
+  account: Components.Schemas.AssetBalanceAccount,
+  balance: Balance
+): Components.Schemas.AssetBalanceInfoResponse => {
+  const { current, available, held } = balance;
+  return {
+    account, asset,
+    balanceInfo: {
+      asset,
+      current,
+      available,
+      held
+    }
+  } as Components.Schemas.AssetBalanceInfoResponse;
+};
