@@ -1,10 +1,13 @@
-import { CommonService } from "./common";
+import { CommonServiceImpl } from "./common";
 import { v4 as uuid } from "uuid";
+import { PaymentService } from "../interfaces";
+import { Asset, Destination, Signature } from "../model";
+import { Source } from "graphql";
 
 
-export class PaymentsService extends CommonService {
+export class PaymentsServiceImpl extends CommonServiceImpl implements PaymentService {
 
-  public async deposit(request: Paths.DepositInstruction.RequestBody): Promise<Paths.DepositInstruction.Responses.$200> {
+  public async deposit(owner: Source, destination: Destination, asset: Asset, amount: string, nonce: string | unknown, signature: Signature): Promise<Paths.DepositInstruction.Responses.$200> {
     return {
       isCompleted: true, cid: uuid(), response: {
         account: request.destination, description: "IBAN GB33BUKB20201555555555", details: request.details

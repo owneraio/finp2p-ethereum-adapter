@@ -96,16 +96,14 @@ export const proofToService = (proof: ContractReceiptProof | undefined): ProofPo
   switch (proof.type) {
     case "no-proof":
       return {
-        type: "noProofPolicy"
+        type: "no-proof"
       };
     case "signature-proof":
+      const { template, signature } = proof;
       return {
-        type: "signatureProofPolicy",
-        signature: {
-          template: eip712TemplateToService(proof.template),
-          hashFunc: "keccak_256",
-          signature: proof.signature
-        }
+        type: "signature-proof",
+        template: eip712TemplateToService(template),
+        signature: signature
       };
   }
 };
@@ -143,9 +141,9 @@ export const receiptToService = (receipt: FinP2PReceipt): Receipt => {
   };
 };
 
-export const tradeDetailsToService = (tradeDetails: ContractTradeDetails | undefined): TradeDetails | undefined => {
+export const tradeDetailsToService = (tradeDetails: ContractTradeDetails | undefined): TradeDetails => {
   if (!tradeDetails) {
-    return undefined;
+    return { executionContext: undefined };
   }
   const { executionContext } = tradeDetails;
   return { executionContext: executionContextToService(executionContext) };

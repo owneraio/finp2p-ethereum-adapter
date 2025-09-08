@@ -18,21 +18,22 @@ import { ProofDomain } from "../../finp2p/model";
 import { truncateDecimals } from "../../../finp2p-contracts/src/contracts/utils";
 import {
   Destination,
-  failedReceiptResult,
-  OperationResult,
-  pendingReceiptResult, ReceiptResult, RequestValidationError,
+  failedReceiptOperation,
+  OperationStatus,
+  pendingReceiptOperation, ReceiptOperation, RequestValidationError,
   Source,
-  successfulReceiptResult
+  successfulReceiptOperation
 } from "../model";
 import { receiptToService } from "./mapping";
 import { EIP712Params } from "./model";
+import { CommonService, HealthService } from "../interfaces";
 
 export interface ExecDetailsStore {
   addExecutionContext(txHash: string, executionPlanId: string, instructionSequenceNumber: number): void;
   getExecutionContext(txHash: string): ExecutionContext;
 }
 
-export class CommonService {
+export class CommonServiceImpl implements CommonService, HealthService {
 
   finP2PContract: FinP2PContract;
   policyGetter: PolicyGetter | undefined;
@@ -59,22 +60,19 @@ export class CommonService {
     await this.finP2PContract.provider.getBlockNumber();
   }
 
-
-  // public async getReceipt(id: Paths.GetReceipt.Parameters.TransactionId): Promise<Paths.GetReceipt.Responses.$200> {
-  public async getReceipt(id: string): Promise<ReceiptResult> {
+  public async getReceipt(id: string): Promise<ReceiptOperation> {
     try {
       let finp2pReceipt = await this.finP2PContract.getReceipt(id);
       finp2pReceipt.quantity = truncateDecimals(finp2pReceipt.quantity, this.defaultDecimals);
       const receipt = await this.ledgerProof(finp2pReceipt);
-      return successfulReceiptResult(receiptToService(receipt));
+      return successfulReceiptOperation(receiptToService(receipt));
 
     } catch (e) {
-      return failedReceiptResult(1, `${e}`)
+      return failedReceiptOperation(1, `${e}`)
     }
   }
 
-  // public async operationStatus(cid: string): Promise<Paths.GetOperation.Responses.$200> {
-  public async operationStatus(cid: string): Promise<OperationResult> {
+  public async operationStatus(cid: string): Promise<OperationStatus> {
     try {
       const status = await this.finP2PContract.getOperationStatus(cid);
       switch (status.status) {
@@ -89,13 +87,13 @@ export class CommonService {
             logger.info("No execution context found for receipt", { receiptId: receipt.id });
           }
           const receiptResponse = receiptToService(await this.ledgerProof(receipt));
-          return successfulReceiptResult(receiptResponse);
+          return successfulReceiptOperation(receiptResponse);
 
         case "pending":
-          return pendingReceiptResult(cid);
+          return pendingReceiptOperation(cid);
 
         case "failed":
-          return failedReceiptResult(status.error.code, status.error.message)
+          return failedReceiptOperation(status.error.code, status.error.message)
       }
     } catch (e) {
       logger.error(`Got error: ${e}`);
@@ -103,7 +101,7 @@ export class CommonService {
     }
   }
 
-  protected validateRequest(source: Source, destination: Destination, quantity: string, eip712Params: EIP712Params): void {
+  protected validateRequest(source: Source, destination: Destination | undefined, quantity: string, eip712Params: EIP712Params): void {
     const {
       buyerFinId,
       sellerFinId,

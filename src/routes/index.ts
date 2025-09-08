@@ -1,15 +1,12 @@
 import * as express from 'express';
 import * as routes from './routes';
-import { TokenServiceImpl } from '../services/impl/tokens';
-import { EscrowService } from '../services/impl/escrow';
-import { PaymentsService } from '../services/impl/payments';
-import { PlanService } from '../services/impl/plans';
+import { EscrowService, TokenService, PaymentService, PlanApprovalService } from "../services/interfaces";
 
 export const register = (app: express.Application,
-  tokenService: TokenServiceImpl,
+  tokenService: TokenService,
   escrowService: EscrowService,
-  paymentService: PaymentsService,
-  planService: PlanService) => {
+  paymentService: PaymentService,
+  planService: PlanApprovalService) => {
   // define a route handler for the default home page
   app.get('/', (req, res) => {
     res.send('OK');

@@ -1,4 +1,4 @@
-import { CommonService, ExecDetailsStore } from "./common";
+import { CommonServiceImpl, ExecDetailsStore } from "./common";
 
 import {
   assetTypeFromString,
@@ -11,11 +11,11 @@ import { isEthereumAddress, truncateDecimals } from "../../../finp2p-contracts/s
 import { PolicyGetter } from "../../finp2p/policy";
 import {
   Asset,
-  AssetCreationResult, Destination, EIP712Template,
+  AssetCreationStatus, Destination, EIP712Template,
   ExecutionContext,
-  failedAssetCreation, failedReceiptResult, Signature, Source,
-  successfulAssetCreation, pendingReceiptResult,
-  ReceiptResult, Balance
+  failedAssetCreation, failedReceiptOperation, Signature, Source,
+  successfulAssetCreation, pendingReceiptOperation,
+  ReceiptOperation, Balance
 } from "../model";
 import { TokenService } from "../interfaces";
 import { getRandomNumber } from "../utils";
@@ -24,7 +24,7 @@ import { AssetCreationPolicy } from "./model";
 
 
 
-export class TokenServiceImpl extends CommonService implements TokenService {
+export class TokenServiceImpl extends CommonServiceImpl implements TokenService {
 
   assetCreationPolicy: AssetCreationPolicy;
 
@@ -34,7 +34,7 @@ export class TokenServiceImpl extends CommonService implements TokenService {
     this.assetCreationPolicy = assetCreationPolicy;
   }
 
-  public async createAsset(assetId: string, tokenId: string | undefined): Promise<AssetCreationResult> {
+  public async createAsset(assetId: string, tokenId: string | undefined): Promise<AssetCreationStatus> {
     try {
 
       if (tokenId) {
@@ -83,75 +83,73 @@ export class TokenServiceImpl extends CommonService implements TokenService {
 
   }
 
-  public async issue(asset: Asset, issuerFinId: string, quantity: string, executionContext: ExecutionContext): Promise<ReceiptResult> {
+  public async issue(asset: Asset, issuerFinId: string, quantity: string, exCtx: ExecutionContext): Promise<ReceiptOperation> {
     let txHash: string;
     try {
       logger.info(`Issue asset ${asset.assetId} to ${issuerFinId} with amount ${quantity}`);
       txHash = await this.finP2PContract.issue(issuerFinId, term(asset.assetId, assetTypeFromString(asset.assetType), quantity));
-      if (executionContext) {
-        this.execDetailsStore?.addExecutionContext(txHash, executionContext.planId, executionContext.sequence);
+      if (exCtx) {
+        this.execDetailsStore?.addExecutionContext(txHash, exCtx.planId, exCtx.sequence);
       }
     } catch (e) {
       logger.error(`Error on asset issuance: ${e}`);
       if (e instanceof EthereumTransactionError) {
-        return failedReceiptResult(1, e.message);
+        return failedReceiptOperation(1, e.message);
 
       } else {
-        return failedReceiptResult(1, `${e}`);
+        return failedReceiptOperation(1, `${e}`);
       }
     }
-    return pendingReceiptResult(txHash);
+    return pendingReceiptOperation(txHash);
   }
 
 
   public async transfer(nonce: string, source: Source, destination: Destination, ast: Asset,
-                        quantity: string, signature: Signature, executionContext: ExecutionContext
-  ): Promise<ReceiptResult> {
+                        quantity: string, signature: Signature, exCtx: ExecutionContext
+  ): Promise<ReceiptOperation> {
     const { signature: sgn, template } = signature;
     try {
       const eip712Template = template as EIP712Template;
-      const eip712Params = extractEIP712Params(ast, source, destination, undefined, eip712Template, executionContext);
+      const eip712Params = extractEIP712Params(ast, source, destination, undefined, eip712Template, exCtx);
       this.validateRequest(source, destination, quantity, eip712Params);
       const { buyerFinId, sellerFinId, asset, settlement, loan, params } = eip712Params;
 
       const txHash = await this.finP2PContract.transfer(nonce, sellerFinId, buyerFinId, asset, settlement, loan, params, sgn);
-      if (executionContext) {
-        this.execDetailsStore?.addExecutionContext(txHash, executionContext.planId, executionContext.sequence);
+      if (exCtx) {
+        this.execDetailsStore?.addExecutionContext(txHash, exCtx.planId, exCtx.sequence);
       }
-      return pendingReceiptResult(txHash);
+      return pendingReceiptOperation(txHash);
     } catch (e) {
       logger.error(`Error on asset transfer: ${e}`);
       if (e instanceof EthereumTransactionError) {
-        return failedReceiptResult(1, e.message);
+        return failedReceiptOperation(1, e.message);
 
       } else {
-        return failedReceiptResult(1, `${e}`);
+        return failedReceiptOperation(1, `${e}`);
       }
     }
-
   }
 
-  // public async redeem(request: Paths.RedeemAssets.RequestBody): Promise<Paths.RedeemAssets.Responses.$200> {
-  public async redeem(source: Source, destination: Destination, asset: Asset, quantity: string, operationId: string,
-                       executionContext: ExecutionContext
-  ): Promise<ReceiptResult> {
+  public async redeem(nonce: string, source: Source, asset: Asset, quantity: string, operationId: string | undefined,
+                      signature: Signature, exCtx: ExecutionContext
+  ): Promise<ReceiptOperation> {
     if (!operationId) {
       logger.error("No operationId provided");
-      return failedReceiptResult(1, "operationId is required");
+      return failedReceiptOperation(1, "operationId is required");
     }
 
     try {
       const txHash = await this.finP2PContract.releaseAndRedeem(operationId, source.finId, quantity);
-      if (executionContext) {
-        this.execDetailsStore?.addExecutionContext(txHash, executionContext.planId, executionContext.sequence);
+      if (exCtx) {
+        this.execDetailsStore?.addExecutionContext(txHash, exCtx.planId, exCtx.sequence);
       }
-      return pendingReceiptResult(txHash);
+      return pendingReceiptOperation(txHash);
     } catch (e) {
       logger.error(`Error releasing asset: ${e}`);
       if (e instanceof EthereumTransactionError) {
-        return failedReceiptResult(1, e.message);
+        return failedReceiptOperation(1, e.message);
       } else {
-        return failedReceiptResult(1, `${e}`);
+        return failedReceiptOperation(1, `${e}`);
       }
     }
   }

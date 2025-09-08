@@ -45,65 +45,143 @@ export type ErrorDetails = {
   message: string;
 }
 
-export type SuccessfulAssetCreationResult = {
+export type PlanApprovalStatus = ApprovedPlan | RejectedPlan | PendingPlan;
+
+export type ApprovedPlan = {
+  type: "approved";
+}
+
+export type RejectedPlan = {
+  type: "rejected";
+  error: ErrorDetails
+}
+
+export type PendingPlan = {
+  type: "pending";
+  correlationId: string;
+}
+
+export const approvedPlan = (): PlanApprovalStatus => ({
+  type: "approved"
+});
+
+export const rejectedPlan = (code: number, message: string): PlanApprovalStatus => ({
+  type: "rejected",
+  error: { code, message }
+});
+
+export const pendingPlan = (correlationId: string): PlanApprovalStatus => ({
+  type: "pending",
+  correlationId
+});
+
+export type SuccessfulAssetCreation = {
   type: "success";
   tokenId: string;
   tokenAddress: string;
   finp2pTokenAddress: string;
 }
 
-export type FailedAssetCreationResult = {
+export type FailedAssetCreation = {
   type: "failure";
   error: ErrorDetails
 }
 
-export type AssetCreationResult = SuccessfulAssetCreationResult | FailedAssetCreationResult;
+export type PendingAssetCreation = {
+  type: "pending";
+  correlationId: string;
+}
 
-export const failedAssetCreation = (code: number, message: string): AssetCreationResult => ({
+
+export type AssetCreationStatus = SuccessfulAssetCreation | FailedAssetCreation | PendingAssetCreation;
+
+export const failedAssetCreation = (code: number, message: string): AssetCreationStatus => ({
   type: "failure",
   error: { code, message }
 });
 
-export const successfulAssetCreation = (tokenId: string, tokenAddress: string, finp2pTokenAddress: string): AssetCreationResult => ({
+export const successfulAssetCreation = (tokenId: string, tokenAddress: string, finp2pTokenAddress: string): AssetCreationStatus => ({
   type: "success",
   tokenId,
   tokenAddress,
   finp2pTokenAddress
 });
 
-export type PendingReceiptResult = {
+export const pendingAssetCreation = (correlationId: string): AssetCreationStatus => ({
+  type: "pending",
+  correlationId
+});
+
+export type PendingReceiptStatus = {
   type: "pending";
   correlationId: string;
 };
 
-export type FailedReceiptResult = {
+export type FailedReceiptStatus = {
   type: "failure";
   error: ErrorDetails
 }
 
-export type SuccessReceiptResult = {
+export type SuccessReceiptStatus = {
   type: "success";
   receipt: Receipt;
 }
 
-export type ReceiptResult = PendingReceiptResult | FailedReceiptResult | SuccessReceiptResult;
 
-export type OperationResult = ReceiptResult | AssetCreationResult;
+export type ReceiptOperation = PendingReceiptStatus | FailedReceiptStatus | SuccessReceiptStatus;
 
-export const successfulReceiptResult = (receipt: Receipt): ReceiptResult => ({
+export type OperationStatus = ReceiptOperation | AssetCreationStatus;
+
+export const successfulReceiptOperation = (receipt: Receipt): ReceiptOperation => ({
   type: "success",
   receipt
 });
 
-export const failedReceiptResult = (code: number, message: string): ReceiptResult => ({
+export const failedReceiptOperation = (code: number, message: string): ReceiptOperation => ({
   type: "failure",
   error: { code, message }
 });
 
-export const pendingReceiptResult = (correlationId: string): ReceiptResult => ({
+export const pendingReceiptOperation = (correlationId: string): ReceiptOperation => ({
   type: "pending",
   correlationId
 });
+
+
+export type DepositInstruction = {}
+
+export type DepositOperation = SuccessfulDepositOperation | FailedDepositOperation | PendingDepositOperation;
+
+export type SuccessfulDepositOperation = {
+  type: "success";
+  instruction: DepositInstruction
+}
+
+export type FailedDepositOperation = {
+  type: "failure";
+  error: ErrorDetails
+}
+
+export type PendingDepositOperation = {
+  type: "pending";
+  correlationId: string;
+}
+
+const successfulDepositOperation = (instruction: DepositInstruction): DepositOperation => ({
+  type: "success",
+  instruction
+});
+
+const failedDepositOperation = (code: number, message: string): DepositOperation => ({
+  type: "failure",
+  error: { code, message }
+});
+
+const pendingDepositOperation = (correlationId: string): DepositOperation => ({
+  type: "pending",
+  correlationId
+});
+
 
 export type Balance = {
   current: string
@@ -120,7 +198,7 @@ export type Receipt = {
   destination: Destination | undefined,
   quantity: string,
   transactionDetails: TransactionDetails
-  tradeDetails: TradeDetails | undefined,
+  tradeDetails: TradeDetails,
   operationType: OperationType,
   proof: ProofPolicy | undefined,
   timestamp: number
@@ -135,7 +213,17 @@ export type TradeDetails = {
   executionContext: ExecutionContext | undefined
 }
 
-export type ProofPolicy = {}
+export type ProofPolicy = NoProofPolicy | SignatureProofPolicy
+
+export type NoProofPolicy = {
+  type: "no-proof"
+}
+
+export type SignatureProofPolicy = {
+  type: "signature-proof";
+  template: EIP712Template
+  signature: string
+}
 
 export class RequestValidationError extends Error {
   constructor(public readonly reason: string) {
@@ -144,17 +232,24 @@ export class RequestValidationError extends Error {
 }
 
 
-export type EIP712Domain = {}
+export type EIP712Domain = {
+  name?: string;
+  version?: string;
+  chainId?: number;
+  verifyingContract?: string;
+}
 
 
 export type EIP712Template = {
   type: "EIP712"
   primaryType: string;
-  message: EIP722Message;
+  domain: EIP712Domain;
+  message: EIP712Message;
+  types: EIP712Types
+  hash: string
 };
 
-
-export type EIP722Message = {
+export type EIP712Message = {
   [name: string]: EIP712TypedValue;
 }
 
@@ -190,3 +285,4 @@ export interface EIP712FieldDefinition {
   name?: string;
   type?: string;
 }
+
