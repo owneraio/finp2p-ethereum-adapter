@@ -1,5 +1,4 @@
 import { CommonServiceImpl } from "./common";
-import { v4 as uuid } from "uuid";
 import { PaymentService } from "../interfaces";
 import {
   Asset,
@@ -8,7 +7,7 @@ import {
   Destination,
   Signature,
   successfulDepositOperation,
-  DepositInstruction, DepositAsset
+  DepositInstruction, DepositAsset, ReceiptOperation, failedReceiptOperation
 } from "../model";
 
 
@@ -23,19 +22,9 @@ export class PaymentsServiceImpl extends CommonServiceImpl implements PaymentSer
     } as DepositInstruction)
   }
 
-  public async payout(request: Paths.Payout.RequestBody): Promise<Paths.Payout.Responses.$200> {
-    return {
-      isCompleted: true, cid: uuid(), response: {
-        id: uuid(),
-        source: request.source,
-        destination: request.destination,
-        quantity: request.quantity,
-        asset: request.asset,
-        timestamp: Date.now(),
-        transactionDetails: {
-          transactionId: uuid()
-        }
-      }
-    } as Paths.Payout.Responses.$200;
+  public async payout(source: Source, destination: Destination | undefined, asset: Asset, quantity: string,
+                      description: string | undefined, nonce: string | undefined,
+                      signature: Signature | undefined): Promise<ReceiptOperation> {
+    return failedReceiptOperation(1, 'Payouts are not supported');
   }
 }

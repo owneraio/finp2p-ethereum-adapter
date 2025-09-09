@@ -5,7 +5,7 @@ import {
   Asset, Destination, EIP712Template, ExecutionContext,
   failedReceiptOperation, pendingReceiptOperation, ReceiptOperation, Signature, Source
 } from "../model";
-import { extractEIP712Params } from "../mapping";
+import { extractEIP712Params } from "./helpers";
 import { EscrowService } from "../interfaces";
 
 export class EscrowServiceImpl extends CommonServiceImpl implements EscrowService {

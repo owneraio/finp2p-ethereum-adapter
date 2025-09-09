@@ -19,7 +19,7 @@ import {
 } from "../model";
 import { TokenService } from "../interfaces";
 import { getRandomNumber } from "../utils";
-import { extractEIP712Params } from "../mapping";
+import { extractEIP712Params } from "./helpers";
 import { AssetCreationPolicy } from "./model";
 
 
