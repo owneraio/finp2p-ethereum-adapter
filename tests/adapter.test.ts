@@ -56,7 +56,7 @@ describe(`token service test`, () => {
       await client.common.waitForCompletion(assetStatus.cid);
     }
 
-    await client.expectBalance(issuerSource, asset, 0);
+    await client.expectAssetBalance(issuerSource, asset, { held: 0, available: 0})
 
     // --------------------------------------------------------------------------
 
@@ -87,7 +87,7 @@ describe(`token service test`, () => {
     expect(issueReceipt.destination?.finId).toBe(issuerFinId);
     expect(issueReceipt.operationType).toBe("issue");
 
-    await client.expectBalance(issuerSource, asset, issueAmount);
+    await client.expectAssetBalance(issuerSource, asset, { held: 0, available: issueAmount })
 
     // --------------------------------------------------------------------------
 
@@ -127,8 +127,8 @@ describe(`token service test`, () => {
     expect(transferReceipt.destination?.finId).toBe(buyerFinId);
     expect(transferReceipt.operationType).toBe("transfer");
 
-    await client.expectBalance(sellerSource, asset, issueAmount - transferAmount);
-    await client.expectBalance(buyerSource, asset, transferAmount);
+    await client.expectAssetBalance(sellerSource, asset, { held: 0, available: issueAmount - transferAmount })
+    await client.expectAssetBalance(buyerSource, asset, { held: 0, available: transferAmount })
   });
 
   test(`Scenario: escrow hold / release`, async () => {
@@ -170,7 +170,7 @@ describe(`token service test`, () => {
     if (!setBalanceStatus.isCompleted) {
       await client.common.waitForReceipt(setBalanceStatus.cid);
     }
-    await client.expectBalance(buyerSource, settlementAsset, initialBalance);
+    await client.expectAssetBalance(buyerSource, settlementAsset, { held: 0, available: initialBalance })
 
     const { public: sellerPublic } = createCrypto();
     const sellerFinId = sellerPublic.toString("hex");
@@ -179,7 +179,7 @@ describe(`token service test`, () => {
         type: "finId", finId: sellerFinId
       }
     } as Components.Schemas.Source;
-    await client.expectBalance(sellerSource, settlementAsset, 0);
+    await client.expectAssetBalance(sellerSource, settlementAsset, { held: 0, available: 0 })
 
     const operationId = `${uuidv4()}`;
     const transferAmount = 100;
@@ -202,8 +202,7 @@ describe(`token service test`, () => {
     expect(holdReceipt.destination).toBeUndefined();
     expect(parseFloat(holdReceipt.quantity)).toBeCloseTo(transferSettlementAmount, 4);
     expect(holdReceipt.operationType).toBe("hold");
-
-    await client.expectBalance(buyerSource, settlementAsset, initialBalance - transferSettlementAmount);
+    await client.expectAssetBalance(buyerSource, settlementAsset, { held: transferSettlementAmount, available: initialBalance - transferSettlementAmount })
 
     const releaseReceipt = await client.expectReceipt(await client.escrow.release({
       operationId: operationId,
@@ -218,7 +217,8 @@ describe(`token service test`, () => {
     expect(releaseReceipt.destination).toStrictEqual(sellerSource);
     expect(releaseReceipt.operationType).toBe("release");
 
-    await client.expectBalance(sellerSource, settlementAsset, transferSettlementAmount);
+    await client.expectAssetBalance(sellerSource, settlementAsset, { held: 0, available: transferSettlementAmount })
+    await client.expectAssetBalance(buyerSource, settlementAsset, { held: 0, available: initialBalance - transferSettlementAmount })
   });
 
   test(`Scenario: escrow hold / redeem`, async () => {
@@ -262,9 +262,8 @@ describe(`token service test`, () => {
     if (!setBalanceStatus.isCompleted) {
       await client.common.waitForReceipt(setBalanceStatus.cid);
     }
-    await client.expectBalance(investorSource, asset, issueAmount);
-
-    await client.expectBalance(issuerSource, asset, 0);
+    await client.expectAssetBalance(investorSource, asset, { held: 0, available: issueAmount })
+    await client.expectAssetBalance(issuerSource, asset, { held: 0, available: 0 })
 
     const operationId = `${uuidv4()}`;
     const redeemAmount = 100;
@@ -290,8 +289,7 @@ describe(`token service test`, () => {
     expect(holdReceipt.destination).toBeUndefined();
     expect(parseFloat(holdReceipt.quantity)).toBeCloseTo(redeemAmount, 4);
     expect(holdReceipt.operationType).toBe("hold");
-
-    await client.expectBalance(investorSource, asset, issueAmount - redeemAmount);
+    await client.expectAssetBalance(investorSource, asset, { held: redeemAmount, available: issueAmount - redeemAmount })
 
     const redeemReceipt = await client.expectReceipt(await client.tokens.redeem({
       nonce: transferNonce,
@@ -308,8 +306,6 @@ describe(`token service test`, () => {
     expect(redeemReceipt.destination).toBeUndefined();
     expect(redeemReceipt.operationType).toBe("redeem");
 
-    await client.expectBalance(issuerSource, asset, issueAmount - redeemAmount);
+    await client.expectAssetBalance(issuerSource, asset, { held: 0, available: issueAmount - redeemAmount })
   });
-
-
 });
