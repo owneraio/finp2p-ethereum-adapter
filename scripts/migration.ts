@@ -1,12 +1,12 @@
-import { OssClient } from "../src/finp2p/oss.client";
-import process from "process";
-import { FinP2PContract } from "../finp2p-contracts/src/contracts/finp2p";
-import { createProviderAndSigner, ProviderType } from "../finp2p-contracts/src/contracts/config";
-import console from "console";
-import { EthereumTransactionError } from "../finp2p-contracts/src/contracts/model";
-import { ERC20Contract, MINTER_ROLE, OPERATOR_ROLE } from "../finp2p-contracts/src/contracts/erc20";
 import winston, { format, transports } from "winston";
-import { isEthereumAddress } from "../finp2p-contracts/src/contracts/utils";
+import { OssClient } from "@owneraio/finp2p-nodejs-skeleton-adapter/dist/lib/finp2p/oss.client"; // TODO: fix path
+import process from "process";
+import { FinP2PContract } from "../finp2p-contracts/src/contracts";
+import { createProviderAndSigner, ProviderType } from "../finp2p-contracts/src/contracts";
+import console from "console";
+import { EthereumTransactionError } from "../finp2p-contracts/src/contracts";
+import { ERC20Contract, MINTER_ROLE, OPERATOR_ROLE } from "../finp2p-contracts/src/contracts";
+import { isEthereumAddress } from "../finp2p-contracts/src/contracts";
 
 const logger = winston.createLogger({
   level: 'info',

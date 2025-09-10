@@ -1,10 +1,10 @@
-import { OssClient } from "../src/finp2p/oss.client";
 import process from "process";
-import { FinP2PContract } from "../finp2p-contracts/src/contracts/finp2p";
-import { createProviderAndSigner, ProviderType } from "../finp2p-contracts/src/contracts/config";
 import console from "console";
+import { OssClient } from "@owneraio/finp2p-nodejs-skeleton-adapter/dist/lib/finp2p/oss.client"; // TODO: fix path
+import { FinP2PContract } from "../finp2p-contracts/src/contracts";
+import { createProviderAndSigner, ProviderType } from "../finp2p-contracts/src/contracts";
 import winston, { format, transports } from "winston";
-import { AssetType, term } from "../finp2p-contracts/src/contracts/model";
+import { AssetType, term } from "../finp2p-contracts/src/contracts";
 
 const logger = winston.createLogger({
   level: 'info',

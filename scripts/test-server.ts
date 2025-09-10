@@ -1,22 +1,16 @@
 import console from "console";
-import { HardhatLogExtractor } from "../tests/utils/log-extractors";
-import { GenericContainer, StartedTestContainer } from "testcontainers";
-import { NetworkDetails } from "../tests/utils/models";
-import { ContractsManager } from "../finp2p-contracts/src/contracts/manager";
-import { FinP2PContract } from "../finp2p-contracts/src/contracts/finp2p";
-import createApp from "../src/app";
-import { addressFromPrivateKey } from "../finp2p-contracts/src/contracts/utils";
 import process from "process";
 import http from "http";
 import { Provider, Signer } from "ethers";
-import { createProviderAndSigner, ProviderType } from "../finp2p-contracts/src/contracts/config";
-import { AssetCreationPolicy } from "../src/services/tokens";
-import { PolicyGetter } from "../src/finp2p/policy";
-import { OssClient } from "../src/finp2p/oss.client";
 import winston, { format, transports } from "winston";
-import { InMemoryExecDetailsStore } from "../src/services/exec-details-store";
-import { ExecDetailsStore } from "../src/services/common";
-import { FinAPIClient } from "../src/finp2p/finapi/finapi.client";
+import { GenericContainer, StartedTestContainer } from "testcontainers";
+import { HardhatLogExtractor } from "../tests/utils/log-extractors";
+import { NetworkDetails } from "../tests/utils/models";
+import { FinP2PContract, ContractsManager, addressFromPrivateKey, createProviderAndSigner, ProviderType  } from "../finp2p-contracts/src/contracts";
+import createApp from "../src/app";
+import { PolicyGetter } from "@owneraio/finp2p-nodejs-skeleton-adapter";
+import { OssClient } from "@owneraio/finp2p-nodejs-skeleton-adapter/dist/lib/finp2p/oss.client";
+import { AssetCreationPolicy, ExecDetailsStore, InMemoryExecDetailsStore } from "../src/services"; // TODO: fix path
 
 let ethereumNodeContainer: StartedTestContainer | undefined;
 let httpServer: http.Server | undefined;
@@ -131,7 +125,6 @@ const start = async () => {
   if (!finP2PAddress) {
     throw new Error("FINP2P_ADDRESS is not set");
   }
-  const finAPIClient = new FinAPIClient(finP2PAddress);
   const policyGetter = new PolicyGetter(ossClient);
 
   const execDetailsStore = new InMemoryExecDetailsStore();
