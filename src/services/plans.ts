@@ -1,6 +1,4 @@
-import { logger } from "../../helpers/logger";
-import { PlanApprovalService } from "../interfaces";
-import { approvedPlan, PlanApprovalStatus } from "../model";
+import { logger, PlanApprovalService, approvedPlan, PlanApprovalStatus } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 
 export class PlanApprovalServiceImpl implements PlanApprovalService {
 

@@ -1,6 +1,6 @@
 import { CommonServiceImpl } from "./common";
-import { PaymentService } from "../interfaces";
 import {
+  PaymentService,
   Asset,
   DepositOperation,
   Source,
@@ -8,7 +8,7 @@ import {
   Signature,
   successfulDepositOperation,
   DepositInstruction, DepositAsset, ReceiptOperation, failedReceiptOperation
-} from "../model";
+} from "@owneraio/finp2p-nodejs-skeleton-adapter";
 
 
 export class PaymentsServiceImpl extends CommonServiceImpl implements PaymentService {

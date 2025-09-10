@@ -4,8 +4,8 @@ import {
   Phase,
   ReleaseType,
   Term
-} from "../../../finp2p-contracts/src/contracts/model";
-import { EIP712LoanTerms, emptyLoanTerms, LegType, PrimaryType } from "../../../finp2p-contracts/src/contracts/eip712";
+} from "../../finp2p-contracts/src/contracts/model";
+import { EIP712LoanTerms, emptyLoanTerms, LegType, PrimaryType } from "../../finp2p-contracts/src/contracts/eip712";
 import {
   Asset,
   Destination,
@@ -14,7 +14,7 @@ import {
   EIP712TypeString,
   ExecutionContext,
   SignatureTemplate, Source
-} from "../model";
+} from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import { EIP712Params } from "./model";
 
 

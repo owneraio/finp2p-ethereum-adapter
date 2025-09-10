@@ -1,15 +1,17 @@
 import express from "express";
 import { logger as expressLogger } from "express-winston";
 import winston from "winston";
-import * as routes from "@owneraio/finp2p-nodejs-skeleton-adapter";
-import { AssetCreationPolicy, TokenServiceImpl } from "./services/impl/tokens";
-import { EscrowServiceImpl } from "./services/impl/escrow";
-import { PaymentsServiceImpl } from "./services/impl/payments";
-import { PlanApprovalServiceImpl } from "./services/impl/plans";
-import { FinP2PContract } from "../finp2p-contracts/src/contracts/finp2p";
+import { routes } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import { PolicyGetter } from "@owneraio/finp2p-nodejs-skeleton-adapter";
-import { ExecDetailsStore } from "./services/impl/common";
-
+import {
+  AssetCreationPolicy,
+  EscrowServiceImpl,
+  ExecDetailsStore,
+  PaymentsServiceImpl,
+  PlanApprovalServiceImpl,
+  TokenServiceImpl,
+} from "./services";
+import { FinP2PContract } from "../finp2p-contracts/src/contracts";
 
 function createApp(finP2PContract: FinP2PContract,
                    assetCreationPolicy: AssetCreationPolicy,

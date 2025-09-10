@@ -1,19 +1,15 @@
 import NodeEnvironment from "jest-environment-node";
 import { GenericContainer, StartedTestContainer } from "testcontainers";
 import { EnvironmentContext, JestEnvironmentConfig } from "@jest/environment";
-import { FinP2PContract } from "../../finp2p-contracts/src/contracts/finp2p";
-import createApp from "../../src/app";
+import winston, { format, transports } from "winston";
 import * as http from "http";
 import * as console from "console";
+import createApp from "../../src/app";
+import { FinP2PContract, ContractsManager, createProviderAndSigner, addressFromPrivateKey, ProviderType } from "../../finp2p-contracts/src/contracts";
+import { AssetCreationPolicy, InMemoryExecDetailsStore } from "../../src/services";
 import { HardhatLogExtractor } from "./log-extractors";
-import { ContractsManager } from "../../finp2p-contracts/src/contracts/manager";
 import { AdapterParameters, NetworkDetails, NetworkParameters } from "./models";
 import { randomPort } from "./utils";
-import { addressFromPrivateKey } from "../../finp2p-contracts/src/contracts/utils";
-import { AssetCreationPolicy } from "../../src/services/impl/tokens";
-import { createProviderAndSigner, ProviderType } from "../../finp2p-contracts/src/contracts/config";
-import winston, { format, transports } from "winston";
-import { InMemoryExecDetailsStore } from "../../src/services/impl/exec-details-store";
 
 const providerType: ProviderType = "local";
 
@@ -109,10 +105,10 @@ class CustomTestEnvironment extends NodeEnvironment {
     const port = randomPort();
     const assetCreationPolicy = { type: "deploy-new-token", decimals: 0 } as AssetCreationPolicy;
 
-    const version = await finP2PContract.getVersion()
+    const version = await finP2PContract.getVersion();
     console.log(`FinP2P contract version: ${version}`);
 
-    const app = createApp(finP2PContract, assetCreationPolicy, undefined,  new InMemoryExecDetailsStore(), 18, logger);
+    const app = createApp(finP2PContract, assetCreationPolicy, undefined, new InMemoryExecDetailsStore(), 18, logger);
     console.log("App created successfully.");
 
     this.httpServer = app.listen(port, () => {

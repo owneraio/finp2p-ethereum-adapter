@@ -1,35 +1,33 @@
-import { logger } from "@owneraio/finp2p-nodejs-skeleton-adapter";
-import { FinP2PContract } from "../../../finp2p-contracts/src/contracts/finp2p";
 import {
-  ExecutionContext,
-  FinP2PReceipt,
-  Phase,
-  receiptToEIP712Message
-} from "../../../finp2p-contracts/src/contracts/model";
-import { PolicyGetter } from "@owneraio/finp2p-nodejs-skeleton-adapter";
+  logger, CommonService, HealthService, Destination,
+  OperationStatus,
+  Source,
+  ReceiptOperation,
+  failedReceiptOperation,
+  pendingReceiptOperation,
+  successfulReceiptOperation
+} from "@owneraio/finp2p-nodejs-skeleton-adapter";
+import { PolicyGetter, ProofDomain } from "@owneraio/finp2p-nodejs-skeleton-adapter/finp2p";
 import {
   DOMAIN_TYPE,
+  RECEIPT_PROOF_TYPES,
   EIP712Domain,
   LegType,
   PrimaryType,
-  RECEIPT_PROOF_TYPES
-} from "../../../finp2p-contracts/src/contracts/eip712";
-import { ProofDomain } from "@owneraio/finp2p-nodejs-skeleton-adapter";
-import { truncateDecimals } from "../../../finp2p-contracts/src/contracts/utils";
-import {
-  Destination,
-  failedReceiptOperation,
-  OperationStatus,
-  pendingReceiptOperation, ReceiptOperation, RequestValidationError,
-  Source,
-  successfulReceiptOperation
-} from ".@owneraio/finp2p-nodejs-skeleton-adapter";
+  FinP2PContract,
+  ExecutionContext,
+  FinP2PReceipt,
+  Phase,
+  receiptToEIP712Message,
+  truncateDecimals
+} from "../../finp2p-contracts/src/contracts";
+
 import { receiptToService } from "./mapping";
-import { EIP712Params } from "./model";
-import { CommonService, HealthService } from "../interfaces";
+import { EIP712Params, RequestValidationError } from "./model";
 
 export interface ExecDetailsStore {
   addExecutionContext(txHash: string, executionPlanId: string, instructionSequenceNumber: number): void;
+
   getExecutionContext(txHash: string): ExecutionContext;
 }
 
@@ -38,7 +36,7 @@ export class CommonServiceImpl implements CommonService, HealthService {
   finP2PContract: FinP2PContract;
   policyGetter: PolicyGetter | undefined;
   execDetailsStore: ExecDetailsStore | undefined;
-  defaultDecimals: number
+  defaultDecimals: number;
 
   constructor(
     finP2PContract: FinP2PContract,
@@ -68,7 +66,7 @@ export class CommonServiceImpl implements CommonService, HealthService {
       return successfulReceiptOperation(receiptToService(receipt));
 
     } catch (e) {
-      return failedReceiptOperation(1, `${e}`)
+      return failedReceiptOperation(1, `${e}`);
     }
   }
 
@@ -93,7 +91,7 @@ export class CommonServiceImpl implements CommonService, HealthService {
           return pendingReceiptOperation(cid);
 
         case "failed":
-          return failedReceiptOperation(status.error.code, status.error.message)
+          return failedReceiptOperation(status.error.code, status.error.message);
       }
     } catch (e) {
       logger.error(`Got error: ${e}`);

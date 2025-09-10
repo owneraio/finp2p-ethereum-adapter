@@ -1,4 +1,4 @@
-import { ExecutionContext } from "../../../finp2p-contracts/src/contracts/model";
+import { ExecutionContext } from "../../finp2p-contracts/src/contracts/model";
 import { ExecDetailsStore } from "./common";
 
 

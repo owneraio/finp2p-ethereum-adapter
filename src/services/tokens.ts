@@ -1,27 +1,22 @@
-import { CommonServiceImpl, ExecDetailsStore } from "./common";
+import {
+  logger,
+  Asset, AssetCreationStatus, Destination, EIP712Template,
+  ExecutionContext, ReceiptOperation, Balance, TokenService, Signature, Source,
+  failedAssetCreation, failedReceiptOperation, successfulAssetCreation,
+  pendingReceiptOperation, getRandomNumber
+} from "@owneraio/finp2p-nodejs-skeleton-adapter";
+import { PolicyGetter } from "@owneraio/finp2p-nodejs-skeleton-adapter/finp2p";
 
 import {
+  FinP2PContract,
   assetTypeFromString,
   EthereumTransactionError,
-  term
-} from "../../../finp2p-contracts/src/contracts/model";
-import { logger } from "@owneraio/finp2p-nodejs-skeleton-adapter";
-import { FinP2PContract } from "../../../finp2p-contracts/src/contracts/finp2p";
-import { isEthereumAddress, truncateDecimals } from "../../../finp2p-contracts/src/contracts/utils";
-import { PolicyGetter } from "@owneraio/finp2p-nodejs-skeleton-adapter";
-import {
-  Asset,
-  AssetCreationStatus, Destination, EIP712Template,
-  ExecutionContext,
-  failedAssetCreation, failedReceiptOperation, Signature, Source,
-  successfulAssetCreation, pendingReceiptOperation,
-  ReceiptOperation, Balance
-} from "../model";
-import { TokenService } from "@owneraio/finp2p-nodejs-skeleton-adapter";
-import { getRandomNumber } from "../utils";
+  term, isEthereumAddress, truncateDecimals
+} from "../../finp2p-contracts/src/contracts";
+
+import { CommonServiceImpl, ExecDetailsStore } from "./common";
 import { extractEIP712Params } from "./helpers";
 import { AssetCreationPolicy } from "./model";
-
 
 
 export class TokenServiceImpl extends CommonServiceImpl implements TokenService {
@@ -166,7 +161,7 @@ export class TokenServiceImpl extends CommonServiceImpl implements TokenService 
       current: truncated,
       available: truncated,
       held: truncated
-    }
+    };
   }
 
 }

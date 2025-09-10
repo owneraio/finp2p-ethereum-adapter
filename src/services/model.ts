@@ -1,6 +1,4 @@
-import { OperationParams, Term } from "../../../finp2p-contracts/src/contracts/model";
-import { EIP712LoanTerms } from "../../../finp2p-contracts/src/contracts/eip712";
-
+import { EIP712LoanTerms, OperationParams, Term } from "../../finp2p-contracts/src/contracts";
 
 export type EIP712Params = {
   buyerFinId: string,
@@ -15,3 +13,9 @@ export type AssetCreationPolicy = | { type: "deploy-new-token"; decimals: number
   type: "reuse-existing-token";
   tokenAddress: string
 } | { type: "no-deployment" };
+
+export class RequestValidationError extends Error {
+  constructor(public readonly reason: string) {
+    super(reason);
+  }
+}

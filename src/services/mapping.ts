@@ -3,23 +3,23 @@ import {
   EIP712Template, EIP712TypeArray, EIP712TypeBool,
   EIP712TypeByte,
   EIP712TypedValue, EIP712TypeInteger, EIP712TypeObject, EIP712Types, EIP712TypeString,
-  ExecutionContext, finIdDestination, finIdSource,
+  ExecutionContext,
   ProofPolicy,
   Receipt, TradeDetails
-} from "../model";
+} from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import {
   FinP2PReceipt,
   ExecutionContext as ContractExecutionContext,
   AssetType as ContractAssetType,
   TradeDetails as ContractTradeDetails,
   ReceiptProof as ContractReceiptProof
-} from "../../../finp2p-contracts/src/contracts/model";
+} from "../../finp2p-contracts/src/contracts/model";
 import {
   EIP712Template as ContractEIP712Template,
   EIP712Domain as ContractEIP712Domain,
   EIP712Types as ContractEIP712Types,
   EIP712Message as ContractEIP712Message,
-} from "../../../finp2p-contracts/src/contracts/eip712";
+} from "../../finp2p-contracts/src/contracts/eip712";
 
 
 export const assetTypeToService = (assetType: ContractAssetType): AssetType => {
