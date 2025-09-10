@@ -1,4 +1,4 @@
-import { logger } from "../../helpers/logger";
+import { logger } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import { CommonServiceImpl } from "./common";
 import { EthereumTransactionError } from "../../../finp2p-contracts/src/contracts/model";
 import {
@@ -6,7 +6,7 @@ import {
   failedReceiptOperation, pendingReceiptOperation, ReceiptOperation, Signature, Source
 } from "../model";
 import { extractEIP712Params } from "./helpers";
-import { EscrowService } from "../interfaces";
+import { EscrowService } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 
 export class EscrowServiceImpl extends CommonServiceImpl implements EscrowService {
 

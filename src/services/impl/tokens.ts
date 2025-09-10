@@ -5,10 +5,10 @@ import {
   EthereumTransactionError,
   term
 } from "../../../finp2p-contracts/src/contracts/model";
-import { logger } from "../../helpers/logger";
+import { logger } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import { FinP2PContract } from "../../../finp2p-contracts/src/contracts/finp2p";
 import { isEthereumAddress, truncateDecimals } from "../../../finp2p-contracts/src/contracts/utils";
-import { PolicyGetter } from "../../finp2p/policy";
+import { PolicyGetter } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import {
   Asset,
   AssetCreationStatus, Destination, EIP712Template,
@@ -17,7 +17,7 @@ import {
   successfulAssetCreation, pendingReceiptOperation,
   ReceiptOperation, Balance
 } from "../model";
-import { TokenService } from "../interfaces";
+import { TokenService } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import { getRandomNumber } from "../utils";
 import { extractEIP712Params } from "./helpers";
 import { AssetCreationPolicy } from "./model";

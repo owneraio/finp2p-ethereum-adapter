@@ -1,4 +1,4 @@
-import { logger } from "../../helpers/logger";
+import { logger } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import { FinP2PContract } from "../../../finp2p-contracts/src/contracts/finp2p";
 import {
   ExecutionContext,
@@ -6,7 +6,7 @@ import {
   Phase,
   receiptToEIP712Message
 } from "../../../finp2p-contracts/src/contracts/model";
-import { PolicyGetter } from "../../finp2p/policy";
+import { PolicyGetter } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import {
   DOMAIN_TYPE,
   EIP712Domain,
@@ -14,7 +14,7 @@ import {
   PrimaryType,
   RECEIPT_PROOF_TYPES
 } from "../../../finp2p-contracts/src/contracts/eip712";
-import { ProofDomain } from "../../finp2p/model";
+import { ProofDomain } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import { truncateDecimals } from "../../../finp2p-contracts/src/contracts/utils";
 import {
   Destination,
@@ -23,7 +23,7 @@ import {
   pendingReceiptOperation, ReceiptOperation, RequestValidationError,
   Source,
   successfulReceiptOperation
-} from "../model";
+} from ".@owneraio/finp2p-nodejs-skeleton-adapter";
 import { receiptToService } from "./mapping";
 import { EIP712Params } from "./model";
 import { CommonService, HealthService } from "../interfaces";
