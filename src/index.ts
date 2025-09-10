@@ -78,8 +78,6 @@ const init = async () => {
     })(), format.json())
   });
 
-  const defaultDecimals = parseInt(process.env.DEFAULT_DECIMALS || "18");
-
   const useNonceManager = process.env.NONCE_POLICY === "fast";
   const { provider, signer } = await createProviderAndSigner(providerType, logger, useNonceManager);
   const finp2pContract = new FinP2PContract(provider, signer, finP2PContractAddress, logger);
@@ -90,7 +88,7 @@ const init = async () => {
   const version = await finp2pContract.getVersion()
   logger.info(`FinP2P contract version: ${version}`);
 
-  createApp(finp2pContract, assetCreationPolicy, policyGetter, execDetailsStore, defaultDecimals, logger).listen(port, () => {
+  createApp(finp2pContract, assetCreationPolicy, policyGetter, execDetailsStore, logger).listen(port, () => {
     logger.info(`listening at http://localhost:${port}`);
   });
 };

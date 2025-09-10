@@ -15,7 +15,6 @@ function createApp(finP2PContract: FinP2PContract,
                    assetCreationPolicy: AssetCreationPolicy,
                    policyGetter: PolicyGetter | undefined,
                    execDetailsStore: ExecDetailsStore | undefined,
-                   defaultDecimals: number,
                    logger: winston.Logger) {
   const app = express();
   app.use(express.json({ limit: "50mb" }));
@@ -28,9 +27,9 @@ function createApp(finP2PContract: FinP2PContract,
   }));
 
   routes.register(app,
-    new TokenService(finP2PContract, assetCreationPolicy, policyGetter, execDetailsStore, defaultDecimals),
-    new EscrowService(finP2PContract, policyGetter, execDetailsStore, defaultDecimals),
-    new PaymentsService(finP2PContract, policyGetter, execDetailsStore, defaultDecimals),
+    new TokenService(finP2PContract, assetCreationPolicy, policyGetter, execDetailsStore),
+    new EscrowService(finP2PContract, policyGetter, execDetailsStore),
+    new PaymentsService(finP2PContract, policyGetter, execDetailsStore),
     new PlanService());
 
   return app;
