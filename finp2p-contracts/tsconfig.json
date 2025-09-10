@@ -17,13 +17,10 @@
       ]
     }
   },
-  "files": [
-    "hardhat.config.ts"
-  ],
   "include": [
     "src/**/*.ts",
     "artifacts/contracts/**/*.json",
     "typechain-types/**/*.ts",
-    "scripts/**/*.ts"
-  ]
+  ],
+  "exclude": [ "test", "scripts" ]
 }

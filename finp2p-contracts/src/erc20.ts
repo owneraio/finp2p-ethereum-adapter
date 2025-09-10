@@ -1,7 +1,7 @@
 import { ContractsManager } from "./manager";
 import { BigNumberish, ContractFactory, Interface, keccak256, Provider, Signer, toUtf8Bytes } from "ethers";
-import { ERC20WithOperator } from "../../typechain-types";
-import ERC20 from "../../artifacts/contracts/token/ERC20/ERC20WithOperator.sol/ERC20WithOperator.json";
+import { ERC20WithOperator } from "../typechain-types";
+import ERC20 from "../artifacts/contracts/token/ERC20/ERC20WithOperator.sol/ERC20WithOperator.json";
 import winston from "winston";
 
 export const OPERATOR_ROLE = keccak256(toUtf8Bytes('OPERATOR_ROLE'));

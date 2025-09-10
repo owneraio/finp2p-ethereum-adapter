@@ -1,6 +1,9 @@
 import { ContractFactory, Provider, Signer } from "ethers";
-import FINP2P from "../../artifacts/contracts/token/ERC20/FINP2POperatorERC20.sol/FINP2POperatorERC20.json";
-import { FINP2POperatorERC20 } from "../../typechain-types";
+import winston from "winston";
+import FINP2P from "../artifacts/contracts/token/ERC20/FINP2POperatorERC20.sol/FINP2POperatorERC20.json";
+import { FINP2POperatorERC20 } from "../typechain-types";
+import { FINP2POperatorERC20Interface } from "../typechain-types/contracts/token/ERC20/FINP2POperatorERC20";
+import { PayableOverrides } from "../typechain-types/common";
 import {
   assetTypeFromNumber,
   completedOperation,
@@ -12,9 +15,6 @@ import {
 import { parseTransactionReceipt } from "./utils";
 import { ContractsManager } from "./manager";
 import { EIP712Domain, EIP712LoanTerms } from "./eip712";
-import winston from "winston";
-import { FINP2POperatorERC20Interface } from "../../typechain-types/contracts/token/ERC20/FINP2POperatorERC20";
-import { PayableOverrides } from "../../typechain-types/common";
 
 
 const ETH_COMPLETED_TRANSACTION_STATUS = 1;

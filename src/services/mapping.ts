@@ -11,7 +11,7 @@ import {
   ReleaseType,
   Term,
   TradeDetails
-} from "../../finp2p-contracts/src/contracts/model";
+} from "../../finp2p-contracts/src/model";
 import {
   EIP712Domain,
   EIP712LoanTerms,
@@ -21,7 +21,7 @@ import {
   emptyLoanTerms,
   LegType,
   PrimaryType
-} from "../../finp2p-contracts/src/contracts/eip712";
+} from "../../finp2p-contracts/src/eip712";
 import Asset = Components.Schemas.Asset;
 import Receipt = Components.Schemas.Receipt;
 import LedgerAssetInfo = Components.Schemas.LedgerAssetInfo;
