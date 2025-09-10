@@ -1,7 +1,8 @@
 import * as process from "process";
 import { logger } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import winston, { format, transports } from "winston";
-import { PolicyGetter, OssClient } from "@owneraio/finp2p-nodejs-skeleton-adapter/finp2p";
+import { PolicyGetter } from "@owneraio/finp2p-nodejs-skeleton-adapter";
+import { OssClient } from "@owneraio/finp2p-nodejs-skeleton-adapter/dist/lib/finp2p/oss.client"; // TODO: fix path
 import {
   FinP2PContract,
   createProviderAndSigner,

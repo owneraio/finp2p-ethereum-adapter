@@ -101,6 +101,7 @@ export const proofToService = (proof: ContractReceiptProof | undefined): ProofPo
     case "signature-proof":
       const { template, signature } = proof;
       return {
+        hashFunc: 'keccak-256',
         type: "signature-proof",
         template: eip712TemplateToService(template),
         signature: signature
@@ -129,8 +130,8 @@ export const receiptToService = (receipt: FinP2PReceipt): Receipt => {
       assetType: assetTypeToService(assetType)
     },
     quantity,
-    source: finIdSource(source),
-    destination: finIdDestination(destination),
+    source: source ? { finId: source } : undefined,
+    destination: destination ? { finId: destination } : undefined,
     transactionDetails: {
       transactionId: id, operationId
     },

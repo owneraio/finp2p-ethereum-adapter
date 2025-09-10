@@ -1,11 +1,10 @@
 import {
   logger,
   Asset, AssetCreationStatus, Destination, EIP712Template,
-  ExecutionContext, ReceiptOperation, Balance, TokenService, Signature, Source,
+  ExecutionContext, ReceiptOperation, Balance, PolicyGetter, TokenService, Signature, Source,
   failedAssetCreation, failedReceiptOperation, successfulAssetCreation,
   pendingReceiptOperation, getRandomNumber
 } from "@owneraio/finp2p-nodejs-skeleton-adapter";
-import { PolicyGetter } from "@owneraio/finp2p-nodejs-skeleton-adapter/finp2p";
 
 import {
   FinP2PContract,

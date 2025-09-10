@@ -3,11 +3,12 @@ import {
   OperationStatus,
   Source,
   ReceiptOperation,
+  PolicyGetter,
   failedReceiptOperation,
   pendingReceiptOperation,
   successfulReceiptOperation
 } from "@owneraio/finp2p-nodejs-skeleton-adapter";
-import { PolicyGetter, ProofDomain } from "@owneraio/finp2p-nodejs-skeleton-adapter/finp2p";
+import { ProofDomain } from "@owneraio/finp2p-nodejs-skeleton-adapter/dist/lib/finp2p";
 import {
   DOMAIN_TYPE,
   RECEIPT_PROOF_TYPES,
@@ -22,7 +23,7 @@ import {
   truncateDecimals
 } from "../../finp2p-contracts/src/contracts";
 
-import { receiptToService } from "./mapping";
+import { assetTypeToService, receiptToService } from "./mapping";
 import { EIP712Params, RequestValidationError } from "./model";
 
 export interface ExecDetailsStore {
@@ -197,7 +198,7 @@ export class CommonServiceImpl implements CommonService, HealthService {
       return receipt;
     }
     const { assetId, assetType } = receipt;
-    const policy = await this.policyGetter.getPolicy(assetId, assetType);
+    const policy = await this.policyGetter.getPolicy(assetId, assetTypeToService(assetType));
     switch (policy.type) {
       case "NoProofPolicy":
         receipt.proof = {

@@ -1,15 +1,14 @@
 import express from "express";
 import { logger as expressLogger } from "express-winston";
 import winston from "winston";
-import { routes } from "@owneraio/finp2p-nodejs-skeleton-adapter";
-import { PolicyGetter } from "@owneraio/finp2p-nodejs-skeleton-adapter";
+import { register, PolicyGetter } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import {
   AssetCreationPolicy,
   EscrowServiceImpl,
   ExecDetailsStore,
   PaymentsServiceImpl,
   PlanApprovalServiceImpl,
-  TokenServiceImpl,
+  TokenServiceImpl
 } from "./services";
 import { FinP2PContract } from "../finp2p-contracts/src/contracts";
 
@@ -29,11 +28,11 @@ function createApp(finP2PContract: FinP2PContract,
     ignoreRoute: (req) => req.url.toLowerCase() === "/health/readiness" || req.url.toLowerCase() === "/health/liveness"
   }));
 
-  routes.register(app,
-    new TokenServiceImpl(finP2PContract, assetCreationPolicy, policyGetter, execDetailsStore, defaultDecimals),
-    new EscrowServiceImpl(finP2PContract, policyGetter, execDetailsStore, defaultDecimals),
-    new PaymentsServiceImpl(finP2PContract, policyGetter, execDetailsStore, defaultDecimals),
-    new PlanApprovalServiceImpl());
+  const tokenService = new TokenServiceImpl(finP2PContract, assetCreationPolicy, policyGetter, execDetailsStore, defaultDecimals);
+  const escrowService = new EscrowServiceImpl(finP2PContract, policyGetter, execDetailsStore, defaultDecimals);
+  const paymentsService = new PaymentsServiceImpl(finP2PContract, policyGetter, execDetailsStore, defaultDecimals);
+  const planApprovalService = new PlanApprovalServiceImpl();
+  register(app, tokenService, escrowService, tokenService, tokenService, paymentsService, planApprovalService);
 
   return app;
 }

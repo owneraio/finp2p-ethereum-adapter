@@ -1,12 +1,4 @@
 import {
-  assetTypeFromString, emptyTerm,
-  operationParams,
-  Phase,
-  ReleaseType,
-  Term
-} from "../../finp2p-contracts/src/contracts/model";
-import { EIP712LoanTerms, emptyLoanTerms, LegType, PrimaryType } from "../../finp2p-contracts/src/contracts/eip712";
-import {
   Asset,
   Destination,
   EIP712Template,
@@ -15,6 +7,14 @@ import {
   ExecutionContext,
   SignatureTemplate, Source
 } from "@owneraio/finp2p-nodejs-skeleton-adapter";
+import {
+  assetTypeFromString, emptyTerm,
+  operationParams,
+  Phase,
+  ReleaseType,
+  Term,
+  EIP712LoanTerms, emptyLoanTerms, LegType, PrimaryType
+} from "../../finp2p-contracts/src/contracts";
 import { EIP712Params } from "./model";
 
 
