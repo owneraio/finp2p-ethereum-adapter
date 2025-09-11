@@ -6,7 +6,7 @@ import { AssetCreationPolicy, TokenService } from "./services/tokens";
 import { EscrowService } from "./services/escrow";
 import { PaymentsService } from "./services/payments";
 import { PlanService } from "./services/plans";
-import { FinP2PContract } from "../finp2p-contracts/src/contracts/finp2p";
+import { FinP2PContract } from "../finp2p-contracts/src/finp2p";
 import { PolicyGetter } from "./finp2p/policy";
 import { ExecDetailsStore } from "./services/common";
 

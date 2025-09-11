@@ -7,10 +7,10 @@ import {
   failedTransaction,
   getRandomNumber, RequestParams
 } from "./mapping";
-import { assetTypeFromString, EthereumTransactionError, term } from "../../finp2p-contracts/src/contracts/model";
+import { assetTypeFromString, EthereumTransactionError, term } from "../../finp2p-contracts/src/model";
 import { logger } from "../helpers/logger";
-import { FinP2PContract } from "../../finp2p-contracts/src/contracts/finp2p";
-import { isEthereumAddress } from "../../finp2p-contracts/src/contracts/utils";
+import { FinP2PContract } from "../../finp2p-contracts/src/finp2p";
+import { isEthereumAddress } from "../../finp2p-contracts/src/utils";
 import { PolicyGetter } from "../finp2p/policy";
 import CreateAssetResponse = Components.Schemas.CreateAssetResponse;
 import LedgerTokenId = Components.Schemas.LedgerTokenId;

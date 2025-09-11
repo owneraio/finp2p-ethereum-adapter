@@ -1,17 +1,17 @@
 import NodeEnvironment from "jest-environment-node";
 import { GenericContainer, StartedTestContainer } from "testcontainers";
 import { EnvironmentContext, JestEnvironmentConfig } from "@jest/environment";
-import { FinP2PContract } from "../../finp2p-contracts/src/contracts/finp2p";
+import { FinP2PContract } from "../../finp2p-contracts/src/finp2p";
 import createApp from "../../src/app";
 import * as http from "http";
 import * as console from "console";
 import { HardhatLogExtractor } from "./log-extractors";
-import { ContractsManager } from "../../finp2p-contracts/src/contracts/manager";
+import { ContractsManager } from "../../finp2p-contracts/src/manager";
 import { AdapterParameters, NetworkDetails, NetworkParameters } from "./models";
 import { randomPort } from "./utils";
-import { addressFromPrivateKey } from "../../finp2p-contracts/src/contracts/utils";
+import { addressFromPrivateKey } from "../../finp2p-contracts/src/utils";
 import { AssetCreationPolicy } from "../../src/services/tokens";
-import { createProviderAndSigner, ProviderType } from "../../finp2p-contracts/src/contracts/config";
+import { createProviderAndSigner, ProviderType } from "../../finp2p-contracts/src/config";
 import winston, { format, transports } from "winston";
 import { InMemoryExecDetailsStore } from "../../src/services/exec-details-store";
 

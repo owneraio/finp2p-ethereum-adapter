@@ -1,6 +1,6 @@
 import process from "process";
-import { ContractsManager } from "../src/contracts/manager";
-import { ContractManagerConfig, createLocalProviderFromConfig, readConfig, writeConfig } from "../src/contracts/config";
+import { ContractsManager } from "../src/manager";
+import { ContractManagerConfig, createLocalProviderFromConfig, readConfig, writeConfig } from "../src/config";
 import winston, { format, transports } from "winston";
 
 

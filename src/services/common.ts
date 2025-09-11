@@ -1,11 +1,11 @@
 import { logger } from "../helpers/logger";
-import { FinP2PContract } from "../../finp2p-contracts/src/contracts/finp2p";
+import { FinP2PContract } from "../../finp2p-contracts/src/finp2p";
 import {
   ExecutionContext,
   FinP2PReceipt,
   Phase,
   receiptToEIP712Message
-} from "../../finp2p-contracts/src/contracts/model";
+} from "../../finp2p-contracts/src/model";
 import { assetFromAPI, EIP712Params, receiptToAPI, RequestParams, RequestValidationError } from "./mapping";
 import { PolicyGetter } from "../finp2p/policy";
 import {
@@ -14,7 +14,7 @@ import {
   LegType,
   PrimaryType,
   RECEIPT_PROOF_TYPES
-} from "../../finp2p-contracts/src/contracts/eip712";
+} from "../../finp2p-contracts/src/eip712";
 import { ProofDomain } from "../finp2p/model";
 
 export interface ExecDetailsStore {
