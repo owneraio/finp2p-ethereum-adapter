@@ -1,4 +1,4 @@
-import { createAccount, privateKeyToFinId } from "../src/contracts/utils";
+import { createAccount, privateKeyToFinId } from "../src/utils";
 import winston, { format, transports } from "winston";
 
 const logger = winston.createLogger({
