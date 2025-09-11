@@ -48,7 +48,7 @@ const init = async () => {
     finP2PContractAddress = config.finP2PContractAddress;
 
   } else {
-    finP2PContractAddress = process.env.TOKEN_ADDRESS || "";
+    finP2PContractAddress = process.env.FINP2P_CONTRACT_ADDRESS || "";
     if (!finP2PContractAddress) {
       throw new Error("FINP2P_CONTRACT_ADDRESS is not set");
     }
