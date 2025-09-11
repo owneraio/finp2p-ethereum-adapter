@@ -1,34 +1,43 @@
-import { logger } from "../helpers/logger";
-import { FinP2PContract } from "../../finp2p-contracts/src/finp2p";
 import {
-  ExecutionContext,
-  FinP2PReceipt,
-  Phase,
-  receiptToEIP712Message
-} from "../../finp2p-contracts/src/model";
-import { assetFromAPI, EIP712Params, receiptToAPI, RequestParams, RequestValidationError } from "./mapping";
-import { PolicyGetter } from "../finp2p/policy";
+  logger, CommonService, HealthService, Destination,
+  OperationStatus,
+  Source,
+  ReceiptOperation,
+  PolicyGetter,
+  failedReceiptOperation,
+  pendingReceiptOperation,
+  successfulReceiptOperation
+} from "@owneraio/finp2p-nodejs-skeleton-adapter";
+import { ProofDomain } from "@owneraio/finp2p-nodejs-skeleton-adapter/dist/lib/finp2p";
 import {
   DOMAIN_TYPE,
+  RECEIPT_PROOF_TYPES,
   EIP712Domain,
   LegType,
   PrimaryType,
-  RECEIPT_PROOF_TYPES
-} from "../../finp2p-contracts/src/eip712";
-import { ProofDomain } from "../finp2p/model";
-import { truncateDecimals } from "../../finp2p-contracts/src/utils";
+  FinP2PContract,
+  ExecutionContext,
+  FinP2PReceipt,
+  Phase,
+  receiptToEIP712Message,
+  truncateDecimals
+} from "../../finp2p-contracts/src";
+
+import { assetTypeToService, receiptToService } from "./mapping";
+import { EIP712Params, RequestValidationError } from "./model";
 
 export interface ExecDetailsStore {
   addExecutionContext(txHash: string, executionPlanId: string, instructionSequenceNumber: number): void;
+
   getExecutionContext(txHash: string): ExecutionContext;
 }
 
-export class CommonService {
+export class CommonServiceImpl implements CommonService, HealthService {
 
   finP2PContract: FinP2PContract;
   policyGetter: PolicyGetter | undefined;
   execDetailsStore: ExecDetailsStore | undefined;
-  defaultDecimals: number
+  defaultDecimals: number;
 
   constructor(
     finP2PContract: FinP2PContract,
@@ -50,55 +59,19 @@ export class CommonService {
     await this.finP2PContract.provider.getBlockNumber();
   }
 
-  public async getBalance(request: Paths.GetAssetBalance.RequestBody): Promise<Paths.GetAssetBalance.Responses.$200> {
-    logger.debug("getBalance", { request });
-
-    const { assetId } = assetFromAPI(request.asset);
-    const balance = await this.finP2PContract.balance(assetId, request.owner.finId);
-    const truncated = truncateDecimals(balance, this.defaultDecimals);
-
-    return {
-      asset: request.asset, balance: truncated
-    } as Components.Schemas.Balance;
-  }
-
-  public async balance(request: Paths.GetAssetBalanceInfo.RequestBody): Promise<Paths.GetAssetBalanceInfo.Responses.$200> {
-    logger.debug("balance", { request });
-    const { asset, account: { finId } } = request;
-    const { assetId } = assetFromAPI(asset);
-    const balance = await this.finP2PContract.balance(assetId, finId);
-    const truncated = truncateDecimals(balance, this.defaultDecimals);
-    return {
-      account: { type: "finId", finId },
-      asset: request.asset,
-      balanceInfo: {
-        asset,
-        current: truncated,
-        available: truncated,
-        held: "0"
-      }
-    } as Components.Schemas.AssetBalanceInfoResponse;
-  }
-
-  public async getReceipt(id: Paths.GetReceipt.Parameters.TransactionId): Promise<Paths.GetReceipt.Responses.$200> {
+  public async getReceipt(id: string): Promise<ReceiptOperation> {
     try {
       let finp2pReceipt = await this.finP2PContract.getReceipt(id);
       finp2pReceipt.quantity = truncateDecimals(finp2pReceipt.quantity, this.defaultDecimals);
       const receipt = await this.ledgerProof(finp2pReceipt);
-      return {
-        isCompleted: true, response: receiptToAPI(receipt)
-      } as Components.Schemas.ReceiptOperation;
+      return successfulReceiptOperation(receiptToService(receipt));
 
     } catch (e) {
-      return {
-        isCompleted: true, error: {
-          code: 1, message: e
-        }
-      } as Components.Schemas.ReceiptOperation;
+      return failedReceiptOperation(1, `${e}`);
     }
   }
 
-  public async operationStatus(cid: string): Promise<Paths.GetOperation.Responses.$200> {
+  public async operationStatus(cid: string): Promise<OperationStatus> {
     try {
       const status = await this.finP2PContract.getOperationStatus(cid);
       switch (status.status) {
@@ -112,26 +85,14 @@ export class CommonService {
           } else {
             logger.info("No execution context found for receipt", { receiptId: receipt.id });
           }
-          const receiptResponse = receiptToAPI(await this.ledgerProof(receipt));
-          return {
-            type: "receipt", operation: {
-              isCompleted: true, response: receiptResponse
-            }
-          } as Components.Schemas.OperationStatus;
+          const receiptResponse = receiptToService(await this.ledgerProof(receipt));
+          return successfulReceiptOperation(receiptResponse);
 
         case "pending":
-          return {
-            type: "receipt", operation: {
-              isCompleted: false, cid: cid
-            }
-          } as Components.Schemas.OperationStatus;
+          return pendingReceiptOperation(cid);
 
         case "failed":
-          return {
-            type: "receipt", operation: {
-              isCompleted: true, error: status.error
-            }
-          } as Components.Schemas.OperationStatus;
+          return failedReceiptOperation(status.error.code, status.error.message);
       }
     } catch (e) {
       logger.error(`Got error: ${e}`);
@@ -139,8 +100,7 @@ export class CommonService {
     }
   }
 
-  protected validateRequest(requestParams: RequestParams, eip712Params: EIP712Params): void {
-    const { source, destination, quantity } = requestParams;
+  protected validateRequest(source: Source, destination: Destination | undefined, quantity: string, eip712Params: EIP712Params): void {
     const {
       buyerFinId,
       sellerFinId,
@@ -238,7 +198,7 @@ export class CommonService {
       return receipt;
     }
     const { assetId, assetType } = receipt;
-    const policy = await this.policyGetter.getPolicy(assetId, assetType);
+    const policy = await this.policyGetter.getPolicy(assetId, assetTypeToService(assetType));
     switch (policy.type) {
       case "NoProofPolicy":
         receipt.proof = {

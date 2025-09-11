@@ -2,9 +2,7 @@ import * as secp256k1 from "secp256k1";
 import * as crypto from "crypto";
 import { v4 as uuidv4 } from "uuid";
 import createKeccakHash from "keccak";
-import { OpenApisV3 } from "dtsgenerator/dist/core/openApiV3";
 import HashListTemplate = Components.Schemas.HashListTemplate;
-import Components = OpenApisV3.SchemaJson.Definitions.Components;
 
 export const ASSET = 102;
 export const ACCOUNT = 103;

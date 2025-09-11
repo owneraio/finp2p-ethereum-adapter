@@ -1,16 +1,10 @@
-import { v4 as uuid } from "uuid";
-import { logger } from "../helpers/logger";
+import { logger, PlanApprovalService, approvedPlan, PlanApprovalStatus } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 
-export class PlanService {
+export class PlanApprovalServiceImpl implements PlanApprovalService {
 
-  public async approvePlan(request: Paths.ApproveExecutionPlan.RequestBody): Promise<Paths.ApproveExecutionPlan.Responses.$200> {
-    logger.info(`Got execution plan to approve: ${request.executionPlan.id}`);
-
-    return {
-      isCompleted: true, cid: uuid(), approval: {
-        status: "approved"
-      }
-    } as Components.Schemas.ExecutionPlanApprovalOperation;
+  public async approvePlan(planId: string): Promise<PlanApprovalStatus> {
+    logger.info(`Got execution plan to approve: ${planId}`);
+    return approvedPlan();
   }
 
 }

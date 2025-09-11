@@ -1,15 +1,18 @@
-import { logger } from "./helpers/logger";
-import { FinP2PContract } from "../finp2p-contracts/src/finp2p";
 import * as process from "process";
-import createApp from "./app";
-import { AssetCreationPolicy } from "./services/tokens";
-import {
-  createProviderAndSigner, FinP2PContractConfig, ProviderType, readConfig
-} from "../finp2p-contracts/src/config";
-import { PolicyGetter } from "./finp2p/policy";
-import { OssClient } from "./finp2p/oss.client";
+import { logger } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import winston, { format, transports } from "winston";
-import { InMemoryExecDetailsStore } from "./services/exec-details-store";
+import { PolicyGetter } from "@owneraio/finp2p-nodejs-skeleton-adapter";
+import { OssClient } from "@owneraio/finp2p-nodejs-skeleton-adapter/dist/lib/finp2p/oss.client"; // TODO: fix path
+import {
+  FinP2PContract,
+  createProviderAndSigner,
+  FinP2PContractConfig,
+  ProviderType,
+  readConfig
+} from "../finp2p-contracts/src/contracts";
+import createApp from "./app";
+import { AssetCreationPolicy, InMemoryExecDetailsStore } from "./services";
+
 
 const createAssetCreationPolicy = async (contractManager: FinP2PContract | undefined): Promise<AssetCreationPolicy> => {
   const type = (process.env.ASSET_CREATION_POLICY || "deploy-new-token");
@@ -87,7 +90,7 @@ const init = async () => {
   const policyGetter = new PolicyGetter(new OssClient(ossUrl, undefined));
   const execDetailsStore = new InMemoryExecDetailsStore();
 
-  const version = await finp2pContract.getVersion()
+  const version = await finp2pContract.getVersion();
   logger.info(`FinP2P contract version: ${version}`);
 
   createApp(finp2pContract, assetCreationPolicy, policyGetter, execDetailsStore, defaultDecimals, logger).listen(port, () => {
