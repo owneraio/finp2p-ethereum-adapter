@@ -1,7 +1,6 @@
 import process from "process";
-import { FinP2PContract } from "../src/contracts/finp2p";
-import { createProviderAndSigner, ProviderType } from "../src/contracts/config";
 import winston, { format, transports } from "winston";
+import { FinP2PContract, createProviderAndSigner, ProviderType } from "../src";
 
 const logger = winston.createLogger({
   level: "info", transports: [new transports.Console()], format: format.json()

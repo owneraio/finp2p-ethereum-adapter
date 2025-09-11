@@ -1,9 +1,9 @@
 import { OssClient } from "../src/finp2p/oss.client";
 import process from "process";
-import { FinP2PContract } from "../finp2p-contracts/src/contracts/finp2p";
-import { createProviderAndSigner, ProviderType } from "../finp2p-contracts/src/contracts/config";
+import { FinP2PContract } from "../finp2p-contracts/src/finp2p";
+import { createProviderAndSigner, ProviderType } from "../finp2p-contracts/src/config";
 import console from "console";
-import { ERC20Contract } from "../finp2p-contracts/src/contracts/erc20";
+import { ERC20Contract } from "../finp2p-contracts/src/erc20";
 import winston, { format, transports } from "winston";
 
 const logger = winston.createLogger({

@@ -17,11 +17,11 @@ import {
   RedeemEvent,
   ReleaseEvent,
   TransferEvent
-} from "../../typechain-types/contracts/token/ERC20/FINP2POperatorERC20";
+} from "../typechain-types/contracts/token/ERC20/FINP2POperatorERC20";
 import {
   ERC20WithOperatorInterface,
   TransferEvent as ERC20TransferEvent
-} from "../../typechain-types/contracts/token/ERC20/ERC20WithOperator";
+} from "../typechain-types/contracts/token/ERC20/ERC20WithOperator";
 
 export const compactSerialize = (signature: string): string => {
   const { r, s } = Signature.from(signature);
