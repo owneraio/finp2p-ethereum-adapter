@@ -1,4 +1,4 @@
-import { EIP712Message, EIP712Types, hash, signWithPrivateKey } from "../../finp2p-contracts/src/contracts/eip712";
+import { EIP712Message, EIP712Types, hash, signWithPrivateKey } from "../../finp2p-contracts/src/eip712";
 
 export const eip712Signature = async (chainId: number, verifyingContract: string, primaryType: string, types: EIP712Types, message: EIP712Message, signerPrivateKey: string) => {
   const hashVal = hash(chainId, verifyingContract, types, message);

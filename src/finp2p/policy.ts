@@ -1,7 +1,7 @@
 import { OssClient } from "./oss.client";
 import { parseProofDomain, Proof, ProofDomain, ProofPolicy } from "./model";
 import process from "process";
-import { AssetType } from "../../finp2p-contracts/src/contracts/model";
+import { AssetType } from "../../finp2p-contracts/src/model";
 
 export class PolicyGetter {
   ossClient: OssClient;

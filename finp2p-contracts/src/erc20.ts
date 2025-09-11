@@ -1,7 +1,7 @@
 import { ContractsManager } from "./manager";
 import { BigNumberish, ContractFactory, Interface, keccak256, Provider, Signer, toUtf8Bytes } from "ethers";
-import { ERC20WithOperator } from "../../typechain-types";
-import ERC20 from "../../artifacts/contracts/token/ERC20/ERC20WithOperator.sol/ERC20WithOperator.json";
+import { ERC20WithOperator } from "../typechain-types";
+import ERC20 from "../artifacts/contracts/token/ERC20/ERC20WithOperator.sol/ERC20WithOperator.json";
 import winston from "winston";
 
 export const OPERATOR_ROLE = keccak256(toUtf8Bytes('OPERATOR_ROLE'));
@@ -54,15 +54,19 @@ export class ERC20Contract extends ContractsManager {
     return this.erc20.approve(spender, quantity);
   }
 
-  async mint(toAddress: string, quantity: number) {
+  async mint(toAddress: string, quantity: BigNumberish) {
     return this.erc20.mint(toAddress, quantity);
   }
 
-  async transfer(fromAddress: string, toAddress: string, quantity: number) {
+  async transfer(toAddress: string, quantity: BigNumberish) {
+    return this.erc20.transfer( toAddress, quantity);
+  }
+
+  async transferFrom(fromAddress: string, toAddress: string, quantity: BigNumberish) {
     return this.erc20.transferFrom(fromAddress, toAddress, quantity);
   }
 
-  async burn(fromAddress: string, quantity: number) {
+  async burn(fromAddress: string, quantity: BigNumberish) {
     return this.erc20.burn(fromAddress, quantity);
   }
 

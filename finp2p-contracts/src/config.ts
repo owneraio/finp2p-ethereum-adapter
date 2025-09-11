@@ -29,6 +29,24 @@ export const createLocalProviderFromConfig = async (config: ContractManagerConfi
   return { provider, signer };
 };
 
+export const getNetworkRpcUrl = (): string => {
+  let networkHost = process.env.NETWORK_HOST;
+  if (!networkHost) {
+    throw new Error("NETWORK_HOST is not set");
+  }
+  const ethereumRPCAuth = process.env.NETWORK_AUTH;
+  if (ethereumRPCAuth) {
+    if (networkHost.startsWith("https://")) {
+      networkHost = "https://" + ethereumRPCAuth + "@" + networkHost.replace("https://", "");
+    } else if (networkHost.startsWith("http://")) {
+      networkHost = "http://" + ethereumRPCAuth + "@" + networkHost.replace("http://", "");
+    } else {
+      networkHost = ethereumRPCAuth + "@" + networkHost;
+    }
+  }
+  return networkHost;
+}
+
 const createLocalProvider = async (logger: winston.Logger, userNonceManager: boolean = true): Promise<ProviderAndSigner> => {
   let ethereumRPCUrl: string;
   let operatorPrivateKey: string;
@@ -38,21 +56,7 @@ const createLocalProvider = async (logger: winston.Logger, userNonceManager: boo
     ethereumRPCUrl = config.rpcURL;
     operatorPrivateKey = config.signerPrivateKey;
   } else {
-    let networkHost = process.env.NETWORK_HOST;
-    if (!networkHost) {
-      throw new Error("NETWORK_HOST is not set");
-    }
-    const ethereumRPCAuth = process.env.NETWORK_AUTH;
-    if (ethereumRPCAuth) {
-      if (networkHost.startsWith("https://")) {
-        networkHost = "https://" + ethereumRPCAuth + "@" + networkHost.replace("https://", "");
-      } else if (networkHost.startsWith("http://")) {
-        networkHost = "http://" + ethereumRPCAuth + "@" + networkHost.replace("http://", "");
-      } else {
-        networkHost = ethereumRPCAuth + "@" + networkHost;
-      }
-    }
-    ethereumRPCUrl = networkHost;
+    ethereumRPCUrl = getNetworkRpcUrl();
     operatorPrivateKey = process.env.OPERATOR_PRIVATE_KEY || "";
     if (!operatorPrivateKey) {
       throw new Error("OPERATOR_PRIVATE_KEY is not set");
@@ -74,7 +78,7 @@ const createLocalProvider = async (logger: winston.Logger, userNonceManager: boo
 };
 
 
-const createFireblocksProvider = async (): Promise<ProviderAndSigner> => {
+export const createFireblocksProvider = async (vaultAccountIds: string[]): Promise<ProviderAndSigner> => {
   const apiKey = process.env.FIREBLOCKS_API_KEY || "";
   if (!apiKey) {
     throw new Error("FIREBLOCKS_API_KEY is not set");
@@ -88,7 +92,6 @@ const createFireblocksProvider = async (): Promise<ProviderAndSigner> => {
 
   const chainId = (process.env.FIREBLOCKS_CHAIN_ID || ChainId.MAINNET) as ChainId;
   const apiBaseUrl = (process.env.FIREBLOCKS_API_BASE_URL || ApiBaseUrl.Production) as ApiBaseUrl;
-  const vaultAccountIds = process.env.FIREBLOCKS_VAULT_ACCOUNT_IDS?.split(",").map((id) => parseInt(id)) || [];
 
   const eip1193Provider = new FireblocksWeb3Provider({
     privateKey, apiKey, chainId, apiBaseUrl, vaultAccountIds
@@ -104,7 +107,8 @@ export const createProviderAndSigner = async (providerType: ProviderType, logger
     case "local":
       return createLocalProvider(logger, useNonceManager);
     case "fireblocks":
-      return createFireblocksProvider();
+      const vaultAccountIds = process.env.FIREBLOCKS_VAULT_ACCOUNT_IDS?.split(",") || [];
+      return createFireblocksProvider(vaultAccountIds);
   }
 };
 
