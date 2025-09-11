@@ -5,7 +5,7 @@ import winston, { format, transports } from "winston";
 import * as http from "http";
 import * as console from "console";
 import createApp from "../../src/app";
-import { FinP2PContract, ContractsManager, createProviderAndSigner, addressFromPrivateKey, ProviderType } from "../../finp2p-contracts/src/contracts";
+import { FinP2PContract, ContractsManager, createProviderAndSigner, addressFromPrivateKey, ProviderType } from "../../finp2p-contracts/src";
 import { AssetCreationPolicy, InMemoryExecDetailsStore } from "../../src/services";
 import { HardhatLogExtractor } from "./log-extractors";
 import { AdapterParameters, NetworkDetails, NetworkParameters } from "./models";

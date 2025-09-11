@@ -1,4 +1,4 @@
-import { EIP712LoanTerms, OperationParams, Term } from "../../finp2p-contracts/src/contracts";
+import { EIP712LoanTerms, OperationParams, Term } from "../../finp2p-contracts/src";
 
 export type EIP712Params = {
   buyerFinId: string,

@@ -12,14 +12,12 @@ import {
   ExecutionContext as ContractExecutionContext,
   AssetType as ContractAssetType,
   TradeDetails as ContractTradeDetails,
-  ReceiptProof as ContractReceiptProof
-} from "../../finp2p-contracts/src/contracts/model";
-import {
+  ReceiptProof as ContractReceiptProof,
   EIP712Template as ContractEIP712Template,
   EIP712Domain as ContractEIP712Domain,
   EIP712Types as ContractEIP712Types,
   EIP712Message as ContractEIP712Message,
-} from "../../finp2p-contracts/src/contracts/eip712";
+} from "../../finp2p-contracts/src";
 
 
 export const assetTypeToService = (assetType: ContractAssetType): AssetType => {

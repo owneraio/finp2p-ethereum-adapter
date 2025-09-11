@@ -11,7 +11,7 @@ import {
   PRIMARY_SALE_TYPES,
   REDEMPTION_TYPES,
   SELLING_TYPES
-} from "../finp2p-contracts/src/eip712";
+} from "../finp2p-contracts/src";
 
 
 describe(`token service test`, () => {

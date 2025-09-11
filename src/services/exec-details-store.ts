@@ -1,4 +1,4 @@
-import { ExecutionContext } from "../../finp2p-contracts/src/contracts";
+import { ExecutionContext } from "../../finp2p-contracts/src";
 import { ExecDetailsStore } from "./common";
 
 export class InMemoryExecDetailsStore implements ExecDetailsStore {
