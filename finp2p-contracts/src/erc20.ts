@@ -58,7 +58,11 @@ export class ERC20Contract extends ContractsManager {
     return this.erc20.mint(toAddress, quantity);
   }
 
-  async transfer(fromAddress: string, toAddress: string, quantity: BigNumberish) {
+  async transfer(toAddress: string, quantity: BigNumberish) {
+    return this.erc20.transfer( toAddress, quantity);
+  }
+
+  async transferFrom(fromAddress: string, toAddress: string, quantity: BigNumberish) {
     return this.erc20.transferFrom(fromAddress, toAddress, quantity);
   }
 

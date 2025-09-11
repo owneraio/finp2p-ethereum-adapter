@@ -67,6 +67,12 @@ export class FinP2PContract extends ContractsManager {
     });
   }
 
+  async setEscrowWalletAddress(escrowAccountAddress: string) {
+    return this.safeExecuteTransaction(this.finP2P, async (finP2P: FINP2POperatorERC20, txParams: PayableOverrides) => {
+      return finP2P.setEscrowWalletAddress(escrowAccountAddress, txParams);
+    });
+  }
+
   async issue(issuerFinId: string, asset: Term) {
     return this.safeExecuteTransaction(this.finP2P, async (finP2P: FINP2POperatorERC20, txParams: PayableOverrides) => {
       return finP2P.issue(issuerFinId, asset, txParams);
