@@ -1,8 +1,7 @@
 import * as process from "process";
 import { logger } from "@owneraio/finp2p-nodejs-skeleton-adapter";
+import { FinP2PClient } from "@owneraio/finp2p-client";
 import winston, { format, transports } from "winston";
-import { PolicyGetter } from "@owneraio/finp2p-nodejs-skeleton-adapter";
-import { OssClient } from "@owneraio/finp2p-nodejs-skeleton-adapter/dist/lib/finp2p/oss.client"; // TODO: fix path
 import {
   FinP2PContract,
   createProviderAndSigner,
@@ -87,13 +86,13 @@ const init = async () => {
   const { provider, signer } = await createProviderAndSigner(providerType, logger, useNonceManager);
   const finp2pContract = new FinP2PContract(provider, signer, finP2PContractAddress, logger);
   const assetCreationPolicy = await createAssetCreationPolicy(finp2pContract);
-  const policyGetter = new PolicyGetter(new OssClient(ossUrl, undefined));
+  const finP2PClient = new FinP2PClient("", ossUrl);
   const execDetailsStore = new InMemoryExecDetailsStore();
 
   const version = await finp2pContract.getVersion();
   logger.info(`FinP2P contract version: ${version}`);
 
-  createApp(finp2pContract, assetCreationPolicy, policyGetter, execDetailsStore, defaultDecimals, logger).listen(port, () => {
+  createApp(finp2pContract, assetCreationPolicy, finP2PClient, execDetailsStore, defaultDecimals, logger).listen(port, () => {
     logger.info(`listening at http://localhost:${port}`);
   });
 };

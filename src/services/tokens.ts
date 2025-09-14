@@ -1,11 +1,11 @@
 import {
   logger,
   Asset, AssetCreationStatus, Destination, EIP712Template,
-  ExecutionContext, ReceiptOperation, Balance, PolicyGetter, TokenService, Signature, Source,
+  ExecutionContext, ReceiptOperation, Balance, TokenService, Signature, Source,
   failedAssetCreation, failedReceiptOperation, successfulAssetCreation,
   pendingReceiptOperation, getRandomNumber
 } from "@owneraio/finp2p-nodejs-skeleton-adapter";
-
+import { FinP2PClient } from "@owneraio/finp2p-client";
 import {
   FinP2PContract,
   assetTypeFromString,
@@ -22,9 +22,9 @@ export class TokenServiceImpl extends CommonServiceImpl implements TokenService 
 
   assetCreationPolicy: AssetCreationPolicy;
 
-  constructor(finP2PContract: FinP2PContract, assetCreationPolicy: AssetCreationPolicy, policyGetter: PolicyGetter | undefined,
+  constructor(finP2PContract: FinP2PContract, assetCreationPolicy: AssetCreationPolicy, finP2PClient: FinP2PClient | undefined,
               execDetailsStore: ExecDetailsStore | undefined, defaultDecimals: number = 18) {
-    super(finP2PContract, policyGetter, execDetailsStore, defaultDecimals);
+    super(finP2PContract, finP2PClient, execDetailsStore, defaultDecimals);
     this.assetCreationPolicy = assetCreationPolicy;
   }
 

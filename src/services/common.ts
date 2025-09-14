@@ -3,12 +3,11 @@ import {
   OperationStatus,
   Source,
   ReceiptOperation,
-  PolicyGetter,
   failedReceiptOperation,
   pendingReceiptOperation,
   successfulReceiptOperation
 } from "@owneraio/finp2p-nodejs-skeleton-adapter";
-import { ProofDomain } from "@owneraio/finp2p-nodejs-skeleton-adapter/dist/lib/finp2p";
+import { FinP2PClient, ProofDomain } from "@owneraio/finp2p-client";
 import {
   DOMAIN_TYPE,
   RECEIPT_PROOF_TYPES,
@@ -35,20 +34,22 @@ export interface ExecDetailsStore {
 export class CommonServiceImpl implements CommonService, HealthService {
 
   finP2PContract: FinP2PContract;
-  policyGetter: PolicyGetter | undefined;
+  finP2PClient: FinP2PClient | undefined
   execDetailsStore: ExecDetailsStore | undefined;
   defaultDecimals: number;
 
   constructor(
     finP2PContract: FinP2PContract,
-    policyGetter: PolicyGetter | undefined,
+    finP2PClient: FinP2PClient | undefined,
     execDetailsStore: ExecDetailsStore | undefined,
     defaultDecimals: number = 18
   ) {
     this.finP2PContract = finP2PContract;
-    this.policyGetter = policyGetter;
+    this.finP2PClient = finP2PClient;
     this.execDetailsStore = execDetailsStore;
     this.defaultDecimals = defaultDecimals;
+
+
   }
 
   public async readiness() {
@@ -194,11 +195,11 @@ export class CommonServiceImpl implements CommonService, HealthService {
 
 
   private async ledgerProof(receipt: FinP2PReceipt): Promise<FinP2PReceipt> {
-    if (this.policyGetter === undefined) {
+    if (this.finP2PClient === undefined) {
       return receipt;
     }
     const { assetId, assetType } = receipt;
-    const policy = await this.policyGetter.getPolicy(assetId, assetTypeToService(assetType));
+    const policy = await this.finP2PClient.getAssetProofPolicy(assetId, assetTypeToService(assetType));
     switch (policy.type) {
       case "NoProofPolicy":
         receipt.proof = {

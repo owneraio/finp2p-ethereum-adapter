@@ -1,4 +1,4 @@
-import { finIdToAddress } from "../src/utils";
+import { finIdToAddress } from "../src";
 import process from "process";
 
 

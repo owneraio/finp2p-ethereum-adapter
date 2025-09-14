@@ -1,7 +1,7 @@
 import process from "process";
 import console from "console";
 import winston, { format, transports } from "winston";
-import { OssClient } from "@owneraio/finp2p-nodejs-skeleton-adapter/dist/lib/finp2p/oss.client"; // TODO: fix path
+import { FinP2PClient } from "@owneraio/finp2p-client";
 import { FinP2PContract, AssetType, ProviderType, term, createProviderAndSigner } from "../finp2p-contracts/src";
 
 const logger = winston.createLogger({
@@ -11,8 +11,8 @@ const logger = winston.createLogger({
 });
 
 const syncBalanceFromOssToEthereum = async (ossUrl: string, providerType: ProviderType, finp2pContractAddress: string) => {
-  const ossClient = new OssClient(ossUrl, undefined);
-  const assets = await ossClient.getAssetsWithTokens();
+  const finp2p = new FinP2PClient("", ossUrl);
+  const assets = await finp2p.getAssetsWithTokens();
   logger.info(`Got a list of ${assets.length} assets to migrate`);
 
   if (assets.length === 0) {
@@ -39,7 +39,7 @@ const syncBalanceFromOssToEthereum = async (ossUrl: string, providerType: Provid
       }
     }
 
-    const owners = await ossClient.getOwnerBalances(assetId);
+    const owners = await finp2p.getOwnerBalances(assetId);
     for (const { finId, balance: expectedBalance } of owners) {
       const actualBalance = await contract.balance(assetId, finId);
       const balance = parseFloat(expectedBalance) - parseFloat(actualBalance);

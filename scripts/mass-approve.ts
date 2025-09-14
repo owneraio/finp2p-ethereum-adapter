@@ -1,9 +1,8 @@
-import { OssClient } from "@owneraio/finp2p-nodejs-skeleton-adapter/dist/lib/finp2p/oss.client"; // TODO: fix path
-import process from "process";
-import { createProviderAndSigner, ProviderType } from "../finp2p-contracts/src";
 import console from "console";
-import { ERC20Contract } from "../finp2p-contracts/src";
+import process from "process";
 import winston, { format, transports } from "winston";
+import { createProviderAndSigner, ProviderType, ERC20Contract } from "../finp2p-contracts/src";
+import { FinP2PClient } from "@owneraio/finp2p-client";
 
 const logger = winston.createLogger({
   level: 'info',
@@ -12,8 +11,8 @@ const logger = winston.createLogger({
 });
 
 const massApprove = async (ossUrl: string, providerType: ProviderType, contractAddress: string, amount: bigint) => {
-  const ossClient = new OssClient(ossUrl, undefined);
-  const assets = await ossClient.getAssetsWithTokens()
+  const finp2p = new FinP2PClient("", ossUrl);
+  const assets = await finp2p.getAssetsWithTokens()
   logger.info(`Got a list of ${assets.length} assets to migrate`);
 
   if (assets.length === 0) {
