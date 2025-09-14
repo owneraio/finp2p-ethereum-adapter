@@ -1,6 +1,5 @@
 import { ClientBase } from "./base";
 
-
 export class APIClient {
 
   public readonly tokens: TokensAPI;
