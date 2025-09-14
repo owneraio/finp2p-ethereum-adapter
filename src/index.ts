@@ -9,7 +9,7 @@ import {
   FinP2PContractConfig,
   ProviderType,
   readConfig
-} from "../finp2p-contracts/src/contracts";
+} from "../finp2p-contracts/src";
 import createApp from "./app";
 import { AssetCreationPolicy, InMemoryExecDetailsStore } from "./services";
 

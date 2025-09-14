@@ -1,8 +1,8 @@
 import { OssClient } from "@owneraio/finp2p-nodejs-skeleton-adapter/dist/lib/finp2p/oss.client"; // TODO: fix path
 import process from "process";
-import { createProviderAndSigner, ProviderType } from "../finp2p-contracts/src/contracts";
+import { createProviderAndSigner, ProviderType } from "../finp2p-contracts/src";
 import console from "console";
-import { ERC20Contract } from "../finp2p-contracts/src/contracts";
+import { ERC20Contract } from "../finp2p-contracts/src";
 import winston, { format, transports } from "winston";
 
 const logger = winston.createLogger({

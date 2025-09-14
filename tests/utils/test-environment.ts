@@ -18,6 +18,8 @@ const logger = winston.createLogger({
   level, transports: [new transports.Console({ level })], format: format.json()
 });
 
+const DefaultDecimals = 18;
+
 class CustomTestEnvironment extends NodeEnvironment {
 
   network: NetworkParameters | undefined;
@@ -108,7 +110,9 @@ class CustomTestEnvironment extends NodeEnvironment {
     const version = await finP2PContract.getVersion();
     console.log(`FinP2P contract version: ${version}`);
 
-    const app = createApp(finP2PContract, assetCreationPolicy, undefined, new InMemoryExecDetailsStore(), 18, logger);
+    const execDetailsStore = new InMemoryExecDetailsStore();
+
+    const app = createApp(finP2PContract, assetCreationPolicy, undefined, execDetailsStore, DefaultDecimals, logger);
     console.log("App created successfully.");
 
     this.httpServer = app.listen(port, () => {

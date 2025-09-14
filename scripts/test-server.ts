@@ -6,7 +6,7 @@ import winston, { format, transports } from "winston";
 import { GenericContainer, StartedTestContainer } from "testcontainers";
 import { HardhatLogExtractor } from "../tests/utils/log-extractors";
 import { NetworkDetails } from "../tests/utils/models";
-import { FinP2PContract, ContractsManager, addressFromPrivateKey, createProviderAndSigner, ProviderType  } from "../finp2p-contracts/src/contracts";
+import { FinP2PContract, ContractsManager, addressFromPrivateKey, createProviderAndSigner, ProviderType  } from "../finp2p-contracts/src";
 import createApp from "../src/app";
 import { PolicyGetter } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import { OssClient } from "@owneraio/finp2p-nodejs-skeleton-adapter/dist/lib/finp2p/oss.client";
