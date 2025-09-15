@@ -17,7 +17,7 @@ import {
   EIP712Domain as ContractEIP712Domain,
   EIP712Types as ContractEIP712Types,
   EIP712Message as ContractEIP712Message,
-} from "../../finp2p-contracts/src";
+} from "@owneraio/finp2p-contracts";
 
 
 export const assetTypeToService = (assetType: ContractAssetType): AssetType => {

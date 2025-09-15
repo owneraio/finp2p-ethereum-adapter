@@ -14,7 +14,7 @@ import {
   ReleaseType,
   Term,
   EIP712LoanTerms, emptyLoanTerms, LegType, PrimaryType
-} from "../../finp2p-contracts/src";
+} from "@owneraio/finp2p-contracts";
 import { EIP712Params } from "./model";
 
 

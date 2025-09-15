@@ -20,7 +20,7 @@ import {
   Phase,
   receiptToEIP712Message,
   truncateDecimals
-} from "../../finp2p-contracts/src";
+} from "@owneraio/finp2p-contracts";
 
 import { assetTypeToService, receiptToService } from "./mapping";
 import { EIP712Params, RequestValidationError } from "./model";
