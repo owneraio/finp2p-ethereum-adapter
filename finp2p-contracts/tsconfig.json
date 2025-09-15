@@ -7,6 +7,8 @@
     "skipLibCheck": true,
     "moduleResolution": "node",
     "resolveJsonModule": true,
+    "declaration": true,
+    "declarationMap": true,
     "sourceMap": true,
     "strict": true,
     "outDir": "dist",
@@ -17,13 +19,10 @@
       ]
     }
   },
-  "files": [
-    "hardhat.config.ts"
-  ],
   "include": [
     "src/**/*.ts",
     "artifacts/contracts/**/*.json",
     "typechain-types/**/*.ts",
-    "scripts/**/*.ts"
-  ]
+  ],
+  "exclude": [ "test", "scripts" ]
 }

@@ -1,11 +1,11 @@
 import { logger } from "./helpers/logger";
-import { FinP2PContract } from "../finp2p-contracts/src/contracts/finp2p";
+import { FinP2PContract } from "../finp2p-contracts/src/finp2p";
 import * as process from "process";
 import createApp from "./app";
 import { AssetCreationPolicy } from "./services/tokens";
 import {
   createProviderAndSigner, FinP2PContractConfig, ProviderType, readConfig
-} from "../finp2p-contracts/src/contracts/config";
+} from "../finp2p-contracts/src/config";
 import { PolicyGetter } from "./finp2p/policy";
 import { OssClient } from "./finp2p/oss.client";
 import winston, { format, transports } from "winston";

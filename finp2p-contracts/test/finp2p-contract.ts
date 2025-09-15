@@ -4,7 +4,7 @@ import { expect } from "chai";
 import { ethers } from "hardhat";
 import { v4 as uuid } from "uuid";
 import { generateNonce, toFixedDecimals } from "./utils";
-import { getFinId } from "../src/contracts/utils";
+import { getFinId } from "../src/utils";
 import { Signer, Wallet } from "ethers";
 import {
   EIP712LoanTerms,
@@ -14,7 +14,7 @@ import {
   newInvestmentMessage,
   PrimaryType,
   sign
-} from "../src/contracts/eip712";
+} from "../src/eip712";
 import { FINP2POperatorERC20, FinP2PSignatureVerifier } from "../typechain-types";
 import {
   AssetType,
@@ -25,7 +25,7 @@ import {
   term,
   Term,
   termToEIP712
-} from "../src/contracts/model";
+} from "../src/model";
 
 
 describe("FinP2P proxy contract test", function() {

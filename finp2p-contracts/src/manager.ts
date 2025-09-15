@@ -6,11 +6,11 @@ import {
   Provider,
   Signer, TypedDataField
 } from "ethers";
-import FINP2P from "../../artifacts/contracts/token/ERC20/FINP2POperatorERC20.sol/FINP2POperatorERC20.json";
-import ERC20 from "../../artifacts/contracts/token/ERC20/ERC20WithOperator.sol/ERC20WithOperator.json";
-import { ERC20WithOperator, FINP2POperatorERC20 } from "../../typechain-types";
+import FINP2P from "../artifacts/contracts/token/ERC20/FINP2POperatorERC20.sol/FINP2POperatorERC20.json";
+import ERC20 from "../artifacts/contracts/token/ERC20/ERC20WithOperator.sol/ERC20WithOperator.json";
+import { ERC20WithOperator, FINP2POperatorERC20 } from "../typechain-types";
 import winston from "winston";
-import { PayableOverrides } from "../../typechain-types/common";
+import { PayableOverrides } from "../typechain-types/common";
 import { detectError, EthereumTransactionError, NonceAlreadyBeenUsedError, NonceTooHighError } from "./model";
 import { hash as typedHash, sign } from "./eip712";
 import { compactSerialize } from "./utils";
