@@ -8,7 +8,7 @@ import {
   FinP2PContractConfig,
   ProviderType,
   readConfig
-} from "@owneraio/finp2p-contracts";
+} from "../finp2p-contracts/src";
 import createApp from "./app";
 import { AssetCreationPolicy, InMemoryExecDetailsStore } from "./services";
 

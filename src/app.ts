@@ -11,7 +11,7 @@ import {
   PlanApprovalServiceImpl,
   TokenServiceImpl
 } from "./services";
-import { FinP2PContract } from "@owneraio/finp2p-contracts";
+import { FinP2PContract } from "../finp2p-contracts/src";
 
 function createApp(finP2PContract: FinP2PContract,
                    assetCreationPolicy: AssetCreationPolicy,

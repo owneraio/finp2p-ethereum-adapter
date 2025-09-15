@@ -11,7 +11,7 @@ import {
   createProviderAndSigner,
   addressFromPrivateKey,
   ProviderType
-} from "@owneraio/finp2p-contracts";
+} from "../../finp2p-contracts/src";
 import { AssetCreationPolicy, InMemoryExecDetailsStore } from "../../src/services";
 import { HardhatLogExtractor } from "./log-extractors";
 import { AdapterParameters, NetworkDetails, NetworkParameters } from "./models";

@@ -4,28 +4,27 @@ import {
 } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import { CommonServiceImpl } from "./common";
 import { extractEIP712Params } from "./helpers";
-import { EthereumTransactionError } from "@owneraio/finp2p-contracts";
+import { EthereumTransactionError } from "../../finp2p-contracts/src";
+import { validateRequest } from "./validator";
 
 export class EscrowServiceImpl extends CommonServiceImpl implements EscrowService {
 
-  public async hold(nonce: string, source: Source, destination: Destination | undefined, ast: Asset,
+  public async hold(idempotencyKey: string, nonce: string, source: Source, destination: Destination | undefined, ast: Asset,
                     quantity: string, sgn: Signature, operationId: string, exCtx: ExecutionContext
   ): Promise<ReceiptOperation> {
+    const { signature, template } = sgn;
+    if (template.type != "EIP712") {
+      throw new Error(`Unsupported signature template type: ${template.type}`);
+    }
+    const eip712Template = template as EIP712Template;
+    const eip712Params = extractEIP712Params(ast, source, destination, operationId, eip712Template, exCtx);
+    validateRequest(source, destination, quantity, eip712Params);
+    const { buyerFinId, sellerFinId, asset, settlement, loan, params } = eip712Params;
+
+    let txHash: string;
     try {
-      const { signature, template } = sgn;
-      const eip712Template = template as EIP712Template;
-      const eip712Params = extractEIP712Params(ast, source, destination, operationId, eip712Template, exCtx);
-      this.validateRequest(source, destination, quantity, eip712Params);
-      const { buyerFinId, sellerFinId, asset, settlement, loan, params } = eip712Params;
-
-      const txHash = await this.finP2PContract.hold(nonce, sellerFinId, buyerFinId,
+      txHash = await this.finP2PContract.hold(nonce, sellerFinId, buyerFinId,
         asset, settlement, loan, params, signature);
-      if (exCtx) {
-        this.execDetailsStore?.addExecutionContext(txHash, exCtx.planId, exCtx.sequence);
-      }
-
-      return pendingReceiptOperation(txHash);
-
     } catch (e) {
       logger.error(`Error asset hold: ${e}`);
       if (e instanceof EthereumTransactionError) {
@@ -35,16 +34,18 @@ export class EscrowServiceImpl extends CommonServiceImpl implements EscrowServic
         return failedReceiptOperation(1, `${e}`);
       }
     }
+    if (exCtx) {
+      this.execDetailsStore?.addExecutionContext(txHash, exCtx.planId, exCtx.sequence);
+    }
+
+    return pendingReceiptOperation(txHash, undefined);
   }
 
-  public async release(destination: Destination, asset: Asset, quantity: string, operationId: string, exCtx: ExecutionContext
+  public async release(idempotencyKey: string, destination: Destination, asset: Asset, quantity: string, operationId: string, exCtx: ExecutionContext
   ): Promise<ReceiptOperation> {
+    let txHash: string;
     try {
-      const txHash = await this.finP2PContract.releaseTo(operationId, destination.finId, quantity);
-      if (exCtx) {
-        this.execDetailsStore?.addExecutionContext(txHash, exCtx.planId, exCtx.sequence);
-      }
-      return pendingReceiptOperation(txHash);
+      txHash = await this.finP2PContract.releaseTo(operationId, destination.finId, quantity);
     } catch (e) {
       logger.error(`Error releasing asset: ${e}`);
       if (e instanceof EthereumTransactionError) {
@@ -53,17 +54,17 @@ export class EscrowServiceImpl extends CommonServiceImpl implements EscrowServic
         return failedReceiptOperation(1, `${e}`);
       }
     }
+    if (exCtx) {
+      this.execDetailsStore?.addExecutionContext(txHash, exCtx.planId, exCtx.sequence);
+    }
+    return pendingReceiptOperation(txHash, undefined);
   }
 
-  public async rollback(asset: Asset, quantity: string, operationId: string, exCtx: ExecutionContext
+  public async rollback(idempotencyKey: string, asset: Asset, quantity: string, operationId: string, exCtx: ExecutionContext
   ): Promise<ReceiptOperation> {
-
+    let txHash: string;
     try {
-      const txHash = await this.finP2PContract.releaseBack(operationId);
-      if (exCtx) {
-        this.execDetailsStore?.addExecutionContext(txHash, exCtx.planId, exCtx.sequence);
-      }
-      return pendingReceiptOperation(txHash);
+      txHash = await this.finP2PContract.releaseBack(operationId);
     } catch (e) {
       logger.error(`Error rolling-back asset: ${e}`);
       if (e instanceof EthereumTransactionError) {
@@ -73,6 +74,10 @@ export class EscrowServiceImpl extends CommonServiceImpl implements EscrowServic
         return failedReceiptOperation(1, `${e}`);
       }
     }
+    if (exCtx) {
+      this.execDetailsStore?.addExecutionContext(txHash, exCtx.planId, exCtx.sequence);
+    }
+    return pendingReceiptOperation(txHash, undefined);
   }
 
 

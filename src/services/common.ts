@@ -1,7 +1,6 @@
 import {
-  logger, CommonService, HealthService, Destination,
+  logger, CommonService, HealthService,
   OperationStatus,
-  Source,
   ReceiptOperation,
   failedReceiptOperation,
   pendingReceiptOperation,
@@ -12,18 +11,14 @@ import {
   DOMAIN_TYPE,
   RECEIPT_PROOF_TYPES,
   EIP712Domain,
-  LegType,
-  PrimaryType,
   FinP2PContract,
   ExecutionContext,
   FinP2PReceipt,
-  Phase,
   receiptToEIP712Message,
   truncateDecimals
-} from "@owneraio/finp2p-contracts";
+} from "../../finp2p-contracts/src";
 
 import { assetTypeToService, receiptToService } from "./mapping";
-import { EIP712Params, RequestValidationError } from "./model";
 
 export interface ExecDetailsStore {
   addExecutionContext(txHash: string, executionPlanId: string, instructionSequenceNumber: number): void;
@@ -34,7 +29,7 @@ export interface ExecDetailsStore {
 export class CommonServiceImpl implements CommonService, HealthService {
 
   finP2PContract: FinP2PContract;
-  finP2PClient: FinP2PClient | undefined
+  finP2PClient: FinP2PClient | undefined;
   execDetailsStore: ExecDetailsStore | undefined;
   defaultDecimals: number;
 
@@ -48,8 +43,6 @@ export class CommonServiceImpl implements CommonService, HealthService {
     this.finP2PClient = finP2PClient;
     this.execDetailsStore = execDetailsStore;
     this.defaultDecimals = defaultDecimals;
-
-
   }
 
   public async readiness() {
@@ -61,15 +54,15 @@ export class CommonServiceImpl implements CommonService, HealthService {
   }
 
   public async getReceipt(id: string): Promise<ReceiptOperation> {
+    let finp2pReceipt: FinP2PReceipt;
     try {
-      let finp2pReceipt = await this.finP2PContract.getReceipt(id);
-      finp2pReceipt.quantity = truncateDecimals(finp2pReceipt.quantity, this.defaultDecimals);
-      const receipt = await this.ledgerProof(finp2pReceipt);
-      return successfulReceiptOperation(receiptToService(receipt));
-
+      finp2pReceipt = await this.finP2PContract.getReceipt(id);
     } catch (e) {
       return failedReceiptOperation(1, `${e}`);
     }
+    finp2pReceipt.quantity = truncateDecimals(finp2pReceipt.quantity, this.defaultDecimals);
+    const receipt = await this.ledgerProof(finp2pReceipt);
+    return successfulReceiptOperation(receiptToService(receipt));
   }
 
   public async operationStatus(cid: string): Promise<OperationStatus> {
@@ -90,7 +83,7 @@ export class CommonServiceImpl implements CommonService, HealthService {
           return successfulReceiptOperation(receiptResponse);
 
         case "pending":
-          return pendingReceiptOperation(cid);
+          return pendingReceiptOperation(cid, undefined);
 
         case "failed":
           return failedReceiptOperation(status.error.code, status.error.message);
@@ -99,98 +92,6 @@ export class CommonServiceImpl implements CommonService, HealthService {
       logger.error(`Got error: ${e}`);
       throw e;
     }
-  }
-
-  protected validateRequest(source: Source, destination: Destination | undefined, quantity: string, eip712Params: EIP712Params): void {
-    const {
-      buyerFinId,
-      sellerFinId,
-      asset,
-      settlement,
-      loan,
-      params: { eip712PrimaryType, phase, leg }
-    } = eip712Params;
-    if (eip712PrimaryType === PrimaryType.Loan) {
-      switch (phase) {
-        case Phase.Initiate:
-          switch (leg) {
-            case LegType.Asset:
-              if (destination && buyerFinId !== destination.finId) {
-                throw new RequestValidationError(`Buyer FinId in the signature does not match the destination FinId`);
-              }
-              if (sellerFinId !== source.finId) {
-                throw new RequestValidationError(`Seller FinId in the signature does not match the source FinId`);
-              }
-              if (quantity !== asset.amount) {
-                throw new RequestValidationError(`Quantity in the signature does not match the requested quantity`);
-              }
-              break;
-            case LegType.Settlement:
-              if (destination && sellerFinId !== destination.finId) {
-                throw new RequestValidationError(`Seller FinId in the signature does not match the destination FinId`);
-              }
-              if (buyerFinId !== source.finId) {
-                throw new RequestValidationError(`Buyer FinId in the signature does not match the source FinId`);
-              }
-              if (quantity !== loan.borrowedMoneyAmount) {
-                throw new RequestValidationError(`BorrowedMoneyAmount in the signature does not match the requested quantity`);
-              }
-              break;
-          }
-          break;
-        case Phase.Close:
-          switch (leg) {
-            case LegType.Asset:
-              if (destination && sellerFinId !== destination.finId) {
-                throw new RequestValidationError(`Seller FinId in the signature does not match the destination FinId`);
-              }
-              if (buyerFinId !== source.finId) {
-                throw new RequestValidationError(`Buyer FinId in the signature does not match the source FinId`);
-              }
-              if (quantity !== asset.amount) {
-                throw new RequestValidationError(`Quantity in the signature does not match the requested quantity`);
-              }
-              break;
-            case LegType.Settlement:
-              if (destination && buyerFinId !== destination.finId) {
-                throw new RequestValidationError(`Buyer FinId in the signature does not match the destination FinId`);
-              }
-              if (sellerFinId !== source.finId) {
-                throw new RequestValidationError(`Seller FinId in the signature does not match the source FinId`);
-              }
-              if (quantity !== loan.returnedMoneyAmount) {
-                throw new RequestValidationError(`ReturnedMoneyAmount in the signature does not match the requested quantity`);
-              }
-              break;
-          }
-      }
-    } else {
-      switch (leg) {
-        case LegType.Asset:
-          if (destination && buyerFinId !== destination.finId) {
-            throw new RequestValidationError(`Buyer FinId in the signature does not match the destination FinId`);
-          }
-          if (sellerFinId !== source.finId) {
-            throw new RequestValidationError(`Seller FinId in the signature does not match the source FinId`);
-          }
-          if (quantity !== asset.amount) {
-            throw new RequestValidationError(`Quantity in the signature does not match the requested quantity`);
-          }
-          break;
-        case LegType.Settlement:
-          if (destination && sellerFinId !== destination.finId) {
-            throw new RequestValidationError(`Seller FinId in the signature does not match the destination FinId`);
-          }
-          if (buyerFinId !== source.finId) {
-            throw new RequestValidationError(`Buyer FinId in the signature does not match the source FinId`);
-          }
-          if (quantity !== settlement.amount) {
-            throw new RequestValidationError(`Quantity in the signature does not match the requested quantity`);
-          }
-          break;
-      }
-    }
-
   }
 
 

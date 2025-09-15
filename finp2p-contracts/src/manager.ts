@@ -159,9 +159,9 @@ export class ContractsManager {
   protected async safeExecuteTransaction<C extends BaseContract>(contract: C, call: (contract: C, overrides: PayableOverrides) => Promise<ContractTransactionResponse>, maxAttempts: number = 10) {
     for (let i = 0; i < maxAttempts; i++) {
       try {
-        let nonce: number
+        let nonce: number;
         if (this.signer instanceof NonceManager) {
-          nonce = await (this.signer as NonceManager).getNonce()
+          nonce = await (this.signer as NonceManager).getNonce();
         } else {
           nonce = await this.getLatestTransactionCount();
         }

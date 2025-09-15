@@ -3,7 +3,7 @@ import {
   EIP712Template, EIP712TypeArray, EIP712TypeBool,
   EIP712TypeByte,
   EIP712TypedValue, EIP712TypeInteger, EIP712TypeObject, EIP712Types, EIP712TypeString,
-  ExecutionContext,
+  ExecutionContext, finIdDestination,
   ProofPolicy,
   Receipt, TradeDetails
 } from "@owneraio/finp2p-nodejs-skeleton-adapter";
@@ -16,18 +16,18 @@ import {
   EIP712Template as ContractEIP712Template,
   EIP712Domain as ContractEIP712Domain,
   EIP712Types as ContractEIP712Types,
-  EIP712Message as ContractEIP712Message,
-} from "@owneraio/finp2p-contracts";
+  EIP712Message as ContractEIP712Message
+} from "../../finp2p-contracts/src";
 
 
 export const assetTypeToService = (assetType: ContractAssetType): AssetType => {
   switch (assetType) {
     case ContractAssetType.Fiat:
-      return 'fiat'
+      return "fiat";
     case ContractAssetType.FinP2P:
-       return 'finp2p'
+      return "finp2p";
     case ContractAssetType.Cryptocurrency:
-      return 'cryptocurrency';
+      return "cryptocurrency";
   }
 };
 
@@ -99,7 +99,7 @@ export const proofToService = (proof: ContractReceiptProof | undefined): ProofPo
     case "signature-proof":
       const { template, signature } = proof;
       return {
-        hashFunc: 'keccak-256',
+        hashFunc: "keccak-256",
         type: "signature-proof",
         template: eip712TemplateToService(template),
         signature: signature
@@ -128,8 +128,8 @@ export const receiptToService = (receipt: FinP2PReceipt): Receipt => {
       assetType: assetTypeToService(assetType)
     },
     quantity,
-    source: source ? { finId: source } : undefined,
-    destination: destination ? { finId: destination } : undefined,
+    source: source ? { finId: source, account: { type: "finId", finId: source } } : undefined,
+    destination: destination ? finIdDestination(destination) : undefined,
     transactionDetails: {
       transactionId: id, operationId
     },
