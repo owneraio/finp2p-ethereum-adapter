@@ -16,8 +16,7 @@ FROM base AS builder
 ARG GITHUB_TOKEN
 
 RUN echo "@owneraio:registry=https://npm.pkg.github.com/" > ~/.npmrc && \
-    echo "//npm.pkg.github.com/:_authToken=\${GITHUB_TOKEN}" >> ~/.npmrc && \
-    apk --no-cache add g++ make python3
+    echo "//npm.pkg.github.com/:_authToken=\${GITHUB_TOKEN}" >> ~/.npmrc
 
 COPY \
     .eslintrc.json \

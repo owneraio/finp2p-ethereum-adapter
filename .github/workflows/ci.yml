@@ -107,6 +107,8 @@ jobs:
           sbom: false
           provenance: false
           file: ./Dockerfile
+          build-args:
+            GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }}
           tags: |
             ownera/finp2p-ethereum-adapter:${{ env.IMAGE_TAG }}
             ghcr.io/owneraio/finp2p-ethereum-adapter:${{ env.IMAGE_TAG }}
