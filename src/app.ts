@@ -7,10 +7,10 @@ import {
   EscrowServiceImpl,
   ExecDetailsStore,
   PaymentsServiceImpl,
-  PlanApprovalServiceImpl,
   TokenServiceImpl
 } from "./services";
 import { FinP2PContract } from "../finp2p-contracts/src";
+import { PlanApprovalServiceImpl } from "./services";
 
 function createApp(finP2PContract: FinP2PContract,
                    finP2PClient: FinP2PClient | undefined,
@@ -30,7 +30,7 @@ function createApp(finP2PContract: FinP2PContract,
   const tokenService = new TokenServiceImpl(finP2PContract, finP2PClient, execDetailsStore, defaultDecimals);
   const escrowService = new EscrowServiceImpl(finP2PContract, finP2PClient, execDetailsStore, defaultDecimals);
   const paymentsService = new PaymentsServiceImpl(finP2PContract, finP2PClient, execDetailsStore, defaultDecimals);
-  const planApprovalService = new PlanApprovalServiceImpl();
+  const planApprovalService = new PlanApprovalServiceImpl(finP2PClient);
   register(app, tokenService, escrowService, tokenService, tokenService, paymentsService, planApprovalService);
 
   return app;
