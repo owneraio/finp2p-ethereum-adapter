@@ -34,7 +34,13 @@ jobs:
         run: npm run test
 
       - name: Adapter npm clean-install
+        with:
+          node-version: 18
+          registry-url: https://npm.pkg.github.com/
+          scope: '@owneraio'
         run: npm clean-install
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Adapter npm run build
         run: npm run build

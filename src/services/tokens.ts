@@ -16,49 +16,38 @@ import {
 
 import { CommonServiceImpl, ExecDetailsStore } from "./common";
 import { extractEIP712Params } from "./helpers";
-import { AssetCreationPolicy } from "./model";
 import { validateRequest } from "./validator";
 
 
+const DefaultDecimals = 2;
+
 export class TokenServiceImpl extends CommonServiceImpl implements TokenService {
 
-  assetCreationPolicy: AssetCreationPolicy;
 
-  constructor(finP2PContract: FinP2PContract, assetCreationPolicy: AssetCreationPolicy, finP2PClient: FinP2PClient | undefined,
+  constructor(finP2PContract: FinP2PContract, finP2PClient: FinP2PClient | undefined,
               execDetailsStore: ExecDetailsStore | undefined, defaultDecimals: number = 18) {
     super(finP2PContract, finP2PClient, execDetailsStore, defaultDecimals);
-    this.assetCreationPolicy = assetCreationPolicy;
   }
 
   public async createAsset(idempotencyKey: string, asset: Asset,
                            assetBind: AssetBind | undefined, assetMetadata: any | undefined, assetName: string | undefined, issuerId: string | undefined,
                            assetDenomination: AssetDenomination | undefined, assetIdentifier: AssetIdentifier | undefined): Promise<AssetCreationStatus> {
     const { assetId } = asset;
-    let tokenAddress: string;
+    let tokenAddress, tokenStandard: string;
+    let allowanceRequired: boolean
     if (assetBind && assetBind.tokenIdentifier) {
       const { tokenIdentifier: { tokenId } } = assetBind;
       if (!isEthereumAddress(tokenId)) {
         return failedAssetCreation(1, `Token ID ${tokenId} is not a valid Ethereum address`);
       }
       tokenAddress = tokenId;
+      tokenStandard = "ERC20"; // TODO: parse from metadata
+      allowanceRequired = true; // TODO: parse from metadata
     } else {
 
-      // todo: extract reuse-existing-token to a plugin
-      // We do deploy ERC20 here and then associate it with the FinP2P assetId,
-      // in a real-world scenario, the token could already deployed in another tokenization application,
-      // so we would just associate the assetId with existing token address
-      switch (this.assetCreationPolicy.type) {
-        case "deploy-new-token":
-          const { decimals } = this.assetCreationPolicy;
-          tokenAddress = await this.finP2PContract.deployERC20(assetId, assetId, decimals, this.finP2PContract.finP2PContractAddress);
-          break;
-        case "reuse-existing-token":
-          tokenAddress = this.assetCreationPolicy.tokenAddress;
-          // tokenId = `${getRandomNumber(10000, 100000)}-${tokenAddress}`;
-          break;
-        case "no-deployment":
-          return failedAssetCreation(1, "Creation of new assets is not allowed by the policy");
-      }
+      tokenAddress = await this.finP2PContract.deployERC20(assetId, assetId, DefaultDecimals, this.finP2PContract.finP2PContractAddress);
+      tokenStandard = "ERC20-with-operator";
+      allowanceRequired = false;
     }
 
     try {
@@ -75,9 +64,11 @@ export class TokenServiceImpl extends CommonServiceImpl implements TokenService 
       }
     }
 
-    const tokenStandard = "ERC20-with-operator";
+    // TODO: parse assetMetadata to determine token standard and other details
+
     const { chainId, name } = await this.finP2PContract.provider.getNetwork();
-    const network = `name: ${name}, chainId: ${chainId}`;
+    const network = `name: ${name}, chainId: ${chainId}`; // public or private network?
+    const finP2POperatorContractAddress = this.finP2PContract.finP2PContractAddress;
     const result: AssetCreationResult = {
       tokenId: tokenAddress,
       reference: {
@@ -86,8 +77,8 @@ export class TokenServiceImpl extends CommonServiceImpl implements TokenService 
         address: tokenAddress,
         tokenStandard,
         additionalContractDetails: {
-          finP2POperatorContractAddress: this.finP2PContract.finP2PContractAddress,
-          allowanceRequired: false
+          finP2POperatorContractAddress,
+          allowanceRequired
         }
       }
     };
