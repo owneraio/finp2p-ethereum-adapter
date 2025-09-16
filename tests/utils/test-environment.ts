@@ -12,7 +12,7 @@ import {
   addressFromPrivateKey,
   ProviderType
 } from "../../finp2p-contracts/src";
-import { AssetCreationPolicy, InMemoryExecDetailsStore } from "../../src/services";
+import { InMemoryExecDetailsStore } from "../../src/services";
 import { HardhatLogExtractor } from "./log-extractors";
 import { AdapterParameters, NetworkDetails, NetworkParameters } from "./models";
 import { randomPort } from "./utils";
@@ -115,14 +115,13 @@ class CustomTestEnvironment extends NodeEnvironment {
     const finP2PContract = new FinP2PContract(provider, signer, finP2PContractAddress, logger);
 
     const port = randomPort();
-    const assetCreationPolicy = { type: "deploy-new-token", decimals: 0 } as AssetCreationPolicy;
 
     const version = await finP2PContract.getVersion();
     console.log(`FinP2P contract version: ${version}`);
 
     const execDetailsStore = new InMemoryExecDetailsStore();
 
-    const app = createApp(finP2PContract, assetCreationPolicy, undefined, execDetailsStore, DefaultDecimals, logger);
+    const app = createApp(finP2PContract, undefined, execDetailsStore, DefaultDecimals, logger);
     console.log("App created successfully.");
 
     this.httpServer = app.listen(port, () => {
