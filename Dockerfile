@@ -1,4 +1,11 @@
-FROM node:18-alpine AS base
+FROM node:20-alpine AS base
+
+ARG NODE_AUTH_TOKEN
+ENV NODE_AUTH_TOKEN=$NODE_AUTH_TOKEN
+
+RUN echo "@owneraio:registry=https://npm.pkg.github.com" >> .npmrc \
+ && echo "//npm.pkg.github.com/:_authToken=${NODE_AUTH_TOKEN}" >> .npmrc \
+
 WORKDIR /usr/app
 
 # ------------------------
