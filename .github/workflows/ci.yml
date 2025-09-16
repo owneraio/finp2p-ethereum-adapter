@@ -85,7 +85,7 @@ jobs:
         run: |
           ## local build for scanners
           docker build \
-            --build-arg NODE_AUTH_TOKEN=${{ secrets.GITHUB_TOKEN }} \
+            --build-arg GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }} \
             -t "ghcr.io/owneraio/finp2p-ethereum-adapter:${{ env.IMAGE_TAG }}" -f ./Dockerfile .
       
 
