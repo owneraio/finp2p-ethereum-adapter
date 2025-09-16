@@ -4,7 +4,6 @@ import winston from "winston";
 import { register } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import { FinP2PClient } from "@owneraio/finp2p-client";
 import {
-  AssetCreationPolicy,
   EscrowServiceImpl,
   ExecDetailsStore,
   PaymentsServiceImpl,
@@ -14,7 +13,6 @@ import {
 import { FinP2PContract } from "../finp2p-contracts/src";
 
 function createApp(finP2PContract: FinP2PContract,
-                   assetCreationPolicy: AssetCreationPolicy,
                    finP2PClient: FinP2PClient | undefined,
                    execDetailsStore: ExecDetailsStore | undefined,
                    defaultDecimals: number,
@@ -29,7 +27,7 @@ function createApp(finP2PContract: FinP2PContract,
     ignoreRoute: (req) => req.url.toLowerCase() === "/health/readiness" || req.url.toLowerCase() === "/health/liveness"
   }));
 
-  const tokenService = new TokenServiceImpl(finP2PContract, assetCreationPolicy, finP2PClient, execDetailsStore, defaultDecimals);
+  const tokenService = new TokenServiceImpl(finP2PContract, finP2PClient, execDetailsStore, defaultDecimals);
   const escrowService = new EscrowServiceImpl(finP2PContract, finP2PClient, execDetailsStore, defaultDecimals);
   const paymentsService = new PaymentsServiceImpl(finP2PContract, finP2PClient, execDetailsStore, defaultDecimals);
   const planApprovalService = new PlanApprovalServiceImpl();

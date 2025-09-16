@@ -9,7 +9,7 @@ import { NetworkDetails } from "../tests/utils/models";
 import { FinP2PContract, ContractsManager, addressFromPrivateKey, createProviderAndSigner, ProviderType  } from "../finp2p-contracts/src";
 import createApp from "../src/app";
 import { FinP2PClient } from "@owneraio/finp2p-client";
-import { AssetCreationPolicy, ExecDetailsStore, InMemoryExecDetailsStore } from "../src/services";
+import { ExecDetailsStore, InMemoryExecDetailsStore } from "../src/services";
 
 let ethereumNodeContainer: StartedTestContainer | undefined;
 let httpServer: http.Server | undefined;
@@ -80,13 +80,7 @@ const startApp = async (port: number, provider: Provider, signer: Signer,
                         execDetailsStore: ExecDetailsStore | undefined, defaultDecimals: number = 18,
                         logger: winston.Logger) => {
 
-  const assetCreationPolicy = {
-    type: "reuse-existing-token",
-    tokenAddress
-  } as AssetCreationPolicy;
-
-
-  const app = createApp(finP2PContract, assetCreationPolicy, finP2PClient, execDetailsStore, defaultDecimals, logger);
+  const app = createApp(finP2PContract, finP2PClient, execDetailsStore, defaultDecimals, logger);
   logger.info("App created successfully.");
 
   httpServer = app.listen(port, () => {
