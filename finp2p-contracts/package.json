@@ -1,6 +1,6 @@
 {
   "name": "@owneraio/finp2p-contracts",
-  "version": "0.25.0",
+  "version": "0.25.1",
   "description": "",
   "homepage": "https://ownera.io/",
   "main": "./dist/index.js",
@@ -14,7 +14,7 @@
     "test": "hardhat test",
     "lint": "eslint ./src --ext .ts --fix",
     "build": "tsc",
-    "postbuild": "mv dist/src/* dist/ && rmdir dist/src",
+    "postbuild": "echo \"export * from './src/index.js';\" > dist/index.js && echo \"export * from './src/index.d.ts';\" > dist/index.d.ts",
     "deploy-contract": "ts-node scripts/deploy.ts",
     "deploy-contract-job": "ts-node scripts/deploy-job.ts",
     "grant-operator-roles": "ts-node scripts/grant.ts",
