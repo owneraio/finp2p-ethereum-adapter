@@ -20,6 +20,8 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '18.x'
+          registry-url: https://npm.pkg.github.com/
+          scope: '@owneraio'
 
       - name: Finp2p-Contracts npm clean-install
         working-directory: ./finp2p-contracts
@@ -34,11 +36,7 @@ jobs:
         run: npm run test
 
       - name: Adapter npm clean-install
-        with:
-          node-version: 18
-          registry-url: https://npm.pkg.github.com/
-          scope: '@owneraio'
-        run: npm clean-install
+        run: npm ci
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
