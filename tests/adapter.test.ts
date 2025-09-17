@@ -11,7 +11,8 @@ import {
   PRIMARY_SALE_TYPES,
   REDEMPTION_TYPES,
   SELLING_TYPES
-} from "../finp2p-contracts/src/contracts/eip712";
+} from "../finp2p-contracts/src";
+import { LedgerAPI } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 
 
 describe(`token service test`, () => {
@@ -36,7 +37,7 @@ describe(`token service test`, () => {
     const assetId = randomResourceId(orgId, ASSET);
     const asset = {
       type: "finp2p", resourceId: assetId
-    } as Components.Schemas.Finp2pAsset;
+    } as LedgerAPI["schemas"]["finp2pAsset"];
 
     const { private: issuerPrivate, public: issuerPublic } = createCrypto();
     const issuerPrivateKey = issuerPrivate.toString("hex");
@@ -48,8 +49,8 @@ describe(`token service test`, () => {
     const issuerSource = {
       finId: issuerFinId, account: {
         type: "finId", finId: issuerFinId
-      } as Components.Schemas.FinIdAccount
-    } as Components.Schemas.Source;
+      }
+    } as LedgerAPI["schemas"]["source"];
 
     const assetStatus = await client.tokens.createAsset({ asset: asset });
     if (!assetStatus.isCompleted) {
@@ -71,7 +72,8 @@ describe(`token service test`, () => {
       nonce: issueNonce,
       destination: issuerSource.account,
       quantity: `${issueAmount}`,
-      asset: asset as Components.Schemas.Finp2pAsset,
+      asset: asset,
+      settlementRef: "",
       signature: await eip712Signature(chainId, verifyingContract, "PrimarySale", PRIMARY_SALE_TYPES, {
         nonce: issueNonce, buyer: { idkey: issueBuyerFinId }, issuer: { idkey: issuerFinId }, asset: {
           assetId, assetType: "finp2p", amount: `${issueAmount}`
@@ -79,7 +81,7 @@ describe(`token service test`, () => {
           assetId: settlementAsset, assetType: "fiat", amount: `${issueSettlementAmount}`
         }
       } as EIP712PrimarySaleMessage, issueBuyerPrivateKey)
-    } as Paths.IssueAssets.RequestBody);
+    });
     expect(issueStatus.error).toBeUndefined();
     const issueReceipt = await client.expectReceipt(issueStatus);
     expect(issueReceipt.asset).toStrictEqual(asset);
@@ -100,8 +102,8 @@ describe(`token service test`, () => {
     const buyerSource = {
       finId: buyerFinId, account: {
         type: "finId", finId: buyerFinId
-      } as Components.Schemas.FinIdAccount
-    } as Components.Schemas.Source;
+      }
+    } as LedgerAPI["schemas"]["source"];
 
     const transferAmount = 600;
     const transferSettlementAmount = 6000;
@@ -113,6 +115,7 @@ describe(`token service test`, () => {
       destination: buyerSource,
       quantity: `${transferAmount}`,
       asset,
+      settlementRef: "",
       signature: await eip712Signature(chainId, verifyingContract, "Selling", SELLING_TYPES, {
         nonce: transferNonce, seller: { idkey: sellerFinId }, buyer: { idkey: buyerFinId }, asset: {
           assetId, assetType: "finp2p", amount: `${transferAmount}`
@@ -120,7 +123,7 @@ describe(`token service test`, () => {
           assetId: settlementAsset, assetType: "fiat", amount: `${transferSettlementAmount}`
         }
       } as EIP712SellingMessage, sellerPrivateKey)
-    } as Paths.TransferAsset.RequestBody));
+    }));
     expect(transferReceipt.asset).toStrictEqual(asset);
     expect(parseInt(transferReceipt.quantity)).toBe(transferAmount);
     expect(transferReceipt.source?.finId).toBe(sellerFinId);
@@ -135,7 +138,7 @@ describe(`token service test`, () => {
 
     const assetId = randomResourceId(orgId, ASSET);
     const settlementAssetId = "USD";
-    const settlementAsset = { type: "fiat", code: settlementAssetId } as Components.Schemas.Asset;
+    const settlementAsset = { type: "fiat", code: settlementAssetId } as LedgerAPI["schemas"]["fiatAsset"];
     const assetStatus = await client.tokens.createAsset({ asset: settlementAsset });
     if (!assetStatus.isCompleted) {
       await client.common.waitForCompletion(assetStatus.cid);
@@ -148,11 +151,12 @@ describe(`token service test`, () => {
       finId: buyerFinId, account: {
         type: "finId", finId: buyerFinId
       }
-    } as Components.Schemas.Source;
+    } as LedgerAPI["schemas"]["source"];
 
     let depositStatus = await client.payments.getDepositInstruction({
-      owner: buyerSource, destination: buyerSource, asset: settlementAsset
-    } as Paths.DepositInstruction.RequestBody);
+      owner: buyerSource, destination: buyerSource,
+      asset: settlementAsset as LedgerAPI["schemas"]["depositAsset"]
+    });
     if (!depositStatus.isCompleted) {
       await client.common.waitForCompletion(depositStatus.cid);
     }
@@ -164,9 +168,12 @@ describe(`token service test`, () => {
       nonce: generateNonce().toString("hex"),
       destination: buyerSource.account,
       quantity: `${initialBalance}`,
-      asset: settlementAsset,
-      settlementRef: settlementRef
-    } as Paths.IssueAssets.RequestBody);
+      asset: {
+        resourceId: settlementAsset.code, type: "finp2p"
+      },
+      settlementRef: settlementRef,
+      signature: {} as LedgerAPI["schemas"]["signature"]
+    });
     if (!setBalanceStatus.isCompleted) {
       await client.common.waitForReceipt(setBalanceStatus.cid);
     }
@@ -178,7 +185,7 @@ describe(`token service test`, () => {
       finId: sellerFinId, account: {
         type: "finId", finId: sellerFinId
       }
-    } as Components.Schemas.Source;
+    } as LedgerAPI["schemas"]["source"];
     await client.expectBalance(sellerSource, settlementAsset, 0);
 
     const operationId = `${uuidv4()}`;
@@ -193,8 +200,9 @@ describe(`token service test`, () => {
       destination: sellerSource,
       quantity: `${transferSettlementAmount}`,
       asset: settlementAsset,
+      expiry: 0,
       signature: await eip712Signature(chainId, verifyingContract, "Selling", SELLING_TYPES, newSellingMessage(transferNonce, finId(buyerFinId), finId(sellerFinId), eip712Term(assetId, "finp2p", `${transferAmount}`), eip712Term(settlementAssetId, "fiat", `${transferSettlementAmount}`)), buyerPrivateKey)
-    } as Paths.HoldOperation.RequestBody);
+    });
     expect(holdStatus.error).toBeUndefined();
     const holdReceipt = await client.expectReceipt(holdStatus);
     expect(holdReceipt.asset).toStrictEqual(settlementAsset);
@@ -227,7 +235,7 @@ describe(`token service test`, () => {
 
     const asset = {
       type: "finp2p", resourceId: assetId
-    } as Components.Schemas.Finp2pAsset;
+    } as LedgerAPI["schemas"]["finp2pAsset"];
 
     const assetStatus = await client.tokens.createAsset({ asset: asset });
     if (!assetStatus.isCompleted) {
@@ -240,7 +248,7 @@ describe(`token service test`, () => {
       finId: issuerFinId, account: {
         type: "finId", finId: issuerFinId
       }
-    } as Components.Schemas.Source;
+    } as LedgerAPI["schemas"]["source"];
 
     const { public: investorPublic, private: investorPrivateKeyBytes } = createCrypto();
     const investorPrivateKey = investorPrivateKeyBytes.toString("hex");
@@ -250,15 +258,17 @@ describe(`token service test`, () => {
       finId: investorFinId, account: {
         type: "finId", finId: investorFinId
       }
-    } as Components.Schemas.Source;
+    } as LedgerAPI["schemas"]["source"];
 
     const issueAmount = 100;
     const setBalanceStatus = await client.tokens.issue({
       nonce: generateNonce().toString("hex"),
       destination: investorSource.account,
       quantity: `${issueAmount}`,
-      asset: asset
-    } as Paths.IssueAssets.RequestBody);
+      asset: asset,
+      settlementRef: '',
+      signature: {} as LedgerAPI["schemas"]["signature"]
+    });
     if (!setBalanceStatus.isCompleted) {
       await client.common.waitForReceipt(setBalanceStatus.cid);
     }
@@ -281,8 +291,9 @@ describe(`token service test`, () => {
       source: investorSource,
       quantity: `${redeemAmount}`,
       asset: asset,
+      expiry: 0,
       signature: redemptionSignature
-    } as Paths.HoldOperation.RequestBody);
+    });
     expect(holdStatus.error).toBeUndefined();
     const holdReceipt = await client.expectReceipt(holdStatus);
     expect(holdReceipt.asset).toStrictEqual(asset);

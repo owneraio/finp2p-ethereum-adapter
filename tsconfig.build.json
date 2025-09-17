@@ -7,8 +7,6 @@
     "skipLibCheck": true,
     "moduleResolution": "node",
     "resolveJsonModule": true,
-    "declaration": true,
-    "declarationMap": true,
     "sourceMap": true,
     "strict": true,
     "outDir": "dist",
@@ -20,10 +18,7 @@
     }
   },
   "include": [
-    "index.ts",
     "src/**/*.ts",
-    "artifacts/contracts/**/*.json",
-    "typechain-types/**/*.ts",
-  ],
-  "exclude": [ "test", "scripts" ]
+    "src/**/*.graphql"
+  ]
 }

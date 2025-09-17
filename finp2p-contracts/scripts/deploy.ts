@@ -1,6 +1,5 @@
 import process from "process";
-import { ContractsManager } from "../src/contracts/manager";
-import { createProviderAndSigner, ProviderType } from "../src/contracts/config";
+import { ContractsManager, createProviderAndSigner, ProviderType } from "../src";
 import winston, { format, transports } from "winston";
 
 const logger = winston.createLogger({

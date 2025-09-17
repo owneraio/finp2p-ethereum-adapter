@@ -1,4 +1,4 @@
-© 2024 XCap Ecosystem Ltd trading as Ownera®. All rights reserved. SPDX-License-Identifier: Apache-2.0
+© 2025 XCap Ecosystem Ltd trading as Ownera®. All rights reserved. SPDX-License-Identifier: Apache-2.0
 
 # FinP2P Ethereum Reference Adapter
 
@@ -16,7 +16,7 @@ The Adapter communicated with a FinP2P proxy contract on Ethereum network which 
 #### Install dependencies
 
 
-`npm install`
+`npm clean-install`
 
 #### Compile contracts and generate typescript bindings
 

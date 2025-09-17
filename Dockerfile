@@ -1,4 +1,5 @@
-FROM node:18-alpine AS base
+FROM node:20-alpine AS base
+
 WORKDIR /usr/app
 
 # ------------------------
@@ -6,15 +7,21 @@ FROM base AS prebuild
 
 COPY finp2p-contracts ./finp2p-contracts
 WORKDIR /usr/app/finp2p-contracts
-RUN npm install
+RUN npm clean-install
 RUN npm run compile
 
 # ------------------------
 FROM base AS builder
 
+ARG GITHUB_TOKEN
+
+RUN echo "@owneraio:registry=https://npm.pkg.github.com/" > ~/.npmrc && \
+    echo "//npm.pkg.github.com/:_authToken=\${GITHUB_TOKEN}" >> ~/.npmrc
+
 COPY \
     .eslintrc.json \
     package.json \
+    package-lock.json \
     tsconfig.json \
     jest.config.js \
     ./

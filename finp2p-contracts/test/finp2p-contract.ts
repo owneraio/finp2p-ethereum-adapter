@@ -4,7 +4,7 @@ import { expect } from "chai";
 import { ethers } from "hardhat";
 import { v4 as uuid } from "uuid";
 import { generateNonce, toFixedDecimals } from "./utils";
-import { getFinId } from "../src/contracts/utils";
+import { getFinId } from "../src/utils";
 import { keccak256, Signer, toUtf8Bytes, Wallet } from "ethers";
 import {
   EIP712LoanTerms,
@@ -14,7 +14,7 @@ import {
   newInvestmentMessage,
   PrimaryType,
   sign
-} from "../src/contracts/eip712";
+} from "../src/eip712";
 import { FINP2POperator, FinP2PSignatureVerifier } from "../typechain-types";
 import {
   AssetType,
@@ -24,9 +24,9 @@ import {
   ReleaseType,
   term,
   Term,
-  termToEIP712
-} from "../src/contracts/model";
-import { ERC20_STANDARD_ID } from "../src/contracts/config";
+  termToEIP712,
+  ERC20_STANDARD_ID
+} from "../src/model";
 
 
 describe("FinP2P proxy contract test", function() {
@@ -198,10 +198,10 @@ describe("FinP2P proxy contract test", function() {
       ({ chainId, verifyingContract } = await contract.eip712Domain());
       for (const term of testCases) {
         const asset = await deployERC20(term.asset.assetId, term.asset.assetId, term.decimals, erc20Standard);
-        await contract.associateAsset(term.asset.assetId, ERC20_STANDARD_ID, asset, { from: operator });
+        await contract.associateAsset(term.asset.assetId, asset, ERC20_STANDARD_ID, { from: operator });
 
-        const settlement = await deployERC20(term.settlement.assetId, term.settlement.assetId, term.decimals, erc20Standard);
-        await contract.associateAsset(term.settlement.assetId, ERC20_STANDARD_ID, settlement, { from: operator });
+        const settlement = await deployERC20(term.settlement.assetId, term.settlement.assetId, term.decimals, finP2PAddress);
+        await contract.associateAsset(term.settlement.assetId, settlement, ERC20_STANDARD_ID, { from: operator });
       }
     });
 

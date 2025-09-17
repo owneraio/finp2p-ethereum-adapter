@@ -1,6 +1,9 @@
 import { BytesLike, ContractFactory, Provider, Signer } from "ethers";
-import FINP2P from "../../artifacts/contracts/finp2p/FINP2POperator.sol/FINP2POperator.json";
-import { FINP2POperator } from "../../typechain-types";
+import winston from "winston";
+import FINP2P from "../artifacts/contracts/token/ERC20/FINP2POperator.sol/FINP2POperator.json";
+import { FINP2POperator } from "../typechain-types";
+import { FINP2POperatorInterface } from "../typechain-types/contracts/finp2p/FINP2POperator";
+import { PayableOverrides } from "../typechain-types/common";
 import {
   assetTypeFromNumber,
   completedOperation,
@@ -12,9 +15,6 @@ import {
 import { parseTransactionReceipt } from "./utils";
 import { ContractsManager } from "./manager";
 import { EIP712Domain, EIP712LoanTerms } from "./eip712";
-import winston from "winston";
-import { FINP2POperatorInterface } from "../../typechain-types/contracts/finp2p/FINP2POperator";
-import { PayableOverrides } from "../../typechain-types/common";
 
 
 const ETH_COMPLETED_TRANSACTION_STATUS = 1;
@@ -61,9 +61,15 @@ export class FinP2PContract extends ContractsManager {
     return this.finP2P.getAssetAddress(assetId);
   }
 
-  async associateAsset(assetId: string, tokenStandard: BytesLike, tokenAddress: string) {
+  async associateAsset(assetId: string, tokenAddress: string, tokenStandard: BytesLike) {
     return this.safeExecuteTransaction(this.finP2P, async (finP2P: FINP2POperator, txParams: PayableOverrides) => {
-      return finP2P.associateAsset(assetId, tokenStandard, tokenAddress, txParams);
+      return finP2P.associateAsset(assetId, tokenAddress, tokenStandard, txParams);
+    });
+  }
+
+  async setEscrowWalletAddress(escrowAccountAddress: string) {
+    return this.safeExecuteTransaction(this.finP2P, async (finP2P: FINP2POperatorERC20, txParams: PayableOverrides) => {
+      return finP2P.setEscrowWalletAddress(escrowAccountAddress, txParams);
     });
   }
 

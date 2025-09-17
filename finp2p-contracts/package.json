@@ -1,25 +1,38 @@
 {
-  "name": "finp2p-contracts",
-  "version": "0.1",
+  "name": "@owneraio/finp2p-contracts",
+  "version": "0.25.2",
   "description": "",
   "homepage": "https://ownera.io/",
+  "main": "./dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist/**/*"
+  ],
   "scripts": {
     "clean": "rm -rf dist && rm -rf cache && rm -rf artifacts && rm -rf typechain-types",
     "compile": "hardhat compile",
     "test": "hardhat test",
-    "build": "tsc",
     "lint": "eslint ./src --ext .ts --fix",
+    "build": "tsc",
     "deploy-contract": "ts-node scripts/deploy.ts",
-    "deploy-contract-job": "node dist/scripts/deploy-job.js",
-    "grant-operator-roles": "node dist/scripts/grant.js",
-    "associate-asset": "node dist/scripts/associate.js",
-    "generate-wallet": "node dist/scripts/generate-wallet.js",
-    "erc20-approve": "node dist/scripts/erc20-approve.js",
-    "amend-asset": "node dist/scripts/amend-asset.js"
+    "deploy-contract-job": "ts-node scripts/deploy-job.ts",
+    "grant-operator-roles": "ts-node scripts/grant.ts",
+    "associate-asset": "ts-node scripts/associate.ts",
+    "generate-wallet": "ts-node scripts/generate-wallet.ts",
+    "erc20-approve": "ts-node scripts/erc20-approve.ts",
+    "amend-asset": "ts-node scripts/amend-asset.ts",
+    "finId-to-address": "ts-node scripts/finId-to-address.ts"
   },
   "keywords": [],
   "author": "",
   "license": "TBD",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/owneraio/finp2p-ethereum-adapter"
+  },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
+  },
   "dependencies": {
     "@fireblocks/fireblocks-web3-provider": "^1.3.12",
     "ethers": "^6.11.1",
@@ -28,10 +41,9 @@
   },
   "devDependencies": {
     "@nomicfoundation/edr": "^0.3.2",
+    "@nomicfoundation/hardhat-chai-matchers": "^2.1.0",
     "@nomicfoundation/hardhat-toolbox": "^4.0.0",
-    "@nomicfoundation/hardhat-chai-matchers": "^2.0.8",
     "@openzeppelin/contracts": "^5.0.2",
-    "@typechain/hardhat": "^9.1.0",
     "@types/jest": "^29.2.0",
     "@types/keccak": "^3.0.4",
     "@types/node": "^16.11.12",
@@ -40,7 +52,7 @@
     "@typescript-eslint/eslint-plugin": "^5.6.0",
     "@typescript-eslint/parser": "^5.6.0",
     "ethereum-public-key-to-address": "0.0.5",
-    "hardhat": "^2.22.18",
+    "hardhat": "^2.26.1",
     "keccak": "^3.0.2",
     "prettier": "2.5.1",
     "ts-node": "^10.9.2",

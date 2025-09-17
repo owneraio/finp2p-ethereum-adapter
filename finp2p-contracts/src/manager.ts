@@ -1,18 +1,19 @@
 import {
-  BaseContract, BytesLike,
+  BaseContract,
+  BytesLike,
   ContractFactory,
   ContractTransactionResponse,
   NonceManager,
   Provider,
   Signer, TypedDataField
 } from "ethers";
-import FINP2P from "../../artifacts/contracts/finp2p/FINP2POperator.sol/FINP2POperator.json";
+import FINP2P from "../artifacts/contracts/token/ERC20/FINP2POperator.sol/FINP2POperator.json";
 import ASSET_REGISTRY from "../../artifacts/contracts/utils/finp2p/AssetRegistry.sol/AssetRegistry.json";
 import ERC20_STANDARD from "../../artifacts/contracts/utils/erc20/ERC20Standard.sol/ERC20Standard.json";
-import ERC20 from "../../artifacts/contracts/token/ERC20/ERC20WithOperator.sol/ERC20WithOperator.json";
-import { AssetRegistry, ERC20Standard, ERC20WithOperator, FINP2POperator } from "../../typechain-types";
+import ERC20 from "../artifacts/contracts/token/ERC20/ERC20WithOperator.sol/ERC20WithOperator.json";
+import { AssetRegistry, ERC20Standard, ERC20WithOperator, FINP2POperator } from "../typechain-types";
 import winston from "winston";
-import { PayableOverrides } from "../../typechain-types/common";
+import { PayableOverrides } from "../typechain-types/common";
 import { detectError, EthereumTransactionError, NonceAlreadyBeenUsedError, NonceToHighError } from "./model";
 import { hash as typedHash, sign } from "./eip712";
 import { compactSerialize } from "./utils";
@@ -137,7 +138,7 @@ export class ContractsManager {
     const contract = factory.attach(finP2PContractAddress) as FINP2POperator;
     this.logger.info(`Associating asset ${assetId} with token ${tokenAddress}...`);
     const txHash = await this.safeExecuteTransaction(contract, async (finP2P: FINP2POperator, txParams: PayableOverrides) => {
-      return finP2P.associateAsset(assetId, ERC20_STANDARD_ID, tokenAddress, txParams);
+      return finP2P.associateAsset(assetId, tokenAddress, ERC20_STANDARD_ID, txParams);
     });
     await this.waitForCompletion(txHash);
   }

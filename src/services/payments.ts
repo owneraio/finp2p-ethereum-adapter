@@ -1,30 +1,31 @@
-import { CommonService } from "./common";
-import { v4 as uuid } from "uuid";
+import { CommonServiceImpl } from "./common";
+import {
+  PaymentService,
+  Asset,
+  DepositOperation,
+  Source,
+  Destination,
+  Signature,
+  successfulDepositOperation,
+  DepositInstruction, DepositAsset, ReceiptOperation, failedReceiptOperation
+} from "@owneraio/finp2p-nodejs-skeleton-adapter";
 
 
-export class PaymentsService extends CommonService {
+export class PaymentsServiceImpl extends CommonServiceImpl implements PaymentService {
 
-  public async deposit(request: Paths.DepositInstruction.RequestBody): Promise<Paths.DepositInstruction.Responses.$200> {
-    return {
-      isCompleted: true, cid: uuid(), response: {
-        account: request.destination, description: "IBAN GB33BUKB20201555555555", details: request.details
-      }
-    } as Paths.DepositInstruction.Responses.$200;
+  public async getDepositInstruction(idempotencyKey: string, owner: Source, destination: Destination, asset: DepositAsset, amount: string | undefined,
+                       details: any | undefined,
+                       nonce: string | undefined, signature: Signature | undefined): Promise<DepositOperation> {
+    return successfulDepositOperation({
+      account: destination,
+      description: "IBAN GB33BUKB20201555555555",
+      details
+    } as DepositInstruction)
   }
 
-  public async payout(request: Paths.Payout.RequestBody): Promise<Paths.Payout.Responses.$200> {
-    return {
-      isCompleted: true, cid: uuid(), response: {
-        id: uuid(),
-        source: request.source,
-        destination: request.destination,
-        quantity: request.quantity,
-        asset: request.asset,
-        timestamp: Date.now(),
-        transactionDetails: {
-          transactionId: uuid()
-        }
-      }
-    } as Paths.Payout.Responses.$200;
+  public async payout(idempotencyKey: string, source: Source, destination: Destination | undefined, asset: Asset, quantity: string,
+                      description: string | undefined, nonce: string | undefined,
+                      signature: Signature | undefined): Promise<ReceiptOperation> {
+    return failedReceiptOperation(1, 'Payouts are not supported');
   }
 }

@@ -1,105 +1,83 @@
-import { logger } from "../helpers/logger";
-import { CommonService } from "./common";
-import { EthereumTransactionError } from "../../finp2p-contracts/src/contracts/model";
-import { extractEIP712Params, failedTransaction, RequestParams } from "./mapping";
+import {
+  logger, Asset, Destination, EIP712Template, ExecutionContext,
+  failedReceiptOperation, pendingReceiptOperation, ReceiptOperation, Signature, Source, EscrowService
+} from "@owneraio/finp2p-nodejs-skeleton-adapter";
+import { CommonServiceImpl } from "./common";
+import { extractEIP712Params } from "./helpers";
+import { EthereumTransactionError } from "../../finp2p-contracts/src";
+import { validateRequest } from "./validator";
 
-export class EscrowService extends CommonService {
+export class EscrowServiceImpl extends CommonServiceImpl implements EscrowService {
 
-  public async hold(request: Paths.HoldOperation.RequestBody): Promise<Paths.HoldOperation.Responses.$200> {
-    const { executionContext } = request;
+  public async hold(idempotencyKey: string, nonce: string, source: Source, destination: Destination | undefined, ast: Asset,
+                    quantity: string, sgn: Signature, operationId: string, exCtx: ExecutionContext
+  ): Promise<ReceiptOperation> {
+    const { signature, template } = sgn;
+    if (template.type != "EIP712") {
+      throw new Error(`Unsupported signature template type: ${template.type}`);
+    }
+    const eip712Template = template as EIP712Template;
+    const eip712Params = extractEIP712Params(ast, source, destination, operationId, eip712Template, exCtx);
+    validateRequest(source, destination, quantity, eip712Params);
+    const { buyerFinId, sellerFinId, asset, settlement, loan, params } = eip712Params;
+
+    let txHash: string;
     try {
-      const requestParams: RequestParams = { ...request, type: "hold" };
-      const eip712Params = extractEIP712Params(requestParams);
-      this.validateRequest(requestParams, eip712Params);
-      const { buyerFinId, sellerFinId, asset, settlement, loan, params } = eip712Params;
-      const { nonce, signature: { signature } } = request;
-
-      const txHash = await this.finP2PContract.hold(nonce, sellerFinId, buyerFinId,
+      txHash = await this.finP2PContract.hold(nonce, sellerFinId, buyerFinId,
         asset, settlement, loan, params, signature);
-      if (executionContext) {
-        this.execDetailsStore?.addExecutionContext(txHash, executionContext.executionPlanId, executionContext.instructionSequenceNumber);
-      }
-
-      return {
-        isCompleted: false, cid: txHash
-      } as Components.Schemas.ReceiptOperation;
-
     } catch (e) {
       logger.error(`Error asset hold: ${e}`);
       if (e instanceof EthereumTransactionError) {
-        return failedTransaction(1, e.message);
+        return failedReceiptOperation(1, e.message);
 
       } else {
-        return failedTransaction(1, `${e}`);
+        return failedReceiptOperation(1, `${e}`);
       }
     }
+    if (exCtx) {
+      this.execDetailsStore?.addExecutionContext(txHash, exCtx.planId, exCtx.sequence);
+    }
+
+    return pendingReceiptOperation(txHash, undefined);
   }
 
-  public async releaseTo(request: Paths.ReleaseOperation.RequestBody): Promise<Paths.ReleaseOperation.Responses.$200> {
-    const { operationId, destination, quantity, executionContext } = request;
+  public async release(idempotencyKey: string, destination: Destination, asset: Asset, quantity: string, operationId: string, exCtx: ExecutionContext
+  ): Promise<ReceiptOperation> {
+    let txHash: string;
     try {
-      const txHash = await this.finP2PContract.releaseTo(operationId, destination.finId, quantity);
-      if (executionContext) {
-        this.execDetailsStore?.addExecutionContext(txHash, executionContext.executionPlanId, executionContext.instructionSequenceNumber);
-      }
-      return {
-        isCompleted: false, cid: txHash
-      } as Components.Schemas.ReceiptOperation;
+      txHash = await this.finP2PContract.releaseTo(operationId, destination.finId, quantity);
     } catch (e) {
       logger.error(`Error releasing asset: ${e}`);
       if (e instanceof EthereumTransactionError) {
-        return failedTransaction(1, e.message);
+        return failedReceiptOperation(1, e.message);
       } else {
-        return failedTransaction(1, `${e}`);
+        return failedReceiptOperation(1, `${e}`);
       }
     }
+    if (exCtx) {
+      this.execDetailsStore?.addExecutionContext(txHash, exCtx.planId, exCtx.sequence);
+    }
+    return pendingReceiptOperation(txHash, undefined);
   }
 
-  public async releaseBack(request: Paths.RollbackOperation.RequestBody): Promise<Paths.RollbackOperation.Responses.$200> {
-    const { operationId, executionContext } = request;
-
+  public async rollback(idempotencyKey: string, asset: Asset, quantity: string, operationId: string, exCtx: ExecutionContext
+  ): Promise<ReceiptOperation> {
+    let txHash: string;
     try {
-      const txHash = await this.finP2PContract.releaseBack(operationId);
-      if (executionContext) {
-        this.execDetailsStore?.addExecutionContext(txHash, executionContext.executionPlanId, executionContext.instructionSequenceNumber);
-      }
-      return {
-        isCompleted: false, cid: txHash
-      } as Components.Schemas.ReceiptOperation;
+      txHash = await this.finP2PContract.releaseBack(operationId);
     } catch (e) {
       logger.error(`Error rolling-back asset: ${e}`);
       if (e instanceof EthereumTransactionError) {
-        return failedTransaction(1, e.message);
+        return failedReceiptOperation(1, e.message);
 
       } else {
-        return failedTransaction(1, `${e}`);
+        return failedReceiptOperation(1, `${e}`);
       }
     }
-  }
-
-  public async releaseAndRedeem(request: Paths.RedeemAssets.RequestBody): Promise<Paths.RedeemAssets.Responses.$200> {
-    const { operationId, source, quantity, executionContext } = request;
-    if (!operationId) {
-      logger.error("No operationId provided");
-      return failedTransaction(1, "operationId is required");
+    if (exCtx) {
+      this.execDetailsStore?.addExecutionContext(txHash, exCtx.planId, exCtx.sequence);
     }
-
-    try {
-      const txHash = await this.finP2PContract.releaseAndRedeem(operationId, source.finId, quantity);
-      if (executionContext) {
-        this.execDetailsStore?.addExecutionContext(txHash, executionContext.executionPlanId, executionContext.instructionSequenceNumber);
-      }
-      return {
-        isCompleted: false, cid: txHash
-      } as Components.Schemas.ReceiptOperation;
-    } catch (e) {
-      logger.error(`Error releasing asset: ${e}`);
-      if (e instanceof EthereumTransactionError) {
-        return failedTransaction(1, e.message);
-      } else {
-        return failedTransaction(1, `${e}`);
-      }
-    }
+    return pendingReceiptOperation(txHash, undefined);
   }
 
 

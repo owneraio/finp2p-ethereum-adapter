@@ -1,22 +1,15 @@
 import console from "console";
-import { HardhatLogExtractor } from "../tests/utils/log-extractors";
-import { GenericContainer, StartedTestContainer } from "testcontainers";
-import { NetworkDetails } from "../tests/utils/models";
-import { ContractsManager } from "../finp2p-contracts/src/contracts/manager";
-import { FinP2PContract } from "../finp2p-contracts/src/contracts/finp2p";
-import createApp from "../src/app";
-import { addressFromPrivateKey } from "../finp2p-contracts/src/contracts/utils";
 import process from "process";
 import http from "http";
 import { Provider, Signer } from "ethers";
-import { createProviderAndSigner, ProviderType } from "../finp2p-contracts/src/contracts/config";
-import { AssetCreationPolicy } from "../src/services/tokens";
-import { PolicyGetter } from "../src/finp2p/policy";
-import { OssClient } from "../src/finp2p/oss.client";
 import winston, { format, transports } from "winston";
-import { InMemoryExecDetailsStore } from "../src/services/exec-details-store";
-import { ExecDetailsStore } from "../src/services/common";
-import { FinAPIClient } from "../src/finp2p/finapi/finapi.client";
+import { GenericContainer, StartedTestContainer } from "testcontainers";
+import { HardhatLogExtractor } from "../tests/utils/log-extractors";
+import { NetworkDetails } from "../tests/utils/models";
+import { FinP2PContract, ContractsManager, addressFromPrivateKey, createProviderAndSigner, ProviderType  } from "../finp2p-contracts/src";
+import createApp from "../src/app";
+import { FinP2PClient } from "@owneraio/finp2p-client";
+import { ExecDetailsStore, InMemoryExecDetailsStore } from "../src/services";
 
 let ethereumNodeContainer: StartedTestContainer | undefined;
 let httpServer: http.Server | undefined;
@@ -83,17 +76,11 @@ const deployERC20Contract = async (provider: Provider, signer: Signer, finp2pTok
 };
 
 const startApp = async (port: number, provider: Provider, signer: Signer,
-                        finP2PContract: FinP2PContract, tokenAddress: string, policyGetter: PolicyGetter | undefined,
+                        finP2PContract: FinP2PContract, tokenAddress: string, finP2PClient: FinP2PClient | undefined,
                         execDetailsStore: ExecDetailsStore | undefined, defaultDecimals: number = 18,
                         logger: winston.Logger) => {
 
-  const assetCreationPolicy = {
-    type: "reuse-existing-token",
-    tokenAddress
-  } as AssetCreationPolicy;
-
-
-  const app = createApp(finP2PContract, assetCreationPolicy, policyGetter, execDetailsStore, defaultDecimals, logger);
+  const app = createApp(finP2PContract, finP2PClient, execDetailsStore, defaultDecimals, logger);
   logger.info("App created successfully.");
 
   httpServer = app.listen(port, () => {
@@ -121,25 +108,22 @@ const start = async () => {
   const finP2PContractAddress = await deployContract(provider, signer, operatorAddress);
   const tokenAddress = await deployERC20Contract(provider, signer, finP2PContractAddress);
 
-  const ossUrl = process.env.OSS_URL;
-  if (!ossUrl) {
-    throw new Error("OSS_URL is not set");
-  }
-  const ossClient = new OssClient(ossUrl, undefined);
-
   const finP2PAddress = process.env.FINP2P_ADDRESS;
   if (!finP2PAddress) {
     throw new Error("FINP2P_ADDRESS is not set");
   }
-  const finAPIClient = new FinAPIClient(finP2PAddress);
-  const policyGetter = new PolicyGetter(ossClient);
+  const ossUrl = process.env.OSS_URL;
+  if (!ossUrl) {
+    throw new Error("OSS_URL is not set");
+  }
+  const finP2PClient = new FinP2PClient(finP2PAddress, ossUrl);
 
   const execDetailsStore = new InMemoryExecDetailsStore();
   const finP2PContract = new FinP2PContract(provider, signer, finP2PContractAddress, logger);
 
   const defaultDecimals = parseInt(process.env.DEFAULT_DECIMALS || "18");
 
-  await startApp(port, provider, signer, finP2PContract, tokenAddress, policyGetter, execDetailsStore, defaultDecimals, logger);
+  await startApp(port, provider, signer, finP2PContract, tokenAddress, finP2PClient, execDetailsStore, defaultDecimals, logger);
 };
 
 
