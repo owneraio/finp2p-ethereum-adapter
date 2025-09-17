@@ -7,9 +7,9 @@ import {
   Provider,
   Signer, TypedDataField
 } from "ethers";
-import FINP2P from "../artifacts/contracts/token/ERC20/FINP2POperator.sol/FINP2POperator.json";
-import ASSET_REGISTRY from "../../artifacts/contracts/utils/finp2p/AssetRegistry.sol/AssetRegistry.json";
-import ERC20_STANDARD from "../../artifacts/contracts/utils/erc20/ERC20Standard.sol/ERC20Standard.json";
+import FINP2P from "../artifacts/contracts/finp2p/FINP2POperator.sol/FINP2POperator.json";
+import ASSET_REGISTRY from "../artifacts/contracts/utils/finp2p/AssetRegistry.sol/AssetRegistry.json";
+import ERC20_STANDARD from "../artifacts/contracts/utils/erc20/ERC20Standard.sol/ERC20Standard.json";
 import ERC20 from "../artifacts/contracts/token/ERC20/ERC20WithOperator.sol/ERC20WithOperator.json";
 import { AssetRegistry, ERC20Standard, ERC20WithOperator, FINP2POperator } from "../typechain-types";
 import winston from "winston";

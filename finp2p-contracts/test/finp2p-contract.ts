@@ -54,13 +54,13 @@ describe("FinP2P proxy contract test", function() {
 
   async function deployFinP2PProxyFixture() {
     const { contract: ar, address: assetRegistry } = await deployAssetRegistry();
-    const { address: erc20Standard } = await deployERC20Standard();
-    await ar.registerAssetStandard(ERC20_STANDARD_ID, erc20Standard);
+    const { address: erc20StandardAddress } = await deployERC20Standard();
+    await ar.registerAssetStandard(ERC20_STANDARD_ID, erc20StandardAddress);
 
     const deployer = await ethers.getContractFactory("FINP2POperator");
     const contract = await deployer.deploy(assetRegistry);
-    const address = await contract.getAddress();
-    return { contract, erc20Standard, address };
+    const finP2PAddress = await contract.getAddress();
+    return { contract, erc20StandardAddress, finP2PAddress };
   }
 
   function generateAssetId(): string {
@@ -128,7 +128,8 @@ describe("FinP2P proxy contract test", function() {
 
     let operator: Signer;
     let contract: FINP2POperator;
-    let erc20Standard: string;
+    let finP2PAddress: string;
+    let erc20StandardAddress: string;
     let chainId: bigint;
     let verifyingContract: string;
 
@@ -192,13 +193,13 @@ describe("FinP2P proxy contract test", function() {
 
     before(async () => {
       [operator] = await ethers.getSigners();
-      ({ contract, erc20Standard } = await loadFixture(deployFinP2PProxyFixture));
+      ({ contract, erc20StandardAddress, finP2PAddress } = await loadFixture(deployFinP2PProxyFixture));
       ({ chainId, verifyingContract } = await contract.eip712Domain());
       for (const term of testCases) {
-        const asset = await deployERC20(term.asset.assetId, term.asset.assetId, term.decimals, erc20Standard);
+        const asset = await deployERC20(term.asset.assetId, term.asset.assetId, term.decimals, erc20StandardAddress);
         await contract.associateAsset(term.asset.assetId, asset, ERC20_STANDARD_ID, { from: operator });
 
-        const settlement = await deployERC20(term.settlement.assetId, term.settlement.assetId, term.decimals, finP2PAddress);
+        const settlement = await deployERC20(term.settlement.assetId, term.settlement.assetId, term.decimals, erc20StandardAddress);
         await contract.associateAsset(term.settlement.assetId, settlement, ERC20_STANDARD_ID, { from: operator });
       }
     });
