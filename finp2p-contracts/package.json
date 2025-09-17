@@ -1,12 +1,16 @@
 {
   "name": "@owneraio/finp2p-contracts",
-  "version": "0.25.2-ar",
+  "version": "0.25.2-ar-2",
   "description": "",
   "homepage": "https://ownera.io/",
   "main": "./dist/index.js",
   "types": "dist/index.d.ts",
   "files": [
-    "dist/**/*"
+    "dist/**/*.js",
+    "dist/**/*.d.ts",
+    "dist/**/*.d.ts.map",
+    "dist/contracts/**/*.sol",
+    "dist/artifacts/**/*.json"
   ],
   "scripts": {
     "clean": "rm -rf dist && rm -rf cache && rm -rf artifacts && rm -rf typechain-types",
@@ -14,6 +18,7 @@
     "test": "hardhat test",
     "lint": "eslint ./src --ext .ts --fix",
     "build": "tsc",
+    "postbuild": "cpx \"contracts/**/*\" dist/contracts",
     "deploy-contract": "ts-node scripts/deploy.ts",
     "deploy-contract-job": "ts-node scripts/deploy-job.ts",
     "grant-operator-roles": "ts-node scripts/grant.ts",
