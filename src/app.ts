@@ -9,7 +9,7 @@ import {
   PaymentsServiceImpl,
   TokenServiceImpl
 } from "./services";
-import { FinP2PContract } from "../finp2p-contracts/src";
+import { FinP2PContract } from "../finp2p-contracts";
 import { PlanApprovalServiceImpl } from "./services";
 
 function createApp(finP2PContract: FinP2PContract,

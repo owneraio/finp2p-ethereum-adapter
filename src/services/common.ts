@@ -16,7 +16,7 @@ import {
   FinP2PReceipt,
   receiptToEIP712Message,
   truncateDecimals
-} from "../../finp2p-contracts/src";
+} from "../../finp2p-contracts";
 
 import { assetTypeToService, receiptToService } from "./mapping";
 

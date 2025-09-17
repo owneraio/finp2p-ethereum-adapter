@@ -15,11 +15,12 @@ import {
   isEthereumAddress,
   truncateDecimals,
   ERC20_STANDARD_ID
-} from "../../finp2p-contracts/src";
+} from "../../finp2p-contracts";
 
 import { CommonServiceImpl, ExecDetailsStore } from "./common";
 import { extractEIP712Params } from "./helpers";
 import { validateRequest } from "./validator";
+import { keccak256, toUtf8Bytes } from "ethers";
 
 
 const DefaultDecimals = 2;
@@ -43,7 +44,7 @@ export class TokenServiceImpl extends CommonServiceImpl implements TokenService 
       const { tokenIdentifier: { tokenId } } = assetBind;
 
       if (assetIdentifier) {
-        const { assetIdentifierType: type, assetIdentifierValue: value } = assetIdentifier;
+        const { type, value } = assetIdentifier;
         if (type === 'CUSTOM') {
           tokenStandard = keccak256(toUtf8Bytes(value));
         }

@@ -1,6 +1,6 @@
 import { BytesLike, ContractFactory, Provider, Signer } from "ethers";
 import winston from "winston";
-import FINP2P from "../artifacts/contracts/token/ERC20/FINP2POperator.sol/FINP2POperator.json";
+import FINP2P from "../artifacts/contracts/finp2p/FINP2POperator.sol/FINP2POperator.json";
 import { FINP2POperator } from "../typechain-types";
 import { FINP2POperatorInterface } from "../typechain-types/contracts/finp2p/FINP2POperator";
 import { PayableOverrides } from "../typechain-types/common";
@@ -68,7 +68,7 @@ export class FinP2PContract extends ContractsManager {
   }
 
   async setEscrowWalletAddress(escrowAccountAddress: string) {
-    return this.safeExecuteTransaction(this.finP2P, async (finP2P: FINP2POperatorERC20, txParams: PayableOverrides) => {
+    return this.safeExecuteTransaction(this.finP2P, async (finP2P: FINP2POperator, txParams: PayableOverrides) => {
       return finP2P.setEscrowWalletAddress(escrowAccountAddress, txParams);
     });
   }

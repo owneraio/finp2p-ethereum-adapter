@@ -3,7 +3,6 @@ import {
   concat,
   HDNodeWallet,
   isAddress,
-  keccak256,
   Signature,
   TransactionReceipt,
   Wallet

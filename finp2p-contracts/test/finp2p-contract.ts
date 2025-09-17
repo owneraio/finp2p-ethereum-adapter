@@ -4,7 +4,6 @@ import { expect } from "chai";
 import { ethers } from "hardhat";
 import { v4 as uuid } from "uuid";
 import { generateNonce, toFixedDecimals } from "./utils";
-import { getFinId } from "../src/utils";
 import { keccak256, Signer, toUtf8Bytes, Wallet } from "ethers";
 import {
   EIP712LoanTerms,
@@ -13,10 +12,8 @@ import {
   loanTerms,
   newInvestmentMessage,
   PrimaryType,
-  sign
-} from "../src/eip712";
-import { FINP2POperator, FinP2PSignatureVerifier } from "../typechain-types";
-import {
+  sign,
+  getFinId,
   AssetType,
   emptyTerm,
   operationParams,
@@ -26,7 +23,8 @@ import {
   Term,
   termToEIP712,
   ERC20_STANDARD_ID
-} from "../src/model";
+} from "../src";
+import { FINP2POperator, FinP2PSignatureVerifier } from "../typechain-types";
 
 
 describe("FinP2P proxy contract test", function() {
@@ -57,7 +55,7 @@ describe("FinP2P proxy contract test", function() {
   async function deployFinP2PProxyFixture() {
     const { contract: ar, address: assetRegistry } = await deployAssetRegistry();
     const { address: erc20Standard } = await deployERC20Standard();
-    await ar.registerAssetStandard(ERC20_STANDARD_ID, erc20Standard)
+    await ar.registerAssetStandard(ERC20_STANDARD_ID, erc20Standard);
 
     const deployer = await ethers.getContractFactory("FINP2POperator");
     const contract = await deployer.deploy(assetRegistry);
@@ -107,7 +105,7 @@ describe("FinP2P proxy contract test", function() {
     }
   }
 
-  function extractAsset(asset: Term, settlement: Term, loan:  FinP2PSignatureVerifier.LoanTermStruct, primaryType: PrimaryType, leg: LegType, phase: Phase): Term {
+  function extractAsset(asset: Term, settlement: Term, loan: FinP2PSignatureVerifier.LoanTermStruct, primaryType: PrimaryType, leg: LegType, phase: Phase): Term {
     if (primaryType === PrimaryType.Loan && leg === LegType.Settlement) {
       switch (phase) {
         case Phase.Initiate:
@@ -296,10 +294,10 @@ describe("FinP2P proxy contract test", function() {
                     switch (phase) {
                       case Phase.Initiate:
                         amount = loan.borrowedMoneyAmount;
-                        break
+                        break;
                       case Phase.Close:
                         amount = loan.returnedMoneyAmount;
-                        break
+                        break;
                     }
                   }
                   signer = buyer;

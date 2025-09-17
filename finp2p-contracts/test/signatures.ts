@@ -5,7 +5,7 @@ import { ethers } from "hardhat";
 import { generateNonce } from "./utils";
 import { v4 as uuidv4 } from "uuid";
 import { HDNodeWallet, Wallet } from "ethers";
-import { finIdToAddress, getFinId } from "../src/utils";
+import { finIdToAddress, getFinId } from "../src";
 import {
   eip712Asset,
   eip712Destination,
@@ -23,8 +23,8 @@ import {
   RECEIPT_PROOF_TYPES,
   sign,
   verify
-} from "../src/eip712";
-import { AssetType, term, Term, termToEIP712 } from "../src/model";
+} from "../src";
+import { AssetType, term, Term, termToEIP712 } from "../src";
 
 
 describe("Signing test", function() {
