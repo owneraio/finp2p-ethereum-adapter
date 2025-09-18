@@ -21,6 +21,7 @@
     "generate-wallet": "node dist/scripts/generate-wallet.js",
     "erc20-approve": "node dist/scripts/erc20-approve.js",
     "amend-asset": "node dist/scripts/amend-asset.js",
+    "eip712-domain-params": "ts-node scripts/eip712-domain-params",
     "finId-to-address": "ts-node scripts/finId-to-address.ts"
   },
   "keywords": [],
