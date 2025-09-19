@@ -14,7 +14,7 @@ import {
 } from "./model";
 import { parseTransactionReceipt } from "./utils";
 import { ContractsManager } from "./manager";
-import { EIP712Domain, EIP712LoanTerms } from "./eip712";
+import { EIP712Domain, EIP712LoanTerms, PrimaryType } from "./eip712";
 
 
 const ETH_COMPLETED_TRANSACTION_STATUS = 1;
@@ -124,6 +124,21 @@ export class FinP2PContract extends ContractsManager {
 
   async hasRole(role: string, address: string) {
     return this.finP2P.hasRole(role, address);
+  }
+
+  async verifyInvestmentSignature(primaryType: PrimaryType, nonce: string, buyerFinId: string, sellerFinId: string,
+                        asset: Term, settlement: Term, loan: EIP712LoanTerms, signerFinId: string, signature: string
+  ) {
+    return await this.finP2P.verifyInvestmentSignature(
+      primaryType, nonce, buyerFinId, sellerFinId, asset, settlement, loan, signerFinId, `0x${signature}`
+    );
+  }
+  async hashInvestment(primaryType: PrimaryType, nonce: string, buyerFinId: string, sellerFinId: string,
+                        asset: Term, settlement: Term, loan: EIP712LoanTerms
+  ) {
+    return await this.finP2P.hashInvestment(
+      primaryType, `0x${nonce}`, buyerFinId, sellerFinId, asset, settlement, loan
+    );
   }
 
   async getOperationStatus(hash: string): Promise<OperationStatus> {
