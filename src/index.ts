@@ -89,7 +89,7 @@ const init = async () => {
 
   const contractVersion = await finp2pContract.getVersion()
   logger.info(`FinP2P contract version: ${contractVersion}`);
-  const { name, version, chainId, verifyingContract} = await finp2pContract.eip712Domain();
+  const { name, version, chainId, verifyingContract } = await finp2pContract.eip712Domain();
   logger.info(`EIP712 domain: name=${name} version=${version} chainId=${chainId} verifyingContract=${verifyingContract}`);
 
   createApp(finp2pContract, assetCreationPolicy, policyGetter, execDetailsStore, defaultDecimals, logger).listen(port, () => {
