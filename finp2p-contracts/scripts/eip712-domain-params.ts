@@ -8,7 +8,7 @@ const logger = winston.createLogger({
 const domainParams = async (providerType: ProviderType, finp2pContractAddress: string) => {
   const { provider, signer } = await createProviderAndSigner(providerType, logger);
   const finp2pContract = new FinP2PContract(provider, signer, finp2pContractAddress, logger);
-  const { name, version, chainId, verifyingContract} = await finp2pContract.eip712Domain();
+  const { name, version, chainId, verifyingContract } = await finp2pContract.eip712Domain();
   logger.info(`EIP712 domain: name=${name} version=${version} chainId=${chainId} verifyingContract=${verifyingContract}`);
 };
 
