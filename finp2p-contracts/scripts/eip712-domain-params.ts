@@ -20,5 +20,7 @@ if (!finp2pContractAddress) {
 
 
 domainParams(providerType, finp2pContractAddress)
-  .then(() => {
+  .catch((err) => {
+    logger.error("Error running domainParams:", err);
+    process.exit(1);
   });
