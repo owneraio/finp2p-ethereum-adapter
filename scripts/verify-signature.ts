@@ -6,15 +6,13 @@ import {
   sourceFromAPI,
   destinationFromAPI,
   executionContextOptFromAPI,
-  signatureFromAPI
+  signatureFromAPI, hashEIP712, verifyEIP712
 } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import {
   createProviderAndSigner,
   finIdToAddress,
   FinP2PContract,
-  hash,
-  ProviderType,
-  verify, EIP712Types, detectSigner
+  ProviderType, detectSigner
 } from "../finp2p-contracts/src";
 import winston, { format, transports } from "winston";
 import { extractEIP712Params } from "../src/services/helpers";
@@ -90,13 +88,13 @@ const verifySignature = async (
   const signerFinId = detectSigner(params, buyerFinId, sellerFinId);
 
   const signerAddress = finIdToAddress(signerFinId);
-  const offChainHash = hash(chainId, verifyingContract, types, message);
+  const offChainHash = hashEIP712(chainId, verifyingContract, types, message);
   if (offChainHash === payloadHash) {
     logger.info("Off-chain hash matches payload hash");
   } else {
     logger.error(`Off-chain hash does not match payload hash: ${offChainHash} != ${payloadHash}`);
   }
-  if (verify(chainId, verifyingContract, types, message, signerAddress, `0x${signature}`)) {
+  if (verifyEIP712(chainId, verifyingContract, types, message, signerAddress, `0x${signature}`)) {
     logger.info("Off-chain signature verification succeeded");
   } else {
     logger.error("Off-chain signature verification failed");
