@@ -4,7 +4,9 @@ import "@nomicfoundation/hardhat-chai-matchers";
 
 const config: HardhatUserConfig = {
   solidity: {
-    version: "0.8.24", settings: {
+    version: "0.8.26",
+    settings: {
+      evmVersion: "cancun",
       optimizer: {
         enabled: true, runs: 200
       }
@@ -14,7 +16,7 @@ const config: HardhatUserConfig = {
     hardhat: {
       chainId: 1337, gasPrice: 0, hardfork: "berlin", blockGasLimit: 10000000
     }
-  },
+  }
 };
 
 export default config;
