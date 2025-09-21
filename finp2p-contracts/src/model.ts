@@ -5,7 +5,7 @@ import {
   eip712ExecutionContext, LegType, PrimaryType,
   eip712TradeDetails,
   eip712TransactionDetails, EIP712Term, EIP712AssetType,
-} from "./eip712";
+} from "@owneraio/finp2p-nodejs-skeleton-adapter";
 
 export interface Term {
   assetId: string,

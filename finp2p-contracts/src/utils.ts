@@ -8,7 +8,7 @@ import {
   TransactionReceipt,
   Wallet
 } from "ethers";
-import { assetTypeFromNumber, FinP2PReceipt } from "./model";
+import { assetTypeFromNumber, FinP2PReceipt, OperationParams, Phase } from "./model";
 import * as secp256k1 from "secp256k1";
 import {
   FINP2POperatorERC20Interface,
@@ -22,6 +22,7 @@ import {
   ERC20WithOperatorInterface,
   TransferEvent as ERC20TransferEvent
 } from "../typechain-types/contracts/token/ERC20/ERC20WithOperator";
+import { LegType, PrimaryType } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 
 export const compactSerialize = (signature: string): string => {
   const { r, s } = Signature.from(signature);
@@ -217,3 +218,29 @@ export const truncateDecimals = (value: string, decimals: number): string => {
 
   return `${intPart}.${decPart.slice(0, decimals)}`;
 };
+
+export const detectSigner = (op: OperationParams, buyerFinId: string, sellerFinId: string) => {
+  if (op.leg === LegType.Asset) {
+    if (op.phase === Phase.Initiate) {
+      return sellerFinId;
+    } else if (op.phase === Phase.Close) {
+      return buyerFinId;
+    } else {
+      throw new Error("Invalid phase");
+    }
+  } else if (op.leg === LegType.Settlement) {
+    if (op.eip712PrimaryType === PrimaryType.PrimarySale) {
+      if (op.phase === Phase.Initiate) {
+        return buyerFinId;
+      } else if (op.phase === Phase.Close) {
+        return sellerFinId;
+      } else {
+        throw new Error("Invalid phase");
+      }
+    } else {
+      return buyerFinId;
+    }
+  } else {
+    throw new Error("Invalid leg");
+  }
+}
