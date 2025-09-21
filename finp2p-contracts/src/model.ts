@@ -1,11 +1,7 @@
 import {
-  eip712Asset,
-  EIP712ReceiptMessage,
-  EIP712Template,
-  eip712ExecutionContext, LegType, PrimaryType,
-  eip712TradeDetails,
-  eip712TransactionDetails, EIP712Term, EIP712AssetType,
+  LegType, PrimaryType, EIP712Term, EIP712AssetType
 } from "@owneraio/finp2p-nodejs-skeleton-adapter";
+
 
 export interface Term {
   assetId: string,
@@ -30,7 +26,7 @@ export const assetTypeFromNumber = (assetType: bigint): AssetType => {
     default:
       throw new Error("Invalid asset type");
   }
-}
+};
 
 export const assetTypeFromString = (assetType: string): AssetType => {
   switch (assetType) {
@@ -43,7 +39,7 @@ export const assetTypeFromString = (assetType: string): AssetType => {
     default:
       throw new Error("Invalid asset type");
   }
-}
+};
 
 export const term = (assetId: string, assetType: AssetType, amount: string): Term => {
   return { assetId, assetType, amount };
@@ -62,7 +58,7 @@ export const assetTypeToEIP712 = (assetType: AssetType): EIP712AssetType => {
     case AssetType.Cryptocurrency:
       return "cryptocurrency";
   }
-}
+};
 
 export const termToEIP712 = (term: Term): EIP712Term => {
   return {
@@ -70,7 +66,31 @@ export const termToEIP712 = (term: Term): EIP712Term => {
     assetType: assetTypeToEIP712(term.assetType),
     amount: term.amount
   };
+};
+
+export const termFromEIP712 = (eip712Term: EIP712Term): Term => {
+  return {
+    assetId: eip712Term.assetId,
+    assetType: assetTypeFromString(eip712Term.assetType),
+    amount: eip712Term.amount
+  };
 }
+
+export const emptyLoanTerms = (): EIP712LoanTerms => {
+  return loanTerms("", "", "", "");
+};
+
+export const loanTerms = (openTime: string, closeTime: string, borrowedMoneyAmount: string, returnedMoneyAmount: string): EIP712LoanTerms => {
+  return { openTime, closeTime, borrowedMoneyAmount, returnedMoneyAmount };
+};
+
+export interface EIP712LoanTerms {
+  openTime: string;
+  closeTime: string;
+  borrowedMoneyAmount: string;
+  returnedMoneyAmount: string;
+}
+
 
 export const enum Phase {
   Initiate = 0,
@@ -87,14 +107,14 @@ export interface OperationParams {
   eip712PrimaryType: PrimaryType;
   phase: Phase;
   operationId: string;
-  releaseType: ReleaseType
+  releaseType: ReleaseType;
 }
 
 export const operationParams = (
   leg: LegType,
   eip712PrimaryType: PrimaryType,
   phase: Phase = Phase.Initiate,
-  operationId: string = '',
+  operationId: string = "",
   releaseType: ReleaseType = ReleaseType.Release): OperationParams => {
   return {
     leg,
@@ -145,30 +165,6 @@ export type ExecutionContext = {
   instructionSequenceNumber: number
 }
 
-export type ReceiptProof = {
-  type: "no-proof"
-} | {
-  type: "signature-proof",
-  template: EIP712Template
-  signature: string
-}
-
-export const receiptToEIP712Message = (receipt: FinP2PReceipt): EIP712ReceiptMessage => {
-  const { id, operationType, assetId, assetType, quantity, source, destination, operationId } = receipt;
-  return {
-    id,
-    operationType,
-    source: { accountType: source ? "finId" : "", finId: source || "" },
-    destination: { accountType: destination ? "finId" : "", finId: destination || "" },
-    quantity,
-    asset: eip712Asset(assetId, assetTypeToEIP712(assetType)),
-    tradeDetails: eip712TradeDetails(eip712ExecutionContext(
-      receipt?.tradeDetails?.executionContext.executionPlanId || '',
-      `${receipt?.tradeDetails?.executionContext.instructionSequenceNumber || ''}`)),
-    transactionDetails: eip712TransactionDetails(operationId || "", id)
-  };
-};
-
 export type OperationType = "transfer" | "redeem" | "hold" | "release" | "issue";
 
 export type FinP2PReceipt = {
@@ -182,7 +178,6 @@ export type FinP2PReceipt = {
   operationType: OperationType
   operationId?: string
   tradeDetails?: TradeDetails
-  proof?: ReceiptProof
 };
 
 export type ERC20Transfer = {
@@ -233,7 +228,7 @@ export const detectError = (e: any): EthereumTransactionError | NonceToHighError
     ) {
       return new NonceToHighError(e.error.message);
     }
-  } else if (e.code === 'REPLACEMENT_UNDERPRICED' || `${e}`.includes("nonce has already been used")) {
+  } else if (e.code === "REPLACEMENT_UNDERPRICED" || `${e}`.includes("nonce has already been used")) {
     return new NonceAlreadyBeenUsedError(`${e}`);
   }
   return e;

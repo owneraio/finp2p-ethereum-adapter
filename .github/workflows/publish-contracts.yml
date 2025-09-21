@@ -3,7 +3,7 @@ name: Publish Contract Package
 on:
   push:
     tags:
-      - "v*"
+      - "finp2p-contracts-v*"
 
 jobs:
   publish:

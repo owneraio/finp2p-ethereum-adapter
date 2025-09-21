@@ -12,7 +12,7 @@ import {
   assetTypeFromString,
   EthereumTransactionError,
   term, isEthereumAddress, truncateDecimals
-} from "../../finp2p-contracts/src";
+} from "../../finp2p-contracts";
 
 import { CommonServiceImpl, ExecDetailsStore } from "./common";
 import { extractEIP712Params } from "./helpers";

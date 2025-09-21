@@ -1,6 +1,6 @@
-import { Destination, Source } from "@owneraio/finp2p-nodejs-skeleton-adapter";
+import { Destination, Source, LegType, PrimaryType } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import { EIP712Params, RequestValidationError } from "./model";
-import { LegType, Phase, PrimaryType } from "../../finp2p-contracts/src";
+import { Phase } from "../../finp2p-contracts";
 
 
 export const validateRequest = (source: Source, destination: Destination | undefined, quantity: string, eip712Params: EIP712Params): void => {

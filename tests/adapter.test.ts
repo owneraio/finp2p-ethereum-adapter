@@ -11,7 +11,7 @@ import {
   PRIMARY_SALE_TYPES,
   REDEMPTION_TYPES,
   SELLING_TYPES
-} from "../finp2p-contracts/src";
+} from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import { LedgerAPI } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 
 

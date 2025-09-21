@@ -1,11 +1,10 @@
-import { EIP712Message, EIP712Types, hash, signWithPrivateKey } from "../../finp2p-contracts/src";
-import { LedgerAPI } from "@owneraio/finp2p-nodejs-skeleton-adapter";
+import { LedgerAPI, EIP712Message, EIP712Types, hashEIP712, signEIP712WithPrivateKey  } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 
 export const eip712Signature = async (chainId: number,
                                       verifyingContract: string, primaryType: string,
                                       types: EIP712Types, message: EIP712Message, signerPrivateKey: string): Promise<LedgerAPI["schemas"]["signature"]> => {
-  const hashVal = hash(chainId, verifyingContract, types, message);
-  const signature = await signWithPrivateKey(chainId, verifyingContract, types, message, signerPrivateKey);
+  const hashVal = hashEIP712(chainId, verifyingContract, types, message);
+  const signature = await signEIP712WithPrivateKey(chainId, verifyingContract, types, message, signerPrivateKey);
   return {
     signature: signature.replace("0x", ""), template: {
       type: "EIP712", domain: {

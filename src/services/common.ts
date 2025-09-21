@@ -6,19 +6,15 @@ import {
   pendingReceiptOperation,
   successfulReceiptOperation
 } from "@owneraio/finp2p-nodejs-skeleton-adapter";
-import { FinP2PClient, ProofDomain } from "@owneraio/finp2p-client";
+import { FinP2PClient } from "@owneraio/finp2p-client";
 import {
-  DOMAIN_TYPE,
-  RECEIPT_PROOF_TYPES,
-  EIP712Domain,
   FinP2PContract,
   ExecutionContext,
   FinP2PReceipt,
-  receiptToEIP712Message,
   truncateDecimals
-} from "../../finp2p-contracts/src";
+} from "../../finp2p-contracts";
 
-import { assetTypeToService, receiptToService } from "./mapping";
+import { receiptToService } from "./mapping";
 
 export interface ExecDetailsStore {
   addExecutionContext(txHash: string, executionPlanId: string, instructionSequenceNumber: number): void;
@@ -61,8 +57,8 @@ export class CommonServiceImpl implements CommonService, HealthService {
       return failedReceiptOperation(1, `${e}`);
     }
     finp2pReceipt.quantity = truncateDecimals(finp2pReceipt.quantity, this.defaultDecimals);
-    const receipt = await this.ledgerProof(finp2pReceipt);
-    return successfulReceiptOperation(receiptToService(receipt));
+    // const receipt = await this.ledgerProof(finp2pReceipt);
+    return successfulReceiptOperation(receiptToService(finp2pReceipt));
   }
 
   public async operationStatus(cid: string): Promise<OperationStatus> {
@@ -79,7 +75,8 @@ export class CommonServiceImpl implements CommonService, HealthService {
           } else {
             logger.info("No execution context found for receipt", { receiptId: receipt.id });
           }
-          const receiptResponse = receiptToService(await this.ledgerProof(receipt));
+          // await this.ledgerProof(receipt)
+          const receiptResponse = receiptToService(receipt);
           return successfulReceiptOperation(receiptResponse);
 
         case "pending":
@@ -95,57 +92,4 @@ export class CommonServiceImpl implements CommonService, HealthService {
   }
 
 
-  private async ledgerProof(receipt: FinP2PReceipt): Promise<FinP2PReceipt> {
-    if (this.finP2PClient === undefined) {
-      return receipt;
-    }
-    const { assetId, assetType } = receipt;
-    const policy = await this.finP2PClient.getAssetProofPolicy(assetId, assetTypeToService(assetType));
-    switch (policy.type) {
-      case "NoProofPolicy":
-        receipt.proof = {
-          type: "no-proof"
-        };
-        return receipt;
-
-      case "SignatureProofPolicy":
-        const { signatureTemplate, domain: policyDomain } = policy;
-        if (signatureTemplate !== "EIP712") {
-          throw new Error(`Unsupported signature template: ${signatureTemplate}`);
-        }
-        if (policyDomain !== null) {
-          logger.info("Using domain from asset metadata: ", policyDomain);
-        }
-        const domain = await this.getDomain(policyDomain);
-        const types = RECEIPT_PROOF_TYPES;
-        const message = receiptToEIP712Message(receipt);
-        const primaryType = "Receipt";
-
-        logger.info("Signing receipt with EIP712", { primaryType, domain, types, message });
-        const {
-          hash,
-          signature
-        } = await this.finP2PContract.signEIP712(domain.chainId, domain.verifyingContract, types, message);
-
-        logger.info("Receipt signed", { hash, signature });
-
-        // ethers doesn't allow to pass an eip712 domain in a list of types, but the domain is required on a router side
-        const extendedType = { ...DOMAIN_TYPE, ...types };
-        receipt.proof = {
-          type: "signature-proof",
-          template: { primaryType, domain, types: extendedType, hash, message },
-          signature
-        };
-
-        return receipt;
-    }
-  }
-
-  private async getDomain(policyDomain: ProofDomain | null): Promise<EIP712Domain> {
-    const domain = await this.finP2PContract.eip712Domain();
-    if (policyDomain !== null) {
-      return { ...domain, ...policyDomain }; // merge domains
-    }
-    return domain;
-  }
 }
