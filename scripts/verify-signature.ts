@@ -14,7 +14,7 @@ import {
   FinP2PContract,
   hash,
   ProviderType,
-  verify, EIP712Types, LegType, OperationParams, Phase, PrimaryType, detectSigner
+  verify, EIP712Types, detectSigner
 } from "../finp2p-contracts/src";
 import winston, { format, transports } from "winston";
 import { extractEIP712Params } from "../src/services/helpers";

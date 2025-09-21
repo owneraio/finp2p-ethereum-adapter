@@ -484,28 +484,3 @@ export const verify = <T extends EIP712Message>(chainId: bigint | number, verify
   return address.toLowerCase() === signerAddress.toLowerCase();
 };
 
-export const detectSigner = (op: OperationParams, buyerFinId: string, sellerFinId: string) => {
-  if (op.leg === LegType.Asset) {
-    if (op.phase === Phase.Initiate) {
-      return sellerFinId;
-    } else if (op.phase === Phase.Close) {
-      return buyerFinId;
-    } else {
-      throw new Error("Invalid phase");
-    }
-  } else if (op.leg === LegType.Settlement) {
-    if (op.eip712PrimaryType === PrimaryType.PrimarySale) {
-      if (op.phase === Phase.Initiate) {
-        return buyerFinId;
-      } else if (op.phase === Phase.Close) {
-        return sellerFinId;
-      } else {
-        throw new Error("Invalid phase");
-      }
-    } else {
-      return buyerFinId;
-    }
-  } else {
-    throw new Error("Invalid leg");
-  }
-}
