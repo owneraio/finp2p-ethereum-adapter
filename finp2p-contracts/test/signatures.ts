@@ -19,13 +19,13 @@ import {
   loanTerms,
   newInvestmentMessage,
   newReceiptMessage,
-  PrimaryType,
   RECEIPT_PROOF_TYPES,
   signEIP712,
   verifyEIP712,
 } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import { AssetType, term, Term, termToEIP712 } from "../src";
 
+import { PrimaryType } from './utils'
 
 describe("Signing test", function() {
   async function deployFinP2PSignatureVerifier() {
@@ -116,14 +116,15 @@ describe("Signing test", function() {
       const { contract: verifier } = await loadFixture(deployFinP2PSignatureVerifier);
       const { chainId, verifyingContract } = await verifier.eip712Domain();
       const signerAddress = await signer.getAddress();
-      expect(signerAddress.toLowerCase()).to.equal(finIdToAddress(sellerFinId).toLowerCase());
+      const signerFinId = sellerFinId;
+      expect(signerAddress.toLowerCase()).to.equal(finIdToAddress(signerFinId).toLowerCase());
       const {
         types,
         message
       } = newInvestmentMessage(primaryType, nonce, buyerFinId, sellerFinId, termToEIP712(asset), termToEIP712(settlement), loan);
       const signature = await signEIP712(chainId, verifyingContract, types, message, signer);
       const offChainHash = hashEIP712(chainId, verifyingContract, types, message);
-      expect(verifyEIP712(chainId, verifyingContract, types, message, signerAddress, signature)).to.equal(true);
+      expect(verifyEIP712(chainId, verifyingContract, types, message, signerFinId, signature)).to.equal(true);
       const onChainHash = await verifier.hashInvestment(primaryType, nonce, buyerFinId, sellerFinId, asset, settlement, loan);
       expect(offChainHash).to.equal(onChainHash);
       expect(await verifier.verifyInvestmentSignature(primaryType, nonce, buyerFinId, sellerFinId, asset, settlement, loan, getFinId(signer), signature)).to.equal(true);
@@ -166,6 +167,7 @@ describe("Signing test", function() {
     const id = uuidv4();
     const operationType = "issue";
     const signer = Wallet.createRandom();
+    const signerFinId = getFinId(signer);
     const signerAddress = await signer.getAddress();
     const sourceWallet = Wallet.createRandom();
     const destinationWallet = Wallet.createRandom();
@@ -180,7 +182,7 @@ describe("Signing test", function() {
 
     // const offChainHash = hash(chainId, verifyingContract, RECEIPT_PROOF_TYPES, message);
     const signature = await signEIP712(chainId, verifyingContract, RECEIPT_PROOF_TYPES, message, signer);
-    expect(verifyEIP712(chainId, verifyingContract, RECEIPT_PROOF_TYPES, message, signerAddress, signature)).to.equal(true);
+    expect(verifyEIP712(chainId, verifyingContract, RECEIPT_PROOF_TYPES, message, signerFinId, signature)).to.equal(true);
   });
 
 
