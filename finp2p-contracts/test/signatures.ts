@@ -5,7 +5,7 @@ import { ethers } from "hardhat";
 import { generateNonce } from "./utils";
 import { v4 as uuidv4 } from "uuid";
 import { HDNodeWallet, Wallet } from "ethers";
-import { finIdToAddress, getFinId } from "../src/utils";
+import { finIdToAddress, getFinId } from "../src";
 import {
   eip712Asset,
   eip712Destination,
@@ -15,16 +15,16 @@ import {
   eip712TradeDetails,
   eip712TransactionDetails,
   emptyLoanTerms,
-  hash,
+  hashEIP712,
   loanTerms,
   newInvestmentMessage,
   newReceiptMessage,
   PrimaryType,
   RECEIPT_PROOF_TYPES,
-  sign,
-  verify
-} from "../src/eip712";
-import { AssetType, term, Term, termToEIP712 } from "../src/model";
+  signEIP712,
+  verifyEIP712,
+} from "@owneraio/finp2p-nodejs-skeleton-adapter";
+import { AssetType, term, Term, termToEIP712 } from "../src";
 
 
 describe("Signing test", function() {
@@ -121,9 +121,9 @@ describe("Signing test", function() {
         types,
         message
       } = newInvestmentMessage(primaryType, nonce, buyerFinId, sellerFinId, termToEIP712(asset), termToEIP712(settlement), loan);
-      const signature = await sign(chainId, verifyingContract, types, message, signer);
-      const offChainHash = hash(chainId, verifyingContract, types, message);
-      expect(verify(chainId, verifyingContract, types, message, signerAddress, signature)).to.equal(true);
+      const signature = await signEIP712(chainId, verifyingContract, types, message, signer);
+      const offChainHash = hashEIP712(chainId, verifyingContract, types, message);
+      expect(verifyEIP712(chainId, verifyingContract, types, message, signerAddress, signature)).to.equal(true);
       const onChainHash = await verifier.hashInvestment(primaryType, nonce, buyerFinId, sellerFinId, asset, settlement, loan);
       expect(offChainHash).to.equal(onChainHash);
       expect(await verifier.verifyInvestmentSignature(primaryType, nonce, buyerFinId, sellerFinId, asset, settlement, loan, getFinId(signer), signature)).to.equal(true);
@@ -147,7 +147,7 @@ describe("Signing test", function() {
       message,
       types
     } = newInvestmentMessage(primaryType, nonce, buyerFinId, sellerFinId, termToEIP712(asset), termToEIP712(settlement), loan);
-    const offChainHash = hash(chainId, verifyingContract, types, message);
+    const offChainHash = hashEIP712(chainId, verifyingContract, types, message);
     const onChainHash = await verifier.hashInvestment(primaryType, nonce, buyerFinId, sellerFinId, asset, settlement, loan);
 
     const platformHash = "0x28fc646eb6470c62252c9d4c2092bf34d86e590983429580b04578a8ff37e171";
@@ -179,8 +179,8 @@ describe("Signing test", function() {
       eip712TransactionDetails("", id));
 
     // const offChainHash = hash(chainId, verifyingContract, RECEIPT_PROOF_TYPES, message);
-    const signature = await sign(chainId, verifyingContract, RECEIPT_PROOF_TYPES, message, signer);
-    expect(verify(chainId, verifyingContract, RECEIPT_PROOF_TYPES, message, signerAddress, signature)).to.equal(true);
+    const signature = await signEIP712(chainId, verifyingContract, RECEIPT_PROOF_TYPES, message, signer);
+    expect(verifyEIP712(chainId, verifyingContract, RECEIPT_PROOF_TYPES, message, signerAddress, signature)).to.equal(true);
   });
 
 

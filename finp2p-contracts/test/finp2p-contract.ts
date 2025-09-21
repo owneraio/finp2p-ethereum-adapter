@@ -13,8 +13,8 @@ import {
   loanTerms,
   newInvestmentMessage,
   PrimaryType,
-  sign
-} from "../src/eip712";
+  signEIP712
+} from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import { FINP2POperatorERC20, FinP2PSignatureVerifier } from "../typechain-types";
 import {
   AssetType,
@@ -25,7 +25,7 @@ import {
   term,
   Term,
   termToEIP712
-} from "../src/model";
+} from "../src";
 
 
 describe("FinP2P proxy contract test", function() {
@@ -205,7 +205,7 @@ describe("FinP2P proxy contract test", function() {
                 types,
                 message
               } = newInvestmentMessage(primaryType, nonce, buyer.finId, seller.finId, termToEIP712(asset), termToEIP712(settlement), loan);
-              const signature = await sign(chainId, verifyingContract, types, message, signer);
+              const signature = await signEIP712(chainId, verifyingContract, types, message, signer);
               await expect(contract.transfer(nonce, seller.finId, buyer.finId, asset, settlement, loan, operationParams(leg, primaryType, phase), signature, { from: operator }))
                 .to.emit(contract, "Transfer").withArgs(assetId, assetType, from, to, amount);
 
@@ -233,7 +233,7 @@ describe("FinP2P proxy contract test", function() {
                 types,
                 message
               } = newInvestmentMessage(primaryType, nonce, buyer.finId, seller.finId, termToEIP712(asset), termToEIP712(settlement), loan);
-              const signature = await sign(chainId, verifyingContract, types, message, signer);
+              const signature = await signEIP712(chainId, verifyingContract, types, message, signer);
               await expect(contract.hold(nonce, seller.finId, buyer.finId, asset, settlement, loan, operationParams(leg, primaryType, phase, operationId, ReleaseType.Release), signature, { from: operator }))
                 .to.emit(contract, "Hold").withArgs(assetId, assetType, from, amount, operationId);
 
@@ -302,7 +302,7 @@ describe("FinP2P proxy contract test", function() {
                 types,
                 message
               } = newInvestmentMessage(primaryType, nonce, buyerFinId, sellerFinId, termToEIP712(asset), termToEIP712(settlement), loan);
-              const signature = await sign(chainId, verifyingContract, types, message, signer);
+              const signature = await signEIP712(chainId, verifyingContract, types, message, signer);
               await expect(contract.hold(nonce, sellerFinId, buyerFinId, asset, settlement, loan,
                 operationParams(leg, primaryType, Phase.Initiate, operationId, ReleaseType.Release), signature, { from: operator }))
                 .to.emit(contract, "Hold").withArgs(assetId, assetType, from, amount, operationId);
@@ -366,7 +366,7 @@ describe("FinP2P proxy contract test", function() {
                 types,
                 message
               } = newInvestmentMessage(PrimaryType.Redemption, nonce, issuerFinId, investorFinId, termToEIP712(asset), termToEIP712(settlement), loan);
-              const signature = await sign(chainId, verifyingContract, types, message, signer);
+              const signature = await signEIP712(chainId, verifyingContract, types, message, signer);
 
               await expect(contract.hold(nonce, investorFinId, issuerFinId, asset, settlement, loan, operationParams(leg, PrimaryType.Redemption, phase, operationId, ReleaseType.Redeem), signature, { from: operator }))
                 .to.emit(contract, "Hold").withArgs(assetId, assetType, investorFinId, amount, operationId);

@@ -22,7 +22,7 @@ import {
   ERC20WithOperatorInterface,
   TransferEvent as ERC20TransferEvent
 } from "../typechain-types/contracts/token/ERC20/ERC20WithOperator";
-import { LegType, PrimaryType } from "./eip712";
+import { LegType, PrimaryType } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 
 export const compactSerialize = (signature: string): string => {
   const { r, s } = Signature.from(signature);

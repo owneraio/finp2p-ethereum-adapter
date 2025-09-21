@@ -14,7 +14,7 @@ import {
 } from "./model";
 import { parseTransactionReceipt } from "./utils";
 import { ContractsManager } from "./manager";
-import { EIP712Domain, EIP712LoanTerms, PrimaryType } from "./eip712";
+import { EIP712Domain, EIP712LoanTerms, PrimaryType } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 
 
 const ETH_COMPLETED_TRANSACTION_STATUS = 1;

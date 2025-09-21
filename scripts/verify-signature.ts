@@ -57,31 +57,6 @@ const parseRequest = (request: RequestWithSignature) => {
   return { nonce, asset, source, destination, signature, exCtx };
 };
 
-// to avoid optionals in the types
-export type EIP712TypesLocal = {
-  [name: string]: EIP712TypeDefinitionLocal[];
-};
-
-export interface EIP712TypeDefinitionLocal {
-  name: string;
-  fields: EIP712FieldDefinitionLocal[];
-}
-
-export interface EIP712FieldDefinitionLocal {
-  name: string;
-  type: string;
-}
-
-const typesFromService = (types: EIP712TypesLocal): EIP712Types => {
-  return types.definitions.reduce((types, { name, fields }) => {
-    if (name !== "EIP712Domain") {
-      types[name] = fields;
-    }
-    return types;
-  }, {} as EIP712Types);
-};
-
-
 const verifySignature = async (
   providerType: ProviderType,
   finp2pContractAddress: string,
@@ -115,14 +90,13 @@ const verifySignature = async (
   const signerFinId = detectSigner(params, buyerFinId, sellerFinId);
 
   const signerAddress = finIdToAddress(signerFinId);
-  const eip712Types = typesFromService(types as unknown as EIP712TypesLocal);
-  const offChainHash = hash(chainId, verifyingContract, eip712Types, message);
+  const offChainHash = hash(chainId, verifyingContract, types, message);
   if (offChainHash === payloadHash) {
     logger.info("Off-chain hash matches payload hash");
   } else {
     logger.error(`Off-chain hash does not match payload hash: ${offChainHash} != ${payloadHash}`);
   }
-  if (verify(chainId, verifyingContract, eip712Types, message, signerAddress, `0x${signature}`)) {
+  if (verify(chainId, verifyingContract, types, message, signerAddress, `0x${signature}`)) {
     logger.info("Off-chain signature verification succeeded");
   } else {
     logger.error("Off-chain signature verification failed");
