@@ -30,6 +30,8 @@ jobs:
       - name: Finp2p-Contracts npm run compile
         working-directory: ./finp2p-contracts
         run: npm run compile
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Finp2p-Contracts npm run test
         working-directory: ./finp2p-contracts
