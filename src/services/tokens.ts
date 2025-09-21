@@ -4,7 +4,7 @@ import {
   ExecutionContext, ReceiptOperation, Balance, TokenService, Signature, Source,
   failedAssetCreation, failedReceiptOperation, successfulAssetCreation,
   pendingReceiptOperation, AssetBind, AssetDenomination, AssetIdentifier, FinIdAccount,
-  AssetCreationResult
+  AssetCreationResult, ProofProvider
 } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import { FinP2PClient } from "@owneraio/finp2p-client";
 import {
@@ -25,8 +25,9 @@ export class TokenServiceImpl extends CommonServiceImpl implements TokenService 
 
 
   constructor(finP2PContract: FinP2PContract, finP2PClient: FinP2PClient | undefined,
-              execDetailsStore: ExecDetailsStore | undefined, defaultDecimals: number = 18) {
-    super(finP2PContract, finP2PClient, execDetailsStore, defaultDecimals);
+              execDetailsStore: ExecDetailsStore | undefined,
+              proofProvider: ProofProvider | undefined, defaultDecimals: number = 18) {
+    super(finP2PContract, finP2PClient, execDetailsStore, proofProvider, defaultDecimals);
   }
 
   public async createAsset(idempotencyKey: string, asset: Asset,

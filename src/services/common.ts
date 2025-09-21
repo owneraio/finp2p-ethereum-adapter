@@ -4,7 +4,7 @@ import {
   ReceiptOperation,
   failedReceiptOperation,
   pendingReceiptOperation,
-  successfulReceiptOperation
+  successfulReceiptOperation, ProofProvider
 } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import { FinP2PClient } from "@owneraio/finp2p-client";
 import {
@@ -27,17 +27,20 @@ export class CommonServiceImpl implements CommonService, HealthService {
   finP2PContract: FinP2PContract;
   finP2PClient: FinP2PClient | undefined;
   execDetailsStore: ExecDetailsStore | undefined;
+  proofProvider: ProofProvider | undefined;
   defaultDecimals: number;
 
   constructor(
     finP2PContract: FinP2PContract,
     finP2PClient: FinP2PClient | undefined,
     execDetailsStore: ExecDetailsStore | undefined,
+    proofProvider: ProofProvider | undefined,
     defaultDecimals: number = 18
   ) {
     this.finP2PContract = finP2PContract;
     this.finP2PClient = finP2PClient;
     this.execDetailsStore = execDetailsStore;
+    this.proofProvider = proofProvider;
     this.defaultDecimals = defaultDecimals;
   }
 
@@ -58,7 +61,12 @@ export class CommonServiceImpl implements CommonService, HealthService {
     }
     finp2pReceipt.quantity = truncateDecimals(finp2pReceipt.quantity, this.defaultDecimals);
     // const receipt = await this.ledgerProof(finp2pReceipt);
-    return successfulReceiptOperation(receiptToService(finp2pReceipt));
+
+    let receipt = receiptToService(finp2pReceipt);
+    if (this.proofProvider) {
+      receipt = await this.proofProvider.ledgerProof(receipt)
+    }
+    return successfulReceiptOperation(receipt);
   }
 
   public async operationStatus(cid: string): Promise<OperationStatus> {
@@ -66,18 +74,20 @@ export class CommonServiceImpl implements CommonService, HealthService {
       const status = await this.finP2PContract.getOperationStatus(cid);
       switch (status.status) {
         case "completed":
-          let { receipt } = status;
-          receipt.quantity = truncateDecimals(receipt.quantity, this.defaultDecimals);
-          const executionContext = this.execDetailsStore?.getExecutionContext(receipt.id);
+          let { receipt: finP2PReceipt } = status;
+          finP2PReceipt.quantity = truncateDecimals(finP2PReceipt.quantity, this.defaultDecimals);
+          const executionContext = this.execDetailsStore?.getExecutionContext(finP2PReceipt.id);
           if (executionContext) {
             logger.info("Found execution context for receipt", executionContext);
-            receipt = { ...receipt, tradeDetails: { executionContext } };
+            finP2PReceipt = { ...finP2PReceipt, tradeDetails: { executionContext } };
           } else {
-            logger.info("No execution context found for receipt", { receiptId: receipt.id });
+            logger.info("No execution context found for receipt", { receiptId: finP2PReceipt.id });
           }
-          // await this.ledgerProof(receipt)
-          const receiptResponse = receiptToService(receipt);
-          return successfulReceiptOperation(receiptResponse);
+          let receipt = receiptToService(finP2PReceipt)
+          if (this.proofProvider) {
+            receipt = await this.proofProvider.ledgerProof(receipt)
+          }
+          return successfulReceiptOperation(receipt);
 
         case "pending":
           return pendingReceiptOperation(cid, undefined);
