@@ -11,7 +11,7 @@ import {
   FinP2PContract,
   assetTypeFromString,
   EthereumTransactionError,
-  term, isEthereumAddress, truncateDecimals, ERC20_STANDARD_ID
+  term, isEthereumAddress, ERC20_STANDARD_ID
 } from "@owneraio/finp2p-contracts";
 
 import { CommonServiceImpl, ExecDetailsStore } from "./common";
