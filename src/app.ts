@@ -15,7 +15,6 @@ import { PlanApprovalServiceImpl } from "./services";
 function createApp(finP2PContract: FinP2PContract,
                    finP2PClient: FinP2PClient | undefined,
                    execDetailsStore: ExecDetailsStore | undefined,
-                   defaultDecimals: number,
                    logger: winston.Logger) {
   const app = express();
   app.use(express.json({ limit: "50mb" }));
@@ -29,9 +28,9 @@ function createApp(finP2PContract: FinP2PContract,
 
   const signerPrivateKey = process.env.OPERATOR_PRIVATE_KEY || "";
   const proofProvider = new ProofProvider(finP2PClient, signerPrivateKey)
-  const tokenService = new TokenServiceImpl(finP2PContract, finP2PClient, execDetailsStore, proofProvider, defaultDecimals);
-  const escrowService = new EscrowServiceImpl(finP2PContract, finP2PClient, execDetailsStore, proofProvider, defaultDecimals);
-  const paymentsService = new PaymentsServiceImpl(finP2PContract, finP2PClient, execDetailsStore, proofProvider, defaultDecimals);
+  const tokenService = new TokenServiceImpl(finP2PContract, finP2PClient, execDetailsStore, proofProvider);
+  const escrowService = new EscrowServiceImpl(finP2PContract, finP2PClient, execDetailsStore, proofProvider);
+  const paymentsService = new PaymentsServiceImpl(finP2PContract, finP2PClient, execDetailsStore, proofProvider);
   const planApprovalService = new PlanApprovalServiceImpl(finP2PClient);
   register(app, tokenService, escrowService, tokenService, tokenService, paymentsService, planApprovalService);
 
