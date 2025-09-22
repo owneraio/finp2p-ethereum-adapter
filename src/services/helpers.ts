@@ -12,7 +12,7 @@ import {
   Phase,
   ReleaseType,
   emptyLoanTerms, termFromEIP712
-} from "../../finp2p-contracts";
+} from "@owneraio/finp2p-contracts";
 import { BusinessContract } from "./model";
 import { EIP712RedemptionMessage } from "@owneraio/finp2p-nodejs-skeleton-adapter/dist/lib/services/eip712";
 

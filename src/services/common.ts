@@ -8,7 +8,7 @@ import {
 import { FinP2PClient } from "@owneraio/finp2p-client";
 import {
   FinP2PContract
-} from "../../finp2p-contracts";
+} from "@owneraio/finp2p-contracts";
 
 
 export interface ExecDetailsStore {

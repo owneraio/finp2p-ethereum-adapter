@@ -4,7 +4,7 @@ import {
 } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import { CommonServiceImpl } from "./common";
 import { extractBusinessDetails } from "./helpers";
-import { EthereumTransactionError } from "../../finp2p-contracts";
+import { EthereumTransactionError } from "@owneraio/finp2p-contracts";
 import { validateRequest } from "./validator";
 
 export class EscrowServiceImpl extends CommonServiceImpl implements EscrowService {

@@ -1,6 +1,6 @@
 import { Destination, Source, LegType, PrimaryType } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import { BusinessContract, RequestValidationError } from "./model";
-import { Phase } from "../../finp2p-contracts";
+import { Phase } from "@owneraio/finp2p-contracts";
 
 
 export const validateRequest = (source: Source, destination: Destination | undefined, quantity: string, businessDetails: BusinessContract): void => {

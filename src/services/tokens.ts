@@ -12,7 +12,7 @@ import {
   assetTypeFromString,
   EthereumTransactionError,
   term, isEthereumAddress, truncateDecimals
-} from "../../finp2p-contracts";
+} from "@owneraio/finp2p-contracts";
 
 import { CommonServiceImpl, ExecDetailsStore } from "./common";
 import { extractBusinessDetails } from "./helpers";

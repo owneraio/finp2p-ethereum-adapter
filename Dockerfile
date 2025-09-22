@@ -3,7 +3,7 @@ FROM node:20-alpine AS base
 WORKDIR /usr/app
 
 # ------------------------
-FROM base AS prebuild
+FROM base AS compile
 
 ARG GITHUB_TOKEN
 
@@ -15,8 +15,10 @@ WORKDIR /usr/app/finp2p-contracts
 RUN npm clean-install
 RUN npm run compile
 
+RUN ls ./src
+
 # ------------------------
-FROM base AS builder
+FROM base AS build
 
 ARG GITHUB_TOKEN
 
@@ -32,14 +34,16 @@ COPY \
     ./
 COPY src ./src
 
-COPY --from=prebuild \
+COPY --from=compile \
     /usr/app/finp2p-contracts/package.json \
     /usr/app/finp2p-contracts/package-lock.json \
     /usr/app/finp2p-contracts/tsconfig.json \
     ./finp2p-contracts/
-COPY --from=prebuild /usr/app/finp2p-contracts/src ./finp2p-contracts/src
-COPY --from=prebuild /usr/app/finp2p-contracts/artifacts ./finp2p-contracts/artifacts
-COPY --from=prebuild /usr/app/finp2p-contracts/typechain-types ./finp2p-contracts/typechain-types
+COPY --from=compile /usr/app/finp2p-contracts/src ./finp2p-contracts/src
+COPY --from=compile /usr/app/finp2p-contracts/artifacts ./finp2p-contracts/artifacts
+COPY --from=compile /usr/app/finp2p-contracts/typechain-types ./finp2p-contracts/typechain-types
+
+RUN ls -al ./finp2p-contracts/src
 
 RUN npm install --only=prod
 RUN npm install --save typescript
@@ -52,7 +56,7 @@ FROM base as release
 LABEL org.opencontainers.image.source=https://github.com/owneraio/finp2p-ethereum-adapter
 ENV NODE_ENV=production
 
-COPY --from=builder /usr/app/node_modules ./node_modules
-COPY --from=builder /usr/app/dist ./dist
+COPY --from=build /usr/app/node_modules ./node_modules
+COPY --from=build /usr/app/dist ./dist
 
 CMD [ "node", "/usr/app/dist/src/index.js" ]
