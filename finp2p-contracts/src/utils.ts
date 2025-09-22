@@ -239,16 +239,6 @@ const undefinedIfEmpty = (value: string): string | undefined => {
   return value === "" ? undefined : value;
 };
 
-export const truncateDecimals = (value: string, decimals: number): string => {
-  const [intPart, decPart = ""] = value.split(".");
-
-  if (decimals <= 0 || decPart.length === 0) {
-    return intPart;
-  }
-
-  return `${intPart}.${decPart.slice(0, decimals)}`;
-};
-
 export const detectSigner = (op: OperationParams, buyerFinId: string, sellerFinId: string) => {
   if (op.leg === LegType.Asset) {
     if (op.phase === Phase.Initiate) {
