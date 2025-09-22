@@ -174,7 +174,7 @@ export class TokenServiceImpl extends CommonServiceImpl implements TokenService 
     return {
       current: truncated,
       available: truncated,
-      held: truncated
+      held: "0"
     };
   }
 
