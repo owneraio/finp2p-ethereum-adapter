@@ -26,6 +26,8 @@ jobs:
       - name: Finp2p-Contracts npm clean-install
         working-directory: ./finp2p-contracts
         run: npm clean-install
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Finp2p-Contracts npm run compile
         working-directory: ./finp2p-contracts

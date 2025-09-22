@@ -4,23 +4,19 @@ import {
   ExecutionContext, ReceiptOperation, Balance, TokenService, Signature, Source,
   failedAssetCreation, failedReceiptOperation, successfulAssetCreation,
   pendingReceiptOperation, AssetBind, AssetDenomination, AssetIdentifier, FinIdAccount,
-  AssetCreationResult
+  AssetCreationResult, ProofProvider
 } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import { FinP2PClient } from "@owneraio/finp2p-client";
 import {
   FinP2PContract,
   assetTypeFromString,
   EthereumTransactionError,
-  term,
-  isEthereumAddress,
-  truncateDecimals,
-  ERC20_STANDARD_ID
-} from "../../finp2p-contracts";
+  term, isEthereumAddress, truncateDecimals
+} from "@owneraio/finp2p-contracts";
 
 import { CommonServiceImpl, ExecDetailsStore } from "./common";
-import { extractEIP712Params } from "./helpers";
+import { extractBusinessDetails } from "./helpers";
 import { validateRequest } from "./validator";
-import { keccak256, toUtf8Bytes } from "ethers";
 
 
 const DefaultDecimals = 2;
@@ -29,40 +25,34 @@ export class TokenServiceImpl extends CommonServiceImpl implements TokenService 
 
 
   constructor(finP2PContract: FinP2PContract, finP2PClient: FinP2PClient | undefined,
-              execDetailsStore: ExecDetailsStore | undefined, defaultDecimals: number = 18) {
-    super(finP2PContract, finP2PClient, execDetailsStore, defaultDecimals);
+              execDetailsStore: ExecDetailsStore | undefined,
+              proofProvider: ProofProvider | undefined, defaultDecimals: number = 18) {
+    super(finP2PContract, finP2PClient, execDetailsStore, proofProvider, defaultDecimals);
   }
 
   public async createAsset(idempotencyKey: string, asset: Asset,
                            assetBind: AssetBind | undefined, assetMetadata: any | undefined, assetName: string | undefined, issuerId: string | undefined,
                            assetDenomination: AssetDenomination | undefined, assetIdentifier: AssetIdentifier | undefined): Promise<AssetCreationStatus> {
     const { assetId } = asset;
-    let tokenStandard = ERC20_STANDARD_ID;
-    let tokenAddress: string;
+    let tokenAddress, tokenStandard: string;
     let allowanceRequired: boolean
     if (assetBind && assetBind.tokenIdentifier) {
       const { tokenIdentifier: { tokenId } } = assetBind;
-
-      if (assetIdentifier) {
-        const { type, value } = assetIdentifier;
-        if (type === 'CUSTOM') {
-          tokenStandard = keccak256(toUtf8Bytes(value));
-        }
-      }
-
       if (!isEthereumAddress(tokenId)) {
         return failedAssetCreation(1, `Token ID ${tokenId} is not a valid Ethereum address`);
       }
       tokenAddress = tokenId;
+      tokenStandard = "ERC20"; // TODO: parse from metadata
       allowanceRequired = true; // TODO: parse from metadata
     } else {
 
       tokenAddress = await this.finP2PContract.deployERC20(assetId, assetId, DefaultDecimals, this.finP2PContract.finP2PContractAddress);
+      tokenStandard = "ERC20-with-operator";
       allowanceRequired = false;
     }
 
     try {
-      const txHash = await this.finP2PContract.associateAsset(assetId, tokenAddress, tokenStandard);
+      const txHash = await this.finP2PContract.associateAsset(assetId, tokenAddress);
       // TODO: translate to pending operation
       await this.finP2PContract.waitForCompletion(txHash);
     } catch (e) {
@@ -86,7 +76,7 @@ export class TokenServiceImpl extends CommonServiceImpl implements TokenService 
         type: "ledgerReference",
         network,
         address: tokenAddress,
-        tokenStandard, // TODO: tokenStandardToService(..)
+        tokenStandard,
         additionalContractDetails: {
           finP2POperatorContractAddress,
           allowanceRequired
@@ -125,9 +115,9 @@ export class TokenServiceImpl extends CommonServiceImpl implements TokenService 
       throw new Error(`Unsupported signature template type: ${template.type}`);
     }
     const eip712Template = template as EIP712Template;
-    const eip712Params = extractEIP712Params(ast, source, destination, undefined, eip712Template, exCtx);
-    validateRequest(source, destination, quantity, eip712Params);
-    const { buyerFinId, sellerFinId, asset, settlement, loan, params } = eip712Params;
+    const details = extractBusinessDetails(ast, source, destination, undefined, eip712Template, exCtx);
+    validateRequest(source, destination, quantity, details);
+    const { buyerFinId, sellerFinId, asset, settlement, loan, params } = details;
 
     let txHash: string;
     try {
@@ -184,7 +174,7 @@ export class TokenServiceImpl extends CommonServiceImpl implements TokenService 
     return {
       current: truncated,
       available: truncated,
-      held: truncated
+      held: "0"
     };
   }
 

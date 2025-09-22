@@ -32,6 +32,6 @@ if (!erc20Address) {
   throw new Error("ERC20_ADDRESS is not set");
 }
 
-associateAsset(providerType, finp2pContractAddress, assetId, erc20Address, tokenStandard)
+associateAsset(providerType, finp2pContractAddress, assetId, erc20Address)
   .then(() => {
   });

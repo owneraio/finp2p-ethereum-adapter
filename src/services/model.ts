@@ -1,6 +1,6 @@
-import { EIP712LoanTerms, OperationParams, Term } from "../../finp2p-contracts/src";
+import { EIP712LoanTerms, OperationParams, Term } from "@owneraio/finp2p-contracts";
 
-export type EIP712Params = {
+export type BusinessContract = {
   buyerFinId: string,
   sellerFinId: string,
   asset: Term,
@@ -9,6 +9,10 @@ export type EIP712Params = {
   params: OperationParams
 };
 
+export type ExecutionContext = {
+  executionPlanId: string
+  instructionSequenceNumber: number
+}
 export class RequestValidationError extends Error {
   constructor(public readonly reason: string) {
     super(reason);

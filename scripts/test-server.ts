@@ -6,7 +6,7 @@ import winston, { format, transports } from "winston";
 import { GenericContainer, StartedTestContainer } from "testcontainers";
 import { HardhatLogExtractor } from "../tests/utils/log-extractors";
 import { NetworkDetails } from "../tests/utils/models";
-import { FinP2PContract, ContractsManager, addressFromPrivateKey, createProviderAndSigner, ProviderType  } from "../finp2p-contracts/src";
+import { FinP2PContract, ContractsManager, addressFromPrivateKey, createProviderAndSigner, ProviderType  } from "@owneraio/finp2p-contracts";
 import createApp from "../src/app";
 import { FinP2PClient } from "@owneraio/finp2p-client";
 import { ExecDetailsStore, InMemoryExecDetailsStore } from "../src/services";

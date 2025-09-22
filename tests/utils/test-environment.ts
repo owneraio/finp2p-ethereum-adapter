@@ -11,7 +11,7 @@ import {
   createProviderAndSigner,
   addressFromPrivateKey,
   ProviderType
-} from "../../finp2p-contracts/src";
+} from "@owneraio/finp2p-contracts";
 import { InMemoryExecDetailsStore } from "../../src/services";
 import { HardhatLogExtractor } from "./log-extractors";
 import { AdapterParameters, NetworkDetails, NetworkParameters } from "./models";
@@ -19,7 +19,8 @@ import { randomPort } from "./utils";
 
 const providerType: ProviderType = "local";
 
-const level = "INFO";
+const level = "info";
+
 const logger = winston.createLogger({
   level, transports: [new transports.Console({ level })], format: format.json()
 });

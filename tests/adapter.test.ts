@@ -11,7 +11,7 @@ import {
   PRIMARY_SALE_TYPES,
   REDEMPTION_TYPES,
   SELLING_TYPES
-} from "../finp2p-contracts/src";
+} from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import { LedgerAPI } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 
 
@@ -281,7 +281,13 @@ describe(`token service test`, () => {
     const redeemSettlementAmount = 1000;
 
     const transferNonce = generateNonce().toString("hex");
-    const redemptionSignature = await eip712Signature(chainId, verifyingContract, "Redemption", REDEMPTION_TYPES, newRedemptionMessage(transferNonce, finId(issuerFinId), finId(investorFinId), eip712Term(assetId, "finp2p", `${redeemAmount}`), eip712Term(settlementAssetId, "fiat", `${redeemSettlementAmount}`)),
+    const redemptionSignature = await eip712Signature(
+      chainId, verifyingContract, "Redemption", REDEMPTION_TYPES,
+      newRedemptionMessage(transferNonce,
+        finId(issuerFinId),
+        finId(investorFinId),
+        eip712Term(assetId, "finp2p", `${redeemAmount}`),
+        eip712Term(settlementAssetId, "fiat", `${redeemSettlementAmount}`)),
 
       investorPrivateKey);
 

@@ -10,10 +10,8 @@ import {
   MINTER_ROLE,
   OPERATOR_ROLE,
   createProviderAndSigner,
-  isEthereumAddress,
-  ERC20_STANDARD_ID
-} from "../finp2p-contracts/src";
-import { keccak256, toUtf8Bytes } from "ethers";
+  isEthereumAddress
+} from "@owneraio/finp2p-contracts";
 
 const logger = winston.createLogger({
   level: "info",
@@ -38,7 +36,7 @@ const startMigration = async (ossUrl: string, providerType: ProviderType, finp2p
 
   let migrated = 0;
   let skipped = 0;
-  for (const { assetId, tokenAddress, identifier } of assets) {
+  for (const { assetId, tokenAddress } of assets) {
     if (!isEthereumAddress(tokenAddress)) {
       logger.info(`Token address ${tokenAddress} for asset ${assetId} is not a valid Ethereum address, skipping`);
       continue;
@@ -76,14 +74,7 @@ const startMigration = async (ossUrl: string, providerType: ProviderType, finp2p
 
     try {
       logger.info(`Migrating asset ${assetId} with token address ${tokenAddress}`);
-      let tokenStandard = ERC20_STANDARD_ID;
-      if (identifier) {
-        const { type, value } = identifier;
-        if (type === 'CUSTOM' && value) {
-          tokenStandard = keccak256(toUtf8Bytes(value))
-        }
-      }
-      const txHash = await finP2PContract.associateAsset(assetId, tokenAddress, tokenStandard);
+      const txHash = await finP2PContract.associateAsset(assetId, tokenAddress);
       await finP2PContract.waitForCompletion(txHash);
       logger.info("       asset association [done]");
       if (grantOperator) {

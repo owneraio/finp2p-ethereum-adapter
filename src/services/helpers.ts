@@ -1,84 +1,116 @@
 import {
   Asset,
-  Destination,
-  EIP712Template,
-  EIP712TypeObject,
-  EIP712TypeString,
-  ExecutionContext,
+  Destination, EIP712LoanMessage,
+  EIP712PrimarySaleMessage, EIP712PrivateOfferMessage,
+  EIP712SellingMessage, EIP712Term, EIP712BuyingMessage, EIP712Template, EIP712TransferMessage,
+  ExecutionContext, LegType, PrimaryType,
   SignatureTemplate, Source
 } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import {
-  assetTypeFromString, emptyTerm,
+  emptyTerm,
   operationParams,
   Phase,
   ReleaseType,
-  Term,
-  EIP712LoanTerms, emptyLoanTerms, LegType, PrimaryType
-} from "../../finp2p-contracts/src";
-import { EIP712Params } from "./model";
+  emptyLoanTerms, termFromEIP712
+} from "@owneraio/finp2p-contracts";
+import { BusinessContract } from "./model";
+import { EIP712RedemptionMessage } from "@owneraio/finp2p-nodejs-skeleton-adapter/dist/lib/services/eip712";
 
 
 export const detectLeg = (asset: Asset, template: SignatureTemplate): LegType => {
   if (template.type != "EIP712") {
     throw new Error(`Unsupported signature template type: ${template.type}`);
   }
-  if (compareAssets(asset, template.message.asset as EIP712TypeObject)) {
+  const { message } = template;
+  if ("asset" in message && compareAssets(asset, message.asset as EIP712Term)) {
     return LegType.Asset;
-  } else if (compareAssets(asset, template.message.settlement as EIP712TypeObject)) {
+  } else if ("settlement" in message && compareAssets(asset, message.settlement as EIP712Term)) {
     return LegType.Settlement;
   } else {
     throw new Error(`Asset not found in EIP712 message`);
   }
 };
 
-export const extractEIP712Params = (asset: Asset,
-                                    source: Source | undefined,
-                                    destination: Destination | undefined,
-                                    operationId: string | undefined,
-                                    template: SignatureTemplate,
-                                    executionContext: ExecutionContext): EIP712Params => {
+export const extractBusinessDetails = (asset: Asset,
+                                       source: Source | undefined,
+                                       destination: Destination | undefined,
+                                       operationId: string | undefined,
+                                       template: SignatureTemplate,
+                                       executionContext: ExecutionContext): BusinessContract => {
 
   if (template.type != "EIP712") {
     throw new Error(`Unsupported signature template type: ${template.type}`);
   }
 
   const leg = detectLeg(asset, template);
-  const eip712PrimaryType = eip712PrimaryTypeFromTemplate(template);
+  const primaryType = eip712PrimaryTypeFromTemplate(template);
 
   switch (template.primaryType) {
     case "PrimarySale": {
+      const {
+        buyer: { idkey: buyerFinId },
+        issuer: { idkey: sellerFinId },
+        asset,
+        settlement
+      } = template.message as EIP712PrimarySaleMessage;
       return {
-        buyerFinId: finIdFromAPI(template.message.buyer as EIP712TypeObject),
-        sellerFinId: finIdFromAPI(template.message.issuer as EIP712TypeObject),
-        asset: termFromAPI(template.message.asset as EIP712TypeObject),
-        settlement: termFromAPI(template.message.settlement as EIP712TypeObject),
+        buyerFinId, sellerFinId,
+        asset: termFromEIP712(asset),
+        settlement: termFromEIP712(settlement),
         loan: emptyLoanTerms(),
-        params: operationParams(leg, eip712PrimaryType, Phase.Initiate, operationId, ReleaseType.Release)
+        params: operationParams(leg, primaryType, Phase.Initiate, operationId, ReleaseType.Release)
       };
     }
-    case "Buying":
+    case "Buying": {
+      const {
+        buyer: { idkey: buyerFinId },
+        seller: { idkey: sellerFinId },
+        asset,
+        settlement
+      } = template.message as EIP712BuyingMessage;
+      return {
+        buyerFinId, sellerFinId,
+        asset: termFromEIP712(asset),
+        settlement: termFromEIP712(settlement),
+        loan: emptyLoanTerms(),
+        params: operationParams(leg, primaryType, Phase.Initiate, operationId, ReleaseType.Release)
+      };
+    }
     case "Selling": {
+      const {
+        buyer: { idkey: buyerFinId },
+        seller: { idkey: sellerFinId },
+        asset,
+        settlement
+      } = template.message as EIP712SellingMessage;
       return {
-        buyerFinId: finIdFromAPI(template.message.buyer as EIP712TypeObject),
-        sellerFinId: finIdFromAPI(template.message.seller as EIP712TypeObject),
-        asset: termFromAPI(template.message.asset as EIP712TypeObject),
-        settlement: termFromAPI(template.message.settlement as EIP712TypeObject),
+        buyerFinId, sellerFinId,
+        asset: termFromEIP712(asset),
+        settlement: termFromEIP712(settlement),
         loan: emptyLoanTerms(),
-        params: operationParams(leg, eip712PrimaryType, Phase.Initiate, operationId, ReleaseType.Release)
+        params: operationParams(leg, primaryType, Phase.Initiate, operationId, ReleaseType.Release)
       };
     }
-    case "Transfer":
-    case "RequestForTransfer": { // RequestForTransfer deprecated, use Transfer
+    case "Transfer": {
+      const {
+        buyer: { idkey: buyerFinId },
+        seller: { idkey: sellerFinId },
+        asset
+      } = template.message as EIP712TransferMessage;
       return {
-        buyerFinId: finIdFromAPI(template.message.buyer as EIP712TypeObject),
-        sellerFinId: finIdFromAPI(template.message.seller as EIP712TypeObject),
-        asset: termFromAPI(template.message.asset as EIP712TypeObject),
+        buyerFinId, sellerFinId,
+        asset: termFromEIP712(asset),
         settlement: emptyTerm(),
         loan: emptyLoanTerms(),
-        params: operationParams(leg, eip712PrimaryType, Phase.Initiate, operationId, ReleaseType.Release)
+        params: operationParams(leg, primaryType, Phase.Initiate, operationId, ReleaseType.Release)
       };
     }
     case "Redemption": {
+      const {
+        issuer: { idkey: buyerFinId },
+        seller: { idkey: sellerFinId },
+        asset, settlement
+      } = template.message as EIP712RedemptionMessage;
       let releaseType: ReleaseType;
       if (destination && destination.finId) {
         releaseType = ReleaseType.Release;
@@ -86,12 +118,11 @@ export const extractEIP712Params = (asset: Asset,
         releaseType = ReleaseType.Redeem;
       }
       return {
-        buyerFinId: finIdFromAPI(template.message.issuer as EIP712TypeObject),
-        sellerFinId: finIdFromAPI(template.message.seller as EIP712TypeObject),
-        asset: termFromAPI(template.message.asset as EIP712TypeObject),
-        settlement: termFromAPI(template.message.settlement as EIP712TypeObject),
+        buyerFinId, sellerFinId,
+        asset: termFromEIP712(asset),
+        settlement: termFromEIP712(settlement),
         loan: emptyLoanTerms(),
-        params: operationParams(leg, eip712PrimaryType, Phase.Initiate, operationId, releaseType)
+        params: operationParams(leg, primaryType, Phase.Initiate, operationId, releaseType)
       };
     }
     case "Loan": {
@@ -99,23 +130,33 @@ export const extractEIP712Params = (asset: Asset,
       if (executionContext && executionContext.sequence > 3) {
         phase = Phase.Close;
       }
+      const {
+        lender: { idkey: buyerFinId },
+        borrower: { idkey: sellerFinId },
+        asset,
+        settlement,
+        loanTerms: loan
+      } = template.message as EIP712LoanMessage;
       return {
-        sellerFinId: finIdFromAPI(template.message.borrower as EIP712TypeObject),
-        buyerFinId: finIdFromAPI(template.message.lender as EIP712TypeObject),
-        asset: termFromAPI(template.message.asset as EIP712TypeObject),
-        settlement: termFromAPI(template.message.settlement as EIP712TypeObject),
-        loan: loanTermFromAPI(template.message.loanTerms as EIP712TypeObject),
-        params: operationParams(leg, eip712PrimaryType, phase, operationId, ReleaseType.Release)
+        buyerFinId, sellerFinId,
+        asset: termFromEIP712(asset),
+        settlement: termFromEIP712(settlement), loan,
+        params: operationParams(leg, primaryType, phase, operationId, ReleaseType.Release)
       };
     }
     case "PrivateOffer": {
+      const {
+        buyer: { idkey: buyerFinId },
+        seller: { idkey: sellerFinId },
+        asset,
+        settlement
+      } = template.message as EIP712PrivateOfferMessage;
       return {
-        buyerFinId: finIdFromAPI(template.message.buyer as EIP712TypeObject),
-        sellerFinId: finIdFromAPI(template.message.seller as EIP712TypeObject),
-        asset: termFromAPI(template.message.asset as EIP712TypeObject),
-        settlement: termFromAPI(template.message.settlement as EIP712TypeObject),
+        buyerFinId, sellerFinId,
+        asset: termFromEIP712(asset),
+        settlement: termFromEIP712(settlement),
         loan: emptyLoanTerms(),
-        params: operationParams(leg, eip712PrimaryType, Phase.Initiate, operationId, ReleaseType.Release)
+        params: operationParams(leg, primaryType, Phase.Initiate, operationId, ReleaseType.Release)
       };
     }
     default:
@@ -144,31 +185,7 @@ export const eip712PrimaryTypeFromTemplate = (template: EIP712Template): Primary
   }
 };
 
-export const termFromAPI = (term: EIP712TypeObject): Term => {
-  return {
-    assetId: term.assetId as EIP712TypeString,
-    assetType: assetTypeFromString(term.assetType as EIP712TypeString),
-    amount: term.amount as EIP712TypeString
-  };
-};
-
-export const loanTermFromAPI = (loanTerms: EIP712TypeObject | undefined): EIP712LoanTerms => {
-  if (!loanTerms) {
-    return emptyLoanTerms();
-  }
-  return {
-    openTime: loanTerms.openTime as EIP712TypeString,
-    closeTime: loanTerms.closeTime as EIP712TypeString,
-    borrowedMoneyAmount: loanTerms.borrowedMoneyAmount as EIP712TypeString,
-    returnedMoneyAmount: loanTerms.returnedMoneyAmount as EIP712TypeString
-  } as EIP712LoanTerms;
-};
-
-export const finIdFromAPI = (finId: EIP712TypeObject): string => {
-  return finId.idkey as EIP712TypeString;
-};
-
-const compareAssets = (asset: Asset, eipAsset: EIP712TypeObject): boolean => {
+const compareAssets = (asset: Asset, eipAsset: EIP712Term): boolean => {
   if (isIn(eipAsset.assetType as string, "fiat", "cryptocurrency") && isIn(eipAsset.assetId as string, "USD", "USDC") &&
     isIn(asset.assetType as string, "fiat", "cryptocurrency") && isIn(asset.assetId, "USD", "USDC")) {
     return true;
