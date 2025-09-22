@@ -1,17 +1,16 @@
 import process from "process";
-import { ContractsManager } from "../src/contracts/manager";
-import { createProviderAndSigner, ProviderType } from "../src/contracts/config";
+import { ContractsManager, createProviderAndSigner, ProviderType } from "../src";
 import winston, { format, transports } from "winston";
 
 const logger = winston.createLogger({
   level: "info", transports: [new transports.Console()], format: format.json()
 });
 
-const deploy = async (providerType: ProviderType, operatorAddress: string, assetName: string, assetSymbol: string,  tokenDecimals: number) => {
+const deploy = async (providerType: ProviderType, operatorAddress: string, assetName: string, assetSymbol: string, tokenDecimals: number) => {
   const { provider, signer } = await createProviderAndSigner(providerType, logger);
   const contractManger = new ContractsManager(provider, signer, logger);
   logger.info("Deploying from env variables...");
-  const erc20Address = await contractManger.deployERC20(assetName, assetSymbol, tokenDecimals, operatorAddress)
+  const erc20Address = await contractManger.deployERC20(assetName, assetSymbol, tokenDecimals, operatorAddress);
   logger.info(JSON.stringify({ erc20Address }));
 };
 
@@ -22,17 +21,17 @@ if (!operatorAddress) {
 }
 const assetName = process.env.ASSET_NAME;
 if (!assetName) {
-  throw new Error('ASSET_NAME is not set')
+  throw new Error("ASSET_NAME is not set");
 }
 
 const assetSymbol = process.env.ASSET_SYMBOL;
 if (!assetSymbol) {
-  throw new Error('ASSET_SYMBOL is not set')
+  throw new Error("ASSET_SYMBOL is not set");
 }
 
-const tokenDecimals = Number(process.env.TOKEN_DECIMALS)
+const tokenDecimals = Number(process.env.TOKEN_DECIMALS);
 if (!tokenDecimals) {
-  throw new Error('TOKEN_DECIMALS is not set or misconfigured')
+  throw new Error("TOKEN_DECIMALS is not set or misconfigured");
 }
 
 

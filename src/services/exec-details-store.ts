@@ -1,13 +1,11 @@
-import { ExecutionContext } from "../../finp2p-contracts/src/model";
 import { ExecDetailsStore } from "./common";
-
-
+import { ExecutionContext } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 
 export class InMemoryExecDetailsStore implements ExecDetailsStore {
   executionContexts: Record<string, ExecutionContext> = {};
 
-  public addExecutionContext(txHash: string, executionPlanId: string, instructionSequenceNumber: number) {
-    this.executionContexts[txHash] = { executionPlanId, instructionSequenceNumber };
+  public addExecutionContext(txHash: string, planId: string, sequence: number) {
+    this.executionContexts[txHash] = { planId, sequence };
   }
 
   public getExecutionContext(txHash: string) {

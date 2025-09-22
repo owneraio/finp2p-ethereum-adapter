@@ -1,19 +1,19 @@
 import express from "express";
 import { logger as expressLogger } from "express-winston";
 import winston from "winston";
-import * as routes from "./routes";
-import { AssetCreationPolicy, TokenService } from "./services/tokens";
-import { EscrowService } from "./services/escrow";
-import { PaymentsService } from "./services/payments";
-import { PlanService } from "./services/plans";
-import { FinP2PContract } from "../finp2p-contracts/src/finp2p";
-import { PolicyGetter } from "./finp2p/policy";
-import { ExecDetailsStore } from "./services/common";
-
+import { register, ProofProvider } from "@owneraio/finp2p-nodejs-skeleton-adapter";
+import { FinP2PClient } from "@owneraio/finp2p-client";
+import {
+  EscrowServiceImpl,
+  ExecDetailsStore,
+  PaymentsServiceImpl,
+  TokenServiceImpl
+} from "./services";
+import { FinP2PContract } from "@owneraio/finp2p-contracts";
+import { PlanApprovalServiceImpl } from "./services";
 
 function createApp(finP2PContract: FinP2PContract,
-                   assetCreationPolicy: AssetCreationPolicy,
-                   policyGetter: PolicyGetter | undefined,
+                   finP2PClient: FinP2PClient | undefined,
                    execDetailsStore: ExecDetailsStore | undefined,
                    defaultDecimals: number,
                    logger: winston.Logger) {
@@ -27,11 +27,13 @@ function createApp(finP2PContract: FinP2PContract,
     ignoreRoute: (req) => req.url.toLowerCase() === "/health/readiness" || req.url.toLowerCase() === "/health/liveness"
   }));
 
-  routes.register(app,
-    new TokenService(finP2PContract, assetCreationPolicy, policyGetter, execDetailsStore, defaultDecimals),
-    new EscrowService(finP2PContract, policyGetter, execDetailsStore, defaultDecimals),
-    new PaymentsService(finP2PContract, policyGetter, execDetailsStore, defaultDecimals),
-    new PlanService());
+  const signerPrivateKey = process.env.OPERATOR_PRIVATE_KEY || "";
+  const proofProvider = new ProofProvider(finP2PClient, signerPrivateKey)
+  const tokenService = new TokenServiceImpl(finP2PContract, finP2PClient, execDetailsStore, proofProvider, defaultDecimals);
+  const escrowService = new EscrowServiceImpl(finP2PContract, finP2PClient, execDetailsStore, proofProvider, defaultDecimals);
+  const paymentsService = new PaymentsServiceImpl(finP2PContract, finP2PClient, execDetailsStore, proofProvider, defaultDecimals);
+  const planApprovalService = new PlanApprovalServiceImpl(finP2PClient);
+  register(app, tokenService, escrowService, tokenService, tokenService, paymentsService, planApprovalService);
 
   return app;
 }
