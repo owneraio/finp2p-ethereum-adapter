@@ -121,9 +121,7 @@ const start = async () => {
   const execDetailsStore = new InMemoryExecDetailsStore();
   const finP2PContract = new FinP2PContract(provider, signer, finP2PContractAddress, logger);
 
-  const defaultDecimals = parseInt(process.env.DEFAULT_DECIMALS || "18");
-
-  await startApp(port, provider, signer, finP2PContract, tokenAddress, finP2PClient, execDetailsStore, defaultDecimals, logger);
+  await startApp(port, provider, signer, finP2PContract, tokenAddress, finP2PClient, execDetailsStore, logger);
 };
 
 
