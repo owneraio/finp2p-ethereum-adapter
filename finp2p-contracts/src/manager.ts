@@ -11,9 +11,10 @@ import ERC20 from "../artifacts/contracts/token/ERC20/ERC20WithOperator.sol/ERC2
 import { ERC20WithOperator, FINP2POperatorERC20 } from "../typechain-types";
 import winston from "winston";
 import { PayableOverrides } from "../typechain-types/common";
-import { detectError, EthereumTransactionError, NonceAlreadyBeenUsedError, NonceToHighError } from "./model";
-import { hash as typedHash, sign } from "./eip712";
+import { EthereumTransactionError, NonceAlreadyBeenUsedError, NonceToHighError } from "./model";
+import { hashEIP712, signEIP712 } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import { compactSerialize } from "./utils";
+import { detectError } from "./errors";
 
 const DefaultDecimalsCurrencies = 2;
 
@@ -135,8 +136,8 @@ export class ContractsManager {
     hash: string,
     signature: string
   }> {
-    const hash = typedHash(chainId, verifyingContract, types, message).substring(2);
-    const signature = compactSerialize(await sign(chainId, verifyingContract, types, message, this.signer));
+    const hash = hashEIP712(chainId, verifyingContract, types, message).substring(2);
+    const signature = compactSerialize(await signEIP712(chainId, verifyingContract, types, message, this.signer));
     return { hash, signature };
   }
 
@@ -159,9 +160,9 @@ export class ContractsManager {
   protected async safeExecuteTransaction<C extends BaseContract>(contract: C, call: (contract: C, overrides: PayableOverrides) => Promise<ContractTransactionResponse>, maxAttempts: number = 10) {
     for (let i = 0; i < maxAttempts; i++) {
       try {
-        let nonce: number
+        let nonce: number;
         if (this.signer instanceof NonceManager) {
-          nonce = await (this.signer as NonceManager).getNonce()
+          nonce = await (this.signer as NonceManager).getNonce();
         } else {
           nonce = await this.getLatestTransactionCount();
         }

@@ -19,7 +19,6 @@
   },
   "include": [
     "src/**/*.ts",
-    "test/**/*.ts",
-    "scripts/**/*.ts",
+    "src/**/*.graphql"
   ]
 }
