@@ -21,8 +21,9 @@ import {
   ERC20WithOperatorInterface,
   TransferEvent as ERC20TransferEvent
 } from "../typechain-types/contracts/token/ERC20/ERC20WithOperator";
-import { LegType, PrimaryType, Receipt } from "@owneraio/finp2p-nodejs-skeleton-adapter";
+import { Destination, LegType, PrimaryType, Receipt } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import { assetToService, finIdDestination, finIdSource } from "./mappers";
+import { TradeDetails } from "@owneraio/finp2p-nodejs-skeleton-adapter/dist/lib/services/model";
 
 export const compactSerialize = (signature: string): string => {
   const { r, s } = Signature.from(signature);
@@ -63,6 +64,15 @@ export const finIdToAddress = (finId: string): string => {
 //   return "0x" + keccak256(val).slice(-40);
 // };
 
+const emptyTradeDetails = (): TradeDetails => {
+  return {
+    executionContext: {
+      planId: "",
+      sequence: 0
+    },
+  }
+}
+
 export const parseTransactionReceipt = (
   receipt: TransactionReceipt,
   contractInterface: FINP2POperatorERC20Interface,
@@ -70,6 +80,7 @@ export const parseTransactionReceipt = (
 ): Receipt | null => {
   const id = receipt.hash;
 
+  const tradeDetails = emptyTradeDetails();
   for (const log of receipt.logs) {
     try {
       const parsedLog = contractInterface.parseLog(log);
@@ -91,6 +102,7 @@ export const parseTransactionReceipt = (
               transactionId: id,
               operationId: undefined
             },
+            tradeDetails,
             timestamp
           } as Receipt;
         }
@@ -113,6 +125,7 @@ export const parseTransactionReceipt = (
               transactionId: id,
               operationId: undefined
             },
+            tradeDetails,
             timestamp
           } as Receipt;
         }
@@ -134,6 +147,7 @@ export const parseTransactionReceipt = (
               transactionId: id,
               operationId: operationId
             },
+            tradeDetails,
             timestamp
           } as Receipt;
         }
@@ -155,6 +169,7 @@ export const parseTransactionReceipt = (
               transactionId: id,
               operationId: operationId
             },
+            tradeDetails,
             timestamp
           } as Receipt;
         }
@@ -178,12 +193,14 @@ export const parseTransactionReceipt = (
               transactionId: id,
               operationId: operationId
             },
+            tradeDetails,
             timestamp
           } as Receipt;
         }
       }
     } catch (e) {
       // do nothing
+      console.error(e);
     }
   }
 

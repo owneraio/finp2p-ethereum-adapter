@@ -14,6 +14,7 @@ import {
   emptyLoanTerms, termFromEIP712
 } from "../../finp2p-contracts";
 import { EIP712Params } from "./model";
+import { EIP712RedemptionMessage } from "@owneraio/finp2p-nodejs-skeleton-adapter/dist/lib/services/eip712";
 
 
 export const detectLeg = (asset: Asset, template: SignatureTemplate): LegType => {
@@ -107,10 +108,10 @@ export const extractEIP712Params = (asset: Asset,
 
     case "Redemption": {
       const {
-        buyer: { idkey: buyerFinId },
+        issuer: { idkey: buyerFinId },
         seller: { idkey: sellerFinId },
         asset
-      } = template.message as EIP712TransferMessage;
+      } = template.message as EIP712RedemptionMessage;
       let releaseType: ReleaseType;
       if (destination && destination.finId) {
         releaseType = ReleaseType.Release;

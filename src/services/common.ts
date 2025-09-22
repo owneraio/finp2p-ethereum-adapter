@@ -3,7 +3,7 @@ import {
   OperationStatus,
   ReceiptOperation,
   ProofProvider,
-  ExecutionContext
+  ExecutionContext, logger
 } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import { FinP2PClient } from "@owneraio/finp2p-client";
 import {
@@ -13,6 +13,7 @@ import {
 
 export interface ExecDetailsStore {
   addExecutionContext(txHash: string, executionPlanId: string, instructionSequenceNumber: number): void;
+
   getExecutionContext(txHash: string): ExecutionContext;
 }
 

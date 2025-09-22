@@ -19,7 +19,8 @@ import { randomPort } from "./utils";
 
 const providerType: ProviderType = "local";
 
-const level = "INFO";
+const level = "info";
+
 const logger = winston.createLogger({
   level, transports: [new transports.Console({ level })], format: format.json()
 });
