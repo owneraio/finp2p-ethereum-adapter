@@ -77,10 +77,10 @@ const deployERC20Contract = async (provider: Provider, signer: Signer, finp2pTok
 
 const startApp = async (port: number, provider: Provider, signer: Signer,
                         finP2PContract: FinP2PContract, tokenAddress: string, finP2PClient: FinP2PClient | undefined,
-                        execDetailsStore: ExecDetailsStore | undefined, defaultDecimals: number = 18,
+                        execDetailsStore: ExecDetailsStore | undefined,
                         logger: winston.Logger) => {
 
-  const app = createApp(finP2PContract, finP2PClient, execDetailsStore, defaultDecimals, logger);
+  const app = createApp(finP2PContract, finP2PClient, execDetailsStore, logger);
   logger.info("App created successfully.");
 
   httpServer = app.listen(port, () => {
