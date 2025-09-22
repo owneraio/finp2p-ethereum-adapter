@@ -27,8 +27,8 @@ export class TokenServiceImpl extends CommonServiceImpl implements TokenService 
 
   constructor(finP2PContract: FinP2PContract, finP2PClient: FinP2PClient | undefined,
               execDetailsStore: ExecDetailsStore | undefined,
-              proofProvider: ProofProvider | undefined, defaultDecimals: number = 18) {
-    super(finP2PContract, finP2PClient, execDetailsStore, proofProvider, defaultDecimals);
+              proofProvider: ProofProvider | undefined) {
+    super(finP2PContract, finP2PClient, execDetailsStore, proofProvider);
   }
 
   public async createAsset(idempotencyKey: string, asset: Asset,
@@ -172,16 +172,14 @@ export class TokenServiceImpl extends CommonServiceImpl implements TokenService 
   }
 
   public async getBalance(assetId: string, finId: string): Promise<string> {
-    const balance = await this.finP2PContract.balance(assetId, finId);
-    return truncateDecimals(balance, this.defaultDecimals);
+    return await this.finP2PContract.balance(assetId, finId);
   }
 
   public async balance(assetId: string, finId: string): Promise<Balance> {
     const balance = await this.finP2PContract.balance(assetId, finId);
-    const truncated = truncateDecimals(balance, this.defaultDecimals);
     return {
-      current: truncated,
-      available: truncated,
+      current: balance,
+      available: balance,
       held: "0"
     };
   }
