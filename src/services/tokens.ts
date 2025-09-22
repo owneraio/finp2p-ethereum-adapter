@@ -11,12 +11,13 @@ import {
   FinP2PContract,
   assetTypeFromString,
   EthereumTransactionError,
-  term, isEthereumAddress, truncateDecimals
+  term, isEthereumAddress, truncateDecimals, ERC20_STANDARD_ID
 } from "@owneraio/finp2p-contracts";
 
 import { CommonServiceImpl, ExecDetailsStore } from "./common";
 import { extractBusinessDetails } from "./helpers";
 import { validateRequest } from "./validator";
+import { keccak256, toUtf8Bytes } from "ethers";
 
 
 const DefaultDecimals = 2;
@@ -34,25 +35,32 @@ export class TokenServiceImpl extends CommonServiceImpl implements TokenService 
                            assetBind: AssetBind | undefined, assetMetadata: any | undefined, assetName: string | undefined, issuerId: string | undefined,
                            assetDenomination: AssetDenomination | undefined, assetIdentifier: AssetIdentifier | undefined): Promise<AssetCreationStatus> {
     const { assetId } = asset;
-    let tokenAddress, tokenStandard: string;
+    let tokenStandard = ERC20_STANDARD_ID;
+    let tokenAddress: string;
     let allowanceRequired: boolean
     if (assetBind && assetBind.tokenIdentifier) {
       const { tokenIdentifier: { tokenId } } = assetBind;
+
+      if (assetIdentifier) {
+        const { type, value } = assetIdentifier;
+        if (type === 'CUSTOM') {
+          tokenStandard = keccak256(toUtf8Bytes(value));
+        }
+      }
+
       if (!isEthereumAddress(tokenId)) {
         return failedAssetCreation(1, `Token ID ${tokenId} is not a valid Ethereum address`);
       }
       tokenAddress = tokenId;
-      tokenStandard = "ERC20"; // TODO: parse from metadata
       allowanceRequired = true; // TODO: parse from metadata
     } else {
 
       tokenAddress = await this.finP2PContract.deployERC20(assetId, assetId, DefaultDecimals, this.finP2PContract.finP2PContractAddress);
-      tokenStandard = "ERC20-with-operator";
       allowanceRequired = false;
     }
 
     try {
-      const txHash = await this.finP2PContract.associateAsset(assetId, tokenAddress);
+      const txHash = await this.finP2PContract.associateAsset(assetId, tokenAddress, tokenStandard);
       // TODO: translate to pending operation
       await this.finP2PContract.waitForCompletion(txHash);
     } catch (e) {
@@ -76,7 +84,7 @@ export class TokenServiceImpl extends CommonServiceImpl implements TokenService 
         type: "ledgerReference",
         network,
         address: tokenAddress,
-        tokenStandard,
+        tokenStandard, // TODO: tokenStandardToService(..)
         additionalContractDetails: {
           finP2POperatorContractAddress,
           allowanceRequired
