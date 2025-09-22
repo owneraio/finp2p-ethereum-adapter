@@ -23,8 +23,7 @@ export class EscrowServiceImpl extends CommonServiceImpl implements EscrowServic
 
     let txHash: string;
     try {
-      txHash = await this.finP2PContract.hold(nonce, sellerFinId, buyerFinId,
-        asset, settlement, loan, params, signature);
+      txHash = await this.finP2PContract.hold(nonce, sellerFinId, buyerFinId, asset, settlement, loan, params, signature);
     } catch (e) {
       logger.error(`Error asset hold: ${e}`);
       if (e instanceof EthereumTransactionError) {

@@ -43,7 +43,7 @@ export const extractEIP712Params = (asset: Asset,
   }
 
   const leg = detectLeg(asset, template);
-  const eip712PrimaryType = eip712PrimaryTypeFromTemplate(template);
+  const primaryType = eip712PrimaryTypeFromTemplate(template);
 
   switch (template.primaryType) {
     case "PrimarySale": {
@@ -58,7 +58,7 @@ export const extractEIP712Params = (asset: Asset,
         asset: termFromEIP712(asset),
         settlement: termFromEIP712(settlement),
         loan: emptyLoanTerms(),
-        params: operationParams(leg, eip712PrimaryType, Phase.Initiate, operationId, ReleaseType.Release)
+        params: operationParams(leg, primaryType, Phase.Initiate, operationId, ReleaseType.Release)
       };
     }
     case "Buying": {
@@ -73,7 +73,7 @@ export const extractEIP712Params = (asset: Asset,
         asset: termFromEIP712(asset),
         settlement: termFromEIP712(settlement),
         loan: emptyLoanTerms(),
-        params: operationParams(leg, eip712PrimaryType, Phase.Initiate, operationId, ReleaseType.Release)
+        params: operationParams(leg, primaryType, Phase.Initiate, operationId, ReleaseType.Release)
       };
     }
     case "Selling": {
@@ -88,7 +88,7 @@ export const extractEIP712Params = (asset: Asset,
         asset: termFromEIP712(asset),
         settlement: termFromEIP712(settlement),
         loan: emptyLoanTerms(),
-        params: operationParams(leg, eip712PrimaryType, Phase.Initiate, operationId, ReleaseType.Release)
+        params: operationParams(leg, primaryType, Phase.Initiate, operationId, ReleaseType.Release)
       };
     }
     case "Transfer": {
@@ -102,15 +102,14 @@ export const extractEIP712Params = (asset: Asset,
         asset: termFromEIP712(asset),
         settlement: emptyTerm(),
         loan: emptyLoanTerms(),
-        params: operationParams(leg, eip712PrimaryType, Phase.Initiate, operationId, ReleaseType.Release)
+        params: operationParams(leg, primaryType, Phase.Initiate, operationId, ReleaseType.Release)
       };
     }
-
     case "Redemption": {
       const {
         issuer: { idkey: buyerFinId },
         seller: { idkey: sellerFinId },
-        asset
+        asset, settlement
       } = template.message as EIP712RedemptionMessage;
       let releaseType: ReleaseType;
       if (destination && destination.finId) {
@@ -121,9 +120,9 @@ export const extractEIP712Params = (asset: Asset,
       return {
         buyerFinId, sellerFinId,
         asset: termFromEIP712(asset),
-        settlement: emptyTerm(),
+        settlement: termFromEIP712(settlement),
         loan: emptyLoanTerms(),
-        params: operationParams(leg, eip712PrimaryType, Phase.Initiate, operationId, releaseType)
+        params: operationParams(leg, primaryType, Phase.Initiate, operationId, releaseType)
       };
     }
     case "Loan": {
@@ -142,7 +141,7 @@ export const extractEIP712Params = (asset: Asset,
         buyerFinId, sellerFinId,
         asset: termFromEIP712(asset),
         settlement: termFromEIP712(settlement), loan,
-        params: operationParams(leg, eip712PrimaryType, phase, operationId, ReleaseType.Release)
+        params: operationParams(leg, primaryType, phase, operationId, ReleaseType.Release)
       };
     }
     case "PrivateOffer": {
@@ -157,7 +156,7 @@ export const extractEIP712Params = (asset: Asset,
         asset: termFromEIP712(asset),
         settlement: termFromEIP712(settlement),
         loan: emptyLoanTerms(),
-        params: operationParams(leg, eip712PrimaryType, Phase.Initiate, operationId, ReleaseType.Release)
+        params: operationParams(leg, primaryType, Phase.Initiate, operationId, ReleaseType.Release)
       };
     }
     default:

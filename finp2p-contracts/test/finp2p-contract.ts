@@ -3,14 +3,14 @@ import { expect } from "chai";
 // @ts-ignore
 import { ethers } from "hardhat";
 import { v4 as uuid } from "uuid";
-import { generateNonce, toFixedDecimals } from "./utils";
+import { generateNonce, toFixedDecimals, PrimaryType, LegType } from "./utils";
 import { Signer, Wallet } from "ethers";
 import {
   EIP712LoanTerms,
   emptyLoanTerms,
   loanTerms,
   newInvestmentMessage,
-  signEIP712,  LegType, PrimaryType
+  signEIP712
 } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import { FINP2POperatorERC20, FinP2PSignatureVerifier } from "../typechain-types";
 import {
@@ -85,7 +85,7 @@ describe("FinP2P proxy contract test", function() {
     }
   }
 
-  function extractAsset(asset: Term, settlement: Term, loan:  FinP2PSignatureVerifier.LoanTermStruct, primaryType: PrimaryType, leg: LegType, phase: Phase): Term {
+  function extractAsset(asset: Term, settlement: Term, loan: FinP2PSignatureVerifier.LoanTermStruct, primaryType: PrimaryType, leg: LegType, phase: Phase): Term {
     if (primaryType === PrimaryType.Loan && leg === LegType.Settlement) {
       switch (phase) {
         case Phase.Initiate:
@@ -274,10 +274,10 @@ describe("FinP2P proxy contract test", function() {
                     switch (phase) {
                       case Phase.Initiate:
                         amount = loan.borrowedMoneyAmount;
-                        break
+                        break;
                       case Phase.Close:
                         amount = loan.returnedMoneyAmount;
-                        break
+                        break;
                     }
                   }
                   signer = buyer;
