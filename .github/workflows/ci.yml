@@ -19,11 +19,15 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '18.x'
+          node-version: '20'
+          registry-url: https://npm.pkg.github.com/
+          scope: '@owneraio'
 
       - name: Finp2p-Contracts npm clean-install
         working-directory: ./finp2p-contracts
         run: npm clean-install
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Finp2p-Contracts npm run compile
         working-directory: ./finp2p-contracts
@@ -34,7 +38,9 @@ jobs:
         run: npm run test
 
       - name: Adapter npm clean-install
-        run: npm clean-install
+        run: npm ci
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Adapter npm run build
         run: npm run build
@@ -80,7 +86,9 @@ jobs:
       - name: Docker build local
         run: |
           ## local build for scanners
-          docker build -t "ghcr.io/owneraio/finp2p-ethereum-adapter:${{ env.IMAGE_TAG }}" -f ./Dockerfile .
+          docker build \
+            --build-arg GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }} \
+            -t "ghcr.io/owneraio/finp2p-ethereum-adapter:${{ env.IMAGE_TAG }}" -f ./Dockerfile .
       
 
       - name: Trivy scan
@@ -101,6 +109,8 @@ jobs:
           sbom: false
           provenance: false
           file: ./Dockerfile
+          build-args:
+            GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }}
           tags: |
             ownera/finp2p-ethereum-adapter:${{ env.IMAGE_TAG }}
             ghcr.io/owneraio/finp2p-ethereum-adapter:${{ env.IMAGE_TAG }}
