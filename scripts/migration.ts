@@ -11,7 +11,7 @@ import {
   OPERATOR_ROLE,
   createProviderAndSigner,
   isEthereumAddress
-} from "../finp2p-contracts/src";
+} from "@owneraio/finp2p-contracts";
 
 const logger = winston.createLogger({
   level: "info",

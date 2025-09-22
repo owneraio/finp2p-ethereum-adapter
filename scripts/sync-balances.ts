@@ -2,7 +2,7 @@ import process from "process";
 import console from "console";
 import winston, { format, transports } from "winston";
 import { FinP2PClient } from "@owneraio/finp2p-client";
-import { FinP2PContract, AssetType, ProviderType, term, createProviderAndSigner } from "../finp2p-contracts/src";
+import { FinP2PContract, AssetType, ProviderType, term, createProviderAndSigner } from "@owneraio/finp2p-contracts";
 
 const logger = winston.createLogger({
   level: "info",

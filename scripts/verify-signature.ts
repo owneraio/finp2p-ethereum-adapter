@@ -13,7 +13,7 @@ import {
   finIdToAddress,
   FinP2PContract,
   ProviderType, detectSigner
-} from "../finp2p-contracts/src";
+} from "@owneraio/finp2p-contracts";
 import winston, { format, transports } from "winston";
 import { extractBusinessDetails } from "../src/services/helpers";
 import process from "process";
