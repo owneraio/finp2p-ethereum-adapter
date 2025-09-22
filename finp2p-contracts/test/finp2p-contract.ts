@@ -10,7 +10,7 @@ import {
   emptyLoanTerms,
   loanTerms,
   newInvestmentMessage,
-  signEIP712
+  signEIP712,  LegType, PrimaryType
 } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import { FINP2POperatorERC20, FinP2PSignatureVerifier } from "../typechain-types";
 import {
@@ -24,7 +24,6 @@ import {
   termToEIP712,
   getFinId
 } from "../src";
-import { LegType, PrimaryType } from './utils'
 
 
 describe("FinP2P proxy contract test", function() {

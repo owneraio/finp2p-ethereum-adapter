@@ -11,7 +11,7 @@ import {
   createProviderAndSigner,
   addressFromPrivateKey,
   ProviderType
-} from "../../finp2p-contracts/src";
+} from "../../finp2p-contracts";
 import { InMemoryExecDetailsStore } from "../../src/services";
 import { HardhatLogExtractor } from "./log-extractors";
 import { AdapterParameters, NetworkDetails, NetworkParameters } from "./models";

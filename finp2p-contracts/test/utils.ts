@@ -2,20 +2,6 @@ import * as secp256k1 from "secp256k1";
 import * as crypto from "crypto";
 import createKeccakHash from "keccak";
 
-export const enum LegType {
-  Asset = 0,
-  Settlement = 1,
-}
-
-export const enum PrimaryType {
-  PrimarySale = 0,
-  Buying = 1,
-  Selling = 2,
-  Redemption = 3,
-  Transfer = 4,
-  PrivateOffer = 5,
-  Loan = 6,
-}
 
 export const toFixedDecimals = (value: string, decimals: number): string => {
   const [integer, fraction = ""] = value.split(".");
