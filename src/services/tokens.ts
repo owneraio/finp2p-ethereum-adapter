@@ -15,7 +15,7 @@ import {
 } from "../../finp2p-contracts";
 
 import { CommonServiceImpl, ExecDetailsStore } from "./common";
-import { extractEIP712Params } from "./helpers";
+import { extractBusinessDetails } from "./helpers";
 import { validateRequest } from "./validator";
 
 
@@ -115,9 +115,9 @@ export class TokenServiceImpl extends CommonServiceImpl implements TokenService 
       throw new Error(`Unsupported signature template type: ${template.type}`);
     }
     const eip712Template = template as EIP712Template;
-    const eip712Params = extractEIP712Params(ast, source, destination, undefined, eip712Template, exCtx);
-    validateRequest(source, destination, quantity, eip712Params);
-    const { buyerFinId, sellerFinId, asset, settlement, loan, params } = eip712Params;
+    const details = extractBusinessDetails(ast, source, destination, undefined, eip712Template, exCtx);
+    validateRequest(source, destination, quantity, details);
+    const { buyerFinId, sellerFinId, asset, settlement, loan, params } = details;
 
     let txHash: string;
     try {

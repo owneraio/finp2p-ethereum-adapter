@@ -3,7 +3,7 @@ import {
   failedReceiptOperation, pendingReceiptOperation, ReceiptOperation, Signature, Source, EscrowService
 } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import { CommonServiceImpl } from "./common";
-import { extractEIP712Params } from "./helpers";
+import { extractBusinessDetails } from "./helpers";
 import { EthereumTransactionError } from "../../finp2p-contracts";
 import { validateRequest } from "./validator";
 
@@ -17,9 +17,9 @@ export class EscrowServiceImpl extends CommonServiceImpl implements EscrowServic
       throw new Error(`Unsupported signature template type: ${template.type}`);
     }
     const eip712Template = template as EIP712Template;
-    const eip712Params = extractEIP712Params(ast, source, destination, operationId, eip712Template, exCtx);
-    validateRequest(source, destination, quantity, eip712Params);
-    const { buyerFinId, sellerFinId, asset, settlement, loan, params } = eip712Params;
+    const details = extractBusinessDetails(ast, source, destination, operationId, eip712Template, exCtx);
+    validateRequest(source, destination, quantity, details);
+    const { buyerFinId, sellerFinId, asset, settlement, loan, params } = details;
 
     let txHash: string;
     try {

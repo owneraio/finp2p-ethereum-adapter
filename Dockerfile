@@ -5,6 +5,11 @@ WORKDIR /usr/app
 # ------------------------
 FROM base AS prebuild
 
+ARG GITHUB_TOKEN
+
+RUN echo "@owneraio:registry=https://npm.pkg.github.com/" > ~/.npmrc && \
+    echo "//npm.pkg.github.com/:_authToken=\${GITHUB_TOKEN}" >> ~/.npmrc
+
 COPY finp2p-contracts ./finp2p-contracts
 WORKDIR /usr/app/finp2p-contracts
 RUN npm clean-install

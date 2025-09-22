@@ -1,9 +1,9 @@
 import { Destination, Source, LegType, PrimaryType } from "@owneraio/finp2p-nodejs-skeleton-adapter";
-import { EIP712Params, RequestValidationError } from "./model";
+import { BusinessContract, RequestValidationError } from "./model";
 import { Phase } from "../../finp2p-contracts";
 
 
-export const validateRequest = (source: Source, destination: Destination | undefined, quantity: string, eip712Params: EIP712Params): void => {
+export const validateRequest = (source: Source, destination: Destination | undefined, quantity: string, businessDetails: BusinessContract): void => {
   const {
     buyerFinId,
     sellerFinId,
@@ -11,7 +11,7 @@ export const validateRequest = (source: Source, destination: Destination | undef
     settlement,
     loan,
     params: { eip712PrimaryType, phase, leg }
-  } = eip712Params;
+  } = businessDetails;
   if (eip712PrimaryType === PrimaryType.Loan) {
     switch (phase) {
       case Phase.Initiate:

@@ -13,7 +13,7 @@ import {
   ReleaseType,
   emptyLoanTerms, termFromEIP712
 } from "../../finp2p-contracts";
-import { EIP712Params } from "./model";
+import { BusinessContract } from "./model";
 import { EIP712RedemptionMessage } from "@owneraio/finp2p-nodejs-skeleton-adapter/dist/lib/services/eip712";
 
 
@@ -31,12 +31,12 @@ export const detectLeg = (asset: Asset, template: SignatureTemplate): LegType =>
   }
 };
 
-export const extractEIP712Params = (asset: Asset,
-                                    source: Source | undefined,
-                                    destination: Destination | undefined,
-                                    operationId: string | undefined,
-                                    template: SignatureTemplate,
-                                    executionContext: ExecutionContext): EIP712Params => {
+export const extractBusinessDetails = (asset: Asset,
+                                       source: Source | undefined,
+                                       destination: Destination | undefined,
+                                       operationId: string | undefined,
+                                       template: SignatureTemplate,
+                                       executionContext: ExecutionContext): BusinessContract => {
 
   if (template.type != "EIP712") {
     throw new Error(`Unsupported signature template type: ${template.type}`);

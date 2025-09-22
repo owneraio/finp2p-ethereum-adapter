@@ -15,7 +15,7 @@ import {
   ProviderType, detectSigner
 } from "../finp2p-contracts/src";
 import winston, { format, transports } from "winston";
-import { extractEIP712Params } from "../src/services/helpers";
+import { extractBusinessDetails } from "../src/services/helpers";
 import process from "process";
 import console from "console";
 import * as fs from "node:fs";
@@ -74,7 +74,7 @@ const verifySignature = async (
   const { hash: payloadHash } = template;
 
   const { buyerFinId, sellerFinId, asset, settlement, loan, params } =
-    extractEIP712Params(ast, source, destination, undefined, template, exCtx);
+    extractBusinessDetails(ast, source, destination, undefined, template, exCtx);
   const { domain, types, message } = template;
   const { chainId, verifyingContract } = domain;
   if (!chainId) {
