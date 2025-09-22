@@ -12,7 +12,7 @@ import {
   newInvestmentMessage,
   signEIP712
 } from "@owneraio/finp2p-nodejs-skeleton-adapter";
-import { FINP2POperatorERC20, FinP2PSignatureVerifier } from "../typechain-types";
+import { FINP2POperator, FinP2PSignatureVerifier } from "../typechain-types";
 import {
   AssetType,
   emptyTerm,
@@ -22,7 +22,7 @@ import {
   term,
   Term,
   termToEIP712,
-  getFinId
+  getFinId, ERC20_STANDARD_ID
 } from "../src";
 
 
