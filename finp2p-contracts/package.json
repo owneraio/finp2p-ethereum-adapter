@@ -50,7 +50,7 @@
     "@nomicfoundation/edr": "^0.3.2",
     "@nomicfoundation/hardhat-chai-matchers": "^2.1.0",
     "@nomicfoundation/hardhat-toolbox": "^4.0.0",
-    "@openzeppelin/contracts": "^5.0.2",
+    "@openzeppelin/contracts": "5.0.2",
     "@types/jest": "^29.2.0",
     "@types/keccak": "^3.0.4",
     "@types/node": "^16.11.12",
