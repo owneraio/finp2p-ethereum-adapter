@@ -12,7 +12,7 @@ import {
   newInvestmentMessage,
   signEIP712
 } from "@owneraio/finp2p-nodejs-skeleton-adapter";
-import { FINP2POperatorERC20, FinP2PSignatureVerifier } from "../typechain-types";
+import { FINP2POperator, FinP2PSignatureVerifier } from "../typechain-types";
 import {
   AssetType,
   emptyTerm,
@@ -22,7 +22,7 @@ import {
   term,
   Term,
   termToEIP712,
-  getFinId
+  getFinId, ERC20_STANDARD_ID
 } from "../src";
 
 
@@ -36,11 +36,30 @@ describe("FinP2P proxy contract test", function() {
     return contract.getAddress();
   }
 
-  async function deployFinP2PProxyFixture() {
-    const deployer = await ethers.getContractFactory("FINP2POperatorERC20");
+  async function deployAssetRegistry() {
+    const deployer = await ethers.getContractFactory("AssetRegistry");
     const contract = await deployer.deploy();
     const address = await contract.getAddress();
     return { contract, address };
+  }
+
+  async function deployERC20Standard() {
+    const deployer = await ethers.getContractFactory("ERC20Standard");
+    const contract = await deployer.deploy();
+    const address = await contract.getAddress();
+    return { contract, address };
+  }
+
+
+  async function deployFinP2PProxyFixture() {
+    const { contract: ar, address: assetRegistry } = await deployAssetRegistry();
+    const { address: erc20StandardAddress } = await deployERC20Standard();
+    await ar.registerAssetStandard(ERC20_STANDARD_ID, erc20StandardAddress);
+
+    const deployer = await ethers.getContractFactory("FINP2POperator");
+    const contract = await deployer.deploy(assetRegistry);
+    const finP2PAddress = await contract.getAddress();
+    return { contract, erc20StandardAddress, finP2PAddress };
   }
 
   function generateAssetId(): string {
@@ -107,8 +126,9 @@ describe("FinP2P proxy contract test", function() {
   describe("FinP2PProxy operations", () => {
 
     let operator: Signer;
-    let contract: FINP2POperatorERC20;
+    let contract: FINP2POperator;
     let finP2PAddress: string;
+    let erc20StandardAddress: string;
     let chainId: bigint;
     let verifyingContract: string;
 
@@ -172,14 +192,14 @@ describe("FinP2P proxy contract test", function() {
 
     before(async () => {
       [operator] = await ethers.getSigners();
-      ({ contract, address: finP2PAddress } = await loadFixture(deployFinP2PProxyFixture));
+      ({ contract, erc20StandardAddress, finP2PAddress } = await loadFixture(deployFinP2PProxyFixture));
       ({ chainId, verifyingContract } = await contract.eip712Domain());
       for (const term of testCases) {
-        const asset = await deployERC20(term.asset.assetId, term.asset.assetId, term.decimals, finP2PAddress);
-        await contract.associateAsset(term.asset.assetId, asset, { from: operator });
+        const asset = await deployERC20(term.asset.assetId, term.asset.assetId, term.decimals, erc20StandardAddress);
+        await contract.associateAsset(term.asset.assetId, asset, ERC20_STANDARD_ID, { from: operator });
 
-        const settlement = await deployERC20(term.settlement.assetId, term.settlement.assetId, term.decimals, finP2PAddress);
-        await contract.associateAsset(term.settlement.assetId, settlement, { from: operator });
+        const settlement = await deployERC20(term.settlement.assetId, term.settlement.assetId, term.decimals, erc20StandardAddress);
+        await contract.associateAsset(term.settlement.assetId, settlement, ERC20_STANDARD_ID, { from: operator });
       }
     });
 
