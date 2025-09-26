@@ -120,7 +120,7 @@ class CustomTestEnvironment extends NodeEnvironment {
 
     const execDetailsStore = new InMemoryExecDetailsStore();
 
-    const app = createApp(finP2PContract, undefined, execDetailsStore, logger);
+    const app = createApp("some-org", finP2PContract, undefined, execDetailsStore, logger);
     console.log("App created successfully.");
 
     this.httpServer = app.listen(port, () => {
