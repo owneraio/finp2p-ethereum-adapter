@@ -15,6 +15,7 @@
     "sync-balances": "tsc && node ./dist/scripts/sync-balances.js",
     "mass-approve": "tsc && node ./dist/scripts/mass-approve.js",
     "verify-signature": "ts-node ./scripts/verify-signature.ts",
+    "start-debug": "ts-node ./src/index.ts",
     "start": "node ."
   },
   "keywords": [],

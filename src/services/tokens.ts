@@ -44,11 +44,14 @@ export class TokenServiceImpl extends CommonServiceImpl implements TokenService 
       tokenAddress = tokenId;
       tokenStandard = "ERC20"; // TODO: parse from metadata
       allowanceRequired = true; // TODO: parse from metadata
+
+      logger.debug(`Associating existing token ${tokenAddress} to asset ${assetId}`);
     } else {
 
       tokenAddress = await this.finP2PContract.deployERC20(assetId, assetId, DefaultDecimals, this.finP2PContract.finP2PContractAddress);
       tokenStandard = "ERC20-with-operator";
       allowanceRequired = false;
+      logger.debug(`Deployed new token ${tokenAddress} for asset ${assetId}`);
     }
 
     try {
