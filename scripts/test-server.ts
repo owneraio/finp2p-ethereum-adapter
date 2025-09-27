@@ -75,12 +75,12 @@ const deployERC20Contract = async (provider: Provider, signer: Signer, finp2pTok
   return contractManger.deployERC20("ERC-20", "ERC20", 0, finp2pTokenAddress);
 };
 
-const startApp = async (port: number, provider: Provider, signer: Signer,
+const startApp = async (orgId: string, port: number, provider: Provider, signer: Signer,
                         finP2PContract: FinP2PContract, tokenAddress: string, finP2PClient: FinP2PClient | undefined,
                         execDetailsStore: ExecDetailsStore | undefined,
                         logger: winston.Logger) => {
 
-  const app = createApp(finP2PContract, finP2PClient, execDetailsStore, logger);
+  const app = createApp(orgId, finP2PContract, finP2PClient, execDetailsStore, logger);
   logger.info("App created successfully.");
 
   httpServer = app.listen(port, () => {
@@ -107,7 +107,10 @@ const start = async () => {
   logger.info(`Connected to network: ${network.name} chainId: ${network.chainId}`);
   const finP2PContractAddress = await deployContract(provider, signer, operatorAddress);
   const tokenAddress = await deployERC20Contract(provider, signer, finP2PContractAddress);
-
+  const orgId = process.env.ORGANIZATION_ID;
+  if (!orgId) {
+    throw new Error('ORGANIZATION_ID is not set');
+  }
   const finP2PAddress = process.env.FINP2P_ADDRESS;
   if (!finP2PAddress) {
     throw new Error("FINP2P_ADDRESS is not set");
@@ -121,7 +124,7 @@ const start = async () => {
   const execDetailsStore = new InMemoryExecDetailsStore();
   const finP2PContract = new FinP2PContract(provider, signer, finP2PContractAddress, logger);
 
-  await startApp(port, provider, signer, finP2PContract, tokenAddress, finP2PClient, execDetailsStore, logger);
+  await startApp(orgId, port, provider, signer, finP2PContract, tokenAddress, finP2PClient, execDetailsStore, logger);
 };
 
 

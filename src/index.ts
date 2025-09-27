@@ -29,6 +29,10 @@ const init = async () => {
   }
   const providerType = (process.env.PROVIDER_TYPE || "local") as ProviderType;
 
+  const orgId = process.env.ORGANIZATION_ID;
+  if (!orgId) {
+    throw new Error('ORGANIZATION_ID is not set');
+  }
   const ossUrl = process.env.OSS_URL;
   if (!ossUrl) {
     throw new Error("OSS_URL is not set");
@@ -63,7 +67,7 @@ const init = async () => {
   const { name, version, chainId, verifyingContract } = await finp2pContract.eip712Domain();
   logger.info(`EIP712 domain: name=${name} version=${version} chainId=${chainId} verifyingContract=${verifyingContract}`);
 
-  createApp(finp2pContract, finP2PClient, execDetailsStore, logger).listen(port, () => {
+  createApp(orgId, finp2pContract, finP2PClient, execDetailsStore, logger).listen(port, () => {
     logger.info(`listening at http://localhost:${port}`);
   });
 };
