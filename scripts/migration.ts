@@ -36,7 +36,7 @@ const startMigration = async (ossUrl: string, providerType: ProviderType, finp2p
 
   let migrated = 0;
   let skipped = 0;
-  for (const { assetId, tokenAddress } of assets) {
+  for (const { assetId, ledgerAssetInfo: { tokenId: tokenAddress } } of assets) {
     if (!isEthereumAddress(tokenAddress)) {
       logger.info(`Token address ${tokenAddress} for asset ${assetId} is not a valid Ethereum address, skipping`);
       continue;
