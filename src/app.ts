@@ -1,16 +1,21 @@
 import express from "express";
 import { logger as expressLogger } from "express-winston";
 import winston from "winston";
-import { register, ProofProvider, PlanApprovalServiceImpl } from "@owneraio/finp2p-nodejs-skeleton-adapter";
+import {
+  register,
+  ProofProvider,
+  PlanApprovalServiceImpl,
+  PaymentsServiceImpl
+} from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import { FinP2PClient } from "@owneraio/finp2p-client";
 import {
   EscrowServiceImpl,
   ExecDetailsStore,
-  PaymentsServiceImpl,
   TokenServiceImpl,
 } from "./services";
 import { FinP2PContract } from "@owneraio/finp2p-contracts";
 import { PluginManager } from "@owneraio/finp2p-nodejs-skeleton-adapter/dist/lib/plugins/manager";
+import { CollateralDepositPlugin } from "@owneraio/finp2p-ethereum-dtcc-plugin/dist/src";
 
 function createApp(orgId: string, finP2PContract: FinP2PContract,
                    finP2PClient: FinP2PClient | undefined,
@@ -27,13 +32,23 @@ function createApp(orgId: string, finP2PContract: FinP2PContract,
   }));
 
 
+  // ---------------------------------------------------------
+  // TODO: move to dynamic plugin loading
+
+  if (!finP2PClient) {
+    throw new Error("FinP2PClient is not initialized");
+  }
   const pluginManager = new PluginManager();
+  const depositPlugin = new CollateralDepositPlugin(finP2PContract, finP2PClient, logger);
+  pluginManager.registerPaymentsPlugin({ isAsync: true, asyncIface: depositPlugin});
+
+  // ---------------------------------------------------------
 
   const signerPrivateKey = process.env.OPERATOR_PRIVATE_KEY || "";
   const proofProvider = new ProofProvider(finP2PClient, signerPrivateKey)
   const tokenService = new TokenServiceImpl(finP2PContract, finP2PClient, execDetailsStore, proofProvider);
   const escrowService = new EscrowServiceImpl(finP2PContract, finP2PClient, execDetailsStore, proofProvider);
-  const paymentsService = new PaymentsServiceImpl(finP2PContract, finP2PClient, execDetailsStore, proofProvider);
+  const paymentsService = new PaymentsServiceImpl(pluginManager);
   const planApprovalService = new PlanApprovalServiceImpl(orgId, pluginManager, finP2PClient);
   register(app, tokenService, escrowService, tokenService, tokenService, paymentsService, planApprovalService);
 
