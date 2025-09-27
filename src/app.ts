@@ -14,8 +14,8 @@ import {
   TokenServiceImpl,
 } from "./services";
 import { FinP2PContract } from "@owneraio/finp2p-contracts";
-import { PluginManager } from "@owneraio/finp2p-nodejs-skeleton-adapter/dist/lib/plugins/manager";
-import { CollateralDepositPlugin } from "@owneraio/finp2p-ethereum-dtcc-plugin/dist/src";
+import { PluginManager } from "@owneraio/finp2p-nodejs-skeleton-adapter";
+import { CollateralDepositPlugin } from "@owneraio/finp2p-ethereum-dtcc-plugin";
 
 function createApp(orgId: string, finP2PContract: FinP2PContract,
                    finP2PClient: FinP2PClient | undefined,
