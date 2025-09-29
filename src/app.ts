@@ -39,7 +39,7 @@ function createApp(orgId: string, finP2PContract: FinP2PContract,
     throw new Error("FinP2PClient is not initialized");
   }
   const pluginManager = new PluginManager();
-  const depositPlugin = new CollateralDepositPlugin(finP2PContract, finP2PClient, logger);
+  const depositPlugin = new CollateralDepositPlugin(orgId, finP2PContract, finP2PClient, logger);
   pluginManager.registerPaymentsPlugin({ isAsync: true, asyncIface: depositPlugin});
 
   // ---------------------------------------------------------
