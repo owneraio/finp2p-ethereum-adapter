@@ -15,7 +15,7 @@ import {
 } from "./services";
 import { FinP2PContract } from "@owneraio/finp2p-contracts";
 import { PluginManager } from "@owneraio/finp2p-nodejs-skeleton-adapter";
-import { CollateralDepositPlugin } from "@owneraio/finp2p-ethereum-dtcc-plugin";
+import { CollateralDepositPlugin, CollateralTransactionHook } from "@owneraio/finp2p-ethereum-dtcc-plugin";
 
 function createApp(orgId: string, finP2PContract: FinP2PContract,
                    finP2PClient: FinP2PClient | undefined,
@@ -39,17 +39,21 @@ function createApp(orgId: string, finP2PContract: FinP2PContract,
   if (finP2PClient) {
     const depositPlugin = new CollateralDepositPlugin(orgId, finP2PContract, finP2PClient, logger);
     pluginManager.registerPaymentsPlugin({ isAsync: true, asyncIface: depositPlugin});
+
+    // using this hook trick because of the borrower should initialize the collateral agreement
+    const transactionHook = new CollateralTransactionHook(finP2PContract, finP2PClient, logger);
+    pluginManager.registerTransactionHook(transactionHook);
   }
 
   // ---------------------------------------------------------
 
   const signerPrivateKey = process.env.OPERATOR_PRIVATE_KEY || "";
   const proofProvider = new ProofProvider(finP2PClient, signerPrivateKey)
-  const tokenService = new TokenServiceImpl(finP2PContract, finP2PClient, execDetailsStore, proofProvider);
-  const escrowService = new EscrowServiceImpl(finP2PContract, finP2PClient, execDetailsStore, proofProvider);
+  const tokenService = new TokenServiceImpl(finP2PContract, finP2PClient, execDetailsStore, proofProvider, pluginManager);
+  const escrowService = new EscrowServiceImpl(finP2PContract, finP2PClient, execDetailsStore, proofProvider, pluginManager);
   const paymentsService = new PaymentsServiceImpl(pluginManager);
   const planApprovalService = new PlanApprovalServiceImpl(orgId, pluginManager, finP2PClient);
-  register(app, tokenService, escrowService, tokenService, tokenService, paymentsService, planApprovalService);
+  register(app, tokenService, escrowService, tokenService, tokenService, paymentsService, planApprovalService, pluginManager);
 
   return app;
 }
