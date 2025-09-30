@@ -40,3 +40,4 @@ To run tests against external network, set `network.rpcUrl` parameter in `jest.c
 
 
 To run tests against external adapter, set `adapter.url` parameter in `jest.config.js` to the desired adapter url.
+
