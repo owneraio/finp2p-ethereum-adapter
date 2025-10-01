@@ -34,7 +34,7 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
         REDEEM
     }
 
-    string public constant VERSION = "0.24.0";
+    string public constant VERSION = "0.25.5";
 
     bytes32 private constant ASSET_MANAGER = keccak256("ASSET_MANAGER");
     bytes32 private constant TRANSACTION_MANAGER = keccak256("TRANSACTION_MANAGER");
@@ -221,7 +221,7 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
             string memory destination,
             string memory assetId,
             AssetType assetType,
-            string memory amount) = _extractDetails(sellerFinId, buyerFinId, assetTerm, settlementTerm, loanTerm,op);
+            string memory amount) = _extractDetails(sellerFinId, buyerFinId, assetTerm, settlementTerm, loanTerm, op);
         require(verifyInvestmentSignature(
             op.eip712PrimaryType,
             nonce,
@@ -272,7 +272,7 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
         (string memory source,
             string memory destination,
             string memory assetId, AssetType assetType,
-            string memory amount) = _extractDetails(sellerFinId, buyerFinId, assetTerm, settlementTerm, loanTerm,op);
+            string memory amount) = _extractDetails(sellerFinId, buyerFinId, assetTerm, settlementTerm, loanTerm, op);
         require(verifyInvestmentSignature(
             op.eip712PrimaryType,
             nonce,
@@ -387,7 +387,11 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
         uint256 balance = IERC20(asset.tokenAddress).balanceOf(from);
         require(balance >= tokenAmount, "Not sufficient balance to transfer");
 
-        IERC20(asset.tokenAddress).transferFrom(from, to, tokenAmount);
+        if (from == address(this)) {
+            IERC20(asset.tokenAddress).transfer(to, tokenAmount);
+        } else {
+            IERC20(asset.tokenAddress).transferFrom(from, to, tokenAmount);
+        }
     }
 
     function _burn(address from, string memory assetId, string memory quantity) internal {
