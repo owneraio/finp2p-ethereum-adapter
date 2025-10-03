@@ -73,4 +73,4 @@ if (!amount) {
   process.exit(1);
 }
 massApprove(ossUrl, providerType, contractAddress, BigInt(amount)).then(() => {
-});
+}).catch(console.error);

@@ -82,4 +82,4 @@ if (!finp2pContractAddress) {
   process.exit(1);
 }
 syncBalanceFromOssToEthereum(ossUrl, providerType, finp2pContractAddress).then(() => {
-});
+}).catch(console.error);
