@@ -38,7 +38,8 @@ describe("FinP2P proxy contract test", function() {
 
   async function deployFinP2PProxyFixture() {
     const deployer = await ethers.getContractFactory("FINP2POperatorERC20");
-    const contract = await deployer.deploy();
+    const [admin] = await ethers.getSigners();
+    const contract = await deployer.deploy(admin);
     const address = await contract.getAddress();
     return { contract, address };
   }
