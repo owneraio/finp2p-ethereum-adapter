@@ -40,8 +40,7 @@ export class EscrowServiceImpl extends CommonServiceImpl implements EscrowServic
     return pendingReceiptOperation(txHash, undefined);
   }
 
-  public async release(idempotencyKey: string, destination: Destination, asset: Asset, quantity: string, operationId: string, exCtx: ExecutionContext
-  ): Promise<ReceiptOperation> {
+  public async release(idempotencyKey: string, source: Source, destination: Destination, asset: Asset, quantity: string, operationId: string, exCtx: ExecutionContext | undefined): Promise<ReceiptOperation> {
     let txHash: string;
     try {
       txHash = await this.finP2PContract.releaseTo(operationId, destination.finId, quantity);
@@ -59,7 +58,7 @@ export class EscrowServiceImpl extends CommonServiceImpl implements EscrowServic
     return pendingReceiptOperation(txHash, undefined);
   }
 
-  public async rollback(idempotencyKey: string, asset: Asset, quantity: string, operationId: string, exCtx: ExecutionContext
+  public async rollback(idempotencyKey: string, source: Source, asset: Asset, quantity: string, operationId: string, exCtx: ExecutionContext | undefined
   ): Promise<ReceiptOperation> {
     let txHash: string;
     try {
