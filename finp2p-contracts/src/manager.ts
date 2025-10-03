@@ -54,20 +54,21 @@ export class ContractsManager {
     return await this.provider.getTransactionCount(this.signer.getAddress(), "latest");
   }
 
-  async deployFinP2PContract(signerAddress: string | undefined, paymentAssetCode: string | undefined = undefined) {
+  async deployFinP2PContract(operatorAddress: string | undefined, paymentAssetCode: string | undefined = undefined) {
     this.logger.info("Deploying FinP2P contract...");
     const factory = new ContractFactory<any[], FINP2POperatorERC20>(
       FINP2P.abi, FINP2P.bytecode, this.signer
     );
-    const contract = await factory.deploy();
+    const deployerAddress = await this.signer.getAddress();
+    const contract = await factory.deploy(deployerAddress);
     await contract.waitForDeployment();
 
     const address = await contract.getAddress();
     this.logger.info(`FinP2P contract deployed successfully at: ${address}`);
 
-    if (signerAddress) {
-      await this.grantAssetManagerRole(address, signerAddress);
-      await this.grantTransactionManagerRole(address, signerAddress);
+    if (operatorAddress) {
+      await this.grantAssetManagerRole(address, operatorAddress);
+      await this.grantTransactionManagerRole(address, operatorAddress);
     }
 
     if (paymentAssetCode) {
