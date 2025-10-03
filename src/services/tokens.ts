@@ -4,7 +4,7 @@ import {
   ExecutionContext, ReceiptOperation, Balance, TokenService, Signature, Source,
   failedAssetCreation, failedReceiptOperation, successfulAssetCreation,
   pendingReceiptOperation, AssetBind, AssetDenomination, AssetIdentifier, FinIdAccount,
-  AssetCreationResult, ProofProvider
+  AssetCreationResult, ProofProvider, PluginManager
 } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import { FinP2PClient } from "@owneraio/finp2p-client";
 import {
@@ -26,8 +26,9 @@ export class TokenServiceImpl extends CommonServiceImpl implements TokenService 
 
   constructor(finP2PContract: FinP2PContract, finP2PClient: FinP2PClient | undefined,
               execDetailsStore: ExecDetailsStore | undefined,
-              proofProvider: ProofProvider | undefined) {
-    super(finP2PContract, finP2PClient, execDetailsStore, proofProvider);
+              proofProvider: ProofProvider | undefined,
+              pluginManager: PluginManager | undefined) {
+    super(finP2PContract, finP2PClient, execDetailsStore, proofProvider, pluginManager);
   }
 
   public async createAsset(idempotencyKey: string, asset: Asset,
@@ -35,7 +36,7 @@ export class TokenServiceImpl extends CommonServiceImpl implements TokenService 
                            assetDenomination: AssetDenomination | undefined, assetIdentifier: AssetIdentifier | undefined): Promise<AssetCreationStatus> {
     const { assetId } = asset;
     let tokenAddress, tokenStandard: string;
-    let allowanceRequired: boolean
+    let allowanceRequired: boolean;
     if (assetBind && assetBind.tokenIdentifier) {
       const { tokenIdentifier: { tokenId } } = assetBind;
       if (!isEthereumAddress(tokenId)) {

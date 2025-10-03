@@ -3,7 +3,7 @@ import {
   OperationStatus,
   ReceiptOperation,
   ProofProvider,
-  ExecutionContext
+  ExecutionContext, PluginManager
 } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import { FinP2PClient } from "@owneraio/finp2p-client";
 import {
@@ -23,17 +23,21 @@ export class CommonServiceImpl implements CommonService, HealthService {
   finP2PClient: FinP2PClient | undefined;
   execDetailsStore: ExecDetailsStore | undefined;
   proofProvider: ProofProvider | undefined;
+  pluginManager: PluginManager | undefined;
+
 
   constructor(
     finP2PContract: FinP2PContract,
     finP2PClient: FinP2PClient | undefined,
     execDetailsStore: ExecDetailsStore | undefined,
     proofProvider: ProofProvider | undefined,
+    pluginManager: PluginManager | undefined,
   ) {
     this.finP2PContract = finP2PContract;
     this.finP2PClient = finP2PClient;
     this.execDetailsStore = execDetailsStore;
     this.proofProvider = proofProvider;
+    this.pluginManager = pluginManager;
   }
 
   public async readiness() {

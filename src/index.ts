@@ -33,6 +33,10 @@ const init = async () => {
   if (!orgId) {
     throw new Error('ORGANIZATION_ID is not set');
   }
+  const finP2PUrl = process.env.FINP2P_ADDRESS;
+  if (!finP2PUrl) {
+    throw new Error("FINP2P_ADDRESS is not set");
+  }
   const ossUrl = process.env.OSS_URL;
   if (!ossUrl) {
     throw new Error("OSS_URL is not set");
@@ -59,7 +63,7 @@ const init = async () => {
   const useNonceManager = process.env.NONCE_POLICY === "fast";
   const { provider, signer } = await createProviderAndSigner(providerType, logger, useNonceManager);
   const finp2pContract = new FinP2PContract(provider, signer, finP2PContractAddress, logger);
-  const finP2PClient = new FinP2PClient("", ossUrl);
+  const finP2PClient = new FinP2PClient(finP2PUrl, ossUrl);
   const execDetailsStore = new InMemoryExecDetailsStore();
 
   const contractVersion = await finp2pContract.getVersion()
