@@ -141,4 +141,4 @@ const grantOperator = process.env.GRANT_OPERATOR === "yes";
 const grantMinter = process.env.GRANT_MINTER === "yes";
 
 startMigration(ossUrl, providerType, contractAddress, grantOperator, grantMinter).then(() => {
-});
+}).catch(console.error);

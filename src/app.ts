@@ -35,7 +35,7 @@ function createApp(orgId: string, finP2PContract: FinP2PContract,
   const escrowService = new EscrowServiceImpl(finP2PContract, finP2PClient, execDetailsStore, proofProvider);
   const paymentsService = new PaymentsServiceImpl(finP2PContract, finP2PClient, execDetailsStore, proofProvider);
   const planApprovalService = new PlanApprovalServiceImpl(orgId, pluginManager, finP2PClient);
-  register(app, tokenService, escrowService, tokenService, tokenService, paymentsService, planApprovalService);
+  register(app, tokenService, escrowService, tokenService, tokenService, paymentsService, planApprovalService, pluginManager);
 
   return app;
 }
