@@ -59,7 +59,6 @@ function createApp(orgId: string, finP2PContract: FinP2PContract,
   const proofProvider = new ProofProvider(orgId, finP2PClient, signerPrivateKey);
   const tokenService = new TokenServiceImpl(finP2PContract, finP2PClient, execDetailsStore, proofProvider, pluginManager);
   const escrowService = new EscrowServiceImpl(finP2PContract, finP2PClient, execDetailsStore, proofProvider, pluginManager);
-  // const paymentsService = new PaymentsServiceImpl(finP2PContract, finP2PClient, execDetailsStore, proofProvider);
   const paymentsService = new PaymentsServiceImpl(pluginManager);
   const planApprovalService = new PlanApprovalServiceImpl(orgId, pluginManager, finP2PClient);
   register(app, tokenService, escrowService, tokenService, tokenService, paymentsService, planApprovalService, pluginManager);
