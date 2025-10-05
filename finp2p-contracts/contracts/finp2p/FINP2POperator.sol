@@ -293,7 +293,7 @@ contract FINP2POperator is AccessControl, FinP2PSignatureVerifier {
             signature
         ), "Signature is not verified");
 
-        _transfer(source.toAddress(), _getEscrow(), assetId, amount);
+        _hold(source.toAddress(), assetId, amount);
         if (op.releaseType == ReleaseType.RELEASE) {
             locks[op.operationId] = Lock(assetId, assetType, source, destination, amount);
         } else if (op.releaseType == ReleaseType.REDEEM) {
@@ -319,7 +319,7 @@ contract FINP2POperator is AccessControl, FinP2PSignatureVerifier {
         require(lock.amount.equals(quantity), "Trying to release amount different from the one held");
         require(lock.destination.equals(toFinId), "Trying to release to different destination than the one expected in the lock");
 
-        _transfer(_getEscrow(), toFinId.toAddress(), lock.assetId, lock.amount);
+        _release(toFinId.toAddress(), lock.assetId, lock.amount);
         emit Release(lock.assetId, lock.assetType, lock.source, lock.destination, quantity, operationId);
         delete locks[operationId];
     }
@@ -339,7 +339,7 @@ contract FINP2POperator is AccessControl, FinP2PSignatureVerifier {
         require(lock.source.equals(ownerFinId), "Trying to redeem asset with owner different from the one who held it");
         require(bytes(lock.destination).length == 0, "Trying to redeem asset with non-empty destination");
         require(lock.amount.equals(quantity), "Trying to redeem amount different from the one held");
-        _burn(_getEscrow(), lock.assetId, lock.amount);
+        _releaseBurn(lock.assetId, lock.amount);
         emit Redeem(lock.assetId, lock.assetType, ownerFinId, quantity, operationId);
         delete locks[operationId];
     }
@@ -352,7 +352,7 @@ contract FINP2POperator is AccessControl, FinP2PSignatureVerifier {
         require(hasRole(TRANSACTION_MANAGER, _msgSender()), "FINP2POperatorERC20: must have transaction manager role to rollback asset");
         require(_haveContract(operationId), "contract does not exists");
         Lock storage lock = locks[operationId];
-        _transfer(_getEscrow(), lock.source.toAddress(), lock.assetId, lock.amount);
+        _release(lock.source.toAddress(), lock.assetId, lock.amount);
         emit Release(lock.assetId, lock.assetType, lock.source, "", lock.amount, operationId);
         delete locks[operationId];
     }
@@ -376,7 +376,6 @@ contract FINP2POperator is AccessControl, FinP2PSignatureVerifier {
         exists = (bytes(locks[operationId].amount).length > 0);
     }
 
-
     function _mint(address to, string memory assetId, string memory quantity) internal {
         require(_haveAsset(assetId), "Asset not found");
         Asset memory asset = assets[assetId];
@@ -388,11 +387,21 @@ contract FINP2POperator is AccessControl, FinP2PSignatureVerifier {
         require(_haveAsset(assetId), "Asset not found");
         Asset memory asset = assets[assetId];
         AssetStandard standard = AssetStandard(AssetRegistry(assetRegistry).getAssetStandard(asset.standard));
-        if (from == address(this)) {
-            standard(asset.tokenAddress).transfer(asset.tokenAddress, to, quantity);
-        } else {
-            standard(asset.tokenAddress).transferFrom(asset.tokenAddress, from, to, quantity);
-        }
+        standard.transferFrom(asset.tokenAddress, from, to, quantity);
+    }
+
+    function _hold(address from, string memory assetId, string memory quantity) internal {
+        require(_haveAsset(assetId), "Asset not found");
+        Asset memory asset = assets[assetId];
+        AssetStandard standard = AssetStandard(AssetRegistry(assetRegistry).getAssetStandard(asset.standard));
+        standard.transferFrom(asset.tokenAddress, from, address(standard), quantity);
+    }
+
+    function _release(address to, string memory assetId, string memory quantity) internal {
+        require(_haveAsset(assetId), "Asset not found");
+        Asset memory asset = assets[assetId];
+        AssetStandard standard = AssetStandard(AssetRegistry(assetRegistry).getAssetStandard(asset.standard));
+        standard.transferFrom(asset.tokenAddress, address(standard), to, quantity);
     }
 
     function _burn(address from, string memory assetId, string memory quantity) internal {
@@ -400,6 +409,13 @@ contract FINP2POperator is AccessControl, FinP2PSignatureVerifier {
         Asset memory asset = assets[assetId];
         AssetStandard standard = AssetStandard(AssetRegistry(assetRegistry).getAssetStandard(asset.standard));
         standard.burn(asset.tokenAddress, from, quantity);
+    }
+
+    function _releaseBurn(string memory assetId, string memory quantity) internal {
+        require(_haveAsset(assetId), "Asset not found");
+        Asset memory asset = assets[assetId];
+        AssetStandard standard = AssetStandard(AssetRegistry(assetRegistry).getAssetStandard(asset.standard));
+        standard.burn(asset.tokenAddress, address(standard), quantity);
     }
 
     /// @notice Extract the direction of the operation

@@ -26,7 +26,11 @@ contract ERC20Standard is AssetStandard {
         uint256 balance = IERC20(tokenAddress).balanceOf(from);
         require(balance >= tokenAmount, "Not sufficient balance to transfer");
         IERC20 token = IERC20(tokenAddress);
-        return token.transferFrom(from, to, tokenAmount);
+        if (from == address(this)) {
+            return token.transfer( to, tokenAmount);
+        } else {
+            return token.transferFrom(from, to, tokenAmount);
+        }
     }
 
     function mint(address tokenAddress, address to, string memory quantity) external {
