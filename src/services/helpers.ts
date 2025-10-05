@@ -11,7 +11,7 @@ import {
   operationParams,
   Phase,
   ReleaseType,
-  emptyLoanTerms, termFromEIP712
+  emptyLoanTerms, termFromEIP712, OperationParams
 } from "@owneraio/finp2p-contracts";
 import { BusinessContract } from "./model";
 import { EIP712RedemptionMessage } from "@owneraio/finp2p-nodejs-skeleton-adapter/dist/lib/services/eip712";
@@ -194,3 +194,7 @@ const compareAssets = (asset: Asset, eipAsset: EIP712Term): boolean => {
 };
 
 const isIn = (str: string, ...args: string[]): boolean => args.includes(str);
+
+export const emptyOperationParams = (): OperationParams => {
+  return operationParams(LegType.Asset, PrimaryType.PrimarySale, Phase.Initiate);
+}

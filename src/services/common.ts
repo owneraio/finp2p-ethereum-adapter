@@ -1,14 +1,15 @@
 import {
-  CommonService, HealthService,
+  CommonService,
+  ExecutionContext,
+  HealthService,
+  LegType,
   OperationStatus,
-  ReceiptOperation,
+  PrimaryType,
   ProofProvider,
-  ExecutionContext
+  ReceiptOperation
 } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import { FinP2PClient } from "@owneraio/finp2p-client";
-import {
-  FinP2PContract
-} from "@owneraio/finp2p-contracts";
+import { FinP2PContract, operationParams, OperationParams, Phase, ReleaseType } from "@owneraio/finp2p-contracts";
 
 
 export interface ExecDetailsStore {
@@ -28,7 +29,7 @@ export class CommonServiceImpl implements CommonService, HealthService {
     finP2PContract: FinP2PContract,
     finP2PClient: FinP2PClient | undefined,
     execDetailsStore: ExecDetailsStore | undefined,
-    proofProvider: ProofProvider | undefined,
+    proofProvider: ProofProvider | undefined
   ) {
     this.finP2PContract = finP2PContract;
     this.finP2PClient = finP2PClient;
@@ -51,6 +52,7 @@ export class CommonServiceImpl implements CommonService, HealthService {
   public async operationStatus(cid: string): Promise<OperationStatus> {
     return await this.finP2PContract.getOperationStatus(cid);
   }
+
 
 
 }

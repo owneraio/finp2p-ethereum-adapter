@@ -11,11 +11,11 @@ import {
   FinP2PContract,
   assetTypeFromString,
   EthereumTransactionError,
-  term, isEthereumAddress, ERC20_STANDARD_ID
+  term, isEthereumAddress, ERC20_STANDARD_ID, operationParams, Phase, ReleaseType
 } from "@owneraio/finp2p-contracts";
 
 import { CommonServiceImpl, ExecDetailsStore } from "./common";
-import { extractBusinessDetails } from "./helpers";
+import { emptyOperationParams, extractBusinessDetails } from "./helpers";
 import { validateRequest } from "./validator";
 import { keccak256, toUtf8Bytes } from "ethers";
 
@@ -102,7 +102,7 @@ export class TokenServiceImpl extends CommonServiceImpl implements TokenService 
     let txHash: string;
     logger.info(`Issue asset ${asset.assetId} to ${issuerFinId} with amount ${quantity}`);
     try {
-      txHash = await this.finP2PContract.issue(issuerFinId, term(asset.assetId, assetTypeFromString(asset.assetType), quantity));
+      txHash = await this.finP2PContract.issue(issuerFinId, term(asset.assetId, assetTypeFromString(asset.assetType), quantity), emptyOperationParams());
     } catch (e) {
       logger.error(`Error on asset issuance: ${e}`);
       if (e instanceof EthereumTransactionError) {
@@ -158,7 +158,7 @@ export class TokenServiceImpl extends CommonServiceImpl implements TokenService 
 
     let txHash: string;
     try {
-      txHash = await this.finP2PContract.releaseAndRedeem(operationId, source.finId, quantity);
+      txHash = await this.finP2PContract.releaseAndRedeem(operationId, source.finId, quantity, emptyOperationParams());
     } catch (e) {
       logger.error(`Error releasing asset: ${e}`);
       if (e instanceof EthereumTransactionError) {
