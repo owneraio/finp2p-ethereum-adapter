@@ -12,7 +12,7 @@ const logger = winston.createLogger({
 
 const massApprove = async (ossUrl: string, providerType: ProviderType, contractAddress: string, amount: bigint) => {
   const finp2p = new FinP2PClient("", ossUrl);
-  const assets = await finp2p.getAssetsWithTokens();
+  const assets = await finp2p.getAssets();
   logger.info(`Got a list of ${assets.length} assets to migrate`);
 
   if (assets.length === 0) {
@@ -22,7 +22,7 @@ const massApprove = async (ossUrl: string, providerType: ProviderType, contractA
 
   const { provider, signer } = await createProviderAndSigner(providerType, logger);
   const signerAddress = await signer.getAddress();
-  for (const { assetId, ledgerAssetInfo: { tokenId: tokenAddress } } of assets) {
+  for (const { id: assetId, ledgerAssetInfo: { tokenId: tokenAddress } } of assets) {
     try {
       const erc20 = new ERC20Contract(provider, signer, tokenAddress, logger);
       const decimals = await erc20.decimals();
