@@ -20,10 +20,14 @@ const logger = winston.createLogger({
 });
 
 
-const startMigration = async (ossUrl: string, providerType: ProviderType, finp2pContractAddress: string,
-                              grantOperator: boolean, grantMinter: boolean) => {
+const startMigration = async (
+  orgId: string, ossUrl: string,
+  providerType: ProviderType,
+  finp2pContractAddress: string,
+  oldFinp2pAddress: string | undefined,
+  grantOperator: boolean, grantMinter: boolean) => {
   const finp2p = new FinP2PClient("", ossUrl);
-  const assets = await finp2p.getAssetsWithTokens();
+  const assets = await finp2p.getAssets();
   logger.info(`Got a list of ${assets.length} assets to migrate`);
 
   if (assets.length === 0) {
@@ -36,11 +40,30 @@ const startMigration = async (ossUrl: string, providerType: ProviderType, finp2p
 
   let migrated = 0;
   let skipped = 0;
-  for (const { assetId, ledgerAssetInfo: { tokenId: tokenAddress } } of assets) {
-    if (!isEthereumAddress(tokenAddress)) {
-      logger.info(`Token address ${tokenAddress} for asset ${assetId} is not a valid Ethereum address, skipping`);
+  for (const { organizationId, id: assetId, ledgerAssetInfo } of assets) {
+    if (organizationId !== orgId) {
       continue;
     }
+    if (!ledgerAssetInfo) {
+      continue;
+    }
+    const { tokenId, ledgerReference } = ledgerAssetInfo;
+    let tokenAddress: string;
+    if (ledgerReference) {
+      const { address, tokenStandard, additionalContractDetails } = ledgerReference;
+      tokenAddress = address;
+      // TODO: use tokenStandard instead of `grantOperator` and `grantMinter` params
+      // if (additionalContractDetails) {
+      //   const { finP2PEVMOperatorDetails: { finP2POperatorContractAddress } } = additionalContractDetails;
+      // }
+      // TODO: use `finP2POperatorContractAddress` instead of `oldFinp2pAddress` param
+    } else {
+      if (!isEthereumAddress(tokenId)) {
+        continue;
+      }
+      tokenAddress = tokenId;
+    }
+
     try {
       const foundAddress = await finP2PContract.getAssetAddress(assetId);
       if (foundAddress === tokenAddress) {
@@ -114,10 +137,41 @@ const startMigration = async (ossUrl: string, providerType: ProviderType, finp2p
     }
   }
 
+  if (oldFinp2pAddress) {
+    const oldFinP2PContract = new FinP2PContract(provider, signer, oldFinp2pAddress, logger);
+    const paymentAssets = await finp2p.getPaymentAssets();
+    logger.info(`Got a list of ${paymentAssets.length} assets to migrate`);
+    for (const { orgId: assetOrg, assets } of paymentAssets) {
+      if (assets.length > 0 && assetOrg === orgId) {
+        for (const { code } of assets) {
+          let tokenAddress: string;
+          try {
+            tokenAddress = await oldFinP2PContract.getAssetAddress(code);
+          } catch (e) {
+            if (!`${e}`.includes("Asset not found")) {
+              logger.error(e)
+            }
+            continue
+          }
+
+          logger.info(`Migrating payment asset ${code} with token address ${tokenAddress}`);
+          const txHash = await finP2PContract.associateAsset(code, tokenAddress);
+          await finP2PContract.waitForCompletion(txHash);
+        }
+      }
+    }
+  }
+
   logger.info("Migration complete");
   logger.info(`Migrated ${migrated} of ${assets.length} assets`);
   logger.info(`Skipped ${skipped} assets`);
 };
+
+const orgId = process.env.ORGANIZATION_ID;
+if (!orgId) {
+  console.error("Env variable ORGANIZATION_ID was not set");
+  process.exit(1);
+}
 
 const ossUrl = process.env.OSS_URL;
 if (!ossUrl) {
@@ -125,11 +179,7 @@ if (!ossUrl) {
   process.exit(1);
 }
 
-const providerType = process.env.PROVIDER_TYPE as ProviderType;
-if (!providerType) {
-  console.error("Env variable PROVIDER_TYPE was not set");
-  process.exit(1);
-}
+const providerType = (process.env.PROVIDER_TYPE || "local") as ProviderType;
 
 const contractAddress = process.env.FINP2P_CONTRACT_ADDRESS;
 if (!contractAddress) {
@@ -137,8 +187,11 @@ if (!contractAddress) {
   process.exit(1);
 }
 
+const oldFinp2pAddress = process.env.OLD_FINP2P_CONTRACT_ADDRESS;
+
+
 const grantOperator = process.env.GRANT_OPERATOR === "yes";
 const grantMinter = process.env.GRANT_MINTER === "yes";
 
-startMigration(ossUrl, providerType, contractAddress, grantOperator, grantMinter).then(() => {
+startMigration(orgId, ossUrl, providerType, contractAddress, oldFinp2pAddress, grantOperator, grantMinter).then(() => {
 }).catch(console.error);
