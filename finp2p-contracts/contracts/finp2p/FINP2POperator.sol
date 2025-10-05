@@ -4,6 +4,7 @@ pragma solidity ^0.8.20;
 
 import "../utils/StringUtils.sol";
 import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
+import {OperationParams, LegType, PrimaryType, Phase, ReleaseType} from "../utils/finp2p/OperationParams.sol";
 import {AssetRegistry} from "../utils/finp2p/AssetRegistry.sol";
 import {AssetStandard} from "../utils/finp2p/AssetStandard.sol";
 import {FinIdUtils} from "../utils/finp2p/FinIdUtils.sol";
@@ -21,28 +22,11 @@ contract FINP2POperator is AccessControl, FinP2PSignatureVerifier {
     using StringUtils for string;
     using FinIdUtils for string;
 
-    enum Phase {
-        INITIATE,
-        CLOSE
-    }
-
-    enum ReleaseType {
-        RELEASE,
-        REDEEM
-    }
 
     string public constant VERSION = "0.25.6-ar";
 
     bytes32 private constant ASSET_MANAGER = keccak256("ASSET_MANAGER");
     bytes32 private constant TRANSACTION_MANAGER = keccak256("TRANSACTION_MANAGER");
-
-    struct OperationParams {
-        LegType leg;
-        Phase phase;
-        PrimaryType eip712PrimaryType;
-        string operationId;
-        ReleaseType releaseType;
-    }
 
     struct LockInfo {
         string assetId;
@@ -198,10 +182,11 @@ contract FINP2POperator is AccessControl, FinP2PSignatureVerifier {
     /// @param assetTerm The asset term to issue
     function issue(
         string calldata issuerFinId,
-        Term calldata assetTerm
+        Term calldata assetTerm,
+        OperationParams memory op
     ) external {
         require(hasRole(TRANSACTION_MANAGER, _msgSender()), "FINP2POperatorERC20: must have transaction manager role to issue asset");
-        _mint(issuerFinId.toAddress(), assetTerm.assetId, assetTerm.amount);
+        _mint(issuerFinId.toAddress(), assetTerm.assetId, assetTerm.amount, op);
         emit Issue(assetTerm.assetId, assetTerm.assetType, issuerFinId, assetTerm.amount);
     }
 
@@ -241,7 +226,7 @@ contract FINP2POperator is AccessControl, FinP2PSignatureVerifier {
             source,
             signature
         ), "Signature is not verified");
-        _transfer(source.toAddress(), destination.toAddress(), assetId, amount);
+        _transfer(source.toAddress(), destination.toAddress(), assetId, amount, op);
         emit Transfer(assetId, assetType, source, destination, amount);
     }
 
@@ -250,10 +235,11 @@ contract FINP2POperator is AccessControl, FinP2PSignatureVerifier {
     /// @param term The term to redeem
     function redeem(
         string calldata ownerFinId,
-        Term calldata term
+        Term calldata term,
+        OperationParams memory op
     ) external {
         require(hasRole(TRANSACTION_MANAGER, _msgSender()), "FINP2POperatorERC20: must have transaction manager role to release asset");
-        _burn(ownerFinId.toAddress(), term.assetId, term.amount);
+        _burn(ownerFinId.toAddress(), term.assetId, term.amount, op);
         emit Redeem(term.assetId, term.assetType, ownerFinId, term.amount, '');
     }
 
@@ -293,7 +279,7 @@ contract FINP2POperator is AccessControl, FinP2PSignatureVerifier {
             signature
         ), "Signature is not verified");
 
-        _hold(source.toAddress(), assetId, amount);
+        _hold(source.toAddress(), assetId, amount, op);
         if (op.releaseType == ReleaseType.RELEASE) {
             locks[op.operationId] = Lock(assetId, assetType, source, destination, amount);
         } else if (op.releaseType == ReleaseType.REDEEM) {
@@ -311,7 +297,8 @@ contract FINP2POperator is AccessControl, FinP2PSignatureVerifier {
     function releaseTo(
         string calldata operationId,
         string calldata toFinId,
-        string calldata quantity
+        string calldata quantity,
+        OperationParams memory op
     ) external {
         require(hasRole(TRANSACTION_MANAGER, _msgSender()), "FINP2POperatorERC20: must have transaction manager role to release asset");
         require(_haveContract(operationId), "Contract does not exists");
@@ -319,7 +306,7 @@ contract FINP2POperator is AccessControl, FinP2PSignatureVerifier {
         require(lock.amount.equals(quantity), "Trying to release amount different from the one held");
         require(lock.destination.equals(toFinId), "Trying to release to different destination than the one expected in the lock");
 
-        _release(toFinId.toAddress(), lock.assetId, lock.amount);
+        _release(toFinId.toAddress(), lock.assetId, lock.amount, op);
         emit Release(lock.assetId, lock.assetType, lock.source, lock.destination, quantity, operationId);
         delete locks[operationId];
     }
@@ -331,7 +318,8 @@ contract FINP2POperator is AccessControl, FinP2PSignatureVerifier {
     function releaseAndRedeem(
         string calldata operationId,
         string calldata ownerFinId,
-        string calldata quantity
+        string calldata quantity,
+        OperationParams memory op
     ) external {
         require(hasRole(TRANSACTION_MANAGER, _msgSender()), "FINP2POperatorERC20: must have transaction manager role to release asset");
         require(_haveContract(operationId), "Contract does not exists");
@@ -339,7 +327,7 @@ contract FINP2POperator is AccessControl, FinP2PSignatureVerifier {
         require(lock.source.equals(ownerFinId), "Trying to redeem asset with owner different from the one who held it");
         require(bytes(lock.destination).length == 0, "Trying to redeem asset with non-empty destination");
         require(lock.amount.equals(quantity), "Trying to redeem amount different from the one held");
-        _releaseBurn(lock.assetId, lock.amount);
+        _releaseBurn(lock.assetId, lock.amount, op);
         emit Redeem(lock.assetId, lock.assetType, ownerFinId, quantity, operationId);
         delete locks[operationId];
     }
@@ -347,12 +335,13 @@ contract FINP2POperator is AccessControl, FinP2PSignatureVerifier {
     /// @notice Release asset from escrow back to the source
     /// @param operationId The operation id of the withheld asset
     function releaseBack(
-        string memory operationId
+        string memory operationId,
+        OperationParams memory op
     ) external {
         require(hasRole(TRANSACTION_MANAGER, _msgSender()), "FINP2POperatorERC20: must have transaction manager role to rollback asset");
         require(_haveContract(operationId), "contract does not exists");
         Lock storage lock = locks[operationId];
-        _release(lock.source.toAddress(), lock.assetId, lock.amount);
+        _release(lock.source.toAddress(), lock.assetId, lock.amount, op);
         emit Release(lock.assetId, lock.assetType, lock.source, "", lock.amount, operationId);
         delete locks[operationId];
     }
@@ -376,46 +365,46 @@ contract FINP2POperator is AccessControl, FinP2PSignatureVerifier {
         exists = (bytes(locks[operationId].amount).length > 0);
     }
 
-    function _mint(address to, string memory assetId, string memory quantity) internal {
+    function _mint(address to, string memory assetId, string memory quantity, OperationParams memory op) internal {
         require(_haveAsset(assetId), "Asset not found");
         Asset memory asset = assets[assetId];
         AssetStandard standard = AssetStandard(AssetRegistry(assetRegistry).getAssetStandard(asset.standard));
-        standard.mint(asset.tokenAddress, to, quantity);
+        standard.mint(asset.tokenAddress, to, quantity, op);
     }
 
-    function _transfer(address from, address to, string memory assetId, string memory quantity) internal {
+    function _transfer(address from, address to, string memory assetId, string memory quantity, OperationParams memory op) internal {
         require(_haveAsset(assetId), "Asset not found");
         Asset memory asset = assets[assetId];
         AssetStandard standard = AssetStandard(AssetRegistry(assetRegistry).getAssetStandard(asset.standard));
-        standard.transferFrom(asset.tokenAddress, from, to, quantity);
+        standard.transferFrom(asset.tokenAddress, from, to, quantity, op);
     }
 
-    function _hold(address from, string memory assetId, string memory quantity) internal {
+    function _hold(address from, string memory assetId, string memory quantity, OperationParams memory op) internal {
         require(_haveAsset(assetId), "Asset not found");
         Asset memory asset = assets[assetId];
         AssetStandard standard = AssetStandard(AssetRegistry(assetRegistry).getAssetStandard(asset.standard));
-        standard.transferFrom(asset.tokenAddress, from, address(standard), quantity);
+        standard.transferFrom(asset.tokenAddress, from, address(standard), quantity, op);
     }
 
-    function _release(address to, string memory assetId, string memory quantity) internal {
+    function _release(address to, string memory assetId, string memory quantity, OperationParams memory op) internal {
         require(_haveAsset(assetId), "Asset not found");
         Asset memory asset = assets[assetId];
         AssetStandard standard = AssetStandard(AssetRegistry(assetRegistry).getAssetStandard(asset.standard));
-        standard.transferFrom(asset.tokenAddress, address(standard), to, quantity);
+        standard.transferFrom(asset.tokenAddress, address(standard), to, quantity, op);
     }
 
-    function _burn(address from, string memory assetId, string memory quantity) internal {
+    function _burn(address from, string memory assetId, string memory quantity, OperationParams memory op) internal {
         require(_haveAsset(assetId), "Asset not found");
         Asset memory asset = assets[assetId];
         AssetStandard standard = AssetStandard(AssetRegistry(assetRegistry).getAssetStandard(asset.standard));
-        standard.burn(asset.tokenAddress, from, quantity);
+        standard.burn(asset.tokenAddress, from, quantity, op);
     }
 
-    function _releaseBurn(string memory assetId, string memory quantity) internal {
+    function _releaseBurn(string memory assetId, string memory quantity, OperationParams memory op) internal {
         require(_haveAsset(assetId), "Asset not found");
         Asset memory asset = assets[assetId];
         AssetStandard standard = AssetStandard(AssetRegistry(assetRegistry).getAssetStandard(asset.standard));
-        standard.burn(asset.tokenAddress, address(standard), quantity);
+        standard.burn(asset.tokenAddress, address(standard), quantity, op);
     }
 
     /// @notice Extract the direction of the operation

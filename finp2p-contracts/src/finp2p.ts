@@ -74,9 +74,9 @@ export class FinP2PContract extends ContractsManager {
     });
   }
 
-  async issue(issuerFinId: string, asset: Term) {
+  async issue(issuerFinId: string, asset: Term, params: OperationParams) {
     return this.safeExecuteTransaction(this.finP2P, async (finP2P: FINP2POperator, txParams: PayableOverrides) => {
-      return finP2P.issue(issuerFinId, asset, txParams);
+      return finP2P.issue(issuerFinId, asset, params, txParams);
     });
   }
 
@@ -88,9 +88,9 @@ export class FinP2PContract extends ContractsManager {
     });
   }
 
-  async redeem(ownerFinId: string, asset: Term) {
+  async redeem(ownerFinId: string, asset: Term, params: OperationParams) {
     return this.safeExecuteTransaction(this.finP2P, async (finP2P: FINP2POperator, txParams: PayableOverrides) => {
-      return finP2P.redeem(ownerFinId, asset, txParams);
+      return finP2P.redeem(ownerFinId, asset, params, txParams);
     });
   }
 
@@ -101,21 +101,21 @@ export class FinP2PContract extends ContractsManager {
     });
   }
 
-  async releaseTo(operationId: string, buyerFinId: string, quantity: string) {
+  async releaseTo(operationId: string, buyerFinId: string, quantity: string, params: OperationParams) {
     return this.safeExecuteTransaction(this.finP2P, async (finP2P: FINP2POperator, txParams: PayableOverrides) => {
-      return finP2P.releaseTo(operationId, buyerFinId, quantity, txParams);
+      return finP2P.releaseTo(operationId, buyerFinId, quantity, params, txParams);
     });
   }
 
-  async releaseAndRedeem(operationId: string, ownerFinId: string, quantity: string) {
+  async releaseAndRedeem(operationId: string, ownerFinId: string, quantity: string, params: OperationParams) {
     return this.safeExecuteTransaction(this.finP2P, async (finP2P: FINP2POperator, txParams: PayableOverrides) => {
-      return finP2P.releaseAndRedeem(operationId, ownerFinId, quantity, txParams);
+      return finP2P.releaseAndRedeem(operationId, ownerFinId, quantity, params, txParams);
     });
   }
 
-  async releaseBack(operationId: string) {
+  async releaseBack(operationId: string, params: OperationParams) {
     return this.safeExecuteTransaction(this.finP2P, async (finP2P: FINP2POperator, txParams: PayableOverrides) => {
-      return finP2P.releaseBack(operationId, txParams);
+      return finP2P.releaseBack(operationId, params, txParams);
     });
   }
 
