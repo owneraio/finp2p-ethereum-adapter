@@ -139,11 +139,27 @@ const startMigration = async (
 
   if (oldFinp2pAddress) {
     const oldFinP2PContract = new FinP2PContract(provider, signer, oldFinp2pAddress, logger);
-    const assets = await finp2p.getPaymentAssets();
-    logger.info(`Got a list of ${assets.length} assets to migrate`);
-    // for (const { orgId: assetOrg, id: assetId } of assets) {
-    //
-    // }
+    const paymentAssets = await finp2p.getPaymentAssets();
+    logger.info(`Got a list of ${paymentAssets.length} assets to migrate`);
+    for (const { orgId: assetOrg, assets } of paymentAssets) {
+      if (assets.length > 0 && assetOrg === orgId) {
+        for (const { code } of assets) {
+          let tokenAddress: string;
+          try {
+            tokenAddress = await oldFinP2PContract.getAssetAddress(code);
+          } catch (e) {
+            if (!`${e}`.includes("Asset not found")) {
+              logger.error(e)
+            }
+            continue
+          }
+
+          logger.info(`Migrating payment asset ${code} with token address ${tokenAddress}`);
+          const txHash = await finP2PContract.associateAsset(code, tokenAddress);
+          await finP2PContract.waitForCompletion(txHash);
+        }
+      }
+    }
   }
 
   logger.info("Migration complete");
