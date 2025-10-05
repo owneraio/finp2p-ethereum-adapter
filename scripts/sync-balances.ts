@@ -12,7 +12,7 @@ const logger = winston.createLogger({
 
 const syncBalanceFromOssToEthereum = async (ossUrl: string, providerType: ProviderType, finp2pContractAddress: string) => {
   const finp2p = new FinP2PClient("", ossUrl);
-  const assets = await finp2p.getAssetsWithTokens();
+  const assets = await finp2p.getAssets();
   logger.info(`Got a list of ${assets.length} assets to migrate`);
 
   if (assets.length === 0) {
@@ -23,7 +23,7 @@ const syncBalanceFromOssToEthereum = async (ossUrl: string, providerType: Provid
   const { provider, signer } = await createProviderAndSigner(providerType, logger);
   const contract = new FinP2PContract(provider, signer, finp2pContractAddress, logger);
 
-  for (const { assetId } of assets) {
+  for (const { id: assetId } of assets) {
     try {
       const erc20Address = await contract.getAssetAddress(assetId);
       logger.info(`Found asset ${assetId} with token address ${erc20Address}`);
