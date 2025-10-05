@@ -13,7 +13,7 @@ import { keccak256, toUtf8Bytes } from "ethers";
 
 const syncBalanceFromOssToEthereum = async (ossUrl: string, providerType: ProviderType, finp2pContractAddress: string) => {
   const finp2p = new FinP2PClient("", ossUrl);
-  const assets = await finp2p.getAssetsWithTokens();
+  const assets = await finp2p.getAssets();
   logger.info(`Got a list of ${assets.length} assets to migrate`);
 
   if (assets.length === 0) {
@@ -24,7 +24,7 @@ const syncBalanceFromOssToEthereum = async (ossUrl: string, providerType: Provid
   const { provider, signer } = await createProviderAndSigner(providerType, logger);
   const contract = new FinP2PContract(provider, signer, finp2pContractAddress, logger);
 
-  for (const { assetId, identifier } of assets) {
+  for (const { id: assetId } of assets) {
     try {
       const erc20Address = await contract.getAssetAddress(assetId);
       logger.info(`Found asset ${assetId} with token address ${erc20Address}`);
@@ -34,12 +34,12 @@ const syncBalanceFromOssToEthereum = async (ossUrl: string, providerType: Provid
         const erc20Address = await contract.deployERC20(assetId, assetId, 0, finp2pContractAddress);
         logger.info(`Associating asset ${assetId} with token ${erc20Address}`);
         let tokenStandard = ERC20_STANDARD_ID;
-        if (identifier) {
-          const { type, value } = identifier;
-          if (type === "CUSTOM" && value) {
-            tokenStandard = keccak256(toUtf8Bytes(value));
-          }
-        }
+        // if (identifier) {
+        //   const { type, value } = identifier;
+        //   if (type === "CUSTOM" && value) {
+        //     tokenStandard = keccak256(toUtf8Bytes(value));
+        //   }
+        // }
         const associateTxHash = await contract.associateAsset(assetId, tokenStandard, erc20Address);
         await contract.waitForCompletion(associateTxHash);
       } else {
@@ -89,4 +89,5 @@ if (!finp2pContractAddress) {
   console.error("Env variable FINP2P_CONTRACT_ADDRESS was not set");
   process.exit(1);
 }
-syncBalanceFromOssToEthereum(ossUrl, providerType, finp2pContractAddress).then(() => {});
+syncBalanceFromOssToEthereum(ossUrl, providerType, finp2pContractAddress).then(() => {
+}).catch(console.error);

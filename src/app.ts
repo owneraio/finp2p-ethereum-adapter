@@ -30,12 +30,12 @@ function createApp(orgId: string, finP2PContract: FinP2PContract,
   const pluginManager = new PluginManager();
 
   const signerPrivateKey = process.env.OPERATOR_PRIVATE_KEY || "";
-  const proofProvider = new ProofProvider(finP2PClient, signerPrivateKey)
+  const proofProvider = new ProofProvider(orgId, finP2PClient, signerPrivateKey)
   const tokenService = new TokenServiceImpl(finP2PContract, finP2PClient, execDetailsStore, proofProvider);
   const escrowService = new EscrowServiceImpl(finP2PContract, finP2PClient, execDetailsStore, proofProvider);
   const paymentsService = new PaymentsServiceImpl(finP2PContract, finP2PClient, execDetailsStore, proofProvider);
   const planApprovalService = new PlanApprovalServiceImpl(orgId, pluginManager, finP2PClient);
-  register(app, tokenService, escrowService, tokenService, tokenService, paymentsService, planApprovalService);
+  register(app, tokenService, escrowService, tokenService, tokenService, paymentsService, planApprovalService, pluginManager);
 
   return app;
 }

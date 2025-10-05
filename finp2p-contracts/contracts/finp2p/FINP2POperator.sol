@@ -31,7 +31,7 @@ contract FINP2POperator is AccessControl, FinP2PSignatureVerifier {
         REDEEM
     }
 
-    string public constant VERSION = "0.24.0";
+    string public constant VERSION = "0.25.6-ar";
 
     bytes32 private constant ASSET_MANAGER = keccak256("ASSET_MANAGER");
     bytes32 private constant TRANSACTION_MANAGER = keccak256("TRANSACTION_MANAGER");
@@ -111,10 +111,10 @@ contract FINP2POperator is AccessControl, FinP2PSignatureVerifier {
     mapping(string => Lock) private locks;
     address private assetRegistry;
 
-    constructor(address _assetRegistry) {
-        _grantRole(DEFAULT_ADMIN_ROLE, _msgSender());
-        _grantRole(ASSET_MANAGER, _msgSender());
-        _grantRole(TRANSACTION_MANAGER, _msgSender());
+    constructor(address admin, address _assetRegistry) {
+        _grantRole(DEFAULT_ADMIN_ROLE, admin);
+        _grantRole(ASSET_MANAGER, admin);
+        _grantRole(TRANSACTION_MANAGER, admin);
         assetRegistry = _assetRegistry;
     }
 
@@ -388,7 +388,11 @@ contract FINP2POperator is AccessControl, FinP2PSignatureVerifier {
         require(_haveAsset(assetId), "Asset not found");
         Asset memory asset = assets[assetId];
         AssetStandard standard = AssetStandard(AssetRegistry(assetRegistry).getAssetStandard(asset.standard));
-        standard.transferFrom(asset.tokenAddress, from, to, quantity);
+        if (from == address(this)) {
+            standard(asset.tokenAddress).transfer(asset.tokenAddress, to, quantity);
+        } else {
+            standard(asset.tokenAddress).transferFrom(asset.tokenAddress, from, to, quantity);
+        }
     }
 
     function _burn(address from, string memory assetId, string memory quantity) internal {

@@ -57,7 +57,8 @@ describe("FinP2P proxy contract test", function() {
     await ar.registerAssetStandard(ERC20_STANDARD_ID, erc20StandardAddress);
 
     const deployer = await ethers.getContractFactory("FINP2POperator");
-    const contract = await deployer.deploy(assetRegistry);
+    const [admin] = await ethers.getSigners();
+    const contract = await deployer.deploy(admin, assetRegistry);
     const finP2PAddress = await contract.getAddress();
     return { contract, erc20StandardAddress, finP2PAddress };
   }

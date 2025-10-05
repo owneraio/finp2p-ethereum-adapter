@@ -82,7 +82,7 @@ export class ContractsManager {
     return await contract.getAddress();
   }
 
-  async deployFinP2PContract(signerAddress: string | undefined, paymentAssetCode: string | undefined = undefined) {
+  async deployFinP2PContract(operatorAddress: string | undefined, signerAddress: string | undefined, paymentAssetCode: string | undefined = undefined) {
     const assetRegistryAddress = await this.deployAssetRegistryContract();
     this.logger.info(`Asset registry deployed at: ${assetRegistryAddress}`);
 
@@ -95,15 +95,16 @@ export class ContractsManager {
     const factory = new ContractFactory<any[], FINP2POperator>(
       FINP2P.abi, FINP2P.bytecode, this.signer
     );
-    const contract = await factory.deploy(assetRegistryAddress);
+    const deployerAddress = await this.signer.getAddress();
+    const contract = await factory.deploy(deployerAddress, assetRegistryAddress);
     await contract.waitForDeployment();
 
     const address = await contract.getAddress();
     this.logger.info(`FinP2P contract deployed successfully at: ${address}`);
 
-    if (signerAddress) {
-      await this.grantAssetManagerRole(address, signerAddress);
-      await this.grantTransactionManagerRole(address, signerAddress);
+    if (operatorAddress) {
+      await this.grantAssetManagerRole(address, operatorAddress);
+      await this.grantTransactionManagerRole(address, operatorAddress);
     }
 
     if (paymentAssetCode) {
