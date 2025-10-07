@@ -27,10 +27,6 @@ const init = async () => {
   if (!finP2PUrl) {
     throw new Error("FINP2P_ADDRESS is not set");
   }
-  const finP2PUrl = process.env.FINP2P_ADDRESS;
-  if (!finP2PUrl) {
-    throw new Error("FINP2P_ADDRESS is not set");
-  }
   const ossUrl = process.env.OSS_URL;
   if (!ossUrl) {
     throw new Error("OSS_URL is not set");
