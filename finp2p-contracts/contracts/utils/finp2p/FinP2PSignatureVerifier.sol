@@ -2,9 +2,10 @@
 
 pragma solidity ^0.8.0;
 
+import "./OperationParams.sol";
+import {EIP712} from "./EIP712.sol";
 import {FinIdUtils} from "./FinIdUtils.sol";
 import {Signature} from "./Signature.sol";
-import {EIP712} from "./EIP712.sol";
 
 /**
  * @dev Library for FinP2P protocol signature verification.
@@ -19,21 +20,6 @@ contract FinP2PSignatureVerifier is EIP712 {
         FINP2P,
         FIAT,
         CRYPTOCURRENCY
-    }
-
-    enum LegType {
-        ASSET,
-        SETTLEMENT
-    }
-
-    enum PrimaryType {
-        PRIMARY_SALE,
-        BUYING,
-        SELLING,
-        REDEMPTION,
-        TRANSFER,
-        PRIVATE_OFFER,
-        LOAN
     }
 
     bytes32 private constant ASSET_TYPE_FINP2P_HASH = keccak256("finp2p");

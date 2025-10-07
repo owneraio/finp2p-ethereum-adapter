@@ -25,6 +25,11 @@ ARG GITHUB_TOKEN
 RUN echo "@owneraio:registry=https://npm.pkg.github.com/" > ~/.npmrc && \
     echo "//npm.pkg.github.com/:_authToken=\${GITHUB_TOKEN}" >> ~/.npmrc
 
+ARG GITHUB_TOKEN
+
+RUN echo "@owneraio:registry=https://npm.pkg.github.com/" > ~/.npmrc && \
+    echo "//npm.pkg.github.com/:_authToken=\${GITHUB_TOKEN}" >> ~/.npmrc
+
 COPY \
     .eslintrc.json \
     package.json \

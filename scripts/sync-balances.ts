@@ -2,13 +2,15 @@ import process from "process";
 import console from "console";
 import winston, { format, transports } from "winston";
 import { FinP2PClient } from "@owneraio/finp2p-client";
-import { FinP2PContract, AssetType, ProviderType, term, createProviderAndSigner } from "@owneraio/finp2p-contracts";
+import { ERC20_STANDARD_ID, FinP2PContract, AssetType, ProviderType, term, createProviderAndSigner } from "@owneraio/finp2p-contracts";
 
 const logger = winston.createLogger({
   level: "info",
   transports: [new transports.Console()],
   format: format.json()
 });
+import { keccak256, toUtf8Bytes } from "ethers";
+import { emptyOperationParams } from "../src/services/helpers";
 
 const syncBalanceFromOssToEthereum = async (ossUrl: string, providerType: ProviderType, finp2pContractAddress: string) => {
   const finp2p = new FinP2PClient("", ossUrl);
@@ -32,7 +34,14 @@ const syncBalanceFromOssToEthereum = async (ossUrl: string, providerType: Provid
         logger.info(`Deploying new token for asset ${assetId}`);
         const erc20Address = await contract.deployERC20(assetId, assetId, 0, finp2pContractAddress);
         logger.info(`Associating asset ${assetId} with token ${erc20Address}`);
-        const associateTxHash = await contract.associateAsset(assetId, erc20Address);
+        let tokenStandard = ERC20_STANDARD_ID;
+        // if (identifier) {
+        //   const { type, value } = identifier;
+        //   if (type === "CUSTOM" && value) {
+        //     tokenStandard = keccak256(toUtf8Bytes(value));
+        //   }
+        // }
+        const associateTxHash = await contract.associateAsset(assetId, tokenStandard, erc20Address);
         await contract.waitForCompletion(associateTxHash);
       } else {
         logger.error(`Error migrating asset ${assetId}: ${e}`);
@@ -46,13 +55,13 @@ const syncBalanceFromOssToEthereum = async (ossUrl: string, providerType: Provid
       if (balance > 0) {
 
         logger.info(`Issuing ${balance} asset ${assetId} for finId ${finId}`);
-        const issueTx = await contract.issue(finId, term(assetId, AssetType.FinP2P, `${balance}`));
+        const issueTx = await contract.issue(finId, term(assetId, AssetType.FinP2P, `${balance}`), emptyOperationParams());
         await contract.waitForCompletion(issueTx);
 
       } else if (balance < 0) {
 
         logger.info(`Redeeming ${-balance} asset ${assetId} for finId ${finId}`);
-        const issueTx = await contract.redeem(finId, term(assetId, AssetType.FinP2P, `${-balance}`));
+        const issueTx = await contract.redeem(finId, term(assetId, AssetType.FinP2P, `${-balance}`), emptyOperationParams());
         await contract.waitForCompletion(issueTx);
       } else {
         logger.info(`FinId ${finId} already has enough balance for asset ${assetId}: ${balance}`);

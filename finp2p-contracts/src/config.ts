@@ -1,11 +1,22 @@
 import * as fs from "fs";
 import { ApiBaseUrl, ChainId, FireblocksWeb3Provider } from "@fireblocks/fireblocks-web3-provider";
-import { BrowserProvider, JsonRpcProvider, NonceManager, Provider, Signer, Wallet } from "ethers";
+import {
+  BrowserProvider,
+  JsonRpcProvider,
+  keccak256,
+  NonceManager,
+  Provider,
+  Signer,
+  toUtf8Bytes,
+  Wallet
+} from "ethers";
 import process from "process";
 import { privateKeyToFinId } from "./utils";
 import winston from "winston";
 
 export type ProviderType = "local" | "fireblocks";
+
+export const ERC20_STANDARD_ID = keccak256(toUtf8Bytes('ERC20_WITH_OPERATOR'));
 
 export type ProviderAndSigner = {
   provider: Provider, signer: Signer,
