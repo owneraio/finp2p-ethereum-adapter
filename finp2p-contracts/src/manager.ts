@@ -82,7 +82,7 @@ export class ContractsManager {
     return await contract.getAddress();
   }
 
-  async deployFinP2PContract(operatorAddress: string | undefined, signerAddress: string | undefined, paymentAssetCode: string | undefined = undefined) {
+  async deployFinP2PContract(operatorAddress: string | undefined, paymentAssetCode: string | undefined = undefined) {
     const assetRegistryAddress = await this.deployAssetRegistryContract();
     this.logger.info(`Asset registry deployed at: ${assetRegistryAddress}`);
 
