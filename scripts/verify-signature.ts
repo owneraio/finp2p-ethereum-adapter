@@ -127,7 +127,7 @@ if (!providerType) {
   process.exit(1);
 }
 
-const contractAddress = process.env.FINP2P_CONTRACT_ADDRESS || process.env.TOKEN_ADDRESS;
+const contractAddress = process.env.FINP2P_CONTRACT_ADDRESS;
 if (!contractAddress) {
   console.error("Env variable FINP2P_CONTRACT_ADDRESS was not set");
   process.exit(1);

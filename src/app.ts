@@ -3,23 +3,23 @@ import { logger as expressLogger } from "express-winston";
 import winston from "winston";
 import {
   register,
+  PluginManager,
   ProofProvider,
   PlanApprovalServiceImpl,
   PaymentsServiceImpl
 } from "@owneraio/finp2p-nodejs-skeleton-adapter";
-import { FinP2PClient } from "@owneraio/finp2p-client";
-import {
-  EscrowServiceImpl,
-  ExecDetailsStore,
-  TokenServiceImpl
-} from "./services";
-import { FinP2PContract } from "@owneraio/finp2p-contracts";
-import { PluginManager } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import {
   CollateralDepositPlugin,
   CollateralPlanApprovalPlugin,
   CollateralTransactionHook
 } from "@owneraio/finp2p-ethereum-dtcc-plugin";
+import { FinP2PClient } from "@owneraio/finp2p-client";
+import { FinP2PContract } from "@owneraio/finp2p-contracts";
+import {
+  EscrowServiceImpl,
+  ExecDetailsStore,
+  TokenServiceImpl
+} from "./services";
 
 function createApp(orgId: string, finP2PContract: FinP2PContract,
                    finP2PClient: FinP2PClient | undefined,
