@@ -108,7 +108,7 @@ class CustomTestEnvironment extends NodeEnvironment {
   private async deployContract(operatorAddress: string) {
     const { provider, signer } = await createProviderAndSigner(providerType, logger);
     const contractManger = new ContractsManager(provider, signer, logger);
-    return await contractManger.deployFinP2PContract(operatorAddress, operatorAddress);
+    return await contractManger.deployFinP2PContract(operatorAddress);
   }
 
   private async startApp(finP2PContractAddress: string) {
