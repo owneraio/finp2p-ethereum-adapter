@@ -1,10 +1,20 @@
 import {
   Asset,
-  Destination, EIP712LoanMessage,
-  EIP712PrimarySaleMessage, EIP712PrivateOfferMessage,
-  EIP712SellingMessage, EIP712Term, EIP712BuyingMessage, EIP712Template, EIP712TransferMessage,
-  ExecutionContext, LegType, PrimaryType,
-  SignatureTemplate, Source
+  Destination,
+  EIP712LoanMessage,
+  EIP712PrimarySaleMessage,
+  EIP712PrivateOfferMessage,
+  EIP712SellingMessage,
+  EIP712Term,
+  EIP712BuyingMessage,
+  EIP712Template,
+  EIP712TransferMessage,
+  EIP712RedemptionMessage,
+  ExecutionContext,
+  LegType,
+  PrimaryType,
+  SignatureTemplate,
+  Source
 } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import {
   emptyTerm,
@@ -14,7 +24,6 @@ import {
   emptyLoanTerms, termFromEIP712
 } from "@owneraio/finp2p-contracts";
 import { BusinessContract } from "./model";
-import { EIP712RedemptionMessage } from "@owneraio/finp2p-nodejs-skeleton-adapter/dist/lib/services/eip712";
 
 
 export const detectLeg = (asset: Asset, template: SignatureTemplate): LegType => {
