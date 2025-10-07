@@ -10,11 +10,11 @@ import {
 } from "./model";
 import { parseTransactionReceipt } from "./utils";
 import { ContractsManager } from "./manager";
-import { EIP712Domain, EIP712LoanTerms, PrimaryType, ReceiptOperation } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import {
+  EIP712Domain, EIP712LoanTerms, PrimaryType, ReceiptOperation,
   failedReceiptOperation, pendingReceiptOperation,
   successfulReceiptOperation
-} from "@owneraio/finp2p-nodejs-skeleton-adapter/dist/lib/services/model";
+} from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import { assetTypeToService } from "./mappers";
 
 
