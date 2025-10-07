@@ -1,5 +1,5 @@
 import {
-  LegType, PrimaryType, EIP712Term, EIP712AssetType, AssetType as SrvAssetType
+  LegType, PrimaryType, EIP712AssetType, AssetType as SrvAssetType
 } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 
 
@@ -99,8 +99,6 @@ export const enum HashType {
   HashList = 1,
   EIP712 = 2
 }
-
-
 
 export type LockInfo = {
   assetId: string;

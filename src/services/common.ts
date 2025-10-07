@@ -1,15 +1,14 @@
 import {
-  CommonService,
-  ExecutionContext,
-  HealthService,
-  LegType,
+  CommonService, HealthService,
   OperationStatus,
-  PrimaryType,
+  ReceiptOperation,
   ProofProvider,
-  ReceiptOperation
+  ExecutionContext, PluginManager
 } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import { FinP2PClient } from "@owneraio/finp2p-client";
-import { FinP2PContract, operationParams, OperationParams, Phase, ReleaseType } from "@owneraio/finp2p-contracts";
+import {
+  FinP2PContract
+} from "@owneraio/finp2p-contracts";
 
 
 export interface ExecDetailsStore {
@@ -24,17 +23,21 @@ export class CommonServiceImpl implements CommonService, HealthService {
   finP2PClient: FinP2PClient | undefined;
   execDetailsStore: ExecDetailsStore | undefined;
   proofProvider: ProofProvider | undefined;
+  pluginManager: PluginManager | undefined;
+
 
   constructor(
     finP2PContract: FinP2PContract,
     finP2PClient: FinP2PClient | undefined,
     execDetailsStore: ExecDetailsStore | undefined,
-    proofProvider: ProofProvider | undefined
+    proofProvider: ProofProvider | undefined,
+    pluginManager: PluginManager | undefined,
   ) {
     this.finP2PContract = finP2PContract;
     this.finP2PClient = finP2PClient;
     this.execDetailsStore = execDetailsStore;
     this.proofProvider = proofProvider;
+    this.pluginManager = pluginManager;
   }
 
   public async readiness() {
@@ -52,7 +55,6 @@ export class CommonServiceImpl implements CommonService, HealthService {
   public async operationStatus(cid: string): Promise<OperationStatus> {
     return await this.finP2PContract.getOperationStatus(cid);
   }
-
 
 
 }

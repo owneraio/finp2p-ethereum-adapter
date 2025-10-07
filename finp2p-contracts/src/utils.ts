@@ -2,13 +2,13 @@ import {
   computeAddress,
   concat,
   HDNodeWallet,
-  isAddress,
+  isAddress, keccak256,
   Signature,
   TransactionReceipt,
   Wallet
 } from "ethers";
-import { OperationParams, Phase } from "./model";
 import * as secp256k1 from "secp256k1";
+import { LegType, PrimaryType, Receipt, TradeDetails } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import {
   FINP2POperatorInterface,
   HoldEvent,
@@ -21,9 +21,8 @@ import {
   ERC20WithOperatorInterface,
   TransferEvent as ERC20TransferEvent
 } from "../typechain-types/contracts/token/ERC20/ERC20WithOperator";
-import { Destination, LegType, PrimaryType, Receipt } from "@owneraio/finp2p-nodejs-skeleton-adapter";
+import { OperationParams, Phase } from "./model";
 import { assetToService, finIdDestination, finIdSource } from "./mappers";
-import { TradeDetails } from "@owneraio/finp2p-nodejs-skeleton-adapter/dist/lib/services/model";
 
 export const compactSerialize = (signature: string): string => {
   const { r, s } = Signature.from(signature);
@@ -59,10 +58,10 @@ export const finIdToAddress = (finId: string): string => {
 };
 
 // secp version
-// export const finIdToAddress = (finId: string): string => {
-//   const val = secp256k1.publicKeyConvert(Buffer.from(finId, "hex"), false).slice(1);
-//   return "0x" + keccak256(val).slice(-40);
-// };
+export const finIdToAddressWithSecP = (finId: string): string => {
+  const val = secp256k1.publicKeyConvert(Buffer.from(finId, "hex"), false).slice(1);
+  return "0x" + keccak256(val).slice(-40);
+};
 
 const emptyTradeDetails = (): TradeDetails => {
   return {
