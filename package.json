@@ -1,6 +1,6 @@
 {
   "name": "ethereum-adapter",
-  "version": "0.1",
+  "version": "0.25.3",
   "description": "",
   "main": "dist/src/index.js",
   "homepage": "https://ownera.io/",
@@ -10,10 +10,10 @@
     "build": "tsc",
     "build-app": "tsc -p tsconfig.build.json",
     "test": "jest",
-    "test-server": "tsc && node ./dist/scripts/test-server.js",
-    "migration": "tsc && node ./dist/scripts/migration.js",
-    "sync-balances": "tsc && node ./dist/scripts/sync-balances.js",
-    "mass-approve": "tsc && node ./dist/scripts/mass-approve.js",
+    "test-server": "ts-node ./scripts/test-server.ts",
+    "migration": "ts-node ./scripts/migration.ts",
+    "sync-balances": "ts-node ./scripts/sync-balances.ts",
+    "mass-approve": "ts-node ./scripts/mass-approve.ts",
     "verify-signature": "ts-node ./scripts/verify-signature.ts",
     "start-debug": "ts-node ./src/index.ts",
     "start": "node ."
@@ -24,7 +24,7 @@
   "dependencies": {
     "@fireblocks/fireblocks-web3-provider": "^1.3.12",
     "@owneraio/finp2p-client": "^0.25.10",
-    "@owneraio/finp2p-contracts": "^0.25.4",
+    "@owneraio/finp2p-contracts": "^0.25.7",
     "@owneraio/finp2p-nodejs-skeleton-adapter": "^0.25.14",
     "axios": "^1.1.3",
     "express": "^5.1.0",

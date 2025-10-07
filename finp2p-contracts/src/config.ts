@@ -2,7 +2,6 @@ import * as fs from "fs";
 import { ApiBaseUrl, ChainId, FireblocksWeb3Provider } from "@fireblocks/fireblocks-web3-provider";
 import { BrowserProvider, JsonRpcProvider, NonceManager, Provider, Signer, Wallet } from "ethers";
 import process from "process";
-import console from "console";
 import { privateKeyToFinId } from "./utils";
 import winston from "winston";
 
@@ -11,23 +10,6 @@ export type ProviderType = "local" | "fireblocks";
 export type ProviderAndSigner = {
   provider: Provider, signer: Signer,
 }
-
-export type ContractManagerConfig = {
-  rpcURL: string; signerPrivateKey: string;
-};
-
-export type FinP2PContractConfig = ContractManagerConfig & {
-  finP2PContractAddress: string;
-};
-
-export const createLocalProviderFromConfig = async (config: ContractManagerConfig): Promise<ProviderAndSigner> => {
-  const { rpcURL, signerPrivateKey } = config;
-  const provider = new JsonRpcProvider(rpcURL);
-  const network = await provider.getNetwork();
-  console.log(`Connected to network: ${network.name} chainId: ${network.chainId}`);
-  const signer = new NonceManager(new Wallet(signerPrivateKey)).connect(provider);
-  return { provider, signer };
-};
 
 export const getNetworkRpcUrl = (): string => {
   let networkHost = process.env.NETWORK_HOST;
@@ -45,22 +27,13 @@ export const getNetworkRpcUrl = (): string => {
     }
   }
   return networkHost;
-}
+};
 
 const createLocalProvider = async (logger: winston.Logger, userNonceManager: boolean = true): Promise<ProviderAndSigner> => {
-  let ethereumRPCUrl: string;
-  let operatorPrivateKey: string;
-  const configFile = process.env.CONFIG_FILE || "";
-  if (configFile) {
-    const config = await readConfig<ContractManagerConfig>(configFile);
-    ethereumRPCUrl = config.rpcURL;
-    operatorPrivateKey = config.signerPrivateKey;
-  } else {
-    ethereumRPCUrl = getNetworkRpcUrl();
-    operatorPrivateKey = process.env.OPERATOR_PRIVATE_KEY || "";
-    if (!operatorPrivateKey) {
-      throw new Error("OPERATOR_PRIVATE_KEY is not set");
-    }
+  const ethereumRPCUrl = getNetworkRpcUrl();
+  const operatorPrivateKey = process.env.OPERATOR_PRIVATE_KEY || "";
+  if (!operatorPrivateKey) {
+    throw new Error("OPERATOR_PRIVATE_KEY is not set");
   }
 
   const provider = new JsonRpcProvider(ethereumRPCUrl);
@@ -112,26 +85,3 @@ export const createProviderAndSigner = async (providerType: ProviderType, logger
   }
 };
 
-export const readConfig = async <T>(configPath: string): Promise<T> => {
-  return new Promise((resolve, reject) => {
-    fs.readFile(configPath, "utf8", (err, data) => {
-      if (err) {
-        console.error(`Error reading config file ${configPath}:`, err);
-        reject(err);
-        return;
-      }
-      resolve(JSON.parse(data));
-    });
-  });
-};
-
-export const writeConfig = async <T>(config: T, configPath: string): Promise<void> => {
-  return new Promise((resolve, reject) => {
-    fs.writeFile(configPath, JSON.stringify(config, null, 2), (err) => {
-      if (err) {
-        reject(err);
-      }
-      resolve();
-    });
-  });
-};
