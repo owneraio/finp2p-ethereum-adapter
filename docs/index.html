@@ -18,9 +18,9 @@
 </head>
 <body>
 <div class="card">
-  <h3>Compute address using <code>computeAddress("0x${finId}")</code></h3>
+  <h3>Compute ethereum address based on FinID</h3>
   <form id="frm">
-    <label for="finId">finId (hex digits — omit 0x)</label>
+    <label for="finId">FinID</label>
     <input id="finId" name="finId" type="text" placeholder="e.g. 0123... (64 hex chars for a private key)" autocomplete="off" />
     <div class="row">
       <button type="submit">Compute</button>
@@ -31,7 +31,6 @@
 
   <div id="result" class="output" aria-live="polite">No result yet</div>
   <div id="error" class="muted error" hidden></div>
-  <div class="muted">Note: this uses ethers.js (browser bundle). The input is concatenated as <code>0x + finId</code> and passed to <code>computeAddress</code>.</div>
 </div>
 
 <!-- Using ethers v5 UMD build to keep computeAddress available as ethers.utils.computeAddress -->
