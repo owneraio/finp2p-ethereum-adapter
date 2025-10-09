@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Ethereum Utilities</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+<div id="walletBox" class="wallet-box">
+  <button id="connectWalletBtn">Connect</button>
+</div>
+
+<div class="container">
+  <div class="card">
+    <h3>Compute ethereum address based on FinID</h3>
+    <form id="computeForm">
+      <label for="finId">FinID</label>
+      <input id="finId" name="finId" type="text" placeholder="e.g. 0123... (64 hex chars for a private key)"
+             autocomplete="off" />
+      <div class="row">
+        <button type="submit">Compute</button>
+      </div>
+    </form>
+
+    <div id="result" class="output" aria-live="polite">No result yet</div>
+    <div id="error" class="muted error" hidden></div>
+  </div>
+
+  <div class="card">
+    <h3>ERC20 Approve Utility</h3>
+    <form id="erc20Form">
+      <label>Token Contract Address</label>
+      <input id="tokenAddress" type="text" placeholder="0x..." />
+      <div id="tokenInfo" class="muted"></div>
+
+      <label>Spender Address</label>
+      <input id="spenderAddress" type="text" placeholder="0x..." />
+      <label>Amount (in token decimals)</label>
+      <input id="amount" type="text" placeholder="100" />
+      <div class="row">
+        <button type="submit">Approve</button>
+      </div>
+    </form>
+
+    <div id="approvalResult" class="output">No approval yet</div>
+  </div>
+</div>
+<!-- Using ethers v5 UMD build to keep computeAddress available as ethers.utils.computeAddress -->
+<script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

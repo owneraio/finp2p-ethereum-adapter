@@ -1,0 +1,103 @@
+/* Container and layout */
+body{
+    font-family: system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;
+    margin:0;
+    background:#f6f8fb;
+}
+
+.container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 20px;
+    justify-content: center;
+    padding: 20px;
+    max-width: 1000px;
+    margin: 0 auto;
+}
+
+/* Card styling */
+.card {
+    background: white;
+    padding: 20px;
+    border-radius: 12px;
+    box-shadow: 0 6px 22px rgba(20,30,60,0.08);
+    width: 420px;
+    max-width: 100%;
+    box-sizing: border-box;
+}
+
+.card form {
+    display: flex;
+    flex-direction: column;
+}
+
+.card form label {
+    font-weight: 600;
+    margin-bottom: 6px;
+}
+
+.card form input {
+    padding: 10px;
+    border-radius: 8px;
+    border: 1px solid #dbe3ef;
+    font-size: 14px;
+    width: 100%;
+    box-sizing: border-box;
+    margin-bottom: 12px;
+}
+
+.card button {
+    padding: 10px 12px;
+    border-radius: 8px;
+    border: 0;
+    background: #2563eb;
+    color: white;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.card button:hover {
+    opacity: 0.85;
+}
+
+.output {
+    margin-top: 12px;
+    padding: 10px;
+    border-radius: 8px;
+    background: #f3f6ff;
+    border: 1px solid #e6efff;
+    word-break: break-all;
+}
+
+/* ERC20 Card tweaks */
+.erc20-card form label {
+    font-weight: 500;
+}
+
+.erc20-card form input {
+    margin-bottom: 16px;
+}
+
+/* Wallet box top-right */
+.wallet-box {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    background: #2563eb;
+    color: white;
+    border-radius: 12px;
+    padding: 8px 12px;
+    font-weight: 600;
+    font-family: system-ui, sans-serif;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    z-index: 1000;
+}
+
+.wallet-box button {
+    background: transparent;
+    border: none;
+    color: white;
+    font-weight: 600;
+    cursor: pointer;
+    font-size: 14px;
+}
