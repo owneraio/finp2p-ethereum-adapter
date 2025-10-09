@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Compute Ethers Address (computeAddress)</title>
+  <style>
+      body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;display:flex;align-items:center;justify-content:center;min-height:100vh;background:#f6f8fb;margin:0}
+      .card{background:white;padding:20px;border-radius:12px;box-shadow:0 6px 22px rgba(20,30,60,0.08);width:420px;max-width:90%}
+      label{display:block;margin-bottom:8px;font-weight:600}
+      input[type=text]{width:100%;padding:10px;border-radius:8px;border:1px solid #dbe3ef;font-size:14px}
+      .row{display:flex;gap:8px;margin-top:12px}
+      button{padding:10px 12px;border-radius:8px;border:0;background:#2563eb;color:white;font-weight:600;cursor:pointer}
+      .output{margin-top:14px;padding:10px;border-radius:8px;background:#f3f6ff;border:1px solid #e6efff;word-break:break-all}
+      .muted{color:#667085;font-size:13px;margin-top:8px}
+      .error{color:#b91c1c}
+  </style>
+</head>
+<body>
+<div class="card">
+  <h3>Compute address using <code>computeAddress("0x${finId}")</code></h3>
+  <form id="frm">
+    <label for="finId">finId (hex digits — omit 0x)</label>
+    <input id="finId" name="finId" type="text" placeholder="e.g. 0123... (64 hex chars for a private key)" autocomplete="off" />
+    <div class="row">
+      <button type="submit">Compute</button>
+      <button id="pasteBtn" type="button">Paste (from clipboard)</button>
+      <button id="clearBtn" type="button">Clear</button>
+    </div>
+  </form>
+
+  <div id="result" class="output" aria-live="polite">No result yet</div>
+  <div id="error" class="muted error" hidden></div>
+  <div class="muted">Note: this uses ethers.js (browser bundle). The input is concatenated as <code>0x + finId</code> and passed to <code>computeAddress</code>.</div>
+</div>
+
+<!-- Using ethers v5 UMD build to keep computeAddress available as ethers.utils.computeAddress -->
+<script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
+<script>
+  (function(){
+    const frm = document.getElementById('frm');
+    const fin = document.getElementById('finId');
+    const result = document.getElementById('result');
+    const errorEl = document.getElementById('error');
+    const pasteBtn = document.getElementById('pasteBtn');
+    const clearBtn = document.getElementById('clearBtn');
+
+    function showError(msg){ errorEl.hidden = false; errorEl.textContent = msg; }
+    function clearError(){ errorEl.hidden = true; errorEl.textContent = ''; }
+
+    pasteBtn.addEventListener('click', async ()=>{
+      try{
+        const txt = await navigator.clipboard.readText();
+        fin.value = txt.replace(/^0x/i,'').trim();
+      }catch(e){ showError('Could not read clipboard: '+(e && e.message || e)); }
+    });
+
+    clearBtn.addEventListener('click', ()=>{ fin.value=''; result.textContent='No result yet'; clearError(); });
+
+    frm.addEventListener('submit', function(ev){
+      ev.preventDefault();
+      clearError();
+      const raw = fin.value.trim();
+      if(!raw){ showError('Please enter a hex value for finId.'); return; }
+      // assemble input exactly as requested: `0x${finId}`
+      const input = '0x' + raw.replace(/^0x/i,'');
+      try{
+        // Use ethers.utils.computeAddress (v5 UMD exposes ethers.utils)
+        if(!window.ethers || !ethers.utils || !ethers.utils.computeAddress){
+          showError('ethers.js (computeAddress) not available.');
+          return;
+        }
+        const addr = ethers.utils.computeAddress(input);
+        result.textContent = addr;
+      }catch(err){
+        showError(err && err.message ? err.message : String(err));
+      }
+    });
+  })();
+</script>
+</body>
+</html>
