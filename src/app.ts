@@ -6,8 +6,13 @@ import {
   PluginManager,
   ProofProvider,
   PlanApprovalServiceImpl,
-  PaymentsServiceImpl
+  PaymentsServiceImpl, AsyncPaymentsPlugin, AsyncPlanApprovalPlugin, TransactionHook
 } from "@owneraio/finp2p-nodejs-skeleton-adapter";
+import {
+  CollateralDepositPlugin,
+  CollateralPlanApprovalPlugin,
+  CollateralTransactionHook
+} from "@owneraio/finp2p-ethereum-dtcc-plugin";
 import { FinP2PClient } from "@owneraio/finp2p-client";
 import { FinP2PContract } from "@owneraio/finp2p-contracts";
 import {
@@ -15,11 +20,10 @@ import {
   ExecDetailsStore,
   TokenServiceImpl
 } from "./services";
-
-function createApp(orgId: string, finP2PContract: FinP2PContract,
+const createApp = async (orgId: string, finP2PContract: FinP2PContract,
                    finP2PClient: FinP2PClient | undefined,
                    execDetailsStore: ExecDetailsStore | undefined,
-                   logger: winston.Logger) {
+                   logger: winston.Logger) => {
   const app = express();
   app.use(express.json({ limit: "50mb" }));
   app.use(expressLogger({
@@ -32,6 +36,59 @@ function createApp(orgId: string, finP2PContract: FinP2PContract,
 
 
   const pluginManager = new PluginManager();
+
+  // ---------------------------------------------------------
+
+
+  // const config = {
+  //   plugins: [
+  //     {
+  //       package: "@owneraio/finp2p-ethereum-dtcc-plugin/deposit",
+  //       type: 'payments'
+  //     },
+  //     {
+  //       package: "@owneraio/finp2p-ethereum-dtcc-plugin/plans",
+  //       type: 'plans'
+  //     },
+  //     {
+  //       package: "@owneraio/finp2p-ethereum-dtcc-plugin/hook",
+  //       type: 'hook'
+  //     },
+  //
+  //   ]
+  // }
+  // for (const plugin of config.plugins) {
+  //   switch (plugin.type) {
+  //     case 'payments':
+  //       const paymentsPlugin = await import(plugin.package) as AsyncPaymentsPlugin
+  //       pluginManager.registerPaymentsPlugin({ isAsync: true, asyncIface: paymentsPlugin });
+  //       break
+  //     case 'plans':
+  //       const plansPlugin = await import(plugin.package) as AsyncPlanApprovalPlugin
+  //       pluginManager.registerPlanApprovalPlugin({ isAsync: true, asyncIface: plansPlugin });
+  //       break
+  //     case 'hook':
+  //       const transactionHook = await import(plugin.package) as TransactionHook
+  //       pluginManager.registerTransactionHook(transactionHook);
+  //       break
+  //   }
+  // }
+
+  // TODO: move to dynamic plugin loading
+  if (finP2PClient) {
+    const depositPlugin = new CollateralDepositPlugin(orgId, finP2PContract, finP2PClient, logger);
+    pluginManager.registerPaymentsPlugin({ isAsync: true, asyncIface: depositPlugin });
+
+    // doing collateral asset validation + erc20 approving of the borrower
+    const approvalPlugin = new CollateralPlanApprovalPlugin(orgId, finP2PContract, finP2PClient, logger);
+    pluginManager.registerPlanApprovalPlugin({ isAsync: true, asyncIface: approvalPlugin });
+
+    // using this hook trick because of the borrower should initialize the collateral agreement
+    const transactionHook = new CollateralTransactionHook(finP2PContract, finP2PClient, logger);
+    pluginManager.registerTransactionHook(transactionHook);
+  }
+
+  // ---------------------------------------------------------
 
   const signerPrivateKey = process.env.OPERATOR_PRIVATE_KEY || "";
   const proofProvider = new ProofProvider(orgId, finP2PClient, signerPrivateKey);

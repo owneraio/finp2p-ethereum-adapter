@@ -61,7 +61,8 @@ const init = async () => {
   const { name, version, chainId, verifyingContract } = await finp2pContract.eip712Domain();
   logger.info(`EIP712 domain: name=${name} version=${version} chainId=${chainId} verifyingContract=${verifyingContract}`);
 
-  createApp(orgId, finp2pContract, finP2PClient, execDetailsStore, logger).listen(port, () => {
+  const app = await createApp(orgId, finp2pContract, finP2PClient, execDetailsStore, logger)
+  app.listen(port, () => {
     logger.info(`listening at http://localhost:${port}`);
   });
 };
