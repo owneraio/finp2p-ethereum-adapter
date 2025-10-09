@@ -1,6 +1,6 @@
 {
   "name": "ethereum-adapter",
-  "version": "0.25.3",
+  "version": "0.25.3-pu",
   "description": "",
   "main": "dist/src/index.js",
   "homepage": "https://ownera.io/",
