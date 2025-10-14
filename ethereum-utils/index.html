@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Ethereum Utilities</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+<div id="walletBox" class="wallet-box"></div>
+
+<div class="container">
+  <div class="card">
+    <h3>Compute Address</h3>
+    <form id="computeForm">
+      <label>finId</label>
+      <input id="finId" placeholder="Enter hex value" maxlength="64" />
+      <button type="submit">Compute</button>
+    </form>
+    <div id="result" class="output">No result yet</div>
+  </div>
+
+  <div class="card">
+    <h3>ERC20 Approve Utility</h3>
+    <form id="erc20Form">
+      <label>Token Address</label>
+      <input id="tokenAddress" placeholder="0x..." />
+      <div id="tokenInfo" class="muted">Token info will appear here</div>
+
+      <label>Spender Address</label>
+      <input id="spenderAddress" placeholder="0x..." />
+
+      <label>Amount</label>
+      <input id="amount" placeholder="100" />
+
+      <button type="submit">Approve</button>
+    </form>
+    <div id="approvalResult" class="output">No approval yet</div>
+  </div>
+</div>
+
+<script type="module" src="./dist/main.js"></script>
+</body>
+</html>

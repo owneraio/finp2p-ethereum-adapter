@@ -1,0 +1,19 @@
+{
+  "name": "ethereum-utils",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "build": "tsc",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "ethers": "^6.11.1",
+    "@owneraio/finp2p-contracts": "^0.25.7"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3"
+  }
+}
