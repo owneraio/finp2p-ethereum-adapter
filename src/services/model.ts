@@ -13,8 +13,3 @@ export type ExecutionContext = {
   executionPlanId: string
   instructionSequenceNumber: number
 }
-export class RequestValidationError extends Error {
-  constructor(public readonly reason: string) {
-    super(reason);
-  }
-}
