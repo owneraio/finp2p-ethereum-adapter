@@ -80,11 +80,11 @@ export class FinP2PContract extends ContractsManager {
     });
   }
 
-  async transfer(nonce: string, sellerFinId: string, buyerFinId: string,
+  async transfer(nonce: string, fromFinId: string, toFinId: string,
                  asset: Term, settlement: Term, loan: EIP712LoanTerms, params: OperationParams, signature: string) {
     return this.safeExecuteTransaction(this.finP2P, async (finP2P: FINP2POperatorERC20, txParams: PayableOverrides) => {
       return finP2P.transfer(
-        nonce, sellerFinId, buyerFinId, asset, settlement, loan, params, `0x${signature}`, txParams);
+        nonce, fromFinId, toFinId, asset, settlement, loan, params, `0x${signature}`, txParams);
     });
   }
 
@@ -94,16 +94,16 @@ export class FinP2PContract extends ContractsManager {
     });
   }
 
-  async hold(nonce: string, sellerFinId: string, buyerFinId: string,
+  async hold(nonce: string, fromFinId: string, toFinId: string,
              asset: Term, settlement: Term, loan: EIP712LoanTerms, params: OperationParams, signature: string) {
     return this.safeExecuteTransaction(this.finP2P, async (finP2P: FINP2POperatorERC20, txParams: PayableOverrides) => {
-      return finP2P.hold(nonce, sellerFinId, buyerFinId, asset, settlement, loan, params, `0x${signature}`, txParams);
+      return finP2P.hold(nonce, fromFinId, toFinId, asset, settlement, loan, params, `0x${signature}`, txParams);
     });
   }
 
-  async releaseTo(operationId: string, buyerFinId: string, quantity: string) {
+  async releaseTo(operationId: string, fromFinId: string, toFinId: string, quantity: string) {
     return this.safeExecuteTransaction(this.finP2P, async (finP2P: FINP2POperatorERC20, txParams: PayableOverrides) => {
-      return finP2P.releaseTo(operationId, buyerFinId, quantity, txParams);
+      return finP2P.releaseTo(operationId, fromFinId, toFinId, quantity, txParams);
     });
   }
 

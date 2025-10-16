@@ -244,7 +244,7 @@ describe("FinP2P proxy contract test", function() {
               expect(lock[3]).to.equal(to);
               expect(lock[4]).to.equal(amount);
 
-              await expect(contract.releaseTo(operationId, to, amount, { from: operator }))
+              await expect(contract.releaseTo(operationId, from, to, amount, { from: operator }))
                 .to.emit(contract, "Release").withArgs(assetId, assetType, from, to, amount, operationId);
 
               expect(await contract.getBalance(assetId, from)).to.equal(`${(0).toFixed(decimals)}`);

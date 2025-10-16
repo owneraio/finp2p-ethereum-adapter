@@ -34,7 +34,7 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
         REDEEM
     }
 
-    string public constant VERSION = "0.25.6";
+    string public constant VERSION = "0.25.7";
 
     bytes32 private constant ASSET_MANAGER = keccak256("ASSET_MANAGER");
     bytes32 private constant TRANSACTION_MANAGER = keccak256("TRANSACTION_MANAGER");
@@ -302,6 +302,7 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
     /// @param quantity The quantity to release
     function releaseTo(
         string calldata operationId,
+        string calldata fromFinId,
         string calldata toFinId,
         string calldata quantity
     ) external {
@@ -309,6 +310,7 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
         require(_haveContract(operationId), "Contract does not exists");
         Lock storage lock = locks[operationId];
         require(lock.amount.equals(quantity), "Trying to release amount different from the one held");
+        require(lock.source.equals(fromFinId), "Trying to release asset with source different from the one who held it");
         require(lock.destination.equals(toFinId), "Trying to release to different destination than the one expected in the lock");
 
         _transfer(_getEscrow(), toFinId.toAddress(), lock.assetId, lock.amount);
