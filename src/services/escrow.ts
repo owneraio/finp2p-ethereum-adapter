@@ -43,7 +43,7 @@ export class EscrowServiceImpl extends CommonServiceImpl implements EscrowServic
   public async release(idempotencyKey: string, source: Source, destination: Destination, asset: Asset, quantity: string, operationId: string, exCtx: ExecutionContext | undefined): Promise<ReceiptOperation> {
     let txHash: string;
     try {
-      txHash = await this.finP2PContract.releaseTo(operationId, destination.finId, quantity);
+      txHash = await this.finP2PContract.releaseTo(operationId, source.finId, destination.finId, quantity);
     } catch (e) {
       logger.error(`Error releasing asset: ${e}`);
       if (e instanceof EthereumTransactionError) {
