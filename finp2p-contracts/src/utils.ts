@@ -28,9 +28,13 @@ export const compactSerialize = (signature: string): string => {
   return concat([r, s]).substring(2);
 };
 
+export const privateKeyToFinId = (privateKey: string): string => {
+  let pk = !privateKey.startsWith("0x") ? `0x${privateKey}` : privateKey;
+  return new Wallet(pk).signingKey.compressedPublicKey.slice(2);
+};
 
 export const getFinId = (wallet: HDNodeWallet): string => {
-  return wallet.signingKey.compressedPublicKey.slice(2); // remove '0x' prefix
+  return privateKeyToFinId(wallet.privateKey);
 };
 
 export const createAccount = () => {
@@ -38,7 +42,7 @@ export const createAccount = () => {
   return {
     address: account.address,
     privateKey: account.privateKey,
-    finId: account.signingKey.compressedPublicKey.slice(2) // remove '0x' prefix
+    finId: privateKeyToFinId(account.privateKey)
   };
 };
 
