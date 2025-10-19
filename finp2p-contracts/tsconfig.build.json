@@ -2,7 +2,7 @@
   "compilerOptions": {
     "esModuleInterop": true,
     "lib": ["es2021"],
-    "module": "commonjs",
+    "module": "ESNext",
     "target": "es2021",
     "skipLibCheck": true,
     "moduleResolution": "node",
@@ -20,11 +20,10 @@
     }
   },
   "include": [
+    "index.ts",
     "src/**/*.ts",
-    "scripts/**/*.ts",
     "artifacts/contracts/**/*.json",
     "typechain-types/**/*.ts",
-    "hardhat.config.ts",
   ],
   "exclude": [ "test", "scripts" ]
 }
