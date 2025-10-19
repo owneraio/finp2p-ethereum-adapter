@@ -2,12 +2,11 @@ import {
   computeAddress,
   concat,
   HDNodeWallet,
-  isAddress, keccak256,
+  isAddress,
   Signature,
   TransactionReceipt,
   Wallet
 } from "ethers";
-import * as secp256k1 from "secp256k1";
 import { LegType, PrimaryType, Receipt, TradeDetails } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import {
   FINP2POperatorERC20Interface,
@@ -29,14 +28,9 @@ export const compactSerialize = (signature: string): string => {
   return concat([r, s]).substring(2);
 };
 
-export const privateKeyToFinId = (privateKey: string): string => {
-  const privKeyBuffer = Buffer.from(privateKey.replace("0x", ""), "hex");
-  const pubKeyUInt8Array = secp256k1.publicKeyCreate(privKeyBuffer, true);
-  return Buffer.from(pubKeyUInt8Array).toString("hex");
-};
 
 export const getFinId = (wallet: HDNodeWallet): string => {
-  return privateKeyToFinId(wallet.privateKey);
+  return wallet.signingKey.compressedPublicKey.slice(2); // remove '0x' prefix
 };
 
 export const createAccount = () => {
@@ -44,7 +38,7 @@ export const createAccount = () => {
   return {
     address: account.address,
     privateKey: account.privateKey,
-    finId: privateKeyToFinId(account.privateKey)
+    finId: account.signingKey.compressedPublicKey.slice(2) // remove '0x' prefix
   };
 };
 
@@ -57,11 +51,6 @@ export const finIdToAddress = (finId: string): string => {
   return computeAddress(`0x${finId}`);
 };
 
-// secp version
-export const finIdToAddressWithSecP = (finId: string): string => {
-  const val = secp256k1.publicKeyConvert(Buffer.from(finId, "hex"), false).slice(1);
-  return "0x" + keccak256(val).slice(-40);
-};
 
 const emptyTradeDetails = (): TradeDetails => {
   return {
