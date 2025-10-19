@@ -1,5 +1,5 @@
-import { FinP2PContract, createProviderAndSigner, ProviderType } from "../src";
-import { ConsoleLogger, Logger } from "../src/logger";
+import { FinP2PContract, ConsoleLogger, Logger } from "../src";
+import { createProviderAndSigner, ProviderType } from "./config";
 
 const logger: Logger = new ConsoleLogger('info')
 

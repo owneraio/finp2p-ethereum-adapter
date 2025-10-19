@@ -1,9 +1,9 @@
 import process from "process";
-import { ContractsManager, createProviderAndSigner, ProviderType } from "../src";
-import { ConsoleLogger, Logger } from "../src/logger";
+import { ContractsManager, ConsoleLogger, Logger } from "../src";
+import { createProviderAndSigner, ProviderType } from "./config";
 
 
-const logger: Logger = new ConsoleLogger('info')
+const logger: Logger = new ConsoleLogger("info");
 
 
 const deploy = async (providerType: ProviderType, operatorAddress: string, assetName: string, assetSymbol: string, tokenDecimals: number) => {

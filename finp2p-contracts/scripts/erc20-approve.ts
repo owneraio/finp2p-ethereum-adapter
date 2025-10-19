@@ -1,7 +1,7 @@
 import process from "process";
 import { formatUnits, parseUnits } from "ethers";
-import { FinP2PContract, createProviderAndSigner, ProviderType, ERC20Contract } from "../src";
-import { ConsoleLogger, Logger } from "../src/logger";
+import { FinP2PContract, ERC20Contract, ConsoleLogger, Logger } from "../src";
+import { createProviderAndSigner, ProviderType } from "./config";
 
 const logger: Logger = new ConsoleLogger("info");
 
