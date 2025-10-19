@@ -9,9 +9,9 @@ import {
   EthereumTransactionError,
   MINTER_ROLE,
   OPERATOR_ROLE,
-  createProviderAndSigner,
-  isEthereumAddress
+    isEthereumAddress
 } from "@owneraio/finp2p-contracts";
+import { createProviderAndSigner } from "../src/config";
 
 const logger = winston.createLogger({
   level: "info",

@@ -6,10 +6,11 @@ import winston, { format, transports } from "winston";
 import { GenericContainer, StartedTestContainer } from "testcontainers";
 import { HardhatLogExtractor } from "../tests/utils/log-extractors";
 import { NetworkDetails } from "../tests/utils/models";
-import { FinP2PContract, ContractsManager, addressFromPrivateKey, createProviderAndSigner, ProviderType  } from "@owneraio/finp2p-contracts";
+import { FinP2PContract, ContractsManager, addressFromPrivateKey, ProviderType } from "@owneraio/finp2p-contracts";
 import createApp from "../src/app";
 import { FinP2PClient } from "@owneraio/finp2p-client";
 import { ExecDetailsStore, InMemoryExecDetailsStore } from "../src/services";
+import { createProviderAndSigner } from "../src/config";
 
 let ethereumNodeContainer: StartedTestContainer | undefined;
 let httpServer: http.Server | undefined;
@@ -109,7 +110,7 @@ const start = async () => {
   const tokenAddress = await deployERC20Contract(provider, signer, finP2PContractAddress);
   const orgId = process.env.ORGANIZATION_ID;
   if (!orgId) {
-    throw new Error('ORGANIZATION_ID is not set');
+    throw new Error("ORGANIZATION_ID is not set");
   }
   const finP2PAddress = process.env.FINP2P_ADDRESS;
   if (!finP2PAddress) {

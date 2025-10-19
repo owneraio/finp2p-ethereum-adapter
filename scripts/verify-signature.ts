@@ -9,7 +9,6 @@ import {
   signatureFromAPI, hashEIP712, verifyEIP712
 } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import {
-  createProviderAndSigner,
   finIdToAddress,
   FinP2PContract,
   ProviderType, detectSigner
@@ -19,6 +18,7 @@ import { extractBusinessDetails } from "../src/services/helpers";
 import process from "process";
 import console from "console";
 import * as fs from "node:fs";
+import { createProviderAndSigner } from "../src/config";
 
 const logger = winston.createLogger({
   level: "info",

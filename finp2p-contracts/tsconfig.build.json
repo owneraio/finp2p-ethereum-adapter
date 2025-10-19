@@ -2,7 +2,7 @@
   "compilerOptions": {
     "esModuleInterop": true,
     "lib": ["es2021"],
-    "module": "ESNext",
+    "module": "commonjs",
     "target": "es2021",
     "skipLibCheck": true,
     "moduleResolution": "node",

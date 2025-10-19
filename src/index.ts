@@ -4,9 +4,9 @@ import { FinP2PClient } from "@owneraio/finp2p-client";
 import winston, { format, transports } from "winston";
 import {
   FinP2PContract,
-  createProviderAndSigner,
   ProviderType
 } from "@owneraio/finp2p-contracts";
+import { createProviderAndSigner } from "./config";
 import createApp from "./app";
 import { InMemoryExecDetailsStore } from "./services";
 
