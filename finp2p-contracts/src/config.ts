@@ -3,7 +3,7 @@ import { ApiBaseUrl, ChainId, FireblocksWeb3Provider } from "@fireblocks/fireblo
 import { BrowserProvider, JsonRpcProvider, NonceManager, Provider, Signer, Wallet } from "ethers";
 import process from "process";
 import { privateKeyToFinId } from "./utils";
-import winston from "winston";
+import { Logger } from "./logger";
 
 export type ProviderType = "local" | "fireblocks";
 
@@ -29,7 +29,7 @@ export const getNetworkRpcUrl = (): string => {
   return networkHost;
 };
 
-const createLocalProvider = async (logger: winston.Logger, userNonceManager: boolean = true): Promise<ProviderAndSigner> => {
+const createLocalProvider = async (logger: Logger, userNonceManager: boolean = true): Promise<ProviderAndSigner> => {
   const ethereumRPCUrl = getNetworkRpcUrl();
   const operatorPrivateKey = process.env.OPERATOR_PRIVATE_KEY || "";
   if (!operatorPrivateKey) {
@@ -75,7 +75,7 @@ export const createFireblocksProvider = async (vaultAccountIds: string[]): Promi
   return { provider, signer };
 };
 
-export const createProviderAndSigner = async (providerType: ProviderType, logger: winston.Logger, useNonceManager: boolean = true): Promise<ProviderAndSigner> => {
+export const createProviderAndSigner = async (providerType: ProviderType, logger: Logger, useNonceManager: boolean = true): Promise<ProviderAndSigner> => {
   switch (providerType) {
     case "local":
       return createLocalProvider(logger, useNonceManager);

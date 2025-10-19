@@ -1,5 +1,5 @@
 import { ContractFactory, Provider, Signer } from "ethers";
-import winston from "winston";
+import { Logger } from "./logger";
 import FINP2P from "../artifacts/contracts/token/ERC20/FINP2POperatorERC20.sol/FINP2POperatorERC20.json";
 import { FINP2POperatorERC20 } from "../typechain-types";
 import { FINP2POperatorERC20Interface } from "../typechain-types/contracts/token/ERC20/FINP2POperatorERC20";
@@ -28,7 +28,7 @@ export class FinP2PContract extends ContractsManager {
 
   finP2PContractAddress: string;
 
-  constructor(provider: Provider, signer: Signer, finP2PContractAddress: string, logger: winston.Logger) {
+  constructor(provider: Provider, signer: Signer, finP2PContractAddress: string, logger: Logger) {
     super(provider, signer, logger);
     const factory = new ContractFactory<any[], FINP2POperatorERC20>(
       FINP2P.abi, FINP2P.bytecode, this.signer

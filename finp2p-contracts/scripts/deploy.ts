@@ -1,10 +1,8 @@
 import process from "process";
 import { ContractsManager, createProviderAndSigner, ProviderType } from "../src";
-import winston, { format, transports } from "winston";
+import { ConsoleLogger, Logger } from "../src/logger";
 
-const logger = winston.createLogger({
-  level: "info", transports: [new transports.Console()], format: format.json()
-});
+const logger: Logger = new ConsoleLogger('info')
 
 const deploy = async (providerType: ProviderType, operatorAddress: string, paymentAssetCode: string | undefined) => {
   const { provider, signer } = await createProviderAndSigner(providerType, logger);
