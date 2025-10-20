@@ -14,7 +14,7 @@ import {
   EIP712Domain, EIP712LoanTerms, PrimaryType, ReceiptOperation,
   failedReceiptOperation, pendingReceiptOperation,
   successfulReceiptOperation
-} from "@owneraio/finp2p-nodejs-skeleton-adapter";
+} from "@owneraio/finp2p-adapter-models";
 import { assetTypeToService } from "./mappers";
 
 

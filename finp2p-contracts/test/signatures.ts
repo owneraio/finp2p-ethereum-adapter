@@ -2,7 +2,7 @@ import { loadFixture } from "@nomicfoundation/hardhat-toolbox/network-helpers";
 import { expect } from "chai";
 // @ts-ignore
 import { ethers } from "hardhat";
-import { generateNonce } from "./utils";
+import { generateNonce, hashEIP712, signEIP712, verifyEIP712 } from "./utils";
 import { v4 as uuidv4 } from "uuid";
 import { HDNodeWallet, Wallet } from "ethers";
 import { finIdToAddress, getFinId } from "../src";
@@ -15,14 +15,11 @@ import {
   eip712TradeDetails,
   eip712TransactionDetails,
   emptyLoanTerms,
-  hashEIP712,
   loanTerms,
   newInvestmentMessage,
   newReceiptMessage,
   RECEIPT_PROOF_TYPES,
-  signEIP712,
-  verifyEIP712,
-} from "@owneraio/finp2p-nodejs-skeleton-adapter";
+} from "@owneraio/finp2p-adapter-models";
 import { AssetType, term, Term, termToEIP712 } from "../src";
 
 import { PrimaryType } from './utils'

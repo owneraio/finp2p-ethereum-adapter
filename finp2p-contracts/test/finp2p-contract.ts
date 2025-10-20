@@ -3,15 +3,14 @@ import { expect } from "chai";
 // @ts-ignore
 import { ethers } from "hardhat";
 import { v4 as uuid } from "uuid";
-import { generateNonce, toFixedDecimals, PrimaryType, LegType } from "./utils";
+import { generateNonce, toFixedDecimals, PrimaryType, LegType, signEIP712 } from "./utils";
 import { Signer, Wallet } from "ethers";
 import {
   EIP712LoanTerms,
   emptyLoanTerms,
   loanTerms,
   newInvestmentMessage,
-  signEIP712
-} from "@owneraio/finp2p-nodejs-skeleton-adapter";
+} from "@owneraio/finp2p-adapter-models";
 import { FINP2POperatorERC20, FinP2PSignatureVerifier } from "../typechain-types";
 import {
   AssetType,

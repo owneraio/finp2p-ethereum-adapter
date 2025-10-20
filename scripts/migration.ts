@@ -5,13 +5,12 @@ import { FinP2PClient } from "@owneraio/finp2p-client";
 import {
   FinP2PContract,
   ERC20Contract,
-  ProviderType,
   EthereumTransactionError,
   MINTER_ROLE,
   OPERATOR_ROLE,
     isEthereumAddress
 } from "@owneraio/finp2p-contracts";
-import { createProviderAndSigner } from "../src/config";
+import { ProviderType, createProviderAndSigner } from "../src/config";
 
 const logger = winston.createLogger({
   level: "info",

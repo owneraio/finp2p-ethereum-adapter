@@ -4,7 +4,7 @@ import {
   Destination,
   EIP712Term,
   Source
-} from "@owneraio/finp2p-nodejs-skeleton-adapter";
+} from "@owneraio/finp2p-adapter-models";
 import { AssetType, assetTypeToEIP712, EIP712LoanTerms, Term } from "./model";
 
 

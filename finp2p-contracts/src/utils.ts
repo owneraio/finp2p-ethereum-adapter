@@ -7,7 +7,7 @@ import {
   TransactionReceipt,
   Wallet
 } from "ethers";
-import { LegType, PrimaryType, Receipt, TradeDetails } from "@owneraio/finp2p-nodejs-skeleton-adapter";
+import { LegType, PrimaryType, Receipt, TradeDetails } from "@owneraio/finp2p-adapter-models";
 import {
   FINP2POperatorERC20Interface,
   HoldEvent,

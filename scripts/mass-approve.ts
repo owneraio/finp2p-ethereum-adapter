@@ -1,9 +1,9 @@
 import console from "console";
 import process from "process";
 import winston, { format, transports } from "winston";
-import { ProviderType, ERC20Contract } from "@owneraio/finp2p-contracts";
+import { ERC20Contract } from "@owneraio/finp2p-contracts";
 import { FinP2PClient } from "@owneraio/finp2p-client";
-import { createProviderAndSigner } from "../src/config";
+import { ProviderType, createProviderAndSigner } from "../src/config";
 
 const logger = winston.createLogger({
   level: "info",

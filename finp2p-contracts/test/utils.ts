@@ -1,6 +1,9 @@
 import * as secp256k1 from "secp256k1";
 import * as crypto from "crypto";
 import createKeccakHash from "keccak";
+import { Signer, TypedDataEncoder, TypedDataField, verifyTypedData, Wallet } from "ethers";
+import { EIP712_DOMAIN } from "@owneraio/finp2p-nodejs-skeleton-adapter";
+import { finIdToAddress } from "../src";
 
 // For some reason Hardhat test can't recognize typescript enums from dependencies,
 // so duplicating them here as const enums
@@ -60,9 +63,26 @@ export const generateNonce = (): Buffer => {
   return buffer;
 };
 
-export const sign = (privateKey: string, payload: Buffer): Buffer => {
-  const privKey = Buffer.from(privateKey.replace("0x", ""), "hex");
-  const sigObj = secp256k1.sign(payload, privKey);
-  return Buffer.from(sigObj.signature);
+export const signEIP712 = (chainId: bigint | number, verifyingContract: string, types: Record<string, Array<TypedDataField>>, message: Record<string, any>, signer: Signer) => {
+  const domain = { ...EIP712_DOMAIN, chainId, verifyingContract };
+  return signer.signTypedData(domain, types, message);
 };
+
+export const signEIP712WithPrivateKey = (chainId: bigint | number, verifyingContract: string, types: Record<string, Array<TypedDataField>>, message: Record<string, any>, signerPrivateKey: string) => {
+  return signEIP712(chainId, verifyingContract, types, message, new Wallet(signerPrivateKey));
+};
+
+export const hashEIP712 = (chainId: bigint | number, verifyingContract: string, types: Record<string, Array<TypedDataField>>, message: Record<string, any>) => {
+  const domain = { ...EIP712_DOMAIN, chainId, verifyingContract };
+  return TypedDataEncoder.hash(domain, types, message);
+};
+
+export const verifyEIP712 = (chainId: bigint | number, verifyingContract: string, types: Record<string, Array<TypedDataField>>, message: Record<string, any>, signerFinId: string, signature: string) => {
+  const signerAddress = finIdToAddress(signerFinId);
+  const domain = { ...EIP712_DOMAIN, chainId, verifyingContract };
+  const address = verifyTypedData(domain, types, message, signature);
+  return address.toLowerCase() === signerAddress.toLowerCase();
+};
+
+
 
