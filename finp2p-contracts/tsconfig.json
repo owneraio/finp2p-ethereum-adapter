@@ -20,6 +20,7 @@
     }
   },
   "include": [
+    "index.ts",
     "src/**/*.ts",
     "artifacts/contracts/**/*.json",
     "typechain-types/**/*.ts",

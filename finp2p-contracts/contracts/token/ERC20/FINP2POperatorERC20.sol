@@ -34,7 +34,7 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
         REDEEM
     }
 
-    string public constant VERSION = "0.24.0";
+    string public constant VERSION = "0.25.7";
 
     bytes32 private constant ASSET_MANAGER = keccak256("ASSET_MANAGER");
     bytes32 private constant TRANSACTION_MANAGER = keccak256("TRANSACTION_MANAGER");
@@ -112,10 +112,10 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
     mapping(string => Asset) private assets;
     mapping(string => Lock) private locks;
 
-    constructor() {
-        _grantRole(DEFAULT_ADMIN_ROLE, _msgSender());
-        _grantRole(ASSET_MANAGER, _msgSender());
-        _grantRole(TRANSACTION_MANAGER, _msgSender());
+    constructor(address admin) {
+        _grantRole(DEFAULT_ADMIN_ROLE, admin);
+        _grantRole(ASSET_MANAGER, admin);
+        _grantRole(TRANSACTION_MANAGER, admin);
     }
 
     function getVersion() external pure returns (string memory) {
@@ -221,7 +221,7 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
             string memory destination,
             string memory assetId,
             AssetType assetType,
-            string memory amount) = _extractDetails(sellerFinId, buyerFinId, assetTerm, settlementTerm, loanTerm,op);
+            string memory amount) = _extractDetails(sellerFinId, buyerFinId, assetTerm, settlementTerm, loanTerm, op);
         require(verifyInvestmentSignature(
             op.eip712PrimaryType,
             nonce,
@@ -272,7 +272,7 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
         (string memory source,
             string memory destination,
             string memory assetId, AssetType assetType,
-            string memory amount) = _extractDetails(sellerFinId, buyerFinId, assetTerm, settlementTerm, loanTerm,op);
+            string memory amount) = _extractDetails(sellerFinId, buyerFinId, assetTerm, settlementTerm, loanTerm, op);
         require(verifyInvestmentSignature(
             op.eip712PrimaryType,
             nonce,
@@ -302,6 +302,7 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
     /// @param quantity The quantity to release
     function releaseTo(
         string calldata operationId,
+        string calldata fromFinId,
         string calldata toFinId,
         string calldata quantity
     ) external {
@@ -309,6 +310,7 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
         require(_haveContract(operationId), "Contract does not exists");
         Lock storage lock = locks[operationId];
         require(lock.amount.equals(quantity), "Trying to release amount different from the one held");
+        require(lock.source.equals(fromFinId), "Trying to release asset with source different from the one who held it");
         require(lock.destination.equals(toFinId), "Trying to release to different destination than the one expected in the lock");
 
         _transfer(_getEscrow(), toFinId.toAddress(), lock.assetId, lock.amount);
@@ -387,7 +389,11 @@ contract FINP2POperatorERC20 is AccessControl, FinP2PSignatureVerifier {
         uint256 balance = IERC20(asset.tokenAddress).balanceOf(from);
         require(balance >= tokenAmount, "Not sufficient balance to transfer");
 
-        IERC20(asset.tokenAddress).transferFrom(from, to, tokenAmount);
+        if (from == address(this)) {
+            IERC20(asset.tokenAddress).transfer(to, tokenAmount);
+        } else {
+            IERC20(asset.tokenAddress).transferFrom(from, to, tokenAmount);
+        }
     }
 
     function _burn(address from, string memory assetId, string memory quantity) internal {

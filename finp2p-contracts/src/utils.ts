@@ -2,14 +2,13 @@ import {
   computeAddress,
   concat,
   HDNodeWallet,
-  isAddress,
-  keccak256,
+  isAddress, keccak256,
   Signature,
   TransactionReceipt,
   Wallet
 } from "ethers";
-import { assetTypeFromNumber, FinP2PReceipt } from "./model";
 import * as secp256k1 from "secp256k1";
+import { LegType, PrimaryType, Receipt, TradeDetails } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import {
   FINP2POperatorERC20Interface,
   HoldEvent,
@@ -22,6 +21,8 @@ import {
   ERC20WithOperatorInterface,
   TransferEvent as ERC20TransferEvent
 } from "../typechain-types/contracts/token/ERC20/ERC20WithOperator";
+import { OperationParams, Phase } from "./model";
+import { assetToService, finIdDestination, finIdSource } from "./mappers";
 
 export const compactSerialize = (signature: string): string => {
   const { r, s } = Signature.from(signature);
@@ -57,18 +58,28 @@ export const finIdToAddress = (finId: string): string => {
 };
 
 // secp version
-// export const finIdToAddress = (finId: string): string => {
-//   const val = secp256k1.publicKeyConvert(Buffer.from(finId, "hex"), false).slice(1);
-//   return "0x" + keccak256(val).slice(-40);
-// };
+export const finIdToAddressWithSecP = (finId: string): string => {
+  const val = secp256k1.publicKeyConvert(Buffer.from(finId, "hex"), false).slice(1);
+  return "0x" + keccak256(val).slice(-40);
+};
+
+const emptyTradeDetails = (): TradeDetails => {
+  return {
+    executionContext: {
+      planId: "",
+      sequence: 0
+    },
+  }
+}
 
 export const parseTransactionReceipt = (
   receipt: TransactionReceipt,
   contractInterface: FINP2POperatorERC20Interface,
   timestamp: number
-): FinP2PReceipt | null => {
+): Receipt | null => {
   const id = receipt.hash;
 
+  const tradeDetails = emptyTradeDetails();
   for (const log of receipt.logs) {
     try {
       const parsedLog = contractInterface.parseLog(log);
@@ -79,15 +90,20 @@ export const parseTransactionReceipt = (
       switch (parsedLog.signature) {
         case "Issue(string,uint8,string,string)": {
           const { assetId, assetType, quantity, issuerFinId } = parsedLog.args as unknown as IssueEvent.OutputObject;
+
           return {
             id,
-            assetId,
-            assetType: assetTypeFromNumber(assetType),
+            operationType: "issue",
+            asset: assetToService(assetId, assetType),
             quantity,
-            destination: issuerFinId,
-            timestamp,
-            operationType: "issue"
-          };
+            destination: finIdDestination(issuerFinId),
+            transactionDetails: {
+              transactionId: id,
+              operationId: undefined
+            },
+            tradeDetails,
+            timestamp
+          } as Receipt;
         }
         case "Transfer(string,uint8,string,string,string)": {
           const {
@@ -99,14 +115,18 @@ export const parseTransactionReceipt = (
           } = parsedLog.args as unknown as TransferEvent.OutputObject;
           return {
             id,
-            assetId,
-            assetType: assetTypeFromNumber(assetType),
+            operationType: "transfer",
+            asset: assetToService(assetId, assetType),
             quantity,
-            source: sourceFinId,
-            destination: destinationFinId,
-            timestamp,
-            operationType: "transfer"
-          };
+            source: finIdSource(sourceFinId),
+            destination: finIdDestination(destinationFinId),
+            transactionDetails: {
+              transactionId: id,
+              operationId: undefined
+            },
+            tradeDetails,
+            timestamp
+          } as Receipt;
         }
         case "Redeem(string,uint8,string,string,string)": {
           const {
@@ -118,14 +138,17 @@ export const parseTransactionReceipt = (
           } = parsedLog.args as unknown as RedeemEvent.OutputObject;
           return {
             id,
-            assetId,
-            assetType: assetTypeFromNumber(assetType),
-            quantity,
-            source: ownerFinId,
-            timestamp,
             operationType: "redeem",
-            operationId
-          };
+            asset: assetToService(assetId, assetType),
+            quantity,
+            source: finIdSource(ownerFinId),
+            transactionDetails: {
+              transactionId: id,
+              operationId: operationId
+            },
+            tradeDetails,
+            timestamp
+          } as Receipt;
         }
         case "Hold(string,uint8,string,string,string)": {
           const {
@@ -137,14 +160,17 @@ export const parseTransactionReceipt = (
           } = parsedLog.args as unknown as HoldEvent.OutputObject;
           return {
             id,
-            assetId,
-            assetType: assetTypeFromNumber(assetType),
-            quantity,
-            source: finId,
-            timestamp,
             operationType: "hold",
-            operationId
-          };
+            asset: assetToService(assetId, assetType),
+            quantity,
+            source: finIdSource(finId),
+            transactionDetails: {
+              transactionId: id,
+              operationId: operationId
+            },
+            tradeDetails,
+            timestamp
+          } as Receipt;
         }
         case "Release(string,uint8,string,string,string,string)": {
           const {
@@ -157,19 +183,23 @@ export const parseTransactionReceipt = (
           } = parsedLog.args as unknown as ReleaseEvent.OutputObject;
           return {
             id,
-            assetId,
-            assetType: assetTypeFromNumber(assetType),
-            quantity,
-            source: sourceFinId,
-            destination: destinationFinId,
-            timestamp,
             operationType: "release",
-            operationId
-          };
+            asset: assetToService(assetId, assetType),
+            quantity,
+            source: finIdSource(sourceFinId),
+            destination: finIdDestination(destinationFinId),
+            transactionDetails: {
+              transactionId: id,
+              operationId: operationId
+            },
+            tradeDetails,
+            timestamp
+          } as Receipt;
         }
       }
     } catch (e) {
       // do nothing
+      console.error(e);
     }
   }
 
@@ -208,12 +238,28 @@ const undefinedIfEmpty = (value: string): string | undefined => {
   return value === "" ? undefined : value;
 };
 
-export const truncateDecimals = (value: string, decimals: number): string => {
-  const [intPart, decPart = ""] = value.split(".");
-
-  if (decimals <= 0 || decPart.length === 0) {
-    return intPart;
+export const detectSigner = (op: OperationParams, buyerFinId: string, sellerFinId: string) => {
+  if (op.leg === LegType.Asset) {
+    if (op.phase === Phase.Initiate) {
+      return sellerFinId;
+    } else if (op.phase === Phase.Close) {
+      return buyerFinId;
+    } else {
+      throw new Error("Invalid phase");
+    }
+  } else if (op.leg === LegType.Settlement) {
+    if (op.eip712PrimaryType === PrimaryType.PrimarySale) {
+      if (op.phase === Phase.Initiate) {
+        return buyerFinId;
+      } else if (op.phase === Phase.Close) {
+        return sellerFinId;
+      } else {
+        throw new Error("Invalid phase");
+      }
+    } else {
+      return buyerFinId;
+    }
+  } else {
+    throw new Error("Invalid leg");
   }
-
-  return `${intPart}.${decPart.slice(0, decimals)}`;
 };

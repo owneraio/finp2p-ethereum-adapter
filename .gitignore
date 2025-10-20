@@ -6,3 +6,5 @@ node_modules
 /finp2p-contracts/typechain-types/
 /finp2p-contracts/dist/
 /finp2p-contracts/cache/
+/finp2p-contracts/.npmrc/
+.npmrc

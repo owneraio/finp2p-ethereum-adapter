@@ -1,11 +1,7 @@
 import {
-  eip712Asset,
-  EIP712ReceiptMessage,
-  EIP712Template,
-  eip712ExecutionContext, LegType, PrimaryType,
-  eip712TradeDetails,
-  eip712TransactionDetails, EIP712Term, EIP712AssetType,
-} from "./eip712";
+  LegType, PrimaryType, EIP712AssetType, AssetType as SrvAssetType
+} from "@owneraio/finp2p-nodejs-skeleton-adapter";
+
 
 export interface Term {
   assetId: string,
@@ -17,32 +13,6 @@ export const enum AssetType {
   FinP2P = 0,
   Fiat = 1,
   Cryptocurrency = 2
-}
-
-export const assetTypeFromNumber = (assetType: bigint): AssetType => {
-  switch (assetType) {
-    case 0n:
-      return AssetType.FinP2P;
-    case 1n:
-      return AssetType.Fiat;
-    case 2n:
-      return AssetType.Cryptocurrency;
-    default:
-      throw new Error("Invalid asset type");
-  }
-}
-
-export const assetTypeFromString = (assetType: string): AssetType => {
-  switch (assetType) {
-    case "finp2p":
-      return AssetType.FinP2P;
-    case "fiat":
-      return AssetType.Fiat;
-    case "cryptocurrency":
-      return AssetType.Cryptocurrency;
-    default:
-      throw new Error("Invalid asset type");
-  }
 }
 
 export const term = (assetId: string, assetType: AssetType, amount: string): Term => {
@@ -62,15 +32,16 @@ export const assetTypeToEIP712 = (assetType: AssetType): EIP712AssetType => {
     case AssetType.Cryptocurrency:
       return "cryptocurrency";
   }
+};
+
+
+export interface EIP712LoanTerms {
+  openTime: string;
+  closeTime: string;
+  borrowedMoneyAmount: string;
+  returnedMoneyAmount: string;
 }
 
-export const termToEIP712 = (term: Term): EIP712Term => {
-  return {
-    assetId: term.assetId,
-    assetType: assetTypeToEIP712(term.assetType),
-    amount: term.amount
-  };
-}
 
 export const enum Phase {
   Initiate = 0,
@@ -87,14 +58,14 @@ export interface OperationParams {
   eip712PrimaryType: PrimaryType;
   phase: Phase;
   operationId: string;
-  releaseType: ReleaseType
+  releaseType: ReleaseType;
 }
 
 export const operationParams = (
   leg: LegType,
   eip712PrimaryType: PrimaryType,
   phase: Phase = Phase.Initiate,
-  operationId: string = '',
+  operationId: string = "",
   releaseType: ReleaseType = ReleaseType.Release): OperationParams => {
   return {
     leg,
@@ -105,102 +76,6 @@ export const operationParams = (
   };
 };
 
-export type OperationStatus = PendingTransaction | SuccessfulTransaction | FailedTransaction;
-
-export type PendingTransaction = {
-  status: "pending"
-};
-
-export type SuccessfulTransaction = {
-  status: "completed"
-  receipt: FinP2PReceipt
-};
-
-export const pendingOperation = (): PendingTransaction => {
-  return {
-    status: "pending"
-  };
-};
-
-export const completedOperation = (receipt: FinP2PReceipt): SuccessfulTransaction => {
-  return {
-    status: "completed",
-    receipt
-  };
-};
-
-export const failedOperation = (message: string, code: number): FailedTransaction => {
-  return {
-    status: "failed",
-    error: { code, message }
-  };
-};
-
-export type TradeDetails = {
-  executionContext: ExecutionContext
-}
-
-export type ExecutionContext = {
-  executionPlanId: string
-  instructionSequenceNumber: number
-}
-
-export type ReceiptProof = {
-  type: "no-proof"
-} | {
-  type: "signature-proof",
-  template: EIP712Template
-  signature: string
-}
-
-export const receiptToEIP712Message = (receipt: FinP2PReceipt): EIP712ReceiptMessage => {
-  const { id, operationType, assetId, assetType, quantity, source, destination, operationId } = receipt;
-  return {
-    id,
-    operationType,
-    source: { accountType: source ? "finId" : "", finId: source || "" },
-    destination: { accountType: destination ? "finId" : "", finId: destination || "" },
-    quantity,
-    asset: eip712Asset(assetId, assetTypeToEIP712(assetType)),
-    tradeDetails: eip712TradeDetails(eip712ExecutionContext(
-      receipt?.tradeDetails?.executionContext.executionPlanId || '',
-      `${receipt?.tradeDetails?.executionContext.instructionSequenceNumber || ''}`)),
-    transactionDetails: eip712TransactionDetails(operationId || "", id)
-  };
-};
-
-export type OperationType = "transfer" | "redeem" | "hold" | "release" | "issue";
-
-export type FinP2PReceipt = {
-  id: string
-  assetId: string
-  assetType: AssetType
-  quantity: string
-  source?: string
-  destination?: string
-  timestamp: number
-  operationType: OperationType
-  operationId?: string
-  tradeDetails?: TradeDetails
-  proof?: ReceiptProof
-};
-
-export type ERC20Transfer = {
-  tokenAddress: string
-  from: string
-  to: string
-  amount: number
-}
-
-export type FailedTransaction = {
-  status: "failed"
-  error: TransactionError
-};
-
-export type TransactionError = {
-  code: number
-  message: string
-};
 
 export class EthereumTransactionError extends Error {
   constructor(public readonly reason: string) {
@@ -231,31 +106,9 @@ export const enum HashType {
   EIP712 = 2
 }
 
-export type DetectedError = EthereumTransactionError |
-  NonceTooHighError |
-  NonceAlreadyBeenUsedError |
-  EthereumContractMethodSignatureError
-
-export const detectError = (e: any): DetectedError | Error => {
-  if (`${e}`.includes("no data present; likely require(false) occurred")) {
-    return new EthereumContractMethodSignatureError(`${e}`)
-  } else if ("code" in e && "error" in e && "code" in e.error && "message" in e.error) {
-    if (e.error.code === -32000 || e.error.message.startsWith("Nonce too high")
-    ) {
-      return new NonceTooHighError(e.error.message);
-    }
-  } else if (e.code === 'REPLACEMENT_UNDERPRICED' || `${e}`.includes("nonce has already been used")) {
-    return new NonceAlreadyBeenUsedError(`${e}`);
-  } else if ("code" in e && "action" in e && "message" in e && "reason" in e && "data" in e && e.reason !== undefined && e.reason !== null) {
-    return new EthereumTransactionError(e.reason);
-  }
-
-  return e
-};
-
 export type LockInfo = {
   assetId: string;
-  assetType: AssetType;
+  assetType: SrvAssetType;
   source: string;
   destination: string;
   amount: string;

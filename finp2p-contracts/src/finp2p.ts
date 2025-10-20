@@ -5,16 +5,17 @@ import { FINP2POperatorERC20 } from "../typechain-types";
 import { FINP2POperatorERC20Interface } from "../typechain-types/contracts/token/ERC20/FINP2POperatorERC20";
 import { PayableOverrides } from "../typechain-types/common";
 import {
-  assetTypeFromNumber,
-  completedOperation,
-  failedOperation,
-  FinP2PReceipt, LockInfo, OperationParams,
-  OperationStatus,
-  pendingOperation, Term
+  LockInfo, OperationParams,
+  Term
 } from "./model";
 import { parseTransactionReceipt } from "./utils";
 import { ContractsManager } from "./manager";
-import { EIP712Domain, EIP712LoanTerms } from "./eip712";
+import {
+  EIP712Domain, EIP712LoanTerms, PrimaryType, ReceiptOperation,
+  failedReceiptOperation, pendingReceiptOperation,
+  successfulReceiptOperation
+} from "@owneraio/finp2p-nodejs-skeleton-adapter";
+import { assetTypeToService } from "./mappers";
 
 
 const ETH_COMPLETED_TRANSACTION_STATUS = 1;
@@ -79,11 +80,11 @@ export class FinP2PContract extends ContractsManager {
     });
   }
 
-  async transfer(nonce: string, sellerFinId: string, buyerFinId: string,
+  async transfer(nonce: string, fromFinId: string, toFinId: string,
                  asset: Term, settlement: Term, loan: EIP712LoanTerms, params: OperationParams, signature: string) {
     return this.safeExecuteTransaction(this.finP2P, async (finP2P: FINP2POperatorERC20, txParams: PayableOverrides) => {
       return finP2P.transfer(
-        nonce, sellerFinId, buyerFinId, asset, settlement, loan, params, `0x${signature}`, txParams);
+        nonce, fromFinId, toFinId, asset, settlement, loan, params, `0x${signature}`, txParams);
     });
   }
 
@@ -93,16 +94,16 @@ export class FinP2PContract extends ContractsManager {
     });
   }
 
-  async hold(nonce: string, sellerFinId: string, buyerFinId: string,
+  async hold(nonce: string, fromFinId: string, toFinId: string,
              asset: Term, settlement: Term, loan: EIP712LoanTerms, params: OperationParams, signature: string) {
     return this.safeExecuteTransaction(this.finP2P, async (finP2P: FINP2POperatorERC20, txParams: PayableOverrides) => {
-      return finP2P.hold(nonce, sellerFinId, buyerFinId, asset, settlement, loan, params, `0x${signature}`, txParams);
+      return finP2P.hold(nonce, fromFinId, toFinId, asset, settlement, loan, params, `0x${signature}`, txParams);
     });
   }
 
-  async releaseTo(operationId: string, buyerFinId: string, quantity: string) {
+  async releaseTo(operationId: string, fromFinId: string, toFinId: string, quantity: string) {
     return this.safeExecuteTransaction(this.finP2P, async (finP2P: FINP2POperatorERC20, txParams: PayableOverrides) => {
-      return finP2P.releaseTo(operationId, buyerFinId, quantity, txParams);
+      return finP2P.releaseTo(operationId, fromFinId, toFinId, quantity, txParams);
     });
   }
 
@@ -126,10 +127,26 @@ export class FinP2PContract extends ContractsManager {
     return this.finP2P.hasRole(role, address);
   }
 
-  async getOperationStatus(hash: string): Promise<OperationStatus> {
-    const txReceipt = await this.provider.getTransactionReceipt(hash);
+  async verifyInvestmentSignature(primaryType: PrimaryType, nonce: string, buyerFinId: string, sellerFinId: string,
+                                  asset: Term, settlement: Term, loan: EIP712LoanTerms, signerFinId: string, signature: string
+  ) {
+    return await this.finP2P.verifyInvestmentSignature(
+      primaryType, nonce, buyerFinId, sellerFinId, asset, settlement, loan, signerFinId, `0x${signature}`
+    );
+  }
+
+  async hashInvestment(primaryType: PrimaryType, nonce: string, buyerFinId: string, sellerFinId: string,
+                       asset: Term, settlement: Term, loan: EIP712LoanTerms
+  ) {
+    return await this.finP2P.hashInvestment(
+      primaryType, `0x${nonce}`, buyerFinId, sellerFinId, asset, settlement, loan
+    );
+  }
+
+  async getOperationStatus(txHash: string): Promise<ReceiptOperation> {
+    const txReceipt = await this.provider.getTransactionReceipt(txHash);
     if (txReceipt === null) {
-      return pendingOperation();
+      return pendingReceiptOperation(txHash, undefined);
     } else {
       if (txReceipt?.status === ETH_COMPLETED_TRANSACTION_STATUS) {
         const block = await this.provider.getBlock(txReceipt.blockNumber);
@@ -137,18 +154,18 @@ export class FinP2PContract extends ContractsManager {
         const receipt = parseTransactionReceipt(txReceipt, this.contractInterface, timestamp);
         if (receipt === null) {
           this.logger.error("Failed to parse receipt");
-          return failedOperation("Failed to parse receipt", 1);
+          return failedReceiptOperation(1, "Failed to parse receipt");
         }
         // const erc20Transfer = parseERC20Transfer(txReceipt, );
         // this.logger.info('ERC20 transfer event', erc20Transfer);
-        return completedOperation(receipt);
+        return successfulReceiptOperation(receipt);
       } else {
-        return failedOperation(`Transaction failed with status: ${txReceipt.status}`, 1);
+        return failedReceiptOperation(1, `Transaction failed with status: ${txReceipt.status}`);
       }
     }
   }
 
-  async getReceipt(hash: string): Promise<FinP2PReceipt> {
+  async getReceipt(hash: string): Promise<ReceiptOperation> {
     const txReceipt = await this.provider.getTransactionReceipt(hash);
     if (txReceipt === null) {
       throw new Error("Transaction not found");
@@ -159,7 +176,7 @@ export class FinP2PContract extends ContractsManager {
     if (receipt === null) {
       throw new Error("Failed to parse receipt");
     }
-    return receipt;
+    return successfulReceiptOperation(receipt);
   }
 
   async getLockInfo(operationId: string): Promise<LockInfo> {
@@ -172,7 +189,7 @@ export class FinP2PContract extends ContractsManager {
     }
     return {
       assetId: info[0],
-      assetType: assetTypeFromNumber(info[1]),
+      assetType: assetTypeToService(info[1]),
       source: info[2],
       destination: info[3],
       amount: info[4]

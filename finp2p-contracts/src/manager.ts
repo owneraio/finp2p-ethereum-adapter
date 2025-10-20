@@ -11,13 +11,13 @@ import ERC20 from "../artifacts/contracts/token/ERC20/ERC20WithOperator.sol/ERC2
 import { ERC20WithOperator, FINP2POperatorERC20 } from "../typechain-types";
 import winston from "winston";
 import { PayableOverrides } from "../typechain-types/common";
-import { detectError, EthereumTransactionError, NonceAlreadyBeenUsedError, NonceTooHighError } from "./model";
-import { hash as typedHash, sign } from "./eip712";
+import { EthereumTransactionError, NonceAlreadyBeenUsedError, NonceToHighError } from "./model";
+import { hashEIP712, signEIP712 } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import { compactSerialize } from "./utils";
+import { detectError } from "./errors";
 
 const DefaultDecimalsCurrencies = 2;
 
-export class ContractsManager {
 
   provider: Provider;
   signer: Signer;
@@ -53,20 +53,21 @@ export class ContractsManager {
     return await this.provider.getTransactionCount(this.signer.getAddress(), "latest");
   }
 
-  async deployFinP2PContract(signerAddress: string | undefined, paymentAssetCode: string | undefined = undefined) {
+  async deployFinP2PContract(operatorAddress: string | undefined, paymentAssetCode: string | undefined = undefined) {
     this.logger.info("Deploying FinP2P contract...");
     const factory = new ContractFactory<any[], FINP2POperatorERC20>(
       FINP2P.abi, FINP2P.bytecode, this.signer
     );
-    const contract = await factory.deploy();
+    const deployerAddress = await this.signer.getAddress();
+    const contract = await factory.deploy(deployerAddress);
     await contract.waitForDeployment();
 
     const address = await contract.getAddress();
     this.logger.info(`FinP2P contract deployed successfully at: ${address}`);
 
-    if (signerAddress) {
-      await this.grantAssetManagerRole(address, signerAddress);
-      await this.grantTransactionManagerRole(address, signerAddress);
+    if (operatorAddress) {
+      await this.grantAssetManagerRole(address, operatorAddress);
+      await this.grantTransactionManagerRole(address, operatorAddress);
     }
 
     if (paymentAssetCode) {
@@ -135,8 +136,8 @@ export class ContractsManager {
     hash: string,
     signature: string
   }> {
-    const hash = typedHash(chainId, verifyingContract, types, message).substring(2);
-    const signature = compactSerialize(await sign(chainId, verifyingContract, types, message, this.signer));
+    const hash = hashEIP712(chainId, verifyingContract, types, message).substring(2);
+    const signature = compactSerialize(await signEIP712(chainId, verifyingContract, types, message, this.signer));
     return { hash, signature };
   }
 
@@ -167,9 +168,9 @@ export class ContractsManager {
   protected async safeExecuteTransaction<C extends BaseContract>(contract: C, call: (contract: C, overrides: PayableOverrides) => Promise<ContractTransactionResponse>, maxAttempts: number = 10) {
     for (let i = 0; i < maxAttempts; i++) {
       try {
-        let nonce: number
+        let nonce: number;
         if (this.signer instanceof NonceManager) {
-          nonce = await (this.signer as NonceManager).getNonce()
+          nonce = await (this.signer as NonceManager).getNonce();
         } else {
           nonce = await this.getLatestTransactionCount();
         }

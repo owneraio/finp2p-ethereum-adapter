@@ -1,26 +1,31 @@
 import NodeEnvironment from "jest-environment-node";
 import { GenericContainer, StartedTestContainer } from "testcontainers";
 import { EnvironmentContext, JestEnvironmentConfig } from "@jest/environment";
-import { FinP2PContract } from "../../finp2p-contracts/src/finp2p";
-import createApp from "../../src/app";
+import winston, { format, transports } from "winston";
 import * as http from "http";
 import * as console from "console";
+import createApp from "../../src/app";
+import {
+  FinP2PContract,
+  ContractsManager,
+  createProviderAndSigner,
+  addressFromPrivateKey,
+  ProviderType
+} from "@owneraio/finp2p-contracts";
+import { InMemoryExecDetailsStore } from "../../src/services";
 import { HardhatLogExtractor } from "./log-extractors";
-import { ContractsManager } from "../../finp2p-contracts/src/manager";
 import { AdapterParameters, NetworkDetails, NetworkParameters } from "./models";
 import { randomPort } from "./utils";
-import { addressFromPrivateKey } from "../../finp2p-contracts/src/utils";
-import { AssetCreationPolicy } from "../../src/services/tokens";
-import { createProviderAndSigner, ProviderType } from "../../finp2p-contracts/src/config";
-import winston, { format, transports } from "winston";
-import { InMemoryExecDetailsStore } from "../../src/services/exec-details-store";
 
 const providerType: ProviderType = "local";
 
-const level = "INFO";
+const level = "info";
+
 const logger = winston.createLogger({
   level, transports: [new transports.Console({ level })], format: format.json()
 });
+
+const DefaultOrgId = "some-org";
 
 class CustomTestEnvironment extends NodeEnvironment {
 
@@ -86,7 +91,11 @@ class CustomTestEnvironment extends NodeEnvironment {
     await logExtractor.started();
     console.log("Hardhat node started successfully.");
 
-    let accounts = ["0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80", "0x5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a", "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d"];
+    let accounts = [
+      "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80",
+      "0x5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a",
+      "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d"
+    ];
 
     const rpcHost = startedContainer.getHost();
     const rpcPort = startedContainer.getMappedPort(containerPort).toString();
@@ -107,12 +116,13 @@ class CustomTestEnvironment extends NodeEnvironment {
     const finP2PContract = new FinP2PContract(provider, signer, finP2PContractAddress, logger);
 
     const port = randomPort();
-    const assetCreationPolicy = { type: "deploy-new-token", decimals: 0 } as AssetCreationPolicy;
 
-    const version = await finP2PContract.getVersion()
+    const version = await finP2PContract.getVersion();
     console.log(`FinP2P contract version: ${version}`);
 
-    const app = createApp(finP2PContract, assetCreationPolicy, undefined,  new InMemoryExecDetailsStore(), 18, logger);
+    const execDetailsStore = new InMemoryExecDetailsStore();
+
+    const app = createApp(DefaultOrgId, finP2PContract, undefined, execDetailsStore, logger);
     console.log("App created successfully.");
 
     this.httpServer = app.listen(port, () => {
