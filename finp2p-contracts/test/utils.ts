@@ -2,8 +2,15 @@ import * as secp256k1 from "secp256k1";
 import * as crypto from "crypto";
 import createKeccakHash from "keccak";
 import { Signer, TypedDataEncoder, TypedDataField, verifyTypedData, Wallet } from "ethers";
-import { EIP712_DOMAIN } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import { finIdToAddress } from "../src";
+
+
+export const EIP712_DOMAIN = {
+  name: 'FinP2P',
+  version: '1',
+  chainId: 1,
+  verifyingContract: '0x0000000000000000000000000000000000000000',
+};
 
 // For some reason Hardhat test can't recognize typescript enums from dependencies,
 // so duplicating them here as const enums
