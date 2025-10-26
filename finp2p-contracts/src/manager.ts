@@ -12,9 +12,8 @@ import { ERC20WithOperator, FINP2POperatorERC20 } from "../typechain-types";
 import { Logger } from "./logger";
 import { PayableOverrides } from "../typechain-types/common";
 import { EthereumTransactionError, NonceAlreadyBeenUsedError, NonceToHighError } from "./model";
-import { compactSerialize } from "./utils";
+import { compactSerialize, hashEIP712, signEIP712 } from "./utils";
 import { detectError } from "./errors";
-import { hashEIP712, signEIP712 } from "../test/utils";
 
 const DefaultDecimalsCurrencies = 2;
 

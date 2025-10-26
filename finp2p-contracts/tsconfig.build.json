@@ -25,5 +25,8 @@
     "artifacts/contracts/**/*.json",
     "typechain-types/**/*.ts",
   ],
-  "exclude": [ "test", "scripts" ]
+  "exclude": [
+    "test/**",
+    "scripts/**"
+  ]
 }
