@@ -1,13 +1,12 @@
 import {
   LedgerAPI,
-  Source,
-  Destination,
   assetFromAPI,
   sourceFromAPI,
   destinationFromAPI,
   executionContextOptFromAPI,
   signatureFromAPI, hashEIP712, verifyEIP712
 } from "@owneraio/finp2p-nodejs-skeleton-adapter";
+import { Source, Destination } from "@owneraio/finp2p-adapter-models";
 import {
   finIdToAddress,
   FinP2PContract,
