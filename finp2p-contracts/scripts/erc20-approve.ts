@@ -1,11 +1,10 @@
 import process from "process";
-import winston, { format, transports } from "winston";
 import { formatUnits, parseUnits } from "ethers";
-import { FinP2PContract, createProviderAndSigner, ProviderType, ERC20Contract } from "../src";
+import { FinP2PContract, ERC20Contract, ConsoleLogger, Logger } from "../src";
+import { createProviderAndSigner, ProviderType } from "./config";
 
-const logger = winston.createLogger({
-  level: "info", transports: [new transports.Console()], format: format.json()
-});
+const logger: Logger = new ConsoleLogger("info");
+
 
 const erc20Approve = async (
   providerType: ProviderType, finp2pContractAddress: string, assetId: string, spender: string, amount: string) => {
