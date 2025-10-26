@@ -1,24 +1,23 @@
 import {
   LedgerAPI,
-  Source,
-  Destination,
   assetFromAPI,
   sourceFromAPI,
   destinationFromAPI,
   executionContextOptFromAPI,
   signatureFromAPI, hashEIP712, verifyEIP712
 } from "@owneraio/finp2p-nodejs-skeleton-adapter";
+import { Source, Destination } from "@owneraio/finp2p-adapter-models";
 import {
-  createProviderAndSigner,
   finIdToAddress,
   FinP2PContract,
-  ProviderType, detectSigner
+  detectSigner
 } from "@owneraio/finp2p-contracts";
 import winston, { format, transports } from "winston";
 import { extractBusinessDetails } from "../src/services/helpers";
 import process from "process";
 import console from "console";
 import * as fs from "node:fs";
+import { ProviderType, createProviderAndSigner } from "../src/config";
 
 const logger = winston.createLogger({
   level: "info",
