@@ -16,7 +16,7 @@
     "clean": "rm -rf dist && rm -rf cache && rm -rf artifacts && rm -rf typechain-types",
     "compile": "hardhat compile",
     "test": "hardhat test",
-    "prebuild": "eslint ./src --ext .ts --fix",
+    "eslint": "eslint ./src --ext .ts --fix",
     "build": "tsc -p tsconfig.build.json",
     "postbuild": "cpx \"contracts/**/*\" dist/contracts",
     "deploy-contract": "ts-node scripts/deploy.ts",
