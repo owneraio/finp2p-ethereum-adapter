@@ -1,4 +1,3 @@
-import * as secp256k1 from "secp256k1";
 import * as crypto from "crypto";
 import createKeccakHash from "keccak";
 import { Signer, TypedDataEncoder, TypedDataField, verifyTypedData, Wallet } from "ethers";
