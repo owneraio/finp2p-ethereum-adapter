@@ -11,14 +11,14 @@ import ERC20 from "../artifacts/contracts/token/ERC20/ERC20WithOperator.sol/ERC2
 import { ERC20WithOperator, FINP2POperatorERC20 } from "../typechain-types";
 import winston from "winston";
 import { PayableOverrides } from "../typechain-types/common";
-import { EthereumTransactionError, NonceAlreadyBeenUsedError, NonceToHighError } from "./model";
+import { EthereumTransactionError, NonceAlreadyBeenUsedError, NonceTooHighError } from "./model";
 import { hashEIP712, signEIP712 } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import { compactSerialize } from "./utils";
 import { detectError } from "./errors";
 
 const DefaultDecimalsCurrencies = 2;
 
-
+export class ContractsManager {
   provider: Provider;
   signer: Signer;
   logger: winston.Logger;
