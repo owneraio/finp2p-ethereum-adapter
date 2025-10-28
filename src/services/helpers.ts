@@ -15,7 +15,7 @@ import {
   PrimaryType,
   SignatureTemplate,
   Source
-} from "@owneraio/finp2p-nodejs-skeleton-adapter";
+} from "@owneraio/finp2p-adapter-models";
 import {
   emptyTerm,
   operationParams,

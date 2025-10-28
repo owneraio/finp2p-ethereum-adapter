@@ -1,9 +1,8 @@
-import { FinP2PContract, createProviderAndSigner, ProviderType } from "../src";
-import winston, { format, transports } from "winston";
+import { FinP2PContract, ConsoleLogger, Logger } from "../src";
+import { createProviderAndSigner, ProviderType } from "./config";
 
-const logger = winston.createLogger({
-  level: "info", transports: [new transports.Console()], format: format.json()
-});
+const logger: Logger = new ConsoleLogger('info')
+
 
 const domainParams = async (providerType: ProviderType, finp2pContractAddress: string) => {
   const { provider, signer } = await createProviderAndSigner(providerType, logger);

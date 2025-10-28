@@ -20,11 +20,13 @@
     }
   },
   "include": [
+    "index.ts",
     "src/**/*.ts",
-    "scripts/**/*.ts",
     "artifacts/contracts/**/*.json",
     "typechain-types/**/*.ts",
-    "hardhat.config.ts",
   ],
-  "exclude": [ "test", "scripts" ]
+  "exclude": [
+    "test/**",
+    "scripts/**"
+  ]
 }

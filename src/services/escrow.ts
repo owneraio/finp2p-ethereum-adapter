@@ -1,7 +1,8 @@
 import {
-  logger, Asset, Destination, EIP712Template, ExecutionContext,
+  Asset, Destination, EIP712Template, ExecutionContext,
   failedReceiptOperation, pendingReceiptOperation, ReceiptOperation, Signature, Source, EscrowService
-} from "@owneraio/finp2p-nodejs-skeleton-adapter";
+} from "@owneraio/finp2p-adapter-models";
+import { logger } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import { CommonServiceImpl } from "./common";
 import { extractBusinessDetails } from "./helpers";
 import { EthereumTransactionError } from "@owneraio/finp2p-contracts";
