@@ -83,7 +83,7 @@ export class EthereumTransactionError extends Error {
   }
 }
 
-export class NonceToHighError extends Error {
+export class NonceTooHighError extends Error {
   constructor(public readonly reason: string) {
     super(reason);
   }
@@ -92,6 +92,12 @@ export class NonceToHighError extends Error {
 export class NonceAlreadyBeenUsedError extends Error {
   constructor(public readonly reason: string) {
     super(reason);
+  }
+}
+
+export class EthereumContractMethodSignatureError extends Error {
+  constructor(public readonly reason: string) {
+    super(reason)
   }
 }
 
