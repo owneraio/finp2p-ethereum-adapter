@@ -11,14 +11,13 @@ import ERC20 from "../artifacts/contracts/token/ERC20/ERC20WithOperator.sol/ERC2
 import { ERC20WithOperator, FINP2POperatorERC20 } from "../typechain-types";
 import { Logger } from "./logger";
 import { PayableOverrides } from "../typechain-types/common";
-import { EthereumTransactionError, NonceAlreadyBeenUsedError, NonceToHighError } from "./model";
+import { EthereumTransactionError, NonceAlreadyBeenUsedError, NonceTooHighError } from "./model";
 import { compactSerialize, hashEIP712, signEIP712 } from "./utils";
 import { detectError } from "./errors";
 
 const DefaultDecimalsCurrencies = 2;
 
 export class ContractsManager {
-
   provider: Provider;
   signer: Signer;
   logger: Logger;
@@ -157,6 +156,14 @@ export class ContractsManager {
     throw new Error(`no result after ${tries} retries`);
   }
 
+  protected async mapErrors<R>(callee: () => Promise<R>) {
+    try {
+      return await callee()
+    } catch (e) {
+      throw detectError(e)
+    }
+  }
+
   protected async safeExecuteTransaction<C extends BaseContract>(contract: C, call: (contract: C, overrides: PayableOverrides) => Promise<ContractTransactionResponse>, maxAttempts: number = 10) {
     for (let i = 0; i < maxAttempts; i++) {
       try {
@@ -175,7 +182,7 @@ export class ContractsManager {
           this.resetNonce();
           throw err;
 
-        } else if (err instanceof NonceToHighError) {
+        } else if (err instanceof NonceTooHighError) {
           // console.log('Nonce too high error, retrying');
           this.resetNonce();
           // continuing the loop
