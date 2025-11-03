@@ -1,7 +1,9 @@
 import {
   LegType, PrimaryType, EIP712AssetType, AssetType as SrvAssetType
 } from "@owneraio/finp2p-adapter-models";
+import { keccak256, toUtf8Bytes } from "ethers";
 
+export const ERC20_STANDARD_ID = keccak256(toUtf8Bytes('ERC20_WITH_OPERATOR'));
 
 export interface Term {
   assetId: string,

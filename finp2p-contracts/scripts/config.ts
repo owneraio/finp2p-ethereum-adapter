@@ -15,7 +15,6 @@ import { Logger, privateKeyToFinId } from "../src";
 
 export type ProviderType = "local" | "fireblocks";
 
-export const ERC20_STANDARD_ID = keccak256(toUtf8Bytes('ERC20_WITH_OPERATOR'));
 
 export type ProviderAndSigner = {
   provider: Provider, signer: Signer,

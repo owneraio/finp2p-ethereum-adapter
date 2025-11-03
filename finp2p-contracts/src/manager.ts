@@ -14,10 +14,9 @@ import ERC20 from "../artifacts/contracts/token/ERC20/ERC20WithOperator.sol/ERC2
 import { AssetRegistry, ERC20Standard, ERC20WithOperator, FINP2POperator } from "../typechain-types";
 import { Logger } from "./logger";
 import { PayableOverrides } from "../typechain-types/common";
-import { EthereumTransactionError, NonceAlreadyBeenUsedError, NonceToHighError } from "./model";
+import { ERC20_STANDARD_ID, EthereumTransactionError, NonceAlreadyBeenUsedError, NonceToHighError } from "./model";
 import { compactSerialize, hashEIP712, signEIP712 } from "./utils";
 import { detectError } from "./errors";
-import { ERC20_STANDARD_ID } from "./config";
 
 const DefaultDecimalsCurrencies = 2;
 

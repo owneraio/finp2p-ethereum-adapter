@@ -295,10 +295,10 @@ contract FINP2POperator is AccessControl, FinP2PSignatureVerifier {
     /// @param toFinId The FinID of the destination
     /// @param quantity The quantity to release
     function releaseTo(
-        string calldata operationId,
-        string calldata fromFinId,
-        string calldata toFinId,
-        string calldata quantity,
+        string memory operationId,
+        string memory fromFinId,
+        string memory toFinId,
+        string memory quantity,
         OperationParams memory op
     ) external {
         require(hasRole(TRANSACTION_MANAGER, _msgSender()), "FINP2POperatorERC20: must have transaction manager role to release asset");

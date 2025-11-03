@@ -1,4 +1,4 @@
-import { ContractFactory, Provider, Signer } from "ethers";
+import { BytesLike, ContractFactory, Provider, Signer } from "ethers";
 import { Logger } from "./logger";
 import FINP2P from "../artifacts/contracts/finp2p/FINP2POperator.sol/FINP2POperator.json";
 import { FINP2POperator } from "../typechain-types";
@@ -103,7 +103,7 @@ export class FinP2PContract extends ContractsManager {
 
   async releaseTo(operationId: string, fromFinId: string, toFinId: string, quantity: string, params: OperationParams) {
     return this.safeExecuteTransaction(this.finP2P, async (finP2P: FINP2POperator, txParams: PayableOverrides) => {
-      return finP2P.releaseTo(operationId, fromFinId, toFinId, quantity, txParams);
+      return finP2P.releaseTo(operationId, fromFinId, toFinId, quantity, params, txParams);
     });
   }
 
