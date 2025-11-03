@@ -23,11 +23,6 @@ contract FINP2POperator is AccessControl, FinP2PSignatureVerifier {
     using FinIdUtils for string;
 
 
-    enum ReleaseType {
-        RELEASE,
-        REDEEM
-    }
-
     string public constant VERSION = "0.25.7-ar";
 
     bytes32 private constant ASSET_MANAGER = keccak256("ASSET_MANAGER");
