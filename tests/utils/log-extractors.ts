@@ -9,7 +9,6 @@ export class HardhatLogExtractor {
   consume(stream: Readable) {
     stream
       .on("data", line => {
-        // console.log(line.toString());
         const match = line.match(/Private Key:\s+(0x[a-fA-F0-9]{64})\s+/);
         if (match && match.length > 0) {
           this.privateKeys.push(match[1]);

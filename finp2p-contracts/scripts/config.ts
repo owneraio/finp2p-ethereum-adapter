@@ -3,11 +3,9 @@ import { ApiBaseUrl, ChainId, FireblocksWeb3Provider } from "@fireblocks/fireblo
 import {
   BrowserProvider,
   JsonRpcProvider,
-  keccak256,
   NonceManager,
   Provider,
   Signer,
-  toUtf8Bytes,
   Wallet
 } from "ethers";
 import process from "process";
