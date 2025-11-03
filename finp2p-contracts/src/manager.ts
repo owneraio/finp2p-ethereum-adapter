@@ -21,7 +21,6 @@ import { detectError } from "./errors";
 const DefaultDecimalsCurrencies = 2;
 
 export class ContractsManager {
-
   provider: Provider;
   signer: Signer;
   logger: Logger;
@@ -212,6 +211,14 @@ export class ContractsManager {
     throw new Error(`no result after ${tries} retries`);
   }
 
+  protected async mapErrors<R>(callee: () => Promise<R>) {
+    try {
+      return await callee()
+    } catch (e) {
+      throw detectError(e)
+    }
+  }
+
   protected async safeExecuteTransaction<C extends BaseContract>(contract: C, call: (contract: C, overrides: PayableOverrides) => Promise<ContractTransactionResponse>, maxAttempts: number = 10) {
     for (let i = 0; i < maxAttempts; i++) {
       try {
@@ -230,7 +237,7 @@ export class ContractsManager {
           this.resetNonce();
           throw err;
 
-        } else if (err instanceof NonceToHighError) {
+        } else if (err instanceof NonceTooHighError) {
           // console.log('Nonce too high error, retrying');
           this.resetNonce();
           // continuing the loop

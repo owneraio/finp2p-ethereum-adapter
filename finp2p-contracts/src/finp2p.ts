@@ -40,7 +40,7 @@ export class FinP2PContract extends ContractsManager {
   }
 
   async getVersion() {
-    return await this.finP2P.getVersion();
+    return this.mapErrors(async () => this.finP2P.getVersion())
   }
 
   async eip712Domain(): Promise<EIP712Domain> {
