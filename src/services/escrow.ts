@@ -1,6 +1,6 @@
 import {
   Asset, Destination, EIP712Template, ExecutionContext,
-  failedReceiptOperation, pendingReceiptOperation, ReceiptOperation, Signature, Source, EscrowService
+  failedReceiptOperation, pendingReceiptOperation, ReceiptOperation, Signature, Source, EscrowService, ValidationError
 } from "@owneraio/finp2p-adapter-models";
 import { logger } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import { CommonServiceImpl } from "./common";
@@ -15,7 +15,7 @@ export class EscrowServiceImpl extends CommonServiceImpl implements EscrowServic
   ): Promise<ReceiptOperation> {
     const { signature, template } = sgn;
     if (template.type != "EIP712") {
-      throw new Error(`Unsupported signature template type: ${template.type}`);
+      throw new ValidationError(`Unsupported signature template type: ${template.type}`);
     }
     const eip712Template = template as EIP712Template;
     const details = extractBusinessDetails(ast, source, destination, operationId, eip712Template, exCtx);
