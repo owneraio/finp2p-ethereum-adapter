@@ -1,6 +1,6 @@
 import {
   Asset, Destination, EIP712Template, ExecutionContext,
-  failedReceiptOperation, pendingReceiptOperation, ReceiptOperation, Signature, Source, EscrowService
+  failedReceiptOperation, pendingReceiptOperation, ReceiptOperation, Signature, Source, EscrowService, ValidationError
 } from "@owneraio/finp2p-adapter-models";
 import { logger } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import { CommonServiceImpl } from "./common";

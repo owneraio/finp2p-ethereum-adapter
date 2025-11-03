@@ -14,7 +14,8 @@ import {
   LegType,
   PrimaryType,
   SignatureTemplate,
-  Source
+  Source,
+  ValidationError
 } from "@owneraio/finp2p-adapter-models";
 import {
   emptyTerm,

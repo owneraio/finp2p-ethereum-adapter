@@ -3,7 +3,7 @@ import {
   ExecutionContext, ReceiptOperation, Balance, TokenService, Signature, Source,
   failedAssetCreation, failedReceiptOperation, successfulAssetCreation,
   pendingReceiptOperation, AssetBind, AssetDenomination, AssetIdentifier, FinIdAccount,
-  AssetCreationResult
+  AssetCreationResult, ValidationError
 } from "@owneraio/finp2p-adapter-models";
 import { logger, ProofProvider, PluginManager} from "@owneraio/finp2p-nodejs-skeleton-adapter"
 import { FinP2PClient } from "@owneraio/finp2p-client";
