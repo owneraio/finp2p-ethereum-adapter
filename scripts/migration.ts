@@ -12,7 +12,6 @@ import {
   ERC20_STANDARD_ID
 } from "@owneraio/finp2p-contracts";
 import { ProviderType, createProviderAndSigner } from "../src/config";
-import { keccak256, toUtf8Bytes } from "ethers";
 
 const logger = winston.createLogger({
   level: "info",
