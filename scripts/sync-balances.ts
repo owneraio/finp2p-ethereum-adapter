@@ -4,6 +4,7 @@ import winston, { format, transports } from "winston";
 import { FinP2PClient } from "@owneraio/finp2p-client";
 import { ERC20_STANDARD_ID, FinP2PContract, AssetType, term } from "@owneraio/finp2p-contracts";
 import { ProviderType, createProviderAndSigner } from "../src/config";
+import { emptyOperationParams } from "../src/services/helpers";
 
 
 const logger = winston.createLogger({
@@ -11,8 +12,6 @@ const logger = winston.createLogger({
   transports: [new transports.Console()],
   format: format.json()
 });
-import { keccak256, toUtf8Bytes } from "ethers";
-import { emptyOperationParams } from "../src/services/helpers";
 
 const syncBalanceFromOssToEthereum = async (ossUrl: string, providerType: ProviderType, finp2pContractAddress: string) => {
   const finp2p = new FinP2PClient("", ossUrl);
