@@ -14,8 +14,8 @@ import {
   LegType,
   PrimaryType,
   SignatureTemplate,
-  Source, ValidationError
-} from "@owneraio/finp2p-nodejs-skeleton-adapter";
+  Source
+} from "@owneraio/finp2p-adapter-models";
 import {
   emptyTerm,
   operationParams,

@@ -2,6 +2,7 @@ import { loadFixture } from "@nomicfoundation/hardhat-toolbox/network-helpers";
 import { expect } from "chai";
 // @ts-ignore
 import { ethers } from "hardhat";
+import { hashEIP712, signEIP712, verifyEIP712 } from "../src";
 import { generateNonce } from "./utils";
 import { v4 as uuidv4 } from "uuid";
 import { HDNodeWallet, Wallet } from "ethers";
@@ -15,17 +16,14 @@ import {
   eip712TradeDetails,
   eip712TransactionDetails,
   emptyLoanTerms,
-  hashEIP712,
   loanTerms,
   newInvestmentMessage,
   newReceiptMessage,
-  RECEIPT_PROOF_TYPES,
-  signEIP712,
-  verifyEIP712,
-} from "@owneraio/finp2p-nodejs-skeleton-adapter";
+  RECEIPT_PROOF_TYPES
+} from "@owneraio/finp2p-adapter-models";
 import { AssetType, term, Term, termToEIP712 } from "../src";
 
-import { PrimaryType } from './utils'
+import { PrimaryType } from "./utils";
 
 describe("Signing test", function() {
   async function deployFinP2PSignatureVerifier() {

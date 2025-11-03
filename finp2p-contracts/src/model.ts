@@ -1,6 +1,6 @@
 import {
   LegType, PrimaryType, EIP712AssetType, AssetType as SrvAssetType
-} from "@owneraio/finp2p-nodejs-skeleton-adapter";
+} from "@owneraio/finp2p-adapter-models";
 
 
 export interface Term {

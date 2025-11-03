@@ -9,11 +9,10 @@ import {
 import FINP2P from "../artifacts/contracts/token/ERC20/FINP2POperatorERC20.sol/FINP2POperatorERC20.json";
 import ERC20 from "../artifacts/contracts/token/ERC20/ERC20WithOperator.sol/ERC20WithOperator.json";
 import { ERC20WithOperator, FINP2POperatorERC20 } from "../typechain-types";
-import winston from "winston";
+import { Logger } from "./logger";
 import { PayableOverrides } from "../typechain-types/common";
 import { EthereumTransactionError, NonceAlreadyBeenUsedError, NonceToHighError } from "./model";
-import { hashEIP712, signEIP712 } from "@owneraio/finp2p-nodejs-skeleton-adapter";
-import { compactSerialize } from "./utils";
+import { compactSerialize, hashEIP712, signEIP712 } from "./utils";
 import { detectError } from "./errors";
 
 const DefaultDecimalsCurrencies = 2;
@@ -22,9 +21,9 @@ export class ContractsManager {
 
   provider: Provider;
   signer: Signer;
-  logger: winston.Logger;
+  logger: Logger;
 
-  constructor(provider: Provider, signer: Signer, logger: winston.Logger) {
+  constructor(provider: Provider, signer: Signer, logger: Logger) {
     this.provider = provider;
     this.signer = signer;
     this.logger = logger;

@@ -1,7 +1,8 @@
 import {
-  logger, Asset, Destination, EIP712Template, ExecutionContext,
-  failedReceiptOperation, pendingReceiptOperation, ReceiptOperation, Signature, Source, EscrowService, ValidationError
-} from "@owneraio/finp2p-nodejs-skeleton-adapter";
+  Asset, Destination, EIP712Template, ExecutionContext,
+  failedReceiptOperation, pendingReceiptOperation, ReceiptOperation, Signature, Source, EscrowService
+} from "@owneraio/finp2p-adapter-models";
+import { logger } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import { CommonServiceImpl } from "./common";
 import { extractBusinessDetails } from "./helpers";
 import { EthereumTransactionError } from "@owneraio/finp2p-contracts";
@@ -43,7 +44,7 @@ export class EscrowServiceImpl extends CommonServiceImpl implements EscrowServic
   public async release(idempotencyKey: string, source: Source, destination: Destination, asset: Asset, quantity: string, operationId: string, exCtx: ExecutionContext | undefined): Promise<ReceiptOperation> {
     let txHash: string;
     try {
-      txHash = await this.finP2PContract.releaseTo(operationId, destination.finId, quantity);
+      txHash = await this.finP2PContract.releaseTo(operationId, source.finId, destination.finId, quantity);
     } catch (e) {
       logger.error(`Error releasing asset: ${e}`);
       if (e instanceof EthereumTransactionError) {

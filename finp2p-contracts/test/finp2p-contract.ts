@@ -3,6 +3,7 @@ import { expect } from "chai";
 // @ts-ignore
 import { ethers } from "hardhat";
 import { v4 as uuid } from "uuid";
+import { signEIP712 } from "../src";
 import { generateNonce, toFixedDecimals, PrimaryType, LegType } from "./utils";
 import { Signer, Wallet } from "ethers";
 import {
@@ -10,8 +11,7 @@ import {
   emptyLoanTerms,
   loanTerms,
   newInvestmentMessage,
-  signEIP712
-} from "@owneraio/finp2p-nodejs-skeleton-adapter";
+} from "@owneraio/finp2p-adapter-models";
 import { FINP2POperatorERC20, FinP2PSignatureVerifier } from "../typechain-types";
 import {
   AssetType,
@@ -244,7 +244,7 @@ describe("FinP2P proxy contract test", function() {
               expect(lock[3]).to.equal(to);
               expect(lock[4]).to.equal(amount);
 
-              await expect(contract.releaseTo(operationId, to, amount, { from: operator }))
+              await expect(contract.releaseTo(operationId, from, to, amount, { from: operator }))
                 .to.emit(contract, "Release").withArgs(assetId, assetType, from, to, amount, operationId);
 
               expect(await contract.getBalance(assetId, from)).to.equal(`${(0).toFixed(decimals)}`);
