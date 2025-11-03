@@ -3,7 +3,7 @@ import {
   ExecutionContext, ReceiptOperation, Balance, TokenService, Signature, Source,
   failedAssetCreation, failedReceiptOperation, successfulAssetCreation,
   pendingReceiptOperation, AssetBind, AssetDenomination, AssetIdentifier, FinIdAccount,
-  AssetCreationResult
+  AssetCreationResult, ValidationError
 } from "@owneraio/finp2p-adapter-models";
 import { logger, ProofProvider, PluginManager} from "@owneraio/finp2p-nodejs-skeleton-adapter"
 import { FinP2PClient } from "@owneraio/finp2p-client";
@@ -116,7 +116,7 @@ export class TokenServiceImpl extends CommonServiceImpl implements TokenService 
   ): Promise<ReceiptOperation> {
     const { signature: sgn, template } = signature;
     if (template.type != "EIP712") {
-      throw new Error(`Unsupported signature template type: ${template.type}`);
+      throw new ValidationError(`Unsupported signature template type: ${template.type}`);
     }
     const eip712Template = template as EIP712Template;
     const details = extractBusinessDetails(ast, source, destination, undefined, eip712Template, exCtx);

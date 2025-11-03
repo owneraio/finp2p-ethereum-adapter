@@ -14,7 +14,8 @@ import {
   LegType,
   PrimaryType,
   SignatureTemplate,
-  Source
+  Source,
+  ValidationError
 } from "@owneraio/finp2p-adapter-models";
 import {
   emptyTerm,
@@ -28,7 +29,7 @@ import { BusinessContract } from "./model";
 
 export const detectLeg = (asset: Asset, template: SignatureTemplate): LegType => {
   if (template.type != "EIP712") {
-    throw new Error(`Unsupported signature template type: ${template.type}`);
+    throw new ValidationError(`Unsupported signature template type: ${template.type}`);
   }
   const { message } = template;
   if ("asset" in message && compareAssets(asset, message.asset as EIP712Term)) {
@@ -36,7 +37,7 @@ export const detectLeg = (asset: Asset, template: SignatureTemplate): LegType =>
   } else if ("settlement" in message && compareAssets(asset, message.settlement as EIP712Term)) {
     return LegType.Settlement;
   } else {
-    throw new Error(`Asset not found in EIP712 message`);
+    throw new ValidationError(`Asset not found in EIP712 message`);
   }
 };
 
@@ -48,7 +49,7 @@ export const extractBusinessDetails = (asset: Asset,
                                        executionContext: ExecutionContext): BusinessContract => {
 
   if (template.type != "EIP712") {
-    throw new Error(`Unsupported signature template type: ${template.type}`);
+    throw new ValidationError(`Unsupported signature template type: ${template.type}`);
   }
 
   const leg = detectLeg(asset, template);
@@ -169,7 +170,7 @@ export const extractBusinessDetails = (asset: Asset,
       };
     }
     default:
-      throw new Error(`Unsupported signature template primary type: ${template.primaryType}`);
+      throw new ValidationError(`Unsupported signature template primary type: ${template.primaryType}`);
   }
 };
 
@@ -190,7 +191,7 @@ export const eip712PrimaryTypeFromTemplate = (template: EIP712Template): Primary
     case "Transfer":
       return PrimaryType.Transfer;
     default:
-      throw new Error(`Unsupported EIP712 primary type: ${template.primaryType}`);
+      throw new ValidationError(`Unsupported EIP712 primary type: ${template.primaryType}`);
   }
 };
 
