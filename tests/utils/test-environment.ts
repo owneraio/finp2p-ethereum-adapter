@@ -8,14 +8,13 @@ import createApp from "../../src/app";
 import {
   FinP2PContract,
   ContractsManager,
-  createProviderAndSigner,
-  addressFromPrivateKey,
-  ProviderType
+  addressFromPrivateKey
 } from "@owneraio/finp2p-contracts";
 import { InMemoryExecDetailsStore } from "../../src/services";
 import { HardhatLogExtractor } from "./log-extractors";
 import { AdapterParameters, NetworkDetails, NetworkParameters } from "./models";
 import { randomPort } from "./utils";
+import { ProviderType, createProviderAndSigner } from "../../src/config";
 
 const providerType: ProviderType = "local";
 

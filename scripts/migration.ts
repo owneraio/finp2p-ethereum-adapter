@@ -5,14 +5,13 @@ import { FinP2PClient } from "@owneraio/finp2p-client";
 import {
   FinP2PContract,
   ERC20Contract,
-  ProviderType,
   EthereumTransactionError,
   MINTER_ROLE,
   OPERATOR_ROLE,
-  createProviderAndSigner,
   isEthereumAddress,
   ERC20_STANDARD_ID
 } from "@owneraio/finp2p-contracts";
+import { ProviderType, createProviderAndSigner } from "../src/config";
 import { keccak256, toUtf8Bytes } from "ethers";
 
 const logger = winston.createLogger({
@@ -158,9 +157,9 @@ const startMigration = async (
             tokenAddress = await oldFinP2PContract.getAssetAddress(code);
           } catch (e) {
             if (!`${e}`.includes("Asset not found")) {
-              logger.error(e)
+              logger.error(e);
             }
-            continue
+            continue;
           }
           let tokenStandard = ERC20_STANDARD_ID;
 

@@ -1,10 +1,8 @@
 import process from "process";
-import { ContractsManager, createProviderAndSigner, ProviderType } from "../src";
-import winston, { format, transports } from "winston";
+import { ContractsManager, ConsoleLogger, Logger } from "../src";
+import { createProviderAndSigner, ProviderType } from "./config";
 
-const logger = winston.createLogger({
-  level: "info", transports: [new transports.Console()], format: format.json()
-});
+const logger: Logger = new ConsoleLogger('info')
 
 const grant = async (providerType: ProviderType, finp2pContractAddress: string, operatorAddress: string) => {
   logger.info(`Granting asset manager and transaction manager roles finP2P contract: ${finp2pContractAddress}`);

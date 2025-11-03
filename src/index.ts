@@ -2,11 +2,8 @@ import * as process from "process";
 import { logger } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import { FinP2PClient } from "@owneraio/finp2p-client";
 import winston, { format, transports } from "winston";
-import {
-  FinP2PContract,
-  createProviderAndSigner,
-  ProviderType
-} from "@owneraio/finp2p-contracts";
+import { FinP2PContract } from "@owneraio/finp2p-contracts";
+import { ProviderType, createProviderAndSigner } from "./config";
 import createApp from "./app";
 import { InMemoryExecDetailsStore } from "./services";
 

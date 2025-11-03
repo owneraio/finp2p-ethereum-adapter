@@ -12,11 +12,10 @@ import ASSET_REGISTRY from "../artifacts/contracts/utils/finp2p/AssetRegistry.so
 import ERC20_STANDARD from "../artifacts/contracts/utils/erc20/ERC20Standard.sol/ERC20Standard.json";
 import ERC20 from "../artifacts/contracts/token/ERC20/ERC20WithOperator.sol/ERC20WithOperator.json";
 import { AssetRegistry, ERC20Standard, ERC20WithOperator, FINP2POperator } from "../typechain-types";
-import winston from "winston";
+import { Logger } from "./logger";
 import { PayableOverrides } from "../typechain-types/common";
 import { EthereumTransactionError, NonceAlreadyBeenUsedError, NonceToHighError } from "./model";
-import { hashEIP712, signEIP712 } from "@owneraio/finp2p-nodejs-skeleton-adapter";
-import { compactSerialize } from "./utils";
+import { compactSerialize, hashEIP712, signEIP712 } from "./utils";
 import { detectError } from "./errors";
 import { ERC20_STANDARD_ID } from "./config";
 
@@ -26,9 +25,9 @@ export class ContractsManager {
 
   provider: Provider;
   signer: Signer;
-  logger: winston.Logger;
+  logger: Logger;
 
-  constructor(provider: Provider, signer: Signer, logger: winston.Logger) {
+  constructor(provider: Provider, signer: Signer, logger: Logger) {
     this.provider = provider;
     this.signer = signer;
     this.logger = logger;

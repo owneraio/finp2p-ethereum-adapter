@@ -23,7 +23,12 @@ contract FINP2POperator is AccessControl, FinP2PSignatureVerifier {
     using FinIdUtils for string;
 
 
-    string public constant VERSION = "0.25.6-ar";
+    enum ReleaseType {
+        RELEASE,
+        REDEEM
+    }
+
+    string public constant VERSION = "0.25.7-ar";
 
     bytes32 private constant ASSET_MANAGER = keccak256("ASSET_MANAGER");
     bytes32 private constant TRANSACTION_MANAGER = keccak256("TRANSACTION_MANAGER");
@@ -296,6 +301,7 @@ contract FINP2POperator is AccessControl, FinP2PSignatureVerifier {
     /// @param quantity The quantity to release
     function releaseTo(
         string calldata operationId,
+        string calldata fromFinId,
         string calldata toFinId,
         string calldata quantity,
         OperationParams memory op
@@ -304,6 +310,7 @@ contract FINP2POperator is AccessControl, FinP2PSignatureVerifier {
         require(_haveContract(operationId), "Contract does not exists");
         Lock storage lock = locks[operationId];
         require(lock.amount.equals(quantity), "Trying to release amount different from the one held");
+        require(lock.source.equals(fromFinId), "Trying to release asset with source different from the one who held it");
         require(lock.destination.equals(toFinId), "Trying to release to different destination than the one expected in the lock");
 
         _release(toFinId.toAddress(), lock.assetId, lock.amount, op);

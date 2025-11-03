@@ -1,5 +1,5 @@
 import { ExecDetailsStore } from "./common";
-import { ExecutionContext } from "@owneraio/finp2p-nodejs-skeleton-adapter";
+import { ExecutionContext } from "@owneraio/finp2p-adapter-models";
 
 export class InMemoryExecDetailsStore implements ExecDetailsStore {
   executionContexts: Record<string, ExecutionContext> = {};

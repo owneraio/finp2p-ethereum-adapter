@@ -2,13 +2,12 @@ import {
   computeAddress,
   concat,
   HDNodeWallet,
-  isAddress, keccak256,
-  Signature,
-  TransactionReceipt,
+  isAddress,
+  Signature, Signer,
+  TransactionReceipt, TypedDataEncoder, TypedDataField, verifyTypedData,
   Wallet
 } from "ethers";
-import * as secp256k1 from "secp256k1";
-import { LegType, PrimaryType, Receipt, TradeDetails } from "@owneraio/finp2p-nodejs-skeleton-adapter";
+import { LegType, PrimaryType, Receipt, TradeDetails } from "@owneraio/finp2p-adapter-models";
 import {
   FINP2POperatorInterface,
   HoldEvent,
@@ -30,9 +29,8 @@ export const compactSerialize = (signature: string): string => {
 };
 
 export const privateKeyToFinId = (privateKey: string): string => {
-  const privKeyBuffer = Buffer.from(privateKey.replace("0x", ""), "hex");
-  const pubKeyUInt8Array = secp256k1.publicKeyCreate(privKeyBuffer, true);
-  return Buffer.from(pubKeyUInt8Array).toString("hex");
+  let pk = !privateKey.startsWith("0x") ? `0x${privateKey}` : privateKey;
+  return new Wallet(pk).signingKey.compressedPublicKey.slice(2);
 };
 
 export const getFinId = (wallet: HDNodeWallet): string => {
@@ -57,11 +55,6 @@ export const finIdToAddress = (finId: string): string => {
   return computeAddress(`0x${finId}`);
 };
 
-// secp version
-export const finIdToAddressWithSecP = (finId: string): string => {
-  const val = secp256k1.publicKeyConvert(Buffer.from(finId, "hex"), false).slice(1);
-  return "0x" + keccak256(val).slice(-40);
-};
 
 const emptyTradeDetails = (): TradeDetails => {
   return {
@@ -262,4 +255,34 @@ export const detectSigner = (op: OperationParams, buyerFinId: string, sellerFinI
   } else {
     throw new Error("Invalid leg");
   }
+};
+
+// -----------------------------------
+
+export const EIP712_DOMAIN = {
+  name: 'FinP2P',
+  version: '1',
+  chainId: 1,
+  verifyingContract: '0x0000000000000000000000000000000000000000',
+};
+
+export const signEIP712 = (chainId: bigint | number, verifyingContract: string, types: Record<string, Array<TypedDataField>>, message: Record<string, any>, signer: Signer) => {
+  const domain = { ...EIP712_DOMAIN, chainId, verifyingContract };
+  return signer.signTypedData(domain, types, message);
+};
+
+export const signEIP712WithPrivateKey = (chainId: bigint | number, verifyingContract: string, types: Record<string, Array<TypedDataField>>, message: Record<string, any>, signerPrivateKey: string) => {
+  return signEIP712(chainId, verifyingContract, types, message, new Wallet(signerPrivateKey));
+};
+
+export const hashEIP712 = (chainId: bigint | number, verifyingContract: string, types: Record<string, Array<TypedDataField>>, message: Record<string, any>) => {
+  const domain = { ...EIP712_DOMAIN, chainId, verifyingContract };
+  return TypedDataEncoder.hash(domain, types, message);
+};
+
+export const verifyEIP712 = (chainId: bigint | number, verifyingContract: string, types: Record<string, Array<TypedDataField>>, message: Record<string, any>, signerFinId: string, signature: string) => {
+  const signerAddress = finIdToAddress(signerFinId);
+  const domain = { ...EIP712_DOMAIN, chainId, verifyingContract };
+  const address = verifyTypedData(domain, types, message, signature);
+  return address.toLowerCase() === signerAddress.toLowerCase();
 };

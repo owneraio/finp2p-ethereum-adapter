@@ -1,5 +1,5 @@
-import { BytesLike, ContractFactory, Provider, Signer } from "ethers";
-import winston from "winston";
+import { ContractFactory, Provider, Signer } from "ethers";
+import { Logger } from "./logger";
 import FINP2P from "../artifacts/contracts/finp2p/FINP2POperator.sol/FINP2POperator.json";
 import { FINP2POperator } from "../typechain-types";
 import { FINP2POperatorInterface } from "../typechain-types/contracts/finp2p/FINP2POperator";
@@ -14,7 +14,7 @@ import {
   EIP712Domain, EIP712LoanTerms, PrimaryType, ReceiptOperation,
   failedReceiptOperation, pendingReceiptOperation,
   successfulReceiptOperation
-} from "@owneraio/finp2p-nodejs-skeleton-adapter";
+} from "@owneraio/finp2p-adapter-models";
 import { assetTypeToService } from "./mappers";
 
 
@@ -28,7 +28,7 @@ export class FinP2PContract extends ContractsManager {
 
   finP2PContractAddress: string;
 
-  constructor(provider: Provider, signer: Signer, finP2PContractAddress: string, logger: winston.Logger) {
+  constructor(provider: Provider, signer: Signer, finP2PContractAddress: string, logger: Logger) {
     super(provider, signer, logger);
     const factory = new ContractFactory<any[], FINP2POperator>(
       FINP2P.abi, FINP2P.bytecode, this.signer
@@ -80,11 +80,11 @@ export class FinP2PContract extends ContractsManager {
     });
   }
 
-  async transfer(nonce: string, sellerFinId: string, buyerFinId: string,
+  async transfer(nonce: string, fromFinId: string, toFinId: string,
                  asset: Term, settlement: Term, loan: EIP712LoanTerms, params: OperationParams, signature: string) {
     return this.safeExecuteTransaction(this.finP2P, async (finP2P: FINP2POperator, txParams: PayableOverrides) => {
       return finP2P.transfer(
-        nonce, sellerFinId, buyerFinId, asset, settlement, loan, params, `0x${signature}`, txParams);
+        nonce, fromFinId, toFinId, asset, settlement, loan, params, `0x${signature}`, txParams);
     });
   }
 
@@ -94,16 +94,16 @@ export class FinP2PContract extends ContractsManager {
     });
   }
 
-  async hold(nonce: string, sellerFinId: string, buyerFinId: string,
+  async hold(nonce: string, fromFinId: string, toFinId: string,
              asset: Term, settlement: Term, loan: EIP712LoanTerms, params: OperationParams, signature: string) {
     return this.safeExecuteTransaction(this.finP2P, async (finP2P: FINP2POperator, txParams: PayableOverrides) => {
-      return finP2P.hold(nonce, sellerFinId, buyerFinId, asset, settlement, loan, params, `0x${signature}`, txParams);
+      return finP2P.hold(nonce, fromFinId, toFinId, asset, settlement, loan, params, `0x${signature}`, txParams);
     });
   }
 
-  async releaseTo(operationId: string, buyerFinId: string, quantity: string, params: OperationParams) {
+  async releaseTo(operationId: string, fromFinId: string, toFinId: string, quantity: string, params: OperationParams) {
     return this.safeExecuteTransaction(this.finP2P, async (finP2P: FINP2POperator, txParams: PayableOverrides) => {
-      return finP2P.releaseTo(operationId, buyerFinId, quantity, params, txParams);
+      return finP2P.releaseTo(operationId, fromFinId, toFinId, quantity, txParams);
     });
   }
 
