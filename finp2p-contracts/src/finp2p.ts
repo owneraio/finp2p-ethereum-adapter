@@ -1,5 +1,5 @@
 import { ContractFactory, Provider, Signer } from "ethers";
-import { Logger } from "./logger";
+import { Logger } from "@owneraio/finp2p-adapter-models";
 import FINP2P from "../artifacts/contracts/token/ERC20/FINP2POperatorERC20.sol/FINP2POperatorERC20.json";
 import { FINP2POperatorERC20 } from "../typechain-types";
 import { FINP2POperatorERC20Interface } from "../typechain-types/contracts/token/ERC20/FINP2POperatorERC20";

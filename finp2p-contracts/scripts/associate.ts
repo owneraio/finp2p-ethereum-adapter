@@ -1,8 +1,9 @@
 import process from "process";
-import { FinP2PContract, createProviderAndSigner, ProviderType } from "../src";
-import { Logger, ConsoleLogger } from "../src/logger";
+import { FinP2PContract } from "../src";
+import { createProviderAndSigner, ProviderType } from "./config";
+import { Logger, ConsoleLogger } from "@owneraio/finp2p-adapter-models";
 
-const logger: Logger = new ConsoleLogger('info')
+const logger: Logger = new ConsoleLogger("info");
 
 const associateAsset = async (providerType: ProviderType,finp2pContractAddress: string, assetId: string, erc20Address: string) => {
   logger.info(`Granting asset manager and transaction manager roles finP2P contract ${finp2pContractAddress}`);
