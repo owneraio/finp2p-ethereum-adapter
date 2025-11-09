@@ -1,5 +1,5 @@
 import { BytesLike, ContractFactory, Provider, Signer } from "ethers";
-import { Logger } from "./logger";
+import { Logger } from "@owneraio/finp2p-adapter-models";
 import FINP2P from "../artifacts/contracts/finp2p/FINP2POperator.sol/FINP2POperator.json";
 import { FINP2POperator } from "../typechain-types";
 import { FINP2POperatorInterface } from "../typechain-types/contracts/finp2p/FINP2POperator";

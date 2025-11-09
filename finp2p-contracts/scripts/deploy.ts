@@ -1,5 +1,6 @@
 import process from "process";
-import { ContractsManager, ConsoleLogger, Logger } from "../src";
+import { Logger, ConsoleLogger } from "@owneraio/finp2p-adapter-models";
+import { ContractsManager } from "../src";
 import { createProviderAndSigner, ProviderType } from "./config";
 
 const logger: Logger = new ConsoleLogger("info");
