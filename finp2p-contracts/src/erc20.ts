@@ -1,5 +1,5 @@
 import { ContractsManager } from "./manager";
-import { Logger } from "./logger";
+import { Logger } from "@owneraio/finp2p-adapter-models";
 import { BigNumberish, ContractFactory, Interface, keccak256, Provider, Signer, toUtf8Bytes } from "ethers";
 import { ERC20WithOperator } from "../typechain-types";
 import ERC20 from "../artifacts/contracts/token/ERC20/ERC20WithOperator.sol/ERC20WithOperator.json";

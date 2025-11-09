@@ -12,7 +12,7 @@ import ASSET_REGISTRY from "../artifacts/contracts/utils/finp2p/AssetRegistry.so
 import ERC20_STANDARD from "../artifacts/contracts/utils/erc20/ERC20Standard.sol/ERC20Standard.json";
 import ERC20 from "../artifacts/contracts/token/ERC20/ERC20WithOperator.sol/ERC20WithOperator.json";
 import { AssetRegistry, ERC20Standard, ERC20WithOperator, FINP2POperator } from "../typechain-types";
-import { Logger } from "./logger";
+import { Logger } from "@owneraio/finp2p-adapter-models";
 import { PayableOverrides } from "../typechain-types/common";
 import { ERC20_STANDARD_ID, EthereumTransactionError, NonceAlreadyBeenUsedError, NonceTooHighError } from "./model";
 import { compactSerialize, hashEIP712, signEIP712 } from "./utils";

@@ -9,7 +9,8 @@ import {
   Wallet
 } from "ethers";
 import process from "process";
-import { Logger, privateKeyToFinId } from "../src";
+import { privateKeyToFinId } from "../src";
+import { Logger, ConsoleLogger } from "@owneraio/finp2p-adapter-models";
 
 export type ProviderType = "local" | "fireblocks";
 

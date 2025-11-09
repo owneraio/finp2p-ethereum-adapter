@@ -1,7 +1,8 @@
 import process from "process";
-import { FinP2PContract, Logger, ConsoleLogger } from "../src";
+import { FinP2PContract } from "../src";
 import { keccak256, toUtf8Bytes } from "ethers";
 import { createProviderAndSigner, ProviderType } from "./config";
+import { Logger, ConsoleLogger } from "@owneraio/finp2p-adapter-models";
 
 const logger: Logger = new ConsoleLogger("info");
 
