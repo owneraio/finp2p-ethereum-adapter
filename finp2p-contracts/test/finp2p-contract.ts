@@ -12,7 +12,7 @@ import {
   loanTerms,
   newInvestmentMessage,
 } from "@owneraio/finp2p-adapter-models";
-import { FINP2POperatorERC20, FinP2PSignatureVerifier } from "../typechain-types";
+import { FINP2POperator, FinP2PSignatureVerifier } from "../typechain-types";
 import {
   AssetType,
   emptyTerm,
@@ -22,7 +22,7 @@ import {
   term,
   Term,
   termToEIP712,
-  getFinId
+  getFinId, ERC20_STANDARD_ID
 } from "../src";
 
 
@@ -36,12 +36,31 @@ describe("FinP2P proxy contract test", function() {
     return contract.getAddress();
   }
 
-  async function deployFinP2PProxyFixture() {
-    const deployer = await ethers.getContractFactory("FINP2POperatorERC20");
-    const [admin] = await ethers.getSigners();
-    const contract = await deployer.deploy(admin);
+  async function deployAssetRegistry() {
+    const deployer = await ethers.getContractFactory("AssetRegistry");
+    const contract = await deployer.deploy();
     const address = await contract.getAddress();
     return { contract, address };
+  }
+
+  async function deployERC20Standard() {
+    const deployer = await ethers.getContractFactory("ERC20Standard");
+    const contract = await deployer.deploy();
+    const address = await contract.getAddress();
+    return { contract, address };
+  }
+
+
+  async function deployFinP2PProxyFixture() {
+    const { contract: ar, address: assetRegistry } = await deployAssetRegistry();
+    const { address: erc20StandardAddress } = await deployERC20Standard();
+    await ar.registerAssetStandard(ERC20_STANDARD_ID, erc20StandardAddress);
+
+    const deployer = await ethers.getContractFactory("FINP2POperator");
+    const [admin] = await ethers.getSigners();
+    const contract = await deployer.deploy(admin, assetRegistry);
+    const finP2PAddress = await contract.getAddress();
+    return { contract, erc20StandardAddress, finP2PAddress };
   }
 
   function generateAssetId(): string {
@@ -108,8 +127,9 @@ describe("FinP2P proxy contract test", function() {
   describe("FinP2PProxy operations", () => {
 
     let operator: Signer;
-    let contract: FINP2POperatorERC20;
+    let contract: FINP2POperator;
     let finP2PAddress: string;
+    let erc20StandardAddress: string;
     let chainId: bigint;
     let verifyingContract: string;
 
@@ -173,14 +193,14 @@ describe("FinP2P proxy contract test", function() {
 
     before(async () => {
       [operator] = await ethers.getSigners();
-      ({ contract, address: finP2PAddress } = await loadFixture(deployFinP2PProxyFixture));
+      ({ contract, erc20StandardAddress, finP2PAddress } = await loadFixture(deployFinP2PProxyFixture));
       ({ chainId, verifyingContract } = await contract.eip712Domain());
       for (const term of testCases) {
-        const asset = await deployERC20(term.asset.assetId, term.asset.assetId, term.decimals, finP2PAddress);
-        await contract.associateAsset(term.asset.assetId, asset, { from: operator });
+        const asset = await deployERC20(term.asset.assetId, term.asset.assetId, term.decimals, erc20StandardAddress);
+        await contract.associateAsset(term.asset.assetId, asset, ERC20_STANDARD_ID, { from: operator });
 
-        const settlement = await deployERC20(term.settlement.assetId, term.settlement.assetId, term.decimals, finP2PAddress);
-        await contract.associateAsset(term.settlement.assetId, settlement, { from: operator });
+        const settlement = await deployERC20(term.settlement.assetId, term.settlement.assetId, term.decimals, erc20StandardAddress);
+        await contract.associateAsset(term.settlement.assetId, settlement, ERC20_STANDARD_ID, { from: operator });
       }
     });
 
@@ -195,7 +215,7 @@ describe("FinP2P proxy contract test", function() {
               const { assetId, assetType, amount } = extractAsset(asset, settlement, loan, primaryType, leg, phase);
 
               expect(await contract.getBalance(assetId, from)).to.equal(`${(0).toFixed(decimals)}`);
-              await expect(contract.issue(from, term(assetId, assetType, amount), { from: operator }))
+              await expect(contract.issue(from, term(assetId, assetType, amount), operationParams(leg, primaryType, phase), { from: operator }))
                 .to.emit(contract, "Issue").withArgs(assetId, assetType, from, amount);
               expect(await contract.getBalance(assetId, from)).to.equal(toFixedDecimals(amount, decimals));
 
@@ -211,7 +231,7 @@ describe("FinP2P proxy contract test", function() {
               expect(await contract.getBalance(assetId, from)).to.equal(`${(0).toFixed(decimals)}`);
               expect(await contract.getBalance(assetId, to)).to.equal(toFixedDecimals(amount, decimals));
 
-              await contract.redeem(to, term(assetId, assetType, amount), { from: operator });
+              await contract.redeem(to, term(assetId, assetType, amount), operationParams(leg, primaryType, phase), { from: operator });
               expect(await contract.getBalance(assetId, to)).to.equal(`${(0).toFixed(decimals)}`);
             });
 
@@ -222,7 +242,7 @@ describe("FinP2P proxy contract test", function() {
               const { assetId, assetType, amount } = extractAsset(asset, settlement, loan, primaryType, leg, phase);
 
               expect(await contract.getBalance(assetId, from)).to.equal(`${(0).toFixed(decimals)}`);
-              await expect(contract.issue(from, term(assetId, assetType, amount), { from: operator }))
+              await expect(contract.issue(from, term(assetId, assetType, amount), operationParams(leg, primaryType, phase), { from: operator }))
                 .to.emit(contract, "Issue").withArgs(assetId, assetType, from, amount);
               expect(await contract.getBalance(assetId, from)).to.equal(toFixedDecimals(amount, decimals));
 
@@ -244,7 +264,7 @@ describe("FinP2P proxy contract test", function() {
               expect(lock[3]).to.equal(to);
               expect(lock[4]).to.equal(amount);
 
-              await expect(contract.releaseTo(operationId, from, to, amount, { from: operator }))
+              await expect(contract.releaseTo(operationId, from, to, amount, operationParams(leg, primaryType, phase, operationId), { from: operator }))
                 .to.emit(contract, "Release").withArgs(assetId, assetType, from, to, amount, operationId);
 
               expect(await contract.getBalance(assetId, from)).to.equal(`${(0).toFixed(decimals)}`);
@@ -291,7 +311,7 @@ describe("FinP2P proxy contract test", function() {
 
 
               expect(await contract.getBalance(assetId, from)).to.equal(`${(0).toFixed(decimals)}`);
-              await expect(contract.issue(from, term(assetId, assetType, amount), { from: operator }))
+              await expect(contract.issue(from, term(assetId, assetType, amount), operationParams(leg, primaryType, phase), { from: operator }))
                 .to.emit(contract, "Issue").withArgs(assetId, assetType, from, amount);
               expect(await contract.getBalance(assetId, from)).to.equal(toFixedDecimals(amount, decimals));
 
@@ -314,7 +334,7 @@ describe("FinP2P proxy contract test", function() {
               expect(lock[3]).to.equal(to);
               expect(lock[4]).to.equal(amount);
 
-              await expect(contract.releaseBack(operationId, { from: operator }))
+              await expect(contract.releaseBack(operationId, operationParams(leg, primaryType, Phase.Initiate, operationId, ReleaseType.Release), { from: operator }))
                 .to.emit(contract, "Release").withArgs(assetId, assetType, from, "", amount, operationId);
 
               expect(await contract.getBalance(assetId, from)).to.equal(toFixedDecimals(amount, decimals));
@@ -353,7 +373,7 @@ describe("FinP2P proxy contract test", function() {
               // ----------------------------------------------------------
 
               expect(await contract.getBalance(assetId, investorFinId)).to.equal(`${(0).toFixed(decimals)}`);
-              await expect(contract.issue(investorFinId, term(assetId, assetType, amount), { from: operator }))
+              await expect(contract.issue(investorFinId, term(assetId, assetType, amount), operationParams(leg, primaryType, phase), { from: operator }))
                 .to.emit(contract, "Issue").withArgs(assetId, assetType, investorFinId, amount);
               expect(await contract.getBalance(assetId, investorFinId)).to.equal(toFixedDecimals(amount, decimals));
 
@@ -378,7 +398,7 @@ describe("FinP2P proxy contract test", function() {
               expect(await contract.getBalance(assetId, investorFinId)).to.equal(`${(0).toFixed(decimals)}`);
 
               // -----------------------------
-              await expect(contract.releaseAndRedeem(operationId, investorFinId, amount, { from: operator }))
+              await expect(contract.releaseAndRedeem(operationId, investorFinId, amount, operationParams(leg, PrimaryType.Redemption, phase, operationId, ReleaseType.Redeem), { from: operator }))
                 .to.emit(contract, "Redeem").withArgs(assetId, assetType, investorFinId, amount, operationId);
 
               expect(await contract.getBalance(assetId, investorFinId)).to.equal(`${(0).toFixed(decimals)}`);

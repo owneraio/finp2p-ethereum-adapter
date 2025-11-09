@@ -22,7 +22,7 @@ import {
   operationParams,
   Phase,
   ReleaseType,
-  emptyLoanTerms, termFromEIP712
+  emptyLoanTerms, termFromEIP712, OperationParams
 } from "@owneraio/finp2p-contracts";
 import { BusinessContract } from "./model";
 
@@ -204,3 +204,7 @@ const compareAssets = (asset: Asset, eipAsset: EIP712Term): boolean => {
 };
 
 const isIn = (str: string, ...args: string[]): boolean => args.includes(str);
+
+export const emptyOperationParams = (): OperationParams => {
+  return operationParams(LegType.Asset, PrimaryType.PrimarySale, Phase.Initiate);
+}

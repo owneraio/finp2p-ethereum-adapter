@@ -8,7 +8,8 @@ import {
   EthereumTransactionError,
   MINTER_ROLE,
   OPERATOR_ROLE,
-    isEthereumAddress
+  isEthereumAddress,
+  ERC20_STANDARD_ID
 } from "@owneraio/finp2p-contracts";
 import { ProviderType, createProviderAndSigner } from "../src/config";
 
@@ -96,7 +97,14 @@ const startMigration = async (
 
     try {
       logger.info(`Migrating asset ${assetId} with token address ${tokenAddress}`);
-      const txHash = await finP2PContract.associateAsset(assetId, tokenAddress);
+      let tokenStandard = ERC20_STANDARD_ID;
+      // if (identifier) {
+      //   const { type, value } = identifier;
+      //   if (type === "CUSTOM" && value) {
+      //     tokenStandard = keccak256(toUtf8Bytes(value));
+      //   }
+      // }
+      const txHash = await finP2PContract.associateAsset(assetId, tokenAddress, tokenStandard);
       await finP2PContract.waitForCompletion(txHash);
       logger.info("       asset association [done]");
       if (grantOperator) {
@@ -148,13 +156,14 @@ const startMigration = async (
             tokenAddress = await oldFinP2PContract.getAssetAddress(code);
           } catch (e) {
             if (!`${e}`.includes("Asset not found")) {
-              logger.error(e)
+              logger.error(e);
             }
-            continue
+            continue;
           }
+          let tokenStandard = ERC20_STANDARD_ID;
 
           logger.info(`Migrating payment asset ${code} with token address ${tokenAddress}`);
-          const txHash = await finP2PContract.associateAsset(code, tokenAddress);
+          const txHash = await finP2PContract.associateAsset(code, tokenAddress, tokenStandard);
           await finP2PContract.waitForCompletion(txHash);
         }
       }

@@ -9,13 +9,13 @@ import {
 } from "ethers";
 import { LegType, PrimaryType, Receipt, TradeDetails } from "@owneraio/finp2p-adapter-models";
 import {
-  FINP2POperatorERC20Interface,
+  FINP2POperatorInterface,
   HoldEvent,
   IssueEvent,
   RedeemEvent,
   ReleaseEvent,
   TransferEvent
-} from "../typechain-types/contracts/token/ERC20/FINP2POperatorERC20";
+} from "../typechain-types/contracts/finp2p/FINP2POperator";
 import {
   ERC20WithOperatorInterface,
   TransferEvent as ERC20TransferEvent
@@ -67,7 +67,7 @@ const emptyTradeDetails = (): TradeDetails => {
 
 export const parseTransactionReceipt = (
   receipt: TransactionReceipt,
-  contractInterface: FINP2POperatorERC20Interface,
+  contractInterface: FINP2POperatorInterface,
   timestamp: number
 ): Receipt | null => {
   const id = receipt.hash;

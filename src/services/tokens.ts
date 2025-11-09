@@ -11,12 +11,13 @@ import {
   FinP2PContract,
   assetTypeFromString,
   EthereumTransactionError,
-  term, isEthereumAddress
+  term, isEthereumAddress, ERC20_STANDARD_ID
 } from "@owneraio/finp2p-contracts";
 
 import { CommonServiceImpl, ExecDetailsStore } from "./common";
-import { extractBusinessDetails } from "./helpers";
+import { emptyOperationParams, extractBusinessDetails } from "./helpers";
 import { validateRequest } from "./validator";
+import { keccak256, toUtf8Bytes } from "ethers";
 
 
 const DefaultDecimals = 2;
@@ -35,28 +36,35 @@ export class TokenServiceImpl extends CommonServiceImpl implements TokenService 
                            assetBind: AssetBind | undefined, assetMetadata: any | undefined, assetName: string | undefined, issuerId: string | undefined,
                            assetDenomination: AssetDenomination | undefined, assetIdentifier: AssetIdentifier | undefined): Promise<AssetCreationStatus> {
     const { assetId } = asset;
-    let tokenAddress, tokenStandard: string;
-    let allowanceRequired: boolean;
+    let tokenStandard = ERC20_STANDARD_ID;
+    let tokenAddress: string;
+    let allowanceRequired: boolean
     if (assetBind && assetBind.tokenIdentifier) {
       const { tokenIdentifier: { tokenId } } = assetBind;
+
+      if (assetIdentifier) {
+        const { type, value } = assetIdentifier;
+        if (type === 'CUSTOM') {
+          tokenStandard = keccak256(toUtf8Bytes(value));
+        }
+      }
+
       if (!isEthereumAddress(tokenId)) {
         return failedAssetCreation(1, `Token ID ${tokenId} is not a valid Ethereum address`);
       }
       tokenAddress = tokenId;
-      tokenStandard = "ERC20"; // TODO: parse from metadata
       allowanceRequired = true; // TODO: parse from metadata
 
       logger.debug(`Associating existing token ${tokenAddress} to asset ${assetId}`);
     } else {
 
       tokenAddress = await this.finP2PContract.deployERC20(assetId, assetId, DefaultDecimals, this.finP2PContract.finP2PContractAddress);
-      tokenStandard = "ERC20-with-operator";
       allowanceRequired = false;
       logger.debug(`Deployed new token ${tokenAddress} for asset ${assetId}`);
     }
 
     try {
-      const txHash = await this.finP2PContract.associateAsset(assetId, tokenAddress);
+      const txHash = await this.finP2PContract.associateAsset(assetId, tokenAddress, tokenStandard);
       // TODO: translate to pending operation
       await this.finP2PContract.waitForCompletion(txHash);
     } catch (e) {
@@ -80,7 +88,7 @@ export class TokenServiceImpl extends CommonServiceImpl implements TokenService 
         type: "ledgerReference",
         network,
         address: tokenAddress,
-        tokenStandard,
+        tokenStandard, // TODO: tokenStandardToService(..)
         additionalContractDetails: {
           finP2POperatorContractAddress,
           allowanceRequired
@@ -95,7 +103,7 @@ export class TokenServiceImpl extends CommonServiceImpl implements TokenService 
     let txHash: string;
     logger.info(`Issue asset ${asset.assetId} to ${issuerFinId} with amount ${quantity}`);
     try {
-      txHash = await this.finP2PContract.issue(issuerFinId, term(asset.assetId, assetTypeFromString(asset.assetType), quantity));
+      txHash = await this.finP2PContract.issue(issuerFinId, term(asset.assetId, assetTypeFromString(asset.assetType), quantity), emptyOperationParams());
     } catch (e) {
       logger.error(`Error on asset issuance: ${e}`);
       if (e instanceof EthereumTransactionError) {
@@ -151,7 +159,7 @@ export class TokenServiceImpl extends CommonServiceImpl implements TokenService 
 
     let txHash: string;
     try {
-      txHash = await this.finP2PContract.releaseAndRedeem(operationId, source.finId, quantity);
+      txHash = await this.finP2PContract.releaseAndRedeem(operationId, source.finId, quantity, emptyOperationParams());
     } catch (e) {
       logger.error(`Error releasing asset: ${e}`);
       if (e instanceof EthereumTransactionError) {

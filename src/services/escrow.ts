@@ -4,7 +4,7 @@ import {
 } from "@owneraio/finp2p-adapter-models";
 import { logger } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import { CommonServiceImpl } from "./common";
-import { extractBusinessDetails } from "./helpers";
+import { emptyOperationParams, extractBusinessDetails } from "./helpers";
 import { EthereumTransactionError } from "@owneraio/finp2p-contracts";
 import { validateRequest } from "./validator";
 
@@ -44,7 +44,7 @@ export class EscrowServiceImpl extends CommonServiceImpl implements EscrowServic
   public async release(idempotencyKey: string, source: Source, destination: Destination, asset: Asset, quantity: string, operationId: string, exCtx: ExecutionContext | undefined): Promise<ReceiptOperation> {
     let txHash: string;
     try {
-      txHash = await this.finP2PContract.releaseTo(operationId, source.finId, destination.finId, quantity);
+      txHash = await this.finP2PContract.releaseTo(operationId, source.finId, destination.finId, quantity, emptyOperationParams());
     } catch (e) {
       logger.error(`Error releasing asset: ${e}`);
       if (e instanceof EthereumTransactionError) {
@@ -63,7 +63,7 @@ export class EscrowServiceImpl extends CommonServiceImpl implements EscrowServic
   ): Promise<ReceiptOperation> {
     let txHash: string;
     try {
-      txHash = await this.finP2PContract.releaseBack(operationId);
+      txHash = await this.finP2PContract.releaseBack(operationId, emptyOperationParams());
     } catch (e) {
       logger.error(`Error rolling-back asset: ${e}`);
       if (e instanceof EthereumTransactionError) {
