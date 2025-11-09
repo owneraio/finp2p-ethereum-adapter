@@ -2,7 +2,8 @@ import * as fs from "fs";
 import { ApiBaseUrl, ChainId, FireblocksWeb3Provider } from "@fireblocks/fireblocks-web3-provider";
 import { BrowserProvider, JsonRpcProvider, NonceManager, Provider, Signer, Wallet } from "ethers";
 import process from "process";
-import { Logger, privateKeyToFinId } from "@owneraio/finp2p-contracts";
+import { privateKeyToFinId } from "@owneraio/finp2p-contracts";
+import { Logger } from "@owneraio/finp2p-adapter-models";
 
 export type ProviderType = "local" | "fireblocks";
 
