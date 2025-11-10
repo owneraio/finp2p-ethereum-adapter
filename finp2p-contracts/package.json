@@ -1,6 +1,6 @@
 {
   "name": "@owneraio/finp2p-contracts",
-  "version": "0.25.19-fcs-4",
+  "version": "0.25.19-fcs-5",
   "description": "",
   "homepage": "https://ownera.io/",
   "main": "./dist/index.js",
@@ -42,9 +42,6 @@
   "repository": {
     "type": "git",
     "url": "https://github.com/owneraio/finp2p-ethereum-adapter"
-  },
-  "publishConfig": {
-    "registry": "https://npm.pkg.github.com"
   },
   "dependencies": {
     "ethers": "^6.11.1"
