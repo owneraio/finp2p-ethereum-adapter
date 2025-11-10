@@ -1,7 +1,6 @@
-import process from "process";
 import { Logger, ConsoleLogger } from "@owneraio/finp2p-adapter-models";
 import { ContractsManager } from "../src";
-import { createJsonProvider, buildNetworkRpcUrl } from "./config";
+import { createJsonProvider, parseConfig } from "./config";
 
 const logger: Logger = new ConsoleLogger("info");
 
@@ -14,44 +13,53 @@ const deploy = async (
   assetSymbol: string,
   tokenDecimals: number
 ) => {
-  const { provider, signer } = await createJsonProvider(operatorPrivateKey, ethereumRPCUrl, logger);
+  const { provider, signer } = await createJsonProvider(operatorPrivateKey, ethereumRPCUrl);
   const contractManger = new ContractsManager(provider, signer, logger);
   logger.info("Deploying from env variables...");
   const erc20Address = await contractManger.deployERC20(assetName, assetSymbol, tokenDecimals, operatorAddress);
   logger.info(JSON.stringify({ erc20Address }));
 };
 
-const operatorPrivateKey = process.env.OPERATOR_PRIVATE_KEY || "";
-if (!operatorPrivateKey) {
-  throw new Error("OPERATOR_PRIVATE_KEY is not set");
-}
-const networkHost = process.env.NETWORK_HOST;
-if (!networkHost) {
-  throw new Error("NETWORK_HOST is not set");
-}
-const ethereumRPCAuth = process.env.NETWORK_AUTH;
-const ethereumRPCUrl = buildNetworkRpcUrl(networkHost, ethereumRPCAuth);
+const config = parseConfig([
+  {
+    name: "operator_pk",
+    envVar: "OPERATOR_PRIVATE_KEY",
+    required: true,
+    description: "Operator private key"
+  },
+  {
+    name: "rpc_url",
+    envVar: "RPC_URL",
+    required: true,
+    description: "Ethereum RPC URL"
+  },
+  {
+    name: "operator_address",
+    envVar: "OPERATOR_ADDRESS",
+    description: "Operator address",
+    required: true
+  },
+  {
+    name: "asset_name",
+    envVar: "ASSET_NAME",
+    description: "Asset name",
+    required: true
+  },
+  {
+    name: "asset_symbol",
+    envVar: "ASSET_SYMBOL",
+    description: "Asset symbol",
+    required: true
+  },
+  {
+    name: "token_decimals",
+    envVar: "TOKEN_DECIMALS",
+    description: "Token decimals",
+    required: true
+  }
+]);
 
-const operatorAddress = process.env.OPERATOR_ADDRESS;
-if (!operatorAddress) {
-  throw new Error("OPERATOR_ADDRESS is not set");
-}
-const assetName = process.env.ASSET_NAME;
-if (!assetName) {
-  throw new Error("ASSET_NAME is not set");
-}
 
-const assetSymbol = process.env.ASSET_SYMBOL;
-if (!assetSymbol) {
-  throw new Error("ASSET_SYMBOL is not set");
-}
-
-const tokenDecimals = Number(process.env.TOKEN_DECIMALS);
-if (!tokenDecimals) {
-  throw new Error("TOKEN_DECIMALS is not set or misconfigured");
-}
-
-
-deploy(operatorPrivateKey, ethereumRPCUrl, operatorAddress, assetName, assetSymbol, tokenDecimals)
+deploy(config.operator_pk!, config.rpc_url!, config.operator_address!, config.asset_name!, config.asset_symbol!, parseInt(config.token_decimals!))
   .then(() => {
-  });
+  }).catch(console.error);

@@ -1,7 +1,6 @@
-import process from "process";
 import { FinP2PContract } from "../src";
 import { keccak256, toUtf8Bytes } from "ethers";
-import { createJsonProvider, buildNetworkRpcUrl } from "./config";
+import { createJsonProvider, parseConfig } from "./config";
 import { Logger, ConsoleLogger } from "@owneraio/finp2p-adapter-models";
 
 const logger: Logger = new ConsoleLogger("info");
@@ -16,39 +15,52 @@ const associateAsset = async (
 ) => {
   logger.info(`Granting asset manager and transaction manager roles finP2P contract ${finp2pContractAddress}`);
 
-  const { provider, signer } = await createJsonProvider(operatorPrivateKey, ethereumRPCUrl, logger);
+  const { provider, signer } = await createJsonProvider(operatorPrivateKey, ethereumRPCUrl);
 
   const finP2P = new FinP2PContract(provider, signer, finp2pContractAddress, logger);
   await finP2P.associateAsset(assetId, erc20Address, keccak256(toUtf8Bytes(tokenStandard)));
   logger.info("Asset associated successfully");
 };
 
-const operatorPrivateKey = process.env.OPERATOR_PRIVATE_KEY || "";
-if (!operatorPrivateKey) {
-  throw new Error("OPERATOR_PRIVATE_KEY is not set");
-}
-const networkHost = process.env.NETWORK_HOST;
-if (!networkHost) {
-  throw new Error("NETWORK_HOST is not set");
-}
-const ethereumRPCAuth = process.env.NETWORK_AUTH;
-const ethereumRPCUrl = buildNetworkRpcUrl(networkHost, ethereumRPCAuth);
+const config = parseConfig([
+  {
+    name: "operator_pk",
+    envVar: "OPERATOR_PRIVATE_KEY",
+    required: true,
+    description: "Operator private key"
+  },
+  {
+    name: "rpc_url",
+    envVar: "RPC_URL",
+    required: true,
+    description: "Ethereum RPC URL"
+  },
+  {
+    name: "finp2p_contract_address",
+    envVar: "FINP2P_CONTRACT_ADDRESS",
+    description: "FinP2P contract address",
+    required: true
+  },
+  {
+    name: "asset_id",
+    envVar: "ASSET_ID",
+    description: "Asset ID to associate",
+    required: true
+  },
+  {
+    name: "token_standard",
+    envVar: "TOKEN_STANDARD",
+    defaultValue: "ERC20_WITH_OPERATOR",
+    description: "Token standard"
+  },
+  {
+    name: "token_address",
+    envVar: "TOKEN_ADDRESS",
+    description: "Token address to associate",
+    required: true
+  }
+]);
 
-const finp2pContractAddress = process.env.FINP2P_CONTRACT_ADDRESS;
-if (!finp2pContractAddress) {
-  throw new Error("FINP2P_CONTRACT_ADDRESS is not set");
-}
-const assetId = process.env.ASSET_ID;
-if (!assetId) {
-  throw new Error("ASSET_ID is not set");
-}
-const tokenStandard = process.env.TOKEN_STANDARD || "ERC20_WITH_OPERATOR";
-
-const erc20Address = process.env.ERC20_ADDRESS;
-if (!erc20Address) {
-  throw new Error("ERC20_ADDRESS is not set");
-}
-
-associateAsset(operatorPrivateKey, ethereumRPCUrl, finp2pContractAddress, assetId, erc20Address, tokenStandard)
+associateAsset(config.operator_pk!, config.rpc_url!, config.finp2p_contract_address!, config.asset_id!, config.token_address!, config.token_standard!)
   .then(() => {
-  });
+  }).catch(console.error);

@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 import { createAccount, privateKeyToFinId } from "../src";
 
-
 const generateWallet = async () => {
   const account = createAccount();
   console.log("New wallet:");
@@ -12,4 +11,4 @@ const generateWallet = async () => {
 
 generateWallet()
   .then(() => {
-  });
+  }).catch(console.error);

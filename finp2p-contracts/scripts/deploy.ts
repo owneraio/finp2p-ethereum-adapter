@@ -1,5 +1,4 @@
 #!/usr/bin/env node
-import process from "process";
 import { Logger, ConsoleLogger } from "@owneraio/finp2p-adapter-models";
 import { ContractsManager } from "../src";
 import { createJsonProvider, parseConfig } from "./config";
@@ -12,7 +11,7 @@ const deploy = async (
   operatorAddress: string,
   paymentAssetCode: string | undefined
 ) => {
-  const { provider, signer } = await createJsonProvider(deployerPrivateKey, ethereumRPCUrl, logger);
+  const { provider, signer } = await createJsonProvider(deployerPrivateKey, ethereumRPCUrl);
   const contractManger = new ContractsManager(provider, signer, logger);
   logger.info("Deploying from env variables...");
   const finP2PContractAddress = await contractManger.deployFinP2PContract(operatorAddress, paymentAssetCode);

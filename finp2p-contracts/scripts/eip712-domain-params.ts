@@ -1,7 +1,6 @@
 import { Logger, ConsoleLogger } from "@owneraio/finp2p-adapter-models";
 import { FinP2PContract } from "../src";
-import { createJsonProvider, buildNetworkRpcUrl } from "./config";
-import process from "process";
+import { createJsonProvider, parseConfig } from "./config";
 
 const logger: Logger = new ConsoleLogger("info");
 
@@ -11,31 +10,32 @@ const domainParams = async (
   ethereumRPCUrl: string,
   finp2pContractAddress: string
 ) => {
-  const { provider, signer } = await createJsonProvider(operatorPrivateKey, ethereumRPCUrl, logger);
+  const { provider, signer } = await createJsonProvider(operatorPrivateKey, ethereumRPCUrl);
   const finp2pContract = new FinP2PContract(provider, signer, finp2pContractAddress, logger);
   const { name, version, chainId, verifyingContract } = await finp2pContract.eip712Domain();
   logger.info(`EIP712 domain: name=${name} version=${version} chainId=${chainId} verifyingContract=${verifyingContract}`);
 };
 
-const operatorPrivateKey = process.env.OPERATOR_PRIVATE_KEY || "";
-if (!operatorPrivateKey) {
-  throw new Error("OPERATOR_PRIVATE_KEY is not set");
-}
-const networkHost = process.env.NETWORK_HOST;
-if (!networkHost) {
-  throw new Error("NETWORK_HOST is not set");
-}
-const ethereumRPCAuth = process.env.NETWORK_AUTH;
-const ethereumRPCUrl = buildNetworkRpcUrl(networkHost, ethereumRPCAuth);
+const config = parseConfig([
+  {
+    name: "operator_pk",
+    envVar: "OPERATOR_PRIVATE_KEY",
+    required: true,
+    description: "Operator private key"
+  },
+  {
+    name: "rpc_url",
+    envVar: "RPC_URL",
+    required: true,
+    description: "Ethereum RPC URL"
+  },
+  {
+    name: "finp2p_contract_address",
+    envVar: "FINP2P_CONTRACT_ADDRESS",
+    description: "FinP2P contract address",
+    required: true
+  }
+]);
 
-const finp2pContractAddress = process.env.FINP2P_CONTRACT_ADDRESS;
-if (!finp2pContractAddress) {
-  throw new Error("FINP2P_CONTRACT_ADDRESS is not set");
-}
-
-
-domainParams(operatorPrivateKey, ethereumRPCUrl, finp2pContractAddress)
-  .catch((err) => {
-    logger.error("Error running domainParams:", err);
-    process.exit(1);
-  });
+domainParams(config.operator_pk!, config.rpc_url!, config.finp2p_contract_address!)
+  .catch(console.error);
