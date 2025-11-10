@@ -1,6 +1,6 @@
 {
   "name": "@owneraio/finp2p-contracts",
-  "version": "0.25.19-fcs",
+  "version": "0.25.19-fcs-2",
   "description": "",
   "homepage": "https://ownera.io/",
   "main": "./dist/index.js",
@@ -26,7 +26,6 @@
     "eslint": "eslint ./src --ext .ts --fix",
     "build": "tsc -p tsconfig.build.json",
     "postbuild": "cpx \"contracts/**/*\" dist/contracts && shx chmod +x dist/scripts/*.js",
-
     "deploy-contract": "ts-node scripts/deploy.ts",
     "grant-operator-roles": "ts-node scripts/grant.ts",
     "associate-asset": "ts-node scripts/associate.ts",
