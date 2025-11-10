@@ -1,6 +1,6 @@
 {
   "name": "@owneraio/finp2p-contracts",
-  "version": "0.25.19-fcs-2",
+  "version": "0.25.19-fcs-3",
   "description": "",
   "homepage": "https://ownera.io/",
   "main": "./dist/index.js",
@@ -15,8 +15,10 @@
   "bin": {
     "deploy-contract": "./dist/scripts/deploy.js",
     "grant-operator-roles": "./dist/scripts/grant.js",
+    "associate-asset": "./dist/scripts/associate.js",
     "generate-wallet": "./dist/scripts/generate-wallet.js",
     "erc20-approve": "./dist/scripts/erc20-approve.js",
+    "eip712-domain-params": "./dist/scripts/eip712-domain-params.js",
     "finId-to-address": "./dist/scripts/finId-to-address.js"
   },
   "scripts": {
@@ -31,7 +33,6 @@
     "associate-asset": "ts-node scripts/associate.ts",
     "generate-wallet": "ts-node scripts/generate-wallet.ts",
     "erc20-approve": "ts-node scripts/erc20-approve.ts",
-    "amend-asset": "ts-node scripts/amend-asset.ts",
     "eip712-domain-params": "ts-node scripts/eip712-domain-params.ts",
     "finId-to-address": "ts-node scripts/finId-to-address.ts"
   },
