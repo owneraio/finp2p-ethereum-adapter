@@ -1,6 +1,5 @@
+#!/usr/bin/env node
 import { finIdToAddress } from "../src";
-import process from "process";
-
 
 const convertFinIdToAddress = (finId: string) => {
     const address = finIdToAddress(finId)
