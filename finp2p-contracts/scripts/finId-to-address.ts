@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 import { finIdToAddress } from "../src";
 import process from "process";
 

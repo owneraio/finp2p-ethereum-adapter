@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 import process from "process";
 import { Logger, ConsoleLogger } from "@owneraio/finp2p-adapter-models";
 import { ContractsManager } from "../src";

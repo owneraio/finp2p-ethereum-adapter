@@ -1,6 +1,6 @@
 {
   "name": "@owneraio/finp2p-contracts",
-  "version": "0.25.18",
+  "version": "0.25.19-fcs",
   "description": "",
   "homepage": "https://ownera.io/",
   "main": "./dist/index.js",
@@ -12,13 +12,21 @@
     "dist/contracts/**/*.sol",
     "dist/artifacts/**/*.json"
   ],
+  "bin": {
+    "deploy-contract": "./dist/scripts/deploy.js",
+    "grant-operator-roles": "./dist/scripts/grant.js",
+    "generate-wallet": "./dist/scripts/generate-wallet.js",
+    "erc20-approve": "./dist/scripts/erc20-approve.js",
+    "finId-to-address": "./dist/scripts/finId-to-address.js"
+  },
   "scripts": {
     "clean": "rm -rf dist && rm -rf cache && rm -rf artifacts && rm -rf typechain-types",
     "compile": "hardhat compile",
     "test": "hardhat test",
     "eslint": "eslint ./src --ext .ts --fix",
     "build": "tsc -p tsconfig.build.json",
-    "postbuild": "cpx \"contracts/**/*\" dist/contracts",
+    "postbuild": "cpx \"contracts/**/*\" dist/contracts && shx chmod +x dist/scripts/*.js",
+
     "deploy-contract": "ts-node scripts/deploy.ts",
     "grant-operator-roles": "ts-node scripts/grant.ts",
     "associate-asset": "ts-node scripts/associate.ts",
@@ -42,8 +50,8 @@
     "ethers": "^6.11.1"
   },
   "peerDependencies": {
-    "@owneraio/finp2p-adapter-models": "^0.25.0",
-    "@fireblocks/fireblocks-web3-provider": "^1.3.12"
+    "@fireblocks/fireblocks-web3-provider": "^1.3.12",
+    "@owneraio/finp2p-adapter-models": "^0.25.0"
   },
   "devDependencies": {
     "@nomicfoundation/edr": "^0.3.2",
@@ -56,6 +64,7 @@
     "cpx": "^1.5.0",
     "hardhat": "^2.26.1",
     "keccak": "^3.0.2",
+    "shx": "^0.4.0",
     "ts-node": "^10.9.2",
     "typescript": "^5.2.0",
     "uuid": "^9.0.0"

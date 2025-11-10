@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 import { createAccount, privateKeyToFinId } from "../src";
 
 

@@ -26,5 +26,5 @@
     "typechain-types/**/*.ts",
     "hardhat.config.ts",
   ],
-  "exclude": [ "test" ]
+  "exclude": [ "test", "scripts" ]
 }

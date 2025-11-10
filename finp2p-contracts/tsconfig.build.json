@@ -24,9 +24,10 @@
     "src/**/*.ts",
     "artifacts/contracts/**/*.json",
     "typechain-types/**/*.ts",
+    "scripts/**/*.ts",
   ],
   "exclude": [
     "test/**",
-    "scripts/**"
+//    "scripts/**"
   ]
 }

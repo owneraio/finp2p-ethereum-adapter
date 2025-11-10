@@ -1,3 +1,5 @@
+#!/usr/bin/env node
+
 import process from "process";
 import { formatUnits, parseUnits } from "ethers";
 import { Logger, ConsoleLogger } from "@owneraio/finp2p-adapter-models";
