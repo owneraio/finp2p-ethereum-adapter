@@ -24,7 +24,7 @@
   "dependencies": {
     "@fireblocks/fireblocks-web3-provider": "^1.3.12",
     "@owneraio/finp2p-client": "^0.25.10",
-    "@owneraio/finp2p-contracts": "^0.25.18",
+    "@owneraio/finp2p-contracts": "^0.25.20",
     "@owneraio/finp2p-nodejs-skeleton-adapter": "^0.25.21",
     "axios": "^1.1.3",
     "express": "^5.1.0",
