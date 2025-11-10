@@ -39,7 +39,10 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: npm registry setup for public publish
+      - name: Remove .npmrc
+        run: rm -f .npmrc
+
+      - name: Setup for npm.org
         uses: actions/setup-node@v4
         with:
           node-version: '20'

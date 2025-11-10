@@ -1,6 +1,7 @@
 {
   "name": "@owneraio/finp2p-contracts",
-  "version": "0.25.19-fcs-5",
+
+  "version": "0.25.19-fcs-6",
   "description": "",
   "homepage": "https://ownera.io/",
   "main": "./dist/index.js",
@@ -39,6 +40,9 @@
   "keywords": [],
   "author": "",
   "license": "TBD",
+  "publishConfig": {
+    "access": "public"
+  },
   "repository": {
     "type": "git",
     "url": "https://github.com/owneraio/finp2p-ethereum-adapter"
