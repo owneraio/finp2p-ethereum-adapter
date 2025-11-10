@@ -19,12 +19,7 @@ export type ProviderAndSigner = {
   provider: Provider, signer: Signer,
 }
 
-export const getNetworkRpcUrl = (): string => {
-  let networkHost = process.env.NETWORK_HOST;
-  if (!networkHost) {
-    throw new Error("NETWORK_HOST is not set");
-  }
-  const ethereumRPCAuth = process.env.NETWORK_AUTH;
+export const buildNetworkRpcUrl = (networkHost: string, ethereumRPCAuth: string | undefined): string => {
   if (ethereumRPCAuth) {
     if (networkHost.startsWith("https://")) {
       networkHost = "https://" + ethereumRPCAuth + "@" + networkHost.replace("https://", "");
@@ -37,13 +32,7 @@ export const getNetworkRpcUrl = (): string => {
   return networkHost;
 };
 
-const createLocalProvider = async (logger: Logger, userNonceManager: boolean = true): Promise<ProviderAndSigner> => {
-  const ethereumRPCUrl = getNetworkRpcUrl();
-  const operatorPrivateKey = process.env.OPERATOR_PRIVATE_KEY || "";
-  if (!operatorPrivateKey) {
-    throw new Error("OPERATOR_PRIVATE_KEY is not set");
-  }
-
+export const createJsonProvider = async (operatorPrivateKey: string, ethereumRPCUrl: string, logger: Logger, userNonceManager: boolean = true): Promise<ProviderAndSigner> => {
   const provider = new JsonRpcProvider(ethereumRPCUrl);
   let signer: Signer;
   if (userNonceManager) {
@@ -86,7 +75,19 @@ export const createFireblocksProvider = async (vaultAccountIds: string[]): Promi
 export const createProviderAndSigner = async (providerType: ProviderType, logger: Logger, useNonceManager: boolean = true): Promise<ProviderAndSigner> => {
   switch (providerType) {
     case "local":
-      return createLocalProvider(logger, useNonceManager);
+      const networkHost = process.env.NETWORK_HOST;
+      if (!networkHost) {
+        throw new Error("NETWORK_HOST is not set");
+      }
+      const ethereumRPCAuth = process.env.NETWORK_AUTH;
+      const ethereumRPCUrl = buildNetworkRpcUrl(networkHost, ethereumRPCAuth);
+
+      const operatorPrivateKey = process.env.OPERATOR_PRIVATE_KEY || "";
+      if (!operatorPrivateKey) {
+        throw new Error("OPERATOR_PRIVATE_KEY is not set");
+      }
+
+      return createJsonProvider(operatorPrivateKey, ethereumRPCUrl, logger, useNonceManager);
     case "fireblocks":
       const vaultAccountIds = process.env.FIREBLOCKS_VAULT_ACCOUNT_IDS?.split(",") || [];
       return createFireblocksProvider(vaultAccountIds);

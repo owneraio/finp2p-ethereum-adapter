@@ -4,15 +4,21 @@ import process from "process";
 import { formatUnits, parseUnits } from "ethers";
 import { Logger, ConsoleLogger } from "@owneraio/finp2p-adapter-models";
 import { FinP2PContract, ERC20Contract } from "../src";
-import { createProviderAndSigner, ProviderType } from "./config";
+import { createJsonProvider, buildNetworkRpcUrl } from "./config";
 
 const logger: Logger = new ConsoleLogger("info");
 
 
 const erc20Approve = async (
-  providerType: ProviderType, finp2pContractAddress: string, assetId: string, spender: string, amount: string) => {
+  operatorPrivateKey: string,
+  ethereumRPCUrl: string,
+  finp2pContractAddress: string,
+  assetId: string,
+  spender: string,
+  amount: string
+) => {
 
-  const { provider, signer } = await createProviderAndSigner(providerType, logger);
+  const { provider, signer } = await createJsonProvider(operatorPrivateKey, ethereumRPCUrl, logger);
   const network = await provider.getNetwork();
   logger.info("Network name: ", network.name);
   logger.info("Network chainId: ", network.chainId);
@@ -41,7 +47,16 @@ const erc20Approve = async (
   logger.info(`Approved ${amount} tokens for ${spender} (${spender})`);
 };
 
-const providerType = (process.env.PROVIDER_TYPE || "local") as ProviderType;
+const operatorPrivateKey = process.env.OPERATOR_PRIVATE_KEY || "";
+if (!operatorPrivateKey) {
+  throw new Error("OPERATOR_PRIVATE_KEY is not set");
+}
+const networkHost = process.env.NETWORK_HOST;
+if (!networkHost) {
+  throw new Error("NETWORK_HOST is not set");
+}
+const ethereumRPCAuth = process.env.NETWORK_AUTH;
+const ethereumRPCUrl = buildNetworkRpcUrl(networkHost, ethereumRPCAuth);
 
 const finp2pContractAddress = process.env.FINP2P_CONTRACT_ADDRESS;
 if (!finp2pContractAddress) {
@@ -60,6 +75,6 @@ if (!amount) {
   throw new Error("AMOUNT is not set");
 }
 
-erc20Approve(providerType, finp2pContractAddress, assetId, spender, amount)
+erc20Approve(operatorPrivateKey, ethereumRPCUrl, finp2pContractAddress, assetId, spender, amount)
   .then(() => {
   });
