@@ -1,10 +1,10 @@
-import process from "process";
+#!/usr/bin/env node
 import console from "console";
 import winston, { format, transports } from "winston";
 import { FinP2PClient } from "@owneraio/finp2p-client";
 import { ERC20_STANDARD_ID, FinP2PContract, AssetType, term } from "@owneraio/finp2p-contracts";
-import { ProviderType, createProviderAndSigner } from "../src/config";
 import { emptyOperationParams } from "../src/services/helpers";
+import { createJsonProvider, parseConfig } from "../src/config";
 
 
 const logger = winston.createLogger({
@@ -13,7 +13,12 @@ const logger = winston.createLogger({
   format: format.json()
 });
 
-const syncBalanceFromOssToEthereum = async (ossUrl: string, providerType: ProviderType, finp2pContractAddress: string) => {
+const syncBalanceFromOssToEthereum = async (
+  operatorPrivateKey: string,
+  ethereumRPCUrl: string,
+  ossUrl: string,
+  finp2pContractAddress: string
+) => {
   const finp2p = new FinP2PClient("", ossUrl);
   const assets = await finp2p.getAssets();
   logger.info(`Got a list of ${assets.length} assets to migrate`);
@@ -23,7 +28,7 @@ const syncBalanceFromOssToEthereum = async (ossUrl: string, providerType: Provid
     return;
   }
 
-  const { provider, signer } = await createProviderAndSigner(providerType, logger);
+  const { provider, signer } = await createJsonProvider(operatorPrivateKey, ethereumRPCUrl);
   const contract = new FinP2PContract(provider, signer, finp2pContractAddress, logger);
 
   for (const { id: assetId } of assets) {
@@ -74,22 +79,37 @@ const syncBalanceFromOssToEthereum = async (ossUrl: string, providerType: Provid
   logger.info("Migration complete");
 };
 
-const ossUrl = process.env.OSS_URL;
-if (!ossUrl) {
-  console.error("Env variable OSS_URL was not set");
-  process.exit(1);
-}
+const config = parseConfig([
+  {
+    name: "operator_pk",
+    envVar: "OPERATOR_PRIVATE_KEY",
+    required: true,
+    description: "Operator private key"
+  },
+  {
+    name: "rpc_url",
+    envVar: "RPC_URL",
+    required: true,
+    description: "Ethereum RPC URL"
+  },
+  {
+    name: "oss_url",
+    envVar: "OSS_URL",
+    description: "FinP2P OSS URL",
+    required: true
+  },
+  {
+    name: "finp2p_contract_address",
+    envVar: "FINP2P_CONTRACT_ADDRESS",
+    description: "FinP2P contract address",
+    required: true
+  }
+]);
 
-const providerType = (process.env.PROVIDER_TYPE || "local") as ProviderType;
-if (!providerType) {
-  console.error("Env variable PROVIDER_TYPE was not set");
-  process.exit(1);
-}
-
-const finp2pContractAddress = process.env.FINP2P_CONTRACT_ADDRESS;
-if (!finp2pContractAddress) {
-  console.error("Env variable FINP2P_CONTRACT_ADDRESS was not set");
-  process.exit(1);
-}
-syncBalanceFromOssToEthereum(ossUrl, providerType, finp2pContractAddress).then(() => {
+syncBalanceFromOssToEthereum(
+  config.operator_pk!,
+  config.rpc_url!,
+  config.oss_url!,
+  config.finp2p_contract_address!
+).then(() => {
 }).catch(console.error);

@@ -30,6 +30,7 @@ jobs:
         run: |
           npm run compile
           npm run build
+          npm test
 
       - name: Publish to public NPM repository
         run: npm publish --access=public

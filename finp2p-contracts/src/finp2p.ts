@@ -58,6 +58,10 @@ export class FinP2PContract extends ContractsManager {
     return { name, version, chainId, verifyingContract };
   }
 
+  async getAssetRegistryAddress() {
+    return this.finP2P.getAssetRegistry();
+  }
+
   async getAssetAddress(assetId: string) {
     return this.finP2P.getAssetAddress(assetId);
   }

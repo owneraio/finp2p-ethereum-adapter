@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { Logger, ConsoleLogger } from "@owneraio/finp2p-adapter-models";
-import { ContractsManager } from "../src";
+import { ContractsManager, FinP2PContract } from "../src";
 import { createJsonProvider, parseConfig } from "./config";
 
 const logger: Logger = new ConsoleLogger("info");
@@ -15,7 +15,18 @@ const deploy = async (
   const contractManger = new ContractsManager(provider, signer, logger);
   logger.info("Deploying from env variables...");
   const finP2PContractAddress = await contractManger.deployFinP2PContract(operatorAddress, paymentAssetCode);
-  logger.info(JSON.stringify({ finP2PContractAddress }));
+  logger.info(`FINP2P Contract deployed at address: ${finP2PContractAddress}`);
+  const finP2P = new FinP2PContract(provider, signer, finP2PContractAddress, logger);
+
+  logger.info("Testing deployed contract...");
+  const version = await finP2P.getVersion();
+  logger.info(`Deployed FINP2P Contract version: ${version}`);
+
+  const eip712Domain = await finP2P.eip712Domain();
+  logger.info(`EIP712 Domain: ${JSON.stringify(eip712Domain)}`);
+
+  const assetRegistryAddress = await finP2P.getAssetRegistryAddress();
+  logger.info(`Asset Registry Address: ${assetRegistryAddress}`);
 };
 
 const config = parseConfig([

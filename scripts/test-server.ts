@@ -103,7 +103,7 @@ const start = async () => {
   process.env.NETWORK_HOST = details.rpcUrl;
 
   const operatorAddress = addressFromPrivateKey(operator);
-  const { provider, signer } = await createProviderAndSigner(providerType, logger, false);
+  const { provider, signer } = await createProviderAndSigner(providerType, false);
   const network = await provider.getNetwork();
   logger.info(`Connected to network: ${network.name} chainId: ${network.chainId}`);
   const finP2PContractAddress = await deployContract(provider, signer, operatorAddress);
