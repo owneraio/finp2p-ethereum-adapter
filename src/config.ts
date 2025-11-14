@@ -28,8 +28,7 @@ export const getNetworkRpcUrl = (): string => {
 };
 
 export const createProviderAndSigner = async (
-  providerType: ProviderType, userNonceManager: boolean = true,
-  vaultAccountIds: string[] = []): Promise<ProviderAndSigner> => {
+  providerType: ProviderType, userNonceManager: boolean = true): Promise<ProviderAndSigner> => {
   if (providerType === "local") {
     const ethereumRPCUrl = getNetworkRpcUrl();
     const operatorPrivateKey = process.env.OPERATOR_PRIVATE_KEY;
@@ -38,6 +37,11 @@ export const createProviderAndSigner = async (
     }
     return createJsonProvider(operatorPrivateKey, ethereumRPCUrl, userNonceManager);
   } else if (providerType === "fireblocks") {
+    const envVaultAccountIdsStr = process.env.FIREBLOCKS_VAULT_ACCOUNT_IDS;
+    const vaultAccountIds = envVaultAccountIdsStr ? envVaultAccountIdsStr.split(",").map(id => id.trim()) : [];
+    if (vaultAccountIds.length === 0) {
+      throw new Error("FIREBLOCKS_VAULT_ACCOUNT_IDS is not set or empty");
+    }
     return createFireblocksProvider(vaultAccountIds);
   } else {
     throw new Error(`Unsupported provider type: ${providerType}`);

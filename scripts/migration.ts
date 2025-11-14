@@ -205,12 +205,6 @@ const config = parseConfig([
     description: "OSS URL"
   },
   {
-    name: "provider_type",
-    envVar: "PROVIDER_TYPE",
-    description: "Provider type (local|blockdaemon|infura|alchemy)",
-    defaultValue: "local"
-  },
-  {
     name: "finp2p_contract_address",
     envVar: "FINP2P_CONTRACT_ADDRESS",
     required: true,
