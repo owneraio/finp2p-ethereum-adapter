@@ -1,5 +1,5 @@
 {
-  "name": "ethereum-adapter",
+  "name": "@owneraio/finp2p-ethereum-adapter",
   "version": "0.26.1",
   "description": "",
   "main": "dist/src/index.js",
