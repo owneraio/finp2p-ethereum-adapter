@@ -14,9 +14,7 @@ import { InMemoryExecDetailsStore } from "../../src/services";
 import { HardhatLogExtractor } from "./log-extractors";
 import { AdapterParameters, NetworkDetails, NetworkParameters } from "./models";
 import { randomPort } from "./utils";
-import { ProviderType, createProviderAndSigner } from "../../src/config";
-
-const providerType: ProviderType = "local";
+import { createJsonProvider } from "../../src/config";
 
 const level = "info";
 
@@ -56,12 +54,9 @@ class CustomTestEnvironment extends NodeEnvironment {
       const deployer = details.accounts[0];
       const operator = details.accounts[1];
 
-      process.env.OPERATOR_PRIVATE_KEY = deployer;
-      process.env.NETWORK_HOST = details.rpcUrl;
-
       const operatorAddress = addressFromPrivateKey(operator);
-      const finP2PContractAddress = await this.deployContract(operatorAddress);
-      this.global.serverAddress = await this.startApp(finP2PContractAddress);
+      const finP2PContractAddress = await this.deployContract(deployer, details.rpcUrl, operatorAddress);
+      this.global.serverAddress = await this.startApp(operator, details.rpcUrl, finP2PContractAddress);
 
     } catch (err) {
       console.error("Error starting container:", err);
@@ -104,14 +99,14 @@ class CustomTestEnvironment extends NodeEnvironment {
     return { rpcUrl, accounts } as NetworkDetails;
   }
 
-  private async deployContract(operatorAddress: string) {
-    const { provider, signer } = await createProviderAndSigner(providerType, logger);
+  private async deployContract(deployerPrivateKey: string, ethereumRPCUrl: string, operatorAddress: string) {
+    const { provider, signer } = await createJsonProvider(deployerPrivateKey, ethereumRPCUrl);
     const contractManger = new ContractsManager(provider, signer, logger);
     return await contractManger.deployFinP2PContract(operatorAddress);
   }
 
-  private async startApp(finP2PContractAddress: string) {
-    const { provider, signer } = await createProviderAndSigner(providerType, logger, false);
+  private async startApp(operatorPrivateKey: string, ethereumRPCUrl: string, finP2PContractAddress: string) {
+    const { provider, signer } = await createJsonProvider(operatorPrivateKey, ethereumRPCUrl, false);
     const finP2PContract = new FinP2PContract(provider, signer, finP2PContractAddress, logger);
 
     const port = randomPort();
