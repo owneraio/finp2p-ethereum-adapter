@@ -1,6 +1,5 @@
 import winston, { format, transports } from "winston";
 import console from "console";
-import process from "process";
 import { FinP2PClient } from "@owneraio/finp2p-client";
 import {
   FinP2PContract,
@@ -11,7 +10,7 @@ import {
   isEthereumAddress,
   ERC20_STANDARD_ID
 } from "@owneraio/finp2p-contracts";
-import { ProviderType, createProviderAndSigner } from "../src/config";
+import { createJsonProvider, parseConfig } from "../src/config";
 
 const logger = winston.createLogger({
   level: "info",
@@ -21,8 +20,10 @@ const logger = winston.createLogger({
 
 
 const startMigration = async (
-  orgId: string, ossUrl: string,
-  providerType: ProviderType,
+  operatorPrivateKey: string,
+  ethereumRPCUrl: string,
+  orgId: string,
+  ossUrl: string,
   finp2pContractAddress: string,
   oldFinp2pAddress: string | undefined,
   grantOperator: boolean, grantMinter: boolean) => {
@@ -35,7 +36,7 @@ const startMigration = async (
     return;
   }
 
-  const { provider, signer } = await createProviderAndSigner(providerType, logger);
+  const { provider, signer } = await createJsonProvider(operatorPrivateKey, ethereumRPCUrl);
   const finP2PContract = new FinP2PContract(provider, signer, finp2pContractAddress, logger);
 
   let migrated = 0;
@@ -175,31 +176,72 @@ const startMigration = async (
   logger.info(`Skipped ${skipped} assets`);
 };
 
-const orgId = process.env.ORGANIZATION_ID;
-if (!orgId) {
-  console.error("Env variable ORGANIZATION_ID was not set");
-  process.exit(1);
-}
-
-const ossUrl = process.env.OSS_URL;
-if (!ossUrl) {
-  console.error("Env variable OSS_URL was not set");
-  process.exit(1);
-}
-
-const providerType = (process.env.PROVIDER_TYPE || "local") as ProviderType;
-
-const contractAddress = process.env.FINP2P_CONTRACT_ADDRESS;
-if (!contractAddress) {
-  console.error("Env variable FINP2P_CONTRACT_ADDRESS was not set");
-  process.exit(1);
-}
-
-const oldFinp2pAddress = process.env.OLD_FINP2P_CONTRACT_ADDRESS;
 
 
-const grantOperator = process.env.GRANT_OPERATOR === "yes";
-const grantMinter = process.env.GRANT_MINTER === "yes";
+const config = parseConfig([
+  {
+    name: "operator_pk",
+    envVar: "OPERATOR_PRIVATE_KEY",
+    required: true,
+    description: "Operator private key"
+  },
+  {
+    name: "rpc_url",
+    envVar: "RPC_URL",
+    required: true,
+    description: "Ethereum RPC URL"
+  },
+  {
+    name: "organization_id",
+    envVar: "ORGANIZATION_ID",
+    required: true,
+    description: "Organization ID"
+  },
+  {
+    name: "oss_url",
+    envVar: "OSS_URL",
+    required: true,
+    description: "OSS URL"
+  },
+  {
+    name: "provider_type",
+    envVar: "PROVIDER_TYPE",
+    description: "Provider type (local|blockdaemon|infura|alchemy)",
+    defaultValue: "local"
+  },
+  {
+    name: "finp2p_contract_address",
+    envVar: "FINP2P_CONTRACT_ADDRESS",
+    required: true,
+    description: "FINP2P Contract Address"
+  },
+  {
+    name: "old_finp2p_contract_address",
+    envVar: "OLD_FINP2P_CONTRACT_ADDRESS",
+    description: "Old FINP2P Contract Address"
+  },
+  {
+    name: "grant_operator",
+    envVar: "GRANT_OPERATOR",
+    description: "Grant operator role to FINP2P contract (yes|no)",
+    defaultValue: "no"
+  },
+  {
+    name: "grant_minter",
+    envVar: "GRANT_MINTER",
+    description: "Grant minter role to FINP2P contract (yes|no)",
+    defaultValue: "no"
+  }
+]);
 
-startMigration(orgId, ossUrl, providerType, contractAddress, oldFinp2pAddress, grantOperator, grantMinter).then(() => {
-}).catch(console.error);
+
+startMigration(
+  config.operator_pk!,
+  config.rpc_url!,
+  config.organization_id!,
+  config.oss_url!,
+  config.finp2p_contract_address!,
+  config.old_finp2p_contract_address,
+  config.grant_operator === "yes",
+  config.grant_minter === "yes"
+).catch(console.error);

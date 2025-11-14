@@ -1,9 +1,8 @@
 import console from "console";
-import process from "process";
 import winston, { format, transports } from "winston";
 import { ERC20Contract } from "@owneraio/finp2p-contracts";
 import { FinP2PClient } from "@owneraio/finp2p-client";
-import { ProviderType, createProviderAndSigner } from "../src/config";
+import { createJsonProvider, parseConfig } from "../src/config";
 
 const logger = winston.createLogger({
   level: "info",
@@ -11,7 +10,13 @@ const logger = winston.createLogger({
   format: format.json()
 });
 
-const massApprove = async (ossUrl: string, providerType: ProviderType, contractAddress: string, amount: bigint) => {
+const massApprove = async (
+  operatorPrivateKey: string,
+  ethereumRPCUrl: string,
+  ossUrl: string,
+  contractAddress: string,
+  amount: bigint
+) => {
   const finp2p = new FinP2PClient("", ossUrl);
   const assets = await finp2p.getAssets();
   logger.info(`Got a list of ${assets.length} assets to migrate`);
@@ -21,7 +26,7 @@ const massApprove = async (ossUrl: string, providerType: ProviderType, contractA
     return;
   }
 
-  const { provider, signer } = await createProviderAndSigner(providerType, logger);
+  const { provider, signer } = await createJsonProvider(operatorPrivateKey, ethereumRPCUrl);
   const signerAddress = await signer.getAddress();
   for (const { id: assetId, ledgerAssetInfo: { tokenId: tokenAddress } } of assets) {
     try {
@@ -50,28 +55,44 @@ const massApprove = async (ossUrl: string, providerType: ProviderType, contractA
   logger.info("Migration complete");
 };
 
-const ossUrl = process.env.OSS_URL;
-if (!ossUrl) {
-  console.error("Env variable OSS_URL was not set");
-  process.exit(1);
-}
+const config = parseConfig([
+  {
+    name: "operator_pk",
+    envVar: "OPERATOR_PRIVATE_KEY",
+    required: true,
+    description: "Operator private key"
+  },
+  {
+    name: "rpc_url",
+    envVar: "RPC_URL",
+    required: true,
+    description: "Ethereum RPC URL"
+  },
+  {
+    name: "finp2p_contract_address",
+    envVar: "FINP2P_CONTRACT_ADDRESS",
+    description: "FinP2P contract address",
+    required: true
+  },
+  {
+    name: "oss_url",
+    envVar: "OSS_URL",
+    description: "FinP2P OSS URL",
+    required: true
+  },
+  {
+    name: "amount",
+    envVar: "AMOUNT",
+    description: "Amount to approve",
+    required: true
+  }
+]);
 
-const providerType = (process.env.PROVIDER_TYPE || "local") as ProviderType;
-if (!providerType) {
-  console.error("Env variable PROVIDER_TYPE was not set");
-  process.exit(1);
-}
-
-const contractAddress = process.env.FINP2P_CONTRACT_ADDRESS;
-if (!contractAddress) {
-  console.error("Env variable FINP2P_CONTRACT_ADDRESS was not set");
-  process.exit(1);
-}
-
-const amount = process.env.AMOUNT;
-if (!amount) {
-  console.error("Env variable AMOUNT was not set");
-  process.exit(1);
-}
-massApprove(ossUrl, providerType, contractAddress, BigInt(amount)).then(() => {
+massApprove(
+  config.operator_pk!,
+  config.rpc_url!,
+  config.oss_url!,
+  config.finp2p_contract_address!,
+  BigInt(config.amount!)
+).then(() => {
 }).catch(console.error);

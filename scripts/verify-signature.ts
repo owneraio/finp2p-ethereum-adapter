@@ -14,10 +14,9 @@ import {
 } from "@owneraio/finp2p-contracts";
 import winston, { format, transports } from "winston";
 import { extractBusinessDetails } from "../src/services/helpers";
-import process from "process";
 import console from "console";
 import * as fs from "node:fs";
-import { ProviderType, createProviderAndSigner } from "../src/config";
+import { createJsonProvider, parseConfig } from "../src/config";
 
 const logger = winston.createLogger({
   level: "info",
@@ -55,9 +54,11 @@ const parseRequest = (request: RequestWithSignature) => {
 };
 
 const verifySignature = async (
-  providerType: ProviderType,
+  operatorPrivateKey: string,
+  ethereumRPCUrl: string,
   finp2pContractAddress: string,
-  requestPayload: string) => {
+  requestPayload: string
+) => {
 
   logger.info("Verifying request signature");
 
@@ -99,7 +100,7 @@ const verifySignature = async (
     logger.error("Off-chain signature verification failed");
   }
 
-  const { provider, signer } = await createProviderAndSigner(providerType, logger);
+  const { provider, signer } = await createJsonProvider(operatorPrivateKey, ethereumRPCUrl);
   logger.info(`Using FinP2P contract at address ${finp2pContractAddress} 
     of ${JSON.stringify(await provider.getNetwork())} network`);
   const finP2PContract = new FinP2PContract(provider, signer, finp2pContractAddress, logger);
@@ -120,27 +121,39 @@ const verifySignature = async (
 
 };
 
-const providerType = (process.env.PROVIDER_TYPE || "local") as ProviderType;
-if (!providerType) {
-  console.error("Env variable PROVIDER_TYPE was not set");
-  process.exit(1);
-}
+const config = parseConfig([
+  {
+    name: "operator_pk",
+    envVar: "OPERATOR_PRIVATE_KEY",
+    required: true,
+    description: "Operator private key"
+  },
+  {
+    name: "rpc_url",
+    envVar: "RPC_URL",
+    required: true,
+    description: "Ethereum RPC URL"
+  },
+  {
+    name: "finp2p_contract_address",
+    envVar: "FINP2P_CONTRACT_ADDRESS",
+    description: "FinP2P contract address",
+    required: true
+  },
+  {
+    name: "request_file",
+    envVar: "REQUEST_FILE",
+    description: "Path to the request payload file",
+    required: true
+  }
+]);
 
-const contractAddress = process.env.FINP2P_CONTRACT_ADDRESS;
-if (!contractAddress) {
-  console.error("Env variable FINP2P_CONTRACT_ADDRESS was not set");
-  process.exit(1);
-}
 
-// const requestPayload = process.argv[2];
-// if (!requestPayload) {
-//   console.error("Request payload argument was not provided");
-//   process.exit(1);
-// }
-const requestFile = process.env.REQUEST_FILE;
-if (!requestFile) {
-  console.error("Env variable REQUEST_FILE was not set");
-  process.exit(1);
-}
-const requestPayload = fs.readFileSync(requestFile, "utf-8");
-verifySignature(providerType, contractAddress, requestPayload).catch(console.error);
+verifySignature(
+  config.operator_pk!,
+  config.rpc_url!,
+  config.finp2p_contract_address!,
+  fs.readFileSync(config.request_file!, "utf-8")
+).then(() => {
+}).catch(console.error);
+

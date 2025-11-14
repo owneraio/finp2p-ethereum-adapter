@@ -6,7 +6,7 @@ export interface ParamDefinition {
   required?: boolean;
   description?: string;
   defaultValue?: string;
-  type?: 'string' | 'number' | 'boolean';
+  type?: "string" | "number" | "boolean";
 }
 
 export interface ParsedConfig {
@@ -18,7 +18,7 @@ function toCamelCase(str: string): string {
 }
 
 function toKebabCase(str: string): string {
-  return str.replace(/([A-Z])/g, '-$1').toLowerCase();
+  return str.replace(/([A-Z])/g, "-$1").toLowerCase();
 }
 
 
@@ -28,15 +28,15 @@ function parseArgs(args: string[]): Record<string, string> {
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
 
-    if (arg.startsWith('--')) {
+    if (arg.startsWith("--")) {
       const key = toCamelCase(arg.slice(2));
       const value = args[i + 1];
 
-      if (value && !value.startsWith('--')) {
+      if (value && !value.startsWith("--")) {
         parsed[key] = value;
         i++;
       } else {
-        parsed[key] = 'true';
+        parsed[key] = "true";
       }
     }
   }
@@ -46,26 +46,26 @@ function parseArgs(args: string[]): Record<string, string> {
 
 function printUsage(scriptName: string, params: ParamDefinition[], missingParams?: string[]): void {
   console.error(`\nUsage: node ${scriptName} [options]\n`);
-  console.error('Options:');
+  console.error("Options:");
 
   params.forEach(param => {
     const flag = `--${toKebabCase(param.name)}`;
-    const required = param.required ? ' (required)' : '';
-    const defaultVal = param.defaultValue ? ` [default: ${param.defaultValue}]` : '';
-    const description = param.description || '';
+    const required = param.required ? " (required)" : "";
+    const defaultVal = param.defaultValue ? ` [default: ${param.defaultValue}]` : "";
+    const description = param.description || "";
 
     console.error(`  ${flag.padEnd(25)} ${description}${required}${defaultVal}`);
-    console.error(`  ${' '.padEnd(25)} Env: ${param.envVar}`);
+    console.error(`  ${" ".padEnd(25)} Env: ${param.envVar}`);
   });
 
   if (missingParams && missingParams.length > 0) {
-    console.error(`\n❌ Missing required parameters: ${missingParams.join(', ')}`);
+    console.error(`\n❌ Missing required parameters: ${missingParams.join(", ")}`);
   }
 
-  console.error('\nExamples:');
-  console.error(`  node ${scriptName} ${params.map(p => `--${toKebabCase(p.name)} <value>`).join(' ')}`);
-  console.error(`  ${params.map(p => `${p.envVar}=<value>`).join(' ')} node ${scriptName}`);
-  console.error('');
+  console.error("\nExamples:");
+  console.error(`  node ${scriptName} ${params.map(p => `--${toKebabCase(p.name)} <value>`).join(" ")}`);
+  console.error(`  ${params.map(p => `${p.envVar}=<value>`).join(" ")} node ${scriptName}`);
+  console.error("");
 }
 
 export function parseConfig(params: ParamDefinition[]): ParsedConfig {
@@ -87,7 +87,7 @@ export function parseConfig(params: ParamDefinition[]): ParsedConfig {
   });
 
   if (missingParams.length > 0) {
-    const scriptName = process.argv[1].split('/').pop() || 'script.js';
+    const scriptName = process.argv[1].split("/").pop() || "script.js";
     printUsage(scriptName, params, missingParams);
     process.exit(1);
   }
@@ -96,10 +96,12 @@ export function parseConfig(params: ParamDefinition[]): ParsedConfig {
 }
 
 export interface ProviderAndSigner {
-  provider: Provider, signer: Signer,
+  provider: Provider,
+  signer: Signer,
 }
 
-export const createJsonProvider = async (operatorPrivateKey: string, ethereumRPCUrl: string, userNonceManager: boolean = true): Promise<ProviderAndSigner> => {
+export const createJsonProvider = async (
+  operatorPrivateKey: string, ethereumRPCUrl: string, userNonceManager: boolean = true): Promise<ProviderAndSigner> => {
   const provider = new JsonRpcProvider(ethereumRPCUrl);
   let signer: Signer;
   if (userNonceManager) {
