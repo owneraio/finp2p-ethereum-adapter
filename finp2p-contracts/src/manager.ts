@@ -178,7 +178,7 @@ export class ContractsManager {
     return await assetRegistry.getAssetStandard(tokenStandard);
   }
 
-  async getAssetStandardViaFinP2PContract(finP2PContractAddress: string, tokenStandard: string) {
+  async getAssetStandardViaFinP2PContract(finP2PContractAddress: string, tokenStandard: BytesLike) {
     const finp2PFactory = new ContractFactory<any[], FINP2POperator>(FINP2P.abi, FINP2P.bytecode, this.signer);
     const finP2PContract = finp2PFactory.attach(finP2PContractAddress);
 
