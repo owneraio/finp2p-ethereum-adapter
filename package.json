@@ -23,6 +23,9 @@
     "start-debug": "ts-node ./src/index.ts",
     "start": "node ."
   },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
+  },
   "keywords": [],
   "author": "",
   "license": "TBD",
