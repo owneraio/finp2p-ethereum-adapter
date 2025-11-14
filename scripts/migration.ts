@@ -51,6 +51,7 @@ const startMigration = async (
     }
     const { tokenId, ledgerReference } = ledgerAssetInfo;
     let tokenAddress: string;
+    let tokenStandard: string;
     if (ledgerReference) {
       const { address, tokenStandard, additionalContractDetails } = ledgerReference;
       tokenAddress = address;
@@ -64,16 +65,19 @@ const startMigration = async (
         continue;
       }
       tokenAddress = tokenId;
+      tokenStandard = ERC20_STANDARD_ID;
     }
 
     try {
       const foundAddress = await finP2PContract.getAssetAddress(assetId);
       if (foundAddress === tokenAddress) {
         logger.info(`Asset ${assetId} already associated with token ${tokenAddress}`);
+        // @ts-ignore
+        const standardAddress = await finP2PContract.getAssetStandardViaFinP2PContract(finp2pContractAddress, tokenStandard);
         if (grantOperator) {
           const erc20 = new ERC20Contract(provider, signer, tokenAddress, logger);
-          if (!await erc20.hasRole(OPERATOR_ROLE, finp2pContractAddress)) {
-            await erc20.grantOperatorTo(finp2pContractAddress);
+          if (!await erc20.hasRole(OPERATOR_ROLE, standardAddress)) {
+            await erc20.grantOperatorTo(standardAddress);
             logger.info("       granting new operator [done]");
           } else {
             logger.info(`       operator already granted for ${tokenAddress}`);
@@ -81,8 +85,8 @@ const startMigration = async (
         }
         if (grantMinter) {
           const erc20 = new ERC20Contract(provider, signer, tokenAddress, logger);
-          if (!await erc20.hasRole(MINTER_ROLE, finp2pContractAddress)) {
-            await erc20.grantMinterTo(finp2pContractAddress);
+          if (!await erc20.hasRole(MINTER_ROLE, standardAddress)) {
+            await erc20.grantMinterTo(standardAddress);
             logger.info("       granting new minter [done]");
           } else {
             logger.info(`       minter already granted for ${tokenAddress}`);
