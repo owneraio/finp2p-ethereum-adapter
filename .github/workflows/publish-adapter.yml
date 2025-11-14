@@ -14,11 +14,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup for npm.org
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          registry-url: 'https://registry.npmjs.org'
+          registry-url: https://npm.pkg.github.com/
+          scope: '@owneraio'
 
       - name: Install Dependencies
         run: npm ci
@@ -30,18 +31,6 @@ jobs:
 
       - name: Test
         run: npm test
-
-      - name: Publish to public NPM repository
-        run: npm publish --access=public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          registry-url: https://npm.pkg.github.com/
-          scope: '@owneraio'
 
       - name: Publish
         run: npm publish
