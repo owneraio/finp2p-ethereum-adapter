@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 import console from "console";
 import winston, { format, transports } from "winston";
 import { ERC20Contract } from "@owneraio/finp2p-contracts";

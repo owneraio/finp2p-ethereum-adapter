@@ -64,4 +64,4 @@ ENV NODE_ENV=production
 COPY --from=build /usr/app/node_modules ./node_modules
 COPY --from=build /usr/app/dist ./dist
 
-CMD [ "node", "/usr/app/dist/index.js" ]
+CMD [ "node", "/usr/app/dist/src/index.js" ]

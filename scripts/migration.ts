@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 import winston, { format, transports } from "winston";
 import console from "console";
 import { FinP2PClient } from "@owneraio/finp2p-client";
