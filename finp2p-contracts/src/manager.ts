@@ -68,12 +68,12 @@ export class ContractsManager {
     return await contract.getAddress();
   }
 
-  async deployERC20StandardContract() {
+  async deployERC20StandardContract(executorAddress: string) {
     this.logger.info("Deploying ERC20 standard contract...");
     const factory = new ContractFactory<any[], ERC20Standard>(
       ERC20_STANDARD.abi, ERC20_STANDARD.bytecode, this.signer
     );
-    const contract = await factory.deploy();
+    const contract = await factory.deploy(executorAddress);
     await contract.waitForDeployment();
 
     return await contract.getAddress();
@@ -83,10 +83,6 @@ export class ContractsManager {
     const assetRegistryAddress = await this.deployAssetRegistryContract();
     this.logger.info(`Asset registry deployed at: ${assetRegistryAddress}`);
 
-    const erc20StandardAddress = await this.deployERC20StandardContract();
-    this.logger.info(`ERC20 standard deployed at: ${erc20StandardAddress}`);
-
-    await this.registerAssetStandard(assetRegistryAddress, ERC20_STANDARD_ID, erc20StandardAddress);
 
     this.logger.info("Deploying FinP2P contract...");
     const factory = new ContractFactory<any[], FINP2POperator>(
@@ -107,6 +103,11 @@ export class ContractsManager {
     if (paymentAssetCode) {
       await this.preCreatePaymentAsset(factory, address, paymentAssetCode, DefaultDecimalsCurrencies);
     }
+
+    const erc20StandardAddress = await this.deployERC20StandardContract(address);
+    this.logger.info(`ERC20 standard deployed at: ${erc20StandardAddress}`);
+
+    await this.registerAssetStandard(assetRegistryAddress, ERC20_STANDARD_ID, erc20StandardAddress);
 
     return address;
   }
