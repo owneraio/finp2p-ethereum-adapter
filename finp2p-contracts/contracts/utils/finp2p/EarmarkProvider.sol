@@ -132,7 +132,7 @@ contract EarmarkProvider is EIP712 {
     bytes32 private constant OPERATION_HOLD_HASH = keccak256("hold");
     bytes32 private constant OPERATION_RELEASE_HASH = keccak256("release");
 
-    function provideInstructionProof(
+    function provideEarmarkProof(
         string memory id,
         ReceiptOperationType operation,
         ReceiptSource memory source,
@@ -157,6 +157,7 @@ contract EarmarkProvider is EIP712 {
         earmarkProofProvided = true;
     }
 
+    // ------------------------ Internal functions ------------------------
 
     function verifyReceiptProofSignature(
         string memory id,
@@ -169,7 +170,7 @@ contract EarmarkProvider is EIP712 {
         string memory quantity,
         string memory signerFinId,
         bytes memory signature
-    ) public view returns (bool) {
+    ) internal view returns (bool) {
         bytes32 hash = hashReceipt(id, operationType, source, destination, asset, tradeDetails,
             transactionDetails, quantity);
         return Signature.verify(signerFinId.toAddress(), hash, signature);
@@ -186,7 +187,7 @@ contract EarmarkProvider is EIP712 {
         ReceiptTransactionDetails memory transactionDetails,
         string memory quantity
 
-    ) public view returns (bytes32) {
+    ) internal view returns (bytes32) {
         return _hashTypedDataV4(
             keccak256(abi.encode(
                 RECEIPT_TYPE_HASH,
@@ -203,11 +204,11 @@ contract EarmarkProvider is EIP712 {
     }
 
 
-    function hashFinId(string memory finId) public pure returns (bytes32) {
+    function hashFinId(string memory finId) internal pure returns (bytes32) {
         return keccak256(abi.encode(FINID_TYPE_HASH, keccak256(bytes(finId))));
     }
 
-    function hashAssetType(AssetType assetType) public pure returns (bytes32) {
+    function hashAssetType(AssetType assetType) internal pure returns (bytes32) {
         if (assetType == AssetType.FINP2P) {
             return ASSET_TYPE_FINP2P_HASH;
         } else if (assetType == AssetType.FIAT) {
@@ -219,7 +220,7 @@ contract EarmarkProvider is EIP712 {
         }
     }
 
-    function hashAsset(ReceiptAsset memory asset) public pure returns (bytes32) {
+    function hashAsset(ReceiptAsset memory asset) internal pure returns (bytes32) {
         return keccak256(abi.encode(
             ASSET_TYPE_HASH,
             keccak256(bytes(asset.assetId)),
@@ -227,7 +228,7 @@ contract EarmarkProvider is EIP712 {
         ));
     }
 
-    function hashSource(ReceiptSource memory source) public pure returns (bytes32) {
+    function hashSource(ReceiptSource memory source) internal pure returns (bytes32) {
         return keccak256(abi.encode(
             SOURCE_TYPE_HASH,
             keccak256(bytes(source.accountType)),
@@ -235,7 +236,7 @@ contract EarmarkProvider is EIP712 {
         ));
     }
 
-    function hashDestination(ReceiptDestination memory destination) public pure returns (bytes32) {
+    function hashDestination(ReceiptDestination memory destination) internal pure returns (bytes32) {
         return keccak256(abi.encode(
             DESTINATION_TYPE_HASH,
             keccak256(bytes(destination.accountType)),
@@ -249,7 +250,7 @@ contract EarmarkProvider is EIP712 {
         return keccak256(abi.encodePacked(bytes1(uint8(48 + value))));
     }
 
-    function hashExecutionContext(ReceiptExecutionContext memory exCtx) public pure returns (bytes32) {
+    function hashExecutionContext(ReceiptExecutionContext memory exCtx) internal pure returns (bytes32) {
         return keccak256(abi.encode(
             EXECUTION_CONTEXT_TYPE_HASH,
             keccak256(bytes(exCtx.executionPlanId)),
@@ -257,14 +258,14 @@ contract EarmarkProvider is EIP712 {
         ));
     }
 
-    function hashTradeDetails(ReceiptTradeDetails memory details) public pure returns (bytes32) {
+    function hashTradeDetails(ReceiptTradeDetails memory details) internal pure returns (bytes32) {
         return keccak256(abi.encode(
             TRADE_DETAILS_TYPE_HASH,
             hashExecutionContext(details.executionContext)
         ));
     }
 
-    function hashTransactionDetails(ReceiptTransactionDetails memory details) public pure returns (bytes32) {
+    function hashTransactionDetails(ReceiptTransactionDetails memory details) internal pure returns (bytes32) {
         return keccak256(abi.encode(
             TRANSACTION_DETAILS_TYPE_HASH,
             keccak256(bytes(details.operationId)),
@@ -272,7 +273,7 @@ contract EarmarkProvider is EIP712 {
         ));
     }
 
-    function hashOperationType(ReceiptOperationType op) public pure returns (bytes32) {
+    function hashOperationType(ReceiptOperationType op) internal pure returns (bytes32) {
         if (op == ReceiptOperationType.ISSUE) {
             return OPERATION_ISSUE_HASH;
         } else if (op == ReceiptOperationType.TRANSFER) {
