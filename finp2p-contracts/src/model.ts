@@ -55,11 +55,20 @@ export const enum ReleaseType {
   Redeem = 1
 }
 
-//
-// struct ExecutionContext {
-//   string planId;
-//   uint8 sequence;
-// }
+export const enum InstructionType {
+  ISSUE = 0,
+  TRANSFER = 1,
+  HOLD = 2,
+  RELEASE = 3,
+  REDEEM = 4,
+  AWAIT = 5
+}
+
+export const enum InstructionExecutor {
+  THIS_CONTRACT = 0,
+  OTHER_CONTRACT = 1
+}
+
 export interface ExecutionContext {
   planId: string;
   sequence: number;
