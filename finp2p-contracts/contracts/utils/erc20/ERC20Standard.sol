@@ -20,7 +20,7 @@ contract ERC20Standard is AssetStandard {
         return tokenBalance.uintToString(tokenDecimals);
     }
 
-    function transferFrom(address tokenAddress, address from, address to, string memory quantity, OperationParams memory op) external returns (bool) {
+    function transferFrom(address tokenAddress, address from, address to, string memory quantity, FinP2P.OperationParams memory) external returns (bool) {
         uint8 tokenDecimals = IERC20Metadata(tokenAddress).decimals();
         uint256 tokenAmount = quantity.stringToUint(tokenDecimals);
         uint256 balance = IERC20(tokenAddress).balanceOf(from);
@@ -33,13 +33,13 @@ contract ERC20Standard is AssetStandard {
         }
     }
 
-    function mint(address tokenAddress, address to, string memory quantity, OperationParams memory op) external {
+    function mint(address tokenAddress, address to, string memory quantity, FinP2P.OperationParams memory) external {
         uint8 tokenDecimals = IERC20Metadata(tokenAddress).decimals();
         uint256 tokenAmount = quantity.stringToUint(tokenDecimals);
         Mintable(tokenAddress).mint(to, tokenAmount);
     }
 
-    function burn(address tokenAddress, address from, string memory quantity, OperationParams memory op) external {
+    function burn(address tokenAddress, address from, string memory quantity, FinP2P.OperationParams memory) external {
         uint8 tokenDecimals = IERC20Metadata(tokenAddress).decimals();
         uint256 tokenAmount = quantity.stringToUint(tokenDecimals);
         uint256 balance = IERC20(tokenAddress).balanceOf(from);

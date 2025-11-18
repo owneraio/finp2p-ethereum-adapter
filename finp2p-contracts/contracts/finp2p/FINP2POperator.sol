@@ -4,13 +4,12 @@ pragma solidity ^0.8.20;
 
 import "../utils/StringUtils.sol";
 import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
-import {OperationParams, LegType, PrimaryType, Phase, ReleaseType} from "../utils/finp2p/OperationParams.sol";
 import {AssetRegistry} from "../utils/finp2p/AssetRegistry.sol";
 import {AssetStandard} from "../utils/finp2p/AssetStandard.sol";
 import {FinIdUtils} from "../utils/finp2p/FinIdUtils.sol";
 import {FinP2PSignatureVerifier} from "../utils/finp2p/FinP2PSignatureVerifier.sol";
-import {ExecutionContextManager} from "../../utils/finp2p/ExecutionContextManager.sol";
-
+import {ExecutionContextManager} from "../utils/finp2p/ExecutionContextManager.sol";
+import {FinP2P} from "../utils/finp2p/FinP2P.sol";
 /**
  * @dev FINP2POperatorERC20
  *
@@ -31,71 +30,9 @@ contract FINP2POperator is AccessControl, FinP2PSignatureVerifier {
 
     ExecutionContextManager private execution;
 
-    struct LockInfo {
-        string assetId;
-        AssetType assetType;
-        string source;
-        string destination;
-        string amount;
-    }
-
-    /// @notice Issue event
-    /// @param assetId The asset id
-    /// @param assetType The asset type
-    /// @param issuerFinId The FinID of the issuer
-    /// @param quantity The quantity issued
-    event Issue(string assetId, AssetType assetType, string issuerFinId, string quantity);
-
-    /// @notice Transfer event
-    /// @param assetId The asset id
-    /// @param assetType The asset type
-    /// @param sourceFinId The FinID of the source
-    /// @param destinationFinId The FinID of the destination
-    /// @param quantity The quantity transferred
-    event Transfer(string assetId, AssetType assetType, string sourceFinId, string destinationFinId, string quantity);
-
-    /// @notice Hold event
-    /// @param assetId The asset id
-    /// @param assetType The asset type
-    /// @param finId The FinID of the holder
-    /// @param quantity The quantity held
-    /// @param operationId The operation id
-    event Hold(string assetId, AssetType assetType, string finId, string quantity, string operationId);
-
-    /// @notice Release event
-    /// @param assetId The asset id
-    /// @param assetType The asset type
-    /// @param sourceFinId The FinID of the source
-    /// @param destinationFinId The FinID of the destination
-    /// @param quantity The quantity released
-    /// @param operationId The operation id
-    event Release(string assetId, AssetType assetType, string sourceFinId, string destinationFinId, string quantity, string operationId);
-
-    /// @notice Redeem event
-    /// @param assetId The asset id
-    /// @param assetType The asset type
-    /// @param ownerFinId The FinID of the owner
-    /// @param quantity The quantity redeemed
-    /// @param operationId The operation id
-    event Redeem(string assetId, AssetType assetType, string ownerFinId, string quantity, string operationId);
-
-    struct Asset {
-        string id;
-        bytes32 standard;
-        address tokenAddress;
-    }
-
-    struct Lock {
-        string assetId;
-        AssetType assetType;
-        string source;
-        string destination;
-        string amount;
-    }
-
     address private escrowWalletAddress;
-    mapping(string => Asset) private assets;
-    mapping(string => Lock) private locks;
+    mapping(string => FinP2P.Asset) private assets;
+    mapping(string => FinP2P.Lock) private locks;
     address private assetRegistry;
 
     constructor(address admin, address _assetRegistry, address executionContextAddress) {
@@ -150,7 +87,7 @@ contract FINP2POperator is AccessControl, FinP2PSignatureVerifier {
         address standardAddress = AssetRegistry(assetRegistry).getAssetStandard(assetStandard);
         require(standardAddress != address(0), "Asset standard not found");
 
-        assets[assetId] = Asset(assetId, assetStandard, tokenAddress);
+        assets[assetId] = FinP2P.Asset(assetId, assetStandard, tokenAddress);
     }
 
     /// @notice Remove an asset
@@ -166,7 +103,7 @@ contract FINP2POperator is AccessControl, FinP2PSignatureVerifier {
     /// @return The token address
     function getAssetAddress(string calldata assetId) external view returns (address) {
         require(_haveAsset(assetId), "Asset not found");
-        Asset memory asset = assets[assetId];
+        FinP2P.Asset memory asset = assets[assetId];
         return asset.tokenAddress;
     }
 
@@ -180,305 +117,124 @@ contract FINP2POperator is AccessControl, FinP2PSignatureVerifier {
     ) external view returns (string memory) {
         require(_haveAsset(assetId), "Asset not found");
         address addr = finId.toAddress();
-        Asset memory asset = assets[assetId];
+        FinP2P.Asset memory asset = assets[assetId];
         AssetStandard standard = AssetStandard(AssetRegistry(assetRegistry).getAssetStandard(asset.standard));
         return standard.balanceOf(asset.tokenAddress, addr);
     }
 
-    /// @notice Issue asset to the issuer
-    /// @param issuerFinId The FinID of the issuer
-    /// @param assetTerm The asset term to issue
     function issue(
         string calldata issuerFinId,
-        Term calldata assetTerm,
-        OperationParams memory op
-    ) external {
-        require(hasRole(TRANSACTION_MANAGER, _msgSender()), "FINP2POperatorERC20: must have transaction manager role to issue asset");
-        _mint(issuerFinId.toAddress(), assetTerm.assetId, assetTerm.amount, op);
-        emit Issue(assetTerm.assetId, assetTerm.assetType, issuerFinId, assetTerm.amount);
-    }
-
-    /// @notice Transfer asset from seller to buyer
-    /// @param nonce The investor signature nonce
-    /// @param sellerFinId The FinID of the seller
-    /// @param buyerFinId The FinID of the buyer
-    /// @param assetTerm The asset term to transfer
-    /// @param settlementTerm The settlement term to transfer
-    /// @param loanTerm The loan term to transfer, could be empty
-    /// @param op The operation parameters
-    /// @param signature The investor signature
-    function transfer(
-        string memory nonce,
-        string memory sellerFinId,
-        string memory buyerFinId,
-        Term memory assetTerm,
-        Term memory settlementTerm,
-        LoanTerm memory loanTerm,
-        OperationParams memory op,
-        bytes memory signature
-    ) external {
-        require(hasRole(TRANSACTION_MANAGER, _msgSender()), "FINP2POperatorERC20: must have transaction manager role to transfer asset");
-        (string memory source,
-            string memory destination,
-            string memory assetId,
-            AssetType assetType,
-            string memory amount) = _extractDetails(sellerFinId, buyerFinId, assetTerm, settlementTerm, loanTerm, op);
-        require(verifyInvestmentSignature(
-            op.eip712PrimaryType,
-            nonce,
-            buyerFinId,
-            sellerFinId,
-            assetTerm,
-            settlementTerm,
-            loanTerm,
-            source,
-            signature
-        ), "Signature is not verified");
-        _transfer(source.toAddress(), destination.toAddress(), assetId, amount, op);
-        emit Transfer(assetId, assetType, source, destination, amount);
-    }
-
-    /// @notice Redeem asset from the owner
-    /// @param ownerFinId The FinID of the owner
-    /// @param term The term to redeem
-    function redeem(
-        string calldata ownerFinId,
-        Term calldata term,
-        OperationParams memory op
-    ) external {
-        require(hasRole(TRANSACTION_MANAGER, _msgSender()), "FINP2POperatorERC20: must have transaction manager role to release asset");
-        _burn(ownerFinId.toAddress(), term.assetId, term.amount, op);
-        emit Redeem(term.assetId, term.assetType, ownerFinId, term.amount, '');
-    }
-
-    /// @notice Hold asset in escrow
-    /// @param nonce The investor signature nonce
-    /// @param sellerFinId The FinID of the seller
-    /// @param buyerFinId The FinID of the buyer
-    /// @param assetTerm The asset term to hold
-    /// @param settlementTerm The settlement term to hold
-    /// @param loanTerm The loan term to hold, could be empty
-    /// @param op The operation parameters
-    /// @param signature The investor signature
-    function hold(
-        string memory nonce,
-        string memory sellerFinId,
-        string memory buyerFinId,
-        Term memory assetTerm,
-        Term memory settlementTerm,
-        LoanTerm memory loanTerm,
-        OperationParams memory op,
-        bytes memory signature
-    ) external {
-        require(hasRole(TRANSACTION_MANAGER, _msgSender()), "FINP2POperatorERC20: must have transaction manager role to hold asset");
-        (string memory source,
-            string memory destination,
-            string memory assetId, AssetType assetType,
-            string memory amount) = _extractDetails(sellerFinId, buyerFinId, assetTerm, settlementTerm, loanTerm, op);
-        require(verifyInvestmentSignature(
-            op.eip712PrimaryType,
-            nonce,
-            buyerFinId,
-            sellerFinId,
-            assetTerm,
-            settlementTerm,
-            loanTerm,
-            source,
-            signature
-        ), "Signature is not verified");
-
-        _hold(source.toAddress(), assetId, amount, op);
-        if (op.releaseType == ReleaseType.RELEASE) {
-            locks[op.operationId] = Lock(assetId, assetType, source, destination, amount);
-        } else if (op.releaseType == ReleaseType.REDEEM) {
-            locks[op.operationId] = Lock(assetId, assetType, source, '', amount);
-        } else {
-            revert("Invalid release type");
-        }
-        emit Hold(assetId, assetType, source, amount, op.operationId);
-    }
-
-    /// @notice Release asset from escrow to the destination
-    /// @param operationId The operation id, a connection between hold and release
-    /// @param toFinId The FinID of the destination
-    /// @param quantity The quantity to release
-    function releaseTo(
-        string memory operationId,
-        string memory fromFinId,
-        string memory toFinId,
-        string memory quantity,
-        OperationParams memory op
-    ) external {
-        require(hasRole(TRANSACTION_MANAGER, _msgSender()), "FINP2POperatorERC20: must have transaction manager role to release asset");
-        require(_haveContract(operationId), "Contract does not exists");
-        Lock storage lock = locks[operationId];
-        require(lock.amount.equals(quantity), "Trying to release amount different from the one held");
-        require(lock.source.equals(fromFinId), "Trying to release asset with source different from the one who held it");
-        require(lock.destination.equals(toFinId), "Trying to release to different destination than the one expected in the lock");
-
-        _release(toFinId.toAddress(), lock.assetId, lock.amount, op);
-        emit Release(lock.assetId, lock.assetType, lock.source, lock.destination, quantity, operationId);
-        delete locks[operationId];
-    }
-
-    /// @notice Release asset from escrow and redeem it
-    /// @param operationId The operation id, a connection between hold and release
-    /// @param ownerFinId The FinID of the owner
-    /// @param quantity The quantity to redeem
-    function releaseAndRedeem(
-        string calldata operationId,
-        string calldata ownerFinId,
-        string calldata quantity,
-        OperationParams memory op
-    ) external {
-        require(hasRole(TRANSACTION_MANAGER, _msgSender()), "FINP2POperatorERC20: must have transaction manager role to release asset");
-        require(_haveContract(operationId), "Contract does not exists");
-        Lock storage lock = locks[operationId];
-        require(lock.source.equals(ownerFinId), "Trying to redeem asset with owner different from the one who held it");
-        require(bytes(lock.destination).length == 0, "Trying to redeem asset with non-empty destination");
-        require(lock.amount.equals(quantity), "Trying to redeem amount different from the one held");
-        _releaseBurn(lock.assetId, lock.amount, op);
-        emit Redeem(lock.assetId, lock.assetType, ownerFinId, quantity, operationId);
-        delete locks[operationId];
-    }
-
-    /// @notice Release asset from escrow back to the source
-    /// @param operationId The operation id of the withheld asset
-    function releaseBack(
-        string memory operationId,
-        OperationParams memory op
-    ) external {
-        require(hasRole(TRANSACTION_MANAGER, _msgSender()), "FINP2POperatorERC20: must have transaction manager role to rollback asset");
-        require(_haveContract(operationId), "contract does not exists");
-        Lock storage lock = locks[operationId];
-        _release(lock.source.toAddress(), lock.assetId, lock.amount, op);
-        emit Release(lock.assetId, lock.assetType, lock.source, "", lock.amount, operationId);
-        delete locks[operationId];
-    }
-
-    function issueWithContext(
-        string calldata destination,
-        string calldata assetId,
-        FinP2P.AssetType assetType,
-        string calldata quantity,
-        FinP2P.ExecutionContext memory executionContext
+        FinP2P.Term calldata assetTerm,
+        FinP2P.OperationParams memory op
     ) external onlyRole(TRANSACTION_MANAGER) {
-        execution.validateCurrentInstruction(executionContext,
+        execution.validateCurrentInstruction(op.exCtx,
             FinP2P.InstructionType.ISSUE, FinP2P.InstructionExecutor.THIS_CONTRACT,
-            "", destination, assetId, assetType, quantity);
-        _mint(destination.toAddress(), assetId, quantity);
-        execution.completeCurrentInstruction(executionContext.planId);
+            "", issuerFinId, assetTerm);
+        _mint(issuerFinId.toAddress(), assetTerm.assetId, assetTerm.amount, op);
+        execution.completeCurrentInstruction(op.exCtx.planId);
 //         todo: in case of a failure, fail execution with a reason
 //        execution.failCurrentInstruction(executionContext.planId, "failed");
-        emit FinP2P.Issue(assetId, assetType, destination, quantity, executionContext);
+        emit FinP2P.Issue(assetTerm.assetId, assetTerm.assetType, issuerFinId, assetTerm.amount, op.exCtx);
     }
 
-    function transferWithContext(
+    function transfer(
         string calldata source,
         string calldata destination,
-        string calldata assetId,
-        FinP2P.AssetType assetType,
-        string calldata quantity,
-        FinP2P.ExecutionContext memory executionContext
+        FinP2P.Term calldata assetTerm,
+        FinP2P.OperationParams memory op
     ) external onlyRole(TRANSACTION_MANAGER) {
-        execution.validateCurrentInstruction(executionContext,
+        execution.validateCurrentInstruction(op.exCtx,
             FinP2P.InstructionType.TRANSFER, FinP2P.InstructionExecutor.THIS_CONTRACT,
-            source, destination, assetId, assetType, quantity);
-        _transfer(source.toAddress(), destination.toAddress(), assetId, quantity);
-        execution.completeCurrentInstruction(executionContext.planId);
-        emit FinP2P.Transfer(assetId, assetType, source, destination, quantity, executionContext);
+            source, destination, assetTerm);
+        _transfer(source.toAddress(), destination.toAddress(), assetTerm.assetId, assetTerm.amount, op);
+        execution.completeCurrentInstruction(op.exCtx.planId);
+        emit FinP2P.Transfer(assetTerm.assetId, assetTerm.assetType, source,
+            destination, assetTerm.amount, op.exCtx);
     }
 
-    function redeemWithContext(
+    function redeem(
         string calldata source,
-        string calldata assetId,
-        FinP2P.AssetType assetType,
-        string calldata quantity,
-        FinP2P.ExecutionContext memory executionContext
+        FinP2P.Term calldata assetTerm,
+        FinP2P.OperationParams memory op
     ) external onlyRole(TRANSACTION_MANAGER) {
-        execution.validateCurrentInstruction(executionContext,
+        execution.validateCurrentInstruction(op.exCtx,
             FinP2P.InstructionType.REDEEM, FinP2P.InstructionExecutor.THIS_CONTRACT,
-            source, "", assetId, assetType, quantity);
+            source, "", assetTerm);
 
-        _burn(source.toAddress(), assetId, quantity);
-        execution.completeCurrentInstruction(executionContext.planId);
-        emit FinP2P.Redeem(assetId, assetType, source, quantity, '', executionContext);
+        _burn(source.toAddress(), assetTerm.assetId, assetTerm.amount, op);
+        execution.completeCurrentInstruction(op.exCtx.planId);
+        emit FinP2P.Redeem(assetTerm.assetId, assetTerm.assetType, source, assetTerm.amount, '', op.exCtx);
     }
 
-    function holdWithContext(
+    function hold(
         string memory source,
         string memory destination,
-        string memory assetId,
-        FinP2P.AssetType assetType,
-        string memory quantity,
+        FinP2P.Term calldata assetTerm,
         string memory operationId,
-        FinP2P.ExecutionContext calldata executionContext
+        FinP2P.OperationParams memory op
     ) external onlyRole(TRANSACTION_MANAGER) {
-        execution.validateCurrentInstruction(executionContext,
+        execution.validateCurrentInstruction(op.exCtx,
             FinP2P.InstructionType.HOLD, FinP2P.InstructionExecutor.THIS_CONTRACT,
-            source, destination, assetId, assetType, quantity);
+            source, destination, assetTerm);
 
-        _transfer(source.toAddress(), _getEscrow(), assetId, quantity);
-        locks[operationId] = FinP2P.Lock(assetId, assetType, source, destination, quantity);
-        execution.completeCurrentInstruction(executionContext.planId);
-        emit FinP2P.Hold(assetId, assetType, source, quantity, operationId, executionContext);
+        _transfer(source.toAddress(), _getEscrow(), assetTerm.assetId, assetTerm.amount, op);
+        locks[operationId] = FinP2P.Lock(assetTerm.assetId, assetTerm.assetType, source, destination, assetTerm.amount);
+        execution.completeCurrentInstruction(op.exCtx.planId);
+        emit FinP2P.Hold(assetTerm.assetId, assetTerm.assetType, source, assetTerm.amount, operationId, op.exCtx);
     }
 
-    function releaseToWithContext(
+    function releaseTo(
         string memory source,
         string memory destination,
-        string memory assetId,
-        FinP2P.AssetType assetType,
-        string memory quantity,
+        FinP2P.Term calldata assetTerm,
         string memory operationId,
-        FinP2P.ExecutionContext memory executionContext
+        FinP2P.OperationParams memory op
     ) external onlyRole(TRANSACTION_MANAGER) {
-        execution.validateCurrentInstruction(executionContext,
+        execution.validateCurrentInstruction(op.exCtx,
             FinP2P.InstructionType.RELEASE, FinP2P.InstructionExecutor.THIS_CONTRACT,
-            source, destination, assetId, assetType, quantity);
+            source, destination, assetTerm);
 
         require(_haveContract(operationId), "Contract does not exists");
         FinP2P.Lock storage lock = locks[operationId];
-        require(lock.amount.equals(quantity), "Trying to release amount different from the one held");
+        require(lock.amount.equals(assetTerm.amount), "Trying to release amount different from the one held");
         require(lock.destination.equals(destination), "Trying to release to different destination than the one expected in the lock");
 
-        _transfer(_getEscrow(), destination.toAddress(), lock.assetId, lock.amount);
-        execution.completeCurrentInstruction(executionContext.planId);
+        _transfer(_getEscrow(), destination.toAddress(), lock.assetId, lock.amount, op);
+        execution.completeCurrentInstruction(op.exCtx.planId);
 
-        emit FinP2P.Release(lock.assetId, lock.assetType, lock.source, lock.destination, quantity, operationId, executionContext);
+        emit FinP2P.Release(lock.assetId, lock.assetType, lock.source,
+            lock.destination, assetTerm.amount, operationId, op.exCtx);
         delete locks[operationId];
     }
 
-    function releaseAndRedeemWithContext(
+    function releaseAndRedeem(
         string memory source,
-        string memory assetId,
-        FinP2P.AssetType assetType,
-        string memory quantity,
+        FinP2P.Term calldata assetTerm,
         string memory operationId,
-        FinP2P.ExecutionContext memory executionContext
+        FinP2P.OperationParams memory op
     ) external onlyRole(TRANSACTION_MANAGER) {
-        execution.validateCurrentInstruction(executionContext,
+        execution.validateCurrentInstruction(op.exCtx,
             FinP2P.InstructionType.RELEASE, FinP2P.InstructionExecutor.THIS_CONTRACT,
-            source, "", assetId, assetType, quantity);
+            source, "", assetTerm);
 
         require(_haveContract(operationId), "Contract does not exists");
         FinP2P.Lock storage lock = locks[operationId];
         require(lock.source.equals(source), "Trying to redeem asset with owner different from the one who held it");
         require(bytes(lock.destination).length == 0, "Trying to redeem asset with non-empty destination");
-        require(lock.amount.equals(quantity), "Trying to redeem amount different from the one held");
-        _burn(_getEscrow(), lock.assetId, lock.amount);
-        execution.completeCurrentInstruction(executionContext.planId);
-        emit FinP2P.Redeem(lock.assetId, lock.assetType, source, quantity, operationId, executionContext);
+        require(lock.amount.equals(assetTerm.amount), "Trying to redeem amount different from the one held");
+        _burn(_getEscrow(), lock.assetId, lock.amount, op);
+        execution.completeCurrentInstruction(op.exCtx.planId);
+        emit FinP2P.Redeem(lock.assetId, lock.assetType, source, assetTerm.amount, operationId, op.exCtx);
         delete locks[operationId];
     }
 
     /// @notice Get the lock info
     /// @param operationId The operation id
     /// @return The lock info
-    function getLockInfo(string memory operationId) external view returns (LockInfo memory) {
+    function getLockInfo(string memory operationId) external view returns (FinP2P.LockInfo memory) {
         require(_haveContract(operationId), "Contract not found");
-        Lock storage l = locks[operationId];
-        return LockInfo(l.assetId, l.assetType, l.source, l.destination, l.amount);
+        FinP2P.Lock storage l = locks[operationId];
+        return FinP2P.LockInfo(l.assetId, l.assetType, l.source, l.destination, l.amount);
     }
 
     // ------------------------------------------------------------------------------------------
@@ -491,44 +247,44 @@ contract FINP2POperator is AccessControl, FinP2PSignatureVerifier {
         exists = (bytes(locks[operationId].amount).length > 0);
     }
 
-    function _mint(address to, string memory assetId, string memory quantity, OperationParams memory op) internal {
+    function _mint(address to, string memory assetId, string memory quantity, FinP2P.OperationParams memory op) internal {
         require(_haveAsset(assetId), "Asset not found");
-        Asset memory asset = assets[assetId];
+        FinP2P.Asset memory asset = assets[assetId];
         AssetStandard standard = AssetStandard(AssetRegistry(assetRegistry).getAssetStandard(asset.standard));
         standard.mint(asset.tokenAddress, to, quantity, op);
     }
 
-    function _transfer(address from, address to, string memory assetId, string memory quantity, OperationParams memory op) internal {
+    function _transfer(address from, address to, string memory assetId, string memory quantity, FinP2P.OperationParams memory op) internal {
         require(_haveAsset(assetId), "Asset not found");
-        Asset memory asset = assets[assetId];
+        FinP2P.Asset memory asset = assets[assetId];
         AssetStandard standard = AssetStandard(AssetRegistry(assetRegistry).getAssetStandard(asset.standard));
         standard.transferFrom(asset.tokenAddress, from, to, quantity, op);
     }
 
-    function _hold(address from, string memory assetId, string memory quantity, OperationParams memory op) internal {
+    function _hold(address from, string memory assetId, string memory quantity, FinP2P.OperationParams memory op) internal {
         require(_haveAsset(assetId), "Asset not found");
-        Asset memory asset = assets[assetId];
+        FinP2P.Asset memory asset = assets[assetId];
         AssetStandard standard = AssetStandard(AssetRegistry(assetRegistry).getAssetStandard(asset.standard));
         standard.transferFrom(asset.tokenAddress, from, address(standard), quantity, op);
     }
 
-    function _release(address to, string memory assetId, string memory quantity, OperationParams memory op) internal {
+    function _release(address to, string memory assetId, string memory quantity, FinP2P.OperationParams memory op) internal {
         require(_haveAsset(assetId), "Asset not found");
-        Asset memory asset = assets[assetId];
+        FinP2P.Asset memory asset = assets[assetId];
         AssetStandard standard = AssetStandard(AssetRegistry(assetRegistry).getAssetStandard(asset.standard));
         standard.transferFrom(asset.tokenAddress, address(standard), to, quantity, op);
     }
 
-    function _burn(address from, string memory assetId, string memory quantity, OperationParams memory op) internal {
+    function _burn(address from, string memory assetId, string memory quantity, FinP2P.OperationParams memory op) internal {
         require(_haveAsset(assetId), "Asset not found");
-        Asset memory asset = assets[assetId];
+        FinP2P.Asset memory asset = assets[assetId];
         AssetStandard standard = AssetStandard(AssetRegistry(assetRegistry).getAssetStandard(asset.standard));
         standard.burn(asset.tokenAddress, from, quantity, op);
     }
 
-    function _releaseBurn(string memory assetId, string memory quantity, OperationParams memory op) internal {
+    function _releaseBurn(string memory assetId, string memory quantity, FinP2P.OperationParams memory op) internal {
         require(_haveAsset(assetId), "Asset not found");
-        Asset memory asset = assets[assetId];
+        FinP2P.Asset memory asset = assets[assetId];
         AssetStandard standard = AssetStandard(AssetRegistry(assetRegistry).getAssetStandard(asset.standard));
         standard.burn(asset.tokenAddress, address(standard), quantity, op);
     }
@@ -543,24 +299,24 @@ contract FINP2POperator is AccessControl, FinP2PSignatureVerifier {
     function _extractDetails(
         string memory sellerFinId,
         string memory buyerFinId,
-        Term memory assetTerm,
-        Term memory settlementTerm,
-        LoanTerm memory loanTerm,
-        OperationParams memory op
-    ) internal pure returns (string memory, string memory, string memory, AssetType, string memory) {
-        if (op.leg == LegType.ASSET) {
-            if (op.phase == Phase.INITIATE) {
+        FinP2P.Term memory assetTerm,
+        FinP2P.Term memory settlementTerm,
+        FinP2P.LoanTerm memory loanTerm,
+        FinP2P.OperationParams memory op
+    ) internal pure returns (string memory, string memory, string memory, FinP2P.AssetType, string memory) {
+        if (op.leg == FinP2P.LegType.ASSET) {
+            if (op.phase == FinP2P.Phase.INITIATE) {
                 return (sellerFinId, buyerFinId, assetTerm.assetId, assetTerm.assetType, assetTerm.amount);
-            } else if (op.phase == Phase.CLOSE) {
+            } else if (op.phase == FinP2P.Phase.CLOSE) {
                 return (buyerFinId, sellerFinId, assetTerm.assetId, assetTerm.assetType, assetTerm.amount);
             } else {
                 revert("Invalid phase");
             }
-        } else if (op.leg == LegType.SETTLEMENT) {
-            if (op.eip712PrimaryType == PrimaryType.LOAN) {
-                if (op.phase == Phase.INITIATE) {
+        } else if (op.leg == FinP2P.LegType.SETTLEMENT) {
+            if (op.eip712PrimaryType == FinP2P.PrimaryType.LOAN) {
+                if (op.phase == FinP2P.Phase.INITIATE) {
                     return (buyerFinId, sellerFinId, settlementTerm.assetId, settlementTerm.assetType, loanTerm.borrowedMoneyAmount);
-                } else if (op.phase == Phase.CLOSE) {
+                } else if (op.phase == FinP2P.Phase.CLOSE) {
                     return (sellerFinId, buyerFinId, settlementTerm.assetId, settlementTerm.assetType, loanTerm.returnedMoneyAmount);
                 } else {
                     revert("Invalid phase");

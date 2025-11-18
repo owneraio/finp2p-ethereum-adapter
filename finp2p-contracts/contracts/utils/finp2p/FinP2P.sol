@@ -14,18 +14,13 @@ library FinP2P {
         REDEEM
     }
 
-    struct Domain {
-        uint256 chainId;
-        address verifyingContract;
-    }
-
     struct OperationParams {
-        Domain domain;
-        PrimaryType primaryType;
         LegType leg;
         Phase phase;
+        PrimaryType eip712PrimaryType;
         string operationId;
         ReleaseType releaseType;
+        ExecutionContext exCtx;
     }
 
     enum AssetType {
@@ -44,7 +39,7 @@ library FinP2P {
         BUYING,
         SELLING,
         REDEMPTION,
-        REQUEST_FOR_TRANSFER,
+        TRANSFER,
         PRIVATE_OFFER,
         LOAN
     }
@@ -64,6 +59,7 @@ library FinP2P {
 
     struct Asset {
         string id;
+        bytes32 standard;
         address tokenAddress;
     }
 
