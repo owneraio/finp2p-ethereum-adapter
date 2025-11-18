@@ -39,9 +39,29 @@ describe("FinP2P proxy contract test", function() {
     return contract.getAddress();
   }
 
+  async function deployAssetRegistry() {
+    const deployer = await ethers.getContractFactory("AssetRegistry");
+    const contract = await deployer.deploy();
+    const address = await contract.getAddress();
+    return { contract, address };
+  }
+
+  async function deployERC20Standard(executor: string) {
+    const deployer = await ethers.getContractFactory("ERC20Standard");
+    const contract = await deployer.deploy(executor);
+    const address = await contract.getAddress();
+    return { contract, address };
+  }
+
+
   async function deployFinP2PProxyFixture() {
+    const [admin] = await ethers.getSigners();
+
     const finP2PLib = await ethers.getContractFactory("FinP2P");
     const finP2PLibAddress = await finP2PLib.deploy();
+
+    const { contract: ar, address: assetRegistry } = await deployAssetRegistry();
+
     const exCtxManagerFactory = await ethers.getContractFactory("ExecutionContextManager", {
       libraries: {
         FinP2P: finP2PLibAddress
@@ -54,7 +74,7 @@ describe("FinP2P proxy contract test", function() {
       // }
     });
     const exCtxManagerAddress = await exCtxManager.getAddress();
-    const finP2PContract = await finP2PContractFactory.deploy(exCtxManagerAddress);
+    const finP2PContract = await finP2PContractFactory.deploy(admin, assetRegistry, exCtxManagerAddress);
     const finP2POperatorERC20Address = await finP2PContract.getAddress();
     return {
       exCtxManager,
