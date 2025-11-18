@@ -1,25 +1,28 @@
 import NodeEnvironment from "jest-environment-node";
 import { GenericContainer, StartedTestContainer } from "testcontainers";
 import { EnvironmentContext, JestEnvironmentConfig } from "@jest/environment";
-import { FinP2PContract } from "../../finp2p-contracts/src/contracts/finp2p";
-import createApp from "../../src/app";
+import winston, { format, transports } from "winston";
 import * as http from "http";
 import * as console from "console";
+import createApp from "../../src/app";
+import {
+  FinP2PContract,
+  ContractsManager,
+  addressFromPrivateKey
+} from "@owneraio/finp2p-contracts";
+import { InMemoryExecDetailsStore } from "../../src/services";
 import { HardhatLogExtractor } from "./log-extractors";
-import { ContractsManager } from "../../finp2p-contracts/src/contracts/manager";
 import { AdapterParameters, NetworkDetails, NetworkParameters } from "./models";
 import { randomPort } from "./utils";
-import { addressFromPrivateKey } from "../../finp2p-contracts/src/contracts/utils";
-import { AssetCreationPolicy } from "../../src/services/tokens";
-import { createProviderAndSigner, ProviderType } from "../../finp2p-contracts/src/contracts/config";
-import winston, { format, transports } from "winston";
+import { createJsonProvider } from "../../src/config";
 
-const providerType: ProviderType = "local";
+const level = "info";
 
-const level = "INFO";
 const logger = winston.createLogger({
   level, transports: [new transports.Console({ level })], format: format.json()
 });
+
+const DefaultOrgId = "some-org";
 
 class CustomTestEnvironment extends NodeEnvironment {
 
@@ -51,12 +54,9 @@ class CustomTestEnvironment extends NodeEnvironment {
       const deployer = details.accounts[0];
       const operator = details.accounts[1];
 
-      process.env.OPERATOR_PRIVATE_KEY = deployer;
-      process.env.NETWORK_HOST = details.rpcUrl;
-
       const operatorAddress = addressFromPrivateKey(operator);
-      const finP2PContractAddress = await this.deployContract(operatorAddress);
-      this.global.serverAddress = await this.startApp(finP2PContractAddress);
+      const finP2PContractAddress = await this.deployContract(deployer, details.rpcUrl, operatorAddress);
+      this.global.serverAddress = await this.startApp(operator, details.rpcUrl, finP2PContractAddress);
 
     } catch (err) {
       console.error("Error starting container:", err);
@@ -85,7 +85,11 @@ class CustomTestEnvironment extends NodeEnvironment {
     await logExtractor.started();
     console.log("Hardhat node started successfully.");
 
-    let accounts = ["0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80", "0x5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a", "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d"];
+    let accounts = [
+      "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80",
+      "0x5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a",
+      "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d"
+    ];
 
     const rpcHost = startedContainer.getHost();
     const rpcPort = startedContainer.getMappedPort(containerPort).toString();
@@ -95,20 +99,24 @@ class CustomTestEnvironment extends NodeEnvironment {
     return { rpcUrl, accounts } as NetworkDetails;
   }
 
-  private async deployContract(operatorAddress: string) {
-    const { provider, signer } = await createProviderAndSigner(providerType, logger);
+  private async deployContract(deployerPrivateKey: string, ethereumRPCUrl: string, operatorAddress: string) {
+    const { provider, signer } = await createJsonProvider(deployerPrivateKey, ethereumRPCUrl);
     const contractManger = new ContractsManager(provider, signer, logger);
     return await contractManger.deployFinP2PContract(operatorAddress);
   }
 
-  private async startApp(finP2PContractAddress: string) {
-    const { provider, signer } = await createProviderAndSigner(providerType, logger, false);
-    const finP2PContract = await FinP2PContract.create(provider, signer, finP2PContractAddress, logger);
+  private async startApp(operatorPrivateKey: string, ethereumRPCUrl: string, finP2PContractAddress: string) {
+    const { provider, signer } = await createJsonProvider(operatorPrivateKey, ethereumRPCUrl, false);
+    const finP2PContract = new FinP2PContract(provider, signer, finP2PContractAddress, logger);
 
     const port = randomPort();
-    const assetCreationPolicy = { type: "deploy-new-token", decimals: 0 } as AssetCreationPolicy;
 
-    const app = createApp(finP2PContract, assetCreationPolicy, undefined, undefined, logger);
+    const version = await finP2PContract.getVersion();
+    console.log(`FinP2P contract version: ${version}`);
+
+    const execDetailsStore = new InMemoryExecDetailsStore();
+
+    const app = createApp(DefaultOrgId, finP2PContract, undefined, execDetailsStore, logger);
     console.log("App created successfully.");
 
     this.httpServer = app.listen(port, () => {

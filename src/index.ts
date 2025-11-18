@@ -1,81 +1,33 @@
-import { logger } from "./helpers/logger";
-import { FinP2PContract } from "../finp2p-contracts/src/contracts/finp2p";
 import * as process from "process";
-import createApp from "./app";
-import { AssetCreationPolicy } from "./services/tokens";
-import {
-  createProviderAndSigner, FinP2PContractConfig, ProviderType, readConfig
-} from "../finp2p-contracts/src/contracts/config";
-import { PolicyGetter } from "./finp2p/policy";
-import { OssClient } from "./finp2p/oss.client";
+import { logger } from "@owneraio/finp2p-nodejs-skeleton-adapter";
+import { FinP2PClient } from "@owneraio/finp2p-client";
 import winston, { format, transports } from "winston";
-import { ExecutionPlanGetter } from "./finp2p/execution.plan";
-import { FinAPIClient } from "./finp2p/finapi/finapi.client";
-
-const createAssetCreationPolicy = async (contractManager: FinP2PContract | undefined): Promise<AssetCreationPolicy> => {
-  const type = (process.env.ASSET_CREATION_POLICY || "deploy-new-token");
-  switch (type) {
-    case "deploy-new-token":
-      let decimals = parseInt(process.env.TOKEN_DECIMALS || "0");
-      return { type: "deploy-new-token", decimals };
-    case "reuse-existing-token":
-      let tokenAddress = process.env.TOKEN_ADDRESS;
-      if (!tokenAddress) {
-        if (!contractManager) {
-          throw new Error("Contract manager is not defined");
-        }
-        logger.info("Deploying new ERC20 token to reuse it later");
-        tokenAddress = await contractManager.deployERC20(`ERC20`, `ERC20`, 0, contractManager.finP2PContractAddress);
-        logger.info(`Token deployed at address: ${tokenAddress}`);
-      }
-
-      return {
-        type: "reuse-existing-token", tokenAddress
-      };
-    case "no-deployment":
-      return { type: "no-deployment" };
-    default:
-      throw new Error(`Unknown asset creation policy: ${type}`);
-  }
-};
+import { FinP2PContract } from "@owneraio/finp2p-contracts";
+import { ProviderType, createProviderAndSigner } from "./config";
+import createApp from "./app";
+import { InMemoryExecDetailsStore } from "./services";
 
 
 const init = async () => {
   const port = process.env.PORT || "3000";
-  const configFile = process.env.CONFIG_FILE || "";
-  let finP2PContractAddress: string;
-  if (configFile) {
-    const config = await readConfig<FinP2PContractConfig>(configFile);
-    finP2PContractAddress = config.finP2PContractAddress;
-
-  } else {
-    finP2PContractAddress = process.env.TOKEN_ADDRESS || "";
-    if (!finP2PContractAddress) {
-      throw new Error("FINP2P_CONTRACT_ADDRESS is not set");
-    }
+  const finP2PContractAddress = process.env.FINP2P_CONTRACT_ADDRESS || process.env.TOKEN_ADDRESS; // TOKEN_ADDRESS for backward compatibility
+  if (!finP2PContractAddress) {
+    throw new Error("FINP2P_CONTRACT_ADDRESS is not set");
   }
   const providerType = (process.env.PROVIDER_TYPE || "local") as ProviderType;
 
+  const orgId = process.env.ORGANIZATION_ID;
+  if (!orgId) {
+    throw new Error("ORGANIZATION_ID is not set");
+  }
+  const finP2PUrl = process.env.FINP2P_ADDRESS;
+  if (!finP2PUrl) {
+    throw new Error("FINP2P_ADDRESS is not set");
+  }
   const ossUrl = process.env.OSS_URL;
   if (!ossUrl) {
     throw new Error("OSS_URL is not set");
   }
-  const finp2pAddress = process.env.FINP2P_ADDRESS;
-  if (!finp2pAddress) {
-    throw new Error("FINP2P_ADDRESS is not set");
-  }
-
-  // let policyGetter: PolicyGetter | undefined;
-  // let executionGetter: ExecutionPlanGetter | undefined;
-  // const ossUrl = process.env.OSS_URL;
-  // if (ossUrl) {
-  //   const ossClient = new OssClient(ossUrl, undefined);
-  //   policyGetter = new PolicyGetter(ossClient);
-  //
-  //     const finApiClient = new FinAPIClient(finp2pAddress);
-  //     executionGetter = new ExecutionPlanGetter(finApiClient, ossClient);
-  //   }
-  // }
 
   const level = process.env.LOG_LEVEL || "info";
   const logger = winston.createLogger({
@@ -96,15 +48,17 @@ const init = async () => {
   });
 
   const useNonceManager = process.env.NONCE_POLICY === "fast";
-  const { provider, signer } = await createProviderAndSigner(providerType, logger, useNonceManager);
-  const finp2pContract = await FinP2PContract.create(provider, signer, finP2PContractAddress, logger);
-  const assetCreationPolicy = await createAssetCreationPolicy(finp2pContract);
-  const ossClient = new OssClient(ossUrl, undefined);
-  const policyGetter = new PolicyGetter(ossClient);
-  const finApiClient = new FinAPIClient(finp2pAddress);
-  const executionGetter = new ExecutionPlanGetter(finApiClient, ossClient);
+  const { provider, signer } = await createProviderAndSigner(providerType, useNonceManager);
+  const finp2pContract = new FinP2PContract(provider, signer, finP2PContractAddress, logger);
+  const finP2PClient = new FinP2PClient(finP2PUrl, ossUrl);
+  const execDetailsStore = new InMemoryExecDetailsStore();
 
-  createApp(finp2pContract, assetCreationPolicy, policyGetter, executionGetter, logger).listen(port, () => {
+  const contractVersion = await finp2pContract.getVersion();
+  logger.info(`FinP2P contract version: ${contractVersion}`);
+  const { name, version, chainId, verifyingContract } = await finp2pContract.eip712Domain();
+  logger.info(`EIP712 domain: name=${name} version=${version} chainId=${chainId} verifyingContract=${verifyingContract}`);
+
+  createApp(orgId, finp2pContract, finP2PClient, execDetailsStore, logger).listen(port, () => {
     logger.info(`listening at http://localhost:${port}`);
   });
 };

@@ -6,17 +6,13 @@ pragma solidity ^0.8.20;
 import "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 import "@openzeppelin/contracts/utils/ShortStrings.sol";
 import "@openzeppelin/contracts/interfaces/IERC5267.sol";
-import "./FinP2P.sol";
+
 
 abstract contract EIP712 is IERC5267 {
     using ShortStrings for *;
-    using FinP2P for FinP2P.Domain;
 
     bytes32 private constant TYPE_HASH =
     keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)");
-
-    mapping(bytes32 => FinP2P.Domain) private _allowedDomains;
-
 
     // Cache the domain separator as an immutable value, but also store the chain id that it corresponds to, in order to
     // invalidate the cached domain separator if the chain id changes.
@@ -45,28 +41,17 @@ abstract contract EIP712 is IERC5267 {
         _version = version.toShortStringWithFallback(_versionFallback);
         _hashedName = keccak256(bytes(name));
         _hashedVersion = keccak256(bytes(version));
-        _addAllowedDomain(block.chainid, address(this));
-    }
-
-    function _addAllowedDomain(uint256 chainId, address verifyingContract) internal virtual {
-        _allowedDomains[keccak256(abi.encode(chainId, verifyingContract))] =
-                        FinP2P.Domain(chainId, verifyingContract);
-    }
-
-    function isDomainAllowed(uint256 chainId, address verifyingContract) public view returns (bool) {
-        return _isDomainAllowed(FinP2P.Domain(chainId, verifyingContract));
     }
 
     /**
      * @dev Returns the domain separator for the current chain.
      */
-    function _domainSeparatorV4(FinP2P.Domain memory domain) internal view returns (bytes32) {
-        require(_isDomainAllowed(domain), "EIP712: domain not allowed");
-        return keccak256(abi.encode(TYPE_HASH, _hashedName, _hashedVersion, domain.chainId, domain.verifyingContract));
+    function _domainSeparatorV4() internal view returns (bytes32) {
+        return _buildDomainSeparator();
     }
 
-    function _isDomainAllowed(FinP2P.Domain memory domain) internal view returns (bool) {
-        return _allowedDomains[keccak256(abi.encode(domain.chainId, domain.verifyingContract))].chainId != 0;
+    function _buildDomainSeparator() private view returns (bytes32) {
+        return keccak256(abi.encode(TYPE_HASH, _hashedName, _hashedVersion, 1, 0x0000000000000000000000000000000000000000));
     }
 
     /**
@@ -84,8 +69,8 @@ abstract contract EIP712 is IERC5267 {
      * address signer = ECDSA.recover(digest, signature);
      * ```
      */
-    function _hashTypedDataV4(FinP2P.Domain memory domain, bytes32 structHash) internal view virtual returns (bytes32) {
-        return MessageHashUtils.toTypedDataHash(_domainSeparatorV4(domain), structHash);
+    function _hashTypedDataV4(bytes32 structHash) internal view virtual returns (bytes32) {
+        return MessageHashUtils.toTypedDataHash(_domainSeparatorV4(), structHash);
     }
 
     /**
@@ -109,8 +94,8 @@ abstract contract EIP712 is IERC5267 {
             hex"0f", // 01111
             _EIP712Name(),
             _EIP712Version(),
-            block.chainid,
-            address(this),
+            1,
+            0x0000000000000000000000000000000000000000,
             bytes32(0),
             new uint256[](0)
         );

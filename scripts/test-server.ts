@@ -1,21 +1,16 @@
 import console from "console";
-import { HardhatLogExtractor } from "../tests/utils/log-extractors";
-import { GenericContainer, StartedTestContainer } from "testcontainers";
-import { NetworkDetails } from "../tests/utils/models";
-import { ContractsManager } from "../finp2p-contracts/src/contracts/manager";
-import { FinP2PContract } from "../finp2p-contracts/src/contracts/finp2p";
-import createApp from "../src/app";
-import { addressFromPrivateKey } from "../finp2p-contracts/src/contracts/utils";
 import process from "process";
 import http from "http";
 import { Provider, Signer } from "ethers";
-import { createProviderAndSigner, ProviderType } from "../finp2p-contracts/src/contracts/config";
-import { AssetCreationPolicy } from "../src/services/tokens";
-import { PolicyGetter } from "../src/finp2p/policy";
-import { OssClient } from "../src/finp2p/oss.client";
 import winston, { format, transports } from "winston";
-import { ExecutionPlanGetter } from "../src/finp2p/execution.plan";
-import { FinAPIClient } from "../src/finp2p/finapi/finapi.client";
+import { GenericContainer, StartedTestContainer } from "testcontainers";
+import { HardhatLogExtractor } from "../tests/utils/log-extractors";
+import { NetworkDetails } from "../tests/utils/models";
+import { FinP2PContract, ContractsManager, addressFromPrivateKey } from "@owneraio/finp2p-contracts";
+import createApp from "../src/app";
+import { FinP2PClient } from "@owneraio/finp2p-client";
+import { ExecDetailsStore, InMemoryExecDetailsStore } from "../src/services";
+import { ProviderType, createProviderAndSigner } from "../src/config";
 
 let ethereumNodeContainer: StartedTestContainer | undefined;
 let httpServer: http.Server | undefined;
@@ -81,20 +76,12 @@ const deployERC20Contract = async (provider: Provider, signer: Signer, finp2pTok
   return contractManger.deployERC20("ERC-20", "ERC20", 0, finp2pTokenAddress);
 };
 
-const startApp = async (port: number, provider: Provider, signer: Signer,
-                        finP2PContractAddress: string, tokenAddress: string,
-                        policyGetter: PolicyGetter | undefined,
-                        executionGetter: ExecutionPlanGetter | undefined,
+const startApp = async (orgId: string, port: number, provider: Provider, signer: Signer,
+                        finP2PContract: FinP2PContract, tokenAddress: string, finP2PClient: FinP2PClient | undefined,
+                        execDetailsStore: ExecDetailsStore | undefined,
                         logger: winston.Logger) => {
-  const finP2PContract = await FinP2PContract.create(provider, signer, finP2PContractAddress, logger);
 
-  const assetCreationPolicy = {
-    type: "reuse-existing-token",
-    tokenAddress
-  } as AssetCreationPolicy;
-
-
-  const app = createApp(finP2PContract, assetCreationPolicy, policyGetter, executionGetter, logger);
+  const app = createApp(orgId, finP2PContract, finP2PClient, execDetailsStore, logger);
   logger.info("App created successfully.");
 
   httpServer = app.listen(port, () => {
@@ -116,26 +103,29 @@ const start = async () => {
   process.env.NETWORK_HOST = details.rpcUrl;
 
   const operatorAddress = addressFromPrivateKey(operator);
-  const { provider, signer } = await createProviderAndSigner(providerType, logger, false);
+  const { provider, signer } = await createProviderAndSigner(providerType, false);
   const network = await provider.getNetwork();
   logger.info(`Connected to network: ${network.name} chainId: ${network.chainId}`);
   const finP2PContractAddress = await deployContract(provider, signer, operatorAddress);
   const tokenAddress = await deployERC20Contract(provider, signer, finP2PContractAddress);
-
-  let policyGetter: PolicyGetter | undefined;
-  let executionGetter: ExecutionPlanGetter | undefined;
-  const ossUrl = process.env.OSS_URL;
-  if (ossUrl) {
-    const ossClient = new OssClient(ossUrl, undefined);
-    policyGetter = new PolicyGetter(ossClient);
-    const finp2pAddress = process.env.FINP2P_ADDRESS;
-    if (finp2pAddress) {
-      const finApiClient = new FinAPIClient(finp2pAddress);
-      executionGetter = new ExecutionPlanGetter(finApiClient, ossClient);
-    }
+  const orgId = process.env.ORGANIZATION_ID;
+  if (!orgId) {
+    throw new Error("ORGANIZATION_ID is not set");
   }
+  const finP2PAddress = process.env.FINP2P_ADDRESS;
+  if (!finP2PAddress) {
+    throw new Error("FINP2P_ADDRESS is not set");
+  }
+  const ossUrl = process.env.OSS_URL;
+  if (!ossUrl) {
+    throw new Error("OSS_URL is not set");
+  }
+  const finP2PClient = new FinP2PClient(finP2PAddress, ossUrl);
 
-  await startApp(port, provider, signer, finP2PContractAddress, tokenAddress, policyGetter, executionGetter, logger);
+  const execDetailsStore = new InMemoryExecDetailsStore();
+  const finP2PContract = new FinP2PContract(provider, signer, finP2PContractAddress, logger);
+
+  await startApp(orgId, port, provider, signer, finP2PContract, tokenAddress, finP2PClient, execDetailsStore, logger);
 };
 
 

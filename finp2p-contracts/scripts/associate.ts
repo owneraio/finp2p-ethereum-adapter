@@ -1,45 +1,66 @@
-import process from "process";
-import { FinP2PContract } from "../src/contracts/finp2p";
-import { createProviderAndSigner, ProviderType } from "../src/contracts/config";
-import winston, { format, transports } from "winston";
+import { FinP2PContract } from "../src";
+import { keccak256, toUtf8Bytes } from "ethers";
+import { createJsonProvider, parseConfig } from "./config";
+import { Logger, ConsoleLogger } from "@owneraio/finp2p-adapter-models";
 
-const logger = winston.createLogger({
-  level: "info", transports: [new transports.Console()], format: format.json()
-});
+const logger: Logger = new ConsoleLogger("info");
 
-const associateAsset = async (providerType: ProviderType, deployerPrivateKey: string, finp2pContractAddress: string, assetId: string, erc20Address: string) => {
-  if (!deployerPrivateKey) {
-    throw new Error("DEPLOYER_PRIVATE_KEY is not set");
-  }
+const associateAsset = async (
+  operatorPrivateKey: string,
+  ethereumRPCUrl: string,
+  finp2pContractAddress: string,
+  assetId: string,
+  erc20Address: string,
+  tokenStandard: string
+) => {
   logger.info(`Granting asset manager and transaction manager roles finP2P contract ${finp2pContractAddress}`);
-  const { provider, signer } = await createProviderAndSigner(providerType, logger);
-  const manager = await FinP2PContract.create(provider, signer, finp2pContractAddress, logger);
-  await manager.associateAsset(assetId, erc20Address);
+
+  const { provider, signer } = await createJsonProvider(operatorPrivateKey, ethereumRPCUrl);
+
+  const finP2P = new FinP2PContract(provider, signer, finp2pContractAddress, logger);
+  await finP2P.associateAsset(assetId, erc20Address, keccak256(toUtf8Bytes(tokenStandard)));
   logger.info("Asset associated successfully");
 };
 
-const providerType = (process.env.PROVIDER_TYPE || "local") as ProviderType;
-const operatorAddress = process.env.OPERATOR_ADDRESS;
-if (!operatorAddress) {
-  throw new Error("OPERATOR_ADDRESS is not set");
-}
-const deployerPrivateKey = process.env.DEPLOYER_PRIVATE_KEY;
-if (!deployerPrivateKey) {
-  throw new Error("DEPLOYER_PRIVATE_KEY is not set");
-}
-const finp2pContractAddress = process.env.FINP2P_CONTRACT_ADDRESS;
-if (!finp2pContractAddress) {
-  throw new Error("FINP2P_CONTRACT_ADDRESS is not set");
-}
-const assetId = process.env.ASSET_ID;
-if (!assetId) {
-  throw new Error("ASSET_ID is not set");
-}
-const erc20Address = process.env.ERC20_ADDRESS;
-if (!erc20Address) {
-  throw new Error("ERC20_ADDRESS is not set");
-}
+const config = parseConfig([
+  {
+    name: "operator_pk",
+    envVar: "OPERATOR_PRIVATE_KEY",
+    required: true,
+    description: "Operator private key"
+  },
+  {
+    name: "rpc_url",
+    envVar: "RPC_URL",
+    required: true,
+    description: "Ethereum RPC URL"
+  },
+  {
+    name: "finp2p_contract_address",
+    envVar: "FINP2P_CONTRACT_ADDRESS",
+    description: "FinP2P contract address",
+    required: true
+  },
+  {
+    name: "asset_id",
+    envVar: "ASSET_ID",
+    description: "Asset ID to associate",
+    required: true
+  },
+  {
+    name: "token_standard",
+    envVar: "TOKEN_STANDARD",
+    defaultValue: "ERC20_WITH_OPERATOR",
+    description: "Token standard"
+  },
+  {
+    name: "token_address",
+    envVar: "TOKEN_ADDRESS",
+    description: "Token address to associate",
+    required: true
+  }
+]);
 
-associateAsset(providerType, deployerPrivateKey, finp2pContractAddress, assetId, erc20Address)
+associateAsset(config.operator_pk!, config.rpc_url!, config.finp2p_contract_address!, config.asset_id!, config.token_address!, config.token_standard!)
   .then(() => {
-  });
+  }).catch(console.error);

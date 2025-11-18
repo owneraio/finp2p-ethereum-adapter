@@ -1,4 +1,4 @@
-© 2024 XCap Ecosystem Ltd trading as Ownera®. All rights reserved. SPDX-License-Identifier: Apache-2.0
+© 2025 XCap Ecosystem Ltd trading as Ownera®. All rights reserved. SPDX-License-Identifier: Apache-2.0
 
 # FinP2P Ethereum Reference Adapter
 
@@ -16,7 +16,7 @@ The Adapter communicated with a FinP2P proxy contract on Ethereum network which 
 #### Install dependencies
 
 
-`npm install`
+`npm clean-install`
 
 #### Compile contracts and generate typescript bindings
 
@@ -41,3 +41,17 @@ To run tests against external network, set `network.rpcUrl` parameter in `jest.c
 
 To run tests against external adapter, set `adapter.url` parameter in `jest.config.js` to the desired adapter url.
 
+
+#### Run migration scripts
+
+After deploying new FinP2P contract the old data should be migrated to the new contract. The migration script could be run using npx command:
+
+```
+npx -p @owneraio/finp2p-ethereum-adapter migration \
+    --operator_pk 0xa11db02ddd62302c8cb4e6f07f058726061e7fa42502cda442a65fb8aaf76ca1 \
+    --rpc_url https://ethereum-sepolia-rpc.publicnode.com \
+    --organization_id bank-us \
+    --oss_url http://localhost:9000 \
+    --finp2p_contract_address 0x8464135c8F25Da09e49BC8782676a84730C318bD
+
+```

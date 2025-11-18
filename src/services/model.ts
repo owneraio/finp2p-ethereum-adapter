@@ -1,0 +1,15 @@
+import { EIP712LoanTerms, OperationParams, Term } from "@owneraio/finp2p-contracts";
+
+export type BusinessContract = {
+  buyerFinId: string,
+  sellerFinId: string,
+  asset: Term,
+  settlement: Term,
+  loan: EIP712LoanTerms,
+  params: OperationParams
+};
+
+export type ExecutionContext = {
+  executionPlanId: string
+  instructionSequenceNumber: number
+}
