@@ -132,6 +132,10 @@ contract EarmarkProvider is EIP712 {
     bytes32 private constant OPERATION_HOLD_HASH = keccak256("hold");
     bytes32 private constant OPERATION_RELEASE_HASH = keccak256("release");
 
+    function getEarmark() external view returns (Earmark memory) {
+        return earmark;
+    }
+
     function provideEarmarkProof(
         string memory id,
         ReceiptOperationType operation,
