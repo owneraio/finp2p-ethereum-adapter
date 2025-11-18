@@ -55,12 +55,30 @@ export const enum ReleaseType {
   Redeem = 1
 }
 
+//
+// struct ExecutionContext {
+//   string planId;
+//   uint8 sequence;
+// }
+export interface ExecutionContext {
+  planId: string;
+  sequence: number;
+}
+
+export const executionContext = (planId: string, sequence: number): ExecutionContext => {
+  return {
+    planId,
+    sequence
+  };
+}
+
 export interface OperationParams {
   leg: LegType;
   eip712PrimaryType: PrimaryType;
   phase: Phase;
   operationId: string;
   releaseType: ReleaseType;
+  exCtx: ExecutionContext;
 }
 
 export const operationParams = (
@@ -68,13 +86,15 @@ export const operationParams = (
   eip712PrimaryType: PrimaryType,
   phase: Phase = Phase.Initiate,
   operationId: string = "",
-  releaseType: ReleaseType = ReleaseType.Release): OperationParams => {
+  releaseType: ReleaseType = ReleaseType.Release,
+  exCtx: ExecutionContext = executionContext("", 0)): OperationParams => {
   return {
     leg,
     eip712PrimaryType,
     phase,
     operationId,
-    releaseType
+    releaseType,
+    exCtx
   };
 };
 
