@@ -19,7 +19,7 @@ contract EarmarkEscrow is EarmarkProvider {
 
     mapping(uint256 => Lock) private locks;
 
-    constructor() {
+    constructor() EarmarkProvider() {
         // Set the contract deployer as the owner
         owner = msg.sender;
     }
@@ -32,17 +32,10 @@ contract EarmarkEscrow is EarmarkProvider {
     function deposit(uint256 lockId, address tokenAddress, uint256 amount, Earmark memory _earmark) external {
         storeEarmark(lockId, _earmark);
         IERC20 token = IERC20(tokenAddress);
-        token.transfer(address(this), amount);
+        token.transferFrom(msg.sender, address(this), amount);
         storeLock(lockId, tokenAddress, amount);
     }
 
-    // should be called by the orchestrator to deposit tokens from the owner into the escrow
-    function depositFromOwner(uint256 lockId, address tokenAddress, uint256 amount, Earmark memory _earmark) external {
-        storeEarmark(lockId, _earmark);
-        IERC20 token = IERC20(tokenAddress);
-        token.transferFrom(owner, address(this), amount);
-        storeLock(lockId, tokenAddress, amount);
-    }
 
     // should be checked by the orchestrator to verify if the tokens are deposited
     function isDeposited(uint256 lockId) external view returns (bool) {

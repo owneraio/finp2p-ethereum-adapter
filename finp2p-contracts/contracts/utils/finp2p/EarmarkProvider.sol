@@ -146,11 +146,15 @@ contract EarmarkProvider is EIP712 {
         earmarks[lockId] = earmark;
     }
 
+    function getEarmark(uint256 lockId) public view returns (Earmark memory) {
+        return earmarks[lockId];
+    }
+
     function validateEarmarkProof(
         uint256 lockId,
         ReceiptProof memory proof
     ) public view {
-        Earmark memory earmark = earmarks[lockId];
+        Earmark memory earmark = getEarmark(lockId);
         require(earmark.operationType == proof.operation, "Operation does not match");
         require(earmark.assetId.equals(proof.asset.assetId), "Asset id does not match");
         require(earmark.assetType == proof.asset.assetType, "Asset type does not match");
