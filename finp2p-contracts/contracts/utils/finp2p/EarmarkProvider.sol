@@ -8,16 +8,13 @@ import {FinIdUtils} from "./FinIdUtils.sol";
 import {Signature} from "./Signature.sol";
 
 contract EarmarkProvider is EIP712 {
+
     using FinIdUtils for string;
     using StringUtils for string;
 
-    string private proofSignerFinId;
-    Earmark private earmark;
-    bool earmarkProofProvided;
+    mapping(uint256 => Earmark) private earmarks;
 
-    constructor(Earmark memory _emark, string memory _proofSignerFinId) EIP712(SIGNING_DOMAIN, SIGNATURE_VERSION) {
-        earmark = _emark;
-        proofSignerFinId = _proofSignerFinId;
+    constructor() EIP712(SIGNING_DOMAIN, SIGNATURE_VERSION) {
     }
 
     struct Earmark {
@@ -27,6 +24,19 @@ contract EarmarkProvider is EIP712 {
         string amount;
         string source;
         string destination;
+        string proofSignerFinId;
+    }
+
+    struct ReceiptProof {
+        string id;
+        ReceiptOperationType operation;
+        ReceiptSource source;
+        ReceiptDestination destination;
+        ReceiptAsset asset;
+        ReceiptTradeDetails tradeDetails;
+        ReceiptTransactionDetails transactionDetails;
+        string quantity;
+        bytes signature;
     }
 
     enum ReceiptOperationType {
@@ -132,52 +142,30 @@ contract EarmarkProvider is EIP712 {
     bytes32 private constant OPERATION_HOLD_HASH = keccak256("hold");
     bytes32 private constant OPERATION_RELEASE_HASH = keccak256("release");
 
-    function getEarmark() external view returns (Earmark memory) {
-        return earmark;
+    function storeEarmark(uint256 lockId, Earmark memory earmark) public {
+        earmarks[lockId] = earmark;
     }
 
-    function provideEarmarkProof(
-        string memory id,
-        ReceiptOperationType operation,
-        ReceiptSource memory source,
-        ReceiptDestination memory destination,
-        ReceiptAsset memory asset,
-        ReceiptTradeDetails memory tradeDetails,
-        ReceiptTransactionDetails memory transactionDetails,
-        string memory quantity,
-        bytes memory signature
-    ) external {
-        require(earmark.operationType == operation, "Operation does not match");
-        require(earmark.assetId.equals(asset.assetId), "Asset id does not match");
-        require(earmark.assetType == asset.assetType, "Asset type does not match");
-        require(earmark.amount.equals(quantity), "Quantity does not match");
-        require(earmark.source.equals(source.finId), "Source does not match");
-        require(earmark.destination.equals(destination.finId), "Destination does not match");
-
-        require(verifyReceiptProofSignature(id, operation, source, destination,
-            asset, tradeDetails, transactionDetails, quantity, proofSignerFinId, signature
-        ), "Receipt proof signature is not verified");
-
-        earmarkProofProvided = true;
+    function validateEarmarkProof(
+        uint256 lockId,
+        ReceiptProof memory proof
+    ) public view {
+        Earmark memory earmark = earmarks[lockId];
+        require(earmark.operationType == proof.operation, "Operation does not match");
+        require(earmark.assetId.equals(proof.asset.assetId), "Asset id does not match");
+        require(earmark.assetType == proof.asset.assetType, "Asset type does not match");
+        require(earmark.amount.equals(proof.quantity), "Quantity does not match");
+        require(earmark.source.equals(proof.source.finId), "Source does not match");
+        require(earmark.destination.equals(proof.destination.finId), "Destination does not match");
+        require(verifyReceiptProofSignature(proof, earmark.proofSignerFinId), "Receipt proof signature is not verified");
     }
 
     // ------------------------ Internal functions ------------------------
 
-    function verifyReceiptProofSignature(
-        string memory id,
-        ReceiptOperationType operationType,
-        ReceiptSource memory source,
-        ReceiptDestination memory destination,
-        ReceiptAsset memory asset,
-        ReceiptTradeDetails memory tradeDetails,
-        ReceiptTransactionDetails memory transactionDetails,
-        string memory quantity,
-        string memory signerFinId,
-        bytes memory signature
-    ) internal view returns (bool) {
-        bytes32 hash = hashReceipt(id, operationType, source, destination, asset, tradeDetails,
-            transactionDetails, quantity);
-        return Signature.verify(signerFinId.toAddress(), hash, signature);
+    function verifyReceiptProofSignature(ReceiptProof memory proof, string memory signerFinId) internal view returns (bool) {
+        bytes32 hash = hashReceipt(proof.id, proof.operation, proof.source, proof.destination, proof.asset,
+            proof.tradeDetails, proof.transactionDetails, proof.quantity);
+        return Signature.verify(signerFinId.toAddress(), hash, proof.signature);
     }
 
 
@@ -190,7 +178,6 @@ contract EarmarkProvider is EIP712 {
         ReceiptTradeDetails memory tradeDetails,
         ReceiptTransactionDetails memory transactionDetails,
         string memory quantity
-
     ) internal view returns (bytes32) {
         return _hashTypedDataV4(
             keccak256(abi.encode(

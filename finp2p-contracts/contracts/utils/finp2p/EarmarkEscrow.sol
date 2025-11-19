@@ -10,46 +10,56 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 contract EarmarkEscrow is EarmarkProvider {
 
     address private owner;
-    address private tokenAddress;
 
-    constructor(address _tokenAddress, Earmark memory _emark, string memory _proofSignerFinId)
-    EarmarkProvider(_emark, _proofSignerFinId) {
+    struct Lock {
+        address tokenAddress;
+        uint256 amount;
+        bool earmarkProofProvided;
+    }
+
+    mapping(uint256 => Lock) private locks;
+
+    constructor() {
         // Set the contract deployer as the owner
         owner = msg.sender;
-        tokenAddress = _tokenAddress;
     }
 
     function getOwner() external view returns (address) {
         return owner;
     }
 
-    function getTokenAddress() external view returns (address) {
-        return tokenAddress;
-    }
-
     // should be called by the owner to deposit tokens into the escrow
-    function deposit(uint256 amount) external {
+    function deposit(uint256 lockId, address tokenAddress, uint256 amount, Earmark memory _earmark) external {
+        storeEarmark(lockId, _earmark);
         IERC20 token = IERC20(tokenAddress);
         token.transfer(address(this), amount);
+        storeLock(lockId, tokenAddress, amount);
     }
 
     // should be called by the orchestrator to deposit tokens from the owner into the escrow
-    function depositFromOwner(uint256 amount) external {
+    function depositFromOwner(uint256 lockId, address tokenAddress, uint256 amount, Earmark memory _earmark) external {
+        storeEarmark(lockId, _earmark);
         IERC20 token = IERC20(tokenAddress);
         token.transferFrom(owner, address(this), amount);
+        storeLock(lockId, tokenAddress, amount);
     }
 
     // should be checked by the orchestrator to verify if the tokens are deposited
-    function isDeposited(uint256 amount) external view returns (bool) {
-        IERC20 token = IERC20(tokenAddress);
-        return token.balanceOf(address(this)) >= amount;
+    function isDeposited(uint256 lockId) external view returns (bool) {
+        Lock memory lock = locks[lockId];
+        require(lock.tokenAddress != address(0), "No lock found for this operationId");
+
+        IERC20 token = IERC20(lock.tokenAddress);
+        return token.balanceOf(address(this)) >= lock.amount;
     }
 
-    function release(address to, uint256 amount) external {
-        require(earmarkProofProvided, "Earmark proof not provided");
+    function release(uint256 lockId, address to) external {
+        Lock memory lock = locks[lockId];
+        require(lock.tokenAddress != address(0), "No lock found for this operationId");
+        require(lock.earmarkProofProvided, "Earmark proof not provided");
 
-        IERC20 token = IERC20(tokenAddress);
-        token.transfer(to, amount);
+        IERC20 token = IERC20(lock.tokenAddress);
+        token.transfer(to, lock.amount);
     }
 
     function rollback(uint256 amount) external {
@@ -61,4 +71,12 @@ contract EarmarkEscrow is EarmarkProvider {
     }
 
 
+    function storeLock(uint256 operationId, address tokenAddress, uint256 amount) internal {
+        locks[operationId] = Lock(tokenAddress, amount, false);
+    }
+
+    function provideEarmarkProof(uint256 lockId, ReceiptProof memory proof) external {
+        validateEarmarkProof(lockId, proof);
+        locks[lockId].earmarkProofProvided = true;
+    }
 }
