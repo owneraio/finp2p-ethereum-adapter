@@ -28,7 +28,6 @@ contract EarmarkEscrow is EarmarkProvider {
         return owner;
     }
 
-    // should be called by the owner to deposit tokens into the escrow
     function deposit(uint256 lockId, address tokenAddress, uint256 amount, Earmark memory _earmark) external {
         storeEarmark(lockId, _earmark);
         IERC20 token = IERC20(tokenAddress);
