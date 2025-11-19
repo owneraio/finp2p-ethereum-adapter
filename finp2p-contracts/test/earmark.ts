@@ -4,27 +4,44 @@ import { expect } from "chai";
 import { EarmarkEscrow, ERC20WithOperator } from "../typechain-types";
 import { v4 as uuidv4, v4 as uuid } from "uuid";
 import { HDNodeWallet, Signer, Wallet } from "ethers";
-import {
-  ASSET_TYPE_FINP2P,
-  Earmark,
-  getFinId,
-  OPERATION_TYPE_ISSUE,
-  ReceiptAssetType,
-  ReceiptProof,
-  signEIP712
-} from "../src";
-import {
-  eip712Asset,
-  eip712Destination, eip712ExecutionContext,
-  eip712Source,
-  eip712TradeDetails, eip712TransactionDetails, getRandomNumber,
-  newReceiptMessage, RECEIPT_PROOF_TYPES
-} from "@owneraio/finp2p-adapter-models";
-
-
+import { Earmark, getFinId, ReceiptAssetType, ReceiptOperationType, ReceiptProof, signReceiptProof } from "../src";
 
 const erc20Decimals = 4;
 
+const generateReceiptProof = (lockId: string, earmark: Earmark) => {
+  const id = uuidv4();
+  const executionPlanId = `some-bank:106:${uuidv4()}`;
+  const instructionSequenceNumber = 1;
+  const receiptProof: ReceiptProof = {
+    id,
+    operation: earmark.operationType,
+    source: {
+      accountType: "finId",
+      finId: earmark.source
+    },
+    destination: {
+      accountType: "finId",
+      finId: earmark.destination
+    },
+    asset: {
+      assetType: ReceiptAssetType.FINP2P,
+      assetId: earmark.assetId
+    },
+    tradeDetails: {
+      executionContext: {
+        executionPlanId,
+        instructionSequenceNumber
+      }
+    },
+    transactionDetails: {
+      operationId: lockId,
+      transactionId: id
+    },
+    quantity: earmark.amount,
+    signature: ""
+  };
+  return receiptProof;
+}
 
 describe("Earmark escrow test", function() {
 
@@ -37,7 +54,7 @@ describe("Earmark escrow test", function() {
   let earmarkEscrowAddress: string;
 
   const initialInvBalance = 10000;
-  let initialInvBalanceUnits: number
+  let initialInvBalanceUnits: number;
 
   async function deployERC20(name: string, symbol: string, decimals: number, operatorAddress: string) {
     const deployer = await ethers.getContractFactory("ERC20WithOperator");
@@ -89,9 +106,9 @@ describe("Earmark escrow test", function() {
 
     // represents a token transaction on other ledger
     const earmark: Earmark = {
-      operationType: OPERATION_TYPE_ISSUE,
+      operationType: ReceiptOperationType.ISSUE,
       assetId: `bank-us:102:${uuid()}`,
-      assetType: ASSET_TYPE_FINP2P,
+      assetType: ReceiptAssetType.FINP2P,
       amount: "1000",
       source: getFinId(receiverWallet),
       destination: getFinId(investorWallet),
@@ -130,51 +147,9 @@ describe("Earmark escrow test", function() {
 
     // ----- providing proof -----
 
+    const receiptProof = generateReceiptProof(lockId, earmark)
     const { chainId, verifyingContract } = await earmarkEscrow.eip712Domain();
-    const id = uuidv4();
-    const operationType = "issue";
-    const sourceFinId = getFinId(receiverWallet);
-    const destinationFinId = getFinId(investorWallet);
-
-    const executionPlanId = `some-bank:106:${uuidv4()}`;
-    const instructionSequenceNumber = 1;
-    const receiptProof: ReceiptProof = {
-      id,
-      operation: earmark.operationType,
-      source: {
-        accountType: "finId",
-        finId: sourceFinId
-      },
-      destination: {
-        accountType: "finId",
-        finId: destinationFinId
-      },
-      asset: {
-        assetType: ReceiptAssetType.FINP2P,
-        assetId: earmark.assetId
-      },
-      tradeDetails: {
-        executionContext: {
-          executionPlanId,
-          instructionSequenceNumber
-        }
-      },
-      transactionDetails: {
-        operationId: lockId,
-        transactionId: id
-      },
-      quantity: earmark.amount,
-      signature: ''
-    };
-
-    const message = newReceiptMessage(id, operationType, eip712Source("finId", sourceFinId),
-      eip712Destination("finId", destinationFinId),
-      eip712Asset(earmark.assetId, "finp2p"),
-      earmark.amount,
-      eip712TradeDetails(eip712ExecutionContext(executionPlanId, `${instructionSequenceNumber}`)),
-      eip712TransactionDetails(lockId, id));
-
-    receiptProof.signature = await signEIP712(chainId, verifyingContract, RECEIPT_PROOF_TYPES, message, proofProviderWallet);
+    receiptProof.signature = await signReceiptProof(chainId, verifyingContract, receiptProof, proofProviderWallet);
 
     await earmarkEscrow.provideEarmarkProof(lockId, receiptProof);
 
