@@ -241,7 +241,6 @@ contract EarmarkProvider is EIP712 {
 
 
     function hashUint8AsString(uint8 value) internal pure returns (bytes32) {
-        require(value >= 1 && value <= 9, "Value must be between 1 and 9");
         return keccak256(abi.encodePacked(bytes1(uint8(48 + value))));
     }
 

@@ -2,51 +2,26 @@
 import { ethers } from "hardhat";
 import { expect } from "chai";
 import { EarmarkEscrow, ERC20WithOperator } from "../typechain-types";
-import { v4 as uuid } from "uuid";
+import { v4 as uuidv4, v4 as uuid } from "uuid";
 import { HDNodeWallet, Signer, Wallet } from "ethers";
-import { getFinId } from "../src";
+import {
+  ASSET_TYPE_FINP2P,
+  Earmark,
+  getFinId,
+  OPERATION_TYPE_ISSUE,
+  ReceiptAssetType,
+  ReceiptProof,
+  signEIP712
+} from "../src";
+import {
+  eip712Asset,
+  eip712Destination, eip712ExecutionContext,
+  eip712Source,
+  eip712TradeDetails, eip712TransactionDetails, getRandomNumber,
+  newReceiptMessage, RECEIPT_PROOF_TYPES
+} from "@owneraio/finp2p-adapter-models";
 
-//   enum AssetType {
-//         FINP2P,
-//         FIAT,
-//         CRYPTOCURRENCY
-//     }
-//    struct Earmark {
-//         ReceiptOperationType operationType;
-//         string assetId;
-//         AssetType assetType;
-//         string amount;
-//         string source;
-//         string destination;
-//     }
-//
-//     enum ReceiptOperationType {
-//         ISSUE,
-//         TRANSFER,
-//         HOLD,
-//         RELEASE,
-//         REDEEM
-//     }
 
-const OPERATION_TYPE_ISSUE = 0;
-const OPERATION_TYPE_TRANSFER = 1;
-const OPERATION_TYPE_HOLD = 2;
-const OPERATION_TYPE_RELEASE = 3;
-const OPERATION_TYPE_REDEEM = 4;
-
-const ASSET_TYPE_FINP2P = 0;
-const ASSET_TYPE_FIAT = 1;
-const ASSET_TYPE_CRYPTOCURRENCY = 2;
-
-type Earmark = {
-  operationType: number;
-  assetId: string;
-  assetType: number;
-  amount: string;
-  source: string;
-  destination: string;
-  proofSignerFinId: string;
-}
 
 const erc20Decimals = 4;
 
@@ -56,9 +31,13 @@ describe("Earmark escrow test", function() {
   let operator: Signer;
   let tokenAddress: string;
   let investorWallet: HDNodeWallet;
+  let receiverWallet: HDNodeWallet;
   let proofProviderWallet: HDNodeWallet;
   let erc20: ERC20WithOperator;
   let earmarkEscrowAddress: string;
+
+  const initialInvBalance = 10000;
+  let initialInvBalanceUnits: number
 
   async function deployERC20(name: string, symbol: string, decimals: number, operatorAddress: string) {
     const deployer = await ethers.getContractFactory("ERC20WithOperator");
@@ -82,14 +61,14 @@ describe("Earmark escrow test", function() {
     [operator] = await ethers.getSigners();
     const operatorAddress = await operator.getAddress();
     investorWallet = Wallet.createRandom();
+    receiverWallet = Wallet.createRandom();
     proofProviderWallet = Wallet.createRandom();
     ({
       contract: erc20,
       address: tokenAddress
     } = await deployERC20("Test Token", "TST", erc20Decimals, operatorAddress));
-    const initialBalance = "10000";
-    await erc20.mint(await investorWallet.getAddress(), ethers.parseUnits(initialBalance, erc20Decimals));
-    expect(await erc20.balanceOf(await investorWallet.getAddress())).to.equal(ethers.parseUnits(initialBalance, erc20Decimals));
+    initialInvBalanceUnits = ethers.parseUnits(`${initialInvBalance}`, erc20Decimals);
+    await erc20.mint(await investorWallet.getAddress(), initialInvBalanceUnits);
 
     await operator.sendTransaction({
       to: await investorWallet.getAddress(),
@@ -99,7 +78,9 @@ describe("Earmark escrow test", function() {
 
   });
 
-  it("Should deploy EarmarkEscrow contract", async function() {
+  it("Should deposit and release funds once earmark proof provided", async function() {
+    const investorAddress = await investorWallet.getAddress();
+    const receiverAddress = await receiverWallet.getAddress();
 
     const decimals = await erc20.decimals();
     const depositAmount = "300";
@@ -112,7 +93,7 @@ describe("Earmark escrow test", function() {
       assetId: `bank-us:102:${uuid()}`,
       assetType: ASSET_TYPE_FINP2P,
       amount: "1000",
-      source: "031670bf8da27e4333b03aebf827eaa226220223fbd6a7e04554fc9b00719cd64d",
+      source: getFinId(receiverWallet),
       destination: getFinId(investorWallet),
       proofSignerFinId: getFinId(proofProviderWallet)
     };
@@ -123,11 +104,17 @@ describe("Earmark escrow test", function() {
     const erc20Inv = erc20.connect(investorWallet.connect(operator.provider));
     await erc20Inv.approve(earmarkEscrowAddress, depositAmountUnits);
 
+    expect(await erc20.balanceOf(investorAddress)).to.equal(initialInvBalanceUnits);
+    expect(await erc20.balanceOf(earmarkEscrowAddress)).to.equal(0);
+    expect(await erc20.balanceOf(receiverAddress)).to.equal(0);
+
     const lockId = "123";
     const earmarkEscrowInv = await getEarmarkEscrow(earmarkEscrowAddress, investorWallet.connect(operator.provider));
     await earmarkEscrowInv.deposit(lockId, tokenAddress, depositAmountUnits, earmark);
 
+    expect(await erc20.balanceOf(investorAddress)).to.equal(initialInvBalanceUnits - depositAmountUnits);
     expect(await erc20.balanceOf(earmarkEscrowAddress)).to.equal(depositAmountUnits);
+    expect(await erc20.balanceOf(receiverAddress)).to.equal(0);
 
     const earmarkEscrow = await getEarmarkEscrow(earmarkEscrowAddress, operator);
 
@@ -139,8 +126,63 @@ describe("Earmark escrow test", function() {
     expect(storedEarmark.source).to.equal(earmark.source);
     expect(storedEarmark.destination).to.equal(earmark.destination);
 
+    await expect(earmarkEscrow.release(lockId, await receiverWallet.getAddress())).to.be.revertedWith("Earmark proof not provided");
 
-    // await earmarkEscrow.release(depositAmount);
+    // ----- providing proof -----
+
+    const { chainId, verifyingContract } = await earmarkEscrow.eip712Domain();
+    const id = uuidv4();
+    const operationType = "issue";
+    const sourceFinId = getFinId(receiverWallet);
+    const destinationFinId = getFinId(investorWallet);
+
+    const executionPlanId = `some-bank:106:${uuidv4()}`;
+    const instructionSequenceNumber = 1;
+    const receiptProof: ReceiptProof = {
+      id,
+      operation: earmark.operationType,
+      source: {
+        accountType: "finId",
+        finId: sourceFinId
+      },
+      destination: {
+        accountType: "finId",
+        finId: destinationFinId
+      },
+      asset: {
+        assetType: ReceiptAssetType.FINP2P,
+        assetId: earmark.assetId
+      },
+      tradeDetails: {
+        executionContext: {
+          executionPlanId,
+          instructionSequenceNumber
+        }
+      },
+      transactionDetails: {
+        operationId: lockId,
+        transactionId: id
+      },
+      quantity: earmark.amount,
+      signature: ''
+    };
+
+    const message = newReceiptMessage(id, operationType, eip712Source("finId", sourceFinId),
+      eip712Destination("finId", destinationFinId),
+      eip712Asset(earmark.assetId, "finp2p"),
+      earmark.amount,
+      eip712TradeDetails(eip712ExecutionContext(executionPlanId, `${instructionSequenceNumber}`)),
+      eip712TransactionDetails(lockId, id));
+
+    receiptProof.signature = await signEIP712(chainId, verifyingContract, RECEIPT_PROOF_TYPES, message, proofProviderWallet);
+
+    await earmarkEscrow.provideEarmarkProof(lockId, receiptProof);
+
+    await earmarkEscrow.release(lockId, await receiverWallet.getAddress());
+
+    expect(await erc20.balanceOf(investorAddress)).to.equal(initialInvBalanceUnits - depositAmountUnits);
+    expect(await erc20.balanceOf(earmarkEscrowAddress)).to.equal(0);
+    expect(await erc20.balanceOf(receiverAddress)).to.equal(depositAmountUnits);
 
   });
 
