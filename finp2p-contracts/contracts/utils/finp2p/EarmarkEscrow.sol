@@ -35,7 +35,6 @@ contract EarmarkEscrow is EarmarkProvider {
         storeLock(lockId, tokenAddress, amount);
     }
 
-
     // should be checked by the orchestrator to verify if the tokens are deposited
     function isDeposited(uint256 lockId) external view returns (bool) {
         Lock memory lock = locks[lockId];
