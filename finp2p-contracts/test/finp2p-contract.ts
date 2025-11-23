@@ -26,7 +26,7 @@ import {
   signEIP712,
   Term
 } from "../src";
-import { ExecutionContextManager, FINP2POperator } from "../typechain-types";
+import { OrchestrationManager, FINP2POperator } from "../typechain-types";
 
 
 describe("FinP2P proxy contract test", function() {
@@ -62,23 +62,23 @@ describe("FinP2P proxy contract test", function() {
 
     const { contract: ar, address: assetRegistry } = await deployAssetRegistry();
 
-    const exCtxManagerFactory = await ethers.getContractFactory("ExecutionContextManager", {
+    const orchestrationManagerFactory = await ethers.getContractFactory("OrchestrationManager", {
       libraries: {
         FinP2P: finP2PLibAddress
       }
     });
-    const exCtxManager = await exCtxManagerFactory.deploy();
+    const orchestrationManager = await orchestrationManagerFactory.deploy();
     const finP2PContractFactory = await ethers.getContractFactory("FINP2POperator", {
       // libraries: {
       //   FinP2P: finP2PLibAddress
       // }
     });
-    const exCtxManagerAddress = await exCtxManager.getAddress();
-    const finP2PContract = await finP2PContractFactory.deploy(admin, assetRegistry, exCtxManagerAddress);
+    const orchestrationManagerAddress = await orchestrationManager.getAddress();
+    const finP2PContract = await finP2PContractFactory.deploy(admin, assetRegistry, orchestrationManagerAddress);
     const finP2POperatorERC20Address = await finP2PContract.getAddress();
     return {
-      exCtxManager,
-      exCtxManagerAddress,
+      orchestrationManager,
+      orchestrationManagerAddress,
       finP2POperatorERC20: finP2PContract,
       finP2POperatorERC20Address: finP2POperatorERC20Address
     };
@@ -99,7 +99,7 @@ describe("FinP2P proxy contract test", function() {
   describe("FinP2PProxy operations", () => {
 
     let operator: Signer;
-    let exCtxManager: ExecutionContextManager;
+    let orchestrationManager: OrchestrationManager;
     let finp2p: FINP2POperator;
     let finP2PAddress: string;
     let chainId: bigint;
@@ -111,9 +111,9 @@ describe("FinP2P proxy contract test", function() {
       ({
         finP2POperatorERC20: finp2p,
         finP2POperatorERC20Address: finP2PAddress,
-        exCtxManager
+        orchestrationManager
       } = await loadFixture(deployFinP2PProxyFixture));
-      ({ chainId, verifyingContract } = await exCtxManager.eip712Domain());
+      ({ chainId, verifyingContract } = await orchestrationManager.eip712Domain());
 
     });
 
@@ -136,10 +136,10 @@ describe("FinP2P proxy contract test", function() {
       const seller = generateInvestor();
 
       const planId = `${uuid()}`;
-      await exCtxManager.createExecutionPlan(planId, finP2PAddress, { from: operator });
-      await exCtxManager.addInstructionToExecution(executionContext(planId, 1), InstructionType.HOLD, settlement.assetId, settlement.assetType, buyer.finId, seller.finId, settlement.amount, InstructionExecutor.THIS_CONTRACT, "", { from: operator });
-      await exCtxManager.addInstructionToExecution(executionContext(planId, 2), InstructionType.ISSUE, asset.assetId, asset.assetType, "", buyer.finId, asset.amount, InstructionExecutor.THIS_CONTRACT, "", { from: operator });
-      await exCtxManager.addInstructionToExecution(executionContext(planId, 3), InstructionType.RELEASE, settlement.assetId, settlement.assetType, buyer.finId, seller.finId, settlement.amount, InstructionExecutor.THIS_CONTRACT, "", { from: operator });
+      await orchestrationManager.createExecutionPlan(planId, finP2PAddress, { from: operator });
+      await orchestrationManager.addInstructionToExecution(executionContext(planId, 1), InstructionType.HOLD, settlement.assetId, settlement.assetType, buyer.finId, seller.finId, settlement.amount, InstructionExecutor.THIS_CONTRACT, "", { from: operator });
+      await orchestrationManager.addInstructionToExecution(executionContext(planId, 2), InstructionType.ISSUE, asset.assetId, asset.assetType, "", buyer.finId, asset.amount, InstructionExecutor.THIS_CONTRACT, "", { from: operator });
+      await orchestrationManager.addInstructionToExecution(executionContext(planId, 3), InstructionType.RELEASE, settlement.assetId, settlement.assetType, buyer.finId, seller.finId, settlement.amount, InstructionExecutor.THIS_CONTRACT, "", { from: operator });
 
       const nonce = `${generateNonce().toString("hex")}`;
       const {
@@ -151,7 +151,7 @@ describe("FinP2P proxy contract test", function() {
         loan);
       const buyerSignature = await signEIP712(chainId, verifyingContract, types, message, buyer.signer);
 
-      await exCtxManager.provideInvestorSignature(
+      await orchestrationManager.provideInvestorSignature(
         executionContext(planId, 1), nonce, buyer.finId, seller.finId, asset, settlement, loan, buyerSignature, { from: operator });
 
       expect(await finp2p.getBalance(asset.assetId, buyer.finId)).to.equal(`${(0).toFixed(decimals)}`);
