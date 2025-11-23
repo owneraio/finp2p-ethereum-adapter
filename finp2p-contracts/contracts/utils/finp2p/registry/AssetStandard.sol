@@ -2,7 +2,7 @@
 
 pragma solidity ^0.8.20;
 
-import "./FinP2P.sol";
+import "../FinP2P.sol";
 
 
 interface AssetStandard {

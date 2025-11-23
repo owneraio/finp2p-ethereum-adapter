@@ -4,11 +4,11 @@ pragma solidity ^0.8.20;
 
 import "../utils/StringUtils.sol";
 import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
-import {AssetRegistry} from "../utils/finp2p/AssetRegistry.sol";
-import {AssetStandard} from "../utils/finp2p/AssetStandard.sol";
+import {AssetRegistry} from "../utils/finp2p/registry/AssetRegistry.sol";
+import {AssetStandard} from "../utils/finp2p/registry/AssetStandard.sol";
 import {FinIdUtils} from "../utils/finp2p/FinIdUtils.sol";
-import {FinP2PSignatureVerifier} from "../utils/finp2p/FinP2PSignatureVerifier.sol";
-import {ExecutionContextManager} from "../utils/finp2p/ExecutionContextManager.sol";
+import {FinP2PSignatureVerifier} from "../utils/finp2p/verify/FinP2PSignatureVerifier.sol";
+import {OrchestrationManager} from "../utils/finp2p/orchestration/OrchestrationManager.sol";
 import {FinP2P} from "../utils/finp2p/FinP2P.sol";
 /**
  * @dev FINP2POperatorERC20
@@ -27,19 +27,20 @@ contract FINP2POperator is AccessControl, FinP2PSignatureVerifier {
     bytes32 private constant ASSET_MANAGER = keccak256("ASSET_MANAGER");
     bytes32 private constant TRANSACTION_MANAGER = keccak256("TRANSACTION_MANAGER");
 
-    ExecutionContextManager private execution;
+    OrchestrationManager private orchestration;
 
     address private escrowWalletAddress;
     mapping(string => FinP2P.Asset) private assets;
     mapping(string => FinP2P.Lock) private locks;
     address private assetRegistry;
+    address private orchestrationManager;
 
-    constructor(address admin, address _assetRegistry, address executionContextAddress) {
+    constructor(address admin, address _assetRegistry, address _orchestrationManager) {
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
         _grantRole(ASSET_MANAGER, admin);
         _grantRole(TRANSACTION_MANAGER, admin);
         assetRegistry = _assetRegistry;
-        execution = ExecutionContextManager(executionContextAddress);
+        orchestrationManager = _orchestrationManager;
     }
 
     function getVersion() external pure returns (string memory) {
@@ -69,8 +70,8 @@ contract FINP2POperator is AccessControl, FinP2PSignatureVerifier {
         escrowWalletAddress = _escrowWalletAddress;
     }
 
-    function getExecutionContextManager() external view returns (address) {
-        return address(execution);
+    function getOrchestrationManager() external view returns (address) {
+        return orchestrationManager;
     }
 
     /// @notice Associate an asset with a token address
@@ -122,11 +123,12 @@ contract FINP2POperator is AccessControl, FinP2PSignatureVerifier {
         FinP2P.Term calldata assetTerm,
         FinP2P.OperationParams memory op
     ) external onlyRole(TRANSACTION_MANAGER) {
-        execution.validateCurrentInstruction(op.exCtx,
+        OrchestrationManager orchestration = OrchestrationManager(orchestrationManager);
+        orchestration.validateCurrentInstruction(op.exCtx,
             FinP2P.InstructionType.ISSUE, FinP2P.InstructionExecutor.THIS_CONTRACT,
             "", issuerFinId, assetTerm);
         _mint(issuerFinId.toAddress(), assetTerm.assetId, assetTerm.amount, op);
-        execution.completeCurrentInstruction(op.exCtx.planId);
+        orchestration.completeCurrentInstruction(op.exCtx.planId);
 //         todo: in case of a failure, fail execution with a reason
 //        execution.failCurrentInstruction(executionContext.planId, "failed");
         emit FinP2P.Issue(assetTerm.assetId, assetTerm.assetType, issuerFinId, assetTerm.amount, op.exCtx);
@@ -138,11 +140,12 @@ contract FINP2POperator is AccessControl, FinP2PSignatureVerifier {
         FinP2P.Term calldata assetTerm,
         FinP2P.OperationParams memory op
     ) external onlyRole(TRANSACTION_MANAGER) {
-        execution.validateCurrentInstruction(op.exCtx,
+        OrchestrationManager orchestration = OrchestrationManager(orchestrationManager);
+        orchestration.validateCurrentInstruction(op.exCtx,
             FinP2P.InstructionType.TRANSFER, FinP2P.InstructionExecutor.THIS_CONTRACT,
             source, destination, assetTerm);
         _transfer(source.toAddress(), destination.toAddress(), assetTerm.assetId, assetTerm.amount, op);
-        execution.completeCurrentInstruction(op.exCtx.planId);
+        orchestration.completeCurrentInstruction(op.exCtx.planId);
         emit FinP2P.Transfer(assetTerm.assetId, assetTerm.assetType, source,
             destination, assetTerm.amount, op.exCtx);
     }
@@ -152,12 +155,13 @@ contract FINP2POperator is AccessControl, FinP2PSignatureVerifier {
         FinP2P.Term calldata assetTerm,
         FinP2P.OperationParams memory op
     ) external onlyRole(TRANSACTION_MANAGER) {
-        execution.validateCurrentInstruction(op.exCtx,
+        OrchestrationManager orchestration = OrchestrationManager(orchestrationManager);
+        orchestration.validateCurrentInstruction(op.exCtx,
             FinP2P.InstructionType.REDEEM, FinP2P.InstructionExecutor.THIS_CONTRACT,
             source, "", assetTerm);
 
         _burn(source.toAddress(), assetTerm.assetId, assetTerm.amount, op);
-        execution.completeCurrentInstruction(op.exCtx.planId);
+        orchestration.completeCurrentInstruction(op.exCtx.planId);
         emit FinP2P.Redeem(assetTerm.assetId, assetTerm.assetType, source, assetTerm.amount, '', op.exCtx);
     }
 
@@ -167,13 +171,14 @@ contract FINP2POperator is AccessControl, FinP2PSignatureVerifier {
         FinP2P.Term calldata assetTerm,
         FinP2P.OperationParams memory op
     ) external onlyRole(TRANSACTION_MANAGER) {
-        execution.validateCurrentInstruction(op.exCtx,
+        OrchestrationManager orchestration = OrchestrationManager(orchestrationManager);
+        orchestration.validateCurrentInstruction(op.exCtx,
             FinP2P.InstructionType.HOLD, FinP2P.InstructionExecutor.THIS_CONTRACT,
             source, destination, assetTerm);
 
         _transfer(source.toAddress(), _getEscrow(), assetTerm.assetId, assetTerm.amount, op);
         locks[op.operationId] = FinP2P.Lock(assetTerm.assetId, assetTerm.assetType, source, destination, assetTerm.amount);
-        execution.completeCurrentInstruction(op.exCtx.planId);
+        orchestration.completeCurrentInstruction(op.exCtx.planId);
         emit FinP2P.Hold(assetTerm.assetId, assetTerm.assetType, source, assetTerm.amount, op.operationId, op.exCtx);
     }
 
@@ -183,7 +188,8 @@ contract FINP2POperator is AccessControl, FinP2PSignatureVerifier {
         FinP2P.Term calldata assetTerm,
         FinP2P.OperationParams memory op
     ) external onlyRole(TRANSACTION_MANAGER) {
-        execution.validateCurrentInstruction(op.exCtx,
+        OrchestrationManager orchestration = OrchestrationManager(orchestrationManager);
+        orchestration.validateCurrentInstruction(op.exCtx,
             FinP2P.InstructionType.RELEASE, FinP2P.InstructionExecutor.THIS_CONTRACT,
             source, destination, assetTerm);
 
@@ -193,7 +199,7 @@ contract FINP2POperator is AccessControl, FinP2PSignatureVerifier {
         require(lock.destination.equals(destination), "Trying to release to different destination than the one expected in the lock");
 
         _transfer(_getEscrow(), destination.toAddress(), lock.assetId, lock.amount, op);
-        execution.completeCurrentInstruction(op.exCtx.planId);
+        orchestration.completeCurrentInstruction(op.exCtx.planId);
 
         emit FinP2P.Release(lock.assetId, lock.assetType, lock.source,
             lock.destination, assetTerm.amount, op.operationId, op.exCtx);
@@ -205,7 +211,8 @@ contract FINP2POperator is AccessControl, FinP2PSignatureVerifier {
         FinP2P.Term calldata assetTerm,
         FinP2P.OperationParams memory op
     ) external onlyRole(TRANSACTION_MANAGER) {
-        execution.validateCurrentInstruction(op.exCtx,
+        OrchestrationManager orchestration = OrchestrationManager(orchestrationManager);
+        orchestration.validateCurrentInstruction(op.exCtx,
             FinP2P.InstructionType.RELEASE, FinP2P.InstructionExecutor.THIS_CONTRACT,
             source, "", assetTerm);
 
@@ -215,7 +222,7 @@ contract FINP2POperator is AccessControl, FinP2PSignatureVerifier {
         require(bytes(lock.destination).length == 0, "Trying to redeem asset with non-empty destination");
         require(lock.amount.equals(assetTerm.amount), "Trying to redeem amount different from the one held");
         _burn(_getEscrow(), lock.assetId, lock.amount, op);
-        execution.completeCurrentInstruction(op.exCtx.planId);
+        orchestration.completeCurrentInstruction(op.exCtx.planId);
         emit FinP2P.Redeem(lock.assetId, lock.assetType, source,
             assetTerm.amount, op.operationId, op.exCtx);
         delete locks[op.operationId];

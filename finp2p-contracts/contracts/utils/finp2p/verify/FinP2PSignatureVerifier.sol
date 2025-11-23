@@ -3,9 +3,9 @@
 pragma solidity ^0.8.0;
 
 import {EIP712} from "./EIP712.sol";
-import {FinIdUtils} from "./FinIdUtils.sol";
+import {FinIdUtils} from "../FinIdUtils.sol";
 import {Signature} from "./Signature.sol";
-import {FinP2P} from "./FinP2P.sol";
+import {FinP2P} from "../FinP2P.sol";
 
 /**
  * @dev Library for FinP2P protocol signature verification.

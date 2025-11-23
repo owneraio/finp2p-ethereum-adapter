@@ -2,11 +2,11 @@
 
 pragma solidity ^0.8.20;
 
-import "./FinP2PSignatureVerifier.sol";
-import {FinP2P} from "./FinP2P.sol";
-import "../StringUtils.sol";
+import "../verify/FinP2PSignatureVerifier.sol";
+import {FinP2P} from "../FinP2P.sol";
+import "../../StringUtils.sol";
 
-contract ExecutionContextManager is FinP2PSignatureVerifier {
+contract OrchestrationManager is FinP2PSignatureVerifier {
 
     using FinP2P for FinP2P.InstructionType;
     using FinP2P for FinP2P.ReceiptOperationType;
@@ -15,9 +15,9 @@ contract ExecutionContextManager is FinP2PSignatureVerifier {
     mapping(string => FinP2P.ExecutionPlan) private plans;
     mapping(bytes32 => bool) private usedSignatures;
 
-    function createExecutionPlan(string memory id, address transactionManager) external {
+    function createExecutionPlan(string memory id, address operator) external {
         plans[id].creator = msg.sender;
-        plans[id].transactionManager = transactionManager;
+        plans[id].operator = operator;
         plans[id].id = id;
         plans[id].status = FinP2P.ExecutionStatus.CREATED;
         plans[id].currentInstruction = 1;
@@ -97,7 +97,7 @@ contract ExecutionContextManager is FinP2PSignatureVerifier {
         bytes memory signature
     ) external {
         require(plans[tradeDetails.executionContext.executionPlanId].status == FinP2P.ExecutionStatus.VERIFIED, "Execution is not in VERIFIED status");
-        require(plans[tradeDetails.executionContext.executionPlanId].transactionManager == msg.sender, "Only creator can provide instruction proof");
+        require(plans[tradeDetails.executionContext.executionPlanId].operator == msg.sender, "Only creator can provide instruction proof");
         validateCurrentInstruction(FinP2P.ExecutionContext(tradeDetails.executionContext.executionPlanId,
             tradeDetails.executionContext.instructionSequenceNumber),
             operation.toInstructionType(), FinP2P.InstructionExecutor.OTHER_CONTRACT,
@@ -134,7 +134,7 @@ contract ExecutionContextManager is FinP2PSignatureVerifier {
 
     function completeCurrentInstruction(string memory planId) public {
         require(_haveExecution(planId), "Execution not found");
-        require(plans[planId].transactionManager == msg.sender, "Only creator can complete instruction");
+        require(plans[planId].operator == msg.sender, "Only creator can complete instruction");
 
         uint8 currentInstruction = plans[planId].currentInstruction;
         plans[planId].instructions[currentInstruction - 1].status = FinP2P.InstructionStatus.EXECUTED;
@@ -153,7 +153,7 @@ contract ExecutionContextManager is FinP2PSignatureVerifier {
 
     function failCurrentInstruction(string memory planId, string memory reason) public {
         require(_haveExecution(planId), "Execution not found");
-        require(plans[planId].transactionManager == msg.sender, "Only creator can fail instruction");
+        require(plans[planId].operator == msg.sender, "Only creator can fail instruction");
         uint8 currentInstruction = plans[planId].currentInstruction;
         plans[planId].instructions[currentInstruction - 1].status = FinP2P.InstructionStatus.FAILED;
         plans[planId].status = FinP2P.ExecutionStatus.FAILED;

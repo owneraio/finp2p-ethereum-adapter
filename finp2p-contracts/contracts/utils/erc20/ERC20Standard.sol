@@ -3,7 +3,7 @@
 pragma solidity ^0.8.20;
 
 import "../StringUtils.sol";
-import "../finp2p/AssetStandard.sol";
+import "../finp2p/registry/AssetStandard.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {Burnable} from "./Burnable.sol";
