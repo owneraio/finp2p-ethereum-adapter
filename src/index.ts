@@ -48,7 +48,7 @@ const init = async () => {
   });
 
   const useNonceManager = process.env.NONCE_POLICY === "fast";
-  const { provider, signer } = await createProviderAndSigner(providerType, logger, useNonceManager);
+  const { provider, signer } = await createProviderAndSigner(providerType, useNonceManager);
   const finp2pContract = new FinP2PContract(provider, signer, finP2PContractAddress, logger);
   const finP2PClient = new FinP2PClient(finP2PUrl, ossUrl);
   const execDetailsStore = new InMemoryExecDetailsStore();

@@ -34,6 +34,32 @@ and build the sources by running `npm run compile` and `npm run build`.
 
 ## Deploy FinP2P operator contract
 
+
+
+### Running deploy directly via npx:
+
+FinP2P operator contract could be deployed using npx command:
+
+```
+npx -p @owneraio/finp2p-contracts deploy-contract \
+    --deployer_pk 0xa11db02ddd62302c8cb4e6f07f058726061e7fa42502cda442a65fb8aaf76ca1 \
+    --rpc_url https://ethereum-sepolia-rpc.publicnode.com \
+    --operator 0x19B8c9839982669Bd9D46f3a8FC9c1875f23B60D
+```
+
+Where:
+
+- `--rpc_url` - Ethereum network url
+- `--deployer_pk` - Private key of the account that will deploy the contract
+- `--operator` - Address of the operator account
+  which would be granted with `OPERATOR` and `TRANSACTION_MANAGER` roles and could be used latter as an OPERATOR_ADDRESS parameter in the adapter configuration.
+
+Version of the package could be specified by adding `@version` after `@owneraio/finp2p-contracts`, e.g. `@owneraio/finp2p-contracts@0.25.0`.
+
+
+### Running deploy via npm script:
+
+
 FinP2P operator contract could be deployed using `deploy` script:
 
 Change the folder to `finp2p-contracts` and run:

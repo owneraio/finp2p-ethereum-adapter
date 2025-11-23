@@ -1,7 +1,7 @@
+#!/usr/bin/env node
 import winston, { format, transports } from "winston";
 import console from "console";
-import process from "process";
-import { FinP2PClient } from "@owneraio/finp2p-client";
+import { FinP2PClient, LedgerAssetInfo } from "@owneraio/finp2p-client";
 import {
   FinP2PContract,
   ERC20Contract,
@@ -11,7 +11,9 @@ import {
   isEthereumAddress,
   ERC20_STANDARD_ID
 } from "@owneraio/finp2p-contracts";
-import { ProviderType, createProviderAndSigner } from "../src/config";
+import { createJsonProvider, parseConfig } from "../src/config";
+import { BytesLike, keccak256, Provider, Signer, toUtf8Bytes } from "ethers";
+import { Logger } from "@owneraio/finp2p-adapter-models";
 
 const logger = winston.createLogger({
   level: "info",
@@ -19,13 +21,72 @@ const logger = winston.createLogger({
   format: format.json()
 });
 
+const getTokenInfo = (ledgerAssetInfo: LedgerAssetInfo) : {
+  tokenAddress: string,
+  standardId: BytesLike
+} => {
+  const { tokenId, ledgerReference } = ledgerAssetInfo;
+  if (ledgerReference) {
+    const { address, tokenStandard } = ledgerReference;
+    if (tokenStandard === "TokenStandard_ERC20") { // legacy value
+      return { tokenAddress: address, standardId: ERC20_STANDARD_ID };
+    } else {
+      return { tokenAddress: address, standardId: keccak256(toUtf8Bytes(tokenStandard)) };
+    }
+  } else {
+    return {
+      tokenAddress: tokenId,
+      standardId: ERC20_STANDARD_ID
+    }
+  }
+}
+
+const whiteListBasedOnStandard = async (
+  provider: Provider,
+  signer: Signer,
+  tokenAddress: string,
+  logger: Logger,
+  standardId: BytesLike,
+  operator: string
+) => {
+  if (standardId === ERC20_STANDARD_ID) {
+    await whitelistERC20(provider, signer, tokenAddress, logger, operator);
+  } else {
+    logger.info(`Token standard ${standardId} is not supported for whitelisting`);
+  }
+};
+
+const whitelistERC20 = async (
+  provider: Provider,
+  signer: Signer,
+  tokenAddress: string,
+  logger: Logger,
+  operator: string
+) => {
+  logger.info(`Token standard is ERC20 with operator, checking roles`);
+  const erc20 = new ERC20Contract(provider, signer, tokenAddress, logger);
+  if (!await erc20.hasRole(OPERATOR_ROLE, operator)) {
+    await erc20.grantOperatorTo(operator);
+    logger.info("       granting new operator [done]");
+  } else {
+    logger.info(`       operator already granted for ${tokenAddress}`);
+  }
+  if (!await erc20.hasRole(MINTER_ROLE, operator)) {
+    await erc20.grantMinterTo(operator);
+    logger.info("       granting new minter [done]");
+  } else {
+    logger.info(`       minter already granted for ${tokenAddress}`);
+  }
+};
+
 
 const startMigration = async (
-  orgId: string, ossUrl: string,
-  providerType: ProviderType,
+  operatorPrivateKey: string,
+  ethereumRPCUrl: string,
+  orgId: string,
+  ossUrl: string,
   finp2pContractAddress: string,
-  oldFinp2pAddress: string | undefined,
-  grantOperator: boolean, grantMinter: boolean) => {
+  oldFinp2pAddress: string | undefined) => {
   const finp2p = new FinP2PClient("", ossUrl);
   const assets = await finp2p.getAssets();
   logger.info(`Got a list of ${assets.length} assets to migrate`);
@@ -35,7 +96,7 @@ const startMigration = async (
     return;
   }
 
-  const { provider, signer } = await createProviderAndSigner(providerType, logger);
+  const { provider, signer } = await createJsonProvider(operatorPrivateKey, ethereumRPCUrl);
   const finP2PContract = new FinP2PContract(provider, signer, finp2pContractAddress, logger);
 
   let migrated = 0;
@@ -47,45 +108,17 @@ const startMigration = async (
     if (!ledgerAssetInfo) {
       continue;
     }
-    const { tokenId, ledgerReference } = ledgerAssetInfo;
-    let tokenAddress: string;
-    if (ledgerReference) {
-      const { address, tokenStandard, additionalContractDetails } = ledgerReference;
-      tokenAddress = address;
-      // TODO: use tokenStandard instead of `grantOperator` and `grantMinter` params
-      // if (additionalContractDetails) {
-      //   const { finP2PEVMOperatorDetails: { finP2POperatorContractAddress } } = additionalContractDetails;
-      // }
-      // TODO: use `finP2POperatorContractAddress` instead of `oldFinp2pAddress` param
-    } else {
-      if (!isEthereumAddress(tokenId)) {
-        continue;
-      }
-      tokenAddress = tokenId;
+    const { tokenAddress, standardId } = getTokenInfo(ledgerAssetInfo);
+    if (!isEthereumAddress(tokenAddress)) {
+      continue
     }
+    const standardAddress = await finP2PContract.getAssetStandardViaFinP2PContract(finp2pContractAddress, standardId);
 
     try {
       const foundAddress = await finP2PContract.getAssetAddress(assetId);
       if (foundAddress === tokenAddress) {
         logger.info(`Asset ${assetId} already associated with token ${tokenAddress}`);
-        if (grantOperator) {
-          const erc20 = new ERC20Contract(provider, signer, tokenAddress, logger);
-          if (!await erc20.hasRole(OPERATOR_ROLE, finp2pContractAddress)) {
-            await erc20.grantOperatorTo(finp2pContractAddress);
-            logger.info("       granting new operator [done]");
-          } else {
-            logger.info(`       operator already granted for ${tokenAddress}`);
-          }
-        }
-        if (grantMinter) {
-          const erc20 = new ERC20Contract(provider, signer, tokenAddress, logger);
-          if (!await erc20.hasRole(MINTER_ROLE, finp2pContractAddress)) {
-            await erc20.grantMinterTo(finp2pContractAddress);
-            logger.info("       granting new minter [done]");
-          } else {
-            logger.info(`       minter already granted for ${tokenAddress}`);
-          }
-        }
+        await whiteListBasedOnStandard(provider, signer, tokenAddress, logger, standardId, standardAddress);
         skipped++;
         continue;
       }
@@ -97,34 +130,10 @@ const startMigration = async (
 
     try {
       logger.info(`Migrating asset ${assetId} with token address ${tokenAddress}`);
-      let tokenStandard = ERC20_STANDARD_ID;
-      // if (identifier) {
-      //   const { type, value } = identifier;
-      //   if (type === "CUSTOM" && value) {
-      //     tokenStandard = keccak256(toUtf8Bytes(value));
-      //   }
-      // }
-      const txHash = await finP2PContract.associateAsset(assetId, tokenAddress, tokenStandard);
+      const txHash = await finP2PContract.associateAsset(assetId, tokenAddress, standardId);
       await finP2PContract.waitForCompletion(txHash);
       logger.info("       asset association [done]");
-      if (grantOperator) {
-        const erc20 = new ERC20Contract(provider, signer, tokenAddress, logger);
-        if (!await erc20.hasRole(OPERATOR_ROLE, finp2pContractAddress)) {
-          await erc20.grantOperatorTo(finp2pContractAddress);
-          logger.info("       granting new operator [done]");
-        } else {
-          logger.info(`       operator already granted for ${tokenAddress}`);
-        }
-      }
-      if (grantMinter) {
-        const erc20 = new ERC20Contract(provider, signer, tokenAddress, logger);
-        if (!await erc20.hasRole(MINTER_ROLE, finp2pContractAddress)) {
-          await erc20.grantMinterTo(finp2pContractAddress);
-          logger.info("       granting new minter [done]");
-        } else {
-          logger.info(`       minter already granted for ${tokenAddress}`);
-        }
-      }
+      await whiteListBasedOnStandard(provider, signer, tokenAddress, logger, standardId, standardAddress);
       migrated++;
     } catch (e) {
       if (`${e}`.includes("Asset not found")) {
@@ -175,31 +184,51 @@ const startMigration = async (
   logger.info(`Skipped ${skipped} assets`);
 };
 
-const orgId = process.env.ORGANIZATION_ID;
-if (!orgId) {
-  console.error("Env variable ORGANIZATION_ID was not set");
-  process.exit(1);
-}
 
-const ossUrl = process.env.OSS_URL;
-if (!ossUrl) {
-  console.error("Env variable OSS_URL was not set");
-  process.exit(1);
-}
+const config = parseConfig([
+  {
+    name: "operator_pk",
+    envVar: "OPERATOR_PRIVATE_KEY",
+    required: true,
+    description: "Operator private key"
+  },
+  {
+    name: "rpc_url",
+    envVar: "RPC_URL",
+    required: true,
+    description: "Ethereum RPC URL"
+  },
+  {
+    name: "organization_id",
+    envVar: "ORGANIZATION_ID",
+    required: true,
+    description: "Organization ID"
+  },
+  {
+    name: "oss_url",
+    envVar: "OSS_URL",
+    required: true,
+    description: "OSS URL"
+  },
+  {
+    name: "finp2p_contract_address",
+    envVar: "FINP2P_CONTRACT_ADDRESS",
+    required: true,
+    description: "FINP2P Contract Address"
+  },
+  {
+    name: "old_finp2p_contract_address",
+    envVar: "OLD_FINP2P_CONTRACT_ADDRESS",
+    description: "Old FINP2P Contract Address"
+  }
+]);
 
-const providerType = (process.env.PROVIDER_TYPE || "local") as ProviderType;
 
-const contractAddress = process.env.FINP2P_CONTRACT_ADDRESS;
-if (!contractAddress) {
-  console.error("Env variable FINP2P_CONTRACT_ADDRESS was not set");
-  process.exit(1);
-}
-
-const oldFinp2pAddress = process.env.OLD_FINP2P_CONTRACT_ADDRESS;
-
-
-const grantOperator = process.env.GRANT_OPERATOR === "yes";
-const grantMinter = process.env.GRANT_MINTER === "yes";
-
-startMigration(orgId, ossUrl, providerType, contractAddress, oldFinp2pAddress, grantOperator, grantMinter).then(() => {
-}).catch(console.error);
+startMigration(
+  config.operator_pk!,
+  config.rpc_url!,
+  config.organization_id!,
+  config.oss_url!,
+  config.finp2p_contract_address!,
+  config.old_finp2p_contract_address
+).catch(console.error);
