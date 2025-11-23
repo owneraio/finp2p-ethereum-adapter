@@ -7,7 +7,6 @@ import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
 import {AssetRegistry} from "../utils/finp2p/registry/AssetRegistry.sol";
 import {AssetStandard} from "../utils/finp2p/registry/AssetStandard.sol";
 import {FinIdUtils} from "../utils/finp2p/FinIdUtils.sol";
-import {FinP2PSignatureVerifier} from "../utils/finp2p/verify/FinP2PSignatureVerifier.sol";
 import {OrchestrationManager} from "../utils/finp2p/orchestration/OrchestrationManager.sol";
 import {FinP2P} from "../utils/finp2p/FinP2P.sol";
 /**
@@ -18,7 +17,7 @@ import {FinP2P} from "../utils/finp2p/FinP2P.sol";
  * It also allows to hold and release tokens in escrow.
  *
  */
-contract FINP2POperator is AccessControl, FinP2PSignatureVerifier {
+contract FINP2POperator is AccessControl {
     using StringUtils for string;
     using FinIdUtils for string;
 
@@ -26,8 +25,6 @@ contract FINP2POperator is AccessControl, FinP2PSignatureVerifier {
 
     bytes32 private constant ASSET_MANAGER = keccak256("ASSET_MANAGER");
     bytes32 private constant TRANSACTION_MANAGER = keccak256("TRANSACTION_MANAGER");
-
-    OrchestrationManager private orchestration;
 
     address private escrowWalletAddress;
     mapping(string => FinP2P.Asset) private assets;

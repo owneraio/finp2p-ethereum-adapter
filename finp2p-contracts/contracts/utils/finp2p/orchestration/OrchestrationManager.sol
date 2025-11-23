@@ -2,9 +2,9 @@
 
 pragma solidity ^0.8.20;
 
-import "../verify/FinP2PSignatureVerifier.sol";
 import {FinP2P} from "../FinP2P.sol";
 import "../../StringUtils.sol";
+import {FinP2PSignatureVerifier} from "../verify/FinP2PSignatureVerifier.sol";
 
 contract OrchestrationManager is FinP2PSignatureVerifier {
 
@@ -16,9 +16,9 @@ contract OrchestrationManager is FinP2PSignatureVerifier {
     mapping(bytes32 => bool) private usedSignatures;
 
     function createExecutionPlan(string memory id, address operator) external {
+        plans[id].id = id;
         plans[id].creator = msg.sender;
         plans[id].operator = operator;
-        plans[id].id = id;
         plans[id].status = FinP2P.ExecutionStatus.CREATED;
         plans[id].currentInstruction = 1;
     }
@@ -29,7 +29,7 @@ contract OrchestrationManager is FinP2PSignatureVerifier {
 
     function addInstructionToExecution(
         FinP2P.ExecutionContext memory executionContext,
-        FinP2P.InstructionType operation,
+        FinP2P.InstructionType instructionType,
         string memory assetId,
         FinP2P.AssetType assetType,
         string memory source,
@@ -41,12 +41,12 @@ contract OrchestrationManager is FinP2PSignatureVerifier {
         require(plans[executionContext.planId].status == FinP2P.ExecutionStatus.CREATED, "Execution is not in CREATED status");
         require(plans[executionContext.planId].creator == msg.sender, "Only creator can add instructions");
         FinP2P.InstructionStatus status;
-        if (executor == FinP2P.InstructionExecutor.THIS_CONTRACT && operation.requireInvestorSignature()) {
+        if (executor == FinP2P.InstructionExecutor.THIS_CONTRACT && instructionType.requireInvestorSignature()) {
             status = FinP2P.InstructionStatus.REQUIRE_INVESTOR_SIGNATURE;
         } else {
             status = FinP2P.InstructionStatus.PENDING;
         }
-        plans[executionContext.planId].instructions.push(FinP2P.Instruction(executionContext.sequence, operation,
+        plans[executionContext.planId].instructions.push(FinP2P.Instruction(executionContext.sequence, instructionType,
             assetId, assetType, source, destination, quantity,
             executor, status, proofSigner));
     }
