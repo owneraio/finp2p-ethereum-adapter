@@ -127,5 +127,4 @@ jobs:
           build-args:
             GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }}
           tags: |
-#            ownera/finp2p-contracts-deploy:${{ env.IMAGE_TAG }}
             ghcr.io/owneraio/finp2p-contracts-deploy:${{ env.IMAGE_TAG }}
