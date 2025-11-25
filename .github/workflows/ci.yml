@@ -23,6 +23,9 @@ jobs:
           registry-url: https://npm.pkg.github.com/
           scope: '@owneraio'
 
+      - name: Install goose DB migration tool
+        run: go install github.com/pressly/goose/v3/cmd/goose@v3.26.0
+
       - name: Finp2p-Contracts npm clean-install
         working-directory: ./finp2p-contracts
         run: npm clean-install
