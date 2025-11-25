@@ -1,0 +1,39 @@
+# syntax=docker/dockerfile:1
+
+FROM node:20-slim AS builder
+ENV NODE_ENV=development
+WORKDIR /app
+
+# System deps (adjust if you need more)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates git openssh-client bash \
+  && rm -rf /var/lib/apt/lists/*
+
+# Install dependencies
+COPY package.json package-lock.json* ./
+RUN npm ci
+
+# Copy source
+COPY . .
+
+# Build TypeScript if a build script exists
+RUN npm run compile
+RUN npm run test
+RUN npm run build
+
+
+FROM node:20-slim AS runner
+LABEL org.opencontainers.image.source=https://github.com/owneraio/finp2p-ethereum-adapter
+ENV NODE_ENV=production
+WORKDIR /app
+
+# Copy runtime files and node_modules
+COPY --from=builder /app/package.json /app/package-lock.json* ./
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/dist ./dist
+
+# Expect env vars to be provided at runtime:
+# DEPLOYER_PRIVATE_KEY, RPC_URL, OPERATOR_ADDRESS, PAYMENT_ASSET_CODE
+
+# Run the deploy script that reads env vars
+CMD ["node", "./dist/scripts/deploy.js"]
