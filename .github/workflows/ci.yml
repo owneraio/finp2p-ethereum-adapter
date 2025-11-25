@@ -115,7 +115,7 @@ jobs:
             ghcr.io/owneraio/finp2p-ethereum-adapter:${{ env.IMAGE_TAG }}
 
 
-      - name: Adapter Build and push
+      - name: Docker-deploy Build and push
         uses: docker/build-push-action@v5
         with:
           context: ./finp2p-contracts
@@ -123,7 +123,7 @@ jobs:
           sbom: false
           provenance: false
 
-          file: ./Dockerfile-deploy
+          file: ./docker/Dockerfile-deploy
           build-args:
             GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }}
           tags: |
