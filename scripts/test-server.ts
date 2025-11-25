@@ -11,6 +11,7 @@ import createApp from "../src/app";
 import { FinP2PClient } from "@owneraio/finp2p-client";
 import { ExecDetailsStore, InMemoryExecDetailsStore } from "../src/services";
 import { ProviderType, createProviderAndSigner } from "../src/config";
+import { workflows } from "@owneraio/finp2p-nodejs-skeleton-adapter"
 
 let ethereumNodeContainer: StartedTestContainer | undefined;
 let httpServer: http.Server | undefined;
@@ -79,9 +80,10 @@ const deployERC20Contract = async (provider: Provider, signer: Signer, finp2pTok
 const startApp = async (orgId: string, port: number, provider: Provider, signer: Signer,
                         finP2PContract: FinP2PContract, tokenAddress: string, finP2PClient: FinP2PClient | undefined,
                         execDetailsStore: ExecDetailsStore | undefined,
+                        workflowsConfig: workflows.Config | undefined,
                         logger: winston.Logger) => {
 
-  const app = createApp(orgId, finP2PContract, finP2PClient, execDetailsStore, logger);
+  const app = createApp(orgId, finP2PContract, finP2PClient, execDetailsStore, workflowsConfig, logger);
   logger.info("App created successfully.");
 
   httpServer = app.listen(port, () => {
@@ -125,7 +127,26 @@ const start = async () => {
   const execDetailsStore = new InMemoryExecDetailsStore();
   const finP2PContract = new FinP2PContract(provider, signer, finP2PContractAddress, logger);
 
-  await startApp(orgId, port, provider, signer, finP2PContract, tokenAddress, finP2PClient, execDetailsStore, logger);
+  const migrationConnectionString = process.env.MIGRATION_CONNECTION_STRING
+  if (!migrationConnectionString) {
+    throw new Error('MIGRATION_CONNECTION_STRING is not set')
+  }
+
+  const dbConnectionString = process.env.DB_CONNECTION_STRING
+  if (!dbConnectionString) {
+    throw new Error('DB_CONNECTION_STRING is not set')
+  }
+
+  const workflowsConfig = {
+    migration: {
+      connectionString: migrationConnectionString,
+      gooseExecutablePath: "/usr/bin/goose",
+      migrationListTableName: "finp2p_ethereum_adapater_migrations",
+    },
+    storage: { connectionString: dbConnectionString }
+  }
+
+  await startApp(orgId, port, provider, signer, finP2PContract, tokenAddress, finP2PClient, execDetailsStore, workflowsConfig, logger);
 };
 
 
