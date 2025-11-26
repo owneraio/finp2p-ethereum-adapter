@@ -6,7 +6,8 @@ import {
   PluginManager,
   ProofProvider,
   PlanApprovalServiceImpl,
-  PaymentsServiceImpl
+  PaymentsServiceImpl,
+  workflows
 } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import { FinP2PClient } from "@owneraio/finp2p-client";
 import { FinP2PContract } from "@owneraio/finp2p-contracts";
@@ -19,6 +20,7 @@ import {
 function createApp(orgId: string, finP2PContract: FinP2PContract,
                    finP2PClient: FinP2PClient | undefined,
                    execDetailsStore: ExecDetailsStore | undefined,
+                   workflowsConfig: workflows.Config | undefined,
                    logger: winston.Logger) {
   const app = express();
   app.use(express.json({ limit: "50mb" }));
@@ -39,7 +41,7 @@ function createApp(orgId: string, finP2PContract: FinP2PContract,
   const escrowService = new EscrowServiceImpl(finP2PContract, finP2PClient, execDetailsStore, proofProvider, pluginManager);
   const paymentsService = new PaymentsServiceImpl(pluginManager);
   const planApprovalService = new PlanApprovalServiceImpl(orgId, pluginManager, finP2PClient);
-  register(app, tokenService, escrowService, tokenService, tokenService, paymentsService, planApprovalService, pluginManager);
+  register(app, tokenService, escrowService, tokenService, tokenService, paymentsService, planApprovalService, pluginManager, workflowsConfig);
 
   return app;
 }
