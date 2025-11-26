@@ -92,8 +92,10 @@ jobs:
         run: |
           ## local build for scanners
           docker build \
-            --build-arg GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }} \
+            --secret id=npm_token,env=GITHUB_TOKEN \
             -t "ghcr.io/owneraio/finp2p-ethereum-adapter:${{ env.IMAGE_TAG }}" -f ./Dockerfile .
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
 
       - name: Trivy scan
@@ -112,9 +114,8 @@ jobs:
           push: true
           sbom: false
           provenance: false
-          file: ./Dockerfile
-          build-args:
-            GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }}
+          secrets: |
+            npm_token=${{ secrets.GITHUB_TOKEN }}
           tags: |
             ownera/finp2p-ethereum-adapter:${{ env.IMAGE_TAG }}
             ghcr.io/owneraio/finp2p-ethereum-adapter:${{ env.IMAGE_TAG }}
@@ -128,7 +129,7 @@ jobs:
           provenance: false
 
           file: ./finp2p-contracts/Dockerfile-deploy
-          build-args:
-            GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }}
+          secrets: |
+            npm_token=${{ secrets.GITHUB_TOKEN }}
           tags: |
             ghcr.io/owneraio/finp2p-contracts-deploy:${{ env.IMAGE_TAG }}
