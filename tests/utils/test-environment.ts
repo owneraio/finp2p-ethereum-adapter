@@ -4,6 +4,7 @@ import {
   FinP2PContract,
   addressFromPrivateKey,
 } from "@owneraio/finp2p-contracts";
+import { workflows } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import {
   PostgreSqlContainer,
   StartedPostgreSqlContainer,
@@ -12,6 +13,7 @@ import * as console from "console";
 import * as http from "http";
 import NodeEnvironment from "jest-environment-node";
 import { exec } from "node:child_process";
+import { URL } from 'node:url';
 import { GenericContainer, StartedTestContainer } from "testcontainers";
 import winston, { format, transports } from "winston";
 import createApp from "../../src/app";
@@ -20,7 +22,6 @@ import { InMemoryExecDetailsStore } from "../../src/services";
 import { HardhatLogExtractor } from "./log-extractors";
 import { AdapterParameters, NetworkDetails, NetworkParameters } from "./models";
 import { randomPort } from "./utils";
-import { workflows } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 
 const level = "info";
 
@@ -165,11 +166,13 @@ class CustomTestEnvironment extends NodeEnvironment {
     const execDetailsStore = new InMemoryExecDetailsStore();
     const connectionString =
       this.postgresSqlContainer?.getConnectionUri() ?? "";
+    const storageUser = new URL(connectionString).username
     const workflowsConfig = {
       migration: {
         connectionString,
         gooseExecutablePath: await this.whichGoose(),
         migrationListTableName: "finp2p_ethereum_adapter_migrations",
+        storageUser,
       },
       storage: { connectionString },
     };
