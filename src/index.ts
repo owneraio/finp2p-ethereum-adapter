@@ -34,9 +34,9 @@ const init = async () => {
     throw new Error("MIGRATION_CONNECTION_STRING is not set");
   }
 
-  const dbConnectionString = process.env.DB_CONNECTION_STRING;
+  const dbConnectionString = process.env.LEDGER_DB_CONNECTION_STRING;
   if (!dbConnectionString) {
-    throw new Error("DB_CONNECTION_STRING is not set");
+    throw new Error("LEDGER_DB_CONNECTION_STRING is not set");
   }
 
   const storageUser = process.env.LEDGER_USER;
