@@ -247,7 +247,7 @@ process.on("exit", (code) => {
 });
 
 start()
-  .then(() => {})
+  .then(() => { })
   .catch((e) => {
     console.error(e);
   });

@@ -39,11 +39,17 @@ const init = async () => {
     throw new Error("DB_CONNECTION_STRING is not set");
   }
 
+  const storageUser = process.env.LEDGER_USER;
+  if (!storageUser) {
+    throw new Error("LEDGER_USER is not set");
+  }
+
   const workflowsConfig = {
     migration: {
       connectionString: migrationConnectionString,
       gooseExecutablePath: "/usr/bin/goose",
       migrationListTableName: "finp2p_ethereum_adapater_migrations",
+      storageUser,
     },
     storage: { connectionString: dbConnectionString },
   };
