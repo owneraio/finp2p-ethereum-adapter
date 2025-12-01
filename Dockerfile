@@ -1,30 +1,15 @@
-# ---- compile goose (migration tool) ----
+# ---- Compile goose (migration tool) ----
 FROM golang:1.24.5-alpine AS migrator
 
 RUN apk update && apk add make gcc git build-base
 RUN go install github.com/pressly/goose/v3/cmd/goose@v3.26.0
 
-# --- base image -----
+# --- Base image -----
 FROM node:20-alpine AS base
 
 WORKDIR /usr/app
 
-# ------------------------
-FROM base AS compile
-
-COPY finp2p-contracts ./finp2p-contracts
-WORKDIR /usr/app/finp2p-contracts
-RUN --mount=type=secret,id=npm_token \
-    NPM_TOKEN="$(cat /run/secrets/npm_token)" && \
-    echo "//npm.pkg.github.com/:_authToken=${NPM_TOKEN}" > .npmrc && \
-    echo "@owneraio:registry=https://npm.pkg.github.com" >> .npmrc && \
-    npm clean-install && \
-    rm .npmrc
-RUN npm run compile
-
-RUN ls ./src
-
-# ------------------------
+# ------- Build --------
 FROM base AS build
 
 COPY \
@@ -35,17 +20,6 @@ COPY \
     jest.config.js \
     ./
 COPY src ./src
-
-COPY --from=compile \
-    /usr/app/finp2p-contracts/package.json \
-    /usr/app/finp2p-contracts/package-lock.json \
-    /usr/app/finp2p-contracts/tsconfig.json \
-    ./finp2p-contracts/
-COPY --from=compile /usr/app/finp2p-contracts/src ./finp2p-contracts/src
-COPY --from=compile /usr/app/finp2p-contracts/artifacts ./finp2p-contracts/artifacts
-COPY --from=compile /usr/app/finp2p-contracts/typechain-types ./finp2p-contracts/typechain-types
-
-RUN ls -al ./finp2p-contracts/src
 
 RUN --mount=type=secret,id=npm_token \
     NPM_TOKEN="$(cat /run/secrets/npm_token)" && \
