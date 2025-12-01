@@ -13,6 +13,7 @@ import console from "console";
 import { Provider, Signer } from "ethers";
 import http from "http";
 import { exec } from "node:child_process";
+import { URL } from "node:url";
 import process from "process";
 import { GenericContainer, StartedTestContainer } from "testcontainers";
 import winston, { format, transports } from "winston";
@@ -209,6 +210,7 @@ const start = async () => {
       connectionString,
       gooseExecutablePath: await whichGoose(),
       migrationListTableName: "finp2p_ethereum_adapater_migrations",
+      storageUser: new URL(connectionString).username,
     },
     storage: { connectionString },
   };
@@ -247,7 +249,7 @@ process.on("exit", (code) => {
 });
 
 start()
-  .then(() => { })
+  .then(() => {})
   .catch((e) => {
     console.error(e);
   });
