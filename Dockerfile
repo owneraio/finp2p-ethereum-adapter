@@ -53,17 +53,24 @@ RUN --mount=type=secret,id=npm_token \
     echo "@owneraio:registry=https://npm.pkg.github.com" >> .npmrc && \
     npm clean-install && \
     rm .npmrc
-RUN npm install --save typescript
-RUN npm install --save-dev ts-node
-RUN npm install --save-dev @types/node
 RUN npm run build
 
+# ------- Production dependencies --------
+FROM base AS dependencies
+COPY --from=build /usr/app/package.json /usr/app/package-lock.json .
+RUN --mount=type=secret,id=npm_token \
+    NPM_TOKEN="$(cat /run/secrets/npm_token)" && \
+    echo "//npm.pkg.github.com/:_authToken=${NPM_TOKEN}" > .npmrc && \
+    echo "@owneraio:registry=https://npm.pkg.github.com" >> .npmrc && \
+    npm clean-install --production && \
+    rm .npmrc
+
 # ------- Release ----------
-FROM base as release
+FROM base AS release
 LABEL org.opencontainers.image.source=https://github.com/owneraio/finp2p-ethereum-adapter
 ENV NODE_ENV=production
 
-COPY --from=build /usr/app/node_modules ./node_modules
+COPY --from=dependencies /usr/app/node_modules ./node_modules
 COPY --from=build /usr/app/dist ./dist
 COPY --from=migrator /go/bin/goose /usr/bin/goose
 
