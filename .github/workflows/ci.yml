@@ -23,6 +23,11 @@ jobs:
           registry-url: https://npm.pkg.github.com/
           scope: '@owneraio'
 
+      - name: Install goose DB migration tool
+        run: |
+          go install github.com/pressly/goose/v3/cmd/goose@v3.26.0
+          echo "$(go env GOPATH)/bin" >> $GITHUB_PATH
+
       - name: Finp2p-Contracts npm clean-install
         working-directory: ./finp2p-contracts
         run: npm clean-install
@@ -87,9 +92,11 @@ jobs:
         run: |
           ## local build for scanners
           docker build \
-            --build-arg GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }} \
+            --secret id=npm_token,env=GITHUB_TOKEN \
             -t "ghcr.io/owneraio/finp2p-ethereum-adapter:${{ env.IMAGE_TAG }}" -f ./Dockerfile .
-      
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
 
       - name: Trivy scan
         run: |
@@ -108,9 +115,8 @@ jobs:
           push: true
           sbom: false
           provenance: false
-          file: ./Dockerfile
-          build-args:
-            GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }}
+          secrets: |
+            npm_token=${{ secrets.GITHUB_TOKEN }}
           tags: |
             ownera/finp2p-ethereum-adapter:${{ env.IMAGE_TAG }}
             ghcr.io/owneraio/finp2p-ethereum-adapter:${{ env.IMAGE_TAG }}
