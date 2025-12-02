@@ -27,7 +27,7 @@ WORKDIR /usr/app
 
 # ------- Production dependencies --------
 FROM base AS dependencies
-COPY --from=builder /usr/app/package.json /usr/app/package-lock.json .
+COPY package.json package-lock.json ./
 RUN npm ci --production
 
 # ------- Release ----------
