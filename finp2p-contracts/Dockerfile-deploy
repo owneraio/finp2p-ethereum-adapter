@@ -36,8 +36,8 @@ LABEL org.opencontainers.image.source=https://github.com/owneraio/finp2p-ethereu
 ENV NODE_ENV=production
 
 # Copy runtime files and node_modules
+COPY package.json package-lock.json ./
 COPY --from=dependencies /usr/app/node_modules ./node_modules
-COPY --from=builder /usr/app/package.json /usr/app/package-lock.json ./
 COPY --from=builder /usr/app/dist ./dist
 
 # Expect env vars to be provided at runtime:
