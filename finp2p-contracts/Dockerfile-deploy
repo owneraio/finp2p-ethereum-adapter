@@ -2,7 +2,7 @@
 
 FROM node:20-slim AS builder
 ENV NODE_ENV=development
-WORKDIR /app
+WORKDIR /usr/app
 
 # System deps (adjust if you need more)
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -10,7 +10,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
   && rm -rf /var/lib/apt/lists/*
 
 # Install dependencies
-COPY package.json package-lock.json* ./
+COPY package.json package-lock.json ./
 RUN npm ci
 
 # Copy source
@@ -21,16 +21,24 @@ RUN npm run compile
 RUN npm run test
 RUN npm run build
 
+# keeping alpine as main adapter is also alpine
+FROM node:20-alpine AS base
+WORKDIR /usr/app
 
-FROM node:20-slim AS runner
+# ------- Production dependencies --------
+FROM base AS dependencies
+COPY package.json package-lock.json ./
+RUN npm ci --production
+
+# ------- Release ----------
+FROM base AS release
 LABEL org.opencontainers.image.source=https://github.com/owneraio/finp2p-ethereum-adapter
 ENV NODE_ENV=production
-WORKDIR /app
 
 # Copy runtime files and node_modules
-COPY --from=builder /app/package.json /app/package-lock.json* ./
-COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/dist ./dist
+COPY package.json package-lock.json ./
+COPY --from=dependencies /usr/app/node_modules ./node_modules
+COPY --from=builder /usr/app/dist ./dist
 
 # Expect env vars to be provided at runtime:
 # DEPLOYER_PRIVATE_KEY, RPC_URL, OPERATOR_ADDRESS, PAYMENT_ASSET_CODE
