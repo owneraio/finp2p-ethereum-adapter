@@ -38,7 +38,8 @@ export class EscrowServiceImpl extends CommonServiceImpl implements EscrowServic
       this.execDetailsStore?.addExecutionContext(txHash, exCtx.planId, exCtx.sequence);
     }
 
-    return pendingReceiptOperation(txHash, undefined);
+    await this.finP2PContract.waitForCompletion(txHash)
+    return await this.finP2PContract.getReceipt(txHash)
   }
 
   public async release(idempotencyKey: string, source: Source, destination: Destination, asset: Asset, quantity: string, operationId: string, exCtx: ExecutionContext | undefined): Promise<ReceiptOperation> {
@@ -56,7 +57,8 @@ export class EscrowServiceImpl extends CommonServiceImpl implements EscrowServic
     if (exCtx) {
       this.execDetailsStore?.addExecutionContext(txHash, exCtx.planId, exCtx.sequence);
     }
-    return pendingReceiptOperation(txHash, undefined);
+    await this.finP2PContract.waitForCompletion(txHash)
+    return await this.finP2PContract.getReceipt(txHash)
   }
 
   public async rollback(idempotencyKey: string, source: Source, asset: Asset, quantity: string, operationId: string, exCtx: ExecutionContext | undefined
@@ -76,7 +78,8 @@ export class EscrowServiceImpl extends CommonServiceImpl implements EscrowServic
     if (exCtx) {
       this.execDetailsStore?.addExecutionContext(txHash, exCtx.planId, exCtx.sequence);
     }
-    return pendingReceiptOperation(txHash, undefined);
+    await this.finP2PContract.waitForCompletion(txHash)
+    return await this.finP2PContract.getReceipt(txHash)
   }
 
 

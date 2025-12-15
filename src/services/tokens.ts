@@ -1,7 +1,7 @@
 import {
   Asset, AssetCreationStatus, Destination, EIP712Template,
   ExecutionContext, ReceiptOperation, Balance, TokenService, Signature, Source,
-  failedAssetCreation, failedReceiptOperation, successfulAssetCreation,
+  failedAssetCreation, failedReceiptOperation, successfulAssetCreation, successfulReceiptOperation,
   pendingReceiptOperation, AssetBind, AssetDenomination, AssetIdentifier, FinIdAccount,
   AssetCreationResult, ValidationError
 } from "@owneraio/finp2p-adapter-models";
@@ -116,7 +116,9 @@ export class TokenServiceImpl extends CommonServiceImpl implements TokenService 
     if (exCtx) {
       this.execDetailsStore?.addExecutionContext(txHash, exCtx.planId, exCtx.sequence);
     }
-    return pendingReceiptOperation(txHash, undefined);
+
+    await this.finP2PContract.waitForCompletion(txHash)
+    return await this.finP2PContract.getReceipt(txHash)
   }
 
   public async transfer(idempotencyKey: string, nonce: string, source: Source, destination: Destination, ast: Asset,
@@ -146,7 +148,8 @@ export class TokenServiceImpl extends CommonServiceImpl implements TokenService 
     if (exCtx) {
       this.execDetailsStore?.addExecutionContext(txHash, exCtx.planId, exCtx.sequence);
     }
-    return pendingReceiptOperation(txHash, undefined);
+    await this.finP2PContract.waitForCompletion(txHash)
+    return await this.finP2PContract.getReceipt(txHash)
   }
 
   public async redeem(idempotencyKey: string, nonce: string, source: FinIdAccount, asset: Asset, quantity: string, operationId: string | undefined,
@@ -171,8 +174,8 @@ export class TokenServiceImpl extends CommonServiceImpl implements TokenService 
     if (exCtx) {
       this.execDetailsStore?.addExecutionContext(txHash, exCtx.planId, exCtx.sequence);
     }
-    return pendingReceiptOperation(txHash, undefined);
-
+    await this.finP2PContract.waitForCompletion(txHash)
+    return await this.finP2PContract.getReceipt(txHash)
   }
 
   public async getBalance(assetId: string, finId: string): Promise<string> {
