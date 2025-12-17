@@ -21,6 +21,12 @@ jobs:
           registry-url: https://npm.pkg.github.com/
           scope: '@owneraio'
 
+      - name: Install migration tool
+        run: |
+          go install github.com/pressly/goose/v3/cmd/goose@v3.26.0
+          echo "$(go env GOPATH)/bin" >> $GITHUB_PATH
+
+
       - name: Install Dependencies
         run: npm ci
         env:
