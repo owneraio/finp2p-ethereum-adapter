@@ -76,11 +76,7 @@ const init = async () => {
     ),
   });
 
-  const useNonceManager = process.env.NONCE_POLICY !== "fast";
-  if (useNonceManager) {
-    logger.info('Using nonce manager as NONCE_POLICY is not set to "fast"')
-  }
-
+  const useNonceManager = (process.env.USE_NONCE_MANAGER ?? "yes" ) === "yes";
   const { provider, signer } = await createProviderAndSigner(
     providerType,
     useNonceManager
