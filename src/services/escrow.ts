@@ -11,7 +11,7 @@ import { validateRequest } from "./validator";
 export class EscrowServiceImpl extends CommonServiceImpl implements EscrowService {
 
   public async hold(idempotencyKey: string, nonce: string, source: Source, destination: Destination | undefined, ast: Asset,
-                    quantity: string, sgn: Signature, operationId: string, exCtx: ExecutionContext
+    quantity: string, sgn: Signature, operationId: string, exCtx: ExecutionContext
   ): Promise<ReceiptOperation> {
     const { signature, template } = sgn;
     if (template.type != "EIP712") {
@@ -22,9 +22,14 @@ export class EscrowServiceImpl extends CommonServiceImpl implements EscrowServic
     validateRequest(source, destination, quantity, details);
     const { buyerFinId, sellerFinId, asset, settlement, loan, params } = details;
 
-    let txHash: string;
     try {
-      txHash = await this.finP2PContract.hold(nonce, sellerFinId, buyerFinId, asset, settlement, loan, params, signature);
+      const transactionReceipt = await this.finP2PContract.hold(nonce, sellerFinId, buyerFinId, asset, settlement, loan, params, signature);
+
+      if (exCtx) {
+        this.execDetailsStore?.addExecutionContext(transactionReceipt.hash, exCtx.planId, exCtx.sequence);
+      }
+
+      return await this.finP2PContract.getReceiptFromTransactionReceipt(transactionReceipt)
     } catch (e) {
       logger.error(`Error asset hold: ${e}`);
       if (e instanceof EthereumTransactionError) {
@@ -34,18 +39,19 @@ export class EscrowServiceImpl extends CommonServiceImpl implements EscrowServic
         return failedReceiptOperation(1, `${e}`);
       }
     }
-    if (exCtx) {
-      this.execDetailsStore?.addExecutionContext(txHash, exCtx.planId, exCtx.sequence);
-    }
 
-    await this.finP2PContract.waitForCompletion(txHash)
-    return await this.finP2PContract.getReceipt(txHash)
+
   }
 
   public async release(idempotencyKey: string, source: Source, destination: Destination, asset: Asset, quantity: string, operationId: string, exCtx: ExecutionContext | undefined): Promise<ReceiptOperation> {
-    let txHash: string;
     try {
-      txHash = await this.finP2PContract.releaseTo(operationId, source.finId, destination.finId, quantity, emptyOperationParams());
+      const transactionReceipt = await this.finP2PContract.releaseTo(operationId, source.finId, destination.finId, quantity, emptyOperationParams());
+
+      if (exCtx) {
+        this.execDetailsStore?.addExecutionContext(transactionReceipt.hash, exCtx.planId, exCtx.sequence);
+      }
+
+      return await this.finP2PContract.getReceiptFromTransactionReceipt(transactionReceipt)
     } catch (e) {
       logger.error(`Error releasing asset: ${e}`);
       if (e instanceof EthereumTransactionError) {
@@ -54,18 +60,19 @@ export class EscrowServiceImpl extends CommonServiceImpl implements EscrowServic
         return failedReceiptOperation(1, `${e}`);
       }
     }
-    if (exCtx) {
-      this.execDetailsStore?.addExecutionContext(txHash, exCtx.planId, exCtx.sequence);
-    }
-    await this.finP2PContract.waitForCompletion(txHash)
-    return await this.finP2PContract.getReceipt(txHash)
+
   }
 
   public async rollback(idempotencyKey: string, source: Source, asset: Asset, quantity: string, operationId: string, exCtx: ExecutionContext | undefined
   ): Promise<ReceiptOperation> {
-    let txHash: string;
     try {
-      txHash = await this.finP2PContract.releaseBack(operationId, emptyOperationParams());
+      const transactionReceipt = await this.finP2PContract.releaseBack(operationId, emptyOperationParams());
+
+      if (exCtx) {
+        this.execDetailsStore?.addExecutionContext(transactionReceipt.hash, exCtx.planId, exCtx.sequence);
+      }
+
+      return await this.finP2PContract.getReceiptFromTransactionReceipt(transactionReceipt)
     } catch (e) {
       logger.error(`Error rolling-back asset: ${e}`);
       if (e instanceof EthereumTransactionError) {
@@ -75,11 +82,7 @@ export class EscrowServiceImpl extends CommonServiceImpl implements EscrowServic
         return failedReceiptOperation(1, `${e}`);
       }
     }
-    if (exCtx) {
-      this.execDetailsStore?.addExecutionContext(txHash, exCtx.planId, exCtx.sequence);
-    }
-    await this.finP2PContract.waitForCompletion(txHash)
-    return await this.finP2PContract.getReceipt(txHash)
+
   }
 
 

@@ -1,4 +1,4 @@
-import { BytesLike, ContractFactory, Provider, Signer } from "ethers";
+import { BytesLike, ContractFactory, Provider, Signer, TransactionReceipt } from "ethers";
 import { Logger } from "@owneraio/finp2p-adapter-models";
 import FINP2P from "../artifacts/contracts/finp2p/FINP2POperator.sol/FINP2POperator.json";
 import { FINP2POperator } from "../typechain-types";
@@ -169,11 +169,7 @@ export class FinP2PContract extends ContractsManager {
     }
   }
 
-  async getReceipt(hash: string): Promise<ReceiptOperation> {
-    const txReceipt = await this.provider.getTransactionReceipt(hash);
-    if (txReceipt === null) {
-      throw new Error("Transaction not found");
-    }
+  async getReceiptFromTransactionReceipt(txReceipt: TransactionReceipt): Promise<ReceiptOperation> {
     const block = await this.provider.getBlock(txReceipt.blockNumber);
     const timestamp = block?.timestamp || 0;
     const receipt = parseTransactionReceipt(txReceipt, this.contractInterface, timestamp);
@@ -181,6 +177,15 @@ export class FinP2PContract extends ContractsManager {
       throw new Error("Failed to parse receipt");
     }
     return successfulReceiptOperation(receipt);
+  }
+
+  async getReceipt(hash: string): Promise<ReceiptOperation> {
+    const txReceipt = await this.provider.getTransactionReceipt(hash);
+    if (txReceipt === null) {
+      throw new Error("Transaction not found");
+    }
+
+    return this.getReceiptFromTransactionReceipt(txReceipt)
   }
 
   async getLockInfo(operationId: string): Promise<LockInfo> {

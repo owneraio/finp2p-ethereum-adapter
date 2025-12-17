@@ -65,13 +65,10 @@ export class TokenServiceImpl extends CommonServiceImpl implements TokenService 
 
     try {
       const txHash = await this.finP2PContract.associateAsset(assetId, tokenAddress, tokenStandard);
-      // TODO: translate to pending operation
-      await this.finP2PContract.waitForCompletion(txHash);
     } catch (e) {
       logger.error(`Error creating asset: ${e}`);
       if (e instanceof EthereumTransactionError) {
         return failedAssetCreation(1, e.message);
-
       } else {
         return failedAssetCreation(1, `${e}`);
       }
@@ -100,25 +97,20 @@ export class TokenServiceImpl extends CommonServiceImpl implements TokenService 
 
   public async issue(idempotencyKey: string, asset: Asset, to: FinIdAccount, quantity: string, exCtx: ExecutionContext): Promise<ReceiptOperation> {
     const { finId: issuerFinId } = to;
-    let txHash: string;
-    logger.info(`Issue asset ${asset.assetId} to ${issuerFinId} with amount ${quantity}`);
     try {
-      txHash = await this.finP2PContract.issue(issuerFinId, term(asset.assetId, assetTypeFromString(asset.assetType), quantity), emptyOperationParams());
+      const transactionReceipt = await this.finP2PContract.issue(issuerFinId, term(asset.assetId, assetTypeFromString(asset.assetType), quantity), emptyOperationParams())
+      if (exCtx) {
+        this.execDetailsStore?.addExecutionContext(transactionReceipt.hash, exCtx.planId, exCtx.sequence);
+      }
+      return await this.finP2PContract.getReceiptFromTransactionReceipt(transactionReceipt)
     } catch (e) {
       logger.error(`Error on asset issuance: ${e}`);
       if (e instanceof EthereumTransactionError) {
         return failedReceiptOperation(1, e.message);
-
       } else {
         return failedReceiptOperation(1, `${e}`);
       }
     }
-    if (exCtx) {
-      this.execDetailsStore?.addExecutionContext(txHash, exCtx.planId, exCtx.sequence);
-    }
-
-    await this.finP2PContract.waitForCompletion(txHash)
-    return await this.finP2PContract.getReceipt(txHash)
   }
 
   public async transfer(idempotencyKey: string, nonce: string, source: Source, destination: Destination, ast: Asset,
@@ -133,9 +125,12 @@ export class TokenServiceImpl extends CommonServiceImpl implements TokenService 
     validateRequest(source, destination, quantity, details);
     const { buyerFinId, sellerFinId, asset, settlement, loan, params } = details;
 
-    let txHash: string;
     try {
-      txHash = await this.finP2PContract.transfer(nonce, sellerFinId, buyerFinId, asset, settlement, loan, params, sgn);
+      const transactionReceipt  = await this.finP2PContract.transfer(nonce, sellerFinId, buyerFinId, asset, settlement, loan, params, sgn);
+    if (exCtx) {
+      this.execDetailsStore?.addExecutionContext(transactionReceipt.hash, exCtx.planId, exCtx.sequence);
+    }
+      return await this.finP2PContract.getReceiptFromTransactionReceipt(transactionReceipt)
     } catch (e) {
       logger.error(`Error on asset transfer: ${e}`);
       if (e instanceof EthereumTransactionError) {
@@ -145,24 +140,24 @@ export class TokenServiceImpl extends CommonServiceImpl implements TokenService 
         return failedReceiptOperation(1, `${e}`);
       }
     }
-    if (exCtx) {
-      this.execDetailsStore?.addExecutionContext(txHash, exCtx.planId, exCtx.sequence);
-    }
-    await this.finP2PContract.waitForCompletion(txHash)
-    return await this.finP2PContract.getReceipt(txHash)
   }
 
   public async redeem(idempotencyKey: string, nonce: string, source: FinIdAccount, asset: Asset, quantity: string, operationId: string | undefined,
-                      signature: Signature, exCtx: ExecutionContext
+    signature: Signature, exCtx: ExecutionContext
   ): Promise<ReceiptOperation> {
     if (!operationId) {
       logger.error("No operationId provided");
       return failedReceiptOperation(1, "operationId is required");
     }
 
-    let txHash: string;
     try {
-      txHash = await this.finP2PContract.releaseAndRedeem(operationId, source.finId, quantity, emptyOperationParams());
+      const transactionReceipt = await this.finP2PContract.releaseAndRedeem(operationId, source.finId, quantity, emptyOperationParams());
+
+      if (exCtx) {
+        this.execDetailsStore?.addExecutionContext(transactionReceipt.hash, exCtx.planId, exCtx.sequence);
+      }
+
+      return await this.finP2PContract.getReceiptFromTransactionReceipt(transactionReceipt)
     } catch (e) {
       logger.error(`Error releasing asset: ${e}`);
       if (e instanceof EthereumTransactionError) {
@@ -171,11 +166,7 @@ export class TokenServiceImpl extends CommonServiceImpl implements TokenService 
         return failedReceiptOperation(1, `${e}`);
       }
     }
-    if (exCtx) {
-      this.execDetailsStore?.addExecutionContext(txHash, exCtx.planId, exCtx.sequence);
-    }
-    await this.finP2PContract.waitForCompletion(txHash)
-    return await this.finP2PContract.getReceipt(txHash)
+
   }
 
   public async getBalance(assetId: string, finId: string): Promise<string> {
