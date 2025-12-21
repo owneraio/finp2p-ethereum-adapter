@@ -1,6 +1,6 @@
 {
   "name": "@owneraio/finp2p-ethereum-adapter",
-  "version": "0.26.4-wait-tx.0",
+  "version": "0.26.4",
   "description": "",
   "main": "dist/src/index.js",
   "homepage": "https://ownera.io/",
