@@ -47,8 +47,7 @@ const syncBalanceFromOssToEthereum = async (
         //     tokenStandard = keccak256(toUtf8Bytes(value));
         //   }
         // }
-        const associateTxHash = await contract.associateAsset(assetId, tokenStandard, erc20Address);
-        await contract.waitForCompletion(associateTxHash);
+        await contract.associateAsset(assetId, tokenStandard, erc20Address);
       } else {
         logger.error(`Error migrating asset ${assetId}: ${e}`);
       }
@@ -61,14 +60,11 @@ const syncBalanceFromOssToEthereum = async (
       if (balance > 0) {
 
         logger.info(`Issuing ${balance} asset ${assetId} for finId ${finId}`);
-        const issueTx = await contract.issue(finId, term(assetId, AssetType.FinP2P, `${balance}`), emptyOperationParams());
-        await contract.waitForCompletion(issueTx);
-
+        await contract.issue(finId, term(assetId, AssetType.FinP2P, `${balance}`), emptyOperationParams());
       } else if (balance < 0) {
 
         logger.info(`Redeeming ${-balance} asset ${assetId} for finId ${finId}`);
-        const issueTx = await contract.redeem(finId, term(assetId, AssetType.FinP2P, `${-balance}`), emptyOperationParams());
-        await contract.waitForCompletion(issueTx);
+        await contract.redeem(finId, term(assetId, AssetType.FinP2P, `${-balance}`), emptyOperationParams());
       } else {
         logger.info(`FinId ${finId} already has enough balance for asset ${assetId}: ${balance}`);
       }

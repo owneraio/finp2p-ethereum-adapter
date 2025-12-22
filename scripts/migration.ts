@@ -130,8 +130,7 @@ const startMigration = async (
 
     try {
       logger.info(`Migrating asset ${assetId} with token address ${tokenAddress}`);
-      const txHash = await finP2PContract.associateAsset(assetId, tokenAddress, standardId);
-      await finP2PContract.waitForCompletion(txHash);
+      await finP2PContract.associateAsset(assetId, tokenAddress, standardId);
       logger.info("       asset association [done]");
       await whiteListBasedOnStandard(provider, signer, tokenAddress, logger, standardId, standardAddress);
       migrated++;
@@ -172,8 +171,7 @@ const startMigration = async (
           let tokenStandard = ERC20_STANDARD_ID;
 
           logger.info(`Migrating payment asset ${code} with token address ${tokenAddress}`);
-          const txHash = await finP2PContract.associateAsset(code, tokenAddress, tokenStandard);
-          await finP2PContract.waitForCompletion(txHash);
+          await finP2PContract.associateAsset(code, tokenAddress, tokenStandard);
         }
       }
     }
