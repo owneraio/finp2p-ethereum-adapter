@@ -1,6 +1,6 @@
 {
   "name": "ethereum-adapter",
-  "version": "0.26.2",
+  "version": "0.26.3",
   "description": "",
   "main": "dist/src/index.js",
   "homepage": "https://ownera.io/",
@@ -24,7 +24,7 @@
   "dependencies": {
     "@fireblocks/fireblocks-web3-provider": "^1.3.12",
     "@owneraio/finp2p-client": "^0.26.0",
-    "@owneraio/finp2p-contracts": "^0.26.0",
+    "@owneraio/finp2p-contracts": "^0.26.1-no-pending.0",
     "@owneraio/finp2p-nodejs-skeleton-adapter": "^0.26.3",
     "@types/node": "^24.10.1",
     "axios": "^1.1.3",
