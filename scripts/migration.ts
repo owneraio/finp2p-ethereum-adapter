@@ -104,8 +104,7 @@ const startMigration = async (
       //     tokenStandard = keccak256(toUtf8Bytes(value));
       //   }
       // }
-      const txHash = await finP2PContract.associateAsset(assetId, tokenAddress, tokenStandard);
-      await finP2PContract.waitForCompletion(txHash);
+      await finP2PContract.associateAsset(assetId, tokenAddress, tokenStandard);
       logger.info("       asset association [done]");
       if (grantOperator) {
         const erc20 = new ERC20Contract(provider, signer, tokenAddress, logger);
@@ -163,8 +162,7 @@ const startMigration = async (
           let tokenStandard = ERC20_STANDARD_ID;
 
           logger.info(`Migrating payment asset ${code} with token address ${tokenAddress}`);
-          const txHash = await finP2PContract.associateAsset(code, tokenAddress, tokenStandard);
-          await finP2PContract.waitForCompletion(txHash);
+          await finP2PContract.associateAsset(code, tokenAddress, tokenStandard);
         }
       }
     }

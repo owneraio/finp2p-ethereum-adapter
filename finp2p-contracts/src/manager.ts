@@ -2,6 +2,7 @@ import {
   BaseContract,
   BytesLike,
   ContractFactory,
+  ContractTransactionReceipt,
   ContractTransactionResponse,
   NonceManager,
   Provider,
@@ -136,10 +137,9 @@ export class ContractsManager {
 
     const contract = factory.attach(finP2PContractAddress) as FINP2POperator;
     this.logger.info(`Associating asset ${assetId} with token ${tokenAddress}...`);
-    const txHash = await this.safeExecuteTransaction(contract, async (finP2P: FINP2POperator, txParams: PayableOverrides) => {
+    await this.safeExecuteTransaction(contract, async (finP2P: FINP2POperator, txParams: PayableOverrides) => {
       return finP2P.associateAsset(assetId, tokenAddress, ERC20_STANDARD_ID, txParams);
     });
-    await this.waitForCompletion(txHash);
   }
 
   async grantAssetManagerRole(finP2PContractAddress: string, to: string) {
@@ -148,10 +148,9 @@ export class ContractsManager {
       FINP2P.abi, FINP2P.bytecode, this.signer
     );
     const contract = factory.attach(finP2PContractAddress) as FINP2POperator;
-    const txHash = await this.safeExecuteTransaction(contract, async (finP2P: FINP2POperator, txParams: PayableOverrides) => {
+    await this.safeExecuteTransaction(contract, async (finP2P: FINP2POperator, txParams: PayableOverrides) => {
       return finP2P.grantAssetManagerRole(to, txParams);
     });
-    await this.waitForCompletion(txHash);
   }
 
   async grantTransactionManagerRole(finP2PContractAddress: string, to: string) {
@@ -160,10 +159,9 @@ export class ContractsManager {
       FINP2P.abi, FINP2P.bytecode, this.signer
     );
     const contract = factory.attach(finP2PContractAddress) as FINP2POperator;
-    const txHash = await this.safeExecuteTransaction(contract, async (finP2P: FINP2POperator, txParams: PayableOverrides) => {
+    await this.safeExecuteTransaction(contract, async (finP2P: FINP2POperator, txParams: PayableOverrides) => {
       return finP2P.grantTransactionManagerRole(to, txParams);
     });
-    await this.waitForCompletion(txHash);
   }
 
   async registerAssetStandard(assetRegistryAddress: string, standardId: BytesLike, erc20StandardAddress: string) {
@@ -219,7 +217,7 @@ export class ContractsManager {
     }
   }
 
-  protected async safeExecuteTransaction<C extends BaseContract>(contract: C, call: (contract: C, overrides: PayableOverrides) => Promise<ContractTransactionResponse>, maxAttempts: number = 10) {
+  protected async safeExecuteTransaction<C extends BaseContract>(contract: C, call: (contract: C, overrides: PayableOverrides) => Promise<ContractTransactionResponse>, maxAttempts: number = 10): Promise<ContractTransactionReceipt> {
     for (let i = 0; i < maxAttempts; i++) {
       try {
         let nonce: number;
@@ -228,8 +226,13 @@ export class ContractsManager {
         } else {
           nonce = await this.getLatestTransactionCount();
         }
-        const response = await call(contract, { nonce });
-        return response.hash;
+        const response = await call(contract, { nonce })
+        const receipt = await response.wait(undefined, 60_000) // wait for 1 confirmation and max 60 s
+        if (receipt !== null) {
+          return receipt
+        } else {
+          continue
+        }
       } catch (e) {
         const err = detectError(e);
         if (err instanceof EthereumTransactionError) {
