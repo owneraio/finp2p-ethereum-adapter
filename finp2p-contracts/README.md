@@ -1,27 +1,50 @@
 
-# Contracts
+## Overview
+The **FinP2P Contract** is the on-chain execution layer. It holds the business logic, executes state changes, and is the destination for calls made by the Ethereum Adapter.
 
-## The FinP2P operator contract
-[ FINP2POperator.sol](contracts/finp2p/FINP2POperator.sol) is the FinP2P operator contracts, it implements FinP2P related interfaces such as `IFinP2PAsset` and `IFinP2PEscrow` providing basic functionality for managing FinP2P assets and maintaining escrow operation on them.
+## Core Capabilities
+The contract solves four specific execution challenges:
 
-Acting as a pivotal link, the FinP2P Operator Contract facilitates the connection between the FinP2P adapter and the underlying token contracts. Upon receiving a FinP2P instruction, the adapter invokes the appropriate methods within the operator contract. It effectively connects FinP2P assets and the actual token addresses, ensures the integrity of signatures and payloads, and relays instructions to the targeted token contract.
+1.  **Protocol Translation:** Converts abstract instructions passed by the adapter into low-level, atomic on-chain token transfers.
+2.  **Delegation of Intent:** Verifies investor signatures directly on-chain. This allows investors to pre-authorize business operations (e.g., "Swap $1000 for 10 tokens") without manually executing the blockchain transaction.
+3.  **Gas Abstraction (Gas Station):** Uses a central operator wallet to execute transactions. This removes the requirement for investors to hold ETH or pay for gas fees.
+4.  **Sequence Enforcement:** Mirrors the off-chain execution plan on-chain to strictly enforce the order of operations and immutably record the execution state.
+
+## State Management
+The contract maintains internal state for **Asset Mapping**, functioning as a registry that translates FinP2P Asset IDs into their corresponding on-chain token contract addresses.
+
+## Token Abstraction & Standards
+To decouple the core FinP2P contract from specific token implementations (such as ERC20, ERC721, or T-REX), the architecture employs an **Asset Standard** abstraction layer.
+
+* **Asset Standard Contracts:** Individual contracts deployed to handle the interaction logic for specific token types (e.g., `ERC20AssetStandard`, `TREXAssetStandard`).
+* **Asset Registry:** A dedicated contract acting as a directory, mapping standard names to their corresponding Asset Standard contract addresses.
+
+During execution, the FinP2P contract queries the **Asset Registry** to dynamically resolve the correct standard interface for the target asset.
+
+## State Management
+The contract maintains internal state for **Asset Mapping**, functioning as a registry that translates FinP2P Asset IDs into their corresponding on-chain token contract addresses.
+
+## Access Control & Roles
+The contract utilizes a Role-Based Access Control (RBAC) model to restrict operations.
+
+| Role | Responsibility | Key Actions |
+| :--- | :--- | :--- |
+| **Deployer** | **Initialization** | Deploys the contract; retains ownership; appoints the initial Admin. |
+| **Admin** | **Governance** | Manages permissions; grants or revokes Asset Manager and Transaction Manager roles. |
+| **Asset Manager** | **Configuration** | Manages the asset registry; registers new tokens or updates existing asset parameters. |
+| **Transaction Manager** | **Operations** | Authorized to trigger logic and execute actual token transactions. |
+
+## Immutability & Upgrade Lifecycle
+The FinP2P contract is **immutable by design**. Logic cannot be changed on an existing deployment; updates require deploying a completely new contract instance.
+
+### Upgrade Workflow
+1.  **Deploy New Instance:** Deploy the new contract version. Verify the version using the `getVersion()` method.
+2.  **Migrate Data:** Use the suite's migration utilities to transfer the Asset Association Table and critical state from the old contract (or OSS) to the new instance.
+3.  **Update Whitelists (CRITICAL):**
+    * **Context:** A new deployment results in a new contract address.
+    * **Action Required:** You must **re-whitelist** the new FinP2P contract address on all underlying permissioned tokens (Assets). Failure to do so will cause transactions to fail.
 
 
-### Access control
-
-The FinP2P operator contract employs access control scheme to delineate roles and permissions efficiently.
-
-`ASSET_MANAGER` role is responsible for managing FinP2P assets and their associations with actual token addresses.
-
-`TRANSACTION_MANAGER` role is responsible for sending FinP2P transactions, the operator account should have this role to send transactions on behalf of the adapter.
-
-### Supported token standards
-
-While this implementation of the FinP2P Operator Contract is tailored to the ERC20 token standard, its design is sufficiently adaptable to accommodate any token contracts analogous to the ERC20 framework.
-
-## A sample ERC20 token implementation
-
-[ ERC20WithOperator.sol](./contracts/token/ERC20/ERC20WithOperator.sol) - This project showcases a bespoke ERC20 contract variant, donating the FinP2P operator contract as the default operator. Nonetheless, this contract serves as an example, and any standard ERC20 contract could be employed in its stead.
 
 
 ------------------------------------------------------------------------------------------------------------------------
