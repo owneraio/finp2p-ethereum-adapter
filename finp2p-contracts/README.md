@@ -16,13 +16,10 @@ The contract maintains internal state for **Asset Mapping**, functioning as a re
 ## Token Abstraction & Standards
 To decouple the core FinP2P contract from specific token implementations (such as ERC20, ERC721, or T-REX), the architecture employs an **Asset Standard** abstraction layer.
 
-* **Asset Standard Contracts:** Individual contracts deployed to handle the interaction logic for specific token types (e.g., `ERC20AssetStandard`, `TREXAssetStandard`).
+* **Asset Standard Contracts:** Individual contracts deployed to handle the interaction logic for specific token types (e.g., `ERC20Standard`, `ERC721Standard`).
 * **Asset Registry:** A dedicated contract acting as a directory, mapping standard names to their corresponding Asset Standard contract addresses.
 
 During execution, the FinP2P contract queries the **Asset Registry** to dynamically resolve the correct standard interface for the target asset.
-
-## State Management
-The contract maintains internal state for **Asset Mapping**, functioning as a registry that translates FinP2P Asset IDs into their corresponding on-chain token contract addresses.
 
 ## Access Control & Roles
 The contract utilizes a Role-Based Access Control (RBAC) model to restrict operations.
@@ -51,76 +48,97 @@ The FinP2P contract is **immutable by design**. Logic cannot be changed on an ex
 
 # Scripts
 
-Before running any of the scripts, make sure to install the dependencies by running `npm install` in the `finp2p-contracts` folder 
-and build the sources by running `npm run compile` and `npm run build`.
+## Prerequisites
+Before running any scripts, install dependencies and compile the contract sources:
 
-
-## Deploy FinP2P operator contract
-
-
-
-### Running deploy directly via npx:
-
-FinP2P operator contract could be deployed using npx command:
-
+```bash
+npm install
+npm run compile
+npm run build
 ```
+
+## 1. Deploy FinP2P Contract
+
+You can deploy the contract using either the published NPM package (npx) or the local source code (`npm run`).
+
+Option A: Deploy via NPX (Remote Package)
+Use this method to deploy specific versions of the package without cloning the repository.
+
+### 1. Deploy FinP2P Contract
+You can deploy the contract using either the published NPM package (npx) or the local source code (npm run).
+
+Option A: Deploy via NPX (Remote Package)
+Use this method to deploy specific versions of the package without cloning the repository.
+
+```bash
 npx -p @owneraio/finp2p-contracts deploy-contract \
-    --deployer_pk 0xa11db02ddd62302c8cb4e6f07f058726061e7fa42502cda442a65fb8aaf76ca1 \
-    --rpc_url https://ethereum-sepolia-rpc.publicnode.com \
-    --operator 0x19B8c9839982669Bd9D46f3a8FC9c1875f23B60D
+    --deployer_pk <DEPLOYER_PRIVATE_KEY> \
+    --rpc_url <ETHEREUM_RPC_URL> \
+    --operator <OPERATOR_ADDRESS>
 ```
 
-Where:
+Parameters:
 
-- `--rpc_url` - Ethereum network url
-- `--deployer_pk` - Private key of the account that will deploy the contract
-- `--operator` - Address of the operator account
-  which would be granted with `OPERATOR` and `TRANSACTION_MANAGER` roles and could be used latter as an OPERATOR_ADDRESS parameter in the adapter configuration.
+`--rpc_url`: The Ethereum network RPC URL (e.g., Infura, Alchemy, or public node).
 
-Version of the package could be specified by adding `@version` after `@owneraio/finp2p-contracts`, e.g. `@owneraio/finp2p-contracts@0.25.0`.
+`--deployer_pk`: Private key of the account deploying the contract (Gas Payer).
 
+`--operator`: Address of the operator account.
 
-### Running deploy via npm script:
+Note: This address is automatically granted `OPERATOR` and `TRANSACTION_MANAGER` roles.
 
+Usage: Use this address as the `OPERATOR_ADDRESS` parameter in the Adapter configuration.
 
-FinP2P operator contract could be deployed using `deploy` script:
+Tip: To deploy a specific version, append the version tag: `@owneraio/finp2p-contracts@0.25.0`
 
-Change the folder to `finp2p-contracts` and run:
+### Option B: Deploy via NPM (Local Source)
+Use this method when working directly within the `finp2p-contracts` repository.
 
-`npm run deploy-contract -- $ETHEREUM_RPC_URL $PRIVATE_KEY $OPERATOR_ADDRESS`
+```bash
+npm run deploy-contract -- $ETHEREUM_RPC_URL $PRIVATE_KEY $OPERATOR_ADDRESS
+```
+Positional Arguments:
 
-Where:
+`$ETHEREUM_RPC_URL`: The Ethereum network RPC URL.
 
-- `$ETHEREUM_RPC_URL` - Ethereum network url
-- `$PRIVATE_KEY` - Private key of the account that will deploy the contract
-- `$OPERATOR_ADDRESS` - Address of the operator account
-  which would be granted with `OPERATOR` and `TRANSACTION_MANAGER` roles and could be used latter as an OPERATOR_ADDRESS parameter in the adapter configuration.
+`$PRIVATE_KEY`: Private key of the deployer account.
 
+`$OPERATOR_ADDRESS`: Address of the operator account (receives OPERATOR & TRANSACTION_MANAGER roles).
 
-## Grant roles FinP2P operator contract
+----------------------------------------------------------
 
-In order to grant roles to the operator account, use `grant-roles` script:
+## 2. Management & Configuration
 
-`npm run grant-roles -- $ETHEREUM_RPC_URL $FINP2P_TOKEN_ADDRESS $DEPLOYER_PRIVATE_KEY $OPERATOR_ADDRESS`
+### Grant Roles
+Use this script to manually grant OPERATOR and TRANSACTION_MANAGER roles to a specific address on an existing contract.
 
-Where:
+```bash
+npm run grant-roles -- $ETHEREUM_RPC_URL $FINP2P_CONTRACT_ADDRESS $DEPLOYER_PRIVATE_KEY $OPERATOR_ADDRESS
+```
+Positional Arguments:
 
-- `$ETHEREUM_RPC_URL` - Ethereum network url
-- `$FINP2P_TOKEN_ADDRESS` - FinP2P operator contract address
-- `$DEPLOYER_PRIVATE_KEY` - Private key of the account which deployed the contract
-- `$OPERATOR_ADDRESS` - Address of the operator account
-  which would be granted with `OPERATOR` and `TRANSACTION_MANAGER` roles and could be used latter as an OPERATOR_ADDRESS parameter in the adapter configuration.
+`$ETHEREUM_RPC_URL`: The Ethereum network RPC URL.
 
-#### Associate FinP2P asset with actual token address
+`$FINP2P_CONTRACT_ADDRESS`: The address of the deployed FinP2P Contract.
 
-In order to associate FinP2P asset with actual token address, use `associate-asset` script:
+`$DEPLOYER_PRIVATE_KEY`: Private key of the contract admin/deployer.
 
-`npm run associate-asset -- $ETHEREUM_RPC_URL $FINP2P_OPERATOR_ADDRESS $DEPLOYER_PRIVATE_KEY $ASSET_ID $TOKEN_ADDRESS
+`$OPERATOR_ADDRESS`: The account address to receive the roles.
 
-Where:
+### Associate Assets
+Use this script to map a FinP2P Asset ID to an actual on-chain token address (ERC20/ERC721/etc).
 
-- `$ETHEREUM_RPC_URL` - Ethereum network url
-- `$FINP2P_OPERATOR_ADDRESS` - FinP2P operator contract address
-- `$DEPLOYER_PRIVATE_KEY` - Private key of the account which deployed the contract
-- `$ASSET_ID` - FinP2P asset id
-- `$TOKEN_ADDRESS` - Actual token address
+```bash
+npm run associate-asset -- $ETHEREUM_RPC_URL $FINP2P_CONTRACT_ADDRESS $DEPLOYER_PRIVATE_KEY $ASSET_ID $TOKEN_ADDRESS
+```
+Positional Arguments:
+
+`$ETHEREUM_RPC_URL`: The Ethereum network RPC URL.
+
+`$FINP2P_CONTRACT_ADDRESS`: The address of the deployed FinP2P Contract.
+
+`$DEPLOYER_PRIVATE_KEY`: Private key of the contract admin/deployer.
+
+`$ASSET_ID`: The unique Asset ID used within the FinP2P network.
+
+`$TOKEN_ADDRESS`: The actual smart contract address of the token on Ethereum.
