@@ -14,8 +14,8 @@ import { FinP2PContract } from "@owneraio/finp2p-contracts";
 import {
   EscrowServiceImpl,
   ExecDetailsStore,
-  TokenServiceImpl
 } from "./services";
+import { TokenServiceImpl as TokenServiceFireblocksImpl } from "./services/fireblocks"
 
 function createApp(orgId: string, finP2PContract: FinP2PContract,
                    finP2PClient: FinP2PClient | undefined,
@@ -37,7 +37,7 @@ function createApp(orgId: string, finP2PContract: FinP2PContract,
 
   const signerPrivateKey = process.env.OPERATOR_PRIVATE_KEY || "";
   const proofProvider = new ProofProvider(orgId, finP2PClient, signerPrivateKey);
-  const tokenService = new TokenServiceImpl(finP2PContract, finP2PClient, execDetailsStore, proofProvider, pluginManager);
+  const tokenService = new TokenServiceFireblocksImpl(finP2PContract.provider, finP2PContract.signer, logger)
   const escrowService = new EscrowServiceImpl(finP2PContract, finP2PClient, execDetailsStore, proofProvider, pluginManager);
   const paymentsService = new PaymentsServiceImpl(pluginManager);
   const planApprovalService = new PlanApprovalServiceImpl(orgId, pluginManager, finP2PClient);
