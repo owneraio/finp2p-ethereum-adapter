@@ -30,13 +30,7 @@ curl --fail --retry 30 --retry-all-errors http://localhost:${PORT}/health
 curl --fail --retry 30 --retry-all-errors http://localhost:${PORT}/health/readiness
 
 ENDPOINT="http://localhost:${PORT}/api"
-
-curl --fail --request POST \
-     --url "${ENDPOINT}/assets/transfer" \
-     --header 'Idempotency-Key: 1' \
-     --header 'accept: application/json' \
-     --header 'content-type: application/json' \
-     --data '{
+REQUEST_BODY='{
   "source": {
     "account": {
       "type": "finId",
@@ -53,7 +47,7 @@ curl --fail --request POST \
   },
   "asset": {
     "type": "cryptocurrency",
-    "code": "234"
+    "code": "fake_usdc_without_checks"
   },
   "signature": {
     "template": {
@@ -67,3 +61,12 @@ curl --fail --request POST \
   "nonce": "123",
   "settlementRef": "1"
 }'
+
+until curl --fail --request POST \
+     --url "${ENDPOINT}/assets/issue" \
+     --header 'Idempotency-Key: 6' \
+     --header 'accept: application/json' \
+     --header 'content-type: application/json' \
+     --data "$REQUEST_BODY" | jq -e '.isCompleted' > /dev/null; do
+  sleep 1
+done
