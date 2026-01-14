@@ -9,6 +9,9 @@ export type ProviderAndSigner = {
   provider: Provider, signer: Signer,
 }
 
+// Variable holder for FireblocksWeb3Provider instance
+let fireblocksWeb3ProviderInstance: FireblocksWeb3Provider | undefined = undefined;
+
 export const getNetworkRpcUrl = (): string => {
   let networkHost = process.env.NETWORK_HOST;
   if (!networkHost) {
@@ -80,6 +83,9 @@ export const createFireblocksProvider = async (vaultAccountIds: string[]): Promi
   const eip1193Provider = new FireblocksWeb3Provider({
     privateKey, apiKey, chainId, apiBaseUrl, vaultAccountIds
   });
+  // Store the FireblocksWeb3Provider instance in the variable holder
+  fireblocksWeb3ProviderInstance = eip1193Provider;
+  
   const provider = new BrowserProvider(eip1193Provider);
   const signer = await provider.getSigner();
 
@@ -181,4 +187,16 @@ export function parseConfig(params: ParamDefinition[]): ParsedConfig {
 
   return config;
 }
+
+/**
+ * Retrieves the stored FireblocksWeb3Provider instance.
+ * @throws Error if the FireblocksWeb3Provider instance is undefined
+ * @returns The FireblocksWeb3Provider instance
+ */
+export const getFireblocksWeb3Provider = (): FireblocksWeb3Provider => {
+  if (fireblocksWeb3ProviderInstance === undefined) {
+    throw new Error("FireblocksWeb3Provider instance is not initialized. Make sure createFireblocksProvider has been called.");
+  }
+  return fireblocksWeb3ProviderInstance;
+};
 

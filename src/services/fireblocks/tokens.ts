@@ -1,6 +1,8 @@
 import { Asset, AssetBind, AssetCreationStatus, AssetDenomination, AssetIdentifier, Balance, Destination, ExecutionContext, FinIdAccount, Logger, ReceiptOperation, Signature, Source, TokenService, failedReceiptOperation } from '@owneraio/finp2p-adapter-models';
 import { workflows } from '@owneraio/finp2p-nodejs-skeleton-adapter';
 import { Contract, ContractTransactionResponse, Provider, Signer } from "ethers";
+import { getFireblocksWeb3Provider } from "../../config";
+import { FireblocksWeb3Provider } from "@fireblocks/fireblocks-web3-provider";
 
 async function getAssetFromDb(ast: Asset): Promise<workflows.Asset> {
   const asset = await workflows.getAsset({ id: ast.assetId, type: ast.assetType })
@@ -9,8 +11,12 @@ async function getAssetFromDb(ast: Asset): Promise<workflows.Asset> {
 }
 
 export class TokenServiceImpl implements TokenService {
+  private readonly fireblocksWeb3Provider: FireblocksWeb3Provider;
 
-  constructor(readonly provider: Provider, readonly signer: Signer, readonly logger: Logger) {}
+  constructor(readonly provider: Provider, readonly signer: Signer, readonly logger: Logger) {
+    // Retrieve the FireblocksWeb3Provider instance from the config
+    this.fireblocksWeb3Provider = getFireblocksWeb3Provider();
+  }
 
   async createAsset(idempotencyKey: string, asset: Asset, assetBind: AssetBind | undefined, assetMetadata: any, assetName: string | undefined, issuerId: string | undefined, assetDenomination: AssetDenomination | undefined, assetIdentifier: AssetIdentifier | undefined): Promise<AssetCreationStatus> {
     throw new Error('Method not implemented.');
