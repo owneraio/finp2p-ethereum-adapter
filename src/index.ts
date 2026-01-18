@@ -9,25 +9,12 @@ import { InMemoryExecDetailsStore } from "./services";
 
 const init = async () => {
   const port = process.env.PORT || "3000";
-  const finP2PContractAddress =
-    process.env.FINP2P_CONTRACT_ADDRESS || process.env.TOKEN_ADDRESS; // TOKEN_ADDRESS for backward compatibility
-  if (!finP2PContractAddress) {
-    throw new Error("FINP2P_CONTRACT_ADDRESS is not set");
-  }
+  
+  // Determine if Fireblocks mode should be used
+  // In production, this could be determined by environment variable
+  const useFireblocks = (process.env.PROVIDER_TYPE || "local") === "fireblocks";
+  
   const providerType = (process.env.PROVIDER_TYPE || "local") as ProviderType;
-
-  const orgId = process.env.ORGANIZATION_ID;
-  if (!orgId) {
-    throw new Error("ORGANIZATION_ID is not set");
-  }
-  const finP2PUrl = process.env.FINP2P_ADDRESS;
-  if (!finP2PUrl) {
-    throw new Error("FINP2P_ADDRESS is not set");
-  }
-  const ossUrl = process.env.OSS_URL;
-  if (!ossUrl) {
-    throw new Error("OSS_URL is not set");
-  }
 
   const migrationConnectionString = process.env.MIGRATION_CONNECTION_STRING;
   if (!migrationConnectionString) {
@@ -81,33 +68,68 @@ const init = async () => {
     providerType,
     useNonceManager
   );
-  const finp2pContract = new FinP2PContract(
-    provider,
-    signer,
-    finP2PContractAddress,
-    logger
-  );
-  const finP2PClient = new FinP2PClient(finP2PUrl, ossUrl);
-  const execDetailsStore = new InMemoryExecDetailsStore();
 
-  const contractVersion = await finp2pContract.getVersion();
-  logger.info(`FinP2P contract version: ${contractVersion}`);
-  const { name, version, chainId, verifyingContract } =
-    await finp2pContract.eip712Domain();
-  logger.info(
-    `EIP712 domain: name=${name} version=${version} chainId=${chainId} verifyingContract=${verifyingContract}`
-  );
+  if (useFireblocks) {
+    // Fireblocks mode: Only need provider, signer, and workflows config
+    createApp({
+      useFireblocks: true,
+      provider,
+      signer,
+      workflowsConfig,
+      logger
+    }).listen(port, () => {
+      logger.info(`listening at http://localhost:${port} (Fireblocks mode)`);
+    });
+  } else {
+    // Standard mode: Need full FinP2P contract setup
+    const finP2PContractAddress =
+      process.env.FINP2P_CONTRACT_ADDRESS || process.env.TOKEN_ADDRESS; // TOKEN_ADDRESS for backward compatibility
+    if (!finP2PContractAddress) {
+      throw new Error("FINP2P_CONTRACT_ADDRESS is not set");
+    }
 
-  createApp(
-    orgId,
-    finp2pContract,
-    finP2PClient,
-    execDetailsStore,
-    workflowsConfig,
-    logger
-  ).listen(port, () => {
-    logger.info(`listening at http://localhost:${port}`);
-  });
+    const orgId = process.env.ORGANIZATION_ID;
+    if (!orgId) {
+      throw new Error("ORGANIZATION_ID is not set");
+    }
+    const finP2PUrl = process.env.FINP2P_ADDRESS;
+    if (!finP2PUrl) {
+      throw new Error("FINP2P_ADDRESS is not set");
+    }
+    const ossUrl = process.env.OSS_URL;
+    if (!ossUrl) {
+      throw new Error("OSS_URL is not set");
+    }
+
+    const finp2pContract = new FinP2PContract(
+      provider,
+      signer,
+      finP2PContractAddress,
+      logger
+    );
+    const finP2PClient = new FinP2PClient(finP2PUrl, ossUrl);
+    const execDetailsStore = new InMemoryExecDetailsStore();
+
+    const contractVersion = await finp2pContract.getVersion();
+    logger.info(`FinP2P contract version: ${contractVersion}`);
+    const { name, version, chainId, verifyingContract } =
+      await finp2pContract.eip712Domain();
+    logger.info(
+      `EIP712 domain: name=${name} version=${version} chainId=${chainId} verifyingContract=${verifyingContract}`
+    );
+
+    createApp({
+      useFireblocks: false,
+      orgId,
+      finP2PContract: finp2pContract,
+      finP2PClient,
+      execDetailsStore,
+      workflowsConfig,
+      logger
+    }).listen(port, () => {
+      logger.info(`listening at http://localhost:${port}`);
+    });
+  }
 };
 
 init()

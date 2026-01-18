@@ -177,14 +177,15 @@ class CustomTestEnvironment extends NodeEnvironment {
       storage: { connectionString },
     };
 
-    const app = createApp(
-      DefaultOrgId,
+    const app = createApp({
+      useFireblocks: false,
+      orgId: DefaultOrgId,
       finP2PContract,
-      undefined,
+      finP2PClient: undefined,
       execDetailsStore,
       workflowsConfig,
       logger
-    );
+    });
     console.log("App created successfully.");
 
     this.httpServer = app.listen(port, () => {

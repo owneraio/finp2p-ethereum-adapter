@@ -136,14 +136,15 @@ const startApp = async (
   workflowsConfig: workflows.Config | undefined,
   logger: winston.Logger
 ) => {
-  const app = createApp(
+  const app = createApp({
+    useFireblocks: false,
     orgId,
     finP2PContract,
     finP2PClient,
     execDetailsStore,
     workflowsConfig,
     logger
-  );
+  });
   logger.info("App created successfully.");
 
   httpServer = app.listen(port, () => {
