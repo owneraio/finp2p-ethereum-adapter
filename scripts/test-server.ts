@@ -213,6 +213,7 @@ const start = async () => {
       storageUser: new URL(connectionString).username,
     },
     storage: { connectionString },
+    service: {}
   };
 
   await startApp(

@@ -2,8 +2,17 @@ import * as fs from "fs";
 import { ApiBaseUrl, ChainId, FireblocksWeb3Provider } from "@fireblocks/fireblocks-web3-provider";
 import { BrowserProvider, JsonRpcProvider, NonceManager, Provider, Signer, Wallet } from "ethers";
 import process from "process";
+import { FireblocksSDK } from 'fireblocks-sdk'
 
 export type ProviderType = "local" | "fireblocks";
+
+let cachedFireblocksSdk: FireblocksSDK | undefined
+
+export const getFireblocksSDK = (): FireblocksSDK => {
+  if (cachedFireblocksSdk === undefined) throw new Error('FireblocksSDK is not initialized')
+
+  return cachedFireblocksSdk
+}
 
 export type ProviderAndSigner = {
   provider: Provider, signer: Signer,
@@ -82,6 +91,8 @@ export const createFireblocksProvider = async (vaultAccountIds: string[]): Promi
   });
   const provider = new BrowserProvider(eip1193Provider);
   const signer = await provider.getSigner();
+
+  cachedFireblocksSdk = new FireblocksSDK(privateKey, apiKey, apiBaseUrl)
 
   return { provider, signer };
 };

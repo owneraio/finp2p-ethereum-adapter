@@ -1,6 +1,7 @@
 import { Asset, AssetBind, AssetCreationStatus, AssetDenomination, AssetIdentifier, Balance, Destination, ExecutionContext, FinIdAccount, Logger, ReceiptOperation, Signature, Source, TokenService, failedReceiptOperation } from '@owneraio/finp2p-adapter-models';
 import { workflows } from '@owneraio/finp2p-nodejs-skeleton-adapter';
 import { Contract, ContractTransactionResponse, Provider, Signer } from "ethers";
+import { FireblocksSDK } from 'fireblocks-sdk'
 
 async function getAssetFromDb(ast: Asset): Promise<workflows.Asset> {
   const asset = await workflows.getAsset({ id: ast.assetId, type: ast.assetType })
@@ -10,11 +11,18 @@ async function getAssetFromDb(ast: Asset): Promise<workflows.Asset> {
 
 export class TokenServiceImpl implements TokenService {
 
-  constructor(readonly provider: Provider, readonly signer: Signer, readonly logger: Logger) {}
+  constructor(readonly fireblocksSdk: FireblocksSDK, readonly provider: Provider, readonly signer: Signer, readonly logger: Logger) {}
 
   async createAsset(idempotencyKey: string, asset: Asset, assetBind: AssetBind | undefined, assetMetadata: any, assetName: string | undefined, issuerId: string | undefined, assetDenomination: AssetDenomination | undefined, assetIdentifier: AssetIdentifier | undefined): Promise<AssetCreationStatus> {
+    const { chainId, name } = await this.provider.getNetwork()
+    this.fireblocksSdk.registerNewAsset(
+      (await this.provider.getNetwork()).chainId.toString(),
+      "0x1234",
+      assetIdentifier?.value ?? "123"
+    )
     throw new Error('Method not implemented.');
   }
+
   async getBalance(assetId: string, finId: string): Promise<string> {
     throw new Error('Method not implemented.');
   }

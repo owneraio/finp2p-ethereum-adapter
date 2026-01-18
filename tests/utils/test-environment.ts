@@ -175,6 +175,7 @@ class CustomTestEnvironment extends NodeEnvironment {
         storageUser,
       },
       storage: { connectionString },
+      service: {}
     };
 
     const app = createApp(
