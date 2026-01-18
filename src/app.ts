@@ -126,4 +126,6 @@ function createApp(config: AppConfig) {
   return app;
 }
 
+// Export types for use in other modules
+export type { AppConfig, FireblocksAppConfig, StandardAppConfig };
 export default createApp;
