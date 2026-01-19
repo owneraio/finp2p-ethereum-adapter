@@ -65,7 +65,7 @@ REQUEST_BODY='{
 REQUEST_BODY='{
   "asset": {
     "type": "finp2p",
-    "resourceId": "FAKEUSDC14"
+    "resourceId": "FAKEUSDC15"
   },
   "ledgerAssetBinding": {
     "type": "tokenId"
@@ -96,7 +96,7 @@ REQUEST_BODY='{
   },
   "asset": {
     "type": "finp2p",
-    "resourceId": "FAKEUSDC14"
+    "resourceId": "FAKEUSDC15"
   },
   "signature": {
     "template": {

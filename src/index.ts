@@ -47,7 +47,7 @@ const init = async () => {
   const workflowsConfig = {
     migration: {
       connectionString: migrationConnectionString,
-      gooseExecutablePath: "/usr/bin/goose",
+      gooseExecutablePath: "/Users/shakhzodikromov/go/bin/goose",
       migrationListTableName: "finp2p_ethereum_adapater_migrations",
       storageUser,
     },
