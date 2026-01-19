@@ -62,9 +62,57 @@ REQUEST_BODY='{
   "settlementRef": "1"
 }'
 
+REQUEST_BODY='{
+  "asset": {
+    "type": "finp2p",
+    "resourceId": "FAKEUSDC14"
+  },
+  "ledgerAssetBinding": {
+    "type": "tokenId"
+  },
+  "denomination": {
+    "type": "cryptocurrency",
+    "code": "USDC"
+  },
+  "assetIdentifier": {
+    "assetIdentifierType": "ISIN"
+  },
+  "name": "OWNERA"
+}'
+
+until curl --fail --request POST \
+     --url "${ENDPOINT}/assets/create" \
+     --header 'Idempotency-Key: 14' \
+     --header 'accept: application/json' \
+     --header 'content-type: application/json' \
+     --data "$REQUEST_BODY" | jq -e '.isCompleted' > /dev/null; do
+  sleep 1
+done
+
+REQUEST_BODY='{
+  "destination": {
+    "type": "finId",
+    "finId": "ignoredFinId"
+  },
+  "asset": {
+    "type": "finp2p",
+    "resourceId": "FAKEUSDC14"
+  },
+  "signature": {
+    "template": {
+      "type": "hashList"
+    },
+    "hashFunc": "unspecified",
+    "signature": "null"
+  },
+  "nonce": "issue-nonce",
+  "quantity": "1.6",
+  "settlementRef": "null"
+}'
+
 until curl --fail --request POST \
      --url "${ENDPOINT}/assets/issue" \
-     --header 'Idempotency-Key: 6' \
+     --header 'Idempotency-Key: 14' \
      --header 'accept: application/json' \
      --header 'content-type: application/json' \
      --data "$REQUEST_BODY" | jq -e '.isCompleted' > /dev/null; do

@@ -7,11 +7,18 @@ import { FireblocksSDK } from 'fireblocks-sdk'
 export type ProviderType = "local" | "fireblocks";
 
 let cachedFireblocksSdk: FireblocksSDK | undefined
+let cachedFireblocksProvider: BrowserProvider | undefined
 
 export const getFireblocksSDK = (): FireblocksSDK => {
   if (cachedFireblocksSdk === undefined) throw new Error('FireblocksSDK is not initialized')
 
   return cachedFireblocksSdk
+}
+
+export const getFireblocksProvider = (): BrowserProvider => {
+  if (cachedFireblocksProvider === undefined) throw new Error('FireblocksProvider is not initialized')
+
+  return cachedFireblocksProvider
 }
 
 export type ProviderAndSigner = {
@@ -93,6 +100,7 @@ export const createFireblocksProvider = async (vaultAccountIds: string[]): Promi
   const signer = await provider.getSigner();
 
   cachedFireblocksSdk = new FireblocksSDK(privateKey, apiKey, apiBaseUrl)
+  cachedFireblocksProvider = provider
 
   return { provider, signer };
 };

@@ -24,7 +24,7 @@ import {
   PlanApprovalServiceImpl as PlanApprovalServiceFireblocksImpl,
   TokenServiceImpl as TokenServiceFireblocksImpl,
 } from "./services/fireblocks"
-import { getFireblocksSDK } from './config'
+import { getFireblocksSDK, getFireblocksProvider } from './config'
 
 function createApp(orgId: string, finP2PContract: FinP2PContract,
                    finP2PClient: FinP2PClient | undefined,
@@ -50,7 +50,7 @@ function createApp(orgId: string, finP2PContract: FinP2PContract,
     const healthService = new HealthServiceFireblocksImpl(finP2PContract.provider)
     const paymentsService = new PaymentsServiceFireblocksImpl()
     const planApprovalService = new PlanApprovalServiceFireblocksImpl()
-    const tokenService = new TokenServiceFireblocksImpl(getFireblocksSDK(), finP2PContract.provider, finP2PContract.signer, logger)
+    const tokenService = new TokenServiceFireblocksImpl(getFireblocksSDK(), getFireblocksProvider(), finP2PContract.signer, logger)
 
     register(app, tokenService, escrowService, commonService, healthService, paymentsService, planApprovalService, undefined, workflowsConfig)
   } else {
