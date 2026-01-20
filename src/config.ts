@@ -47,10 +47,10 @@ const getNetworkRpcUrl = (): string => {
 };
 
 export const createJsonProvider = (
-  operatorPrivateKey: string, ethereumRPCUrl: string, userNonceManager: boolean = true): { provider: Provider, signer: Signer } => {
+  operatorPrivateKey: string, ethereumRPCUrl: string, useNonceManager: boolean = true): { provider: Provider, signer: Signer } => {
   const provider = new JsonRpcProvider(ethereumRPCUrl);
   let signer: Signer;
-  if (userNonceManager) {
+  if (useNonceManager) {
     signer = new NonceManager(new Wallet(operatorPrivateKey)).connect(provider);
   } else {
     signer = new Wallet(operatorPrivateKey).connect(provider);
