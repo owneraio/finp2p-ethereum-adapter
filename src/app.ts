@@ -16,12 +16,14 @@ import {
   ExecDetailsStore,
   TokenServiceImpl
 } from "./services";
+import { AppConfig } from './config'
 
-function createApp(orgId: string, finP2PContract: FinP2PContract,
-                   finP2PClient: FinP2PClient | undefined,
-                   execDetailsStore: ExecDetailsStore | undefined,
-                   workflowsConfig: workflows.Config | undefined,
-                   logger: winston.Logger) {
+
+function createApp(
+  workflowsConfig: workflows.Config | undefined,
+  logger: winston.Logger,
+  appConfig: AppConfig,
+): express.Application {
   const app = express();
   app.use(express.json({ limit: "50mb" }));
   app.use(expressLogger({
@@ -32,16 +34,20 @@ function createApp(orgId: string, finP2PContract: FinP2PContract,
     ignoreRoute: (req) => req.url.toLowerCase() === "/health/readiness" || req.url.toLowerCase() === "/health/liveness"
   }));
 
+  switch (appConfig.type) {
+    case 'fireblocks': {
+      throw new Error('Fireblocks config not supported in this version')
+    }
+    case 'local': {
+      const pluginManager = new PluginManager();
 
-  const pluginManager = new PluginManager();
-
-  const signerPrivateKey = process.env.OPERATOR_PRIVATE_KEY || "";
-  const proofProvider = new ProofProvider(orgId, finP2PClient, signerPrivateKey);
-  const tokenService = new TokenServiceImpl(finP2PContract, finP2PClient, execDetailsStore, proofProvider, pluginManager);
-  const escrowService = new EscrowServiceImpl(finP2PContract, finP2PClient, execDetailsStore, proofProvider, pluginManager);
-  const paymentsService = new PaymentsServiceImpl(pluginManager);
-  const planApprovalService = new PlanApprovalServiceImpl(orgId, pluginManager, finP2PClient);
-  register(app, tokenService, escrowService, tokenService, tokenService, paymentsService, planApprovalService, pluginManager, workflowsConfig);
+      const tokenService = new TokenServiceImpl(appConfig.finP2PContract, appConfig.finP2PClient, appConfig.execDetailsStore, appConfig.proofProvider, pluginManager);
+      const escrowService = new EscrowServiceImpl(appConfig.finP2PContract, appConfig.finP2PClient, appConfig.execDetailsStore, appConfig.proofProvider, pluginManager);
+      const paymentsService = new PaymentsServiceImpl(pluginManager);
+      const planApprovalService = new PlanApprovalServiceImpl(appConfig.orgId, pluginManager, appConfig.finP2PClient);
+      register(app, tokenService, escrowService, tokenService, tokenService, paymentsService, planApprovalService, pluginManager, workflowsConfig);
+    }
+  }
 
   return app;
 }
