@@ -4,7 +4,7 @@ import {
   FinP2PContract,
   addressFromPrivateKey,
 } from "@owneraio/finp2p-contracts";
-import { workflows } from "@owneraio/finp2p-nodejs-skeleton-adapter";
+import { ProofProvider, workflows } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import {
   PostgreSqlContainer,
   StartedPostgreSqlContainer,
@@ -178,12 +178,18 @@ class CustomTestEnvironment extends NodeEnvironment {
     };
 
     const app = createApp(
-      DefaultOrgId,
-      finP2PContract,
-      undefined,
-      execDetailsStore,
       workflowsConfig,
-      logger
+      logger,
+      {
+        type: 'local',
+        orgId: DefaultOrgId,
+        finP2PClient: undefined,
+        finP2PContract,
+        execDetailsStore,
+        provider,
+        signer,
+        proofProvider: new ProofProvider(DefaultOrgId, undefined, operatorPrivateKey)
+      }
     );
     console.log("App created successfully.");
 
