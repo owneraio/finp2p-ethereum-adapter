@@ -48,7 +48,7 @@ function createApp(
       const healthService = new HealthServiceFireblocksImpl(appConfig.provider)
       const paymentsService = new PaymentsServiceFireblocksImpl()
       const planApprovalService = new PlanApprovalServiceFireblocksImpl()
-      const tokenService = new TokenServiceFireblocksImpl(appConfig.fireblocksSdk, appConfig.provider, appConfig.signer, logger)
+      const tokenService = new TokenServiceFireblocksImpl(logger, appConfig)
 
       register(app, tokenService, escrowService, commonService, healthService, paymentsService, planApprovalService, undefined, workflowsConfig)
       break

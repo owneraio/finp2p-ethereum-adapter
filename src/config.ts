@@ -27,6 +27,7 @@ export type FireblocksAppConfig = {
   provider: BrowserProvider
   signer: JsonRpcSigner
   fireblocksSdk: FireblocksSDK
+  createProviderForExternalAddress: (address: string) => Promise<FireblocksWeb3Provider | undefined>
 }
 
 export type AppConfig = LocalAppConfig | FireblocksAppConfig
@@ -178,12 +179,9 @@ export async function envVarsToAppConfig(logger: Logger): Promise<AppConfig> {
         throw new Error("FIREBLOCKS_VAULT_ACCOUNT_IDS is not set or empty");
       }
 
-      const { provider, signer, fireblocksSdk } = await createFireblocksProvider(vaultAccountIds)
       return {
         type: 'fireblocks',
-        provider,
-        signer,
-        fireblocksSdk
+        ...await createFireblocksProvider(vaultAccountIds)
       }
     }
   }
