@@ -52,11 +52,7 @@ export const createVaultManagementFunctions = (fireblocksSdk: FireblocksSDK) => 
     const allVaults = await autoPaginate(
       'getVaults',
       (after) => fireblocksSdk.getVaultAccountsWithPageInfo({ after }),
-      (response) => {
-        response.accounts.forEach(val => console.dir(val))
-
-        return response.accounts
-      }
+      (response) => response.accounts
     )
     cacheVaultAccounts.push(...allVaults)
 
@@ -72,7 +68,6 @@ export const createVaultManagementFunctions = (fireblocksSdk: FireblocksSDK) => 
           const resp = await retryIfRateLimited(() => fireblocksSdk.getDepositAddresses(vault.id, asset.id))
           for (const addr of resp) {
             cacheCollectedAddresses.push({ vaultId: vault.id, assetId: asset.id, address: addr.address })
-            console.dir(addr)
           }
         }
       }
