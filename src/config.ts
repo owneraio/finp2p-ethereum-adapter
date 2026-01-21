@@ -76,6 +76,10 @@ const createFireblocksProvider =  async (vaultAccountIds: string[]): Promise<{ p
   const chainId = (process.env.FIREBLOCKS_CHAIN_ID || ChainId.MAINNET) as ChainId;
   const apiBaseUrl = (process.env.FIREBLOCKS_API_BASE_URL || ApiBaseUrl.Production) as ApiBaseUrl;
 
+  const createProviderForVaultId = (vaultId: string): FireblocksWeb3Provider => new FireblocksWeb3Provider({
+    privateKey, apiKey, chainId, apiBaseUrl, vaultAccountIds: [vaultId]
+  })
+
   const eip1193Provider = new FireblocksWeb3Provider({
     privateKey, apiKey, chainId, apiBaseUrl, vaultAccountIds
   });
@@ -88,28 +92,29 @@ const createFireblocksProvider =  async (vaultAccountIds: string[]): Promise<{ p
 
 export async function envVarsToAppConfig(logger: Logger): Promise<AppConfig> {
   const configType = (process.env.PROVIDER_TYPE || 'local') as AppConfig['type']
-  const finP2PContractAddress = process.env.FINP2P_CONTRACT_ADDRESS || process.env.TOKEN_ADDRESS; // TOKEN_ADDRESS for backward compatibility
-  if (!finP2PContractAddress) {
-    throw new Error("FINP2P_CONTRACT_ADDRESS is not set");
-  }
-
-  const orgId = process.env.ORGANIZATION_ID;
-  if (!orgId) {
-    throw new Error("ORGANIZATION_ID is not set");
-  }
-
-  const finP2PUrl = process.env.FINP2P_ADDRESS;
-  if (!finP2PUrl) {
-    throw new Error("FINP2P_ADDRESS is not set");
-  }
-
-  const ossUrl = process.env.OSS_URL;
-  if (!ossUrl) {
-    throw new Error("OSS_URL is not set");
-  }
 
   switch (configType) {
     case 'local': {
+      const finP2PContractAddress = process.env.FINP2P_CONTRACT_ADDRESS || process.env.TOKEN_ADDRESS; // TOKEN_ADDRESS for backward compatibility
+      if (!finP2PContractAddress) {
+        throw new Error("FINP2P_CONTRACT_ADDRESS is not set");
+      }
+
+      const orgId = process.env.ORGANIZATION_ID;
+      if (!orgId) {
+        throw new Error("ORGANIZATION_ID is not set");
+      }
+
+      const finP2PUrl = process.env.FINP2P_ADDRESS;
+      if (!finP2PUrl) {
+        throw new Error("FINP2P_ADDRESS is not set");
+      }
+
+      const ossUrl = process.env.OSS_URL;
+      if (!ossUrl) {
+        throw new Error("OSS_URL is not set");
+      }
+
       const useNonceManager = (process.env.USE_NONCE_MANAGER ?? "yes" ) === "yes";
       const ethereumRPCUrl = getNetworkRpcUrl();
       const operatorPrivateKey = process.env.OPERATOR_PRIVATE_KEY;
