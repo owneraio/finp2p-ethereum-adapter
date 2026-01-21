@@ -9,6 +9,7 @@ import { ProofProvider } from '@owneraio/finp2p-nodejs-skeleton-adapter'
 import { Logger } from "@owneraio/finp2p-adapter-models";
 import { InMemoryExecDetailsStore } from './services/exec-details-store'
 import { FireblocksSDK } from "fireblocks-sdk";
+import { createVaultManagementFunctions } from './vaults'
 
 export type LocalAppConfig = {
   type: 'local'
@@ -49,7 +50,8 @@ const getNetworkRpcUrl = (): string => {
 };
 
 export const createJsonProvider = (
-  operatorPrivateKey: string, ethereumRPCUrl: string, useNonceManager: boolean = true): { provider: Provider, signer: Signer } => {
+  operatorPrivateKey: string, ethereumRPCUrl: string, useNonceManager: boolean = true
+): { provider: Provider, signer: Signer } => {
   const provider = new JsonRpcProvider(ethereumRPCUrl);
   let signer: Signer;
   if (useNonceManager) {
@@ -61,7 +63,12 @@ export const createJsonProvider = (
   return { provider, signer };
 };
 
-const createFireblocksProvider =  async (vaultAccountIds: string[]): Promise<{ provider: BrowserProvider, signer: JsonRpcSigner, fireblocksSdk: FireblocksSDK }> => {
+const createFireblocksProvider =  async (vaultAccountIds: string[]): Promise<{
+  provider: BrowserProvider,
+  signer: JsonRpcSigner,
+  fireblocksSdk: FireblocksSDK,
+  createProviderForExternalAddress: (address: string) => Promise<FireblocksWeb3Provider | undefined>
+}> => {
   const apiKey = process.env.FIREBLOCKS_API_KEY || "";
   if (!apiKey) {
     throw new Error("FIREBLOCKS_API_KEY is not set");
@@ -76,9 +83,6 @@ const createFireblocksProvider =  async (vaultAccountIds: string[]): Promise<{ p
   const chainId = (process.env.FIREBLOCKS_CHAIN_ID || ChainId.MAINNET) as ChainId;
   const apiBaseUrl = (process.env.FIREBLOCKS_API_BASE_URL || ApiBaseUrl.Production) as ApiBaseUrl;
 
-  const createProviderForVaultId = (vaultId: string): FireblocksWeb3Provider => new FireblocksWeb3Provider({
-    privateKey, apiKey, chainId, apiBaseUrl, vaultAccountIds: [vaultId]
-  })
 
   const eip1193Provider = new FireblocksWeb3Provider({
     privateKey, apiKey, chainId, apiBaseUrl, vaultAccountIds
@@ -87,7 +91,21 @@ const createFireblocksProvider =  async (vaultAccountIds: string[]): Promise<{ p
   const signer = await provider.getSigner();
   const fireblocksSdk = new FireblocksSDK(privateKey, apiKey, (process.env.FIREBLOCKS_API_BASE_URL || ApiBaseUrl.Production))
 
-  return { provider, signer, fireblocksSdk };
+  const vaultManagement = createVaultManagementFunctions(fireblocksSdk)
+
+  return {
+    provider,
+    signer,
+    fireblocksSdk,
+    createProviderForExternalAddress: async (address: string) => {
+      const vaultId = await vaultManagement.getVaultIdForAddress(address)
+      if (vaultId === undefined) return undefined
+
+      return new FireblocksWeb3Provider({
+        privateKey, apiKey, chainId, apiBaseUrl, vaultAccountIds: [vaultId]
+      })
+    }
+  };
 };
 
 export async function envVarsToAppConfig(logger: Logger): Promise<AppConfig> {
