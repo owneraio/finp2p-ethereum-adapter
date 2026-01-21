@@ -4,7 +4,7 @@ import {
   FinP2PContract,
   addressFromPrivateKey,
 } from "@owneraio/finp2p-contracts";
-import { workflows } from "@owneraio/finp2p-nodejs-skeleton-adapter";
+import { ProofProvider, workflows } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import {
   PostgreSqlContainer,
   StartedPostgreSqlContainer,
@@ -18,7 +18,7 @@ import process from "process";
 import { GenericContainer, StartedTestContainer } from "testcontainers";
 import winston, { format, transports } from "winston";
 import createApp from "../src/app";
-import { ProviderType, createProviderAndSigner } from "../src/config";
+import { AppConfig, createJsonProvider } from "../src/config";
 import { ExecDetailsStore, InMemoryExecDetailsStore } from "../src/services";
 import { HardhatLogExtractor } from "../tests/utils/log-extractors";
 import { NetworkDetails } from "../tests/utils/models";
@@ -26,7 +26,6 @@ import { NetworkDetails } from "../tests/utils/models";
 let ethereumNodeContainer: StartedTestContainer | undefined;
 let postgresSqlContainer: StartedPostgreSqlContainer | undefined;
 let httpServer: http.Server | undefined;
-const providerType: ProviderType = "local";
 
 const logger = winston.createLogger({
   level: "info",
@@ -125,24 +124,15 @@ const deployERC20Contract = async (
 };
 
 const startApp = async (
-  orgId: string,
   port: number,
-  provider: Provider,
-  signer: Signer,
-  finP2PContract: FinP2PContract,
-  tokenAddress: string,
-  finP2PClient: FinP2PClient | undefined,
-  execDetailsStore: ExecDetailsStore | undefined,
   workflowsConfig: workflows.Config | undefined,
-  logger: winston.Logger
+  logger: winston.Logger,
+  appConfig: AppConfig,
 ) => {
   const app = createApp(
-    orgId,
-    finP2PContract,
-    finP2PClient,
-    execDetailsStore,
     workflowsConfig,
-    logger
+    logger,
+    appConfig
   );
   logger.info("App created successfully.");
 
@@ -160,12 +150,10 @@ const start = async () => {
   const deployer = details.accounts[0];
   const operator = details.accounts[1];
 
-  process.env.OPERATOR_PRIVATE_KEY = deployer;
-  process.env.NETWORK_HOST = details.rpcUrl;
-
   const operatorAddress = addressFromPrivateKey(operator);
-  const { provider, signer } = await createProviderAndSigner(
-    providerType,
+  const { provider, signer } = await createJsonProvider(
+    deployer,
+    details.rpcUrl,
     true
   );
   const network = await provider.getNetwork();
@@ -216,17 +204,22 @@ const start = async () => {
     service: {}
   };
 
+
+
   await startApp(
-    orgId,
     port,
-    provider,
-    signer,
-    finP2PContract,
-    tokenAddress,
-    finP2PClient,
-    execDetailsStore,
     workflowsConfig,
-    logger
+    logger,
+    {
+      type: 'local',
+      orgId,
+      execDetailsStore,
+      finP2PClient,
+      finP2PContract,
+      proofProvider: new ProofProvider(orgId, finP2PClient, deployer),
+      provider,
+      signer
+    }
   );
 };
 

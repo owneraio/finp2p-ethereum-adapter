@@ -16,6 +16,7 @@ import {
   ExecDetailsStore,
   TokenServiceImpl
 } from "./services";
+import { AppConfig } from './config'
 import {
   CommonServiceImpl as CommonServiceFireblocksImpl,
   EscrowServiceImpl as EscrowServiceFireblocksImpl,
@@ -24,13 +25,12 @@ import {
   PlanApprovalServiceImpl as PlanApprovalServiceFireblocksImpl,
   TokenServiceImpl as TokenServiceFireblocksImpl,
 } from "./services/fireblocks"
-import { getFireblocksSDK, getFireblocksProvider } from './config'
 
-function createApp(orgId: string, finP2PContract: FinP2PContract,
-                   finP2PClient: FinP2PClient | undefined,
-                   execDetailsStore: ExecDetailsStore | undefined,
-                   workflowsConfig: workflows.Config | undefined,
-                   logger: winston.Logger) {
+function createApp(
+  workflowsConfig: workflows.Config | undefined,
+  logger: winston.Logger,
+  appConfig: AppConfig,
+): express.Application {
   const app = express();
   app.use(express.json({ limit: "50mb" }));
   app.use(expressLogger({
@@ -41,28 +41,28 @@ function createApp(orgId: string, finP2PContract: FinP2PContract,
     ignoreRoute: (req) => req.url.toLowerCase() === "/health/readiness" || req.url.toLowerCase() === "/health/liveness"
   }));
 
+  switch (appConfig.type) {
+    case 'fireblocks': {
+      const commonService = new CommonServiceFireblocksImpl()
+      const escrowService = new EscrowServiceFireblocksImpl()
+      const healthService = new HealthServiceFireblocksImpl(appConfig.provider)
+      const paymentsService = new PaymentsServiceFireblocksImpl()
+      const planApprovalService = new PlanApprovalServiceFireblocksImpl()
+      const tokenService = new TokenServiceFireblocksImpl(appConfig.fireblocksSdk, appConfig.provider, appConfig.signer, logger)
 
-  const useFireblocks = true
+      register(app, tokenService, escrowService, commonService, healthService, paymentsService, planApprovalService, undefined, workflowsConfig)
+      break
+    }
+    case 'local': {
+      const pluginManager = new PluginManager();
 
-  if (useFireblocks) {
-    const commonService = new CommonServiceFireblocksImpl()
-    const escrowService = new EscrowServiceFireblocksImpl()
-    const healthService = new HealthServiceFireblocksImpl(finP2PContract.provider)
-    const paymentsService = new PaymentsServiceFireblocksImpl()
-    const planApprovalService = new PlanApprovalServiceFireblocksImpl()
-    const tokenService = new TokenServiceFireblocksImpl(getFireblocksSDK(), getFireblocksProvider(), finP2PContract.signer, logger)
-
-    register(app, tokenService, escrowService, commonService, healthService, paymentsService, planApprovalService, undefined, workflowsConfig)
-  } else {
-    const pluginManager = new PluginManager();
-
-    const signerPrivateKey = process.env.OPERATOR_PRIVATE_KEY || "";
-    const proofProvider = new ProofProvider(orgId, finP2PClient, signerPrivateKey);
-    const tokenService = new TokenServiceImpl(finP2PContract, finP2PClient, execDetailsStore, proofProvider, pluginManager)
-    const escrowService = new EscrowServiceImpl(finP2PContract, finP2PClient, execDetailsStore, proofProvider, pluginManager);
-    const paymentsService = new PaymentsServiceImpl(pluginManager);
-    const planApprovalService = new PlanApprovalServiceImpl(orgId, pluginManager, finP2PClient);
-    register(app, tokenService, escrowService, tokenService, tokenService, paymentsService, planApprovalService, pluginManager, workflowsConfig);
+      const escrowService = new EscrowServiceImpl(appConfig.finP2PContract, appConfig.finP2PClient, appConfig.execDetailsStore, appConfig.proofProvider, pluginManager);
+      const paymentsService = new PaymentsServiceImpl(pluginManager);
+      const planApprovalService = new PlanApprovalServiceImpl(appConfig.orgId, pluginManager, appConfig.finP2PClient);
+      const tokenService = new TokenServiceImpl(appConfig.finP2PContract, appConfig.finP2PClient, appConfig.execDetailsStore, appConfig.proofProvider, pluginManager);
+      register(app, tokenService, escrowService, tokenService, tokenService, paymentsService, planApprovalService, pluginManager, workflowsConfig);
+      break
+    }
   }
 
   return app;
