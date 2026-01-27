@@ -158,7 +158,8 @@ export class FinP2PContract extends ContractsManager {
         const receipt = parseTransactionReceipt(txReceipt, this.contractInterface, timestamp);
         const indexationWaitTime = 60 * 60 // 1 hour
         if (receipt === null) {
-          const secondsDiff = (new Date().getTime() / 1000) - timestamp
+          const currentTimestampSeconds = Math.floor(Date.now() / 1000);
+          const secondsDiff = currentTimestampSeconds - timestamp;
           if (secondsDiff <= indexationWaitTime) {
             // possibly tx passed sucessfully, but mirror-node didn't indexed yet
             // let us mark it as still pending
