@@ -48,6 +48,7 @@ export class TokenServiceImpl implements TokenService {
   }
 
   async getBalance(assetId: string, finId: string): Promise<string> {
+
     throw new Error('Method not implemented.');
   }
   async balance(assetId: string, finId: string): Promise<Balance> {
