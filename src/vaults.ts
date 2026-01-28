@@ -2,6 +2,22 @@ import { FireblocksSDK, VaultAccountResponse } from "fireblocks-sdk"
 import axios from 'axios'
 import { setTimeout as sleep } from 'node:timers/promises'
 
+function ttlCached<T>(ms: number, method: () => T): () => T {
+  let lastTimestampMs = -1
+  let lastValue: T | null = null
+
+  return () => {
+    if (lastValue !== null && Date.now() - lastTimestampMs > ms) {
+      return lastValue
+    }
+
+    const currentValue = method()
+    lastTimestampMs = Date.now()
+    lastValue = currentValue
+    return currentValue
+  }
+}
+
 async function retryIfRateLimited<T>(apiCall: () => Promise<T>, retryCount: number = 30): Promise<T> {
   try {
     const response = await apiCall()
@@ -43,41 +59,42 @@ async function autoPaginate<T, R extends { paging?: { after?: string } }>(
   return collected
 }
 
-export const createVaultManagementFunctions = (fireblocksSdk: FireblocksSDK) => {
+export const createVaultManagementFunctions = (fireblocksSdk: FireblocksSDK, options: { cacheValuesTtlMs: number }) => {
 
-  const cacheVaultAccounts: VaultAccountResponse[] = []
-  const fetchAllVaults = async (): Promise<VaultAccountResponse[]> => {
-    if (cacheVaultAccounts.length !== 0) return cacheVaultAccounts
-
-    const allVaults = await autoPaginate(
+  const fetchAllVaults = ttlCached(
+    options.cacheValuesTtlMs,
+    () => autoPaginate(
       'getVaults',
       (after) => fireblocksSdk.getVaultAccountsWithPageInfo({ after }),
       (response) => response.accounts
     )
-    cacheVaultAccounts.push(...allVaults)
+  )
 
-    return cacheVaultAccounts
-  };
-
-  const cacheCollectedAddresses: { vaultId: string, assetId: string, address: string }[] = []
-  const getVaultIdForAddress = async (address: string): Promise<string | undefined> => {
-    if (cacheCollectedAddresses.length === 0) {
+  const getCollectedAddresses: () => Promise<{ vaultId: string, assetId: string, address: string }[]> = ttlCached(
+    options.cacheValuesTtlMs,
+    async () => {
+      const collectedAddresses: { vaultId: string, assetId: string, address: string }[] = []
       const vaults = await fetchAllVaults()
       for (const vault of vaults) {
         for (const asset of (vault.assets ?? [])) {
           const resp = await retryIfRateLimited(() => fireblocksSdk.getDepositAddresses(vault.id, asset.id))
           for (const addr of resp) {
-            cacheCollectedAddresses.push({ vaultId: vault.id, assetId: asset.id, address: addr.address })
+            collectedAddresses.push({ vaultId: vault.id, assetId: asset.id, address: addr.address })
           }
         }
       }
+      return collectedAddresses
     }
+  )
 
-    return cacheCollectedAddresses.find(v => v.address.toLowerCase() === address.toLowerCase())?.vaultId
+  const getVaultIdForAddress = async (address: string): Promise<string | undefined> => {
+    const collectedAddresses = await getCollectedAddresses()
+    return collectedAddresses.find(v => v.address.toLowerCase() === address.toLowerCase())?.vaultId
   }
 
   return {
     fetchAllVaults,
-    getVaultIdForAddress
+    getCollectedAddresses,
+    getVaultIdForAddress,
   }
 };
