@@ -28,6 +28,7 @@ export type FireblocksAppConfig = {
   signer: JsonRpcSigner
   fireblocksSdk: FireblocksSDK
   createProviderForExternalAddress: (address: string) => Promise<FireblocksWeb3Provider | undefined>
+  balance: (depositAddress: string, tokenAsset: string) => Promise<string | undefined>
 }
 
 export type AppConfig = LocalAppConfig | FireblocksAppConfig
@@ -68,7 +69,8 @@ const createFireblocksProvider =  async (vaultAccountIds: string[]): Promise<{
   provider: BrowserProvider,
   signer: JsonRpcSigner,
   fireblocksSdk: FireblocksSDK,
-  createProviderForExternalAddress: (address: string) => Promise<FireblocksWeb3Provider | undefined>
+  createProviderForExternalAddress: (address: string) => Promise<FireblocksWeb3Provider | undefined>,
+  balance: (depositAddress: string, tokenAddress: string) => Promise<string | undefined>,
 }> => {
   const apiKey = process.env.FIREBLOCKS_API_KEY || "";
   if (!apiKey) {
@@ -92,12 +94,15 @@ const createFireblocksProvider =  async (vaultAccountIds: string[]): Promise<{
   const signer = await provider.getSigner();
   const fireblocksSdk = new FireblocksSDK(privateKey, apiKey, (process.env.FIREBLOCKS_API_BASE_URL || ApiBaseUrl.Production))
 
-  const vaultManagement = createVaultManagementFunctions(fireblocksSdk)
+  const vaultManagement = createVaultManagementFunctions(fireblocksSdk, {
+    cacheValuesTtlMs: 3000
+  })
 
   return {
     provider,
     signer,
     fireblocksSdk,
+    balance: vaultManagement.balance,
     createProviderForExternalAddress: async (address: string) => {
       const vaultId = await vaultManagement.getVaultIdForAddress(address)
       if (vaultId === undefined) return undefined
@@ -181,7 +186,7 @@ export async function envVarsToAppConfig(logger: Logger): Promise<AppConfig> {
 
       return {
         type: 'fireblocks',
-        ...await createFireblocksProvider(vaultAccountIds)
+        ...await createFireblocksProvider(vaultAccountIds),
       }
     }
   }

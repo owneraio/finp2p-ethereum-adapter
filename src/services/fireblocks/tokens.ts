@@ -48,11 +48,21 @@ export class TokenServiceImpl implements TokenService {
   }
 
   async getBalance(assetId: string, finId: string): Promise<string> {
+    const asset = await workflows.getAssetById(assetId)
+    if (asset === undefined) throw new Error(`Asset(id=${assetId}) is not registered in DB`)
 
-    throw new Error('Method not implemented.');
+    const balance = await this.appConfig.balance(finIdToAddress(finId), asset.contract_address)
+    if (balance === undefined) throw new Error('Balance cannot be determined')
+
+    return balance
   }
+
   async balance(assetId: string, finId: string): Promise<Balance> {
-    throw new Error('Method not implemented.');
+    return {
+      current: await this.getBalance(assetId, finId),
+      available: await this.getBalance(assetId, finId),
+      held: "0"
+    }
   }
 
   async issue(idempotencyKey: string, ast: Asset, to: FinIdAccount, quantity: string, exCtx: ExecutionContext | undefined): Promise<ReceiptOperation> {

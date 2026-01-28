@@ -59,6 +59,8 @@ async function autoPaginate<T, R extends { paging?: { after?: string } }>(
   return collected
 }
 
+export interface FlattenedVaultDetails { vaultId: string, assetId: string, depositAddress: string, assetAddress: string | undefined }
+
 export const createVaultManagementFunctions = (fireblocksSdk: FireblocksSDK, options: { cacheValuesTtlMs: number }) => {
 
   const fetchAllVaults = ttlCached(
@@ -70,16 +72,17 @@ export const createVaultManagementFunctions = (fireblocksSdk: FireblocksSDK, opt
     )
   )
 
-  const getCollectedAddresses: () => Promise<{ vaultId: string, assetId: string, address: string }[]> = ttlCached(
+  const getCollectedAddresses: () => Promise<FlattenedVaultDetails[]> = ttlCached(
     options.cacheValuesTtlMs,
     async () => {
-      const collectedAddresses: { vaultId: string, assetId: string, address: string }[] = []
+      const collectedAddresses: FlattenedVaultDetails[] = []
       const vaults = await fetchAllVaults()
       for (const vault of vaults) {
         for (const asset of (vault.assets ?? [])) {
           const resp = await retryIfRateLimited(() => fireblocksSdk.getDepositAddresses(vault.id, asset.id))
+          const assetDetails = await retryIfRateLimited(() => fireblocksSdk.getAssetById(asset.id))
           for (const addr of resp) {
-            collectedAddresses.push({ vaultId: vault.id, assetId: asset.id, address: addr.address })
+            collectedAddresses.push({ vaultId: vault.id, assetId: asset.id, assetAddress: assetDetails.onchain?.address, depositAddress: addr.address })
           }
         }
       }
@@ -89,12 +92,24 @@ export const createVaultManagementFunctions = (fireblocksSdk: FireblocksSDK, opt
 
   const getVaultIdForAddress = async (address: string): Promise<string | undefined> => {
     const collectedAddresses = await getCollectedAddresses()
-    return collectedAddresses.find(v => v.address.toLowerCase() === address.toLowerCase())?.vaultId
+    return collectedAddresses.find(v => v.depositAddress.toLowerCase() === address.toLowerCase())?.vaultId
+  }
+
+  const balance = async (depositAddress: string, tokenAddress: string): Promise<string | undefined> => {
+    const vaults = await fetchAllVaults()
+    const collectedAddresses = await getCollectedAddresses()
+
+    const flattenedVaultDetail = collectedAddresses.find(v => v.assetAddress?.toLowerCase() === tokenAddress.toLowerCase())
+    if (flattenedVaultDetail === undefined) return undefined
+
+    const asset = await retryIfRateLimited(() => fireblocksSdk.getVaultAccountAsset(flattenedVaultDetail.vaultId, flattenedVaultDetail.assetId))
+    return asset.available
   }
 
   return {
     fetchAllVaults,
     getCollectedAddresses,
     getVaultIdForAddress,
+    balance,
   }
 };
