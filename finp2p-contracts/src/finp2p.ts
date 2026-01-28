@@ -158,16 +158,8 @@ export class FinP2PContract extends ContractsManager {
         const receipt = parseTransactionReceipt(txReceipt, this.contractInterface, timestamp);
         const indexationWaitTime = 60 * 60 // 1 hour
         if (receipt === null) {
-          const currentTimestampSeconds = Math.floor(Date.now() / 1000);
-          const secondsDiff = currentTimestampSeconds - timestamp;
-          if (secondsDiff <= indexationWaitTime) {
-            // possibly tx passed sucessfully, but mirror-node didn't indexed yet
-            // let us mark it as still pending
-            this.logger.warning(`Failed to parse receipt, marking as pending. Will fail after ${Math.max(indexationWaitTime - secondsDiff, 0)}`)
-            return pendingReceiptOperation(txHash, undefined)
-          }
           this.logger.warning("Failed to parse receipt");
-          return failedReceiptOperation(1, "Failed to parse receipt");
+          return pendingReceiptOperation(txHash, undefined)
         }
         // const erc20Transfer = parseERC20Transfer(txReceipt, );
         // this.logger.info('ERC20 transfer event', erc20Transfer);
