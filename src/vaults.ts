@@ -96,11 +96,14 @@ export const createVaultManagementFunctions = (fireblocksSdk: FireblocksSDK, opt
   }
 
   const balance = async (depositAddress: string, tokenAddress: string): Promise<string | undefined> => {
+    console.debug('balance requested', depositAddress, tokenAddress)
     const vaults = await fetchAllVaults()
     const collectedAddresses = await getCollectedAddresses()
 
-    const flattenedVaultDetail = collectedAddresses.find(v => v.assetAddress?.toLowerCase() === tokenAddress.toLowerCase())
+    const flattenedVaultDetail = collectedAddresses.find(v => v.assetAddress?.toLowerCase() === tokenAddress.toLowerCase() && v.depositAddress.toLowerCase() === depositAddress.toLowerCase())
     if (flattenedVaultDetail === undefined) return undefined
+
+    console.debug('flatten debug', flattenedVaultDetail)
 
     const asset = await retryIfRateLimited(() => fireblocksSdk.getVaultAccountAsset(flattenedVaultDetail.vaultId, flattenedVaultDetail.assetId))
     return asset.available
