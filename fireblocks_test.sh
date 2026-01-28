@@ -17,7 +17,8 @@ export FIREBLOCKS_VAULT_ACCOUNT_IDS="0"
 export FIREBLOCKS_CHAIN_ID="11155111"
 export FIREBLOCKS_API_BASE_URL="https://sandbox-api.fireblocks.io"
 
-npx ts-node src/index.ts &
+npx ts-node src/index.ts
+exit
 SERVER_PID=$!
 
 function cleanup() {

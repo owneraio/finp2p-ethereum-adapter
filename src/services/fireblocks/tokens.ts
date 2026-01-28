@@ -27,7 +27,8 @@ export class TokenServiceImpl implements TokenService {
 
     const cm = new ContractsManager(provider, signer, this.logger)
     const decimals = 18
-    const erc20 = await cm.deployERC20Detached(assetName ?? "OWNERACOIN", "OWENRA", decimals, await (await provider.getSigner()).getAddress())
+    console.log(assetMetadata)
+    const erc20 = await cm.deployERC20Detached(assetName ?? "OWNERACOIN", assetIdentifier?.value ?? "OWENRA", decimals, await (await provider.getSigner()).getAddress())
     const savedAsset = await workflows.saveAsset({ contract_address: erc20, decimals, token_standard: 'ERC20', id: asset.assetId, type: asset.assetType })
 
     const responseRegister = await fireblocksSdk.registerNewAsset('ETH_TEST5', erc20, "OWNERA")
@@ -35,11 +36,6 @@ export class TokenServiceImpl implements TokenService {
 
     const responseVault = await fireblocksSdk.createVaultAsset("0", responseRegister.legacyId)
     console.debug(responseVault)
-
-    if (assetDenomination !== undefined) {
-      const responsePrice = await fireblocksSdk.setAssetPrice(responseRegister.legacyId, assetDenomination.code, 1.24)
-      console.debug(responsePrice)
-    }
 
     return {
       operation: "createAsset",
