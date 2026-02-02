@@ -37,7 +37,7 @@ export class ContractsManager {
     }
   }
 
-  async deploySimplifiedERC20(name: string, symbol: string, decimals: string): Promise<string> {
+  async deploySimplifiedERC20(name: string, symbol: string, decimals: number): Promise<string> {
     const factory = new ContractFactory<any[], SimplifiedERC20>(
       ERC20.abi,
       ERC20.bytecode,
