@@ -140,3 +140,101 @@ until curl --fail --request POST \
      --data "$REQUEST_BODY" | jq -e '.isCompleted' > /dev/null; do
   sleep 1
 done
+
+REQUEST_BODY=`jq -n --arg ASSET_RESOURCE_ID "$ASSET_RESOURCE_ID" --arg ISSUE_DESTINATION_FINID "$ISSUE_DESTINATION_FINID" --arg TRANSFER_DESTINATION_FINID "$TRANSFER_DESTINATION_FINID" '{
+  "source": {
+    "account": {
+      "type": "finId",
+      "finId": $TRANSFER_DESTINATION_FINID
+    },
+    "finId": $TRANSFER_DESTINATION_FINID
+  },
+  "destination": {
+    "account": {
+      "type": "finId",
+      "finId": $ISSUE_DESTINATION_FINID
+    },
+    "finId": $ISSUE_DESTINATION_FINID
+  },
+  "asset": {
+    "type": "finp2p",
+    "resourceId": $ASSET_RESOURCE_ID
+  },
+  "signature": {
+    "template": {
+      "type": "hashList"
+    },
+    "hashFunc": "unspecified",
+    "signature": "signature"
+  },
+  "nonce": "nonce",
+  "operationId": "operationId",
+  "quantity": "0.3",
+  "expiry": 0
+}'`
+
+until curl --fail --request POST \
+     --url "${ENDPOINT}/assets/hold" \
+     --header "$IDEMPOTENCY_HEADER" \
+     --header 'accept: application/json' \
+     --header 'content-type: application/json' \
+     --data "$REQUEST_BODY" | jq -e '.isCompleted' > /dev/null; do
+  sleep 1
+done
+
+REQUEST_BODY=`jq -n --arg ASSET_RESOURCE_ID "$ASSET_RESOURCE_ID" --arg ISSUE_DESTINATION_FINID "$ISSUE_DESTINATION_FINID" --arg TRANSFER_DESTINATION_FINID "$TRANSFER_DESTINATION_FINID" '{
+  "source": {
+    "account": {
+      "type": "finId",
+      "finId": $TRANSFER_DESTINATION_FINID
+    },
+    "finId": $TRANSFER_DESTINATION_FINID
+  },
+  "asset": {
+    "type": "finp2p",
+    "resourceId": $ASSET_RESOURCE_ID
+  },
+  "operationId": "operationId",
+  "quantity": "0.2"
+}'`
+
+until curl --fail --request POST \
+     --url "${ENDPOINT}/assets/rollback" \
+     --header "$IDEMPOTENCY_HEADER" \
+     --header 'accept: application/json' \
+     --header 'content-type: application/json' \
+     --data "$REQUEST_BODY" | jq -e '.isCompleted' > /dev/null; do
+  sleep 1
+done
+
+REQUEST_BODY=`jq -n --arg ASSET_RESOURCE_ID "$ASSET_RESOURCE_ID" --arg ISSUE_DESTINATION_FINID "$ISSUE_DESTINATION_FINID" --arg TRANSFER_DESTINATION_FINID "$TRANSFER_DESTINATION_FINID" '{
+  "source": {
+    "account": {
+      "type": "finId",
+      "finId": $TRANSFER_DESTINATION_FINID
+    },
+    "finId": $TRANSFER_DESTINATION_FINID
+  },
+  "destination": {
+    "account": {
+      "type": "finId",
+      "finId": $ISSUE_DESTINATION_FINID
+    },
+    "finId": $ISSUE_DESTINATION_FINID
+  },
+  "asset": {
+    "type": "finp2p",
+    "resourceId": $ASSET_RESOURCE_ID
+  },
+  "operationId": "operationId",
+  "quantity": "0.1"
+}'`
+
+until curl --fail --request POST \
+     --url "${ENDPOINT}/assets/release" \
+     --header "$IDEMPOTENCY_HEADER" \
+     --header 'accept: application/json' \
+     --header 'content-type: application/json' \
+     --data "$REQUEST_BODY" | jq -e '.isCompleted' > /dev/null; do
+  sleep 1
+done
