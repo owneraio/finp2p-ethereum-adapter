@@ -85,18 +85,25 @@ const createFireblocksProvider =  async (): Promise<FireblocksAppConfig> => {
     throw new Error("FIREBLOCKS_API_KEY is not set");
   }
 
-  const privKeyPath = process.env.FIREBLOCKS_API_PRIVATE_KEY_PATH || "";
-  if (!privKeyPath) {
+  const apiPrivateKeyPath = process.env.FIREBLOCKS_API_PRIVATE_KEY_PATH || "";
+  if (!apiPrivateKeyPath) {
     throw new Error("FIREBLOCKS_API_PRIVATE_KEY_PATH is not set");
   }
-  const privateKey = fs.readFileSync(privKeyPath, "utf-8");
+  const apiPrivateKey = fs.readFileSync(apiPrivateKeyPath, "utf-8");
 
   const chainId = (process.env.FIREBLOCKS_CHAIN_ID || ChainId.MAINNET) as ChainId;
   const apiBaseUrl = (process.env.FIREBLOCKS_API_BASE_URL || ApiBaseUrl.Production) as ApiBaseUrl;
 
+  /*
+   * TODO
+   * Decimals
+   * Do we need chain Id?
+   * Escrow
+   * UI chain id? We want chain agnostic
+   */
   const providerForVaultId = async (vaultId: string): Promise<FireblocksVaultProvider> => {
     const eip1193Provider = new FireblocksWeb3Provider({
-      privateKey, apiKey, chainId, apiBaseUrl, vaultAccountIds: [vaultId]
+      privateKey: apiPrivateKey, apiKey, chainId, apiBaseUrl, vaultAccountIds: [vaultId]
     });
     const provider = new BrowserProvider(eip1193Provider);
     const signer = await provider.getSigner();
@@ -110,7 +117,7 @@ const createFireblocksProvider =  async (): Promise<FireblocksAppConfig> => {
     return providerForVaultId(val)
   }
 
-  const fireblocksSdk = new FireblocksSDK(privateKey, apiKey, (process.env.FIREBLOCKS_API_BASE_URL || ApiBaseUrl.Production))
+  const fireblocksSdk = new FireblocksSDK(apiPrivateKey, apiKey, (process.env.FIREBLOCKS_API_BASE_URL || ApiBaseUrl.Production))
 
   const vaultManagement = createVaultManagementFunctions(fireblocksSdk, {
     cacheValuesTtlMs: 3000

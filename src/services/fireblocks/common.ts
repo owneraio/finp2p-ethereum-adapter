@@ -5,6 +5,8 @@ export class CommonServiceImpl implements CommonService {
   async getReceipt(id: string): Promise<ReceiptOperation> {
     const operation = await workflows.getReceiptOperation(id)
     if (operation === undefined) throw new Error(`Operation containing receipt '${id}' not found`)
+    // validate that tx with hash exists in blockchain
+    // used by finp2p-node during audits
     return operation.outputs
   }
 
