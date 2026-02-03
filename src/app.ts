@@ -19,7 +19,6 @@ import {
 import { AppConfig } from './config'
 import {
   CommonServiceImpl as CommonServiceFireblocksImpl,
-  EscrowServiceImpl as EscrowServiceFireblocksImpl,
   HealthServiceImpl as HealthServiceFireblocksImpl,
   PaymentsServiceImpl as PaymentsServiceFireblocksImpl,
   PlanApprovalServiceImpl as PlanApprovalServiceFireblocksImpl,
@@ -44,7 +43,7 @@ function createApp(
   switch (appConfig.type) {
     case 'fireblocks': {
       const commonService = new CommonServiceFireblocksImpl()
-      const escrowService = new EscrowServiceFireblocksImpl()
+      const escrowService = new TokenServiceFireblocksImpl(logger, appConfig)
       const healthService = new HealthServiceFireblocksImpl(appConfig.assetEscrow.provider)
       const paymentsService = new PaymentsServiceFireblocksImpl()
       const planApprovalService = new PlanApprovalServiceFireblocksImpl()

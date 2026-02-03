@@ -1,4 +1,4 @@
-import { Asset, AssetBind, AssetCreationStatus, AssetDenomination, AssetIdentifier, Balance, Destination, ExecutionContext, FinIdAccount, Logger, ReceiptOperation, Signature, Source, TokenService, failedReceiptOperation } from '@owneraio/finp2p-adapter-models';
+import { Asset, AssetBind, AssetCreationStatus, AssetDenomination, AssetIdentifier, Balance, Destination, ExecutionContext, FinIdAccount, Logger, ReceiptOperation, Signature, Source, TokenService, failedReceiptOperation, EscrowService } from '@owneraio/finp2p-adapter-models';
 import { workflows } from '@owneraio/finp2p-nodejs-skeleton-adapter';
 import { Contract, ContractTransactionResponse, BrowserProvider, Signer, parseUnits, formatUnits } from "ethers";
 import { FireblocksAppConfig } from '../../config'
@@ -12,7 +12,7 @@ async function getAssetFromDb(ast: Asset): Promise<workflows.Asset> {
 
 const increaseByBuffer = (input: bigint): bigint => (input * 120n) / 100n
 
-export class TokenServiceImpl implements TokenService {
+export class TokenServiceImpl implements TokenService, EscrowService {
 
   private async fundVaultIdIfNeeded(vaultId: string) {
     if (this.appConfig.fundVaultIdGas !== undefined) {
@@ -103,15 +103,9 @@ export class TokenServiceImpl implements TokenService {
     const address = finIdToAddress(to.finId)
     const amount = parseUnits(quantity, asset.decimals)
 
-    const tx = await (async (): Promise<ContractTransactionResponse> => {
-      switch (asset.token_standard) {
-        case 'ERC20':
-          const c = new Contract(asset.contract_address, ["function mint(address to, uint256 amount)"], signer)
-          await this.fundVaultIdIfNeeded(this.appConfig.assetIssuer.vaultId)
-          return c.mint(address, amount)
-      }
-    })()
-
+    const c = new Contract(asset.contract_address, ["function mint(address to, uint256 amount)"], signer)
+    await this.fundVaultIdIfNeeded(this.appConfig.assetIssuer.vaultId)
+    const tx = await c.mint(address, amount)
     const receipt = await tx.wait()
     if (receipt === null) return failedReceiptOperation(1, "receipt is null")
 
@@ -147,15 +141,9 @@ export class TokenServiceImpl implements TokenService {
     if (provider === undefined) throw new Error('Source address cannot be converted to vault id')
     const amount = parseUnits(quantity, asset.decimals)
 
-    const tx = await (async (): Promise<ContractTransactionResponse> => {
-      switch (asset.token_standard) {
-        case 'ERC20':
-          const c = new Contract(asset.contract_address, ["function transfer(address to, uint256 amount) returns (bool)"], provider.signer)
-          await this.fundVaultIdIfNeeded(provider.vaultId)
-          return c.transfer(finIdToAddress(destination.finId), amount)
-      }
-    })()
-
+    const c = new Contract(asset.contract_address, ["function transfer(address to, uint256 amount) returns (bool)"], provider.signer)
+    await this.fundVaultIdIfNeeded(provider.vaultId)
+    const tx = await c.transfer(finIdToAddress(destination.finId), amount)
     const receipt = await tx.wait()
     if (receipt === null) return failedReceiptOperation(1, "receipt is null")
 
@@ -190,15 +178,9 @@ export class TokenServiceImpl implements TokenService {
     const { signer, provider } = await this.appConfig.assetIssuer
     const amount = parseUnits(quantity, asset.decimals)
 
-    const tx = await (async (): Promise<ContractTransactionResponse> => {
-      switch (asset.token_standard) {
-        case 'ERC20':
-          const c = new Contract(asset.contract_address, ["function burn(address from, uint256 amount)"], signer)
-          await this.fundVaultIdIfNeeded(this.appConfig.assetIssuer.vaultId)
-          return c.burn(sourceAddress, amount)
-      }
-    })()
-
+    const c = new Contract(asset.contract_address, ["function burn(address from, uint256 amount)"], signer)
+    await this.fundVaultIdIfNeeded(this.appConfig.assetIssuer.vaultId)
+    const tx = await c.burn(sourceAddress, amount)
     const receipt = await tx.wait()
     if (receipt === null) return failedReceiptOperation(1, "receipt is null")
     const block = await receipt.getBlock()
@@ -222,6 +204,116 @@ export class TokenServiceImpl implements TokenService {
         },
         transactionDetails: {
           operationId,
+          transactionId: receipt.hash
+        }
+      }
+    }
+  }
+
+  async hold(idempotencyKey: string, nonce: string, source: Source, destination: Destination | undefined, ast: Asset, quantity: string, signature: Signature, operationId: string, exCtx: ExecutionContext | undefined): Promise<ReceiptOperation> {
+    const asset = await getAssetFromDb(ast)
+
+    const sourceAddress = finIdToAddress(source.finId)
+    const provider = await this.appConfig.createProviderForExternalAddress(sourceAddress)
+    if (provider === undefined) throw new Error('Source address cannot be converted to vault id')
+    const amount = parseUnits(quantity, asset.decimals)
+
+    const c = new Contract(asset.contract_address, ["function transfer(address to, uint256 amount) returns (bool)"], provider.signer)
+    await this.fundVaultIdIfNeeded(provider.vaultId)
+    const tx = await c.transfer(await this.appConfig.assetEscrow.signer.getAddress(), amount)
+    const receipt = await tx.wait()
+    if (receipt === null) return failedReceiptOperation(1, "receipt is null")
+
+    const block = await receipt.getBlock()
+    return {
+      operation: "receipt",
+      type: "success",
+      receipt: {
+        id: receipt.hash,
+        asset: ast,
+        source,
+        destination,
+        operationType: "hold",
+        proof: undefined,
+        quantity,
+        timestamp: block.timestamp,
+        tradeDetails: {
+          executionContext: exCtx
+        },
+        transactionDetails: {
+          operationId: undefined,
+          transactionId: receipt.hash
+        }
+      }
+    }
+  }
+
+  async release(idempotencyKey: string, source: Source, destination: Destination, ast: Asset, quantity: string, operationId: string, exCtx: ExecutionContext | undefined): Promise<ReceiptOperation> {
+    const asset = await getAssetFromDb(ast)
+
+    const destinationAddress = finIdToAddress(destination.finId)
+    const amount = parseUnits(quantity, asset.decimals)
+
+    const c = new Contract(asset.contract_address, ["function transfer(address to, uint256 amount) returns (bool)"], this.appConfig.assetEscrow.signer)
+    await this.fundVaultIdIfNeeded(this.appConfig.assetEscrow.vaultId)
+    const tx = await c.transfer(destinationAddress, amount)
+    const receipt = await tx.wait()
+    if (receipt === null) return failedReceiptOperation(1, "receipt is null")
+
+    const block = await receipt.getBlock()
+    return {
+      operation: "receipt",
+      type: "success",
+      receipt: {
+        id: receipt.hash,
+        asset: ast,
+        source,
+        destination,
+        operationType: "release",
+        proof: undefined,
+        quantity,
+        timestamp: block.timestamp,
+        tradeDetails: {
+          executionContext: exCtx
+        },
+        transactionDetails: {
+          operationId: undefined,
+          transactionId: receipt.hash
+        }
+      }
+    }
+  }
+
+  async rollback(idempotencyKey: string, source: Source, ast: Asset, quantity: string, operationId: string, exCtx: ExecutionContext | undefined): Promise<ReceiptOperation> {
+    const asset = await getAssetFromDb(ast)
+
+    const sourceAddress = finIdToAddress(source.finId)
+    const amount = parseUnits(quantity, asset.decimals)
+
+    const c = new Contract(asset.contract_address, ["function transfer(address to, uint256 amount) returns (bool)"], this.appConfig.assetEscrow.signer)
+    await this.fundVaultIdIfNeeded(this.appConfig.assetEscrow.vaultId)
+    const tx = await c.transfer(sourceAddress, amount)
+    const receipt = await tx.wait()
+    if (receipt === null) return failedReceiptOperation(1, "receipt is null")
+
+    const block = await receipt.getBlock()
+    return {
+      operation: "receipt",
+      type: "success",
+      receipt: {
+        id: receipt.hash,
+        asset: ast,
+        source,
+        destination: undefined,
+        operationType: "release",
+        proof: undefined,
+        quantity,
+        timestamp: block.timestamp,
+        tradeDetails: {
+          executionContext: exCtx
+        },
+        transactionDetails: {
+          operationId: undefined,
           transactionId: receipt.hash
         }
       }
