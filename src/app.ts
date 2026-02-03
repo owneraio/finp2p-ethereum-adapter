@@ -45,7 +45,7 @@ function createApp(
     case 'fireblocks': {
       const commonService = new CommonServiceFireblocksImpl()
       const escrowService = new EscrowServiceFireblocksImpl()
-      const healthService = new HealthServiceFireblocksImpl(appConfig.provider)
+      const healthService = new HealthServiceFireblocksImpl(appConfig.assetEscrow.provider)
       const paymentsService = new PaymentsServiceFireblocksImpl()
       const planApprovalService = new PlanApprovalServiceFireblocksImpl()
       const tokenService = new TokenServiceFireblocksImpl(logger, appConfig)

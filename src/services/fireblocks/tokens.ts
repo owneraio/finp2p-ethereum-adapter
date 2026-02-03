@@ -1,6 +1,6 @@
 import { Asset, AssetBind, AssetCreationStatus, AssetDenomination, AssetIdentifier, Balance, Destination, ExecutionContext, FinIdAccount, Logger, ReceiptOperation, Signature, Source, TokenService, failedReceiptOperation } from '@owneraio/finp2p-adapter-models';
 import { workflows } from '@owneraio/finp2p-nodejs-skeleton-adapter';
-import { Contract, ContractTransactionResponse, BrowserProvider, Signer, parseUnits } from "ethers";
+import { Contract, ContractTransactionResponse, BrowserProvider, Signer, parseUnits, formatUnits } from "ethers";
 import { FireblocksAppConfig } from '../../config'
 import { ContractsManager, finIdToAddress } from '@owneraio/finp2p-contracts'
 
@@ -10,25 +10,34 @@ async function getAssetFromDb(ast: Asset): Promise<workflows.Asset> {
   return asset
 }
 
+const increaseByBuffer = (input: bigint): bigint => (input * 120n) / 100n
+
 export class TokenServiceImpl implements TokenService {
+
+  private async fundVaultIdIfNeeded(vaultId: string) {
+    if (this.appConfig.fundVaultIdGas !== undefined) {
+      await this.appConfig.fundVaultIdGas(vaultId)
+    }
+  }
 
   constructor(readonly logger: Logger, readonly appConfig: FireblocksAppConfig) {}
 
-  private async providerForMyAddress(address: string): Promise<BrowserProvider> {
-    const provider = await this.appConfig.createProviderForExternalAddress(address)
-    if (provider === undefined) throw new Error(`VaultID for address ${address} cannot be resolved`)
-
-    return new BrowserProvider(provider)
-  }
-
   async createAsset(idempotencyKey: string, asset: Asset, assetBind: AssetBind | undefined, assetMetadata: any, assetName: string | undefined, issuerId: string | undefined, assetDenomination: AssetDenomination | undefined, assetIdentifier: AssetIdentifier | undefined): Promise<AssetCreationStatus> {
-    const { provider, signer, fireblocksSdk } = this.appConfig
+    const { provider, signer } = this.appConfig.assetIssuer
+    const fireblocksSdk = this.appConfig.fireblocksSdk
     const { chainId, name } = await provider.getNetwork()
 
     const cm = new ContractsManager(provider, signer, this.logger)
     const decimals = 18
     console.log(assetMetadata)
-    const erc20 = await cm.deployERC20Detached(assetName ?? "OWNERACOIN", assetIdentifier?.value ?? "OWENRA", decimals, await (await provider.getSigner()).getAddress())
+    const erc20 = await cm.deploySimplifiedERC20({
+      name: assetName ?? "OWNERACOIN",
+      symbol: assetIdentifier?.value ?? "OWENRA",
+      decimals,
+      gasFunder: async (gasLimit) => {
+        await this.fundVaultIdIfNeeded(this.appConfig.assetIssuer.vaultId)
+      }
+    })
     const savedAsset = await workflows.saveAsset({ contract_address: erc20, decimals, token_standard: 'ERC20', id: asset.assetId, type: asset.assetType })
 
     const responseRegister = await fireblocksSdk.registerNewAsset('ETH_TEST5', erc20, "OWNERA")
@@ -67,14 +76,15 @@ export class TokenServiceImpl implements TokenService {
 
   async issue(idempotencyKey: string, ast: Asset, to: FinIdAccount, quantity: string, exCtx: ExecutionContext | undefined): Promise<ReceiptOperation> {
     const asset = await getAssetFromDb(ast)
-    const signer = await this.appConfig.signer
+    const { signer } = await this.appConfig.assetIssuer
     const address = finIdToAddress(to.finId)
     const amount = parseUnits(quantity, asset.decimals)
 
-    const tx = await ((): Promise<ContractTransactionResponse> => {
+    const tx = await (async (): Promise<ContractTransactionResponse> => {
       switch (asset.token_standard) {
         case 'ERC20':
           const c = new Contract(asset.contract_address, ["function mint(address to, uint256 amount)"], signer)
+          await this.fundVaultIdIfNeeded(this.appConfig.assetIssuer.vaultId)
           return c.mint(address, amount)
       }
     })()
@@ -110,13 +120,15 @@ export class TokenServiceImpl implements TokenService {
     const asset = await getAssetFromDb(ast)
 
     const sourceAddress = finIdToAddress(source.finId)
-    const provider = await this.providerForMyAddress(sourceAddress)
+    const provider = await this.appConfig.createProviderForExternalAddress(sourceAddress)
+    if (provider === undefined) throw new Error('Source address cannot be converted to vault id')
     const amount = parseUnits(quantity, asset.decimals)
 
     const tx = await (async (): Promise<ContractTransactionResponse> => {
       switch (asset.token_standard) {
         case 'ERC20':
-          const c = new Contract(asset.contract_address, ["function transfer(address to, uint256 amount) returns (bool)"], await provider.getSigner())
+          const c = new Contract(asset.contract_address, ["function transfer(address to, uint256 amount) returns (bool)"], provider.signer)
+          await this.fundVaultIdIfNeeded(provider.vaultId)
           return c.transfer(finIdToAddress(destination.finId), amount)
       }
     })()
@@ -148,7 +160,48 @@ export class TokenServiceImpl implements TokenService {
     }
   }
 
-  async redeem(idempotencyKey: string, nonce: string, source: FinIdAccount, asset: Asset, quantity: string, operationId: string | undefined, signature: Signature, exCtx: ExecutionContext | undefined): Promise<ReceiptOperation> {
-    throw new Error('Method not implemented.');
+  async redeem(idempotencyKey: string, nonce: string, source: FinIdAccount, ast: Asset, quantity: string, operationId: string | undefined, signature: Signature, exCtx: ExecutionContext | undefined): Promise<ReceiptOperation> {
+    const asset = await getAssetFromDb(ast)
+
+    const sourceAddress = finIdToAddress(source.finId)
+    const { signer, provider } = await this.appConfig.assetIssuer
+    const amount = parseUnits(quantity, asset.decimals)
+
+    const tx = await (async (): Promise<ContractTransactionResponse> => {
+      switch (asset.token_standard) {
+        case 'ERC20':
+          const c = new Contract(asset.contract_address, ["function burn(address from, uint256 amount)"], signer)
+          await this.fundVaultIdIfNeeded(this.appConfig.assetIssuer.vaultId)
+          return c.burn(sourceAddress, amount)
+      }
+    })()
+
+    const receipt = await tx.wait()
+    if (receipt === null) return failedReceiptOperation(1, "receipt is null")
+    const block = await receipt.getBlock()
+    return {
+      operation: 'receipt',
+      type: 'success',
+      receipt: {
+        id: receipt.hash,
+        asset: ast,
+        operationType: 'redeem',
+        source: {
+          account: source,
+          finId: source.finId
+        },
+        proof: undefined,
+        destination: undefined,
+        quantity,
+        timestamp: block.timestamp,
+        tradeDetails: {
+          executionContext: exCtx
+        },
+        transactionDetails: {
+          operationId,
+          transactionId: receipt.hash
+        }
+      }
+    }
   }
 }

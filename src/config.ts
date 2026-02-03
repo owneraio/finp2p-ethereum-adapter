@@ -22,12 +22,26 @@ export type LocalAppConfig = {
   proofProvider: ProofProvider
 }
 
+export type FireblocksVaultProvider = {
+  vaultId: string
+  provider: Provider
+  signer: Signer
+}
+
 export type FireblocksAppConfig = {
   type: 'fireblocks'
-  provider: BrowserProvider
-  signer: JsonRpcSigner
+
+  // specified vault for creating (deploying) assets, issueing (mint), redeeming (burn)
+  assetIssuer: FireblocksVaultProvider
+
+  // specified vault for holding and releasing assets
+  assetEscrow: FireblocksVaultProvider
+
+  // gas fund a vaultId if configured
+  fundVaultIdGas?: (vaultId: string) => Promise<void>
+
   fireblocksSdk: FireblocksSDK
-  createProviderForExternalAddress: (address: string) => Promise<FireblocksWeb3Provider | undefined>
+  createProviderForExternalAddress: (address: string) => Promise<FireblocksVaultProvider | undefined>
   balance: (depositAddress: string, tokenAsset: string) => Promise<string | undefined>
 }
 
@@ -65,13 +79,7 @@ export const createJsonProvider = (
   return { provider, signer };
 };
 
-const createFireblocksProvider =  async (vaultAccountIds: string[]): Promise<{
-  provider: BrowserProvider,
-  signer: JsonRpcSigner,
-  fireblocksSdk: FireblocksSDK,
-  createProviderForExternalAddress: (address: string) => Promise<FireblocksWeb3Provider | undefined>,
-  balance: (depositAddress: string, tokenAddress: string) => Promise<string | undefined>,
-}> => {
+const createFireblocksProvider =  async (): Promise<FireblocksAppConfig> => {
   const apiKey = process.env.FIREBLOCKS_API_KEY || "";
   if (!apiKey) {
     throw new Error("FIREBLOCKS_API_KEY is not set");
@@ -86,30 +94,50 @@ const createFireblocksProvider =  async (vaultAccountIds: string[]): Promise<{
   const chainId = (process.env.FIREBLOCKS_CHAIN_ID || ChainId.MAINNET) as ChainId;
   const apiBaseUrl = (process.env.FIREBLOCKS_API_BASE_URL || ApiBaseUrl.Production) as ApiBaseUrl;
 
+  const providerForVaultId = async (vaultId: string): Promise<FireblocksVaultProvider> => {
+    const eip1193Provider = new FireblocksWeb3Provider({
+      privateKey, apiKey, chainId, apiBaseUrl, vaultAccountIds: [vaultId]
+    });
+    const provider = new BrowserProvider(eip1193Provider);
+    const signer = await provider.getSigner();
+    return { vaultId, signer, provider }
+  }
 
-  const eip1193Provider = new FireblocksWeb3Provider({
-    privateKey, apiKey, chainId, apiBaseUrl, vaultAccountIds
-  });
-  const provider = new BrowserProvider(eip1193Provider);
-  const signer = await provider.getSigner();
+  const providerForVaultEnv = async (envVar: string): Promise<FireblocksVaultProvider> => {
+    const val = process.env[envVar]
+    if (val === undefined || val === '') throw new Error(`${envVar} environment variable expected but not set or empty`)
+
+    return providerForVaultId(val)
+  }
+
   const fireblocksSdk = new FireblocksSDK(privateKey, apiKey, (process.env.FIREBLOCKS_API_BASE_URL || ApiBaseUrl.Production))
 
   const vaultManagement = createVaultManagementFunctions(fireblocksSdk, {
     cacheValuesTtlMs: 3000
   })
 
+  let fundVaultIdGas: FireblocksAppConfig['fundVaultIdGas'] = undefined
+  const fundingVaultId = process.env.FIREBLOCKS_GAS_FUNDING_VAULT_ID
+  const fundingAssetId = process.env.FIREBLOCKS_GAS_FUNDING_ASSET_ID
+  const fundingAssetAmount = process.env.FIREBLOCKS_GAS_FUNDING_ASSET_AMOUNT
+  if (fundingVaultId !== undefined && fundingAssetId !== undefined && fundingAssetAmount !== undefined) {
+    fundVaultIdGas = async (vaultId) => {
+      return vaultManagement.transferAssetFromVaultToVault(fireblocksSdk, fundingVaultId, vaultId, fundingAssetId, fundingAssetAmount)
+    }
+  }
+
   return {
-    provider,
-    signer,
+    type: 'fireblocks',
     fireblocksSdk,
+    assetIssuer: await providerForVaultEnv('FIREBLOCKS_ASSET_ISSUER_VAULT_ID'),
+    assetEscrow: await providerForVaultEnv('FIREBLOCKS_ASSET_ESCROW_VAULT_ID'),
+    fundVaultIdGas,
     balance: vaultManagement.balance,
     createProviderForExternalAddress: async (address: string) => {
       const vaultId = await vaultManagement.getVaultIdForAddress(address)
       if (vaultId === undefined) return undefined
 
-      return new FireblocksWeb3Provider({
-        privateKey, apiKey, chainId, apiBaseUrl, vaultAccountIds: [vaultId]
-      })
+      return providerForVaultId(vaultId)
     }
   };
 };
@@ -178,16 +206,7 @@ export async function envVarsToAppConfig(logger: Logger): Promise<AppConfig> {
       }
     }
     case 'fireblocks': {
-      const envVaultAccountIdsStr = process.env.FIREBLOCKS_VAULT_ACCOUNT_IDS;
-      const vaultAccountIds = envVaultAccountIdsStr ? envVaultAccountIdsStr.split(",").map(id => id.trim()) : [];
-      if (vaultAccountIds.length === 0) {
-        throw new Error("FIREBLOCKS_VAULT_ACCOUNT_IDS is not set or empty");
-      }
-
-      return {
-        type: 'fireblocks',
-        ...await createFireblocksProvider(vaultAccountIds),
-      }
+      return await createFireblocksProvider()
     }
   }
 }

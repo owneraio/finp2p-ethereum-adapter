@@ -1,4 +1,4 @@
-import { FireblocksSDK, VaultAccountResponse } from "fireblocks-sdk"
+import { FireblocksSDK, PeerType, TransactionOperation, TransactionStatus, VaultAccountResponse } from "fireblocks-sdk"
 import axios from 'axios'
 import { setTimeout as sleep } from 'node:timers/promises'
 
@@ -59,6 +59,41 @@ async function autoPaginate<T, R extends { paging?: { after?: string } }>(
   return collected
 }
 
+async function transferAssetFromVaultToVault(fireblocksSdk: FireblocksSDK, fromVaultId: string, toVaultId: string, assetId: string, amount: string): Promise<void> {
+  const transaction = await fireblocksSdk.createTransaction({
+    operation: TransactionOperation.TRANSFER,
+    assetId,
+    source: {
+      type: PeerType.VAULT_ACCOUNT,
+      id: fromVaultId
+    },
+    destination: {
+      type: PeerType.VAULT_ACCOUNT,
+      id: toVaultId
+    },
+    amount,
+    note: 'Gas funding for transactions'
+  })
+
+  while (true) {
+    const txInfo = await fireblocksSdk.getTransactionById(transaction.id)
+    const shouldErrorStatuses: TransactionStatus[] = [
+      TransactionStatus.FAILED,
+      TransactionStatus.BLOCKED,
+      TransactionStatus.CANCELLED,
+      TransactionStatus.REJECTED,
+    ]
+
+    if (txInfo.status === TransactionStatus.COMPLETED) {
+      return
+    } else if (shouldErrorStatuses.includes(txInfo.status)) {
+      throw new Error(`Failed status during gas funding: ${txInfo.status}, id: ${transaction.id}`)
+    } else {
+      await sleep(3000)
+    }
+  }
+}
+
 export interface FlattenedVaultDetails { vaultId: string, assetId: string, depositAddress: string, assetAddress: string | undefined }
 
 export const createVaultManagementFunctions = (fireblocksSdk: FireblocksSDK, options: { cacheValuesTtlMs: number }) => {
@@ -95,6 +130,11 @@ export const createVaultManagementFunctions = (fireblocksSdk: FireblocksSDK, opt
     return collectedAddresses.find(v => v.depositAddress.toLowerCase() === address.toLowerCase())?.vaultId
   }
 
+  const getVaultAssetBalance = async (vaultId: string, assetId: string): Promise<string | undefined> => {
+    const asset = await retryIfRateLimited(() => fireblocksSdk.getVaultAccountAsset(vaultId, assetId))
+    return asset.available
+  }
+
   const balance = async (depositAddress: string, tokenAddress: string): Promise<string | undefined> => {
     console.debug('balance requested', depositAddress, tokenAddress)
     const vaults = await fetchAllVaults()
@@ -105,14 +145,15 @@ export const createVaultManagementFunctions = (fireblocksSdk: FireblocksSDK, opt
 
     console.debug('flatten debug', flattenedVaultDetail)
 
-    const asset = await retryIfRateLimited(() => fireblocksSdk.getVaultAccountAsset(flattenedVaultDetail.vaultId, flattenedVaultDetail.assetId))
-    return asset.available
+    return getVaultAssetBalance(flattenedVaultDetail.vaultId, flattenedVaultDetail.assetId)
   }
 
   return {
     fetchAllVaults,
     getCollectedAddresses,
     getVaultIdForAddress,
+    getVaultAssetBalance,
     balance,
+    transferAssetFromVaultToVault,
   }
 };
