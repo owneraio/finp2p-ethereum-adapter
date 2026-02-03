@@ -23,35 +23,58 @@ export class TokenServiceImpl implements TokenService {
   constructor(readonly logger: Logger, readonly appConfig: FireblocksAppConfig) {}
 
   async createAsset(idempotencyKey: string, asset: Asset, assetBind: AssetBind | undefined, assetMetadata: any, assetName: string | undefined, issuerId: string | undefined, assetDenomination: AssetDenomination | undefined, assetIdentifier: AssetIdentifier | undefined): Promise<AssetCreationStatus> {
-    const { provider, signer } = this.appConfig.assetIssuer
     const fireblocksSdk = this.appConfig.fireblocksSdk
-    const { chainId, name } = await provider.getNetwork()
+    if (assetBind === undefined || assetBind.tokenIdentifier === undefined) {
+      const { provider, signer } = this.appConfig.assetIssuer
+      const { chainId, name } = await provider.getNetwork()
 
-    const cm = new ContractsManager(provider, signer, this.logger)
-    const decimals = 18
-    console.log(assetMetadata)
-    const erc20 = await cm.deploySimplifiedERC20({
-      name: assetName ?? "OWNERACOIN",
-      symbol: assetIdentifier?.value ?? "OWENRA",
-      decimals,
-      gasFunder: async (gasLimit) => {
-        await this.fundVaultIdIfNeeded(this.appConfig.assetIssuer.vaultId)
+      const cm = new ContractsManager(provider, signer, this.logger)
+      const decimals = 18
+      console.log(assetMetadata)
+      const erc20 = await cm.deploySimplifiedERC20({
+        name: assetName ?? "OWNERACOIN",
+        symbol: assetIdentifier?.value ?? "OWENRA",
+        decimals,
+        gasFunder: async (gasLimit) => {
+          await this.fundVaultIdIfNeeded(this.appConfig.assetIssuer.vaultId)
+        }
+      })
+      const savedAsset = await workflows.saveAsset({ contract_address: erc20, decimals, token_standard: 'ERC20', id: asset.assetId, type: asset.assetType })
+
+      const responseRegister = await fireblocksSdk.registerNewAsset('ETH_TEST5', erc20, assetIdentifier?.value ?? "OWNERA")
+      console.debug(responseRegister)
+
+      const responseVault = await fireblocksSdk.createVaultAsset("0", responseRegister.legacyId)
+      console.debug(responseVault)
+
+      return {
+        operation: "createAsset",
+        type: "success",
+        result: {
+          tokenId: savedAsset.contract_address,
+          reference: undefined
+        }
       }
-    })
-    const savedAsset = await workflows.saveAsset({ contract_address: erc20, decimals, token_standard: 'ERC20', id: asset.assetId, type: asset.assetType })
+    } else {
+      const savedAsset = await workflows.saveAsset({ contract_address: assetBind.tokenIdentifier.tokenId, decimals: 6, token_standard: 'ERC20', id: asset.assetId, type: asset.assetType })
+      try {
+        const responseRegister = await fireblocksSdk.registerNewAsset('ETH_TEST5', assetBind.tokenIdentifier.tokenId)
+        console.debug(responseRegister)
 
-    const responseRegister = await fireblocksSdk.registerNewAsset('ETH_TEST5', erc20, "OWNERA")
-    console.debug(responseRegister)
 
-    const responseVault = await fireblocksSdk.createVaultAsset("0", responseRegister.legacyId)
-    console.debug(responseVault)
+        const responseVault = await fireblocksSdk.createVaultAsset("0", responseRegister.legacyId)
+        console.debug(responseVault)
+      } catch (e) {
+        console.error(e)
+      }
 
-    return {
-      operation: "createAsset",
-      type: "success",
-      result: {
-        tokenId: erc20,
-        reference: undefined
+      return {
+        operation: "createAsset",
+        type: "success",
+        result: {
+          tokenId: savedAsset.contract_address,
+          reference: undefined
+        }
       }
     }
   }
