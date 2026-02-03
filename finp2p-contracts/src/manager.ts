@@ -38,13 +38,23 @@ export class ContractsManager {
     }
   }
 
-  async deploySimplifiedERC20(name: string, symbol: string, decimals: number): Promise<string> {
+  async deploySimplifiedERC20(options: {
+    name: string,
+    symbol: string,
+    decimals: number,
+    gasFunder: (gasLimit: bigint) => Promise<void>,
+  }): Promise<string> {
     const factory = new ContractFactory<any[], SimplifiedERC20>(
       SimpleERC20.abi,
       SimpleERC20.bytecode,
       this.signer
     );
-    const contract = await factory.deploy(name, symbol, decimals);
+    const tx = await factory.getDeployTransaction(options.name, options.symbol, options.decimals)
+    tx.from = await this.signer.getAddress()
+    const gasLimit = await this.signer.estimateGas(tx)
+    await options.gasFunder(gasLimit)
+
+    const contract = await factory.deploy(options.name, options.symbol, options.decimals);
     await contract.waitForDeployment();
     return await contract.getAddress();
   }
