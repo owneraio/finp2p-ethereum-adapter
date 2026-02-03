@@ -22,8 +22,7 @@ export FIREBLOCKS_GAS_FUNDING_ASSET_AMOUNT='0.01'
 export FIREBLOCKS_ASSET_ESCROW_VAULT_ID=16
 export FIREBLOCKS_ASSET_ISSUER_VAULT_ID=17
 
-npx ts-node src/index.ts
-exit
+npx ts-node src/index.ts &
 SERVER_PID=$!
 
 function cleanup() {
@@ -36,73 +35,47 @@ curl --fail --retry 30 --retry-all-errors http://localhost:${PORT}/health
 curl --fail --retry 30 --retry-all-errors http://localhost:${PORT}/health/readiness
 
 ENDPOINT="http://localhost:${PORT}/api"
-REQUEST_BODY='{
-  "source": {
-    "account": {
-      "type": "finId",
-      "finId": "123"
-    },
-    "finId": "12"
-  },
-  "destination": {
-    "account": {
-      "type": "finId",
-      "finId": "123"
-    },
-    "finId": "123"
-  },
-  "asset": {
-    "type": "cryptocurrency",
-    "code": "fake_usdc_without_checks"
-  },
-  "signature": {
-    "template": {
-      "type": "hashList",
-      "hash": "1"
-    },
-    "hashFunc": "keccak_256",
-    "signature": "1"
-  },
-  "quantity": "1",
-  "nonce": "123",
-  "settlementRef": "1"
-}'
 
-REQUEST_BODY='{
+TOKEN_NAME=`openssl rand -hex 3`
+ASSET_RESOURCE_ID=`openssl rand -hex 10`
+ISSUE_DESTINATION_FINID="023909c4944fbfdf8c4bc3331d02c0773f04b6483e5da1d61e8e217b5b249c7951"
+TRANSFER_DESTINATION_FINID="03928a764dc1b2c3d3eb48683a4046f4f8cfc6f95a22b6ef3ff9ae400d92c02dbf"
+
+REQUEST_BODY=`jq -n --arg ASSET_RESOURCE_ID "$ASSET_RESOURCE_ID" --arg TOKEN_NAME "$TOKEN_NAME" '{
   "asset": {
     "type": "finp2p",
-    "resourceId": "FAKEUSDC15"
-  },
-  "ledgerAssetBinding": {
-    "type": "tokenId"
+    "resourceId": $ASSET_RESOURCE_ID
   },
   "denomination": {
     "type": "cryptocurrency",
     "code": "USDC"
   },
   "assetIdentifier": {
-    "assetIdentifierType": "ISIN"
+    "assetIdentifierType": "CUSTOM",
+    "assetIdentifierValue": $TOKEN_NAME
   },
   "name": "OWNERA"
-}'
+}'`
+
+IDEMPOTENCY_HEADER="Idempotency-Key: `openssl rand -base64 12`"
 
 until curl --fail --request POST \
      --url "${ENDPOINT}/assets/create" \
-     --header 'Idempotency-Key: 14' \
+     --header "$IDEMPOTENCY_HEADER" \
      --header 'accept: application/json' \
      --header 'content-type: application/json' \
      --data "$REQUEST_BODY" | jq -e '.isCompleted' > /dev/null; do
   sleep 1
 done
 
-REQUEST_BODY='{
+REQUEST_BODY=`jq -n --arg ASSET_RESOURCE_ID "$ASSET_RESOURCE_ID" --arg ISSUE_DESTINATION_FINID "$ISSUE_DESTINATION_FINID" '{
   "destination": {
     "type": "finId",
-    "finId": "ignoredFinId"
+    "finId": $ISSUE_DESTINATION_FINID
   },
   "asset": {
     "type": "finp2p",
-    "resourceId": "FAKEUSDC15"
+    "resourceId": $ASSET_RESOURCE_ID
   },
   "signature": {
     "template": {
@@ -112,13 +85,13 @@ REQUEST_BODY='{
     "signature": "null"
   },
   "nonce": "issue-nonce",
-  "quantity": "1.6",
+  "quantity": "1",
   "settlementRef": "null"
-}'
+}'`
 
 until curl --fail --request POST \
      --url "${ENDPOINT}/assets/issue" \
-     --header 'Idempotency-Key: 14' \
+     --header "$IDEMPOTENCY_HEADER" \
      --header 'accept: application/json' \
      --header 'content-type: application/json' \
      --data "$REQUEST_BODY" | jq -e '.isCompleted' > /dev/null; do
