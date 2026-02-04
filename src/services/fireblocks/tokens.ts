@@ -31,13 +31,11 @@ export class TokenServiceImpl implements TokenService, EscrowService {
       const cm = new ContractsManager(provider, signer, this.logger)
       const decimals = 18
       console.log(assetMetadata)
+      await this.fundVaultIdIfNeeded(this.appConfig.assetIssuer.vaultId)
       const erc20 = await cm.deploySimplifiedERC20({
         name: assetName ?? "OWNERACOIN",
         symbol: assetIdentifier?.value ?? "OWENRA",
         decimals,
-        gasFunder: async (gasLimit) => {
-          await this.fundVaultIdIfNeeded(this.appConfig.assetIssuer.vaultId)
-        }
       })
       const savedAsset = await workflows.saveAsset({ contract_address: erc20, decimals, token_standard: 'ERC20', id: asset.assetId, type: asset.assetType })
 
