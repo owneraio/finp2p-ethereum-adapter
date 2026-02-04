@@ -1,115 +1,122 @@
-import { EnvironmentContext, JestEnvironmentConfig } from "@jest/environment";
 import {
   ContractsManager,
   FinP2PContract,
   addressFromPrivateKey,
 } from "@owneraio/finp2p-contracts";
 import { workflows } from "@owneraio/finp2p-nodejs-skeleton-adapter";
-import {
-  PostgreSqlContainer,
-  StartedPostgreSqlContainer,
-} from "@testcontainers/postgresql";
+import { PreparedAppHttpServer, SkeletonTestEnvironment } from '@owneraio/skeleton-test-environment';
 import * as console from "console";
 import * as http from "http";
-import NodeEnvironment from "jest-environment-node";
-import { exec } from "node:child_process";
-import { URL } from 'node:url';
+import { setTimeout as wait } from 'node:timers/promises';
 import { GenericContainer, StartedTestContainer } from "testcontainers";
 import winston, { format, transports } from "winston";
 import createApp from "../../src/app";
 import { createJsonProvider } from "../../src/config";
 import { InMemoryExecDetailsStore } from "../../src/services";
 import { HardhatLogExtractor } from "./log-extractors";
-import { AdapterParameters, NetworkDetails, NetworkParameters } from "./models";
-import { randomPort } from "./utils";
+import { NetworkDetails } from "./models";
 
 const level = "info";
-
 const logger = winston.createLogger({
   level,
   transports: [new transports.Console({ level })],
   format: format.json(),
 });
 
-const DefaultOrgId = "some-org";
+interface EthereumConfig {
+  ethereumNodeContainer: StartedTestContainer;
+  ethereumNetworkDetails: NetworkDetails;
+}
 
-class CustomTestEnvironment extends NodeEnvironment {
-  network: NetworkParameters | undefined;
-  adapter: AdapterParameters | undefined;
-  ethereumNodeContainer: StartedTestContainer | undefined;
-  postgresSqlContainer: StartedPostgreSqlContainer | undefined;
-  httpServer: http.Server | undefined;
+interface Containers {
+  httpServer: http.Server;
+  ethConfig: EthereumConfig;
+}
 
-  constructor(config: JestEnvironmentConfig, context: EnvironmentContext) {
-    super(config, context);
-    this.network = this.global.network as NetworkParameters | undefined;
-    this.adapter = this.global.adapter as AdapterParameters | undefined;
-  }
+class CustomTestEnvironment extends SkeletonTestEnvironment<Containers> {
+  async startAppHttpServer(generatedPort: number): Promise<PreparedAppHttpServer<Containers>> {
+    const ethConfig = await this.startHardhatContainer()
+    const deployer = ethConfig.ethereumNetworkDetails.accounts[0]
+    const operator = ethConfig.ethereumNetworkDetails.accounts[1]
+    const operatorAddress = addressFromPrivateKey(operator);
+    const finP2PContractAddress = await this.deployContract(
+      deployer,
+      ethConfig.ethereumNetworkDetails.rpcUrl,
+      operatorAddress
+    );
 
-  async setup() {
-    if (this.adapter !== undefined && this.adapter.url !== undefined) {
-      console.log("Using predefined network configuration...");
-      return;
-    }
+    const { provider, signer } = await createJsonProvider(
+      operator,
+      ethConfig.ethereumNetworkDetails.rpcUrl,
+      false
+    );
 
-    try {
-      let details: NetworkDetails;
-      if (this.network === undefined || this.network.rpcUrl === undefined) {
-        details = await this.startHardhatContainer();
-      } else {
-        details = this.network;
+    const finP2PContract = new FinP2PContract(
+      provider,
+      signer,
+      finP2PContractAddress,
+      logger
+    );
+
+    const version = await finP2PContract.getVersion();
+    console.log(`FinP2P contract version: ${version}`);
+
+    const execDetailsStore = new InMemoryExecDetailsStore();
+    const postgresContainer = await this.startPostgresContainer()
+    const app = createApp("some-org", finP2PContract, undefined, execDetailsStore, {
+      migration: {
+        ...postgresContainer,
+        gooseExecutablePath: await this.getGooseExecutablePath(),
+        migrationListTableName: "finp2p_ethereum_adapter_migrations"
+      },
+      storage: {
+        ...postgresContainer
       }
+    }, logger)
 
-      await this.startPostgresContainer();
+    await this.checkHealthReadiness(generatedPort)
 
-      const deployer = details.accounts[0];
-      const operator = details.accounts[1];
-
-      const operatorAddress = addressFromPrivateKey(operator);
-      const finP2PContractAddress = await this.deployContract(
-        deployer,
-        details.rpcUrl,
-        operatorAddress
-      );
-      this.global.serverAddress = await this.startApp(
-        operator,
-        details.rpcUrl,
-        finP2PContractAddress
-      );
-    } catch (err) {
-      console.error("Error starting container:", err);
+    return {
+      httpAddress: `http://localhost:${generatedPort}/api`,
+      userData: {
+        httpServer: app.listen(generatedPort),
+        ethConfig
+      }
     }
   }
 
-  async teardown() {
-    try {
-      this.httpServer?.close();
-      await this.ethereumNodeContainer?.stop();
-      await workflows.Storage.closeAllConnections();
-      await this.postgresSqlContainer?.stop();
-      console.log("Ganache container stopped successfully.");
-    } catch (err) {
-      console.error("Error stopping Ganache container:", err);
-    }
+  async stopAppHttpServer(preparedApp: PreparedAppHttpServer<Containers>): Promise<void> {
+    await preparedApp.userData.ethConfig.ethereumNodeContainer.stop()
+    await preparedApp.userData.httpServer.close()
+    await workflows.Storage.closeAllConnections()
   }
 
-  private async startPostgresContainer() {
-    const startedContainer = await new PostgreSqlContainer(
-      "postgres:14.19"
-    ).start();
-    this.postgresSqlContainer = startedContainer;
+  private async deployContract(
+    deployerPrivateKey: string,
+    ethereumRPCUrl: string,
+    operatorAddress: string
+  ): Promise<string> {
+    const { provider, signer } = await createJsonProvider(
+      deployerPrivateKey,
+      ethereumRPCUrl
+    );
+    const contractManger = new ContractsManager(provider, signer, logger);
+    return await contractManger.deployFinP2PContract(operatorAddress);
   }
 
-  private async startHardhatContainer() {
+  private async startHardhatContainer(): Promise<EthereumConfig> {
     console.log("Starting hardhat node container...");
     const logExtractor = new HardhatLogExtractor();
-    const containerPort = 8545;
-    const startedContainer = await new GenericContainer(
+    const randomPort = await this.generateRandomPort()
+    const ethereumNodeContainer = await new GenericContainer(
       "ghcr.io/owneraio/hardhat:task-fix-docker-build"
     )
-      .withLogConsumer((stream) => logExtractor.consume(stream))
-      .withExposedPorts(containerPort)
-      .start();
+    .withLogConsumer((stream) => logExtractor.consume(stream))
+    .withExposedPorts({
+      container: 8545,
+      host: randomPort
+    })
+    .start();
 
     await logExtractor.started();
     console.log("Hardhat node started successfully.");
@@ -120,104 +127,30 @@ class CustomTestEnvironment extends NodeEnvironment {
       "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d",
     ];
 
-    const rpcHost = startedContainer.getHost();
-    const rpcPort = startedContainer.getMappedPort(containerPort).toString();
-    const rpcUrl = `http://${rpcHost}:${rpcPort}`;
-    this.ethereumNodeContainer = startedContainer;
-
-    return { rpcUrl, accounts } as NetworkDetails;
-  }
-
-  private async deployContract(
-    deployerPrivateKey: string,
-    ethereumRPCUrl: string,
-    operatorAddress: string
-  ) {
-    const { provider, signer } = await createJsonProvider(
-      deployerPrivateKey,
-      ethereumRPCUrl
-    );
-    const contractManger = new ContractsManager(provider, signer, logger);
-    return await contractManger.deployFinP2PContract(operatorAddress);
-  }
-
-  private async startApp(
-    operatorPrivateKey: string,
-    ethereumRPCUrl: string,
-    finP2PContractAddress: string
-  ) {
-    const { provider, signer } = await createJsonProvider(
-      operatorPrivateKey,
-      ethereumRPCUrl,
-      false
-    );
-    const finP2PContract = new FinP2PContract(
-      provider,
-      signer,
-      finP2PContractAddress,
-      logger
-    );
-
-    const port = randomPort();
-
-    const version = await finP2PContract.getVersion();
-    console.log(`FinP2P contract version: ${version}`);
-
-    const execDetailsStore = new InMemoryExecDetailsStore();
-    const connectionString =
-      this.postgresSqlContainer?.getConnectionUri() ?? "";
-    const storageUser = new URL(connectionString).username
-    const workflowsConfig = {
-      migration: {
-        connectionString,
-        gooseExecutablePath: await this.whichGoose(),
-        migrationListTableName: "finp2p_ethereum_adapter_migrations",
-        storageUser,
-      },
-      storage: { connectionString },
-    };
-
-    const app = createApp(
-      DefaultOrgId,
-      finP2PContract,
-      undefined,
-      execDetailsStore,
-      workflowsConfig,
-      logger
-    );
-    console.log("App created successfully.");
-
-    this.httpServer = app.listen(port, () => {
-      console.log(`Server listening on port ${port}`);
-    });
-
-    // Check if migrations are done
-    const readiness = await fetch(`http://localhost:${port}/health/readiness`)
-    if (!readiness.ok) {
-      throw new Error('Error while starting up the server')
-      console.error(await readiness.text())
+    const rpcHost = ethereumNodeContainer.getHost();
+    const rpcUrl = `http://${rpcHost}:${randomPort}`;
+    return {
+      ethereumNodeContainer,
+      ethereumNetworkDetails: {
+        accounts,
+        rpcUrl
+      }
     }
-
-    return `http://localhost:${port}/api`;
   }
 
-  private async whichGoose() {
-    return new Promise<string>((resolve, reject) => {
-      exec("which goose", (err, stdout, stderr) => {
-        if (err) {
-          reject(err);
-          return;
+  private async checkHealthReadiness(generatedPort: number): Promise<void> {
+    for (let i = 0; i < 30; i++) {
+      try {
+        const readiness = await fetch(`http://localhost:${generatedPort}/health/readiness`)
+        if (readiness.ok) {
+          break
+        } else {
+          throw new Error('should wait')
         }
-
-        const path = stdout.trim();
-        if (path.length === 0) {
-          reject(new Error("which goose returned an empty path"));
-          return;
-        }
-
-        resolve(path);
-      });
-    });
+      } catch {
+        await wait(300)
+      }
+    }
   }
 }
 
