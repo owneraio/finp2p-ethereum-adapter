@@ -12,8 +12,7 @@ import FINP2P from "../artifacts/contracts/finp2p/FINP2POperator.sol/FINP2POpera
 import ASSET_REGISTRY from "../artifacts/contracts/utils/finp2p/AssetRegistry.sol/AssetRegistry.json";
 import ERC20_STANDARD from "../artifacts/contracts/utils/erc20/ERC20Standard.sol/ERC20Standard.json";
 import ERC20 from "../artifacts/contracts/token/ERC20/ERC20WithOperator.sol/ERC20WithOperator.json";
-import SimpleERC20 from "../artifacts/contracts/token/ERC20/SimplifiedERC20.sol/SimplifiedERC20.json";
-import { AssetRegistry, ERC20Standard, ERC20WithOperator, FINP2POperator, SimplifiedERC20 } from "../typechain-types";
+import { AssetRegistry, ERC20Standard, ERC20WithOperator, FINP2POperator } from "../typechain-types";
 import { Logger } from "@owneraio/finp2p-adapter-models";
 import { PayableOverrides } from "../typechain-types/common";
 import { ERC20_STANDARD_ID, EthereumTransactionError, NonceAlreadyBeenUsedError, NonceTooHighError } from "./model";
@@ -36,20 +35,6 @@ export class ContractsManager {
         this.logger.info(`Using nonce-manager, current nonce: ${nonce}`);
       });
     }
-  }
-
-  async deploySimplifiedERC20(options: { name: string,
-    symbol: string,
-    decimals: number
-  }): Promise<string> {
-    const factory = new ContractFactory<any[], SimplifiedERC20>(
-      SimpleERC20.abi,
-      SimpleERC20.bytecode,
-      this.signer
-    );
-    const contract = await factory.deploy(options.name, options.symbol, options.decimals);
-    await contract.waitForDeployment();
-    return await contract.getAddress();
   }
 
   async deployERC20Detached(name: string, symbol: string, decimals: number, operatorAddress: string): Promise<string> {
