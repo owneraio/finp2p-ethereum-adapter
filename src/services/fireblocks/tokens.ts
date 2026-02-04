@@ -83,10 +83,11 @@ export class TokenServiceImpl implements TokenService, EscrowService {
     const asset = await workflows.getAssetById(assetId)
     if (asset === undefined) throw new Error(`Asset(id=${assetId}) is not registered in DB`)
 
-    const balance = await this.appConfig.balance(finIdToAddress(finId), asset.contract_address)
-    if (balance === undefined) throw new Error('Balance cannot be determined')
+    const address = finIdToAddress(finId)
+    const c = new Contract(asset.contract_address, ["function balanceOf(address account) view returns (uint256)"], this.appConfig.assetIssuer.provider)
+    const d = await c.balanceOf(address)
 
-    return balance
+    return formatUnits(d, asset.decimals)
   }
 
   async balance(assetId: string, finId: string): Promise<Balance> {
