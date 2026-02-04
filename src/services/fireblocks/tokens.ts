@@ -173,13 +173,14 @@ export class TokenServiceImpl implements TokenService, EscrowService {
   async redeem(idempotencyKey: string, nonce: string, source: FinIdAccount, ast: Asset, quantity: string, operationId: string | undefined, signature: Signature, exCtx: ExecutionContext | undefined): Promise<ReceiptOperation> {
     const asset = await getAssetFromDb(ast)
 
-    const sourceAddress = finIdToAddress(source.finId)
+    // assume that the asset is already held in escrow
+    const escrowAddress = await this.appConfig.assetEscrow.signer.getAddress()
     const { signer, provider } = await this.appConfig.assetIssuer
     const amount = parseUnits(quantity, asset.decimals)
 
     const c = new Contract(asset.contract_address, ["function burn(address from, uint256 amount)"], signer)
     await this.fundVaultIdIfNeeded(this.appConfig.assetIssuer.vaultId)
-    const tx = await c.burn(sourceAddress, amount)
+    const tx = await c.burn(escrowAddress, amount)
     const receipt = await tx.wait()
     if (receipt === null) return failedReceiptOperation(1, "receipt is null")
     const block = await receipt.getBlock()
