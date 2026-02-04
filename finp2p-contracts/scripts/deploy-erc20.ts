@@ -17,12 +17,9 @@ const deploy = async (
   const { provider, signer } = await createJsonProvider(operatorPrivateKey, ethereumRPCUrl);
   const contractManger = new ContractsManager(provider, signer, logger);
   logger.info("Deploying from env variables...");
-  let erc20Address = ""
-  if (viaAssetRegistry) {
-    erc20Address = await contractManger.deployERC20ViaAssetRegistry(assetName, assetSymbol, tokenDecimals, operatorAddress);
-  } else {
-    erc20Address = await contractManger.deployERC20Detached(assetName, assetSymbol, tokenDecimals, operatorAddress);
-  }
+  const erc20Address = viaAssetRegistry
+    ? await contractManger.deployERC20ViaAssetRegistry(assetName, assetSymbol, tokenDecimals, operatorAddress)
+    : await contractManger.deployERC20Detached(assetName, assetSymbol, tokenDecimals, operatorAddress);
   logger.info(JSON.stringify({ erc20Address }));
 };
 
