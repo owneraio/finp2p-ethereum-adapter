@@ -32,11 +32,12 @@ export class TokenServiceImpl implements TokenService, EscrowService {
       const decimals = 18
       console.log(assetMetadata)
       await this.fundVaultIdIfNeeded(this.appConfig.assetIssuer.vaultId)
-      const erc20 = await cm.deploySimplifiedERC20({
-        name: assetName ?? "OWNERACOIN",
-        symbol: assetIdentifier?.value ?? "OWENRA",
+      const erc20 = await cm.deployERC20Detached(
+        assetName ?? "OWNERACOIN",
+        assetIdentifier?.value ?? "OWENRA",
         decimals,
-      })
+        await signer.getAddress()
+      )
       const savedAsset = await workflows.saveAsset({ contract_address: erc20, decimals, token_standard: 'ERC20', id: asset.assetId, type: asset.assetType })
 
       const responseRegister = await fireblocksSdk.registerNewAsset('ETH_TEST5', erc20, assetIdentifier?.value ?? "OWNERA")
