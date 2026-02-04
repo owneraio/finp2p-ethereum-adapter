@@ -11,12 +11,18 @@ const deploy = async (
   operatorAddress: string,
   assetName: string,
   assetSymbol: string,
-  tokenDecimals: number
+  tokenDecimals: number,
+  viaAssetRegistry: boolean,
 ) => {
   const { provider, signer } = await createJsonProvider(operatorPrivateKey, ethereumRPCUrl);
   const contractManger = new ContractsManager(provider, signer, logger);
   logger.info("Deploying from env variables...");
-  const erc20Address = await contractManger.deployERC20(assetName, assetSymbol, tokenDecimals, operatorAddress);
+  let erc20Address = ""
+  if (viaAssetRegistry) {
+    erc20Address = await contractManger.deployERC20ViaAssetRegistry(assetName, assetSymbol, tokenDecimals, operatorAddress);
+  } else {
+    erc20Address = await contractManger.deployERC20Detached(assetName, assetSymbol, tokenDecimals, operatorAddress);
+  }
   logger.info(JSON.stringify({ erc20Address }));
 };
 
@@ -56,10 +62,18 @@ const config = parseConfig([
     envVar: "TOKEN_DECIMALS",
     description: "Token decimals",
     required: true
+  },
+  {
+    name: "via_asset_registry",
+    envVar: "VIA_ASSET_REGISTRY",
+    description: "If newly deployed ERC20 should be attached to the asset registry or deployed as a standalone standard ERC20 token",
+    required: true,
+    defaultValue: "true",
+    type: "boolean"
   }
 ]);
 
 
-deploy(config.operator_pk!, config.rpc_url!, config.operator_address!, config.asset_name!, config.asset_symbol!, parseInt(config.token_decimals!))
+deploy(config.operator_pk!, config.rpc_url!, config.operator_address!, config.asset_name!, config.asset_symbol!, parseInt(config.token_decimals!), config.via_asset_registry === "true")
   .then(() => {
   }).catch(console.error);
