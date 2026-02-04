@@ -8,22 +8,41 @@ import { ExecDetailsStore } from './services/common'
 import { ProofProvider } from '@owneraio/finp2p-nodejs-skeleton-adapter'
 import { Logger } from "@owneraio/finp2p-adapter-models";
 import { InMemoryExecDetailsStore } from './services/exec-details-store'
+import { FireblocksSDK } from "fireblocks-sdk";
+import { createVaultManagementFunctions } from './vaults'
 
 export type LocalAppConfig = {
-  type: 'local';
-  orgId: string;
-  provider: Provider;
-  signer: Signer;
+  type: 'local'
+  orgId: string
+  provider: Provider
+  signer: Signer
   finP2PContract: FinP2PContract
   finP2PClient: FinP2PClient | undefined
   execDetailsStore: ExecDetailsStore | undefined
   proofProvider: ProofProvider
 }
 
+export type FireblocksVaultProvider = {
+  vaultId: string
+  provider: Provider
+  signer: Signer
+}
+
 export type FireblocksAppConfig = {
-  type: 'fireblocks';
-  provider: BrowserProvider
-  signer: JsonRpcSigner
+  type: 'fireblocks'
+
+  // specified vault for creating (deploying) assets, issueing (mint), redeeming (burn)
+  assetIssuer: FireblocksVaultProvider
+
+  // specified vault for holding and releasing assets
+  assetEscrow: FireblocksVaultProvider
+
+  // gas fund a vaultId if configured
+  fundVaultIdGas?: (vaultId: string) => Promise<void>
+
+  fireblocksSdk: FireblocksSDK
+  createProviderForExternalAddress: (address: string) => Promise<FireblocksVaultProvider | undefined>
+  balance: (depositAddress: string, tokenAsset: string) => Promise<string | undefined>
 }
 
 export type AppConfig = LocalAppConfig | FireblocksAppConfig
@@ -47,7 +66,8 @@ const getNetworkRpcUrl = (): string => {
 };
 
 export const createJsonProvider = (
-  operatorPrivateKey: string, ethereumRPCUrl: string, useNonceManager: boolean = true): { provider: Provider, signer: Signer } => {
+  operatorPrivateKey: string, ethereumRPCUrl: string, useNonceManager: boolean = true
+): { provider: Provider, signer: Signer } => {
   const provider = new JsonRpcProvider(ethereumRPCUrl);
   let signer: Signer;
   if (useNonceManager) {
@@ -59,54 +79,94 @@ export const createJsonProvider = (
   return { provider, signer };
 };
 
-const createFireblocksProvider =  async (vaultAccountIds: string[]): Promise<{ provider: BrowserProvider, signer: JsonRpcSigner }> => {
+const createFireblocksProvider =  async (): Promise<FireblocksAppConfig> => {
   const apiKey = process.env.FIREBLOCKS_API_KEY || "";
   if (!apiKey) {
     throw new Error("FIREBLOCKS_API_KEY is not set");
   }
 
-  const privKeyPath = process.env.FIREBLOCKS_API_PRIVATE_KEY_PATH || "";
-  if (!privKeyPath) {
+  const apiPrivateKeyPath = process.env.FIREBLOCKS_API_PRIVATE_KEY_PATH || "";
+  if (!apiPrivateKeyPath) {
     throw new Error("FIREBLOCKS_API_PRIVATE_KEY_PATH is not set");
   }
-  const privateKey = fs.readFileSync(privKeyPath, "utf-8");
+  const apiPrivateKey = fs.readFileSync(apiPrivateKeyPath, "utf-8");
 
   const chainId = (process.env.FIREBLOCKS_CHAIN_ID || ChainId.MAINNET) as ChainId;
   const apiBaseUrl = (process.env.FIREBLOCKS_API_BASE_URL || ApiBaseUrl.Production) as ApiBaseUrl;
 
-  const eip1193Provider = new FireblocksWeb3Provider({
-    privateKey, apiKey, chainId, apiBaseUrl, vaultAccountIds
-  });
-  const provider = new BrowserProvider(eip1193Provider);
-  const signer = await provider.getSigner();
+  const providerForVaultId = async (vaultId: string): Promise<FireblocksVaultProvider> => {
+    const eip1193Provider = new FireblocksWeb3Provider({
+      privateKey: apiPrivateKey, apiKey, chainId, apiBaseUrl, vaultAccountIds: [vaultId]
+    });
+    const provider = new BrowserProvider(eip1193Provider);
+    const signer = await provider.getSigner();
+    return { vaultId, signer, provider }
+  }
 
-  return { provider, signer };
+  const providerForVaultEnv = async (envVar: string): Promise<FireblocksVaultProvider> => {
+    const val = process.env[envVar]
+    if (val === undefined || val === '') throw new Error(`${envVar} environment variable expected but not set or empty`)
+
+    return providerForVaultId(val)
+  }
+
+  const fireblocksSdk = new FireblocksSDK(apiPrivateKey, apiKey, (process.env.FIREBLOCKS_API_BASE_URL || ApiBaseUrl.Production))
+
+  const vaultManagement = createVaultManagementFunctions(fireblocksSdk, {
+    cacheValuesTtlMs: 3000
+  })
+
+  let fundVaultIdGas: FireblocksAppConfig['fundVaultIdGas'] = undefined
+  const fundingVaultId = process.env.FIREBLOCKS_GAS_FUNDING_VAULT_ID
+  const fundingAssetId = process.env.FIREBLOCKS_GAS_FUNDING_ASSET_ID
+  const fundingAssetAmount = process.env.FIREBLOCKS_GAS_FUNDING_ASSET_AMOUNT
+  if (fundingVaultId !== undefined && fundingAssetId !== undefined && fundingAssetAmount !== undefined) {
+    fundVaultIdGas = async (vaultId) => {
+      return vaultManagement.transferAssetFromVaultToVault(fireblocksSdk, fundingVaultId, vaultId, fundingAssetId, fundingAssetAmount)
+    }
+  }
+
+  return {
+    type: 'fireblocks',
+    fireblocksSdk,
+    assetIssuer: await providerForVaultEnv('FIREBLOCKS_ASSET_ISSUER_VAULT_ID'),
+    assetEscrow: await providerForVaultEnv('FIREBLOCKS_ASSET_ESCROW_VAULT_ID'),
+    fundVaultIdGas,
+    balance: vaultManagement.balance,
+    createProviderForExternalAddress: async (address: string) => {
+      const vaultId = await vaultManagement.getVaultIdForAddress(address)
+      if (vaultId === undefined) return undefined
+
+      return providerForVaultId(vaultId)
+    }
+  };
 };
 
 export async function envVarsToAppConfig(logger: Logger): Promise<AppConfig> {
   const configType = (process.env.PROVIDER_TYPE || 'local') as AppConfig['type']
-  const finP2PContractAddress = process.env.FINP2P_CONTRACT_ADDRESS || process.env.TOKEN_ADDRESS; // TOKEN_ADDRESS for backward compatibility
-  if (!finP2PContractAddress) {
-    throw new Error("FINP2P_CONTRACT_ADDRESS is not set");
-  }
-
-  const orgId = process.env.ORGANIZATION_ID;
-  if (!orgId) {
-    throw new Error("ORGANIZATION_ID is not set");
-  }
-
-  const finP2PUrl = process.env.FINP2P_ADDRESS;
-  if (!finP2PUrl) {
-    throw new Error("FINP2P_ADDRESS is not set");
-  }
-
-  const ossUrl = process.env.OSS_URL;
-  if (!ossUrl) {
-    throw new Error("OSS_URL is not set");
-  }
 
   switch (configType) {
     case 'local': {
+      const finP2PContractAddress = process.env.FINP2P_CONTRACT_ADDRESS || process.env.TOKEN_ADDRESS; // TOKEN_ADDRESS for backward compatibility
+      if (!finP2PContractAddress) {
+        throw new Error("FINP2P_CONTRACT_ADDRESS is not set");
+      }
+
+      const orgId = process.env.ORGANIZATION_ID;
+      if (!orgId) {
+        throw new Error("ORGANIZATION_ID is not set");
+      }
+
+      const finP2PUrl = process.env.FINP2P_ADDRESS;
+      if (!finP2PUrl) {
+        throw new Error("FINP2P_ADDRESS is not set");
+      }
+
+      const ossUrl = process.env.OSS_URL;
+      if (!ossUrl) {
+        throw new Error("OSS_URL is not set");
+      }
+
       const useNonceManager = (process.env.USE_NONCE_MANAGER ?? "yes" ) === "yes";
       const ethereumRPCUrl = getNetworkRpcUrl();
       const operatorPrivateKey = process.env.OPERATOR_PRIVATE_KEY;
@@ -146,18 +206,7 @@ export async function envVarsToAppConfig(logger: Logger): Promise<AppConfig> {
       }
     }
     case 'fireblocks': {
-      const envVaultAccountIdsStr = process.env.FIREBLOCKS_VAULT_ACCOUNT_IDS;
-      const vaultAccountIds = envVaultAccountIdsStr ? envVaultAccountIdsStr.split(",").map(id => id.trim()) : [];
-      if (vaultAccountIds.length === 0) {
-        throw new Error("FIREBLOCKS_VAULT_ACCOUNT_IDS is not set or empty");
-      }
-
-      const { provider, signer } = await createFireblocksProvider(vaultAccountIds)
-      return {
-        type: 'fireblocks',
-        provider,
-        signer
-      }
+      return await createFireblocksProvider()
     }
   }
 }
