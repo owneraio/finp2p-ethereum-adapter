@@ -10,8 +10,6 @@ async function getAssetFromDb(ast: Asset): Promise<workflows.Asset> {
   return asset
 }
 
-const increaseByBuffer = (input: bigint): bigint => (input * 120n) / 100n
-
 export class TokenServiceImpl implements TokenService, EscrowService {
 
   private async fundVaultIdIfNeeded(vaultId: string) {
