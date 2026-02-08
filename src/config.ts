@@ -1,15 +1,34 @@
 import * as fs from "fs";
 import { ApiBaseUrl, ChainId, FireblocksWeb3Provider } from "@fireblocks/fireblocks-web3-provider";
-import { BrowserProvider, JsonRpcProvider, NonceManager, Provider, Signer, Wallet } from "ethers";
+import { BrowserProvider, JsonRpcProvider, NonceManager, Provider, Signer, Wallet, JsonRpcSigner } from "ethers";
 import process from "process";
+import { FinP2PContract } from '@owneraio/finp2p-contracts'
+import { FinP2PClient } from '@owneraio/finp2p-client'
+import { ExecDetailsStore } from './services/common'
+import { ProofProvider } from '@owneraio/finp2p-nodejs-skeleton-adapter'
+import { Logger } from "@owneraio/finp2p-adapter-models";
+import { InMemoryExecDetailsStore } from './services/exec-details-store'
 
-export type ProviderType = "local" | "fireblocks";
-
-export type ProviderAndSigner = {
-  provider: Provider, signer: Signer,
+export type LocalAppConfig = {
+  type: 'local';
+  orgId: string;
+  provider: Provider;
+  signer: Signer;
+  finP2PContract: FinP2PContract
+  finP2PClient: FinP2PClient | undefined
+  execDetailsStore: ExecDetailsStore | undefined
+  proofProvider: ProofProvider
 }
 
-export const getNetworkRpcUrl = (): string => {
+export type FireblocksAppConfig = {
+  type: 'fireblocks';
+  provider: BrowserProvider
+  signer: JsonRpcSigner
+}
+
+export type AppConfig = LocalAppConfig | FireblocksAppConfig
+
+const getNetworkRpcUrl = (): string => {
   let networkHost = process.env.NETWORK_HOST;
   if (!networkHost) {
     throw new Error("NETWORK_HOST is not set");
@@ -27,32 +46,11 @@ export const getNetworkRpcUrl = (): string => {
   return networkHost;
 };
 
-export const createProviderAndSigner = async (
-  providerType: ProviderType, userNonceManager: boolean = true): Promise<ProviderAndSigner> => {
-  if (providerType === "local") {
-    const ethereumRPCUrl = getNetworkRpcUrl();
-    const operatorPrivateKey = process.env.OPERATOR_PRIVATE_KEY;
-    if (!operatorPrivateKey) {
-      throw new Error("OPERATOR_PRIVATE_KEY is not set");
-    }
-    return createJsonProvider(operatorPrivateKey, ethereumRPCUrl, userNonceManager);
-  } else if (providerType === "fireblocks") {
-    const envVaultAccountIdsStr = process.env.FIREBLOCKS_VAULT_ACCOUNT_IDS;
-    const vaultAccountIds = envVaultAccountIdsStr ? envVaultAccountIdsStr.split(",").map(id => id.trim()) : [];
-    if (vaultAccountIds.length === 0) {
-      throw new Error("FIREBLOCKS_VAULT_ACCOUNT_IDS is not set or empty");
-    }
-    return createFireblocksProvider(vaultAccountIds);
-  } else {
-    throw new Error(`Unsupported provider type: ${providerType}`);
-  }
-}
-
-export const createJsonProvider = async (
-  operatorPrivateKey: string, ethereumRPCUrl: string, userNonceManager: boolean = true): Promise<ProviderAndSigner> => {
+export const createJsonProvider = (
+  operatorPrivateKey: string, ethereumRPCUrl: string, useNonceManager: boolean = true): { provider: Provider, signer: Signer } => {
   const provider = new JsonRpcProvider(ethereumRPCUrl);
   let signer: Signer;
-  if (userNonceManager) {
+  if (useNonceManager) {
     signer = new NonceManager(new Wallet(operatorPrivateKey)).connect(provider);
   } else {
     signer = new Wallet(operatorPrivateKey).connect(provider);
@@ -61,8 +59,7 @@ export const createJsonProvider = async (
   return { provider, signer };
 };
 
-
-export const createFireblocksProvider = async (vaultAccountIds: string[]): Promise<ProviderAndSigner> => {
+const createFireblocksProvider =  async (vaultAccountIds: string[]): Promise<{ provider: BrowserProvider, signer: JsonRpcSigner }> => {
   const apiKey = process.env.FIREBLOCKS_API_KEY || "";
   if (!apiKey) {
     throw new Error("FIREBLOCKS_API_KEY is not set");
@@ -86,6 +83,84 @@ export const createFireblocksProvider = async (vaultAccountIds: string[]): Promi
   return { provider, signer };
 };
 
+export async function envVarsToAppConfig(logger: Logger): Promise<AppConfig> {
+  const configType = (process.env.PROVIDER_TYPE || 'local') as AppConfig['type']
+  const finP2PContractAddress = process.env.FINP2P_CONTRACT_ADDRESS || process.env.TOKEN_ADDRESS; // TOKEN_ADDRESS for backward compatibility
+  if (!finP2PContractAddress) {
+    throw new Error("FINP2P_CONTRACT_ADDRESS is not set");
+  }
+
+  const orgId = process.env.ORGANIZATION_ID;
+  if (!orgId) {
+    throw new Error("ORGANIZATION_ID is not set");
+  }
+
+  const finP2PUrl = process.env.FINP2P_ADDRESS;
+  if (!finP2PUrl) {
+    throw new Error("FINP2P_ADDRESS is not set");
+  }
+
+  const ossUrl = process.env.OSS_URL;
+  if (!ossUrl) {
+    throw new Error("OSS_URL is not set");
+  }
+
+  switch (configType) {
+    case 'local': {
+      const useNonceManager = (process.env.USE_NONCE_MANAGER ?? "yes" ) === "yes";
+      const ethereumRPCUrl = getNetworkRpcUrl();
+      const operatorPrivateKey = process.env.OPERATOR_PRIVATE_KEY;
+      if (!operatorPrivateKey) {
+        throw new Error("OPERATOR_PRIVATE_KEY is not set");
+      }
+
+      const { provider, signer } = createJsonProvider(operatorPrivateKey, ethereumRPCUrl, useNonceManager)
+
+      const finP2PContract = new FinP2PContract(
+        provider,
+        signer,
+        finP2PContractAddress,
+        logger
+      );
+      const finP2PClient = new FinP2PClient(finP2PUrl, ossUrl);
+      const execDetailsStore = new InMemoryExecDetailsStore();
+      const proofProvider = new ProofProvider(orgId, finP2PClient, operatorPrivateKey)
+
+      const contractVersion = await finP2PContract.getVersion();
+      logger.info(`FinP2P contract version: ${contractVersion}`);
+      const { name, version, chainId, verifyingContract } =
+        await finP2PContract.eip712Domain();
+      logger.info(
+        `EIP712 domain: name=${name} version=${version} chainId=${chainId} verifyingContract=${verifyingContract}`
+      );
+
+      return {
+        type: 'local',
+        orgId,
+        execDetailsStore,
+        finP2PClient,
+        finP2PContract,
+        proofProvider,
+        provider,
+        signer
+      }
+    }
+    case 'fireblocks': {
+      const envVaultAccountIdsStr = process.env.FIREBLOCKS_VAULT_ACCOUNT_IDS;
+      const vaultAccountIds = envVaultAccountIdsStr ? envVaultAccountIdsStr.split(",").map(id => id.trim()) : [];
+      if (vaultAccountIds.length === 0) {
+        throw new Error("FIREBLOCKS_VAULT_ACCOUNT_IDS is not set or empty");
+      }
+
+      const { provider, signer } = await createFireblocksProvider(vaultAccountIds)
+      return {
+        type: 'fireblocks',
+        provider,
+        signer
+      }
+    }
+  }
+}
 
 export interface ParamDefinition {
   name: string;
