@@ -37,17 +37,21 @@ export class ContractsManager {
     }
   }
 
-  async deployERC20(name: string, symbol: string, decimals: number, finP2PContractAddress: string) {
-    const standardAddress = await this.getAssetStandardViaFinP2PContract(finP2PContractAddress, ERC20_STANDARD_ID);
-
+  async deployERC20Detached(name: string, symbol: string, decimals: number, operatorAddress: string): Promise<string> {
     const factory = new ContractFactory<any[], ERC20WithOperator>(
       ERC20.abi,
       ERC20.bytecode,
       this.signer
     );
-    const contract = await factory.deploy(name, symbol, decimals, standardAddress);
+    const contract = await factory.deploy(name, symbol, decimals, operatorAddress);
     await contract.waitForDeployment();
     return await contract.getAddress();
+  }
+
+  async deployERC20ViaAssetRegistry(name: string, symbol: string, decimals: number, finP2PContractAddress: string) {
+    const standardAddress = await this.getAssetStandardViaFinP2PContract(finP2PContractAddress, ERC20_STANDARD_ID);
+
+    return this.deployERC20Detached(name, symbol, decimals, standardAddress);
   }
 
   async getPendingTransactionCount() {
@@ -134,7 +138,7 @@ export class ContractsManager {
 
   async preCreatePaymentAsset(factory: ContractFactory<any[], FINP2POperator>, finP2PContractAddress: string, assetId: string, decimals: number): Promise<void> {
     this.logger.info(`Pre-creating payment asset ${assetId}...`);
-    const tokenAddress = await this.deployERC20(assetId, assetId, decimals, finP2PContractAddress);
+    const tokenAddress = await this.deployERC20ViaAssetRegistry(assetId, assetId, decimals, finP2PContractAddress);
 
     const contract = factory.attach(finP2PContractAddress) as FINP2POperator;
     this.logger.info(`Associating asset ${assetId} with token ${tokenAddress}...`);
