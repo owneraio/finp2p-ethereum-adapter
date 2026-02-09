@@ -27,7 +27,7 @@ export class TokenServiceImpl implements TokenService, EscrowService {
       const { chainId, name } = await provider.getNetwork()
 
       const cm = new ContractsManager(provider, signer, this.logger)
-      const decimals = 18
+      const decimals = 6
       console.log(assetMetadata)
       await this.fundVaultIdIfNeeded(this.appConfig.assetIssuer.vaultId)
       const erc20 = await cm.deployERC20Detached(
@@ -76,9 +76,8 @@ export class TokenServiceImpl implements TokenService, EscrowService {
     }
   }
 
-  async getBalance(assetId: string, finId: string): Promise<string> {
-    const asset = await workflows.getAssetById(assetId)
-    if (asset === undefined) throw new Error(`Asset(id=${assetId}) is not registered in DB`)
+  async getBalance(ast: Asset, finId: string): Promise<string> {
+    const asset = await getAssetFromDb(ast)
 
     const address = finIdToAddress(finId)
     const c = new Contract(asset.contract_address, ["function balanceOf(address account) view returns (uint256)"], this.appConfig.assetIssuer.provider)
@@ -87,10 +86,12 @@ export class TokenServiceImpl implements TokenService, EscrowService {
     return formatUnits(d, asset.decimals)
   }
 
-  async balance(assetId: string, finId: string): Promise<Balance> {
+  async balance(ast: Asset, finId: string): Promise<Balance> {
+    const b = await this.getBalance(ast, finId)
+
     return {
-      current: await this.getBalance(assetId, finId),
-      available: await this.getBalance(assetId, finId),
+      current: b,
+      available: b,
       held: "0"
     }
   }
