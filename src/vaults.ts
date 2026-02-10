@@ -1,22 +1,6 @@
-import { FireblocksSDK, PeerType, TransactionOperation, TransactionStatus, VaultAccountResponse } from "fireblocks-sdk"
+import { FireblocksSDK, PeerType, TransactionOperation, TransactionStatus } from "fireblocks-sdk"
 import axios from 'axios'
 import { setTimeout as sleep } from 'node:timers/promises'
-
-function ttlCached<T>(ms: number, method: () => T): () => T {
-  let lastTimestampMs = -1
-  let lastValue: T | null = null
-
-  return () => {
-    if (lastValue !== null && Date.now() - lastTimestampMs <= ms) {
-      return lastValue
-    }
-
-    const currentValue = method()
-    lastTimestampMs = Date.now()
-    lastValue = currentValue
-    return currentValue
-  }
-}
 
 async function retryIfRateLimited<T>(apiCall: () => Promise<T>, retryCount: number = 30): Promise<T> {
   try {
@@ -96,38 +80,84 @@ async function transferAssetFromVaultToVault(fireblocksSdk: FireblocksSDK, fromV
 
 export interface FlattenedVaultDetails { vaultId: string, assetId: string, depositAddress: string, assetAddress: string | undefined }
 
-export const createVaultManagementFunctions = (fireblocksSdk: FireblocksSDK, options: { cacheValuesTtlMs: number }) => {
+export const createVaultManagementFunctions = (fireblocksSdk: FireblocksSDK) => {
 
-  const fetchAllVaults = ttlCached(
-    options.cacheValuesTtlMs,
-    () => autoPaginate(
-      'getVaults',
-      (after) => fireblocksSdk.getVaultAccountsWithPageInfo({ after }),
-      (response) => response.accounts
-    )
+  const fetchAllVaults = () => autoPaginate(
+    'getVaults',
+    (after) => fireblocksSdk.getVaultAccountsWithPageInfo({ after }),
+    (response) => response.accounts
   )
 
-  const getCollectedAddresses: () => Promise<FlattenedVaultDetails[]> = ttlCached(
-    options.cacheValuesTtlMs,
-    async () => {
-      const collectedAddresses: FlattenedVaultDetails[] = []
-      const vaults = await fetchAllVaults()
-      for (const vault of vaults) {
-        for (const asset of (vault.assets ?? [])) {
-          const resp = await retryIfRateLimited(() => fireblocksSdk.getDepositAddresses(vault.id, asset.id))
-          const assetDetails = await retryIfRateLimited(() => fireblocksSdk.getAssetById(asset.id))
-          for (const addr of resp) {
-            collectedAddresses.push({ vaultId: vault.id, assetId: asset.id, assetAddress: assetDetails.onchain?.address, depositAddress: addr.address })
+  // Leaf caches: O(1) lookups for already-discovered address -> vault mappings
+  const addressLeafCache = new Map<string, FlattenedVaultDetails>()
+  const compositeLeafCache = new Map<string, FlattenedVaultDetails>()
+
+  // Shared scan promise to deduplicate concurrent rescan requests
+  let activeScanPromise: Promise<FlattenedVaultDetails[]> | null = null
+
+  const scanVaults = async (): Promise<FlattenedVaultDetails[]> => {
+    const collectedAddresses: FlattenedVaultDetails[] = []
+    const vaults = await fetchAllVaults()
+    for (const vault of vaults) {
+      for (const asset of (vault.assets ?? [])) {
+        const resp = await retryIfRateLimited(() => fireblocksSdk.getDepositAddresses(vault.id, asset.id))
+        const assetDetails = await retryIfRateLimited(() => fireblocksSdk.getAssetById(asset.id))
+        for (const addr of resp) {
+          const detail: FlattenedVaultDetails = {
+            vaultId: vault.id,
+            assetId: asset.id,
+            assetAddress: assetDetails.onchain?.address,
+            depositAddress: addr.address,
+          }
+
+          collectedAddresses.push(detail)
+          addressLeafCache.set(addr.address.toLowerCase(), detail)
+          if (detail.assetAddress) {
+            compositeLeafCache.set(
+              `${addr.address.toLowerCase()}:${detail.assetAddress.toLowerCase()}`,
+              detail,
+            )
           }
         }
       }
-      return collectedAddresses
     }
-  )
+    return collectedAddresses
+  }
+
+  // Perform a full scan, deduplicating concurrent requests into a single scan
+  const rescan = (): Promise<FlattenedVaultDetails[]> => {
+    if (!activeScanPromise) {
+      activeScanPromise = scanVaults().finally(() => {
+        activeScanPromise = null
+      })
+    }
+    return activeScanPromise
+  }
+
+  let initialScanComplete = false
+  const ensureInitialScan = async (): Promise<void> => {
+    if (!initialScanComplete) {
+      await rescan()
+      initialScanComplete = true
+    }
+  }
+
+  const getCollectedAddresses: () => Promise<FlattenedVaultDetails[]> = async () => {
+    await ensureInitialScan()
+    return Array.from(addressLeafCache.values())
+  }
 
   const getVaultIdForAddress = async (address: string): Promise<string | undefined> => {
-    const collectedAddresses = await getCollectedAddresses()
-    return collectedAddresses.find(v => v.depositAddress.toLowerCase() === address.toLowerCase())?.vaultId
+    await ensureInitialScan()
+    const key = address.toLowerCase()
+
+    // Fast leaf lookup
+    const cached = addressLeafCache.get(key)
+    if (cached) return cached.vaultId
+
+    // Leaf not discovered yet - rescan to find new vault/address pairs
+    await rescan()
+    return addressLeafCache.get(key)?.vaultId
   }
 
   const getVaultAssetBalance = async (vaultId: string, assetId: string): Promise<string | undefined> => {
@@ -137,19 +167,25 @@ export const createVaultManagementFunctions = (fireblocksSdk: FireblocksSDK, opt
 
   const balance = async (depositAddress: string, tokenAddress: string): Promise<string | undefined> => {
     console.debug('balance requested', depositAddress, tokenAddress)
-    const vaults = await fetchAllVaults()
-    const collectedAddresses = await getCollectedAddresses()
+    await ensureInitialScan()
 
-    const flattenedVaultDetail = collectedAddresses.find(v => v.assetAddress?.toLowerCase() === tokenAddress.toLowerCase() && v.depositAddress.toLowerCase() === depositAddress.toLowerCase())
-    if (flattenedVaultDetail === undefined) return undefined
+    const compositeKey = `${depositAddress.toLowerCase()}:${tokenAddress.toLowerCase()}`
 
-    console.debug('flatten debug', flattenedVaultDetail)
+    // Fast leaf lookup
+    let detail = compositeLeafCache.get(compositeKey)
+    if (!detail) {
+      // Leaf not discovered yet - rescan to find new entries
+      await rescan()
+      detail = compositeLeafCache.get(compositeKey)
+    }
 
-    return getVaultAssetBalance(flattenedVaultDetail.vaultId, flattenedVaultDetail.assetId)
+    if (!detail) return undefined
+
+    console.debug('flatten debug', detail)
+    return getVaultAssetBalance(detail.vaultId, detail.assetId)
   }
 
   return {
-    fetchAllVaults,
     getCollectedAddresses,
     getVaultIdForAddress,
     getVaultAssetBalance,
