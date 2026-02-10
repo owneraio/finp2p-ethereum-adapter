@@ -169,12 +169,12 @@ export class TokenServiceImpl extends CommonServiceImpl implements TokenService 
 
   }
 
-  public async getBalance(assetId: string, finId: string): Promise<string> {
-    return await this.finP2PContract.balance(assetId, finId);
+  public async getBalance(ast: Asset, finId: string): Promise<string> {
+    return await this.finP2PContract.balance(ast.assetId, finId);
   }
 
-  public async balance(assetId: string, finId: string): Promise<Balance> {
-    const balance = await this.finP2PContract.balance(assetId, finId);
+  public async balance(ast: Asset, finId: string): Promise<Balance> {
+    const balance = await this.finP2PContract.balance(ast.assetId, finId);
     return {
       current: balance,
       available: balance,
