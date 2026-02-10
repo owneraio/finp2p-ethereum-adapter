@@ -112,9 +112,7 @@ const createFireblocksProvider =  async (): Promise<FireblocksAppConfig> => {
 
   const fireblocksSdk = new FireblocksSDK(apiPrivateKey, apiKey, (process.env.FIREBLOCKS_API_BASE_URL || ApiBaseUrl.Production))
 
-  const vaultManagement = createVaultManagementFunctions(fireblocksSdk, {
-    cacheValuesTtlMs: 3000
-  })
+  const vaultManagement = createVaultManagementFunctions(fireblocksSdk)
 
   let fundVaultIdGas: FireblocksAppConfig['fundVaultIdGas'] = undefined
   const fundingVaultId = process.env.FIREBLOCKS_GAS_FUNDING_VAULT_ID
