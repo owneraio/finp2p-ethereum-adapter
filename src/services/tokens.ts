@@ -58,7 +58,7 @@ export class TokenServiceImpl extends CommonServiceImpl implements TokenService 
       logger.debug(`Associating existing token ${tokenAddress} to asset ${assetId}`);
     } else {
 
-      tokenAddress = await this.finP2PContract.deployERC20(assetId, assetId, DefaultDecimals, this.finP2PContract.finP2PContractAddress);
+      tokenAddress = await this.finP2PContract.deployERC20ViaAssetRegistry(assetId, assetId, DefaultDecimals, this.finP2PContract.finP2PContractAddress);
       allowanceRequired = false;
       logger.debug(`Deployed new token ${tokenAddress} for asset ${assetId}`);
     }
