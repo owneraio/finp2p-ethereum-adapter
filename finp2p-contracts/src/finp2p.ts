@@ -156,9 +156,10 @@ export class FinP2PContract extends ContractsManager {
         const block = await this.provider.getBlock(txReceipt.blockNumber);
         const timestamp = block?.timestamp || 0;
         const receipt = parseTransactionReceipt(txReceipt, this.contractInterface, timestamp);
+        const indexationWaitTime = 60 * 60 // 1 hour
         if (receipt === null) {
           this.logger.warning("Failed to parse receipt");
-          return failedReceiptOperation(1, "Failed to parse receipt");
+          return pendingReceiptOperation(txHash, undefined)
         }
         // const erc20Transfer = parseERC20Transfer(txReceipt, );
         // this.logger.info('ERC20 transfer event', erc20Transfer);
