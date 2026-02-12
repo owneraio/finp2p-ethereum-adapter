@@ -58,7 +58,7 @@ export class TokenServiceImpl extends CommonServiceImpl implements TokenService 
       logger.debug(`Associating existing token ${tokenAddress} to asset ${assetId}`);
     } else {
 
-      tokenAddress = await this.finP2PContract.deployERC20(assetId, assetId, DefaultDecimals, this.finP2PContract.finP2PContractAddress);
+      tokenAddress = await this.finP2PContract.deployERC20ViaAssetRegistry(assetId, assetId, DefaultDecimals, this.finP2PContract.finP2PContractAddress);
       allowanceRequired = false;
       logger.debug(`Deployed new token ${tokenAddress} for asset ${assetId}`);
     }
@@ -169,12 +169,12 @@ export class TokenServiceImpl extends CommonServiceImpl implements TokenService 
 
   }
 
-  public async getBalance(assetId: string, finId: string): Promise<string> {
-    return await this.finP2PContract.balance(assetId, finId);
+  public async getBalance(ast: Asset, finId: string): Promise<string> {
+    return await this.finP2PContract.balance(ast.assetId, finId);
   }
 
-  public async balance(assetId: string, finId: string): Promise<Balance> {
-    const balance = await this.finP2PContract.balance(assetId, finId);
+  public async balance(ast: Asset, finId: string): Promise<Balance> {
+    const balance = await this.finP2PContract.balance(ast.assetId, finId);
     return {
       current: balance,
       available: balance,
