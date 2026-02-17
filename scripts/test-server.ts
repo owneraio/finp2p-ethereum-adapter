@@ -201,11 +201,7 @@ const start = async () => {
       storageUser: new URL(connectionString).username,
     },
     storage: { connectionString },
-<<<<<<< HEAD
-    service: {}
-=======
     service: {},
->>>>>>> fa0d556 ([Task] Update adapter to 0.27.1)
   };
 
 

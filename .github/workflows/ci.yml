@@ -38,6 +38,10 @@ jobs:
         working-directory: ./finp2p-contracts
         run: npm run compile
 
+      - name: Finp2p-Contracts npm run build
+        working-directory: ./finp2p-contracts
+        run: npm run build
+
       - name: Finp2p-Contracts npm run test
         working-directory: ./finp2p-contracts
         run: npm run test
