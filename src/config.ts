@@ -79,6 +79,25 @@ export const createJsonProvider = (
   return { provider, signer };
 };
 
+export const createFireblocksEthersProvider = async (config: {
+  apiKey: string;
+  privateKey: string;
+  chainId: ChainId;
+  apiBaseUrl?: ApiBaseUrl | string;
+  vaultAccountIds: number | number[] | string | string[];
+}): Promise<{ provider: Provider; signer: Signer }> => {
+  const eip1193Provider = new FireblocksWeb3Provider({
+    privateKey: config.privateKey,
+    apiKey: config.apiKey,
+    chainId: config.chainId,
+    apiBaseUrl: config.apiBaseUrl,
+    vaultAccountIds: config.vaultAccountIds,
+  });
+  const provider = new BrowserProvider(eip1193Provider);
+  const signer = await provider.getSigner();
+  return { provider, signer };
+};
+
 const createFireblocksProvider =  async (): Promise<FireblocksAppConfig> => {
   const apiKey = process.env.FIREBLOCKS_API_KEY || "";
   if (!apiKey) {
@@ -95,11 +114,9 @@ const createFireblocksProvider =  async (): Promise<FireblocksAppConfig> => {
   const apiBaseUrl = (process.env.FIREBLOCKS_API_BASE_URL || ApiBaseUrl.Production) as ApiBaseUrl;
 
   const providerForVaultId = async (vaultId: string): Promise<FireblocksVaultProvider> => {
-    const eip1193Provider = new FireblocksWeb3Provider({
-      privateKey: apiPrivateKey, apiKey, chainId, apiBaseUrl, vaultAccountIds: [vaultId]
+    const { provider, signer } = await createFireblocksEthersProvider({
+      apiKey, privateKey: apiPrivateKey, chainId, apiBaseUrl, vaultAccountIds: [vaultId]
     });
-    const provider = new BrowserProvider(eip1193Provider);
-    const signer = await provider.getSigner();
     return { vaultId, signer, provider }
   }
 

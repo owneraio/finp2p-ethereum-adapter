@@ -8,3 +8,4 @@ node_modules
 /finp2p-contracts/cache/
 /finp2p-contracts/.npmrc/
 .npmrc
+.env.fireblocks

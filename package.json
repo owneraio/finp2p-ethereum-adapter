@@ -14,6 +14,7 @@
     "prebuild": "eslint ./src --ext .ts --fix",
     "build": "tsc",
     "test": "jest",
+    "test:fireblocks": "jest --config jest.fireblocks.config.js",
     "test-server": "ts-node ./scripts/test-server.ts",
     "migration": "ts-node ./scripts/migration.ts",
     "sync-balances": "ts-node ./scripts/sync-balances.ts",
