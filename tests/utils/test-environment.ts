@@ -36,6 +36,7 @@ const DefaultOrgId = "some-org";
 class CustomTestEnvironment extends NodeEnvironment {
   network: NetworkParameters | undefined;
   adapter: AdapterParameters | undefined;
+  orgId: string;
   ethereumNodeContainer: StartedTestContainer | undefined;
   postgresSqlContainer: StartedPostgreSqlContainer | undefined;
   httpServer: http.Server | undefined;
@@ -44,6 +45,7 @@ class CustomTestEnvironment extends NodeEnvironment {
     super(config, context);
     this.network = this.global.network as NetworkParameters | undefined;
     this.adapter = this.global.adapter as AdapterParameters | undefined;
+    this.orgId = (this.global.orgId as string) || DefaultOrgId;
   }
 
   async setup() {
@@ -175,7 +177,7 @@ class CustomTestEnvironment extends NodeEnvironment {
         storageUser,
       },
       storage: { connectionString },
-      service: {}
+      service: {},
     };
 
     const app = createApp(
@@ -183,13 +185,13 @@ class CustomTestEnvironment extends NodeEnvironment {
       logger,
       {
         type: 'local',
-        orgId: DefaultOrgId,
+        orgId: this.orgId,
         finP2PClient: undefined,
         finP2PContract,
         execDetailsStore,
         provider,
         signer,
-        proofProvider: new ProofProvider(DefaultOrgId, undefined, operatorPrivateKey)
+        proofProvider: new ProofProvider(this.orgId, undefined, operatorPrivateKey)
       }
     );
     console.log("App created successfully.");

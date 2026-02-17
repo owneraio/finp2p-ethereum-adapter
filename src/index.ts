@@ -33,7 +33,7 @@ const init = async () => {
       storageUser,
     },
     storage: { connectionString: dbConnectionString },
-    service: {}
+    service: {},
   };
 
   const level = process.env.LOG_LEVEL || "info";

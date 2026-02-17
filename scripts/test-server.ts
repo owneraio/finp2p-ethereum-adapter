@@ -120,7 +120,7 @@ const deployERC20Contract = async (
   finp2pTokenAddress: string
 ) => {
   const contractManger = new ContractsManager(provider, signer, logger);
-  return contractManger.deployERC20ViaAssetRegistry("ERC-20", "ERC20", 0, finp2pTokenAddress);
+  return contractManger.deployERC20Detached("ERC-20", "ERC20", 0, finp2pTokenAddress);
 };
 
 const startApp = async (
@@ -201,7 +201,11 @@ const start = async () => {
       storageUser: new URL(connectionString).username,
     },
     storage: { connectionString },
+<<<<<<< HEAD
     service: {}
+=======
+    service: {},
+>>>>>>> fa0d556 ([Task] Update adapter to 0.27.1)
   };
 
 
