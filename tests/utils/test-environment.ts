@@ -13,6 +13,8 @@ import * as console from "console";
 import * as http from "http";
 import NodeEnvironment from "jest-environment-node";
 import { exec } from "node:child_process";
+import { existsSync } from "node:fs";
+import { join } from "node:path";
 import { URL } from 'node:url';
 import { GenericContainer, StartedTestContainer } from "testcontainers";
 import winston, { format, transports } from "winston";
@@ -85,6 +87,9 @@ class CustomTestEnvironment extends NodeEnvironment {
 
   async teardown() {
     try {
+      if (this.postgresSqlContainer) {
+        await this.dumpDatabase();
+      }
       this.httpServer?.close();
       await this.ethereumNodeContainer?.stop();
       await workflows.Storage.closeAllConnections();
@@ -93,6 +98,34 @@ class CustomTestEnvironment extends NodeEnvironment {
     } catch (err) {
       console.error("Error stopping Ganache container:", err);
     }
+  }
+
+  private async dumpDatabase() {
+    const container = this.postgresSqlContainer!;
+    const user = container.getUsername();
+    const db = container.getDatabase();
+
+    console.log("\n========== DATABASE DUMP ==========");
+    console.log(`Connection: ${container.getConnectionUri()}\n`);
+
+    // List all tables across all schemas
+    const tablesResult = await container.exec([
+      "psql", "-U", user, "-d", db, "-t", "-A", "-c",
+      "SELECT schemaname || '.' || tablename FROM pg_tables WHERE schemaname NOT IN ('pg_catalog', 'information_schema');"
+    ]);
+    const tables = tablesResult.output.trim().split("\n").filter(t => t.length > 0);
+    console.log(`Tables found: ${tables.join(", ")}\n`);
+
+    // Dump each table
+    for (const table of tables) {
+      console.log(`---------- ${table} ----------`);
+      const result = await container.exec([
+        "psql", "-U", user, "-d", db, "--expanded", "-c",
+        `SELECT * FROM ${table};`
+      ]);
+      console.log(result.output);
+    }
+    console.log("========== END DATABASE DUMP ==========\n");
   }
 
   private async startPostgresContainer() {
@@ -212,6 +245,11 @@ class CustomTestEnvironment extends NodeEnvironment {
 
   private async whichGoose() {
     return new Promise<string>((resolve, reject) => {
+      const localGoose = join(process.cwd(), "bin", "goose");
+      if (existsSync(localGoose)) {
+        resolve(localGoose);
+        return;
+      }
       exec("which goose", (err, stdout, stderr) => {
         if (err) {
           reject(err);

@@ -1,8 +1,8 @@
 import { Asset, AssetBind, AssetCreationStatus, AssetDenomination, AssetIdentifier, Balance, Destination, ExecutionContext, FinIdAccount, Logger, ReceiptOperation, Signature, Source, TokenService, failedReceiptOperation, EscrowService } from '@owneraio/finp2p-adapter-models';
 import { workflows } from '@owneraio/finp2p-nodejs-skeleton-adapter';
-import { Contract, ContractTransactionResponse, BrowserProvider, Signer, parseUnits, formatUnits } from "ethers";
+import { parseUnits, formatUnits } from "ethers";
 import { FireblocksAppConfig } from '../../config'
-import { ContractsManager, finIdToAddress } from '@owneraio/finp2p-contracts'
+import { ContractsManager, ERC20Contract, finIdToAddress } from '@owneraio/finp2p-contracts'
 
 async function getAssetFromDb(ast: Asset): Promise<workflows.Asset> {
   const asset = await workflows.getAsset({ id: ast.assetId, type: ast.assetType })
@@ -41,7 +41,7 @@ export class TokenServiceImpl implements TokenService, EscrowService {
       const responseRegister = await fireblocksSdk.registerNewAsset('ETH_TEST5', erc20, assetIdentifier?.value ?? "OWNERA")
       console.debug(responseRegister)
 
-      const responseVault = await fireblocksSdk.createVaultAsset("0", responseRegister.legacyId)
+      const responseVault = await fireblocksSdk.createVaultAsset(this.appConfig.assetIssuer.vaultId, responseRegister.legacyId)
       console.debug(responseVault)
 
       return {
@@ -58,11 +58,10 @@ export class TokenServiceImpl implements TokenService, EscrowService {
         const responseRegister = await fireblocksSdk.registerNewAsset('ETH_TEST5', assetBind.tokenIdentifier.tokenId)
         console.debug(responseRegister)
 
-
-        const responseVault = await fireblocksSdk.createVaultAsset("0", responseRegister.legacyId)
+        const responseVault = await fireblocksSdk.createVaultAsset(this.appConfig.assetIssuer.vaultId, responseRegister.legacyId)
         console.debug(responseVault)
       } catch (e) {
-        console.error(e)
+        this.logger.warning(`Asset registration/activation failed (may already exist): ${e}`)
       }
 
       return {
@@ -80,7 +79,7 @@ export class TokenServiceImpl implements TokenService, EscrowService {
     const asset = await getAssetFromDb(ast)
 
     const address = finIdToAddress(finId)
-    const c = new Contract(asset.contract_address, ["function balanceOf(address account) view returns (uint256)"], this.appConfig.assetIssuer.provider)
+    const c = new ERC20Contract(this.appConfig.assetIssuer.provider, this.appConfig.assetIssuer.signer, asset.contract_address, this.logger)
     const d = await c.balanceOf(address)
 
     return formatUnits(d, asset.decimals)
@@ -102,7 +101,7 @@ export class TokenServiceImpl implements TokenService, EscrowService {
     const address = finIdToAddress(to.finId)
     const amount = parseUnits(quantity, asset.decimals)
 
-    const c = new Contract(asset.contract_address, ["function mint(address to, uint256 amount)"], signer)
+    const c = new ERC20Contract(this.appConfig.assetIssuer.provider, signer, asset.contract_address, this.logger)
     await this.fundVaultIdIfNeeded(this.appConfig.assetIssuer.vaultId)
     const tx = await c.mint(address, amount)
     const receipt = await tx.wait()
@@ -140,7 +139,7 @@ export class TokenServiceImpl implements TokenService, EscrowService {
     if (provider === undefined) throw new Error('Source address cannot be converted to vault id')
     const amount = parseUnits(quantity, asset.decimals)
 
-    const c = new Contract(asset.contract_address, ["function transfer(address to, uint256 amount) returns (bool)"], provider.signer)
+    const c = new ERC20Contract(provider.provider, provider.signer, asset.contract_address, this.logger)
     await this.fundVaultIdIfNeeded(provider.vaultId)
     const tx = await c.transfer(finIdToAddress(destination.finId), amount)
     const receipt = await tx.wait()
@@ -178,7 +177,7 @@ export class TokenServiceImpl implements TokenService, EscrowService {
     const { signer, provider } = await this.appConfig.assetIssuer
     const amount = parseUnits(quantity, asset.decimals)
 
-    const c = new Contract(asset.contract_address, ["function burn(address from, uint256 amount)"], signer)
+    const c = new ERC20Contract(this.appConfig.assetIssuer.provider, signer, asset.contract_address, this.logger)
     await this.fundVaultIdIfNeeded(this.appConfig.assetIssuer.vaultId)
     const tx = await c.burn(escrowAddress, amount)
     const receipt = await tx.wait()
@@ -218,7 +217,7 @@ export class TokenServiceImpl implements TokenService, EscrowService {
     if (provider === undefined) throw new Error('Source address cannot be converted to vault id')
     const amount = parseUnits(quantity, asset.decimals)
 
-    const c = new Contract(asset.contract_address, ["function transfer(address to, uint256 amount) returns (bool)"], provider.signer)
+    const c = new ERC20Contract(provider.provider, provider.signer, asset.contract_address, this.logger)
     await this.fundVaultIdIfNeeded(provider.vaultId)
     const tx = await c.transfer(await this.appConfig.assetEscrow.signer.getAddress(), amount)
     const receipt = await tx.wait()
@@ -254,7 +253,7 @@ export class TokenServiceImpl implements TokenService, EscrowService {
     const destinationAddress = finIdToAddress(destination.finId)
     const amount = parseUnits(quantity, asset.decimals)
 
-    const c = new Contract(asset.contract_address, ["function transfer(address to, uint256 amount) returns (bool)"], this.appConfig.assetEscrow.signer)
+    const c = new ERC20Contract(this.appConfig.assetEscrow.provider, this.appConfig.assetEscrow.signer, asset.contract_address, this.logger)
     await this.fundVaultIdIfNeeded(this.appConfig.assetEscrow.vaultId)
     const tx = await c.transfer(destinationAddress, amount)
     const receipt = await tx.wait()
@@ -290,7 +289,7 @@ export class TokenServiceImpl implements TokenService, EscrowService {
     const sourceAddress = finIdToAddress(source.finId)
     const amount = parseUnits(quantity, asset.decimals)
 
-    const c = new Contract(asset.contract_address, ["function transfer(address to, uint256 amount) returns (bool)"], this.appConfig.assetEscrow.signer)
+    const c = new ERC20Contract(this.appConfig.assetEscrow.provider, this.appConfig.assetEscrow.signer, asset.contract_address, this.logger)
     await this.fundVaultIdIfNeeded(this.appConfig.assetEscrow.vaultId)
     const tx = await c.transfer(sourceAddress, amount)
     const receipt = await tx.wait()

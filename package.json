@@ -10,6 +10,7 @@
     "mass-approve": "./dist/scripts/mass-approve.js"
   },
   "scripts": {
+    "postinstall": "GOBIN=$(pwd)/bin go install github.com/pressly/goose/v3/cmd/goose@v3.26.0",
     "clean": "rm -rf dist",
     "prebuild": "eslint ./src --ext .ts --fix",
     "build": "tsc",
@@ -55,6 +56,7 @@
     "@typescript-eslint/eslint-plugin": "^7.2.0",
     "@typescript-eslint/parser": "^7.2.0",
     "cpx2": "^7.0.1",
+    "dotenv": "^17.3.1",
     "eslint": "^8.56.0",
     "jest": "^29.2.0",
     "prettier": "2.5.1",

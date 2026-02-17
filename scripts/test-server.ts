@@ -12,7 +12,9 @@ import {
 import console from "console";
 import { Provider, Signer } from "ethers";
 import http from "http";
+import { existsSync } from "node:fs";
 import { exec } from "node:child_process";
+import { join } from "node:path";
 import { URL } from "node:url";
 import process from "process";
 import { GenericContainer, StartedTestContainer } from "testcontainers";
@@ -50,6 +52,11 @@ const logger = winston.createLogger({
 
 const whichGoose = () =>
   new Promise<string>((resolve, reject) => {
+    const localGoose = join(process.cwd(), "bin", "goose");
+    if (existsSync(localGoose)) {
+      resolve(localGoose);
+      return;
+    }
     exec("which goose", (err, stdout, stderr) => {
       if (err) {
         reject(err);
