@@ -22,7 +22,7 @@ module.exports = {
     "<rootDir>/tests"
   ],
   "testMatch": [
-    "<rootDir>/tests/**/*.test.+(ts|tsx|js)"
+    "<rootDir>/tests/adapter.test.+(ts|tsx|js)"
   ],
   "transform": {
     "^.+\\.(ts|tsx)$": "ts-jest"

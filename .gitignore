@@ -7,3 +7,7 @@ node_modules
 /finp2p-contracts/dist/
 /finp2p-contracts/cache/
 /.npmrc
+/finp2p-contracts/.npmrc
+/bin/
+.env.fireblocks
+*.key
