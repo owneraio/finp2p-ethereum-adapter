@@ -10,6 +10,9 @@ import { Logger } from "@owneraio/finp2p-adapter-models";
 import { InMemoryExecDetailsStore } from './services/exec-details-store'
 import { FireblocksSDK } from "fireblocks-sdk";
 import { createVaultManagementFunctions } from './vaults'
+import { DfnsApiClient } from "@dfns/sdk";
+import { AsymmetricKeySigner } from "@dfns/sdk-keysigner";
+import { DfnsWallet } from "@dfns/lib-ethersjs6";
 
 export type LocalAppConfig = {
   type: 'local'
@@ -45,7 +48,21 @@ export type FireblocksAppConfig = {
   balance: (depositAddress: string, tokenAsset: string) => Promise<string | undefined>
 }
 
-export type AppConfig = LocalAppConfig | FireblocksAppConfig
+export type DfnsWalletProvider = {
+  walletId: string
+  provider: Provider
+  signer: Signer
+}
+
+export type DfnsAppConfig = {
+  type: 'dfns'
+  dfnsClient: DfnsApiClient
+  assetIssuer: DfnsWalletProvider
+  assetEscrow: DfnsWalletProvider
+  createProviderForAddress: (address: string) => Promise<DfnsWalletProvider | undefined>
+}
+
+export type AppConfig = LocalAppConfig | FireblocksAppConfig | DfnsAppConfig
 
 const getNetworkRpcUrl = (): string => {
   let networkHost = process.env.NETWORK_HOST;
@@ -96,6 +113,76 @@ export const createFireblocksEthersProvider = async (config: {
   const provider = new BrowserProvider(eip1193Provider);
   const signer = await provider.getSigner();
   return { provider, signer };
+};
+
+export const createDfnsEthersProvider = async (config: {
+  dfnsClient: DfnsApiClient;
+  walletId: string;
+  rpcUrl: string;
+}): Promise<{ provider: Provider; signer: Signer }> => {
+  const provider = new JsonRpcProvider(config.rpcUrl);
+  const dfnsWallet = await DfnsWallet.init({
+    walletId: config.walletId,
+    dfnsClient: config.dfnsClient,
+  });
+  const signer = dfnsWallet.connect(provider);
+  return { provider, signer };
+};
+
+const createDfnsProvider = async (): Promise<DfnsAppConfig> => {
+  const baseUrl = process.env.DFNS_BASE_URL || 'https://api.dfns.io';
+  const orgId = process.env.DFNS_ORG_ID;
+  if (!orgId) throw new Error('DFNS_ORG_ID is not set');
+
+  const authToken = process.env.DFNS_AUTH_TOKEN;
+  if (!authToken) throw new Error('DFNS_AUTH_TOKEN is not set');
+
+  const credId = process.env.DFNS_CRED_ID;
+  if (!credId) throw new Error('DFNS_CRED_ID is not set');
+
+  const privateKeyPath = process.env.DFNS_PRIVATE_KEY_PATH;
+  const privateKeyEnv = process.env.DFNS_PRIVATE_KEY;
+  const privateKey = privateKeyPath
+    ? fs.readFileSync(privateKeyPath, 'utf-8')
+    : privateKeyEnv;
+  if (!privateKey) throw new Error('DFNS_PRIVATE_KEY or DFNS_PRIVATE_KEY_PATH is not set');
+
+  const rpcUrl = getNetworkRpcUrl();
+
+  const keySigner = new AsymmetricKeySigner({ credId, privateKey });
+  const dfnsClient = new DfnsApiClient({ baseUrl, orgId, authToken, signer: keySigner });
+
+  const issuerWalletId = process.env.DFNS_ASSET_ISSUER_WALLET_ID;
+  if (!issuerWalletId) throw new Error('DFNS_ASSET_ISSUER_WALLET_ID is not set');
+
+  const escrowWalletId = process.env.DFNS_ASSET_ESCROW_WALLET_ID;
+  if (!escrowWalletId) throw new Error('DFNS_ASSET_ESCROW_WALLET_ID is not set');
+
+  const providerForWalletId = async (walletId: string): Promise<DfnsWalletProvider> => {
+    const { provider, signer } = await createDfnsEthersProvider({ dfnsClient, walletId, rpcUrl });
+    return { walletId, provider, signer };
+  };
+
+  // Cache address→walletId mapping for createProviderForAddress
+  const addressToWalletId = new Map<string, string>();
+  const { items } = await dfnsClient.wallets.listWallets({});
+  for (const w of items) {
+    if (w.address) {
+      addressToWalletId.set(w.address.toLowerCase(), w.id);
+    }
+  }
+
+  return {
+    type: 'dfns',
+    dfnsClient,
+    assetIssuer: await providerForWalletId(issuerWalletId),
+    assetEscrow: await providerForWalletId(escrowWalletId),
+    createProviderForAddress: async (address: string) => {
+      const walletId = addressToWalletId.get(address.toLowerCase());
+      if (!walletId) return undefined;
+      return providerForWalletId(walletId);
+    },
+  };
 };
 
 const createFireblocksProvider =  async (): Promise<FireblocksAppConfig> => {
@@ -224,6 +311,9 @@ export async function envVarsToAppConfig(logger: Logger): Promise<AppConfig> {
     }
     case 'fireblocks': {
       return await createFireblocksProvider()
+    }
+    case 'dfns': {
+      return await createDfnsProvider()
     }
   }
 }
