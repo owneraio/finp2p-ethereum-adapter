@@ -4,8 +4,8 @@ module.exports = {
   testEnvironmentOptions: {
     orgId: "bank-id",
     hashFunction: "keccak-256",
-    vaultAccountId: "3606",
-    destVaultAccountId: "3613",
+    vaultAccountId: "85",
+    destVaultAccountId: "86",
     assetBinding: {
       tokenId: "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238",
       decimals: 6,

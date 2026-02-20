@@ -10,3 +10,4 @@ node_modules
 /finp2p-contracts/.npmrc
 /bin/
 .env.fireblocks
+*.key
