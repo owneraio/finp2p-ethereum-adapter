@@ -24,6 +24,13 @@ import {
   PlanApprovalServiceImpl as PlanApprovalServiceFireblocksImpl,
   TokenServiceImpl as TokenServiceFireblocksImpl,
 } from "./services/fireblocks"
+import {
+  CommonServiceImpl as CommonServiceDfnsImpl,
+  HealthServiceImpl as HealthServiceDfnsImpl,
+  PaymentsServiceImpl as PaymentsServiceDfnsImpl,
+  PlanApprovalServiceImpl as PlanApprovalServiceDfnsImpl,
+  TokenServiceImpl as TokenServiceDfnsImpl,
+} from "./services/dfns"
 
 function createApp(
   workflowsConfig: workflows.Config | undefined,
@@ -48,6 +55,17 @@ function createApp(
       const paymentsService = new PaymentsServiceFireblocksImpl()
       const planApprovalService = new PlanApprovalServiceFireblocksImpl()
       const tokenService = new TokenServiceFireblocksImpl(logger, appConfig)
+
+      register(app, tokenService, escrowService, commonService, healthService, paymentsService, planApprovalService, undefined, workflowsConfig)
+      break
+    }
+    case 'dfns': {
+      const commonService = new CommonServiceDfnsImpl()
+      const escrowService = new TokenServiceDfnsImpl(logger, appConfig)
+      const healthService = new HealthServiceDfnsImpl(appConfig.assetEscrow.provider)
+      const paymentsService = new PaymentsServiceDfnsImpl()
+      const planApprovalService = new PlanApprovalServiceDfnsImpl()
+      const tokenService = new TokenServiceDfnsImpl(logger, appConfig)
 
       register(app, tokenService, escrowService, commonService, healthService, paymentsService, planApprovalService, undefined, workflowsConfig)
       break
