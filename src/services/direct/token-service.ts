@@ -46,11 +46,15 @@ export class DirectTokenService implements TokenService, EscrowService {
   private async fundGasIfNeeded(wallet: CustodyWallet): Promise<void> {
     const gasStation = this.custodyProvider.gasStation;
     if (!gasStation) return;
-    const targetAddress = await wallet.signer.getAddress();
-    await gasStation.wallet.signer.sendTransaction({
-      to: targetAddress,
-      value: parseEther(gasStation.amount),
-    });
+    try {
+      const targetAddress = await wallet.signer.getAddress();
+      await gasStation.wallet.signer.sendTransaction({
+        to: targetAddress,
+        value: parseEther(gasStation.amount),
+      });
+    } catch (e) {
+      this.logger.warning(`Gas funding failed (wallet may already have sufficient gas): ${e}`);
+    }
   }
 
   async createAsset(
@@ -124,6 +128,7 @@ export class DirectTokenService implements TokenService, EscrowService {
     if (receipt === null) return failedReceiptOperation(1, "receipt is null");
 
     const block = await receipt.getBlock();
+    if (block === null) return failedReceiptOperation(1, "block is null");
     return buildReceiptOperation(
       receipt, ast, "issue", quantity,
       { account: to, finId: to.finId }, { account: to, finId: to.finId },
@@ -148,6 +153,7 @@ export class DirectTokenService implements TokenService, EscrowService {
     if (receipt === null) return failedReceiptOperation(1, "receipt is null");
 
     const block = await receipt.getBlock();
+    if (block === null) return failedReceiptOperation(1, "block is null");
     return buildReceiptOperation(receipt, ast, "transfer", quantity, source, destination, exCtx, undefined, block.timestamp);
   }
 
@@ -168,6 +174,7 @@ export class DirectTokenService implements TokenService, EscrowService {
     if (receipt === null) return failedReceiptOperation(1, "receipt is null");
 
     const block = await receipt.getBlock();
+    if (block === null) return failedReceiptOperation(1, "block is null");
     return buildReceiptOperation(
       receipt, ast, "redeem", quantity,
       { account: source, finId: source.finId }, undefined,
@@ -193,6 +200,7 @@ export class DirectTokenService implements TokenService, EscrowService {
     if (receipt === null) return failedReceiptOperation(1, "receipt is null");
 
     const block = await receipt.getBlock();
+    if (block === null) return failedReceiptOperation(1, "block is null");
     return buildReceiptOperation(receipt, ast, "hold", quantity, source, destination, exCtx, undefined, block.timestamp);
   }
 
@@ -212,6 +220,7 @@ export class DirectTokenService implements TokenService, EscrowService {
     if (receipt === null) return failedReceiptOperation(1, "receipt is null");
 
     const block = await receipt.getBlock();
+    if (block === null) return failedReceiptOperation(1, "block is null");
     return buildReceiptOperation(receipt, ast, "release", quantity, source, destination, exCtx, undefined, block.timestamp);
   }
 
@@ -231,6 +240,7 @@ export class DirectTokenService implements TokenService, EscrowService {
     if (receipt === null) return failedReceiptOperation(1, "receipt is null");
 
     const block = await receipt.getBlock();
+    if (block === null) return failedReceiptOperation(1, "block is null");
     return buildReceiptOperation(receipt, ast, "release", quantity, source, undefined, exCtx, undefined, block.timestamp);
   }
 }
