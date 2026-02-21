@@ -5,7 +5,7 @@ import winston, { format, transports } from "winston";
 import { FinP2PContract } from "@owneraio/finp2p-contracts";
 import { envVarsToAppConfig } from "./config";
 import createApp from "./app";
-import { InMemoryExecDetailsStore } from "./services";
+import { InMemoryExecDetailsStore } from "./services/finp2p-contract";
 
 const init = async () => {
   const port = process.env.PORT || "3000";
@@ -58,11 +58,11 @@ const init = async () => {
     ),
   });
 
-  createApp(
+  (await createApp(
     workflowsConfig,
     logger,
     await envVarsToAppConfig(logger)
-  ).listen(port, () => {
+  )).listen(port, () => {
     logger.info(`listening at http://localhost:${port}`);
   });
 };

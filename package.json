@@ -4,6 +4,9 @@
   "description": "",
   "main": "dist/src/index.js",
   "homepage": "https://ownera.io/",
+  "engines": {
+    "node": ">=20"
+  },
   "bin": {
     "migration": "./dist/scripts/migration.js",
     "sync-balances": "./dist/scripts/sync-balances.js",

@@ -3,7 +3,7 @@ import console from "console";
 import winston, { format, transports } from "winston";
 import { FinP2PClient } from "@owneraio/finp2p-client";
 import { ERC20_STANDARD_ID, FinP2PContract, AssetType, term } from "@owneraio/finp2p-contracts";
-import { emptyOperationParams } from "../src/services/helpers";
+import { emptyOperationParams } from "../src/services/finp2p-contract/helpers";
 import { createJsonProvider, parseConfig } from "../src/config";
 
 
