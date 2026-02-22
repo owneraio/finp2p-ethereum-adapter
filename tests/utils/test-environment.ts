@@ -20,7 +20,7 @@ import { GenericContainer, StartedTestContainer } from "testcontainers";
 import winston, { format, transports } from "winston";
 import createApp from "../../src/app";
 import { createJsonProvider } from "../../src/config";
-import { InMemoryExecDetailsStore } from "../../src/services";
+import { InMemoryExecDetailsStore } from "../../src/services/finp2p-contract";
 import { HardhatLogExtractor } from "./log-extractors";
 import { AdapterParameters, NetworkDetails, NetworkParameters } from "./models";
 import { randomPort } from "./utils";
@@ -213,18 +213,18 @@ class CustomTestEnvironment extends NodeEnvironment {
       service: {},
     };
 
-    const app = createApp(
+    const app = await createApp(
       workflowsConfig,
       logger,
       {
-        type: 'local',
-        orgId: this.orgId,
-        finP2PClient: undefined,
-        finP2PContract,
-        execDetailsStore,
+        type: 'finp2p-contract',
         provider,
         signer,
-        proofProvider: new ProofProvider(this.orgId, undefined, operatorPrivateKey)
+        finP2PClient: undefined,
+        proofProvider: new ProofProvider(this.orgId, undefined, operatorPrivateKey),
+        orgId: this.orgId,
+        finP2PContract,
+        execDetailsStore,
       }
     );
     console.log("App created successfully.");

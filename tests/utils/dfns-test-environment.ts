@@ -124,31 +124,21 @@ class DfnsTestEnvironment extends NodeEnvironment {
     console.log(`Destination wallet finId: ${destFinId}`);
     this.global.destFinId = destFinId;
 
-    // Pre-built address → walletId mapping
-    const addressToWalletId: Record<string, string> = {
-      [walletAddress.toLowerCase()]: this.walletId,
-      [destAddress.toLowerCase()]: destWalletId,
-    };
-    console.log("Address-to-wallet mapping:", addressToWalletId);
-
-    const walletProvider = { walletId: this.walletId, provider, signer };
-
     const appConfig: DfnsAppConfig = {
       type: "dfns",
-      dfnsClient,
-      assetIssuer: walletProvider,
-      assetEscrow: walletProvider,
-      createProviderForAddress: async (address: string) => {
-        const foundWalletId = addressToWalletId[address.toLowerCase()];
-        if (foundWalletId === undefined) return undefined;
-
-        const { provider: wProvider, signer: wSigner } = await createDfnsEthersProvider({
-          dfnsClient,
-          walletId: foundWalletId,
-          rpcUrl,
-        });
-        return { walletId: foundWalletId, provider: wProvider, signer: wSigner };
-      },
+      orgId: this.orgId,
+      provider,
+      signer,
+      finP2PClient: undefined,
+      proofProvider: undefined,
+      dfnsBaseUrl: baseUrl,
+      dfnsOrgId: orgId,
+      dfnsAuthToken: authToken,
+      dfnsCredId: credId,
+      dfnsPrivateKey: privateKey,
+      rpcUrl,
+      assetIssuerWalletId: this.walletId,
+      assetEscrowWalletId: this.walletId,
     };
 
     await this.startPostgresContainer();
@@ -193,7 +183,7 @@ class DfnsTestEnvironment extends NodeEnvironment {
       service: {},
     };
 
-    const app = createApp(workflowsConfig, logger, appConfig);
+    const app = await createApp(workflowsConfig, logger, appConfig);
     console.log("App created successfully.");
 
     this.httpServer = app.listen(port, () => {

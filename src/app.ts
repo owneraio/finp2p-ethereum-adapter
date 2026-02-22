@@ -15,28 +15,21 @@ import {
   EscrowServiceImpl,
   ExecDetailsStore,
   TokenServiceImpl
-} from "./services";
+} from "./services/finp2p-contract";
 import { AppConfig } from './config'
 import {
-  CommonServiceImpl as CommonServiceFireblocksImpl,
-  HealthServiceImpl as HealthServiceFireblocksImpl,
-  PaymentsServiceImpl as PaymentsServiceFireblocksImpl,
-  PlanApprovalServiceImpl as PlanApprovalServiceFireblocksImpl,
-  TokenServiceImpl as TokenServiceFireblocksImpl,
-} from "./services/fireblocks"
-import {
-  CommonServiceImpl as CommonServiceDfnsImpl,
-  HealthServiceImpl as HealthServiceDfnsImpl,
-  PaymentsServiceImpl as PaymentsServiceDfnsImpl,
-  PlanApprovalServiceImpl as PlanApprovalServiceDfnsImpl,
-  TokenServiceImpl as TokenServiceDfnsImpl,
-} from "./services/dfns"
+  DirectTokenService,
+  FireblocksCustodyProvider,
+  DfnsCustodyProvider,
+  CommonServiceImpl as DirectCommonServiceImpl,
+  HealthServiceImpl as DirectHealthServiceImpl,
+} from "./services/direct"
 
-function createApp(
+async function createApp(
   workflowsConfig: workflows.Config | undefined,
   logger: winston.Logger,
   appConfig: AppConfig,
-): express.Application {
+): Promise<express.Application> {
   const app = express();
   app.use(express.json({ limit: "50mb" }));
   app.use(expressLogger({
@@ -47,35 +40,25 @@ function createApp(
     ignoreRoute: (req) => req.url.toLowerCase() === "/health/readiness" || req.url.toLowerCase() === "/health/liveness"
   }));
 
+  const pluginManager = new PluginManager();
+  const paymentsService = new PaymentsServiceImpl(pluginManager);
+  const planApprovalService = new PlanApprovalServiceImpl(appConfig.orgId, pluginManager, appConfig.finP2PClient);
+
   switch (appConfig.type) {
-    case 'fireblocks': {
-      const commonService = new CommonServiceFireblocksImpl()
-      const escrowService = new TokenServiceFireblocksImpl(logger, appConfig)
-      const healthService = new HealthServiceFireblocksImpl(appConfig.assetEscrow.provider)
-      const paymentsService = new PaymentsServiceFireblocksImpl()
-      const planApprovalService = new PlanApprovalServiceFireblocksImpl()
-      const tokenService = new TokenServiceFireblocksImpl(logger, appConfig)
-
-      register(app, tokenService, escrowService, commonService, healthService, paymentsService, planApprovalService, undefined, workflowsConfig)
-      break
-    }
+    case 'fireblocks':
     case 'dfns': {
-      const commonService = new CommonServiceDfnsImpl()
-      const escrowService = new TokenServiceDfnsImpl(logger, appConfig)
-      const healthService = new HealthServiceDfnsImpl(appConfig.assetEscrow.provider)
-      const paymentsService = new PaymentsServiceDfnsImpl()
-      const planApprovalService = new PlanApprovalServiceDfnsImpl()
-      const tokenService = new TokenServiceDfnsImpl(logger, appConfig)
+      const custodyProvider = appConfig.type === 'fireblocks'
+        ? await FireblocksCustodyProvider.create(appConfig)
+        : await DfnsCustodyProvider.create(appConfig);
+      const tokenService = new DirectTokenService(logger, custodyProvider);
+      const commonService = new DirectCommonServiceImpl();
+      const healthService = new DirectHealthServiceImpl(custodyProvider.healthCheckProvider);
 
-      register(app, tokenService, escrowService, commonService, healthService, paymentsService, planApprovalService, undefined, workflowsConfig)
+      register(app, tokenService, tokenService, commonService, healthService, paymentsService, planApprovalService, pluginManager, workflowsConfig);
       break
     }
-    case 'local': {
-      const pluginManager = new PluginManager();
-
+    case 'finp2p-contract': {
       const escrowService = new EscrowServiceImpl(appConfig.finP2PContract, appConfig.finP2PClient, appConfig.execDetailsStore, appConfig.proofProvider, pluginManager);
-      const paymentsService = new PaymentsServiceImpl(pluginManager);
-      const planApprovalService = new PlanApprovalServiceImpl(appConfig.orgId, pluginManager, appConfig.finP2PClient);
       const tokenService = new TokenServiceImpl(appConfig.finP2PContract, appConfig.finP2PClient, appConfig.execDetailsStore, appConfig.proofProvider, pluginManager);
       register(app, tokenService, escrowService, tokenService, tokenService, paymentsService, planApprovalService, pluginManager, workflowsConfig);
       break

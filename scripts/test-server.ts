@@ -21,7 +21,7 @@ import { GenericContainer, StartedTestContainer } from "testcontainers";
 import winston, { format, transports } from "winston";
 import createApp from "../src/app";
 import { AppConfig, createJsonProvider } from "../src/config";
-import { ExecDetailsStore, InMemoryExecDetailsStore } from "../src/services";
+import { ExecDetailsStore, InMemoryExecDetailsStore } from "../src/services/finp2p-contract";
 import { HardhatLogExtractor } from "../tests/utils/log-extractors";
 import { NetworkDetails } from "../tests/utils/models";
 
@@ -136,7 +136,7 @@ const startApp = async (
   logger: winston.Logger,
   appConfig: AppConfig,
 ) => {
-  const app = createApp(
+  const app = await createApp(
     workflowsConfig,
     logger,
     appConfig
@@ -218,14 +218,14 @@ const start = async () => {
     workflowsConfig,
     logger,
     {
-      type: 'local',
-      orgId,
-      execDetailsStore,
-      finP2PClient,
-      finP2PContract,
-      proofProvider: new ProofProvider(orgId, finP2PClient, deployer),
+      type: 'finp2p-contract',
       provider,
-      signer
+      signer,
+      finP2PClient,
+      proofProvider: new ProofProvider(orgId, finP2PClient, deployer),
+      orgId,
+      finP2PContract,
+      execDetailsStore,
     }
   );
 };

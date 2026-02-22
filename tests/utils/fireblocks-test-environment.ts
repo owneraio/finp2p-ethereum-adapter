@@ -136,34 +136,19 @@ class FireblocksTestEnvironment extends NodeEnvironment {
     console.log(`Destination vault finId: ${destFinId}`);
     this.global.destFinId = destFinId;
 
-    // Pre-built address → vaultId mapping (avoids expensive full-workspace scan)
-    const addressToVaultId: Record<string, string> = {
-      [vaultAddress.toLowerCase()]: vaultId,
-      [destAddress.toLowerCase()]: destVaultId,
-    };
-    console.log("Address-to-vault mapping:", addressToVaultId);
-
-    const vaultProvider = { vaultId, provider, signer };
-
     const appConfig: FireblocksAppConfig = {
       type: "fireblocks",
-      assetIssuer: vaultProvider,
-      assetEscrow: vaultProvider,
-      fireblocksSdk,
-      createProviderForExternalAddress: async (address: string) => {
-        const foundVaultId = addressToVaultId[address.toLowerCase()];
-        if (foundVaultId === undefined) return undefined;
-
-        const { provider: vProvider, signer: vSigner } = await createFireblocksEthersProvider({
-          apiKey,
-          privateKey: apiPrivateKey,
-          chainId,
-          apiBaseUrl,
-          vaultAccountIds: [foundVaultId],
-        });
-        return { vaultId: foundVaultId, provider: vProvider, signer: vSigner };
-      },
-      balance: async () => undefined,
+      orgId: this.orgId,
+      provider,
+      signer,
+      finP2PClient: undefined,
+      proofProvider: undefined,
+      apiKey,
+      apiPrivateKey,
+      chainId,
+      apiBaseUrl,
+      assetIssuerVaultId: vaultId,
+      assetEscrowVaultId: vaultId,
     };
 
     await this.startPostgresContainer();
@@ -208,7 +193,7 @@ class FireblocksTestEnvironment extends NodeEnvironment {
       service: {},
     };
 
-    const app = createApp(workflowsConfig, logger, appConfig);
+    const app = await createApp(workflowsConfig, logger, appConfig);
     console.log("App created successfully.");
 
     this.httpServer = app.listen(port, () => {
