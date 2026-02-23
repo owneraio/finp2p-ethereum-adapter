@@ -80,6 +80,12 @@ async function transferAssetFromVaultToVault(fireblocksSdk: FireblocksSDK, fromV
 
 export interface FlattenedVaultDetails { vaultId: string, assetId: string, depositAddress: string, assetAddress: string | undefined }
 
+/**
+ * TODO: right now we use fireblocks SDK to fetch all vault ids to make mapping for vault-id <=> eth address lookups
+ * we need to explore using notifications/events that appearantly supported by Fireblocks
+ * fetchAllVaults is expensive call, that's why we'll cache known vault-id and eth address pairs for later lookups. If not found, then
+ * fetchAllVaults called again to detect new vaults
+ */
 export const createVaultManagementFunctions = (fireblocksSdk: FireblocksSDK) => {
 
   const fetchAllVaults = () => autoPaginate(
