@@ -12,14 +12,16 @@ import {
 import console from "console";
 import { Provider, Signer } from "ethers";
 import http from "http";
+import { existsSync } from "node:fs";
 import { exec } from "node:child_process";
+import { join } from "node:path";
 import { URL } from "node:url";
 import process from "process";
 import { GenericContainer, StartedTestContainer } from "testcontainers";
 import winston, { format, transports } from "winston";
 import createApp from "../src/app";
 import { AppConfig, createJsonProvider } from "../src/config";
-import { ExecDetailsStore, InMemoryExecDetailsStore } from "../src/services";
+import { ExecDetailsStore, InMemoryExecDetailsStore } from "../src/services/finp2p-contract";
 import { HardhatLogExtractor } from "../tests/utils/log-extractors";
 import { NetworkDetails } from "../tests/utils/models";
 
@@ -50,6 +52,11 @@ const logger = winston.createLogger({
 
 const whichGoose = () =>
   new Promise<string>((resolve, reject) => {
+    const localGoose = join(process.cwd(), "bin", "goose");
+    if (existsSync(localGoose)) {
+      resolve(localGoose);
+      return;
+    }
     exec("which goose", (err, stdout, stderr) => {
       if (err) {
         reject(err);
@@ -120,7 +127,7 @@ const deployERC20Contract = async (
   finp2pTokenAddress: string
 ) => {
   const contractManger = new ContractsManager(provider, signer, logger);
-  return contractManger.deployERC20("ERC-20", "ERC20", 0, finp2pTokenAddress);
+  return contractManger.deployERC20Detached("ERC-20", "ERC20", 0, finp2pTokenAddress);
 };
 
 const startApp = async (
@@ -129,7 +136,7 @@ const startApp = async (
   logger: winston.Logger,
   appConfig: AppConfig,
 ) => {
-  const app = createApp(
+  const app = await createApp(
     workflowsConfig,
     logger,
     appConfig
@@ -201,6 +208,7 @@ const start = async () => {
       storageUser: new URL(connectionString).username,
     },
     storage: { connectionString },
+    service: {},
   };
 
 
@@ -210,14 +218,14 @@ const start = async () => {
     workflowsConfig,
     logger,
     {
-      type: 'local',
-      orgId,
-      execDetailsStore,
-      finP2PClient,
-      finP2PContract,
-      proofProvider: new ProofProvider(orgId, finP2PClient, deployer),
+      type: 'finp2p-contract',
       provider,
-      signer
+      signer,
+      finP2PClient,
+      proofProvider: new ProofProvider(orgId, finP2PClient, deployer),
+      orgId,
+      finP2PContract,
+      execDetailsStore,
     }
   );
 };

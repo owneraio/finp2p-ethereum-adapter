@@ -13,7 +13,7 @@ import {
   detectSigner
 } from "@owneraio/finp2p-contracts";
 import winston, { format, transports } from "winston";
-import { extractBusinessDetails } from "../src/services/helpers";
+import { extractBusinessDetails } from "../src/services/finp2p-contract/helpers";
 import console from "console";
 import * as fs from "node:fs";
 import { createJsonProvider, parseConfig } from "../src/config";

@@ -10,8 +10,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
   && rm -rf /var/lib/apt/lists/*
 
 # Install dependencies
-COPY package.json package-lock.json ./
-RUN npm ci
+COPY package.json package-lock.json .npmrc ./
+RUN --mount=type=secret,id=npm_token \
+    NPM_TOKEN="$(cat /run/secrets/npm_token)" && \
+    echo "//npm.pkg.github.com/:_authToken=${NPM_TOKEN}" >> .npmrc && \
+    npm ci && \
+    rm .npmrc
 
 # Copy source
 COPY . .
@@ -27,8 +31,12 @@ WORKDIR /usr/app
 
 # ------- Production dependencies --------
 FROM base AS dependencies
-COPY package.json package-lock.json ./
-RUN npm ci --production
+COPY package.json package-lock.json .npmrc ./
+RUN --mount=type=secret,id=npm_token \
+    NPM_TOKEN="$(cat /run/secrets/npm_token)" && \
+    echo "//npm.pkg.github.com/:_authToken=${NPM_TOKEN}" >> .npmrc && \
+    npm ci --production && \
+    rm .npmrc
 
 # ------- Release ----------
 FROM base AS release

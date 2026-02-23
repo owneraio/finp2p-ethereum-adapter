@@ -3,7 +3,7 @@ import console from "console";
 import winston, { format, transports } from "winston";
 import { FinP2PClient } from "@owneraio/finp2p-client";
 import { ERC20_STANDARD_ID, FinP2PContract, AssetType, term } from "@owneraio/finp2p-contracts";
-import { emptyOperationParams } from "../src/services/helpers";
+import { emptyOperationParams } from "../src/services/finp2p-contract/helpers";
 import { createJsonProvider, parseConfig } from "../src/config";
 
 
@@ -38,7 +38,7 @@ const syncBalanceFromOssToEthereum = async (
     } catch (e) {
       if (`${e}`.includes("Asset not found")) {
         logger.info(`Deploying new token for asset ${assetId}`);
-        const erc20Address = await contract.deployERC20(assetId, assetId, 0, finp2pContractAddress);
+        const erc20Address = await contract.deployERC20ViaAssetRegistry(assetId, assetId, 0, finp2pContractAddress);
         logger.info(`Associating asset ${assetId} with token ${erc20Address}`);
         let tokenStandard = ERC20_STANDARD_ID;
         // if (identifier) {

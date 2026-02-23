@@ -13,12 +13,14 @@ import * as console from "console";
 import * as http from "http";
 import NodeEnvironment from "jest-environment-node";
 import { exec } from "node:child_process";
+import { existsSync } from "node:fs";
+import { join } from "node:path";
 import { URL } from 'node:url';
 import { GenericContainer, StartedTestContainer } from "testcontainers";
 import winston, { format, transports } from "winston";
 import createApp from "../../src/app";
 import { createJsonProvider } from "../../src/config";
-import { InMemoryExecDetailsStore } from "../../src/services";
+import { InMemoryExecDetailsStore } from "../../src/services/finp2p-contract";
 import { HardhatLogExtractor } from "./log-extractors";
 import { AdapterParameters, NetworkDetails, NetworkParameters } from "./models";
 import { randomPort } from "./utils";
@@ -36,6 +38,7 @@ const DefaultOrgId = "some-org";
 class CustomTestEnvironment extends NodeEnvironment {
   network: NetworkParameters | undefined;
   adapter: AdapterParameters | undefined;
+  orgId: string;
   ethereumNodeContainer: StartedTestContainer | undefined;
   postgresSqlContainer: StartedPostgreSqlContainer | undefined;
   httpServer: http.Server | undefined;
@@ -44,6 +47,7 @@ class CustomTestEnvironment extends NodeEnvironment {
     super(config, context);
     this.network = this.global.network as NetworkParameters | undefined;
     this.adapter = this.global.adapter as AdapterParameters | undefined;
+    this.orgId = (this.global.orgId as string) || DefaultOrgId;
   }
 
   async setup() {
@@ -83,6 +87,9 @@ class CustomTestEnvironment extends NodeEnvironment {
 
   async teardown() {
     try {
+      if (this.postgresSqlContainer) {
+        await this.dumpDatabase();
+      }
       this.httpServer?.close();
       await this.ethereumNodeContainer?.stop();
       await workflows.Storage.closeAllConnections();
@@ -91,6 +98,34 @@ class CustomTestEnvironment extends NodeEnvironment {
     } catch (err) {
       console.error("Error stopping Ganache container:", err);
     }
+  }
+
+  private async dumpDatabase() {
+    const container = this.postgresSqlContainer!;
+    const user = container.getUsername();
+    const db = container.getDatabase();
+
+    console.log("\n========== DATABASE DUMP ==========");
+    console.log(`Connection: ${container.getConnectionUri()}\n`);
+
+    // List all tables across all schemas
+    const tablesResult = await container.exec([
+      "psql", "-U", user, "-d", db, "-t", "-A", "-c",
+      "SELECT schemaname || '.' || tablename FROM pg_tables WHERE schemaname NOT IN ('pg_catalog', 'information_schema');"
+    ]);
+    const tables = tablesResult.output.trim().split("\n").filter(t => t.length > 0);
+    console.log(`Tables found: ${tables.join(", ")}\n`);
+
+    // Dump each table
+    for (const table of tables) {
+      console.log(`---------- ${table} ----------`);
+      const result = await container.exec([
+        "psql", "-U", user, "-d", db, "--expanded", "-c",
+        `SELECT * FROM ${table};`
+      ]);
+      console.log(result.output);
+    }
+    console.log("========== END DATABASE DUMP ==========\n");
   }
 
   private async startPostgresContainer() {
@@ -175,20 +210,21 @@ class CustomTestEnvironment extends NodeEnvironment {
         storageUser,
       },
       storage: { connectionString },
+      service: {},
     };
 
-    const app = createApp(
+    const app = await createApp(
       workflowsConfig,
       logger,
       {
-        type: 'local',
-        orgId: DefaultOrgId,
-        finP2PClient: undefined,
-        finP2PContract,
-        execDetailsStore,
+        type: 'finp2p-contract',
         provider,
         signer,
-        proofProvider: new ProofProvider(DefaultOrgId, undefined, operatorPrivateKey)
+        finP2PClient: undefined,
+        proofProvider: new ProofProvider(this.orgId, undefined, operatorPrivateKey),
+        orgId: this.orgId,
+        finP2PContract,
+        execDetailsStore,
       }
     );
     console.log("App created successfully.");
@@ -209,6 +245,11 @@ class CustomTestEnvironment extends NodeEnvironment {
 
   private async whichGoose() {
     return new Promise<string>((resolve, reject) => {
+      const localGoose = join(process.cwd(), "bin", "goose");
+      if (existsSync(localGoose)) {
+        resolve(localGoose);
+        return;
+      }
       exec("which goose", (err, stdout, stderr) => {
         if (err) {
           reject(err);
