@@ -24,7 +24,7 @@ const run = async () => {
 
   // 1. Test SDK connection - list vaults
   const sdk = new FireblocksSDK(apiPrivateKey, apiKey, apiBaseUrl as string);
-  const vaultMgmt = createVaultManagementFunctions(sdk, { cacheValuesTtlMs: 3000 });
+  const vaultMgmt = createVaultManagementFunctions(sdk);
 
   console.log("--- Fetching vaults ---");
   const vaults = await vaultMgmt.fetchAllVaults();

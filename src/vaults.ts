@@ -186,6 +186,7 @@ export const createVaultManagementFunctions = (fireblocksSdk: FireblocksSDK) => 
   }
 
   return {
+    fetchAllVaults,
     getCollectedAddresses,
     getVaultIdForAddress,
     getVaultAssetBalance,

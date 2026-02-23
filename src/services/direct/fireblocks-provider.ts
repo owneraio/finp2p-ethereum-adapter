@@ -41,9 +41,7 @@ export class FireblocksCustodyProvider implements CustodyProvider {
     const escrowWallet = await createProvider(config.assetEscrowVaultId);
 
     const fireblocksSdk = new FireblocksSDK(config.apiPrivateKey, config.apiKey, config.apiBaseUrl as string);
-    const vaultManagement = createVaultManagementFunctions(fireblocksSdk, {
-      cacheValuesTtlMs: 3000
-    });
+    const vaultManagement = createVaultManagementFunctions(fireblocksSdk);
 
     let gasStation: GasStation | undefined;
     if (config.gasFunding) {
