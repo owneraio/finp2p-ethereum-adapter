@@ -25,6 +25,34 @@ import {
   HealthServiceImpl as DirectHealthServiceImpl,
 } from "./services/direct"
 
+async function loadPlugins(
+  pluginManager: PluginManager,
+  finP2PContract: FinP2PContract,
+  finP2PClient: FinP2PClient,
+  orgId: string,
+  logger: winston.Logger,
+) {
+  const pluginList = (process.env.ADAPTER_PLUGINS || '')
+    .split(',')
+    .map(s => s.trim())
+    .filter(Boolean);
+
+  for (const pluginPkg of pluginList) {
+    logger.info(`Loading plugin: ${pluginPkg}`);
+    try {
+      const plugin = require(pluginPkg);
+      if (typeof plugin.register !== 'function') {
+        throw new Error(`Plugin ${pluginPkg} does not export a register() function`);
+      }
+      await plugin.register(pluginManager, finP2PContract, finP2PClient, orgId, logger);
+      logger.info(`Plugin loaded: ${pluginPkg}`);
+    } catch (err) {
+      logger.error(`Failed to load plugin ${pluginPkg}: ${err}`);
+      throw err;
+    }
+  }
+}
+
 async function createApp(
   workflowsConfig: workflows.Config | undefined,
   logger: winston.Logger,
@@ -58,6 +86,7 @@ async function createApp(
       break
     }
     case 'finp2p-contract': {
+      await loadPlugins(pluginManager, appConfig.finP2PContract, appConfig.finP2PClient!, appConfig.orgId, logger);
       const escrowService = new EscrowServiceImpl(appConfig.finP2PContract, appConfig.finP2PClient, appConfig.execDetailsStore, appConfig.proofProvider, pluginManager);
       const tokenService = new TokenServiceImpl(appConfig.finP2PContract, appConfig.finP2PClient, appConfig.execDetailsStore, appConfig.proofProvider, pluginManager);
       register(app, tokenService, escrowService, tokenService, tokenService, paymentsService, planApprovalService, pluginManager, workflowsConfig);
