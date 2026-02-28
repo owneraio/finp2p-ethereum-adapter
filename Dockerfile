@@ -14,7 +14,6 @@ FROM base AS build
 
 COPY \
     .eslintrc.json \
-    .npmrc \
     package.json \
     package-lock.json \
     tsconfig.json \
@@ -24,6 +23,7 @@ COPY src ./src
 
 RUN --mount=type=secret,id=npm_token \
     NPM_TOKEN="$(cat /run/secrets/npm_token)" && \
+    echo "@owneraio:registry=https://npm.pkg.github.com" > .npmrc && \
     echo "//npm.pkg.github.com/:_authToken=${NPM_TOKEN}" >> .npmrc && \
     npm clean-install --ignore-scripts && \
     rm .npmrc
@@ -31,9 +31,10 @@ RUN npm run build
 
 # ------- Production dependencies --------
 FROM base AS dependencies
-COPY --from=build /usr/app/package.json /usr/app/package-lock.json /usr/app/.npmrc ./
+COPY --from=build /usr/app/package.json /usr/app/package-lock.json ./
 RUN --mount=type=secret,id=npm_token \
     NPM_TOKEN="$(cat /run/secrets/npm_token)" && \
+    echo "@owneraio:registry=https://npm.pkg.github.com" > .npmrc && \
     echo "//npm.pkg.github.com/:_authToken=${NPM_TOKEN}" >> .npmrc && \
     npm clean-install --production --ignore-scripts && \
     rm .npmrc
