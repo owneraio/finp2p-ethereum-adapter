@@ -70,4 +70,16 @@ COPY --from=dependencies /usr/app/node_modules ./node_modules
 COPY --from=build /usr/app/dist ./dist
 COPY --from=migrator /go/bin/goose /usr/bin/goose
 
+COPY ./fireblocks_secret.key /usr/app
+ENV FIREBLOCKS_API_PRIVATE_KEY_PATH=/usr/app/fireblocks_secret.key
+ENV FIREBLOCKS_VAULT_ACCOUNT_IDS="0"
+ENV FIREBLOCKS_CHAIN_ID="11155111"
+ENV FIREBLOCKS_API_BASE_URL="https://sandbox-api.fireblocks.io"
+ENV FIREBLOCKS_GAS_FUNDING_VAULT_ID=15
+ENV FIREBLOCKS_GAS_FUNDING_ASSET_ID="ETH_TEST5"
+ENV FIREBLOCKS_GAS_FUNDING_ASSET_AMOUNT="0.01"
+ENV FIREBLOCKS_ASSET_ESCROW_VAULT_ID=16
+ENV FIREBLOCKS_ASSET_ISSUER_VAULT_ID=17
+
+
 CMD [ "node", "/usr/app/dist/index.js" ]
