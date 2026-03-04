@@ -1,5 +1,5 @@
 import {
-  Asset, AssetBind, AssetCreationStatus, AssetDenomination, AssetIdentifier,
+  Asset, AssetBind, AssetCreationStatus, AssetDenomination,
   Balance, Destination, ExecutionContext, FinIdAccount, Logger, OperationType,
   ReceiptOperation, Signature, Source, TokenService, EscrowService,
   failedReceiptOperation
@@ -60,14 +60,14 @@ export class DirectTokenService implements TokenService, EscrowService {
   async createAsset(
     idempotencyKey: string, asset: Asset, assetBind: AssetBind | undefined,
     assetMetadata: any, assetName: string | undefined, issuerId: string | undefined,
-    assetDenomination: AssetDenomination | undefined, assetIdentifier: AssetIdentifier | undefined
+    assetDenomination: AssetDenomination | undefined
   ): Promise<AssetCreationStatus> {
     const decimals = 6;
 
-    if (assetBind === undefined || assetBind.tokenIdentifier === undefined) {
+    if (assetBind === undefined) {
       const { provider, signer } = this.custodyProvider.issuer;
       const cm = new ContractsManager(provider, signer, this.logger);
-      const symbol = assetIdentifier?.value ?? "OWNERA";
+      const symbol = "OWNERA";
       const erc20 = await cm.deployERC20Detached(
         assetName ?? "OWNERACOIN",
         symbol,
@@ -80,7 +80,7 @@ export class DirectTokenService implements TokenService, EscrowService {
       return {
         operation: "createAsset",
         type: "success",
-        result: { tokenId: erc20, reference: undefined }
+        result: { ledgerIdentifier: { network: 'ethereum', tokenId: erc20, standard: 'ERC20' }, reference: undefined }
       };
     } else {
       const tokenAddress = assetBind.tokenIdentifier.tokenId;
@@ -95,7 +95,7 @@ export class DirectTokenService implements TokenService, EscrowService {
       return {
         operation: "createAsset",
         type: "success",
-        result: { tokenId: tokenAddress, reference: undefined }
+        result: { ledgerIdentifier: { network: 'ethereum', tokenId: tokenAddress, standard: 'ERC20' }, reference: undefined }
       };
     }
   }
@@ -113,7 +113,7 @@ export class DirectTokenService implements TokenService, EscrowService {
   }
 
   async issue(
-    idempotencyKey: string, ast: Asset, to: FinIdAccount, quantity: string,
+    idempotencyKey: string, ast: Asset, to: Destination, quantity: string,
     exCtx: ExecutionContext | undefined
   ): Promise<ReceiptOperation> {
     const asset = await getAssetFromDb(ast);
@@ -129,18 +129,23 @@ export class DirectTokenService implements TokenService, EscrowService {
 
     const block = await receipt.getBlock();
     if (block === null) return failedReceiptOperation(1, "block is null");
+    const toAccount: FinIdAccount = { type: 'finId', finId: to.finId };
     return buildReceiptOperation(
       receipt, ast, "issue", quantity,
-      { account: to, finId: to.finId }, { account: to, finId: to.finId },
+      { account: toAccount, finId: to.finId }, { account: toAccount, finId: to.finId },
       exCtx, undefined, block.timestamp
     );
   }
 
+  async doesSupportCrosschainTransfer(_sourceAsset: Asset, _destinationAsset: Asset): Promise<boolean> {
+    return false;
+  }
+
   async transfer(
     idempotencyKey: string, nonce: string, source: Source, destination: Destination,
-    ast: Asset, quantity: string, signature: Signature, exCtx: ExecutionContext | undefined
+    sourceAsset: Asset, destinationAsset: Asset, quantity: string, signature: Signature, exCtx: ExecutionContext | undefined
   ): Promise<ReceiptOperation> {
-    const asset = await getAssetFromDb(ast);
+    const asset = await getAssetFromDb(sourceAsset);
     const sourceAddress = finIdToAddress(source.finId);
     const wallet = await this.custodyProvider.resolveWalletForAddress(sourceAddress);
     if (wallet === undefined) throw new Error('Source address cannot be resolved to a custody wallet');
@@ -154,7 +159,7 @@ export class DirectTokenService implements TokenService, EscrowService {
 
     const block = await receipt.getBlock();
     if (block === null) return failedReceiptOperation(1, "block is null");
-    return buildReceiptOperation(receipt, ast, "transfer", quantity, source, destination, exCtx, undefined, block.timestamp);
+    return buildReceiptOperation(receipt, sourceAsset, "transfer", quantity, source, destination, exCtx, undefined, block.timestamp);
   }
 
   async redeem(

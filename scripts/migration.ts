@@ -25,7 +25,7 @@ const getTokenInfo = (ledgerAssetInfo: LedgerAssetInfo) : {
   tokenAddress: string,
   standardId: BytesLike
 } => {
-  const { tokenId, ledgerReference } = ledgerAssetInfo;
+  const { ledgerIdentifier, ledgerReference } = ledgerAssetInfo;
   if (ledgerReference) {
     const { address, tokenStandard } = ledgerReference;
     if (tokenStandard === "TokenStandard_ERC20") { // legacy value
@@ -33,11 +33,13 @@ const getTokenInfo = (ledgerAssetInfo: LedgerAssetInfo) : {
     } else {
       return { tokenAddress: address, standardId: keccak256(toUtf8Bytes(tokenStandard)) };
     }
-  } else {
+  } else if (ledgerIdentifier) {
     return {
-      tokenAddress: tokenId,
+      tokenAddress: ledgerIdentifier.tokenId,
       standardId: ERC20_STANDARD_ID
     }
+  } else {
+    throw new Error('No ledger reference or identifier found in ledgerAssetInfo');
   }
 }
 
