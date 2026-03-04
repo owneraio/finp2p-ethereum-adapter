@@ -32,25 +32,20 @@ type RequestWithSignature =
 
 
 const parseRequest = (request: RequestWithSignature) => {
-  const { nonce } = request;
+  const { nonce, source } = request;
 
-  const asset = assetFromAPI(request.asset);
-  let source: Source | undefined;
-  if ("account" in request.source) {
-    source = sourceFromAPI(request.source as LedgerAPI["schemas"]["source"]);
-  } else {
-    const { finId } = request.source as LedgerAPI["schemas"]["finIdAccount"];
-    source = sourceFromAPI({ finId, account: { type: "finId", finId } });
-  }
+  // In the new API, asset is embedded in source.asset (not at request top-level)
+  const asset = assetFromAPI(source.asset);
+  const src = sourceFromAPI(source);
+
   let destination: Destination | undefined;
   if ("destination" in request && request.destination) {
-    const { destination: dst } = request;
-    destination = destinationFromAPI(dst);
+    destination = destinationFromAPI(request.destination);
   }
   const signature = signatureFromAPI(request.signature);
   const exCtx = executionContextOptFromAPI(request.executionContext);
 
-  return { nonce, asset, source, destination, signature, exCtx };
+  return { nonce, asset, source: src, destination, signature, exCtx };
 };
 
 const verifySignature = async (

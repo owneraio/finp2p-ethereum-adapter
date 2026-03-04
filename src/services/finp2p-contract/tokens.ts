@@ -1,8 +1,8 @@
 import {
   Asset, AssetCreationStatus, Destination, EIP712Template,
   ExecutionContext, ReceiptOperation, Balance, TokenService, Signature, Source,
-  failedAssetCreation, failedReceiptOperation, successfulAssetCreation, successfulReceiptOperation,
-  pendingReceiptOperation, AssetBind, AssetDenomination, AssetIdentifier, FinIdAccount,
+  failedAssetCreation, failedReceiptOperation, successfulAssetCreation,
+  AssetBind, AssetDenomination, FinIdAccount,
   AssetCreationResult, ValidationError
 } from "@owneraio/finp2p-adapter-models";
 import { logger, ProofProvider, PluginManager} from "@owneraio/finp2p-nodejs-skeleton-adapter"
@@ -17,7 +17,6 @@ import {
 import { CommonServiceImpl, ExecDetailsStore } from "./common";
 import { emptyOperationParams, extractBusinessDetails } from "./helpers";
 import { validateRequest } from "./validator";
-import { keccak256, toUtf8Bytes } from "ethers";
 
 
 const DefaultDecimals = 2;
@@ -34,20 +33,13 @@ export class TokenServiceImpl extends CommonServiceImpl implements TokenService 
 
   public async createAsset(idempotencyKey: string, asset: Asset,
                            assetBind: AssetBind | undefined, assetMetadata: any | undefined, assetName: string | undefined, issuerId: string | undefined,
-                           assetDenomination: AssetDenomination | undefined, assetIdentifier: AssetIdentifier | undefined): Promise<AssetCreationStatus> {
+                           assetDenomination: AssetDenomination | undefined): Promise<AssetCreationStatus> {
     const { assetId } = asset;
     let tokenStandard = ERC20_STANDARD_ID;
     let tokenAddress: string;
     let allowanceRequired: boolean
     if (assetBind && assetBind.tokenIdentifier) {
       const { tokenIdentifier: { tokenId } } = assetBind;
-
-      if (assetIdentifier) {
-        const { type, value } = assetIdentifier;
-        if (type === 'CUSTOM') {
-          tokenStandard = keccak256(toUtf8Bytes(value));
-        }
-      }
 
       if (!isEthereumAddress(tokenId)) {
         return failedAssetCreation(1, `Token ID ${tokenId} is not a valid Ethereum address`);
@@ -80,7 +72,7 @@ export class TokenServiceImpl extends CommonServiceImpl implements TokenService 
     const network = `name: ${name}, chainId: ${chainId}`; // public or private network?
     const finP2POperatorContractAddress = this.finP2PContract.finP2PContractAddress;
     const result: AssetCreationResult = {
-      tokenId: tokenAddress,
+      ledgerIdentifier: { network, tokenId: tokenAddress, standard: tokenStandard },
       reference: {
         type: "ledgerReference",
         network,
@@ -95,7 +87,11 @@ export class TokenServiceImpl extends CommonServiceImpl implements TokenService 
     return successfulAssetCreation(result);
   }
 
-  public async issue(idempotencyKey: string, asset: Asset, to: FinIdAccount, quantity: string, exCtx: ExecutionContext): Promise<ReceiptOperation> {
+  public async doesSupportCrosschainTransfer(_sourceAsset: Asset, _destinationAsset: Asset): Promise<boolean> {
+    return false;
+  }
+
+  public async issue(idempotencyKey: string, asset: Asset, to: Destination, quantity: string, exCtx: ExecutionContext): Promise<ReceiptOperation> {
     const { finId: issuerFinId } = to;
     try {
       const transactionReceipt = await this.finP2PContract.issue(issuerFinId, term(asset.assetId, assetTypeFromString(asset.assetType), quantity), emptyOperationParams())
@@ -113,7 +109,8 @@ export class TokenServiceImpl extends CommonServiceImpl implements TokenService 
     }
   }
 
-  public async transfer(idempotencyKey: string, nonce: string, source: Source, destination: Destination, ast: Asset,
+  public async transfer(idempotencyKey: string, nonce: string, source: Source, destination: Destination,
+                        sourceAsset: Asset, destinationAsset: Asset,
                         quantity: string, signature: Signature, exCtx: ExecutionContext
   ): Promise<ReceiptOperation> {
     const { signature: sgn, template } = signature;
@@ -121,7 +118,7 @@ export class TokenServiceImpl extends CommonServiceImpl implements TokenService 
       throw new ValidationError(`Unsupported signature template type: ${template.type}`);
     }
     const eip712Template = template as EIP712Template;
-    const details = extractBusinessDetails(ast, source, destination, undefined, eip712Template, exCtx);
+    const details = extractBusinessDetails(sourceAsset, source, destination, undefined, eip712Template, exCtx);
     validateRequest(source, destination, quantity, details);
     const { buyerFinId, sellerFinId, asset, settlement, loan, params } = details;
 
