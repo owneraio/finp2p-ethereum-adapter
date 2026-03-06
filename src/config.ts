@@ -14,6 +14,17 @@ import { DfnsWallet } from "@dfns/lib-ethersjs6";
 
 export type AccountMappingType = 'derivation' | 'database' | 'custody-provider'
 
+const ACCOUNT_MAPPING_TYPES: ReadonlyArray<AccountMappingType> = ['derivation', 'database', 'custody-provider'];
+
+function resolveAccountMappingType(rawValue: string | undefined): AccountMappingType {
+  if (!rawValue) return 'derivation';
+
+  const normalized = rawValue.trim() as AccountMappingType;
+  if (ACCOUNT_MAPPING_TYPES.includes(normalized)) return normalized;
+
+  throw new Error(`Invalid ACCOUNT_MAPPING_TYPE: ${rawValue}. Supported values: ${ACCOUNT_MAPPING_TYPES.join(', ')}`);
+}
+
 export type BaseAppConfig = {
   orgId: string
   provider: Provider
@@ -241,7 +252,7 @@ const createFireblocksProvider = async (): Promise<Omit<FireblocksAppConfig, 'ac
 
 export async function envVarsToAppConfig(logger: Logger): Promise<AppConfig> {
   const configType = (process.env.PROVIDER_TYPE || 'finp2p-contract') as AppConfig['type']
-  const accountMappingType = (process.env.ACCOUNT_MAPPING_TYPE || 'derivation') as AccountMappingType
+  const accountMappingType = resolveAccountMappingType(process.env.ACCOUNT_MAPPING_TYPE)
 
   switch (configType) {
     case 'finp2p-contract': {
@@ -407,4 +418,3 @@ export function parseConfig(params: ParamDefinition[]): ParsedConfig {
 
   return config;
 }
-

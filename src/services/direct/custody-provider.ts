@@ -1,5 +1,4 @@
 import { Provider, Signer } from "ethers";
-import { AccountMappingService } from "./account-mapping";
 
 export interface CustodyWallet {
   provider: Provider;
@@ -16,7 +15,6 @@ export interface CustodyProvider {
   readonly escrow: CustodyWallet;
   readonly healthCheckProvider: Provider;
   readonly gasStation?: GasStation;
-  readonly accountMapping?: AccountMappingService;
 
   resolveWallet(account: string): Promise<CustodyWallet | undefined>;
   onAssetRegistered?(tokenAddress: string, symbol?: string): Promise<void>;

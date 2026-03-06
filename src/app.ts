@@ -29,15 +29,10 @@ import {
   HealthServiceImpl as DirectHealthServiceImpl,
 } from "./services/direct"
 
-function resolveAccountMapping(appConfig: AppConfig, custodyProvider: CustodyProvider): AccountMappingService {
+function resolveAccountMapping(appConfig: AppConfig): AccountMappingService {
   switch (appConfig.accountMappingType) {
     case 'database':
       return new DbAccountMapping();
-    case 'custody-provider':
-      if (!custodyProvider.accountMapping) {
-        throw new Error('custody-provider account mapping is not supported by the current provider');
-      }
-      return custodyProvider.accountMapping;
     case 'derivation':
     default:
       return new DerivationAccountMapping();
@@ -49,7 +44,7 @@ function registerDirectServices(
   paymentsService: PaymentsServiceImpl, planApprovalService: PlanApprovalServiceImpl,
   pluginManager: PluginManager, workflowsConfig: workflows.Config | undefined,
 ) {
-  const accountMapping = resolveAccountMapping(appConfig, custodyProvider);
+  const accountMapping = resolveAccountMapping(appConfig);
   const tokenService = new DirectTokenService(logger, custodyProvider, accountMapping);
   const commonService = new DirectCommonServiceImpl();
   const healthService = new DirectHealthServiceImpl(custodyProvider.healthCheckProvider);
