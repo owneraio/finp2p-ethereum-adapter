@@ -21,6 +21,7 @@ import {
   DirectTokenService,
   FireblocksCustodyProvider,
   DfnsCustodyProvider,
+  DerivationAccountMapping,
   CommonServiceImpl as DirectCommonServiceImpl,
   HealthServiceImpl as DirectHealthServiceImpl,
 } from "./services/direct"
@@ -50,7 +51,8 @@ async function createApp(
       const custodyProvider = appConfig.type === 'fireblocks'
         ? await FireblocksCustodyProvider.create(appConfig)
         : await DfnsCustodyProvider.create(appConfig);
-      const tokenService = new DirectTokenService(logger, custodyProvider);
+      const accountMapping = new DerivationAccountMapping();
+      const tokenService = new DirectTokenService(logger, custodyProvider, accountMapping);
       const commonService = new DirectCommonServiceImpl();
       const healthService = new DirectHealthServiceImpl(custodyProvider.healthCheckProvider);
 
