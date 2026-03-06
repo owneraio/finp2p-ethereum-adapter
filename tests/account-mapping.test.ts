@@ -1,5 +1,4 @@
 import { finIdToAddress, privateKeyToFinId } from '@owneraio/finp2p-contracts';
-import { Wallet } from 'ethers';
 import {
   AccountMappingService,
   DerivationAccountMapping,
@@ -10,7 +9,7 @@ import {
   PostgreSqlContainer,
   StartedPostgreSqlContainer,
 } from '@testcontainers/postgresql';
-import { Pool } from 'pg';
+import { workflows } from '@owneraio/finp2p-nodejs-skeleton-adapter';
 import { execSync } from 'child_process';
 import { join } from 'path';
 
@@ -44,7 +43,6 @@ function runSharedTests(name: string, create: () => Promise<{ service: AccountMa
     });
 
     it('should resolve finId for a known account', async () => {
-      // ensure forward mapping exists first
       await service.resolveAccount(TEST_FIN_ID);
       const finId = await service.resolveFinId(TEST_ADDRESS);
       expect(finId).toBe(TEST_FIN_ID);
@@ -76,28 +74,29 @@ runSharedTests('DerivationAccountMapping', async () => ({
 // --- DbAccountMapping ---
 describe('DbAccountMapping', () => {
   let container: StartedPostgreSqlContainer;
-  let pool: Pool;
+  let storage: workflows.Storage;
   let service: DbAccountMapping;
 
   beforeAll(async () => {
     container = await new PostgreSqlContainer('postgres:16-alpine').start();
-    pool = new Pool({ connectionString: container.getConnectionUri() });
+    const connectionString = container.getConnectionUri();
 
-    // Create schema and run migration
-    await pool.query('CREATE SCHEMA IF NOT EXISTS ledger_adapter');
+    // Initialize skeleton Storage (registers Pool in openConnections)
+    storage = new workflows.Storage({ connectionString });
 
+    // Run skeleton migrations (includes account_mappings table)
     const gooseBin = join(process.cwd(), 'bin', 'goose');
-    const migrationsDir = join(process.cwd(), 'migrations');
+    const migrationsDir = join(process.cwd(), 'node_modules', '@owneraio', 'finp2p-nodejs-skeleton-adapter', 'migrations');
     execSync(
-      `${gooseBin} -table account_mapping_migrations -dir ${migrationsDir} up`,
-      { env: { ...process.env, GOOSE_DRIVER: 'postgres', GOOSE_DBSTRING: container.getConnectionUri() } }
+      `${gooseBin} -table account_mapping_test_migrations -dir ${migrationsDir} up`,
+      { env: { ...process.env, GOOSE_DRIVER: 'postgres', GOOSE_DBSTRING: connectionString } }
     );
 
-    service = new DbAccountMapping(pool);
+    service = new DbAccountMapping();
   }, 60000);
 
   afterAll(async () => {
-    await pool.end();
+    await storage.closeConnections();
     await container.stop();
   });
 

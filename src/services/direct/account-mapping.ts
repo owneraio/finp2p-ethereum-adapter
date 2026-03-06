@@ -1,5 +1,5 @@
 import { finIdToAddress } from '@owneraio/finp2p-contracts';
-import { Pool } from 'pg';
+import { workflows } from '@owneraio/finp2p-nodejs-skeleton-adapter';
 
 export interface AccountMappingService {
   resolveAccount(finId: string): Promise<string | undefined>;
@@ -34,41 +34,26 @@ export class DerivationAccountMapping implements AccountMappingService {
 }
 
 /**
- * DB-backed mapping: explicit finId ↔ account entries stored in PostgreSQL.
+ * DB-backed mapping: uses skeleton's globally exposed account mapping storage functions.
  */
 export class DbAccountMapping implements AccountMappingService {
-  constructor(private readonly pool: Pool) {}
 
   async resolveAccount(finId: string): Promise<string | undefined> {
-    const result = await this.pool.query(
-      'SELECT account FROM ledger_adapter.account_mappings WHERE fin_id = $1',
-      [finId]
-    );
-    return result.rows[0]?.account;
+    const mapping = await workflows.getAccountMapping(finId);
+    return mapping?.account;
   }
 
   async resolveFinId(account: string): Promise<string | undefined> {
-    const result = await this.pool.query(
-      'SELECT fin_id FROM ledger_adapter.account_mappings WHERE LOWER(account) = LOWER($1)',
-      [account]
-    );
-    return result.rows[0]?.fin_id;
+    const mapping = await workflows.getAccountMappingByAccount(account);
+    return mapping?.fin_id;
   }
 
   async addMapping(finId: string, account: string): Promise<void> {
-    await this.pool.query(
-      `INSERT INTO ledger_adapter.account_mappings (fin_id, account)
-       VALUES ($1, $2)
-       ON CONFLICT (fin_id) DO UPDATE SET account = $2, updated_at = CURRENT_TIMESTAMP`,
-      [finId, account]
-    );
+    await workflows.saveAccountMapping(finId, account);
   }
 
   async removeMapping(finId: string): Promise<void> {
-    await this.pool.query(
-      'DELETE FROM ledger_adapter.account_mappings WHERE fin_id = $1',
-      [finId]
-    );
+    await workflows.deleteAccountMapping(finId);
   }
 }
 
