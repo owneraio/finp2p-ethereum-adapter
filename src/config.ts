@@ -12,9 +12,9 @@ import { DfnsApiClient } from "@dfns/sdk";
 import { AsymmetricKeySigner } from "@dfns/sdk-keysigner";
 import { DfnsWallet } from "@dfns/lib-ethersjs6";
 
-export type AccountMappingType = 'derivation' | 'database' | 'custody-provider'
+export type AccountMappingType = 'derivation' | 'database'
 
-const ACCOUNT_MAPPING_TYPES: ReadonlyArray<AccountMappingType> = ['derivation', 'database', 'custody-provider'];
+const ACCOUNT_MAPPING_TYPES: ReadonlyArray<AccountMappingType> = ['derivation', 'database'];
 
 function resolveAccountMappingType(rawValue: string | undefined): AccountMappingType {
   if (!rawValue) return 'derivation';
