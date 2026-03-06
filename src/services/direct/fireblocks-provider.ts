@@ -68,6 +68,14 @@ export class FireblocksCustodyProvider implements CustodyProvider {
     });
   }
 
+  async transferBetweenVaults(fromVaultId: string, toVaultId: string, assetId: string, amount: string): Promise<void> {
+    await this.vaultManagement.transferAssetFromVaultToVault(this.fireblocksSdk, fromVaultId, toVaultId, assetId, amount);
+  }
+
+  async getVaultIdForAddress(address: string): Promise<string | undefined> {
+    return this.vaultManagement.getVaultIdForAddress(address);
+  }
+
   async onAssetRegistered(tokenAddress: string, symbol?: string): Promise<void> {
     const responseRegister = await this.fireblocksSdk.registerNewAsset(
       'ETH_TEST5', tokenAddress, symbol

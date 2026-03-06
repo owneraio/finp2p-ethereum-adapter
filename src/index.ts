@@ -38,6 +38,7 @@ const init = async () => {
 
   const level = process.env.LOG_LEVEL || "info";
   const logger = winston.createLogger({
+    levels: winston.config.syslog.levels,
     level,
     transports: [new transports.Console()],
     format: format.combine(
