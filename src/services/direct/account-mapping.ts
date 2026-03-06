@@ -35,25 +35,26 @@ export class DerivationAccountMapping implements AccountMappingService {
 
 /**
  * DB-backed mapping: uses skeleton's globally exposed account mapping storage functions.
+ * Supports 1:N (finId → multiple accounts), resolves to the first match.
  */
 export class DbAccountMapping implements AccountMappingService {
 
   async resolveAccount(finId: string): Promise<string | undefined> {
-    const mapping = await workflows.getAccountMapping(finId);
-    return mapping?.account;
+    const mappings = await workflows.getAccountMappings(finId);
+    return mappings[0]?.account;
   }
 
   async resolveFinId(account: string): Promise<string | undefined> {
-    const mapping = await workflows.getAccountMappingByAccount(account);
-    return mapping?.fin_id;
+    const mappings = await workflows.getAccountMappingsByAccount(account);
+    return mappings[0]?.fin_id;
   }
 
   async addMapping(finId: string, account: string): Promise<void> {
     await workflows.saveAccountMapping(finId, account);
   }
 
-  async removeMapping(finId: string): Promise<void> {
-    await workflows.deleteAccountMapping(finId);
+  async removeMapping(finId: string, account?: string): Promise<void> {
+    await workflows.deleteAccountMapping(finId, account);
   }
 }
 
