@@ -223,6 +223,7 @@ class CustomTestEnvironment extends NodeEnvironment {
         finP2PClient: undefined,
         proofProvider: new ProofProvider(this.orgId, undefined, operatorPrivateKey),
         orgId: this.orgId,
+        accountMappingType: 'derivation',
         finP2PContract,
         execDetailsStore,
       }
