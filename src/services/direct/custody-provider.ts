@@ -16,6 +16,6 @@ export interface CustodyProvider {
   readonly healthCheckProvider: Provider;
   readonly gasStation?: GasStation;
 
-  resolveWalletForAddress(address: string): Promise<CustodyWallet | undefined>;
+  resolveWallet(account: string): Promise<CustodyWallet | undefined>;
   onAssetRegistered?(tokenAddress: string, symbol?: string): Promise<void>;
 }

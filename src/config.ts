@@ -12,12 +12,26 @@ import { DfnsApiClient } from "@dfns/sdk";
 import { AsymmetricKeySigner } from "@dfns/sdk-keysigner";
 import { DfnsWallet } from "@dfns/lib-ethersjs6";
 
+export type AccountMappingType = 'derivation' | 'database'
+
+const ACCOUNT_MAPPING_TYPES: ReadonlyArray<AccountMappingType> = ['derivation', 'database'];
+
+function resolveAccountMappingType(rawValue: string | undefined): AccountMappingType {
+  if (!rawValue) return 'derivation';
+
+  const normalized = rawValue.trim() as AccountMappingType;
+  if (ACCOUNT_MAPPING_TYPES.includes(normalized)) return normalized;
+
+  throw new Error(`Invalid ACCOUNT_MAPPING_TYPE: ${rawValue}. Supported values: ${ACCOUNT_MAPPING_TYPES.join(', ')}`);
+}
+
 export type BaseAppConfig = {
   orgId: string
   provider: Provider
   signer: Signer
   finP2PClient: FinP2PClient | undefined
   proofProvider: ProofProvider | undefined
+  accountMappingType: AccountMappingType
 }
 
 export type FinP2PContractAppConfig = BaseAppConfig & {
@@ -123,7 +137,7 @@ export const createDfnsEthersProvider = async (config: {
   return { provider, signer };
 };
 
-const createDfnsProvider = async (): Promise<DfnsAppConfig> => {
+const createDfnsProvider = async (): Promise<Omit<DfnsAppConfig, 'accountMappingType'>> => {
   const orgId = process.env.ORGANIZATION_ID || '';
   const dfnsBaseUrl = process.env.DFNS_BASE_URL || 'https://api.dfns.io';
   const dfnsOrgId = process.env.DFNS_ORG_ID;
@@ -182,7 +196,7 @@ const createDfnsProvider = async (): Promise<DfnsAppConfig> => {
   };
 };
 
-const createFireblocksProvider = async (): Promise<FireblocksAppConfig> => {
+const createFireblocksProvider = async (): Promise<Omit<FireblocksAppConfig, 'accountMappingType'>> => {
   const orgId = process.env.ORGANIZATION_ID || '';
   const apiKey = process.env.FIREBLOCKS_API_KEY || "";
   if (!apiKey) {
@@ -238,6 +252,7 @@ const createFireblocksProvider = async (): Promise<FireblocksAppConfig> => {
 
 export async function envVarsToAppConfig(logger: Logger): Promise<AppConfig> {
   const configType = (process.env.PROVIDER_TYPE || 'finp2p-contract') as AppConfig['type']
+  const accountMappingType = resolveAccountMappingType(process.env.ACCOUNT_MAPPING_TYPE)
 
   switch (configType) {
     case 'finp2p-contract': {
@@ -295,15 +310,16 @@ export async function envVarsToAppConfig(logger: Logger): Promise<AppConfig> {
         finP2PClient,
         proofProvider,
         orgId,
+        accountMappingType,
         finP2PContract,
         execDetailsStore,
       }
     }
     case 'fireblocks': {
-      return await createFireblocksProvider()
+      return { ...await createFireblocksProvider(), accountMappingType }
     }
     case 'dfns': {
-      return await createDfnsProvider()
+      return { ...await createDfnsProvider(), accountMappingType }
     }
   }
 }
@@ -402,4 +418,3 @@ export function parseConfig(params: ParamDefinition[]): ParsedConfig {
 
   return config;
 }
-
