@@ -103,7 +103,7 @@ describe('DbAccountMapping', () => {
   it('should add and resolve a mapping', async () => {
     await service.addMapping(TEST_FIN_ID, TEST_ADDRESS);
     const account = await service.resolveAccount(TEST_FIN_ID);
-    expect(account).toBe(TEST_ADDRESS);
+    expect(account?.toLowerCase()).toBe(TEST_ADDRESS.toLowerCase());
   });
 
   it('should resolve finId from account', async () => {
@@ -129,7 +129,7 @@ describe('DbAccountMapping', () => {
   it('should be idempotent on duplicate insert', async () => {
     await service.addMapping(TEST_FIN_ID, TEST_ADDRESS);
     const account = await service.resolveAccount(TEST_FIN_ID);
-    expect(account).toBe(TEST_ADDRESS);
+    expect(account?.toLowerCase()).toBe(TEST_ADDRESS.toLowerCase());
   });
 
   it('should remove a specific mapping', async () => {

@@ -1,6 +1,9 @@
 import { finIdToAddress } from '@owneraio/finp2p-contracts';
 import { workflows } from '@owneraio/finp2p-nodejs-skeleton-adapter';
 
+const earliest = <T extends { created_at: Date }>(rows: T[]): T | undefined =>
+  rows.length === 0 ? undefined : rows.reduce((a, b) => (a.created_at <= b.created_at ? a : b));
+
 export interface AccountMappingService {
   resolveAccount(finId: string): Promise<string | undefined>;
   resolveFinId(account: string): Promise<string | undefined>;
@@ -41,12 +44,12 @@ export class DbAccountMapping implements AccountMappingService {
 
   async resolveAccount(finId: string): Promise<string | undefined> {
     const mappings = await workflows.getAccountMappings(finId);
-    return mappings[0]?.account;
+    return earliest(mappings)?.account;
   }
 
   async resolveFinId(account: string): Promise<string | undefined> {
     const mappings = await workflows.getAccountMappingsByAccount(account);
-    return mappings[0]?.fin_id;
+    return earliest(mappings)?.fin_id;
   }
 
   async addMapping(finId: string, account: string): Promise<void> {
