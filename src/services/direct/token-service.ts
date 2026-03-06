@@ -153,7 +153,7 @@ export class DirectTokenService implements TokenService, EscrowService {
   ): Promise<ReceiptOperation> {
     const asset = await getAssetFromDb(ast);
     const sourceAddress = await this.resolveAddress(source.finId);
-    const wallet = await this.custodyProvider.resolveWalletForAddress(sourceAddress);
+    const wallet = await this.custodyProvider.resolveWallet(sourceAddress);
     if (wallet === undefined) throw new Error('Source address cannot be resolved to a custody wallet');
     const amount = parseUnits(quantity, asset.decimals);
 
@@ -200,7 +200,7 @@ export class DirectTokenService implements TokenService, EscrowService {
   ): Promise<ReceiptOperation> {
     const asset = await getAssetFromDb(ast);
     const sourceAddress = await this.resolveAddress(source.finId);
-    const wallet = await this.custodyProvider.resolveWalletForAddress(sourceAddress);
+    const wallet = await this.custodyProvider.resolveWallet(sourceAddress);
     if (wallet === undefined) throw new Error('Source address cannot be resolved to a custody wallet');
     const amount = parseUnits(quantity, asset.decimals);
 
