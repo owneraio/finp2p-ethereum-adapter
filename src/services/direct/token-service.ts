@@ -1,9 +1,10 @@
 import {
   Asset, AssetBind, AssetCreationStatus, AssetDenomination, AssetIdentifier,
-  Balance, Destination, ExecutionContext, FinIdAccount, Logger, OperationType,
+  Balance, Destination, ExecutionContext, FinIdAccount, OperationType,
   ReceiptOperation, Signature, Source, TokenService, EscrowService,
   failedReceiptOperation
 } from '@owneraio/finp2p-adapter-models';
+import winston from 'winston';
 import { workflows } from '@owneraio/finp2p-nodejs-skeleton-adapter';
 import { parseUnits, parseEther, formatUnits, TransactionReceipt } from "ethers";
 import { ContractsManager, ERC20Contract } from '@owneraio/finp2p-contracts';
@@ -43,7 +44,7 @@ function buildReceiptOperation(
 export class DirectTokenService implements TokenService, EscrowService {
 
   constructor(
-    readonly logger: Logger,
+    readonly logger: winston.Logger,
     readonly custodyProvider: CustodyProvider,
     readonly accountMapping: AccountMappingService,
   ) {}
@@ -64,7 +65,7 @@ export class DirectTokenService implements TokenService, EscrowService {
         value: parseEther(gasStation.amount),
       });
     } catch (e) {
-      this.logger.warning(`Gas funding failed (wallet may already have sufficient gas): ${e}`);
+      this.logger.warn(`Gas funding failed (wallet may already have sufficient gas): ${e}`);
     }
   }
 
@@ -100,7 +101,7 @@ export class DirectTokenService implements TokenService, EscrowService {
       try {
         await this.custodyProvider.onAssetRegistered?.(tokenAddress);
       } catch (e) {
-        this.logger.warning(`Asset registration failed (may already exist): ${e}`);
+        this.logger.warn(`Asset registration failed (may already exist): ${e}`);
       }
 
       return {
