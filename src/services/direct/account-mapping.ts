@@ -35,7 +35,7 @@ export class DerivationAccountMapping implements AccountMappingService {
 
 /**
  * DB-backed mapping: uses skeleton's globally exposed account mapping storage functions.
- * Supports 1:N (finId → multiple accounts), resolves to the first match.
+ * Supports 1:N (finId → multiple accounts), resolves to the earliest mapping (ORDER BY created_at).
  */
 export class DbAccountMapping implements AccountMappingService {
 
