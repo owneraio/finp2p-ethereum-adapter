@@ -18,10 +18,14 @@ export class DerivationAccountMapping implements AccountMappingService {
     const cached = this.finIdToAccount.get(finId);
     if (cached) return cached;
 
-    const address = finIdToAddress(finId);
-    this.finIdToAccount.set(finId, address);
-    this.accountToFinId.set(address.toLowerCase(), finId);
-    return address;
+    try {
+      const address = finIdToAddress(finId);
+      this.finIdToAccount.set(finId, address);
+      this.accountToFinId.set(address.toLowerCase(), finId);
+      return address;
+    } catch {
+      return undefined;
+    }
   }
 
   async resolveFinId(account: string): Promise<string | undefined> {
