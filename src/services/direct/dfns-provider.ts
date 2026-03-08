@@ -66,7 +66,7 @@ export class DfnsCustodyProvider implements CustodyProvider {
     return new DfnsCustodyProvider(issuerWallet, escrowWallet, config, dfnsClient, addressToWalletId, gasStation);
   }
 
-  async resolveWalletForAddress(address: string): Promise<CustodyWallet | undefined> {
+  async resolveWallet(address: string): Promise<CustodyWallet | undefined> {
     const walletId = this.addressToWalletId.get(address.toLowerCase());
     if (walletId === undefined) return undefined;
     return DfnsCustodyProvider.createWalletProvider(this.dfnsClient, walletId, this.config.rpcUrl);

@@ -55,7 +55,7 @@ export class FireblocksCustodyProvider implements CustodyProvider {
     );
   }
 
-  async resolveWalletForAddress(address: string): Promise<CustodyWallet | undefined> {
+  async resolveWallet(address: string): Promise<CustodyWallet | undefined> {
     const vaultId = await this.vaultManagement.getVaultIdForAddress(address);
     if (vaultId === undefined) return undefined;
 
