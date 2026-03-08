@@ -6,9 +6,9 @@ import {
 } from '@owneraio/finp2p-adapter-models';
 import winston from 'winston';
 import { workflows } from '@owneraio/finp2p-nodejs-skeleton-adapter';
-import { parseUnits, parseEther, formatUnits, TransactionReceipt } from "ethers";
+import { parseUnits, formatUnits, TransactionReceipt } from "ethers";
 import { ContractsManager, ERC20Contract } from '@owneraio/finp2p-contracts';
-import { CustodyProvider, CustodyWallet } from './custody-provider';
+import { CustodyProvider } from './custody-provider';
 import { AccountMappingService } from './account-mapping';
 
 async function getAssetFromDb(ast: Asset): Promise<workflows.Asset> {
@@ -53,20 +53,6 @@ export class DirectTokenService implements TokenService, EscrowService {
     const address = await this.accountMapping.resolveAccount(finId);
     if (address === undefined) throw new Error(`Cannot resolve address for finId: ${finId}`);
     return address;
-  }
-
-  private async fundGasIfNeeded(wallet: CustodyWallet): Promise<void> {
-    const gasStation = this.custodyProvider.gasStation;
-    if (!gasStation) return;
-    try {
-      const targetAddress = await wallet.signer.getAddress();
-      await gasStation.wallet.signer.sendTransaction({
-        to: targetAddress,
-        value: parseEther(gasStation.amount),
-      });
-    } catch (e) {
-      this.logger.warn(`Gas funding failed (wallet may already have sufficient gas): ${e}`);
-    }
   }
 
   async createAsset(
@@ -134,7 +120,7 @@ export class DirectTokenService implements TokenService, EscrowService {
     const amount = parseUnits(quantity, asset.decimals);
 
     const c = new ERC20Contract(wallet.provider, wallet.signer, asset.contract_address, this.logger);
-    await this.fundGasIfNeeded(wallet);
+    await this.custodyProvider.fundGasIfNeeded?.(wallet);
     const tx = await c.mint(address, amount);
     const receipt = await tx.wait();
     if (receipt === null) return failedReceiptOperation(1, "receipt is null");
@@ -159,7 +145,7 @@ export class DirectTokenService implements TokenService, EscrowService {
     const amount = parseUnits(quantity, asset.decimals);
 
     const c = new ERC20Contract(wallet.provider, wallet.signer, asset.contract_address, this.logger);
-    await this.fundGasIfNeeded(wallet);
+    await this.custodyProvider.fundGasIfNeeded?.(wallet);
     const tx = await c.transfer(await this.resolveAddress(destination.finId), amount);
     const receipt = await tx.wait();
     if (receipt === null) return failedReceiptOperation(1, "receipt is null");
@@ -180,7 +166,7 @@ export class DirectTokenService implements TokenService, EscrowService {
     const amount = parseUnits(quantity, asset.decimals);
 
     const c = new ERC20Contract(wallet.provider, wallet.signer, asset.contract_address, this.logger);
-    await this.fundGasIfNeeded(wallet);
+    await this.custodyProvider.fundGasIfNeeded?.(wallet);
     const tx = await c.burn(escrowAddress, amount);
     const receipt = await tx.wait();
     if (receipt === null) return failedReceiptOperation(1, "receipt is null");
@@ -206,7 +192,7 @@ export class DirectTokenService implements TokenService, EscrowService {
     const amount = parseUnits(quantity, asset.decimals);
 
     const c = new ERC20Contract(wallet.provider, wallet.signer, asset.contract_address, this.logger);
-    await this.fundGasIfNeeded(wallet);
+    await this.custodyProvider.fundGasIfNeeded?.(wallet);
     const tx = await c.transfer(await this.custodyProvider.escrow.signer.getAddress(), amount);
     const receipt = await tx.wait();
     if (receipt === null) return failedReceiptOperation(1, "receipt is null");
@@ -226,7 +212,7 @@ export class DirectTokenService implements TokenService, EscrowService {
     const amount = parseUnits(quantity, asset.decimals);
 
     const c = new ERC20Contract(wallet.provider, wallet.signer, asset.contract_address, this.logger);
-    await this.fundGasIfNeeded(wallet);
+    await this.custodyProvider.fundGasIfNeeded?.(wallet);
     const tx = await c.transfer(destinationAddress, amount);
     const receipt = await tx.wait();
     if (receipt === null) return failedReceiptOperation(1, "receipt is null");
@@ -246,7 +232,7 @@ export class DirectTokenService implements TokenService, EscrowService {
     const amount = parseUnits(quantity, asset.decimals);
 
     const c = new ERC20Contract(wallet.provider, wallet.signer, asset.contract_address, this.logger);
-    await this.fundGasIfNeeded(wallet);
+    await this.custodyProvider.fundGasIfNeeded?.(wallet);
     const tx = await c.transfer(sourceAddress, amount);
     const receipt = await tx.wait();
     if (receipt === null) return failedReceiptOperation(1, "receipt is null");
