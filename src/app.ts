@@ -1,7 +1,6 @@
 import express from "express";
 import { logger as expressLogger } from "express-winston";
 import winston from "winston";
-import { Pool } from "pg";
 import {
   register,
   PluginManager,
@@ -51,11 +50,9 @@ function registerDirectServices(
   const healthService = new DirectHealthServiceImpl(custodyProvider.healthCheckProvider);
 
   if (appConfig.accountModel === 'omnibus') {
-    const connectionString = process.env.DB_CONNECTION_STRING;
-    if (!connectionString) throw new Error('DB_CONNECTION_STRING is required for omnibus account model');
-    const pool = new Pool({ connectionString });
+    if (!workflowsConfig?.storage) throw new Error('Workflows storage config is required for omnibus account model');
     const delegate = new EthereumOmnibusDelegate(logger, custodyProvider);
-    const { tokenService, escrowService, commonService } = createOmnibusServices(delegate, pool);
+    const { tokenService, escrowService, commonService } = createOmnibusServices(delegate, workflowsConfig.storage);
     register(app, tokenService, escrowService, commonService, healthService, paymentsService, planApprovalService, pluginManager, workflowsConfig);
     return;
   }
