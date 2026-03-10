@@ -10,7 +10,7 @@ import winston from 'winston';
 import { CustodyProvider } from './custody-provider';
 import { getAssetFromDb, fundGasIfNeeded } from './helpers';
 
-export class EthereumPayoutDelegate implements PayoutDelegate {
+export class EthereumVanillaDelegate implements PayoutDelegate, AssetDelegate {
 
   constructor(
     private readonly logger: winston.Logger,
@@ -39,14 +39,6 @@ export class EthereumPayoutDelegate implements PayoutDelegate {
     this.logger.info(`Payout: ${quantity} of ${asset.assetId} to ${destinationAddress}, tx: ${receipt.hash}`);
     return { success: true, transactionId: receipt.hash };
   }
-}
-
-export class EthereumAssetDelegate implements AssetDelegate {
-
-  constructor(
-    private readonly logger: winston.Logger,
-    private readonly custodyProvider: CustodyProvider,
-  ) {}
 
   async createAsset(
     idempotencyKey: string, asset: Asset, assetBind: AssetBind | undefined,
