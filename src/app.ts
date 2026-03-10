@@ -8,8 +8,8 @@ import {
   PlanApprovalServiceImpl,
   PaymentsServiceImpl,
   workflows,
-  createOmnibusServices,
 } from "@owneraio/finp2p-nodejs-skeleton-adapter";
+import { createVanillaServices } from "@owneraio/finp2p-vanilla-service";
 import { FinP2PClient } from "@owneraio/finp2p-client";
 import { FinP2PContract } from "@owneraio/finp2p-contracts";
 import {
@@ -26,7 +26,8 @@ import {
   DerivationAccountMapping,
   DbAccountMapping,
   AccountMappingService,
-  EthereumOmnibusDelegate,
+  EthereumPayoutDelegate,
+  EthereumAssetDelegate,
   CommonServiceImpl as DirectCommonServiceImpl,
   HealthServiceImpl as DirectHealthServiceImpl,
 } from "./services/direct"
@@ -50,9 +51,14 @@ function registerDirectServices(
 
   if (appConfig.accountModel === 'omnibus') {
     if (!workflowsConfig?.storage) throw new Error('Workflows storage config is required for omnibus account model');
-    const delegate = new EthereumOmnibusDelegate(logger, custodyProvider);
-    const { tokenService, escrowService, commonService } = createOmnibusServices(delegate, workflowsConfig.storage);
-    register(app, tokenService, escrowService, commonService, healthService, paymentsService, planApprovalService, pluginManager, workflowsConfig);
+    const { tokenService, escrowService, commonService, mappingService } = createVanillaServices(
+      {
+        payout: new EthereumPayoutDelegate(logger, custodyProvider),
+        asset: new EthereumAssetDelegate(logger, custodyProvider),
+      },
+      workflowsConfig.storage,
+    );
+    register(app, tokenService, escrowService, commonService, commonService, paymentsService, planApprovalService, pluginManager, workflowsConfig);
     return;
   }
 
