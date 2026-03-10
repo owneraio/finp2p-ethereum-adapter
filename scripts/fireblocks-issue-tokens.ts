@@ -26,7 +26,8 @@ const issueTokens = async (
   apiBaseUrl: ApiBaseUrl | string,
   issuerVaultId: string,
   tokenAddress: string,
-  finId: string,
+  finId: string | undefined,
+  walletAddress: string | undefined,
   amount: string | undefined
 ) => {
   const { provider, signer } = await createFireblocksEthersProvider({
@@ -43,10 +44,15 @@ const issueTokens = async (
     ? parseUnits(amount, decimals)
     : BigInt(1000) * (BigInt(10) ** decimals);
 
-  logger.info(`Issuing ${quantity} raw units of ${name} (${tokenAddress}) to finId ${finId}`);
-
-  const toAddress = finIdToAddress(finId);
-  logger.info(`Resolved finId ${finId} -> address ${toAddress}`);
+  let toAddress: string;
+  if (finId) {
+    toAddress = finIdToAddress(finId);
+    logger.info(`Issuing ${quantity} raw units of ${name} (${tokenAddress}) to finId ${finId}`);
+    logger.info(`Resolved finId ${finId} -> address ${toAddress}`);
+  } else {
+    toAddress = walletAddress!;
+    logger.info(`Issuing ${quantity} raw units of ${name} (${tokenAddress}) to wallet address ${toAddress}`);
+  }
 
   const tx = await erc20.mint(toAddress, quantity);
   logger.info(`Transaction submitted: ${tx.hash}`);
@@ -95,8 +101,12 @@ const config = parseConfig([
   {
     name: "fin_id",
     envVar: "FIN_ID",
-    required: true,
-    description: "Recipient FinID (public key hex)"
+    description: "Recipient FinID (public key hex). Takes priority over wallet_address"
+  },
+  {
+    name: "wallet_address",
+    envVar: "WALLET_ADDRESS",
+    description: "Recipient wallet address (used if fin_id is not provided)"
   },
   {
     name: "amount",
@@ -104,6 +114,11 @@ const config = parseConfig([
     description: "Human-readable amount to issue (e.g. 1000.5). Defaults to 1000 tokens"
   }
 ]);
+
+if (!config.fin_id && !config.wallet_address) {
+  console.error("❌ Either --fin-id (FIN_ID) or --wallet-address (WALLET_ADDRESS) must be provided");
+  process.exit(1);
+}
 
 const apiPrivateKey = fs.readFileSync(config.fireblocks_api_private_key_path!, "utf-8");
 
@@ -114,6 +129,7 @@ issueTokens(
   config.fireblocks_api_base_url!,
   config.fireblocks_asset_issuer_vault_id!,
   config.token_address!,
-  config.fin_id!,
+  config.fin_id,
+  config.wallet_address,
   config.amount
 ).catch(console.error);
