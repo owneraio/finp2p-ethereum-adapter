@@ -62,6 +62,7 @@ export type FireblocksAppConfig = BaseAppConfig & {
   apiBaseUrl: ApiBaseUrl | string
   assetIssuerVaultId: string
   assetEscrowVaultId: string
+  omnibusVaultId?: string
   gasFunding?: {
     vaultId: string
     amount: string
@@ -78,6 +79,7 @@ export type DfnsAppConfig = BaseAppConfig & {
   rpcUrl: string
   assetIssuerWalletId: string
   assetEscrowWalletId: string
+  omnibusWalletId?: string
   gasFunding?: {
     walletId: string
     amount: string
@@ -179,6 +181,8 @@ const createDfnsProvider = async (): Promise<Omit<DfnsAppConfig, 'accountMapping
   const escrowWalletId = process.env.DFNS_ASSET_ESCROW_WALLET_ID;
   if (!escrowWalletId) throw new Error('DFNS_ASSET_ESCROW_WALLET_ID is not set');
 
+  const omnibusWalletId = process.env.DFNS_OMNIBUS_WALLET_ID || undefined;
+
   // Use issuer wallet as the common signer
   const keySigner = new AsymmetricKeySigner({ credId: dfnsCredId, privateKey: dfnsPrivateKey });
   const dfnsClient = new DfnsApiClient({ baseUrl: dfnsBaseUrl, orgId: dfnsOrgId, authToken: dfnsAuthToken, signer: keySigner });
@@ -206,6 +210,7 @@ const createDfnsProvider = async (): Promise<Omit<DfnsAppConfig, 'accountMapping
     rpcUrl,
     assetIssuerWalletId: issuerWalletId,
     assetEscrowWalletId: escrowWalletId,
+    omnibusWalletId,
     gasFunding,
   };
 };
@@ -234,6 +239,7 @@ const createFireblocksProvider = async (): Promise<Omit<FireblocksAppConfig, 'ac
 
   const assetIssuerVaultId = requireVaultIdEnv('FIREBLOCKS_ASSET_ISSUER_VAULT_ID')
   const assetEscrowVaultId = requireVaultIdEnv('FIREBLOCKS_ASSET_ESCROW_VAULT_ID')
+  const omnibusVaultId = process.env.FIREBLOCKS_OMNIBUS_VAULT_ID || undefined
 
   // Use issuer vault as the common provider/signer
   const { provider, signer } = await createFireblocksEthersProvider({
@@ -260,6 +266,7 @@ const createFireblocksProvider = async (): Promise<Omit<FireblocksAppConfig, 'ac
     apiBaseUrl,
     assetIssuerVaultId,
     assetEscrowVaultId,
+    omnibusVaultId,
     gasFunding,
   };
 };
