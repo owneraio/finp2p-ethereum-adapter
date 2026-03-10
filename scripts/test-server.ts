@@ -225,7 +225,7 @@ const start = async () => {
       proofProvider: new ProofProvider(orgId, finP2PClient, deployer),
       orgId,
       accountMappingType: 'derivation',
-      adapterMode: 'direct',
+      accountModel: 'segregated',
       finP2PContract,
       execDetailsStore,
     }
