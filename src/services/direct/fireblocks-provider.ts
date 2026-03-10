@@ -6,7 +6,8 @@ import { CustodyProvider, CustodyWallet, GasStation } from './custody-provider';
 export class FireblocksCustodyProvider implements CustodyProvider {
   readonly issuer: CustodyWallet;
   readonly escrow: CustodyWallet;
-  readonly healthCheckProvider;
+  readonly omnibus?: CustodyWallet;
+  readonly rpcProvider;
   readonly gasStation?: GasStation;
 
   private fireblocksSdk: FireblocksSDK;
@@ -19,10 +20,12 @@ export class FireblocksCustodyProvider implements CustodyProvider {
     fireblocksSdk: FireblocksSDK,
     vaultManagement: ReturnType<typeof createVaultManagementFunctions>,
     gasStation?: GasStation,
+    omnibus?: CustodyWallet,
   ) {
     this.issuer = issuer;
     this.escrow = escrow;
-    this.healthCheckProvider = config.provider;
+    this.omnibus = omnibus;
+    this.rpcProvider = config.provider;
     this.fireblocksSdk = fireblocksSdk;
     this.vaultManagement = vaultManagement;
     this.gasStation = gasStation;
@@ -49,9 +52,14 @@ export class FireblocksCustodyProvider implements CustodyProvider {
       gasStation = { wallet: gasWallet, amount: config.gasFunding.amount };
     }
 
+    let omnibusWallet: CustodyWallet | undefined;
+    if (config.omnibusVaultId) {
+      omnibusWallet = await createProvider(config.omnibusVaultId);
+    }
+
     return new FireblocksCustodyProvider(
       issuerWallet, escrowWallet,
-      config, fireblocksSdk, vaultManagement, gasStation
+      config, fireblocksSdk, vaultManagement, gasStation, omnibusWallet
     );
   }
 
