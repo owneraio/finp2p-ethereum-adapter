@@ -1,15 +1,10 @@
 import { Asset, Destination, ExecutionContext, OmnibusDelegate, Source, AssetBind, LedgerReference } from '@owneraio/finp2p-adapter-models';
 import { workflows } from '@owneraio/finp2p-nodejs-skeleton-adapter';
-import { parseUnits, formatUnits } from 'ethers';
+import { parseUnits } from 'ethers';
 import { ContractsManager, ERC20Contract } from '@owneraio/finp2p-contracts';
 import winston from 'winston';
 import { CustodyProvider } from './custody-provider';
-
-async function getAssetFromDb(asset: Asset): Promise<workflows.Asset> {
-  const a = await workflows.getAsset({ id: asset.assetId, type: asset.assetType });
-  if (a === undefined) throw new Error(`Asset(type=${asset.assetType},id=${asset.assetId}) is not registered in DB`);
-  return a;
-}
+import { getAssetFromDb, fundGasIfNeeded } from './helpers';
 
 export class EthereumOmnibusDelegate implements OmnibusDelegate {
 
@@ -29,9 +24,10 @@ export class EthereumOmnibusDelegate implements OmnibusDelegate {
     }
     const destinationAddress = destination.account.address;
 
-    const { provider, signer } = this.custodyProvider.issuer;
+    const wallet = this.custodyProvider.issuer;
     const amount = parseUnits(quantity, dbAsset.decimals);
-    const c = new ERC20Contract(provider, signer, dbAsset.contract_address, this.logger);
+    const c = new ERC20Contract(wallet.provider, wallet.signer, dbAsset.contract_address, this.logger);
+    await fundGasIfNeeded(this.logger, this.custodyProvider.gasStation, wallet);
     const tx = await c.transfer(destinationAddress, amount);
     const receipt = await tx.wait();
     if (receipt === null) throw new Error('Transaction receipt is null');
