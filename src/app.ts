@@ -26,8 +26,7 @@ import {
   DerivationAccountMapping,
   DbAccountMapping,
   AccountMappingService,
-  EthereumPayoutDelegate,
-  EthereumAssetDelegate,
+  EthereumVanillaDelegate,
   CommonServiceImpl as DirectCommonServiceImpl,
   HealthServiceImpl as DirectHealthServiceImpl,
 } from "./services/direct"
@@ -51,11 +50,9 @@ function registerDirectServices(
 
   if (appConfig.accountModel === 'omnibus') {
     if (!workflowsConfig?.storage) throw new Error('Workflows storage config is required for omnibus account model');
+    const delegate = new EthereumVanillaDelegate(logger, custodyProvider);
     const { tokenService, escrowService, commonService, mappingService } = createVanillaServices(
-      {
-        payout: new EthereumPayoutDelegate(logger, custodyProvider),
-        asset: new EthereumAssetDelegate(logger, custodyProvider),
-      },
+      { payout: delegate, asset: delegate },
       workflowsConfig.storage,
     );
     register(app, tokenService, escrowService, commonService, commonService, paymentsService, planApprovalService, pluginManager, workflowsConfig);
