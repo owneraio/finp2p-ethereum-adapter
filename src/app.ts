@@ -92,7 +92,7 @@ async function createApp(
   const paymentsService = new PaymentsServiceImpl(pluginManager);
   const planApprovalService = new PlanApprovalServiceImpl(appConfig.orgId, pluginManager, appConfig.finP2PClient);
 
-  const registerServices = appConfig.adapterMode === 'omnibus' ? registerOmnibusServices : registerDirectServices;
+  const registerServices = appConfig.accountModel === 'omnibus' ? registerOmnibusServices : registerDirectServices;
 
   switch (appConfig.type) {
     case 'fireblocks': {
@@ -106,8 +106,8 @@ async function createApp(
       break
     }
     case 'finp2p-contract': {
-      if (appConfig.adapterMode === 'omnibus') {
-        throw new Error('Omnibus mode is not supported with finp2p-contract provider');
+      if (appConfig.accountModel === 'omnibus') {
+        throw new Error('Omnibus account model is not supported with finp2p-contract provider');
       }
       const escrowService = new EscrowServiceImpl(appConfig.finP2PContract, appConfig.finP2PClient, appConfig.execDetailsStore, appConfig.proofProvider, pluginManager);
       const tokenService = new TokenServiceImpl(appConfig.finP2PContract, appConfig.finP2PClient, appConfig.execDetailsStore, appConfig.proofProvider, pluginManager);
