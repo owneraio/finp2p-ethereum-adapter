@@ -64,6 +64,7 @@ export class DirectTokenService implements TokenService, EscrowService {
 
     if (assetBind === undefined) {
       const { provider, signer } = this.custodyProvider.issuer;
+      await this.custodyProvider.fundGasIfNeeded?.(this.custodyProvider.issuer);
       const cm = new ContractsManager(provider, signer, this.logger);
       const symbol = "OWNERA";
       const erc20 = await cm.deployERC20Detached(
@@ -116,6 +117,7 @@ export class DirectTokenService implements TokenService, EscrowService {
   ): Promise<ReceiptOperation> {
     const asset = await getAssetFromDb(ast);
     const wallet = this.custodyProvider.issuer;
+    await this.custodyProvider.fundGasIfNeeded?.(wallet);
     const address = await this.resolveAddress(to.finId);
     const amount = parseUnits(quantity, asset.decimals);
 
@@ -214,6 +216,7 @@ export class DirectTokenService implements TokenService, EscrowService {
     const asset = await getAssetFromDb(ast);
     const destinationAddress = await this.resolveAddress(destination.finId);
     const wallet = this.custodyProvider.escrow;
+    await this.custodyProvider.fundGasIfNeeded?.(wallet);
     const amount = parseUnits(quantity, asset.decimals);
 
     const c = new ERC20Contract(wallet.provider, wallet.signer, asset.contract_address, this.logger);
