@@ -4,22 +4,48 @@ import {
 } from '@owneraio/finp2p-adapter-models';
 import { TransferDelegate, AssetDelegate, EscrowDelegate, DelegateResult, InboundTransferVerificationError } from '@owneraio/finp2p-vanilla-service';
 import { workflows } from '@owneraio/finp2p-nodejs-skeleton-adapter';
-import { parseUnits } from 'ethers';
+import { parseUnits, formatUnits, id as keccak256 } from 'ethers';
 import { ContractsManager, ERC20Contract } from '@owneraio/finp2p-contracts';
 import winston from 'winston';
 import { CustodyProvider, CustodyWallet } from './custody-provider';
+import { AccountMappingService } from './account-mapping';
 import { getAssetFromDb } from './helpers';
+
+export interface ReceiptPollingConfig {
+  timeoutMs: number;
+  intervalMs: number;
+}
+
+const defaultReceiptPolling: ReceiptPollingConfig = { timeoutMs: 5000, intervalMs: 500 };
 
 export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowDelegate {
 
   private readonly omnibusWallet: CustodyWallet;
+  private readonly receiptPolling: ReceiptPollingConfig;
 
   constructor(
     private readonly logger: winston.Logger,
     private readonly custodyProvider: CustodyProvider,
+    private readonly accountMapping: AccountMappingService,
+    receiptPolling?: Partial<ReceiptPollingConfig>,
   ) {
-    if (!custodyProvider.omnibus) throw new Error('Omnibus wallet is required for vanilla delegate');
+    if (!custodyProvider.omnibus) throw new Error('Omnibus wallet is required for omnibus delegate');
     this.omnibusWallet = custodyProvider.omnibus;
+    this.receiptPolling = { ...defaultReceiptPolling, ...receiptPolling };
+  }
+
+  private async resolveDestinationAddress(destination: Destination): Promise<string> {
+    switch (destination.account.type) {
+      case 'crypto':
+        return destination.account.address;
+      case 'finId': {
+        const address = await this.accountMapping.resolveAccount(destination.account.finId);
+        if (address === undefined) throw new Error(`Cannot resolve address for finId: ${destination.account.finId}`);
+        return address;
+      }
+      default:
+        throw new Error(`Unsupported destination type: ${destination.account.type}`);
+    }
   }
 
   async outboundTransfer(
@@ -27,11 +53,7 @@ export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowD
     asset: Asset, quantity: string, exCtx: ExecutionContext | undefined,
   ): Promise<DelegateResult> {
     const dbAsset = await getAssetFromDb(asset);
-
-    if (destination.account.type !== 'crypto') {
-      return { success: false, error: `Unsupported external destination type: ${destination.account.type}` };
-    }
-    const destinationAddress = destination.account.address;
+    const destinationAddress = await this.resolveDestinationAddress(destination);
 
     const amount = parseUnits(quantity, dbAsset.decimals);
     const c = new ERC20Contract(this.omnibusWallet.provider, this.omnibusWallet.signer, dbAsset.contract_address, this.logger);
@@ -43,17 +65,63 @@ export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowD
     return { success: true, transactionId: receipt.hash };
   }
 
-  async onInboundTransfer(
-    transactionId: string, source: Source, asset: Asset,
-    destination: Destination, amount: string, exCtx: ExecutionContext | undefined,
+  private async pollTransactionReceipt(transactionId: string) {
+    const { timeoutMs, intervalMs } = this.receiptPolling;
+    const deadline = Date.now() + timeoutMs;
+    while (true) {
+      const receipt = await this.custodyProvider.rpcProvider.getTransactionReceipt(transactionId);
+      if (receipt !== null) return receipt;
+      if (Date.now() >= deadline) return null;
+      await new Promise(resolve => setTimeout(resolve, intervalMs));
+    }
+  }
+
+  private async verifyReceiptOnChain(
+    transactionId: string, asset: Asset, expectedAmount: string,
   ): Promise<void> {
-    const receipt = await this.custodyProvider.rpcProvider.getTransactionReceipt(transactionId);
+    const receipt = await this.pollTransactionReceipt(transactionId);
     if (receipt === null) {
-      throw new InboundTransferVerificationError(`Transaction ${transactionId} not found on-chain`);
+      throw new InboundTransferVerificationError(
+        `Transaction ${transactionId} not found on-chain after ${this.receiptPolling.timeoutMs}ms`,
+      );
     }
     if (receipt.status !== 1) {
       throw new InboundTransferVerificationError(`Transaction ${transactionId} failed on-chain (status=${receipt.status})`);
     }
+
+    const dbAsset = await getAssetFromDb(asset);
+    if (receipt.to?.toLowerCase() !== dbAsset.contract_address.toLowerCase()) {
+      throw new InboundTransferVerificationError(
+        `Transaction ${transactionId} target contract ${receipt.to} does not match asset contract ${dbAsset.contract_address}`,
+      );
+    }
+
+    const omnibusAddress = (await this.omnibusWallet.signer.getAddress()).toLowerCase();
+    const transferTopic = keccak256('Transfer(address,address,uint256)');
+    const matchingLog = receipt.logs.find(log =>
+      log.topics[0] === transferTopic &&
+      log.topics.length >= 3 &&
+      log.topics[2]?.toLowerCase().endsWith(omnibusAddress.slice(2)),
+    );
+    if (!matchingLog) {
+      throw new InboundTransferVerificationError(
+        `Transaction ${transactionId} has no ERC20 Transfer event to omnibus wallet ${omnibusAddress}`,
+      );
+    }
+
+    const onChainAmount = formatUnits(BigInt(matchingLog.data), dbAsset.decimals);
+    if (onChainAmount !== expectedAmount) {
+      throw new InboundTransferVerificationError(
+        `Transaction ${transactionId} amount mismatch: expected ${expectedAmount}, got ${onChainAmount}`,
+      );
+    }
+  }
+
+  async onInboundTransfer(
+    transactionId: string, source: Source, asset: Asset,
+    destination: Destination, amount: string, exCtx: ExecutionContext | undefined,
+  ): Promise<void> {
+    await this.verifyReceiptOnChain(transactionId, asset, amount);
     this.logger.info(`Inbound transfer verified: tx ${transactionId}, asset ${asset.assetId}`);
   }
 
