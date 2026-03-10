@@ -224,6 +224,7 @@ class CustomTestEnvironment extends NodeEnvironment {
         proofProvider: new ProofProvider(this.orgId, undefined, operatorPrivateKey),
         orgId: this.orgId,
         accountMappingType: 'derivation',
+        adapterMode: 'direct',
         finP2PContract,
         execDetailsStore,
       }

@@ -25,6 +25,19 @@ function resolveAccountMappingType(rawValue: string | undefined): AccountMapping
   throw new Error(`Invalid ACCOUNT_MAPPING_TYPE: ${rawValue}. Supported values: ${ACCOUNT_MAPPING_TYPES.join(', ')}`);
 }
 
+export type AdapterMode = 'direct' | 'omnibus'
+
+const ADAPTER_MODES: ReadonlyArray<AdapterMode> = ['direct', 'omnibus'];
+
+function resolveAdapterMode(rawValue: string | undefined): AdapterMode {
+  if (!rawValue) return 'direct';
+
+  const normalized = rawValue.trim() as AdapterMode;
+  if (ADAPTER_MODES.includes(normalized)) return normalized;
+
+  throw new Error(`Invalid ADAPTER_MODE: ${rawValue}. Supported values: ${ADAPTER_MODES.join(', ')}`);
+}
+
 export type BaseAppConfig = {
   orgId: string
   provider: Provider
@@ -32,6 +45,7 @@ export type BaseAppConfig = {
   finP2PClient: FinP2PClient | undefined
   proofProvider: ProofProvider | undefined
   accountMappingType: AccountMappingType
+  adapterMode: AdapterMode
 }
 
 export type FinP2PContractAppConfig = BaseAppConfig & {
@@ -137,7 +151,7 @@ export const createDfnsEthersProvider = async (config: {
   return { provider, signer };
 };
 
-const createDfnsProvider = async (): Promise<Omit<DfnsAppConfig, 'accountMappingType'>> => {
+const createDfnsProvider = async (): Promise<Omit<DfnsAppConfig, 'accountMappingType' | 'adapterMode'>> => {
   const orgId = process.env.ORGANIZATION_ID || '';
   const dfnsBaseUrl = process.env.DFNS_BASE_URL || 'https://api.dfns.io';
   const dfnsOrgId = process.env.DFNS_ORG_ID;
@@ -196,7 +210,7 @@ const createDfnsProvider = async (): Promise<Omit<DfnsAppConfig, 'accountMapping
   };
 };
 
-const createFireblocksProvider = async (): Promise<Omit<FireblocksAppConfig, 'accountMappingType'>> => {
+const createFireblocksProvider = async (): Promise<Omit<FireblocksAppConfig, 'accountMappingType' | 'adapterMode'>> => {
   const orgId = process.env.ORGANIZATION_ID || '';
   const apiKey = process.env.FIREBLOCKS_API_KEY || "";
   if (!apiKey) {
@@ -253,6 +267,7 @@ const createFireblocksProvider = async (): Promise<Omit<FireblocksAppConfig, 'ac
 export async function envVarsToAppConfig(logger: Logger): Promise<AppConfig> {
   const configType = (process.env.PROVIDER_TYPE || 'finp2p-contract') as AppConfig['type']
   const accountMappingType = resolveAccountMappingType(process.env.ACCOUNT_MAPPING_TYPE)
+  const adapterMode = resolveAdapterMode(process.env.ADAPTER_MODE)
 
   switch (configType) {
     case 'finp2p-contract': {
@@ -311,15 +326,16 @@ export async function envVarsToAppConfig(logger: Logger): Promise<AppConfig> {
         proofProvider,
         orgId,
         accountMappingType,
+        adapterMode,
         finP2PContract,
         execDetailsStore,
       }
     }
     case 'fireblocks': {
-      return { ...await createFireblocksProvider(), accountMappingType }
+      return { ...await createFireblocksProvider(), accountMappingType, adapterMode }
     }
     case 'dfns': {
-      return { ...await createDfnsProvider(), accountMappingType }
+      return { ...await createDfnsProvider(), accountMappingType, adapterMode }
     }
   }
 }
