@@ -45,7 +45,7 @@ RUN --mount=type=secret,id=npm_token \
     NPM_TOKEN="$(cat /run/secrets/npm_token)" && \
     echo "//npm.pkg.github.com/:_authToken=${NPM_TOKEN}" > .npmrc && \
     echo "@owneraio:registry=https://npm.pkg.github.com" >> .npmrc && \
-    npm clean-install --ignore-scripts && \
+    npm clean-install --ignore-scripts --legacy-peer-deps && \
     rm .npmrc
 RUN npm run build
 
@@ -58,7 +58,7 @@ RUN --mount=type=secret,id=npm_token \
     NPM_TOKEN="$(cat /run/secrets/npm_token)" && \
     echo "//npm.pkg.github.com/:_authToken=${NPM_TOKEN}" > .npmrc && \
     echo "@owneraio:registry=https://npm.pkg.github.com" >> .npmrc && \
-    npm clean-install --production --ignore-scripts && \
+    npm clean-install --production --ignore-scripts --legacy-peer-deps && \
     rm .npmrc
 
 # ------- Release ----------
