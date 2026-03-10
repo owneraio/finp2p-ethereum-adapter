@@ -47,29 +47,24 @@ function registerDirectServices(
   paymentsService: PaymentsServiceImpl, planApprovalService: PlanApprovalServiceImpl,
   pluginManager: PluginManager, workflowsConfig: workflows.Config | undefined,
 ) {
+  const healthService = new DirectHealthServiceImpl(custodyProvider.healthCheckProvider);
+
+  if (appConfig.accountModel === 'omnibus') {
+    const connectionString = process.env.DB_CONNECTION_STRING;
+    if (!connectionString) throw new Error('DB_CONNECTION_STRING is required for omnibus account model');
+    const pool = new Pool({ connectionString });
+    const delegate = new EthereumOmnibusDelegate(logger, custodyProvider);
+    const { tokenService, escrowService, commonService } = createOmnibusServices(delegate, pool);
+    register(app, tokenService, escrowService, commonService, healthService, paymentsService, planApprovalService, pluginManager, workflowsConfig);
+    return;
+  }
+
   const accountMapping = resolveAccountMapping(appConfig);
   const tokenService = new DirectTokenService(logger, custodyProvider, accountMapping);
   const commonService = new DirectCommonServiceImpl();
-  const healthService = new DirectHealthServiceImpl(custodyProvider.healthCheckProvider);
-
   register(app, tokenService, tokenService, commonService, healthService, paymentsService, planApprovalService, pluginManager, workflowsConfig, {
     fields: [{ field: 'ledgerAccountId', description: 'Ethereum address', exampleValue: '0x742d35Cc6634C0532925a3b844Bc9e7595f2bD18' }],
   });
-}
-
-function registerOmnibusServices(
-  app: express.Application, logger: winston.Logger, custodyProvider: CustodyProvider, _appConfig: AppConfig,
-  paymentsService: PaymentsServiceImpl, planApprovalService: PlanApprovalServiceImpl,
-  pluginManager: PluginManager, workflowsConfig: workflows.Config | undefined,
-) {
-  const connectionString = process.env.DB_CONNECTION_STRING;
-  if (!connectionString) throw new Error('DB_CONNECTION_STRING is required for omnibus mode');
-  const pool = new Pool({ connectionString });
-
-  const delegate = new EthereumOmnibusDelegate(logger, custodyProvider);
-  const { tokenService, escrowService, commonService } = createOmnibusServices(delegate, pool);
-
-  register(app, tokenService, escrowService, commonService, commonService, paymentsService, planApprovalService, pluginManager, workflowsConfig);
 }
 
 async function createApp(
@@ -91,17 +86,15 @@ async function createApp(
   const paymentsService = new PaymentsServiceImpl(pluginManager);
   const planApprovalService = new PlanApprovalServiceImpl(appConfig.orgId, pluginManager, appConfig.finP2PClient);
 
-  const registerServices = appConfig.accountModel === 'omnibus' ? registerOmnibusServices : registerDirectServices;
-
   switch (appConfig.type) {
     case 'fireblocks': {
       const custodyProvider = await FireblocksCustodyProvider.create(appConfig);
-      registerServices(app, logger, custodyProvider, appConfig, paymentsService, planApprovalService, pluginManager, workflowsConfig);
+      registerDirectServices(app, logger, custodyProvider, appConfig, paymentsService, planApprovalService, pluginManager, workflowsConfig);
       break
     }
     case 'dfns': {
       const custodyProvider = await DfnsCustodyProvider.create(appConfig);
-      registerServices(app, logger, custodyProvider, appConfig, paymentsService, planApprovalService, pluginManager, workflowsConfig);
+      registerDirectServices(app, logger, custodyProvider, appConfig, paymentsService, planApprovalService, pluginManager, workflowsConfig);
       break
     }
     case 'finp2p-contract': {
