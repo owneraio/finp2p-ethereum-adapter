@@ -200,7 +200,7 @@ const createDfnsProvider = async (): Promise<Omit<DfnsAppConfig, 'accountMapping
     orgId,
     provider,
     signer,
-    finP2PClient: undefined,
+    finP2PClient: createFinP2PClient(),
     proofProvider: undefined,
     dfnsBaseUrl,
     dfnsOrgId,
@@ -213,6 +213,18 @@ const createDfnsProvider = async (): Promise<Omit<DfnsAppConfig, 'accountMapping
     omnibusWalletId,
     gasFunding,
   };
+};
+
+const ensureHttpScheme = (url: string): string =>
+  url.startsWith('http://') || url.startsWith('https://') ? url : `http://${url}`;
+
+const createFinP2PClient = (): FinP2PClient | undefined => {
+  const finP2PUrl = process.env.FINP2P_ADDRESS;
+  const ossUrl = process.env.OSS_URL;
+  if (finP2PUrl && ossUrl) {
+    return new FinP2PClient(ensureHttpScheme(finP2PUrl), ensureHttpScheme(ossUrl));
+  }
+  return undefined;
 };
 
 const createFireblocksProvider = async (): Promise<Omit<FireblocksAppConfig, 'accountMappingType' | 'accountModel'>> => {
@@ -258,7 +270,7 @@ const createFireblocksProvider = async (): Promise<Omit<FireblocksAppConfig, 'ac
     orgId,
     provider,
     signer,
-    finP2PClient: undefined,
+    finP2PClient: createFinP2PClient(),
     proofProvider: undefined,
     apiKey,
     apiPrivateKey,
