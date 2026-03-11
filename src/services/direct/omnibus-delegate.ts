@@ -215,20 +215,20 @@ export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowD
   async createAsset(
     idempotencyKey: string, asset: Asset, assetBind: AssetBind | undefined,
     assetMetadata: any | undefined, assetName: string | undefined, issuerId: string | undefined,
-    assetDenomination: AssetDenomination | undefined, assetIdentifier: AssetIdentifier | undefined,
+    assetDenomination: AssetDenomination | undefined
   ): Promise<AssetCreationResult> {
     const decimals = 6;
 
     if (assetBind === undefined || assetBind.tokenIdentifier === undefined) {
       const { provider, signer } = this.omnibusWallet;
       const cm = new ContractsManager(provider, signer, this.logger);
-      const symbol = assetIdentifier?.value ?? 'OWNERA';
+      const symbol = 'OWNERA';
       const erc20 = await cm.deployERC20Detached(
         assetName ?? 'OWNERACOIN', symbol, decimals, await signer.getAddress(),
       );
       await workflows.saveAsset({ contract_address: erc20, decimals, token_standard: 'ERC20', id: asset.assetId, type: asset.assetType });
       await this.custodyProvider.onAssetRegistered?.(erc20, symbol);
-      return { tokenId: erc20, reference: undefined };
+      return { ledgerIdentifier: { network: 'ethereum', tokenId: erc20, standard: 'ERC20' }, reference: undefined };
     }
 
     const tokenAddress = assetBind.tokenIdentifier.tokenId;
@@ -238,6 +238,6 @@ export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowD
     } catch (e) {
       this.logger.warn(`Asset registration failed (may already exist): ${e}`);
     }
-    return { tokenId: tokenAddress, reference: undefined };
+    return { ledgerIdentifier: { network: 'ethereum', tokenId: tokenAddress, standard: 'ERC20' }, reference: undefined };
   }
 }
