@@ -57,9 +57,9 @@ export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowD
 
   async outboundTransfer(
     idempotencyKey: string, source: Source, destination: Destination,
-    asset: Asset, quantity: string, exCtx: ExecutionContext | undefined,
+    sourceAsset: Asset, destinationAsset: Asset, quantity: string, exCtx: ExecutionContext | undefined,
   ): Promise<DelegateResult> {
-    const dbAsset = await getAssetFromDb(asset);
+    const dbAsset = await getAssetFromDb(sourceAsset);
     const destinationAddress = await this.resolveDestinationAddress(destination);
 
     const amount = parseUnits(quantity, dbAsset.decimals);
@@ -68,7 +68,7 @@ export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowD
     const receipt = await tx.wait();
     if (receipt === null) return { success: false, error: 'Transaction receipt is null' };
 
-    this.logger.info(`Outbound transfer: ${quantity} of ${asset.assetId} to ${destinationAddress}, tx: ${receipt.hash}`);
+    this.logger.info(`Outbound transfer: ${quantity} of ${sourceAsset.assetId} to ${destinationAddress}, tx: ${receipt.hash}`);
     return { success: true, transactionId: receipt.hash };
   }
 
