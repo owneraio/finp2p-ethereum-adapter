@@ -23,6 +23,8 @@ export class EscrowServiceImpl extends CommonServiceImpl implements EscrowServic
     const { buyerFinId, sellerFinId, asset, settlement, loan, params } = details;
 
     try {
+      await this.ensureCredential(sellerFinId);
+      await this.ensureCredential(buyerFinId);
       const transactionReceipt = await this.finP2PContract.hold(nonce, sellerFinId, buyerFinId, asset, settlement, loan, params, signature);
 
       if (exCtx) {
@@ -45,6 +47,8 @@ export class EscrowServiceImpl extends CommonServiceImpl implements EscrowServic
 
   public async release(idempotencyKey: string, source: Source, destination: Destination, asset: Asset, quantity: string, operationId: string, exCtx: ExecutionContext | undefined): Promise<ReceiptOperation> {
     try {
+      await this.ensureCredential(source.finId);
+      await this.ensureCredential(destination.finId);
       const transactionReceipt = await this.finP2PContract.releaseTo(operationId, source.finId, destination.finId, quantity, emptyOperationParams());
 
       if (exCtx) {
@@ -66,6 +70,7 @@ export class EscrowServiceImpl extends CommonServiceImpl implements EscrowServic
   public async rollback(idempotencyKey: string, source: Source, asset: Asset, quantity: string, operationId: string, exCtx: ExecutionContext | undefined
   ): Promise<ReceiptOperation> {
     try {
+      // No ensureCredential needed — rollback uses operationId to resolve the lock
       const transactionReceipt = await this.finP2PContract.releaseBack(operationId, emptyOperationParams());
 
       if (exCtx) {

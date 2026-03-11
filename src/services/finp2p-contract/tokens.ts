@@ -89,6 +89,7 @@ export class TokenServiceImpl extends CommonServiceImpl implements TokenService 
   public async issue(idempotencyKey: string, asset: Asset, to: FinIdAccount, quantity: string, exCtx: ExecutionContext): Promise<ReceiptOperation> {
     const { finId: issuerFinId } = to;
     try {
+      await this.ensureCredential(issuerFinId);
       const transactionReceipt = await this.finP2PContract.issue(issuerFinId, term(asset.assetId, assetTypeFromString(asset.assetType), quantity), emptyOperationParams())
       if (exCtx) {
         this.execDetailsStore?.addExecutionContext(transactionReceipt.hash, exCtx.planId, exCtx.sequence);
@@ -117,6 +118,8 @@ export class TokenServiceImpl extends CommonServiceImpl implements TokenService 
     const { buyerFinId, sellerFinId, asset, settlement, loan, params } = details;
 
     try {
+      await this.ensureCredential(sellerFinId);
+      await this.ensureCredential(buyerFinId);
       const transactionReceipt  = await this.finP2PContract.transfer(nonce, sellerFinId, buyerFinId, asset, settlement, loan, params, sgn);
     if (exCtx) {
       this.execDetailsStore?.addExecutionContext(transactionReceipt.hash, exCtx.planId, exCtx.sequence);
@@ -142,6 +145,7 @@ export class TokenServiceImpl extends CommonServiceImpl implements TokenService 
     }
 
     try {
+      await this.ensureCredential(source.finId);
       const transactionReceipt = await this.finP2PContract.releaseAndRedeem(operationId, source.finId, quantity, emptyOperationParams());
 
       if (exCtx) {
@@ -161,10 +165,12 @@ export class TokenServiceImpl extends CommonServiceImpl implements TokenService 
   }
 
   public async getBalance(asset: Asset, finId: string): Promise<string> {
+    await this.ensureCredential(finId);
     return await this.finP2PContract.balance(asset.assetId, finId);
   }
 
   public async balance(asset: Asset, finId: string): Promise<Balance> {
+    await this.ensureCredential(finId);
     const balance = await this.finP2PContract.balance(asset.assetId, finId);
     return {
       current: balance,
