@@ -14,9 +14,16 @@ import { getAssetFromDb } from './helpers';
 export interface ReceiptPollingConfig {
   timeoutMs: number;
   intervalMs: number;
+  minConfirmations: number;
+  requireFinalizedBlock: boolean;
 }
 
-const defaultReceiptPolling: ReceiptPollingConfig = { timeoutMs: 5000, intervalMs: 500 };
+const defaultReceiptPolling: ReceiptPollingConfig = {
+  timeoutMs: 180000,
+  intervalMs: 1000,
+  minConfirmations: 2,
+  requireFinalizedBlock: false,
+};
 
 export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowDelegate {
 
@@ -66,12 +73,32 @@ export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowD
   }
 
   private async pollTransactionReceipt(transactionId: string) {
+    return this.custodyProvider.rpcProvider.waitForTransaction(
+      transactionId,
+      this.receiptPolling.minConfirmations,
+      this.receiptPolling.timeoutMs,
+    );
+  }
+
+  private async waitForFinalizedBlock(blockNumber: number): Promise<void> {
     const { timeoutMs, intervalMs } = this.receiptPolling;
     const deadline = Date.now() + timeoutMs;
     while (true) {
-      const receipt = await this.custodyProvider.rpcProvider.getTransactionReceipt(transactionId);
-      if (receipt !== null) return receipt;
-      if (Date.now() >= deadline) return null;
+      let finalizedBlockNumber: number | undefined;
+      try {
+        finalizedBlockNumber = (await this.custodyProvider.rpcProvider.getBlock('finalized'))?.number;
+      } catch (e) {
+        throw new InboundTransferVerificationError(
+          `Failed to fetch finalized block (RPC may not support finalized tag): ${e}`,
+        );
+      }
+
+      if (finalizedBlockNumber !== undefined && finalizedBlockNumber >= blockNumber) return;
+      if (Date.now() >= deadline) {
+        throw new InboundTransferVerificationError(
+          `Transaction block ${blockNumber} did not reach finalized state after ${timeoutMs}ms`,
+        );
+      }
       await new Promise(resolve => setTimeout(resolve, intervalMs));
     }
   }
@@ -82,11 +109,14 @@ export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowD
     const receipt = await this.pollTransactionReceipt(transactionId);
     if (receipt === null) {
       throw new InboundTransferVerificationError(
-        `Transaction ${transactionId} not found on-chain after ${this.receiptPolling.timeoutMs}ms`,
+        `Transaction ${transactionId} was not confirmed (${this.receiptPolling.minConfirmations} confirmations) after ${this.receiptPolling.timeoutMs}ms`,
       );
     }
     if (receipt.status !== 1) {
       throw new InboundTransferVerificationError(`Transaction ${transactionId} failed on-chain (status=${receipt.status})`);
+    }
+    if (this.receiptPolling.requireFinalizedBlock) {
+      await this.waitForFinalizedBlock(receipt.blockNumber);
     }
 
     const dbAsset = await getAssetFromDb(asset);
@@ -115,6 +145,10 @@ export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowD
         `Transaction ${transactionId} amount mismatch: expected ${expectedAmount}, got ${onChainAmount}`,
       );
     }
+
+    // TODO(omnibus-inbound): validate Transfer `from` against a counterparty address registry keyed by
+    // counterparty orgId from the plan context (e.g., orgId + chainId + asset contract -> allowed addresses).
+    // Current checks only verify recipient/asset/amount.
   }
 
   async onInboundTransfer(
