@@ -10,7 +10,8 @@ import {
 } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import { FinP2PClient } from "@owneraio/finp2p-client";
 import {
-  FinP2PContract
+  FinP2PContract,
+  finIdToAddress
 } from "@owneraio/finp2p-contracts";
 
 
@@ -28,6 +29,7 @@ export class CommonServiceImpl implements CommonService, HealthService {
   proofProvider: ProofProvider | undefined;
   pluginManager: PluginManager | undefined;
 
+  private readonly registeredCredentials = new Set<string>();
 
   constructor(
     finP2PContract: FinP2PContract,
@@ -41,6 +43,17 @@ export class CommonServiceImpl implements CommonService, HealthService {
     this.execDetailsStore = execDetailsStore;
     this.proofProvider = proofProvider;
     this.pluginManager = pluginManager;
+  }
+
+  protected async ensureCredential(finId: string): Promise<void> {
+    if (this.registeredCredentials.has(finId)) return;
+    try {
+      await this.finP2PContract.getCredentialAddress(finId);
+    } catch {
+      const address = finIdToAddress(finId);
+      await this.finP2PContract.addCredential(finId, address);
+    }
+    this.registeredCredentials.add(finId);
   }
 
   public async readiness() {

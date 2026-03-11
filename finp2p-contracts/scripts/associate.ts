@@ -1,5 +1,4 @@
 import { FinP2PContract } from "../src";
-import { keccak256, toUtf8Bytes } from "ethers";
 import { createJsonProvider, parseConfig } from "./config";
 import { Logger, ConsoleLogger } from "@owneraio/finp2p-adapter-models";
 
@@ -11,14 +10,13 @@ const associateAsset = async (
   finp2pContractAddress: string,
   assetId: string,
   erc20Address: string,
-  tokenStandard: string
 ) => {
-  logger.info(`Granting asset manager and transaction manager roles finP2P contract ${finp2pContractAddress}`);
+  logger.info(`Associating asset ${assetId} with token ${erc20Address} on finP2P contract ${finp2pContractAddress}`);
 
   const { provider, signer } = await createJsonProvider(operatorPrivateKey, ethereumRPCUrl);
 
   const finP2P = new FinP2PContract(provider, signer, finp2pContractAddress, logger);
-  await finP2P.associateAsset(assetId, erc20Address, keccak256(toUtf8Bytes(tokenStandard)));
+  await finP2P.associateAsset(assetId, erc20Address);
   logger.info("Asset associated successfully");
 };
 
@@ -48,12 +46,6 @@ const config = parseConfig([
     required: true
   },
   {
-    name: "token_standard",
-    envVar: "TOKEN_STANDARD",
-    defaultValue: "ERC20_WITH_OPERATOR",
-    description: "Token standard"
-  },
-  {
     name: "token_address",
     envVar: "TOKEN_ADDRESS",
     description: "Token address to associate",
@@ -61,6 +53,6 @@ const config = parseConfig([
   }
 ]);
 
-associateAsset(config.operator_pk!, config.rpc_url!, config.finp2p_contract_address!, config.asset_id!, config.token_address!, config.token_standard!)
+associateAsset(config.operator_pk!, config.rpc_url!, config.finp2p_contract_address!, config.asset_id!, config.token_address!)
   .then(() => {
   }).catch(console.error);

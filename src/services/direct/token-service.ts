@@ -80,7 +80,7 @@ export class DirectTokenService implements TokenService, EscrowService {
       const { provider, signer } = this.custodyProvider.issuer;
       const cm = new ContractsManager(provider, signer, this.logger);
       const symbol = assetIdentifier?.value ?? "OWNERA";
-      const erc20 = await cm.deployERC20Detached(
+      const erc20 = await cm.deployERC20(
         assetName ?? "OWNERACOIN",
         symbol,
         decimals,
