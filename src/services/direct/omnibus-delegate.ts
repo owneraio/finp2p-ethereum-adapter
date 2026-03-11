@@ -1,8 +1,8 @@
 import {
-  Asset, AssetBind, AssetCreationResult, AssetDenomination, AssetIdentifier,
+  Asset, AssetBind, AssetCreationResult, AssetDenomination, AssetIdentifier, AssetType,
   Destination, ExecutionContext, Source,
 } from '@owneraio/finp2p-adapter-models';
-import { TransferDelegate, AssetDelegate, EscrowDelegate, DelegateResult, InboundTransferVerificationError } from '@owneraio/finp2p-vanilla-service';
+import { TransferDelegate, AssetDelegate, EscrowDelegate, OmnibusDelegate as OmnibusDelegateInterface, DelegateResult, InboundTransferVerificationError } from '@owneraio/finp2p-vanilla-service';
 import { workflows } from '@owneraio/finp2p-nodejs-skeleton-adapter';
 import { parseUnits, formatUnits, id as keccak256 } from 'ethers';
 import { ContractsManager, ERC20Contract } from '@owneraio/finp2p-contracts';
@@ -25,7 +25,7 @@ const defaultReceiptPolling: ReceiptPollingConfig = {
   requireFinalizedBlock: false,
 };
 
-export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowDelegate {
+export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowDelegate, OmnibusDelegateInterface {
 
   private readonly omnibusWallet: CustodyWallet;
   private readonly receiptPolling: ReceiptPollingConfig;
@@ -139,10 +139,18 @@ export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowD
       );
     }
 
-    const onChainAmount = formatUnits(BigInt(matchingLog.data), dbAsset.decimals);
-    if (onChainAmount !== expectedAmount) {
+    const onChainAmount = BigInt(matchingLog.data);
+    let expectedAmountInUnits: bigint;
+    try {
+      expectedAmountInUnits = parseUnits(expectedAmount, dbAsset.decimals);
+    } catch (e) {
       throw new InboundTransferVerificationError(
-        `Transaction ${transactionId} amount mismatch: expected ${expectedAmount}, got ${onChainAmount}`,
+        `Expected amount ${expectedAmount} is invalid for ${dbAsset.decimals} decimals: ${e}`,
+      );
+    }
+    if (onChainAmount !== expectedAmountInUnits) {
+      throw new InboundTransferVerificationError(
+        `Transaction ${transactionId} amount mismatch: expected ${expectedAmountInUnits.toString()} units, got ${onChainAmount.toString()} units`,
       );
     }
 
@@ -210,6 +218,14 @@ export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowD
 
     this.logger.info(`Rollback: ${quantity} of ${asset.assetId} from escrow to omnibus, tx: ${receipt.hash}`);
     return { success: true, transactionId: receipt.hash };
+  }
+
+  async getOmnibusBalance(assetId: string, assetType: AssetType): Promise<string> {
+    const dbAsset = await getAssetFromDb({ assetId, assetType });
+    const omnibusAddress = await this.omnibusWallet.signer.getAddress();
+    const c = new ERC20Contract(this.omnibusWallet.provider, this.omnibusWallet.signer, dbAsset.contract_address, this.logger);
+    const balance = await c.balanceOf(omnibusAddress);
+    return formatUnits(balance, dbAsset.decimals);
   }
 
   async createAsset(
