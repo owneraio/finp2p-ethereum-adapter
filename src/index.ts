@@ -3,6 +3,7 @@ import { logger } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import { FinP2PClient } from "@owneraio/finp2p-client";
 import winston, { format, transports } from "winston";
 import { FinP2PContract } from "@owneraio/finp2p-contracts";
+import { migrationsDir as vanillaMigrationsDir, migrationsTableName as vanillaMigrationsTable } from "@owneraio/finp2p-vanilla-service";
 import { envVarsToAppConfig } from "./config";
 import createApp from "./app";
 import { InMemoryExecDetailsStore } from "./services/finp2p-contract";
@@ -31,6 +32,9 @@ const init = async () => {
       gooseExecutablePath: "/usr/bin/goose",
       migrationListTableName: "finp2p_ethereum_adapater_migrations",
       storageUser,
+      additionalMigrations: [
+        { migrationsDir: vanillaMigrationsDir, tableName: vanillaMigrationsTable },
+      ],
     },
     storage: { connectionString: dbConnectionString },
     service: {},
