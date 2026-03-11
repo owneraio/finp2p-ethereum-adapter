@@ -51,13 +51,17 @@ function registerDirectServices(
     if (!workflowsConfig?.storage) throw new Error('Workflows storage config is required for omnibus account model');
     const accountMapping = resolveAccountMapping(appConfig);
     const delegate = new OmnibusDelegate(logger, custodyProvider, accountMapping);
-    const { tokenService, escrowService, commonService, inboundTransferHook } = createVanillaServices(
+    const { tokenService, escrowService, commonService, mappingService, inboundTransferHook } = createVanillaServices(
       { transfer: delegate, asset: delegate, escrow: delegate },
       workflowsConfig.storage,
       logger,
     );
+    // TODO(omnibus-inbound): use deterministic inbound idempotency key `${planId}:${instructionSequence}`
+    // instead of request-scoped idempotency key to prevent duplicate credits on retried proposal callbacks.
     const planApprovalService = new PlanApprovalServiceImpl(appConfig.orgId, pluginManager, appConfig.finP2PClient, inboundTransferHook);
-    register(app, tokenService, escrowService, commonService, commonService, paymentsService, planApprovalService, pluginManager, workflowsConfig);
+    register(app, tokenService, escrowService, commonService, commonService, paymentsService, planApprovalService, pluginManager, workflowsConfig, {
+      fields: [{ field: 'ledgerAccountId', description: 'Ethereum address', exampleValue: '0x742d35Cc6634C0532925a3b844Bc9e7595f2bD18' }],
+    }, mappingService);
     return;
   }
 
