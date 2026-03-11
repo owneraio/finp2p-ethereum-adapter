@@ -1,8 +1,9 @@
 import {
   Asset, AssetBind, AssetCreationResult, AssetDenomination,
+  AssetType,
   Destination, ExecutionContext, Source,
 } from '@owneraio/finp2p-adapter-models';
-import { TransferDelegate, AssetDelegate, EscrowDelegate, DelegateResult, InboundTransferVerificationError } from '@owneraio/finp2p-vanilla-service';
+import { TransferDelegate, AssetDelegate, EscrowDelegate, DelegateResult, InboundTransferVerificationError, OmnibusDelegate as IOmnibusDelegate } from '@owneraio/finp2p-vanilla-service';
 import { workflows } from '@owneraio/finp2p-nodejs-skeleton-adapter';
 import { parseUnits, formatUnits, id as keccak256 } from 'ethers';
 import { ContractsManager, ERC20Contract } from '@owneraio/finp2p-contracts';
@@ -25,7 +26,7 @@ const defaultReceiptPolling: ReceiptPollingConfig = {
   requireFinalizedBlock: false,
 };
 
-export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowDelegate {
+export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowDelegate, IOmnibusDelegate {
 
   private readonly omnibusWallet: CustodyWallet;
   private readonly receiptPolling: ReceiptPollingConfig;
@@ -53,6 +54,12 @@ export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowD
       default:
         throw new Error(`Unsupported destination type: ${destination.account.type}`);
     }
+  }
+
+  async getOmnibusBalance(assetId: string, assetType: AssetType): Promise<string> {
+    const dbAsset = await getAssetFromDb({ assetId, assetType });
+    const c = new ERC20Contract(this.omnibusWallet.provider, this.omnibusWallet.signer, dbAsset.contract_address, this.logger);
+    return formatUnits(await c.balanceOf(await this.omnibusWallet.signer.getAddress()), dbAsset.decimals);
   }
 
   async outboundTransfer(

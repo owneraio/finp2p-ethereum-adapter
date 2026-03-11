@@ -52,7 +52,7 @@ function registerDirectServices(
     const accountMapping = resolveAccountMapping(appConfig);
     const delegate = new OmnibusDelegate(logger, custodyProvider, accountMapping);
     const { tokenService, escrowService, commonService, mappingService, inboundTransferHook, distributionService } = createVanillaServices(
-      { transfer: delegate, asset: delegate, escrow: delegate },
+      { transfer: delegate, asset: delegate, escrow: delegate, omnibus: delegate },
       workflowsConfig.storage,
       logger,
     );

@@ -10,13 +10,13 @@ const logger = winston.createLogger({
 });
 
 const distribute = async (
-  serverPort: string,
+  serverAddr: string,
   finId: string,
   assetId: string,
   assetType: string,
   amount: string
 ) => {
-  const url = `http://localhost:${serverPort}/distribution/distribute`;
+  const url = `${serverAddr}/distribution/distribute`;
 
   logger.info(`Distributing ${amount} of asset ${assetId} (${assetType}) to finId ${finId}`);
 
@@ -37,10 +37,10 @@ const distribute = async (
 
 const config = parseConfig([
   {
-    name: "server_port",
-    envVar: "SERVER_PORT",
-    defaultValue: "3000",
-    description: "Local server port"
+    name: "server_addr",
+    envVar: "SERVER_ADDR",
+    defaultValue: "http://ledger-adapter",
+    description: "Server base URL (default: http://ledger-adapter)"
   },
   {
     name: "fin_id",
@@ -69,7 +69,7 @@ const config = parseConfig([
 ]);
 
 distribute(
-  config.server_port!,
+  config.server_addr!,
   config.fin_id!,
   config.asset_id!,
   config.asset_type!,
