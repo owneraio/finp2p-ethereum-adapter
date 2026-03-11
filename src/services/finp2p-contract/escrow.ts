@@ -70,7 +70,7 @@ export class EscrowServiceImpl extends CommonServiceImpl implements EscrowServic
   public async rollback(idempotencyKey: string, source: Source, asset: Asset, quantity: string, operationId: string, exCtx: ExecutionContext | undefined
   ): Promise<ReceiptOperation> {
     try {
-      // No ensureCredential needed — rollback uses operationId to resolve the lock
+      await this.ensureCredential(source.finId);
       const transactionReceipt = await this.finP2PContract.releaseBack(operationId, emptyOperationParams());
 
       if (exCtx) {
