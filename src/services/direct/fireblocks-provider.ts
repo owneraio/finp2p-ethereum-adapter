@@ -1,4 +1,6 @@
-import { FireblocksSDK } from 'fireblocks-sdk';
+import { FireblocksSDK, TransactionStatus } from 'fireblocks-sdk';
+import { parseEther } from 'ethers';
+import { setTimeout as sleep } from 'node:timers/promises';
 import { createFireblocksEthersProvider, FireblocksAppConfig } from '../../config';
 import { createVaultManagementFunctions } from '../../vaults';
 import { CustodyProvider, CustodyWallet, GasStation } from './custody-provider';
@@ -6,7 +8,8 @@ import { CustodyProvider, CustodyWallet, GasStation } from './custody-provider';
 export class FireblocksCustodyProvider implements CustodyProvider {
   readonly issuer: CustodyWallet;
   readonly escrow: CustodyWallet;
-  readonly healthCheckProvider;
+  readonly omnibus?: CustodyWallet;
+  readonly rpcProvider;
   readonly gasStation?: GasStation;
 
   private fireblocksSdk: FireblocksSDK;
@@ -19,10 +22,12 @@ export class FireblocksCustodyProvider implements CustodyProvider {
     fireblocksSdk: FireblocksSDK,
     vaultManagement: ReturnType<typeof createVaultManagementFunctions>,
     gasStation?: GasStation,
+    omnibus?: CustodyWallet,
   ) {
     this.issuer = issuer;
     this.escrow = escrow;
-    this.healthCheckProvider = config.provider;
+    this.omnibus = omnibus;
+    this.rpcProvider = config.provider;
     this.fireblocksSdk = fireblocksSdk;
     this.vaultManagement = vaultManagement;
     this.gasStation = gasStation;
@@ -49,10 +54,53 @@ export class FireblocksCustodyProvider implements CustodyProvider {
       gasStation = { wallet: gasWallet, amount: config.gasFunding.amount };
     }
 
+    let omnibusWallet: CustodyWallet | undefined;
+    if (config.omnibusVaultId) {
+      omnibusWallet = await createProvider(config.omnibusVaultId);
+    }
+
     return new FireblocksCustodyProvider(
       issuerWallet, escrowWallet,
-      config, fireblocksSdk, vaultManagement, gasStation
+      config, fireblocksSdk, vaultManagement, gasStation, omnibusWallet
     );
+  }
+
+  async fundGasIfNeeded(wallet: CustodyWallet): Promise<void> {
+    if (!this.gasStation) return;
+    try {
+      const targetAddress = await wallet.signer.getAddress();
+      const tx = await this.gasStation.wallet.signer.sendTransaction({
+        to: targetAddress,
+        value: parseEther(this.gasStation.amount),
+      });
+      await tx.wait();
+
+      const transactions = await this.fireblocksSdk.getTransactions({ txHash: tx.hash });
+      if (!transactions || transactions.length === 0) {
+        return;
+      }
+
+      const fireblocksId = transactions[0].id;
+      const errorStatuses: TransactionStatus[] = [
+        TransactionStatus.FAILED,
+        TransactionStatus.BLOCKED,
+        TransactionStatus.CANCELLED,
+        TransactionStatus.REJECTED,
+      ];
+
+      while (true) {
+        const txInfo = await this.fireblocksSdk.getTransactionById(fireblocksId);
+        if (txInfo.status === TransactionStatus.COMPLETED) {
+          return;
+        } else if (errorStatuses.includes(txInfo.status)) {
+          throw new Error(`Gas funding failed with status: ${txInfo.status}, id: ${fireblocksId}`);
+        } else {
+          await sleep(3000);
+        }
+      }
+    } catch (e) {
+      console.warn(`Gas funding failed (wallet may already have sufficient gas): ${e}`);
+    }
   }
 
   async resolveWallet(address: string): Promise<CustodyWallet | undefined> {

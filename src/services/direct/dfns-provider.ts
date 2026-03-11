@@ -1,14 +1,15 @@
 import { DfnsApiClient } from '@dfns/sdk';
 import { AsymmetricKeySigner } from '@dfns/sdk-keysigner';
 import { DfnsWallet } from '@dfns/lib-ethersjs6';
-import { JsonRpcProvider } from 'ethers';
+import { JsonRpcProvider, parseEther } from 'ethers';
 import { DfnsAppConfig } from '../../config';
 import { CustodyProvider, CustodyWallet, GasStation } from './custody-provider';
 
 export class DfnsCustodyProvider implements CustodyProvider {
   readonly issuer: CustodyWallet;
   readonly escrow: CustodyWallet;
-  readonly healthCheckProvider;
+  readonly omnibus?: CustodyWallet;
+  readonly rpcProvider;
   readonly gasStation?: GasStation;
 
   private dfnsClient: DfnsApiClient;
@@ -21,10 +22,12 @@ export class DfnsCustodyProvider implements CustodyProvider {
     dfnsClient: DfnsApiClient,
     addressToWalletId: Map<string, string>,
     gasStation?: GasStation,
+    omnibus?: CustodyWallet,
   ) {
     this.issuer = issuer;
     this.escrow = escrow;
-    this.healthCheckProvider = config.provider;
+    this.omnibus = omnibus;
+    this.rpcProvider = config.provider;
     this.dfnsClient = dfnsClient;
     this.addressToWalletId = addressToWalletId;
     this.gasStation = gasStation;
@@ -63,7 +66,25 @@ export class DfnsCustodyProvider implements CustodyProvider {
       gasStation = { wallet: gasWallet, amount: config.gasFunding.amount };
     }
 
-    return new DfnsCustodyProvider(issuerWallet, escrowWallet, config, dfnsClient, addressToWalletId, gasStation);
+    let omnibusWallet: CustodyWallet | undefined;
+    if (config.omnibusWalletId) {
+      omnibusWallet = await DfnsCustodyProvider.createWalletProvider(dfnsClient, config.omnibusWalletId, config.rpcUrl);
+    }
+
+    return new DfnsCustodyProvider(issuerWallet, escrowWallet, config, dfnsClient, addressToWalletId, gasStation, omnibusWallet);
+  }
+
+  async fundGasIfNeeded(wallet: CustodyWallet): Promise<void> {
+    if (!this.gasStation) return;
+    try {
+      const targetAddress = await wallet.signer.getAddress();
+      await this.gasStation.wallet.signer.sendTransaction({
+        to: targetAddress,
+        value: parseEther(this.gasStation.amount),
+      });
+    } catch (e) {
+      console.warn(`Gas funding failed (wallet may already have sufficient gas): ${e}`);
+    }
   }
 
   async resolveWallet(address: string): Promise<CustodyWallet | undefined> {
