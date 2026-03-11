@@ -4,7 +4,7 @@ import {
 } from '@owneraio/finp2p-adapter-models';
 import { TransferDelegate, AssetDelegate, EscrowDelegate, OmnibusDelegate as OmnibusDelegateInterface, DelegateResult, InboundTransferVerificationError } from '@owneraio/finp2p-vanilla-service';
 import { workflows } from '@owneraio/finp2p-nodejs-skeleton-adapter';
-import { parseUnits, formatUnits, id as keccak256 } from 'ethers';
+import { parseUnits, id as keccak256 } from 'ethers';
 import { ContractsManager, ERC20Contract } from '@owneraio/finp2p-contracts';
 import winston from 'winston';
 import { CustodyProvider, CustodyWallet } from './custody-provider';
@@ -225,7 +225,7 @@ export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowD
     const omnibusAddress = await this.omnibusWallet.signer.getAddress();
     const c = new ERC20Contract(this.omnibusWallet.provider, this.omnibusWallet.signer, dbAsset.contract_address, this.logger);
     const balance = await c.balanceOf(omnibusAddress);
-    return formatUnits(balance, dbAsset.decimals);
+    return balance.toString();
   }
 
   async createAsset(
