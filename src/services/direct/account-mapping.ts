@@ -43,7 +43,7 @@ export class DerivationAccountMapping implements AccountMappingService {
 export class DbAccountMapping implements AccountMappingService {
 
   async resolveAccount(finId: string): Promise<string | undefined> {
-    const mappings = await workflows.getAccountMappings(finId);
+    const mappings = await workflows.getAccountMappings([finId]);
     return earliest(mappings)?.account;
   }
 

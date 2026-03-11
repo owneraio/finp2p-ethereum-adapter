@@ -10,12 +10,7 @@ import { parseUnits, formatUnits, TransactionReceipt } from "ethers";
 import { ContractsManager, ERC20Contract } from '@owneraio/finp2p-contracts';
 import { CustodyProvider } from './custody-provider';
 import { AccountMappingService } from './account-mapping';
-
-async function getAssetFromDb(ast: Asset): Promise<workflows.Asset> {
-  const asset = await workflows.getAsset({ id: ast.assetId, type: ast.assetType });
-  if (asset === undefined) throw new Error(`Asset(type=(${ast.assetType},id=${ast.assetId}) is not registered in DB`);
-  return asset;
-}
+import { getAssetFromDb, fundGasIfNeeded } from './helpers';
 
 function buildReceiptOperation(
   receipt: TransactionReceipt, asset: Asset, operationType: OperationType, quantity: string,
