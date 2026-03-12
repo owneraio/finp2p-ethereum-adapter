@@ -92,34 +92,32 @@ describe('OmnibusDelegate', () => {
   });
 
   describe('getOmnibusBalance', () => {
-    it('should return raw integer string (not decimal-formatted)', async () => {
-      // 1.5 tokens with 6 decimals = 1500000 smallest units
+    it('should return decimal-formatted string (vanilla-service uses PG NUMERIC)', async () => {
+      // 1.5 tokens with 6 decimals = 1500000 smallest units on-chain
       mockBalanceOf.mockResolvedValue(1500000n);
 
       const balance = await delegate.getOmnibusBalance(TEST_ASSET.assetId, TEST_ASSET.assetType);
 
-      expect(balance).toBe('1500000');
-      // Must be parseable by BigInt (vanilla-service requirement)
-      expect(() => BigInt(balance)).not.toThrow();
+      expect(balance).toBe('1.5');
+      // Must be parseable by PG NUMERIC (fractional support)
+      expect(Number(balance)).toBe(1.5);
     });
 
-    it('should return "0" for zero balance', async () => {
+    it('should return "0.0" for zero balance', async () => {
       mockBalanceOf.mockResolvedValue(0n);
 
       const balance = await delegate.getOmnibusBalance(TEST_ASSET.assetId, TEST_ASSET.assetType);
 
-      expect(balance).toBe('0');
-      expect(BigInt(balance)).toBe(0n);
+      expect(balance).toBe('0.0');
     });
 
-    it('should return large balances as integer strings', async () => {
-      // 1 billion tokens with 18 decimals
-      const largeBalance = 1000000000n * (10n ** 18n);
-      mockBalanceOf.mockResolvedValue(largeBalance);
+    it('should return large balances as decimal strings', async () => {
+      // 1000 tokens with 6 decimals = 1000000000 smallest units
+      mockBalanceOf.mockResolvedValue(1000000000n);
 
       const balance = await delegate.getOmnibusBalance(TEST_ASSET.assetId, TEST_ASSET.assetType);
 
-      expect(BigInt(balance)).toBe(largeBalance);
+      expect(balance).toBe('1000.0');
     });
 
     it('should query the omnibus wallet address', async () => {
