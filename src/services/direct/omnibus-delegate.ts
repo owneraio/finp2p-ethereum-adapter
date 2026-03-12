@@ -43,6 +43,7 @@ export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowD
   }
 
   private async resolveDestinationAddress(destination: Destination): Promise<string> {
+    if (destination.ledgerAccount) return destination.ledgerAccount.address;
     switch (destination.account.type) {
       case 'crypto':
         return destination.account.address;
@@ -59,7 +60,7 @@ export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowD
   async getOmnibusBalance(assetId: string, assetType: AssetType): Promise<string> {
     const dbAsset = await getAssetFromDb({ assetId, assetType });
     const c = new ERC20Contract(this.omnibusWallet.provider, this.omnibusWallet.signer, dbAsset.contract_address, this.logger);
-    return formatUnits(await c.balanceOf(await this.omnibusWallet.signer.getAddress()), dbAsset.decimals);
+    return (await c.balanceOf(await this.omnibusWallet.signer.getAddress())).toString();
   }
 
   async outboundTransfer(
@@ -69,6 +70,7 @@ export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowD
     const dbAsset = await getAssetFromDb(sourceAsset);
     const destinationAddress = await this.resolveDestinationAddress(destination);
 
+    await this.custodyProvider.fundGasIfNeeded?.(this.omnibusWallet)
     const amount = parseUnits(quantity, dbAsset.decimals);
     const c = new ERC20Contract(this.omnibusWallet.provider, this.omnibusWallet.signer, dbAsset.contract_address, this.logger);
     const tx = await c.transfer(destinationAddress, amount);
@@ -147,7 +149,8 @@ export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowD
     }
 
     const onChainAmount = formatUnits(BigInt(matchingLog.data), dbAsset.decimals);
-    if (onChainAmount !== expectedAmount) {
+    // TODO: 10 !== 10.0 if used string values. But number values should be avoided
+    if (Number(onChainAmount) !== Number(expectedAmount)) {
       throw new InboundTransferVerificationError(
         `Transaction ${transactionId} amount mismatch: expected ${expectedAmount}, got ${onChainAmount}`,
       );
@@ -174,6 +177,7 @@ export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowD
     const escrowAddress = await this.custodyProvider.escrow.signer.getAddress();
     const amount = parseUnits(quantity, dbAsset.decimals);
 
+    await this.custodyProvider.fundGasIfNeeded?.(this.omnibusWallet)
     const c = new ERC20Contract(this.omnibusWallet.provider, this.omnibusWallet.signer, dbAsset.contract_address, this.logger);
     const tx = await c.transfer(escrowAddress, amount);
     const receipt = await tx.wait();
@@ -192,6 +196,7 @@ export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowD
     const escrowWallet = this.custodyProvider.escrow;
     const amount = parseUnits(quantity, dbAsset.decimals);
 
+    await this.custodyProvider.fundGasIfNeeded?.(escrowWallet)
     const c = new ERC20Contract(escrowWallet.provider, escrowWallet.signer, dbAsset.contract_address, this.logger);
     const tx = await c.transfer(omnibusAddress, amount);
     const receipt = await tx.wait();
@@ -210,6 +215,7 @@ export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowD
     const escrowWallet = this.custodyProvider.escrow;
     const amount = parseUnits(quantity, dbAsset.decimals);
 
+    await this.custodyProvider.fundGasIfNeeded?.(escrowWallet)
     const c = new ERC20Contract(escrowWallet.provider, escrowWallet.signer, dbAsset.contract_address, this.logger);
     const tx = await c.transfer(omnibusAddress, amount);
     const receipt = await tx.wait();
@@ -227,6 +233,7 @@ export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowD
     const decimals = 6;
 
     if (assetBind === undefined || assetBind.tokenIdentifier === undefined) {
+      await this.custodyProvider.fundGasIfNeeded?.(this.omnibusWallet)
       const { provider, signer } = this.omnibusWallet;
       const cm = new ContractsManager(provider, signer, this.logger);
       const symbol = 'OWNERA';
