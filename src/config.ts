@@ -25,6 +25,19 @@ function resolveAccountMappingType(rawValue: string | undefined): AccountMapping
   throw new Error(`Invalid ACCOUNT_MAPPING_TYPE: ${rawValue}. Supported values: ${ACCOUNT_MAPPING_TYPES.join(', ')}`);
 }
 
+export type AccountModel = 'segregated' | 'omnibus'
+
+const ACCOUNT_MODELS: ReadonlyArray<AccountModel> = ['segregated', 'omnibus'];
+
+function resolveAccountModel(rawValue: string | undefined): AccountModel {
+  if (!rawValue) return 'segregated';
+
+  const normalized = rawValue.trim() as AccountModel;
+  if (ACCOUNT_MODELS.includes(normalized)) return normalized;
+
+  throw new Error(`Invalid ACCOUNT_MODEL: ${rawValue}. Supported values: ${ACCOUNT_MODELS.join(', ')}`);
+}
+
 export type BaseAppConfig = {
   orgId: string
   provider: Provider
@@ -32,6 +45,7 @@ export type BaseAppConfig = {
   finP2PClient: FinP2PClient | undefined
   proofProvider: ProofProvider | undefined
   accountMappingType: AccountMappingType
+  accountModel: AccountModel
 }
 
 export type FinP2PContractAppConfig = BaseAppConfig & {
@@ -48,6 +62,7 @@ export type FireblocksAppConfig = BaseAppConfig & {
   apiBaseUrl: ApiBaseUrl | string
   assetIssuerVaultId: string
   assetEscrowVaultId: string
+  omnibusVaultId?: string
   gasFunding?: {
     vaultId: string
     amount: string
@@ -64,6 +79,7 @@ export type DfnsAppConfig = BaseAppConfig & {
   rpcUrl: string
   assetIssuerWalletId: string
   assetEscrowWalletId: string
+  omnibusWalletId?: string
   gasFunding?: {
     walletId: string
     amount: string
@@ -137,7 +153,7 @@ export const createDfnsEthersProvider = async (config: {
   return { provider, signer };
 };
 
-const createDfnsProvider = async (): Promise<Omit<DfnsAppConfig, 'accountMappingType'>> => {
+const createDfnsProvider = async (): Promise<Omit<DfnsAppConfig, 'accountMappingType' | 'accountModel'>> => {
   const orgId = process.env.ORGANIZATION_ID || '';
   const dfnsBaseUrl = process.env.DFNS_BASE_URL || 'https://api.dfns.io';
   const dfnsOrgId = process.env.DFNS_ORG_ID;
@@ -164,6 +180,8 @@ const createDfnsProvider = async (): Promise<Omit<DfnsAppConfig, 'accountMapping
 
   const escrowWalletId = process.env.DFNS_ASSET_ESCROW_WALLET_ID;
   if (!escrowWalletId) throw new Error('DFNS_ASSET_ESCROW_WALLET_ID is not set');
+
+  const omnibusWalletId = process.env.DFNS_OMNIBUS_WALLET_ID || undefined;
 
   // Use issuer wallet as the common signer
   const keySigner = new AsymmetricKeySigner({ credId: dfnsCredId, privateKey: dfnsPrivateKey });
@@ -192,11 +210,12 @@ const createDfnsProvider = async (): Promise<Omit<DfnsAppConfig, 'accountMapping
     rpcUrl,
     assetIssuerWalletId: issuerWalletId,
     assetEscrowWalletId: escrowWalletId,
+    omnibusWalletId,
     gasFunding,
   };
 };
 
-const createFireblocksProvider = async (): Promise<Omit<FireblocksAppConfig, 'accountMappingType'>> => {
+const createFireblocksProvider = async (): Promise<Omit<FireblocksAppConfig, 'accountMappingType' | 'accountModel'>> => {
   const orgId = process.env.ORGANIZATION_ID || '';
   const apiKey = process.env.FIREBLOCKS_API_KEY || "";
   if (!apiKey) {
@@ -220,6 +239,7 @@ const createFireblocksProvider = async (): Promise<Omit<FireblocksAppConfig, 'ac
 
   const assetIssuerVaultId = requireVaultIdEnv('FIREBLOCKS_ASSET_ISSUER_VAULT_ID')
   const assetEscrowVaultId = requireVaultIdEnv('FIREBLOCKS_ASSET_ESCROW_VAULT_ID')
+  const omnibusVaultId = process.env.FIREBLOCKS_OMNIBUS_VAULT_ID || undefined
 
   // Use issuer vault as the common provider/signer
   const { provider, signer } = await createFireblocksEthersProvider({
@@ -246,6 +266,7 @@ const createFireblocksProvider = async (): Promise<Omit<FireblocksAppConfig, 'ac
     apiBaseUrl,
     assetIssuerVaultId,
     assetEscrowVaultId,
+    omnibusVaultId,
     gasFunding,
   };
 };
@@ -253,6 +274,7 @@ const createFireblocksProvider = async (): Promise<Omit<FireblocksAppConfig, 'ac
 export async function envVarsToAppConfig(logger: Logger): Promise<AppConfig> {
   const configType = (process.env.PROVIDER_TYPE || 'finp2p-contract') as AppConfig['type']
   const accountMappingType = resolveAccountMappingType(process.env.ACCOUNT_MAPPING_TYPE)
+  const accountModel = resolveAccountModel(process.env.ACCOUNT_MODEL)
 
   switch (configType) {
     case 'finp2p-contract': {
@@ -311,15 +333,16 @@ export async function envVarsToAppConfig(logger: Logger): Promise<AppConfig> {
         proofProvider,
         orgId,
         accountMappingType,
+        accountModel,
         finP2PContract,
         execDetailsStore,
       }
     }
     case 'fireblocks': {
-      return { ...await createFireblocksProvider(), accountMappingType }
+      return { ...await createFireblocksProvider(), accountMappingType, accountModel }
     }
     case 'dfns': {
-      return { ...await createDfnsProvider(), accountMappingType }
+      return { ...await createDfnsProvider(), accountMappingType, accountModel }
     }
   }
 }
