@@ -9,7 +9,7 @@ import {
   PaymentsServiceImpl,
   workflows,
 } from "@owneraio/finp2p-nodejs-skeleton-adapter";
-import { createVanillaServices } from "@owneraio/finp2p-vanilla-service";
+import { createVanillaServices, registerDistributionRoutes } from "@owneraio/finp2p-vanilla-service";
 import { FinP2PClient } from "@owneraio/finp2p-client";
 import { FinP2PContract } from "@owneraio/finp2p-contracts";
 import {
@@ -61,7 +61,10 @@ function registerDirectServices(
     const planApprovalService = new PlanApprovalServiceImpl(appConfig.orgId, pluginManager, appConfig.finP2PClient, inboundTransferHook);
     register(app, tokenService, escrowService, commonService, commonService, paymentsService, planApprovalService, pluginManager, workflowsConfig, {
       fields: [{ field: 'ledgerAccountId', description: 'Ethereum address', exampleValue: '0x742d35Cc6634C0532925a3b844Bc9e7595f2bD18' }],
-    }, mappingService, distributionService);
+    }, mappingService);
+    if (distributionService) {
+      registerDistributionRoutes(app, distributionService);
+    }
     return;
   }
 
