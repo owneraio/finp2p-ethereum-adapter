@@ -12,6 +12,7 @@ import {
 import { FinP2PClient } from "@owneraio/finp2p-client";
 import { FinP2PContract } from "@owneraio/finp2p-contracts";
 import {
+  ContractPaymentService,
   CredentialsMappingService,
   EscrowServiceImpl,
   ExecDetailsStore,
@@ -89,7 +90,8 @@ async function createApp(
       const escrowService = new EscrowServiceImpl(appConfig.finP2PContract, appConfig.finP2PClient, appConfig.execDetailsStore, appConfig.proofProvider, pluginManager);
       const tokenService = new TokenServiceImpl(appConfig.finP2PContract, appConfig.finP2PClient, appConfig.execDetailsStore, appConfig.proofProvider, pluginManager);
       const mappingService = new CredentialsMappingService(appConfig.finP2PContract);
-      register(app, tokenService, escrowService, tokenService, tokenService, paymentsService, planApprovalService, pluginManager, workflowsConfig, {
+      const contractPaymentService = new ContractPaymentService(appConfig.finP2PContract);
+      register(app, tokenService, escrowService, tokenService, tokenService, contractPaymentService, planApprovalService, pluginManager, workflowsConfig, {
         fields: [{ field: 'ledgerAccountId', description: 'Ethereum address', exampleValue: '0x742d35Cc6634C0532925a3b844Bc9e7595f2bD18' }],
       }, mappingService);
       break
