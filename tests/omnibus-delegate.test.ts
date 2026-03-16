@@ -13,7 +13,7 @@ jest.mock('@owneraio/finp2p-contracts', () => ({
     transfer: mockTransfer,
   })),
   ContractsManager: jest.fn().mockImplementation(() => ({
-    deployERC20Detached: mockDeployERC20Detached,
+    deployERC20: mockDeployERC20Detached,
   })),
 }));
 
