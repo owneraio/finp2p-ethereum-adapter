@@ -21,6 +21,7 @@ import {
   createDfnsEthersProvider,
   DfnsAppConfig,
 } from "../../src/config";
+import { additionalWorkflowsMigrations } from "../../src/workflows-config";
 import { randomPort } from "./utils";
 
 dotenv.config({ path: resolve(process.cwd(), ".env.dfns") });
@@ -131,6 +132,8 @@ class DfnsTestEnvironment extends NodeEnvironment {
       signer,
       finP2PClient: undefined,
       proofProvider: undefined,
+      accountMappingType: "derivation",
+      accountModel: "segregated",
       dfnsBaseUrl: baseUrl,
       dfnsOrgId: orgId,
       dfnsAuthToken: authToken,
@@ -178,6 +181,7 @@ class DfnsTestEnvironment extends NodeEnvironment {
         gooseExecutablePath: await this.whichGoose(),
         migrationListTableName: "finp2p_ethereum_adapter_migrations",
         storageUser,
+        additionalMigrations: additionalWorkflowsMigrations,
       },
       storage: { connectionString },
       service: {},

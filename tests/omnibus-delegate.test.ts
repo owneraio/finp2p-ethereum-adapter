@@ -1,4 +1,4 @@
-import { OmnibusDelegate } from '../src/services/direct/omnibus-delegate';
+import { OmnibusDelegate } from '../src/services/omnibus/omnibus-delegate';
 import { CustodyProvider, CustodyWallet } from '../src/services/direct/custody-provider';
 import { AccountMappingService } from '../src/services/direct/account-mapping';
 import winston from 'winston';

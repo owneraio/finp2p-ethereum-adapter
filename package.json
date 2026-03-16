@@ -16,7 +16,7 @@
     "postinstall": "GOBIN=$(pwd)/bin go install github.com/pressly/goose/v3/cmd/goose@v3.26.0",
     "clean": "rm -rf dist",
     "prebuild": "eslint ./src --ext .ts --fix",
-    "build": "tsc",
+    "build": "tsc && cpx \"migrations/**/*\" dist/migrations",
     "test": "jest && jest --config jest.account-mapping.config.js && jest --config jest.omnibus.config.js",
     "test:fireblocks": "jest --config jest.fireblocks.config.js",
     "test:dfns": "jest --config jest.dfns.config.js",

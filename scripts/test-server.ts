@@ -22,6 +22,7 @@ import winston, { format, transports } from "winston";
 import createApp from "../src/app";
 import { AppConfig, createJsonProvider } from "../src/config";
 import { ExecDetailsStore, InMemoryExecDetailsStore } from "../src/services/finp2p-contract";
+import { additionalWorkflowsMigrations } from "../src/workflows-config";
 import { HardhatLogExtractor } from "../tests/utils/log-extractors";
 import { NetworkDetails } from "../tests/utils/models";
 
@@ -206,6 +207,7 @@ const start = async () => {
       gooseExecutablePath: await whichGoose(),
       migrationListTableName: "finp2p_ethereum_adapater_migrations",
       storageUser: new URL(connectionString).username,
+      additionalMigrations: additionalWorkflowsMigrations,
     },
     storage: { connectionString },
     service: {},

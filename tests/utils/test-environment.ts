@@ -21,6 +21,7 @@ import winston, { format, transports } from "winston";
 import createApp from "../../src/app";
 import { createJsonProvider } from "../../src/config";
 import { InMemoryExecDetailsStore } from "../../src/services/finp2p-contract";
+import { additionalWorkflowsMigrations } from "../../src/workflows-config";
 import { HardhatLogExtractor } from "./log-extractors";
 import { AdapterParameters, NetworkDetails, NetworkParameters } from "./models";
 import { randomPort } from "./utils";
@@ -208,6 +209,7 @@ class CustomTestEnvironment extends NodeEnvironment {
         gooseExecutablePath: await this.whichGoose(),
         migrationListTableName: "finp2p_ethereum_adapter_migrations",
         storageUser,
+        additionalMigrations: additionalWorkflowsMigrations,
       },
       storage: { connectionString },
       service: {},

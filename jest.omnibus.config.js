@@ -7,7 +7,7 @@ module.exports = {
     "<rootDir>/tests"
   ],
   "testMatch": [
-    "<rootDir>/tests/omnibus-delegate.test.+(ts|tsx|js)"
+    "<rootDir>/tests/omnibus*.test.+(ts|tsx|js)"
   ],
   "transform": {
     "^.+\\.(ts|tsx)$": "ts-jest"
