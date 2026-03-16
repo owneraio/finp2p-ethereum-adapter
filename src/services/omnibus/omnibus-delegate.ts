@@ -240,7 +240,7 @@ export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowD
       const { provider, signer } = this.omnibusWallet;
       const cm = new ContractsManager(provider, signer, this.logger);
       const symbol = assetIdentifier?.value ?? 'OWNERA';
-      const erc20 = await cm.deployERC20Detached(
+      const erc20 = await cm.deployERC20(
         assetName ?? 'OWNERACOIN', symbol, decimals, await signer.getAddress(),
       );
       await workflows.saveAsset({ contract_address: erc20, decimals, token_standard: 'ERC20', id: asset.assetId, type: asset.assetType });
