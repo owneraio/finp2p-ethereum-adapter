@@ -1,4 +1,4 @@
-import { FireblocksSDK, PeerType, TransactionOperation, TransactionStatus } from "fireblocks-sdk"
+import { FireblocksSDK, ListAssetResponse, PeerType, TransactionOperation, TransactionStatus } from "fireblocks-sdk"
 import axios from 'axios'
 import { setTimeout as sleep } from 'node:timers/promises'
 
@@ -43,7 +43,7 @@ async function autoPaginate<T, R extends { paging?: { after?: string } }>(
   return collected
 }
 
-async function transferAssetFromVaultToVault(fireblocksSdk: FireblocksSDK, fromVaultId: string, toVaultId: string, assetId: string, amount: string): Promise<void> {
+async function transferAssetFromVaultToVault(fireblocksSdk: FireblocksSDK, fromVaultId: string, toVaultId: string, assetId: string, amount: string, note?: string): Promise<void> {
   const transaction = await fireblocksSdk.createTransaction({
     operation: TransactionOperation.TRANSFER,
     assetId,
@@ -56,7 +56,7 @@ async function transferAssetFromVaultToVault(fireblocksSdk: FireblocksSDK, fromV
       id: toVaultId
     },
     amount,
-    note: 'Gas funding for transactions'
+    note: note ?? 'Vault to vault transfer',
   })
 
   while (true) {
@@ -166,6 +166,22 @@ export const createVaultManagementFunctions = (fireblocksSdk: FireblocksSDK) => 
     return addressLeafCache.get(key)?.vaultId
   }
 
+  const createVaultAccount = (name: string) =>
+    retryIfRateLimited(() => fireblocksSdk.createVaultAccount(name, false, undefined, true /* autoFuel */))
+
+  const findAssetByContractAddress = async (contractAddress: string): Promise<ListAssetResponse | undefined> => {
+    const normalizedAddress = contractAddress.toLowerCase()
+    let pageCursor: string | undefined
+    while (true) {
+      const response = await retryIfRateLimited(() => fireblocksSdk.listAssets({ pageCursor }))
+      const found = response.data.find(asset => asset.onchain?.address?.toLowerCase() === normalizedAddress)
+      if (found) return found
+      if (!response.next) break
+      pageCursor = response.next
+    }
+    return undefined
+  }
+
   const getVaultAssetBalance = async (vaultId: string, assetId: string): Promise<string | undefined> => {
     const asset = await retryIfRateLimited(() => fireblocksSdk.getVaultAccountAsset(vaultId, assetId))
     return asset.available
@@ -197,6 +213,9 @@ export const createVaultManagementFunctions = (fireblocksSdk: FireblocksSDK) => 
     getVaultIdForAddress,
     getVaultAssetBalance,
     balance,
-    transferAssetFromVaultToVault,
+    transferAssetFromVaultToVault: (fromVaultId: string, toVaultId: string, assetId: string, amount: string, note?: string) =>
+      transferAssetFromVaultToVault(fireblocksSdk, fromVaultId, toVaultId, assetId, amount, note),
+    createVaultAccount,
+    findAssetByContractAddress,
   }
 };
