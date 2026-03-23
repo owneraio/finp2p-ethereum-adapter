@@ -209,11 +209,7 @@ const createFireblocksProvider = async (): Promise<Omit<FireblocksAppConfig, 'ac
   } else if (process.env.FIREBLOCKS_API_PRIVATE_KEY_BASE64) {
     apiPrivateKey = Buffer.from(process.env.FIREBLOCKS_API_PRIVATE_KEY_BASE64, "base64").toString("utf-8");
   } else {
-    const apiPrivateKeyPath = process.env.FIREBLOCKS_API_PRIVATE_KEY_PATH || "";
-    if (!apiPrivateKeyPath) {
-      throw new Error("FIREBLOCKS_API_PRIVATE_KEY or FIREBLOCKS_API_PRIVATE_KEY_BASE64 or FIREBLOCKS_API_PRIVATE_KEY_PATH must be set");
-    }
-    apiPrivateKey = fs.readFileSync(apiPrivateKeyPath, "utf-8");
+    throw new Error("FIREBLOCKS_API_PRIVATE_KEY or FIREBLOCKS_API_PRIVATE_KEY_BASE64 must be set");
   }
 
   const chainId = (process.env.FIREBLOCKS_CHAIN_ID || ChainId.MAINNET) as ChainId;
