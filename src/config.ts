@@ -204,13 +204,14 @@ const createFireblocksProvider = async (): Promise<Omit<FireblocksAppConfig, 'ac
   }
 
   let apiPrivateKey: string;
-  const apiPrivateKeyBase64 = process.env.FIREBLOCKS_API_PRIVATE_KEY_BASE64;
-  if (apiPrivateKeyBase64) {
-    apiPrivateKey = Buffer.from(apiPrivateKeyBase64, "base64").toString("utf-8");
+  if (process.env.FIREBLOCKS_API_PRIVATE_KEY) {
+    apiPrivateKey = process.env.FIREBLOCKS_API_PRIVATE_KEY;
+  } else if (process.env.FIREBLOCKS_API_PRIVATE_KEY_BASE64) {
+    apiPrivateKey = Buffer.from(process.env.FIREBLOCKS_API_PRIVATE_KEY_BASE64, "base64").toString("utf-8");
   } else {
     const apiPrivateKeyPath = process.env.FIREBLOCKS_API_PRIVATE_KEY_PATH || "";
     if (!apiPrivateKeyPath) {
-      throw new Error("FIREBLOCKS_API_PRIVATE_KEY_PATH is not set");
+      throw new Error("FIREBLOCKS_API_PRIVATE_KEY or FIREBLOCKS_API_PRIVATE_KEY_BASE64 or FIREBLOCKS_API_PRIVATE_KEY_PATH must be set");
     }
     apiPrivateKey = fs.readFileSync(apiPrivateKeyPath, "utf-8");
   }
