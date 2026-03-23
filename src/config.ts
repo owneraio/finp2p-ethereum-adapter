@@ -203,11 +203,17 @@ const createFireblocksProvider = async (): Promise<Omit<FireblocksAppConfig, 'ac
     throw new Error("FIREBLOCKS_API_KEY is not set");
   }
 
-  const apiPrivateKeyPath = process.env.FIREBLOCKS_API_PRIVATE_KEY_PATH || "";
-  if (!apiPrivateKeyPath) {
-    throw new Error("FIREBLOCKS_API_PRIVATE_KEY_PATH is not set");
+  let apiPrivateKey: string;
+  const apiPrivateKeyBase64 = process.env.FIREBLOCKS_API_PRIVATE_KEY_BASE64;
+  if (apiPrivateKeyBase64) {
+    apiPrivateKey = Buffer.from(apiPrivateKeyBase64, "base64").toString("utf-8");
+  } else {
+    const apiPrivateKeyPath = process.env.FIREBLOCKS_API_PRIVATE_KEY_PATH || "";
+    if (!apiPrivateKeyPath) {
+      throw new Error("FIREBLOCKS_API_PRIVATE_KEY_PATH is not set");
+    }
+    apiPrivateKey = fs.readFileSync(apiPrivateKeyPath, "utf-8");
   }
-  const apiPrivateKey = fs.readFileSync(apiPrivateKeyPath, "utf-8");
 
   const chainId = (process.env.FIREBLOCKS_CHAIN_ID || ChainId.MAINNET) as ChainId;
   const apiBaseUrl = (process.env.FIREBLOCKS_API_BASE_URL || ApiBaseUrl.Production) as ApiBaseUrl;
