@@ -132,6 +132,7 @@ export class DirectPaymentsServiceImpl implements PaymentService {
     const vaultName = `deposit:${correlationId}:${finId.slice(0, 6)}...${finId.slice(-6)}:${asset.assetId.slice(-6)}`;
     const vault = await this.createVault(vaultName);
     const { walletAddress, legacyAssetId } = await this.getDepositAddress(vault.id, dbAsset.contract_address);
+    await this.fireblocksProvider.fundDepositVault(vault.id);
     this.depositStore.set(correlationId, {
       correlationId, finId,
       assetId: asset.assetId, assetType: asset.assetType,

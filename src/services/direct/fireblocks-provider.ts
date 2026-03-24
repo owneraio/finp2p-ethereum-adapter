@@ -135,6 +135,18 @@ export class FireblocksCustodyProvider implements CustodyProvider {
     );
   }
 
+  async fundDepositVault(vaultId: string): Promise<void> {
+    if (!this.gasStation) return;
+    const wallet = await createFireblocksEthersProvider({
+      apiKey: this.config.apiKey,
+      privateKey: this.config.apiPrivateKey,
+      chainId: this.config.chainId,
+      apiBaseUrl: this.config.apiBaseUrl,
+      vaultAccountIds: [vaultId],
+    });
+    await this.fundGasIfNeeded(wallet);
+  }
+
   async createDepositVault(name: string) {
     return this.vaultManagement.createVaultAccount(name);
   }
