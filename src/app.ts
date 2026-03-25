@@ -79,6 +79,19 @@ async function createApp(
 ): Promise<express.Application> {
   const app = express();
   app.use(express.json({ limit: "50mb" }));
+
+  app.use((req, res, next) => {
+    if (req.body && Object.keys(req.body).length > 0) {
+      logger.debug('Request body', { method: req.method, url: req.url, body: req.body });
+    }
+    const originalJson = res.json.bind(res);
+    res.json = (body: unknown) => {
+      logger.debug('Response body', { method: req.method, url: req.url, statusCode: res.statusCode, body });
+      return originalJson(body);
+    };
+    next();
+  });
+
   app.use(expressLogger({
     winstonInstance: logger,
     meta: true,
