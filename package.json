@@ -43,7 +43,7 @@
     "@owneraio/finp2p-adapter-models": "^0.28.0-custody-native.13",
     "@owneraio/finp2p-client": "^0.28.0-custody-native.3",
     "@owneraio/finp2p-contracts": "^0.28.0-custody-native.5",
-    "@owneraio/finp2p-nodejs-skeleton-adapter": "^0.28.0-custody-native.16",
+    "@owneraio/finp2p-nodejs-skeleton-adapter": "^0.28.0-custody-native.17",
     "@owneraio/finp2p-vanilla-service": "^0.28.0-custody-native.6",
     "@types/node": "^24.10.1",
     "axios": "^1.1.3",

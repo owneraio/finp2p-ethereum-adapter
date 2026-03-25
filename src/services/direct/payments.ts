@@ -81,6 +81,8 @@ export class DirectPaymentsServiceImpl implements PaymentService {
     // TODO: remove whole number workaround once distribution service supports decimals
     // https://github.com/owneraio/finp2p-nodejs-skeleton-adapter/issues/146
     const wholeAmount = String(Math.floor(Number(deposit.amount)));
+    const syncResult = await this.distributionService.syncOmnibus(entry.assetId, entry.assetType);
+    console.debug("sync result", syncResult)
     await this.distributionService.distribute(entry.finId, entry.assetId, entry.assetType, wholeAmount);
 
     const ledgerIdentifier = entry.ledgerIdentifier ?? {
