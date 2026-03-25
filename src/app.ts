@@ -9,9 +9,10 @@ import {
   PaymentsServiceImpl,
   workflows,
 } from "@owneraio/finp2p-nodejs-skeleton-adapter";
-import { createVanillaServices, registerDistributionRoutes } from "@owneraio/finp2p-vanilla-service";
+import { createVanillaServices, LedgerStorage, registerDistributionRoutes } from "@owneraio/finp2p-vanilla-service";
 import { FinP2PClient } from "@owneraio/finp2p-client";
 import { FinP2PContract } from "@owneraio/finp2p-contracts";
+import { Pool } from "pg";
 import {
   CredentialsMappingService,
   EscrowServiceImpl,
@@ -27,10 +28,15 @@ import {
   DerivationAccountMapping,
   DbAccountMapping,
   AccountMappingService,
-  OmnibusDelegate,
   CommonServiceImpl as DirectCommonServiceImpl,
   HealthServiceImpl as DirectHealthServiceImpl,
 } from "./services/direct"
+import {
+  OmnibusDelegate,
+  OmnibusInboundMonitor,
+  OmnibusInboundStore,
+  OmnibusPaymentService,
+} from "./services/omnibus"
 
 function resolveAccountMapping(appConfig: AppConfig): AccountMappingService {
   switch (appConfig.accountMappingType) {
@@ -52,6 +58,17 @@ function registerDirectServices(
     if (!workflowsConfig?.storage) throw new Error('Workflows storage config is required for omnibus account model');
     const accountMapping = resolveAccountMapping(appConfig);
     const delegate = new OmnibusDelegate(logger, custodyProvider, accountMapping);
+    const pool = new Pool({ connectionString: workflowsConfig.storage.connectionString });
+    const inboundStore = new OmnibusInboundStore(pool);
+    const ledgerStorage = new LedgerStorage(pool);
+    const paymentService = new OmnibusPaymentService(logger, custodyProvider, inboundStore, {
+      intentTtlMs: Number(process.env.OMNIBUS_DEPOSIT_INTENT_TTL_MS ?? 24 * 60 * 60 * 1000),
+    });
+    const inboundMonitor = new OmnibusInboundMonitor(logger, custodyProvider, inboundStore, ledgerStorage, delegate, {
+      intervalMs: Number(process.env.OMNIBUS_INBOUND_MONITOR_INTERVAL_MS ?? 30_000),
+      confirmations: Number(process.env.OMNIBUS_INBOUND_CONFIRMATIONS ?? 2),
+      initialLookbackBlocks: Number(process.env.OMNIBUS_INBOUND_LOOKBACK_BLOCKS ?? 5_000),
+    });
     const { tokenService, escrowService, commonService, mappingService, distributionService, inboundTransferHook } = createVanillaServices(
       { transfer: delegate, asset: delegate, escrow: delegate, omnibus: delegate },
       workflowsConfig.storage,
@@ -60,12 +77,13 @@ function registerDirectServices(
     // TODO(omnibus-inbound): use deterministic inbound idempotency key `${planId}:${instructionSequence}`
     // instead of request-scoped idempotency key to prevent duplicate credits on retried proposal callbacks.
     const planApprovalService = new PlanApprovalServiceImpl(appConfig.orgId, pluginManager, appConfig.finP2PClient, inboundTransferHook);
-    register(app, tokenService, escrowService, commonService, commonService, delegate, planApprovalService, pluginManager, workflowsConfig, {
+    register(app, tokenService, escrowService, commonService, commonService, paymentService, planApprovalService, pluginManager, workflowsConfig, {
       fields: [{ field: 'ledgerAccountId', description: 'Ethereum address', exampleValue: '0x742d35Cc6634C0532925a3b844Bc9e7595f2bD18' }],
     }, mappingService);
     if (distributionService) {
       registerDistributionRoutes(app, distributionService);
     }
+    inboundMonitor.start();
     return;
   }
 

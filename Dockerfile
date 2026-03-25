@@ -38,6 +38,7 @@ COPY \
     jest.config.js \
     ./
 COPY src ./src
+COPY migrations ./migrations
 COPY --from=contracts-builder /usr/app/package.json ./finp2p-contracts/package.json
 COPY --from=contracts-builder /usr/app/dist ./finp2p-contracts/dist
 
