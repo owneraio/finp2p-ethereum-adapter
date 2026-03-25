@@ -8,11 +8,10 @@ import {
   EthereumTransactionError,
   MINTER_ROLE,
   OPERATOR_ROLE,
-  isEthereumAddress,
-  ERC20_STANDARD_ID
+  isEthereumAddress
 } from "@owneraio/finp2p-contracts";
 import { createJsonProvider, parseConfig } from "../src/config";
-import { BytesLike, keccak256, Provider, Signer, toUtf8Bytes } from "ethers";
+import { Provider, Signer } from "ethers";
 import { Logger } from "@owneraio/finp2p-adapter-models";
 
 const logger = winston.createLogger({
@@ -21,39 +20,12 @@ const logger = winston.createLogger({
   format: format.json()
 });
 
-const getTokenInfo = (ledgerAssetInfo: LedgerAssetInfo) : {
-  tokenAddress: string,
-  standardId: BytesLike
-} => {
+const getTokenAddress = (ledgerAssetInfo: LedgerAssetInfo): string => {
   const { tokenId, ledgerReference } = ledgerAssetInfo;
   if (ledgerReference) {
-    const { address, tokenStandard } = ledgerReference;
-    if (tokenStandard === "TokenStandard_ERC20") { // legacy value
-      return { tokenAddress: address, standardId: ERC20_STANDARD_ID };
-    } else {
-      return { tokenAddress: address, standardId: keccak256(toUtf8Bytes(tokenStandard)) };
-    }
-  } else {
-    return {
-      tokenAddress: tokenId,
-      standardId: ERC20_STANDARD_ID
-    }
+    return ledgerReference.address;
   }
-}
-
-const whiteListBasedOnStandard = async (
-  provider: Provider,
-  signer: Signer,
-  tokenAddress: string,
-  logger: Logger,
-  standardId: BytesLike,
-  operator: string
-) => {
-  if (standardId === ERC20_STANDARD_ID) {
-    await whitelistERC20(provider, signer, tokenAddress, logger, operator);
-  } else {
-    logger.info(`Token standard ${standardId} is not supported for whitelisting`);
-  }
+  return tokenId;
 };
 
 const whitelistERC20 = async (
@@ -108,17 +80,16 @@ const startMigration = async (
     if (!ledgerAssetInfo) {
       continue;
     }
-    const { tokenAddress, standardId } = getTokenInfo(ledgerAssetInfo);
+    const tokenAddress = getTokenAddress(ledgerAssetInfo);
     if (!isEthereumAddress(tokenAddress)) {
       continue
     }
-    const standardAddress = await finP2PContract.getAssetStandardViaFinP2PContract(finp2pContractAddress, standardId);
 
     try {
       const foundAddress = await finP2PContract.getAssetAddress(assetId);
       if (foundAddress === tokenAddress) {
         logger.info(`Asset ${assetId} already associated with token ${tokenAddress}`);
-        await whiteListBasedOnStandard(provider, signer, tokenAddress, logger, standardId, standardAddress);
+        await whitelistERC20(provider, signer, tokenAddress, logger, finp2pContractAddress);
         skipped++;
         continue;
       }
@@ -130,9 +101,9 @@ const startMigration = async (
 
     try {
       logger.info(`Migrating asset ${assetId} with token address ${tokenAddress}`);
-      await finP2PContract.associateAsset(assetId, tokenAddress, standardId);
+      await finP2PContract.associateAsset(assetId, tokenAddress);
       logger.info("       asset association [done]");
-      await whiteListBasedOnStandard(provider, signer, tokenAddress, logger, standardId, standardAddress);
+      await whitelistERC20(provider, signer, tokenAddress, logger, finp2pContractAddress);
       migrated++;
     } catch (e) {
       if (`${e}`.includes("Asset not found")) {
@@ -168,10 +139,8 @@ const startMigration = async (
             }
             continue;
           }
-          let tokenStandard = ERC20_STANDARD_ID;
-
           logger.info(`Migrating payment asset ${code} with token address ${tokenAddress}`);
-          await finP2PContract.associateAsset(code, tokenAddress, tokenStandard);
+          await finP2PContract.associateAsset(code, tokenAddress);
         }
       }
     }

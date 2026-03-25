@@ -127,7 +127,7 @@ const deployERC20Contract = async (
   finp2pTokenAddress: string
 ) => {
   const contractManger = new ContractsManager(provider, signer, logger);
-  return contractManger.deployERC20Detached("ERC-20", "ERC20", 0, finp2pTokenAddress);
+  return contractManger.deployERC20("ERC-20", "ERC20", 0, finp2pTokenAddress);
 };
 
 const startApp = async (
