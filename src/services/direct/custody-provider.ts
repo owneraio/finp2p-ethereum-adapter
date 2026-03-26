@@ -1,4 +1,5 @@
 import { Provider, Signer } from "ethers";
+import { LocalSubmitSigner } from "./local-submit-signer";
 
 export interface CustodyWallet {
   provider: Provider;
@@ -19,4 +20,15 @@ export interface CustodyProvider {
 
   resolveWallet(account: string): Promise<CustodyWallet | undefined>;
   onAssetRegistered?(tokenAddress: string, symbol?: string): Promise<void>;
+}
+
+/**
+ * Wraps a CustodyWallet so that signing is done by the custody signer
+ * but transactions are submitted via the given local provider.
+ */
+export function withLocalSubmit(wallet: CustodyWallet, localProvider: Provider): CustodyWallet {
+  return {
+    provider: localProvider,
+    signer: new LocalSubmitSigner(wallet.signer, localProvider),
+  };
 }

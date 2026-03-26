@@ -3,7 +3,7 @@ import { AsymmetricKeySigner } from '@dfns/sdk-keysigner';
 import { DfnsWallet } from '@dfns/lib-ethersjs6';
 import { JsonRpcProvider } from 'ethers';
 import { DfnsAppConfig } from '../../config';
-import { CustodyProvider, CustodyWallet, GasStation } from './custody-provider';
+import { CustodyProvider, CustodyWallet, GasStation, withLocalSubmit } from './custody-provider';
 
 export class DfnsCustodyProvider implements CustodyProvider {
   readonly issuer: CustodyWallet;
@@ -14,6 +14,7 @@ export class DfnsCustodyProvider implements CustodyProvider {
 
   private dfnsClient: DfnsApiClient;
   private addressToWalletId: Map<string, string>;
+  private localSubmit: boolean;
 
   private constructor(
     issuer: CustodyWallet,
@@ -24,13 +25,15 @@ export class DfnsCustodyProvider implements CustodyProvider {
     gasStation?: GasStation,
     omnibus?: CustodyWallet,
   ) {
-    this.issuer = issuer;
-    this.escrow = escrow;
-    this.omnibus = omnibus;
+    this.localSubmit = config.localSubmit ?? false;
+    const wrap = (w: CustodyWallet) => this.localSubmit ? withLocalSubmit(w, config.provider) : w;
+    this.issuer = wrap(issuer);
+    this.escrow = wrap(escrow);
+    this.omnibus = omnibus ? wrap(omnibus) : undefined;
     this.rpcProvider = config.provider;
     this.dfnsClient = dfnsClient;
     this.addressToWalletId = addressToWalletId;
-    this.gasStation = gasStation;
+    this.gasStation = gasStation ? { wallet: wrap(gasStation.wallet), amount: gasStation.amount } : undefined;
   }
 
   private static createDfnsClient(config: DfnsAppConfig): DfnsApiClient {
@@ -77,6 +80,7 @@ export class DfnsCustodyProvider implements CustodyProvider {
   async resolveWallet(address: string): Promise<CustodyWallet | undefined> {
     const walletId = this.addressToWalletId.get(address.toLowerCase());
     if (walletId === undefined) return undefined;
-    return DfnsCustodyProvider.createWalletProvider(this.dfnsClient, walletId, this.config.rpcUrl);
+    const wallet = await DfnsCustodyProvider.createWalletProvider(this.dfnsClient, walletId, this.config.rpcUrl);
+    return this.localSubmit ? withLocalSubmit(wallet, this.config.provider) : wallet;
   }
 }

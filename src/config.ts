@@ -54,7 +54,11 @@ export type FinP2PContractAppConfig = BaseAppConfig & {
   execDetailsStore: ExecDetailsStore | undefined
 }
 
-export type FireblocksAppConfig = BaseAppConfig & {
+export type DirectAppConfig = BaseAppConfig & {
+  localSubmit?: boolean
+}
+
+export type FireblocksAppConfig = DirectAppConfig & {
   type: 'fireblocks'
   apiKey: string
   apiPrivateKey: string
@@ -69,7 +73,7 @@ export type FireblocksAppConfig = BaseAppConfig & {
   }
 }
 
-export type DfnsAppConfig = BaseAppConfig & {
+export type DfnsAppConfig = DirectAppConfig & {
   type: 'dfns'
   dfnsBaseUrl: string
   dfnsOrgId: string
@@ -342,10 +346,12 @@ export async function envVarsToAppConfig(logger: Logger): Promise<AppConfig> {
       }
     }
     case 'fireblocks': {
-      return { ...await createFireblocksProvider(), accountMappingType, accountModel }
+      const localSubmit = process.env.LOCAL_SUBMIT === 'true'
+      return { ...await createFireblocksProvider(), accountMappingType, accountModel, localSubmit }
     }
     case 'dfns': {
-      return { ...await createDfnsProvider(), accountMappingType, accountModel }
+      const localSubmit = process.env.LOCAL_SUBMIT === 'true'
+      return { ...await createDfnsProvider(), accountMappingType, accountModel, localSubmit }
     }
   }
 }

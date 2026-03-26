@@ -1,7 +1,7 @@
 import { FireblocksSDK } from 'fireblocks-sdk';
 import { createFireblocksEthersProvider, FireblocksAppConfig } from '../../config';
 import { createVaultManagementFunctions } from '../../vaults';
-import { CustodyProvider, CustodyWallet, GasStation } from './custody-provider';
+import { CustodyProvider, CustodyWallet, GasStation, withLocalSubmit } from './custody-provider';
 
 export class FireblocksCustodyProvider implements CustodyProvider {
   readonly issuer: CustodyWallet;
@@ -12,6 +12,7 @@ export class FireblocksCustodyProvider implements CustodyProvider {
 
   private fireblocksSdk: FireblocksSDK;
   private vaultManagement: ReturnType<typeof createVaultManagementFunctions>;
+  private localSubmit: boolean;
 
   private constructor(
     issuer: CustodyWallet,
@@ -22,13 +23,15 @@ export class FireblocksCustodyProvider implements CustodyProvider {
     gasStation?: GasStation,
     omnibus?: CustodyWallet,
   ) {
-    this.issuer = issuer;
-    this.escrow = escrow;
-    this.omnibus = omnibus;
+    this.localSubmit = config.localSubmit ?? false;
+    const wrap = (w: CustodyWallet) => this.localSubmit ? withLocalSubmit(w, config.provider) : w;
+    this.issuer = wrap(issuer);
+    this.escrow = wrap(escrow);
+    this.omnibus = omnibus ? wrap(omnibus) : undefined;
     this.rpcProvider = config.provider;
     this.fireblocksSdk = fireblocksSdk;
     this.vaultManagement = vaultManagement;
-    this.gasStation = gasStation;
+    this.gasStation = gasStation ? { wallet: wrap(gasStation.wallet), amount: gasStation.amount } : undefined;
   }
 
   static async create(config: FireblocksAppConfig): Promise<FireblocksCustodyProvider> {
@@ -67,13 +70,14 @@ export class FireblocksCustodyProvider implements CustodyProvider {
     const vaultId = await this.vaultManagement.getVaultIdForAddress(address);
     if (vaultId === undefined) return undefined;
 
-    return createFireblocksEthersProvider({
+    const wallet = await createFireblocksEthersProvider({
       apiKey: this.config.apiKey,
       privateKey: this.config.apiPrivateKey,
       chainId: this.config.chainId,
       apiBaseUrl: this.config.apiBaseUrl,
       vaultAccountIds: [vaultId],
     });
+    return this.localSubmit ? withLocalSubmit(wallet, this.config.provider) : wallet;
   }
 
   async onAssetRegistered(tokenAddress: string, symbol?: string): Promise<void> {
