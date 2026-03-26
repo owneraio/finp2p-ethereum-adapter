@@ -1,5 +1,6 @@
 export * from './custody-provider'
 export * from './local-submit-signer'
+export * from './fireblocks-raw-signer'
 export * from './account-mapping'
 export * from './token-service'
 export * from './common'

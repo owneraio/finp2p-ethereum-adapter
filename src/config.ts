@@ -62,8 +62,8 @@ export type FireblocksAppConfig = DirectAppConfig & {
   type: 'fireblocks'
   apiKey: string
   apiPrivateKey: string
-  chainId: ChainId
-  apiBaseUrl: ApiBaseUrl | string
+  chainId?: ChainId
+  apiBaseUrl?: ApiBaseUrl | string
   assetIssuerVaultId: string
   assetEscrowVaultId: string
   omnibusVaultId?: string
