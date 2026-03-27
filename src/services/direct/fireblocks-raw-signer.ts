@@ -1,4 +1,4 @@
-import { AbstractSigner, Provider, Signer, Transaction, TransactionLike, TransactionRequest, TypedDataDomain, TypedDataField, keccak256, Signature, recoverAddress, getBytes, hashMessage, TypedDataEncoder } from 'ethers';
+import { AbstractSigner, Provider, Signer, Transaction, TransactionLike, TransactionRequest, TypedDataDomain, TypedDataField, keccak256, Signature, hashMessage, TypedDataEncoder } from 'ethers';
 import { FireblocksSDK, PeerType, TransactionOperation, TransactionStatus, SigningAlgorithm } from 'fireblocks-sdk';
 
 const TERMINAL_STATUSES = new Set([
@@ -56,8 +56,14 @@ export class FireblocksRawSigner extends AbstractSigner {
   }
 
   async signTransaction(tx: TransactionRequest): Promise<string> {
-    const populated = await this.populateTransaction(tx);
-    const unsignedTx = Transaction.from(populated as TransactionLike);
+    let unsignedTx: Transaction;
+    if (tx instanceof Transaction) {
+      unsignedTx = tx;
+    } else {
+      const populated = await this.populateTransaction(tx);
+      const { from, ...txFields } = populated;
+      unsignedTx = Transaction.from(txFields as TransactionLike);
+    }
     const txHash = keccak256(unsignedTx.unsignedSerialized);
     const sig = await this.rawSign(txHash);
     unsignedTx.signature = sig;
