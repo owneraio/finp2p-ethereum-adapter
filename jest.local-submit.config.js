@@ -7,7 +7,8 @@ module.exports = {
     "<rootDir>/tests"
   ],
   "testMatch": [
-    "<rootDir>/tests/fireblocks-raw-signer.test.+(ts|tsx|js)"
+    "<rootDir>/tests/fireblocks-raw-signer.test.+(ts|tsx|js)",
+    "<rootDir>/tests/fireblocks-local-submit.test.+(ts|tsx|js)"
   ],
   "transform": {
     "^.+\\.(ts|tsx)$": "ts-jest"

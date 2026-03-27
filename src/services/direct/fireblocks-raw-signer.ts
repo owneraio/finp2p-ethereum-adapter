@@ -1,5 +1,5 @@
 import { AbstractSigner, Provider, Signer, Transaction, TransactionLike, TransactionRequest, TypedDataDomain, TypedDataField, keccak256, Signature, hashMessage, TypedDataEncoder } from 'ethers';
-import { FireblocksSDK, PeerType, TransactionOperation, TransactionStatus, SigningAlgorithm } from 'fireblocks-sdk';
+import { FireblocksSDK, PeerType, TransactionOperation, TransactionStatus } from 'fireblocks-sdk';
 
 const TERMINAL_STATUSES = new Set([
   TransactionStatus.COMPLETED,
@@ -87,15 +87,14 @@ export class FireblocksRawSigner extends AbstractSigner {
 
     const { id } = await this.sdk.createTransaction({
       operation: TransactionOperation.RAW,
+      assetId: this.assetId,
       source: {
         type: PeerType.VAULT_ACCOUNT,
         id: this.vaultAccountId,
       },
-      assetId: this.assetId,
       extraParameters: {
         rawMessageData: {
           messages: [{ content }],
-          algorithm: SigningAlgorithm.MPC_ECDSA_SECP256K1,
         },
       },
     });

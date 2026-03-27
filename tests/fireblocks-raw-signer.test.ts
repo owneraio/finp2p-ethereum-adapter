@@ -27,7 +27,7 @@ function createMockFireblocksSdk(privateKey: string) {
       const txId = `mock-tx-${++txCounter}`;
 
       if (args.operation === TransactionOperation.RAW) {
-        const rawMessages = args.extraParameters?.rawMessageData?.messages;
+        const rawMessages = args.extraParameters?.rawMessageData?.messages ?? args.rawMessageData?.messages;
         if (!rawMessages?.length) throw new Error('No raw messages');
 
         const hash = `0x${rawMessages[0].content}`;
