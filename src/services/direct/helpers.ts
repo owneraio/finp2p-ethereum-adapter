@@ -1,4 +1,4 @@
-import { Asset } from '@owneraio/finp2p-adapter-models';
+import { Asset } from '@owneraio/finp2p-nodejs-skeleton-adapter';
 import { workflows } from '@owneraio/finp2p-nodejs-skeleton-adapter';
 import { parseEther } from 'ethers';
 import winston from 'winston';

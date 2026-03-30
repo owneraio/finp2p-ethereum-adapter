@@ -20,7 +20,7 @@ import {
   newInvestmentMessage,
   newReceiptMessage,
   RECEIPT_PROOF_TYPES
-} from "@owneraio/finp2p-adapter-models";
+} from "../src/adapter-types";
 import { AssetType, term, Term, termToEIP712 } from "../src";
 
 import { PrimaryType } from "./utils";

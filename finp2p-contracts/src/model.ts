@@ -1,6 +1,6 @@
 import {
   LegType, PrimaryType, EIP712AssetType, AssetType as SrvAssetType
-} from "@owneraio/finp2p-adapter-models";
+} from "./adapter-types";
 import { keccak256, toUtf8Bytes } from "ethers";
 
 export const ERC20_STANDARD_ID = keccak256(toUtf8Bytes('ERC20_WITH_OPERATOR'));
@@ -37,12 +37,7 @@ export const assetTypeToEIP712 = (assetType: AssetType): EIP712AssetType => {
 };
 
 
-export interface EIP712LoanTerms {
-  openTime: string;
-  closeTime: string;
-  borrowedMoneyAmount: string;
-  returnedMoneyAmount: string;
-}
+export type { EIP712LoanTerms } from "./adapter-types";
 
 
 export const enum Phase {

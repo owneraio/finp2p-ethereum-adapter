@@ -4,8 +4,8 @@ import {
   Destination,
   EIP712Term,
   Source
-} from "@owneraio/finp2p-adapter-models";
-import { AssetType, assetTypeToEIP712, EIP712LoanTerms, Term } from "./model";
+} from "./adapter-types";
+import { AssetType, assetTypeToEIP712, Term } from "./model";
 
 
 export const assetToService = (assetId: string, assetType: bigint): Asset => {
@@ -63,10 +63,5 @@ export const termFromEIP712 = (eip712Term: EIP712Term): Term => {
   };
 }
 
-export const emptyLoanTerms = (): EIP712LoanTerms => {
-  return loanTerms("", "", "", "");
-};
-
-export const loanTerms = (openTime: string, closeTime: string, borrowedMoneyAmount: string, returnedMoneyAmount: string): EIP712LoanTerms => {
-  return { openTime, closeTime, borrowedMoneyAmount, returnedMoneyAmount };
-};
+// loanTerms and emptyLoanTerms are now in adapter-types.ts
+export { loanTerms, emptyLoanTerms } from './adapter-types';

@@ -1,5 +1,5 @@
 import { ContractFactory, Provider, Signer, TransactionReceipt } from "ethers";
-import { Logger } from "@owneraio/finp2p-adapter-models";
+import { Logger } from "./adapter-types";
 import FINP2P from "../artifacts/contracts/finp2p/FINP2POperator.sol/FINP2POperator.json";
 import { FINP2POperator } from "../typechain-types";
 import { FINP2POperatorInterface } from "../typechain-types/contracts/finp2p/FINP2POperator";
@@ -14,7 +14,7 @@ import {
   EIP712Domain, EIP712LoanTerms, PrimaryType, ReceiptOperation,
   failedReceiptOperation, pendingReceiptOperation,
   successfulReceiptOperation
-} from "@owneraio/finp2p-adapter-models";
+} from "./adapter-types";
 import { assetTypeToService } from "./mappers";
 
 

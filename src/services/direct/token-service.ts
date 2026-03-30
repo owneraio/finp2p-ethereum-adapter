@@ -3,7 +3,7 @@ import {
   Balance, Destination, ExecutionContext, FinIdAccount, OperationType,
   ReceiptOperation, Signature, Source, TokenService, EscrowService,
   failedReceiptOperation
-} from '@owneraio/finp2p-adapter-models';
+} from '@owneraio/finp2p-nodejs-skeleton-adapter';
 import winston from 'winston';
 import { workflows } from '@owneraio/finp2p-nodejs-skeleton-adapter';
 import { parseUnits, formatUnits, TransactionReceipt } from "ethers";

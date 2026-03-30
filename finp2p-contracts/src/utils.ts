@@ -7,7 +7,7 @@ import {
   TransactionReceipt, TypedDataEncoder, TypedDataField, verifyTypedData,
   Wallet
 } from "ethers";
-import { LegType, PrimaryType, Receipt, TradeDetails } from "@owneraio/finp2p-adapter-models";
+import { LegType, PrimaryType, Receipt, TradeDetails } from "./adapter-types";
 import {
   FINP2POperatorInterface,
   HoldEvent,

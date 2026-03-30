@@ -12,7 +12,7 @@ import {
 } from "@owneraio/finp2p-contracts";
 import { createJsonProvider, parseConfig } from "../src/config";
 import { Provider, Signer } from "ethers";
-import { Logger } from "@owneraio/finp2p-adapter-models";
+import { Logger } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 
 const logger = winston.createLogger({
   level: "info",
