@@ -1,4 +1,4 @@
-import { MappingService, OwnerMapping } from '@owneraio/finp2p-adapter-models';
+import { MappingService, OwnerMapping } from '@owneraio/finp2p-nodejs-skeleton-adapter';
 import { FinP2PContract } from '@owneraio/finp2p-contracts';
 
 /**

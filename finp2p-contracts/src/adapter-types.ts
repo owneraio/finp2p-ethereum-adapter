@@ -31,12 +31,12 @@ export class ConsoleLogger implements Logger {
 
 // EIP-712 enums
 
-export const enum LegType {
+export enum LegType {
   Asset = 0,
   Settlement = 1
 }
 
-export const enum PrimaryType {
+export enum PrimaryType {
   PrimarySale = 0,
   Buying = 1,
   Selling = 2,
@@ -48,12 +48,12 @@ export const enum PrimaryType {
 
 // Asset types
 
-export type AssetType = 'finp2p' | 'fiat' | 'cryptocurrency';
+export type ServiceAssetType = 'finp2p' | 'fiat' | 'cryptocurrency';
 export type EIP712AssetType = 'finp2p' | 'fiat' | 'cryptocurrency';
 
 export type Asset = {
   assetId: string;
-  assetType: AssetType;
+  assetType: ServiceAssetType;
 };
 
 // Accounts
@@ -121,7 +121,14 @@ export type TradeDetails = {
   executionContext: ExecutionContext | undefined;
 };
 
-export type ProofPolicy = { type: 'no_proof' } | { type: 'signature'; template: any };
+export type NoProofPolicy = { type: 'no-proof' };
+export type SignatureProofPolicy = {
+  type: 'signature-proof';
+  hashFunc: 'sha3-256' | 'keccak-256';
+  template: any;
+  signature: string;
+};
+export type ProofPolicy = NoProofPolicy | SignatureProofPolicy;
 
 export type Receipt = {
   id: string;
@@ -149,7 +156,7 @@ export type SuccessReceiptStatus = {
 
 export type FailedReceiptStatus = {
   operation: 'receipt';
-  type: 'error';
+  type: 'failure';
   error: { code: number; message: string };
 };
 
@@ -167,7 +174,7 @@ export const successfulReceiptOperation = (receipt: Receipt): ReceiptOperation =
 });
 
 export const failedReceiptOperation = (code: number, message: string): ReceiptOperation => ({
-  operation: 'receipt', type: 'error', error: { code, message },
+  operation: 'receipt', type: 'failure', error: { code, message },
 });
 
 export const pendingReceiptOperation = (correlationId: string, metadata: OperationMetadata | undefined): ReceiptOperation => ({

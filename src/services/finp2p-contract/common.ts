@@ -1,18 +1,9 @@
 import {
-  CommonService,
-  HealthService,
-  OperationStatus,
-  ReceiptOperation,
-  ExecutionContext
-} from "@owneraio/finp2p-adapter-models";
-import {
+  CommonService, HealthService, OperationStatus,
   ProofProvider, PluginManager
 } from "@owneraio/finp2p-nodejs-skeleton-adapter";
+import { ReceiptOperation, ExecutionContext, FinP2PContract, finIdToAddress } from "@owneraio/finp2p-contracts";
 import { FinP2PClient } from "@owneraio/finp2p-client";
-import {
-  FinP2PContract,
-  finIdToAddress
-} from "@owneraio/finp2p-contracts";
 
 
 export interface ExecDetailsStore {
