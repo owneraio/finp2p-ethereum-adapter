@@ -79,4 +79,12 @@ export class DfnsCustodyProvider implements CustodyProvider {
     if (walletId === undefined) return undefined;
     return DfnsCustodyProvider.createWalletProvider(this.dfnsClient, walletId, this.config.rpcUrl);
   }
+
+  async resolveAddressFromCustodyId(walletId: string): Promise<string> {
+    const wallet = await this.dfnsClient.wallets.getWallet({ walletId });
+    if (!wallet.address) {
+      throw new Error(`No address found for DFNS wallet ${walletId}`);
+    }
+    return wallet.address;
+  }
 }
