@@ -98,8 +98,9 @@ export class DirectTokenService implements TokenService, EscrowService {
   }
 
   async getBalance(ast: Asset, finId: string): Promise<string> {
+    const address = await this.accountMapping.resolveAccount(finId);
+    if (address === undefined) return "0";
     const asset = await getAssetFromDb(ast);
-    const address = await this.resolveAddress(finId);
     const c = new ERC20Contract(this.custodyProvider.issuer.provider, this.custodyProvider.issuer.signer, asset.contract_address, this.logger);
     return formatUnits(await c.balanceOf(address), asset.decimals);
   }
