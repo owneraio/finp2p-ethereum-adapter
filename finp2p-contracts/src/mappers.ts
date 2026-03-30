@@ -1,6 +1,6 @@
 import {
   Asset,
-  AssetType as SrvAssetType,
+  ServiceAssetType as SrvAssetType,
   Destination,
   EIP712Term,
   Source

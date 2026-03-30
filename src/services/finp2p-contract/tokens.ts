@@ -1,11 +1,14 @@
 import {
-  Asset, AssetCreationStatus, Destination, EIP712Template,
-  ExecutionContext, ReceiptOperation, Balance, TokenService, Signature, Source,
-  failedAssetCreation, failedReceiptOperation, successfulAssetCreation, successfulReceiptOperation,
-  pendingReceiptOperation, AssetBind, AssetDenomination, AssetIdentifier, FinIdAccount,
-  AssetCreationResult, ValidationError
-} from "@owneraio/finp2p-adapter-models";
-import { logger, ProofProvider, PluginManager} from "@owneraio/finp2p-nodejs-skeleton-adapter"
+  AssetCreationStatus, EIP712Template, Balance, TokenService,
+  failedAssetCreation, successfulAssetCreation,
+  AssetBind, AssetDenomination, AssetIdentifier,
+  AssetCreationResult, Signature, logger, ProofProvider, PluginManager
+} from "@owneraio/finp2p-nodejs-skeleton-adapter";
+import {
+  Asset, Destination, ExecutionContext, ReceiptOperation, Source,
+  failedReceiptOperation, successfulReceiptOperation, pendingReceiptOperation,
+  FinIdAccount, ValidationError
+} from "@owneraio/finp2p-contracts";
 import { FinP2PClient } from "@owneraio/finp2p-client";
 import {
   FinP2PContract,

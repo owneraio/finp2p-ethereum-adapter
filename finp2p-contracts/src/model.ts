@@ -1,5 +1,5 @@
 import {
-  LegType, PrimaryType, EIP712AssetType, AssetType as SrvAssetType
+  LegType, PrimaryType, EIP712AssetType, ServiceAssetType as SrvAssetType
 } from "./adapter-types";
 import { keccak256, toUtf8Bytes } from "ethers";
 
