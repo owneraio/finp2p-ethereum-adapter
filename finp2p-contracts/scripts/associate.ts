@@ -1,6 +1,6 @@
 import { FinP2PContract } from "../src";
 import { createJsonProvider, parseConfig } from "./config";
-import { Logger, ConsoleLogger } from "@owneraio/finp2p-adapter-models";
+import { Logger, ConsoleLogger } from "../src/adapter-types";
 
 const logger: Logger = new ConsoleLogger("info");
 
