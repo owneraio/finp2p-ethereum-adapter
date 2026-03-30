@@ -6,7 +6,7 @@ import { FinP2PContract } from '@owneraio/finp2p-contracts'
 import { FinP2PClient } from '@owneraio/finp2p-client'
 import { ExecDetailsStore } from './services/finp2p-contract/common'
 import { ProofProvider } from '@owneraio/finp2p-nodejs-skeleton-adapter'
-import { Logger } from "@owneraio/finp2p-adapter-models";
+import { Logger } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import { InMemoryExecDetailsStore } from './services/finp2p-contract/exec-details-store'
 import { DfnsApiClient } from "@dfns/sdk";
 import { AsymmetricKeySigner } from "@dfns/sdk-keysigner";

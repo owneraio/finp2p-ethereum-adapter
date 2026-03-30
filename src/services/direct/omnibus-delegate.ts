@@ -3,7 +3,7 @@ import {
   Destination, ExecutionContext, Source,
   PaymentService, DepositAsset, DepositOperation, ReceiptOperation, Signature,
   successfulDepositOperation, failedReceiptOperation,
-} from '@owneraio/finp2p-adapter-models';
+} from '@owneraio/finp2p-nodejs-skeleton-adapter';
 import { TransferDelegate, AssetDelegate, EscrowDelegate, OmnibusDelegate as OmnibusDelegateInterface, DelegateResult, InboundTransferVerificationError } from '@owneraio/finp2p-vanilla-service';
 import { workflows } from '@owneraio/finp2p-nodejs-skeleton-adapter';
 import { parseUnits, formatUnits, id as keccak256 } from 'ethers';
