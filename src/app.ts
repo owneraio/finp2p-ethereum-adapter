@@ -24,6 +24,7 @@ import {
   DirectTokenService,
   FireblocksCustodyProvider,
   DfnsCustodyProvider,
+  BlockdaemonCustodyProvider,
   CustodyProvider,
   DerivationAccountMapping,
   DbAccountMapping,
@@ -119,6 +120,11 @@ async function createApp(
     }
     case 'dfns': {
       const custodyProvider = await DfnsCustodyProvider.create(appConfig);
+      registerDirectServices(app, logger, custodyProvider, appConfig, paymentsService, pluginManager, workflowsConfig);
+      break
+    }
+    case 'blockdaemon': {
+      const custodyProvider = await BlockdaemonCustodyProvider.create(appConfig);
       registerDirectServices(app, logger, custodyProvider, appConfig, paymentsService, pluginManager, workflowsConfig);
       break
     }

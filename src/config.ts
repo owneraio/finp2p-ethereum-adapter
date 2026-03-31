@@ -8,6 +8,7 @@ import { Logger } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import { InMemoryExecDetailsStore } from './services/finp2p-contract/exec-details-store'
 import { FireblocksAppConfig, createFireblocksAppConfig } from './services/direct/fireblocks-config'
 import { DfnsAppConfig, createDfnsAppConfig } from './services/direct/dfns-config'
+import { BlockdaemonAppConfig, createBlockdaemonAppConfig } from './services/direct/blockdaemon-config'
 
 export type AccountMappingType = 'derivation' | 'database'
 
@@ -53,8 +54,9 @@ export type FinP2PContractAppConfig = BaseAppConfig & {
 
 export { FireblocksAppConfig } from './services/direct/fireblocks-config'
 export { DfnsAppConfig } from './services/direct/dfns-config'
+export { BlockdaemonAppConfig } from './services/direct/blockdaemon-config'
 
-export type AppConfig = FinP2PContractAppConfig | FireblocksAppConfig | DfnsAppConfig
+export type AppConfig = FinP2PContractAppConfig | FireblocksAppConfig | DfnsAppConfig | BlockdaemonAppConfig
 
 const getNetworkRpcUrl = (): string => {
   let networkHost = process.env.NETWORK_HOST;
@@ -160,6 +162,9 @@ export async function envVarsToAppConfig(logger: Logger): Promise<AppConfig> {
     }
     case 'dfns': {
       return { ...await createDfnsAppConfig(), accountMappingType, accountModel }
+    }
+    case 'blockdaemon': {
+      return { ...await createBlockdaemonAppConfig(), accountMappingType, accountModel }
     }
   }
 }
