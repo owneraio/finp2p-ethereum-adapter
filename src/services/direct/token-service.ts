@@ -119,46 +119,56 @@ export class DirectTokenService implements TokenService, EscrowService {
     idempotencyKey: string, ast: Asset, to: FinIdAccount, quantity: string,
     exCtx: ExecutionContext | undefined
   ): Promise<ReceiptOperation> {
-    const asset = await getAssetFromDb(ast);
-    const wallet = this.custodyProvider.issuer;
-    const address = await this.resolveAddress(to.finId);
-    const amount = parseUnits(quantity, asset.decimals);
+    try {
+      const asset = await getAssetFromDb(ast);
+      const wallet = this.custodyProvider.issuer;
+      const address = await this.resolveAddress(to.finId);
+      const amount = parseUnits(quantity, asset.decimals);
 
-    const c = new ERC20Contract(wallet.provider, wallet.signer, asset.contract_address, this.logger);
-    await this.fundGas(wallet);
-    const tx = await c.mint(address, amount);
-    const receipt = await tx.wait();
-    if (receipt === null) return failedReceiptOperation(1, "receipt is null");
+      const c = new ERC20Contract(wallet.provider, wallet.signer, asset.contract_address, this.logger);
+      await this.fundGas(wallet);
+      const tx = await c.mint(address, amount);
+      const receipt = await tx.wait();
+      if (receipt === null) return failedReceiptOperation(1, "receipt is null");
 
-    const block = await receipt.getBlock();
-    if (block === null) return failedReceiptOperation(1, "block is null");
-    return buildReceiptOperation(
-      receipt, ast, "issue", quantity,
-      { account: to, finId: to.finId }, { account: to, finId: to.finId },
-      exCtx, undefined, block.timestamp
-    );
+      const block = await receipt.getBlock();
+      if (block === null) return failedReceiptOperation(1, "block is null");
+      return buildReceiptOperation(
+        receipt, ast, "issue", quantity,
+        { account: to, finId: to.finId }, { account: to, finId: to.finId },
+        exCtx, undefined, block.timestamp
+      );
+    } catch (e) {
+      this.logger.error(`Issue failed: asset=${ast.assetId} to=${to.finId} quantity=${quantity}`, e);
+      return failedReceiptOperation(1, `${e}`);
+    }
   }
 
   async transfer(
     idempotencyKey: string, nonce: string, source: Source, destination: Destination,
     ast: Asset, quantity: string, signature: Signature, exCtx: ExecutionContext | undefined
   ): Promise<ReceiptOperation> {
-    const asset = await getAssetFromDb(ast);
-    const sourceAddress = await this.resolveAddress(source.finId);
-    const wallet = await this.custodyProvider.resolveWallet(sourceAddress);
-    if (wallet === undefined) throw new Error('Source address cannot be resolved to a custody wallet');
-    const amount = parseUnits(quantity, asset.decimals);
+    try {
+      const asset = await getAssetFromDb(ast);
+      const sourceAddress = await this.resolveAddress(source.finId);
+      const wallet = await this.custodyProvider.resolveWallet(sourceAddress);
+      if (wallet === undefined) return failedReceiptOperation(1, 'Source address cannot be resolved to a custody wallet');
+      const amount = parseUnits(quantity, asset.decimals);
 
-    const c = new ERC20Contract(wallet.provider, wallet.signer, asset.contract_address, this.logger);
-    await this.fundGas(wallet);
-    const destinationAddress = await this.resolveDestinationAddress(destination);
-    const tx = await c.transfer(destinationAddress, amount);
-    const receipt = await tx.wait();
-    if (receipt === null) return failedReceiptOperation(1, "receipt is null");
+      const c = new ERC20Contract(wallet.provider, wallet.signer, asset.contract_address, this.logger);
+      await this.fundGas(wallet);
+      const destinationAddress = await this.resolveDestinationAddress(destination);
+      const tx = await c.transfer(destinationAddress, amount);
+      const receipt = await tx.wait();
+      if (receipt === null) return failedReceiptOperation(1, "receipt is null");
 
-    const block = await receipt.getBlock();
-    if (block === null) return failedReceiptOperation(1, "block is null");
-    return buildReceiptOperation(receipt, ast, "transfer", quantity, source, destination, exCtx, undefined, block.timestamp);
+      const block = await receipt.getBlock();
+      if (block === null) return failedReceiptOperation(1, "block is null");
+      return buildReceiptOperation(receipt, ast, "transfer", quantity, source, destination, exCtx, undefined, block.timestamp);
+    } catch (e) {
+      this.logger.error(`Transfer failed: asset=${ast.assetId} from=${source.finId} to=${destination.finId} quantity=${quantity}`, e);
+      return failedReceiptOperation(1, `${e}`);
+    }
   }
 
   async redeem(
@@ -166,24 +176,29 @@ export class DirectTokenService implements TokenService, EscrowService {
     quantity: string, operationId: string | undefined, signature: Signature,
     exCtx: ExecutionContext | undefined
   ): Promise<ReceiptOperation> {
-    const asset = await getAssetFromDb(ast);
-    const escrowAddress = await this.custodyProvider.escrow.signer.getAddress();
-    const wallet = this.custodyProvider.issuer;
-    const amount = parseUnits(quantity, asset.decimals);
+    try {
+      const asset = await getAssetFromDb(ast);
+      const escrowAddress = await this.custodyProvider.escrow.signer.getAddress();
+      const wallet = this.custodyProvider.issuer;
+      const amount = parseUnits(quantity, asset.decimals);
 
-    const c = new ERC20Contract(wallet.provider, wallet.signer, asset.contract_address, this.logger);
-    await this.fundGas(wallet);
-    const tx = await c.burn(escrowAddress, amount);
-    const receipt = await tx.wait();
-    if (receipt === null) return failedReceiptOperation(1, "receipt is null");
+      const c = new ERC20Contract(wallet.provider, wallet.signer, asset.contract_address, this.logger);
+      await this.fundGas(wallet);
+      const tx = await c.burn(escrowAddress, amount);
+      const receipt = await tx.wait();
+      if (receipt === null) return failedReceiptOperation(1, "receipt is null");
 
-    const block = await receipt.getBlock();
-    if (block === null) return failedReceiptOperation(1, "block is null");
-    return buildReceiptOperation(
-      receipt, ast, "redeem", quantity,
-      { account: source, finId: source.finId }, undefined,
-      exCtx, operationId, block.timestamp
-    );
+      const block = await receipt.getBlock();
+      if (block === null) return failedReceiptOperation(1, "block is null");
+      return buildReceiptOperation(
+        receipt, ast, "redeem", quantity,
+        { account: source, finId: source.finId }, undefined,
+        exCtx, operationId, block.timestamp
+      );
+    } catch (e) {
+      this.logger.error(`Redeem failed: asset=${ast.assetId} source=${source.finId} quantity=${quantity}`, e);
+      return failedReceiptOperation(1, `${e}`);
+    }
   }
 
   async hold(
@@ -191,60 +206,75 @@ export class DirectTokenService implements TokenService, EscrowService {
     ast: Asset, quantity: string, signature: Signature, operationId: string,
     exCtx: ExecutionContext | undefined
   ): Promise<ReceiptOperation> {
-    const asset = await getAssetFromDb(ast);
-    const sourceAddress = await this.resolveAddress(source.finId);
-    const wallet = await this.custodyProvider.resolveWallet(sourceAddress);
-    if (wallet === undefined) throw new Error('Source address cannot be resolved to a custody wallet');
-    const amount = parseUnits(quantity, asset.decimals);
+    try {
+      const asset = await getAssetFromDb(ast);
+      const sourceAddress = await this.resolveAddress(source.finId);
+      const wallet = await this.custodyProvider.resolveWallet(sourceAddress);
+      if (wallet === undefined) return failedReceiptOperation(1, 'Source address cannot be resolved to a custody wallet');
+      const amount = parseUnits(quantity, asset.decimals);
 
-    const c = new ERC20Contract(wallet.provider, wallet.signer, asset.contract_address, this.logger);
-    await this.fundGas(wallet);
-    const tx = await c.transfer(await this.custodyProvider.escrow.signer.getAddress(), amount);
-    const receipt = await tx.wait();
-    if (receipt === null) return failedReceiptOperation(1, "receipt is null");
+      const c = new ERC20Contract(wallet.provider, wallet.signer, asset.contract_address, this.logger);
+      await this.fundGas(wallet);
+      const tx = await c.transfer(await this.custodyProvider.escrow.signer.getAddress(), amount);
+      const receipt = await tx.wait();
+      if (receipt === null) return failedReceiptOperation(1, "receipt is null");
 
-    const block = await receipt.getBlock();
-    if (block === null) return failedReceiptOperation(1, "block is null");
-    return buildReceiptOperation(receipt, ast, "hold", quantity, source, destination, exCtx, undefined, block.timestamp);
+      const block = await receipt.getBlock();
+      if (block === null) return failedReceiptOperation(1, "block is null");
+      return buildReceiptOperation(receipt, ast, "hold", quantity, source, destination, exCtx, undefined, block.timestamp);
+    } catch (e) {
+      this.logger.error(`Hold failed: asset=${ast.assetId} source=${source.finId} quantity=${quantity} operationId=${operationId}`, e);
+      return failedReceiptOperation(1, `${e}`);
+    }
   }
 
   async release(
     idempotencyKey: string, source: Source, destination: Destination, ast: Asset,
     quantity: string, operationId: string, exCtx: ExecutionContext | undefined
   ): Promise<ReceiptOperation> {
-    const asset = await getAssetFromDb(ast);
-    const destinationAddress = await this.resolveDestinationAddress(destination);
-    const wallet = this.custodyProvider.escrow;
-    const amount = parseUnits(quantity, asset.decimals);
+    try {
+      const asset = await getAssetFromDb(ast);
+      const destinationAddress = await this.resolveDestinationAddress(destination);
+      const wallet = this.custodyProvider.escrow;
+      const amount = parseUnits(quantity, asset.decimals);
 
-    const c = new ERC20Contract(wallet.provider, wallet.signer, asset.contract_address, this.logger);
-    await this.fundGas(wallet);
-    const tx = await c.transfer(destinationAddress, amount);
-    const receipt = await tx.wait();
-    if (receipt === null) return failedReceiptOperation(1, "receipt is null");
+      const c = new ERC20Contract(wallet.provider, wallet.signer, asset.contract_address, this.logger);
+      await this.fundGas(wallet);
+      const tx = await c.transfer(destinationAddress, amount);
+      const receipt = await tx.wait();
+      if (receipt === null) return failedReceiptOperation(1, "receipt is null");
 
-    const block = await receipt.getBlock();
-    if (block === null) return failedReceiptOperation(1, "block is null");
-    return buildReceiptOperation(receipt, ast, "release", quantity, source, destination, exCtx, undefined, block.timestamp);
+      const block = await receipt.getBlock();
+      if (block === null) return failedReceiptOperation(1, "block is null");
+      return buildReceiptOperation(receipt, ast, "release", quantity, source, destination, exCtx, undefined, block.timestamp);
+    } catch (e) {
+      this.logger.error(`Release failed: asset=${ast.assetId} destination=${destination.finId} quantity=${quantity}`, e);
+      return failedReceiptOperation(1, `${e}`);
+    }
   }
 
   async rollback(
     idempotencyKey: string, source: Source, ast: Asset, quantity: string,
     operationId: string, exCtx: ExecutionContext | undefined
   ): Promise<ReceiptOperation> {
-    const asset = await getAssetFromDb(ast);
-    const sourceAddress = await this.resolveAddress(source.finId);
-    const wallet = this.custodyProvider.escrow;
-    const amount = parseUnits(quantity, asset.decimals);
+    try {
+      const asset = await getAssetFromDb(ast);
+      const sourceAddress = await this.resolveAddress(source.finId);
+      const wallet = this.custodyProvider.escrow;
+      const amount = parseUnits(quantity, asset.decimals);
 
-    const c = new ERC20Contract(wallet.provider, wallet.signer, asset.contract_address, this.logger);
-    await this.fundGas(wallet);
-    const tx = await c.transfer(sourceAddress, amount);
-    const receipt = await tx.wait();
-    if (receipt === null) return failedReceiptOperation(1, "receipt is null");
+      const c = new ERC20Contract(wallet.provider, wallet.signer, asset.contract_address, this.logger);
+      await this.fundGas(wallet);
+      const tx = await c.transfer(sourceAddress, amount);
+      const receipt = await tx.wait();
+      if (receipt === null) return failedReceiptOperation(1, "receipt is null");
 
-    const block = await receipt.getBlock();
-    if (block === null) return failedReceiptOperation(1, "block is null");
-    return buildReceiptOperation(receipt, ast, "release", quantity, source, undefined, exCtx, undefined, block.timestamp);
+      const block = await receipt.getBlock();
+      if (block === null) return failedReceiptOperation(1, "block is null");
+      return buildReceiptOperation(receipt, ast, "release", quantity, source, undefined, exCtx, undefined, block.timestamp);
+    } catch (e) {
+      this.logger.error(`Rollback failed: asset=${ast.assetId} source=${source.finId} quantity=${quantity}`, e);
+      return failedReceiptOperation(1, `${e}`);
+    }
   }
 }

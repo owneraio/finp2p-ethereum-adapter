@@ -26,6 +26,10 @@ const init = async () => {
     throw new Error("LEDGER_USER is not set");
   }
 
+  const finP2PUrl = process.env.FINP2P_ADDRESS;
+  const ossUrl = process.env.OSS_URL;
+  const finP2PClient = finP2PUrl && ossUrl ? new FinP2PClient(finP2PUrl, ossUrl) : undefined;
+
   const workflowsConfig = {
     migration: {
       connectionString: migrationConnectionString,
@@ -37,7 +41,7 @@ const init = async () => {
       ],
     },
     storage: { connectionString: dbConnectionString },
-    service: {},
+    finP2PClient,
   };
 
   const level = process.env.LOG_LEVEL || "info";
