@@ -76,6 +76,15 @@ export class FireblocksCustodyProvider implements CustodyProvider {
     });
   }
 
+  async resolveAddressFromCustodyId(vaultAccountId: string): Promise<string> {
+    const assetId = 'ETH_TEST5'; // TODO: make configurable
+    const addresses = await this.fireblocksSdk.getDepositAddresses(vaultAccountId, assetId);
+    if (addresses.length === 0) {
+      throw new Error(`No deposit address found for vault ${vaultAccountId} asset ${assetId}`);
+    }
+    return addresses[0].address;
+  }
+
   async onAssetRegistered(tokenAddress: string, symbol?: string): Promise<void> {
     const responseRegister = await this.fireblocksSdk.registerNewAsset(
       'ETH_TEST5', tokenAddress, symbol

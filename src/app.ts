@@ -8,6 +8,7 @@ import {
   PlanApprovalServiceImpl,
   PaymentsServiceImpl,
   workflows,
+  MappingConfig,
 } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import { createVanillaServices, registerDistributionRoutes } from "@owneraio/finp2p-vanilla-service";
 import { FinP2PClient } from "@owneraio/finp2p-client";
@@ -31,6 +32,7 @@ import {
   CommonServiceImpl as DirectCommonServiceImpl,
   HealthServiceImpl as DirectHealthServiceImpl,
 } from "./services/direct"
+import { CustodyMappingValidator, FIELD_CUSTODY_ACCOUNT_ID, FIELD_LEDGER_ACCOUNT_ID } from "./services/direct/mapping-validator";
 
 function resolveAccountMapping(appConfig: AppConfig): AccountMappingService {
   switch (appConfig.accountMappingType) {
@@ -42,11 +44,27 @@ function resolveAccountMapping(appConfig: AppConfig): AccountMappingService {
   }
 }
 
+function buildMappingConfig(custodyProvider?: CustodyProvider): MappingConfig {
+  const fields = [
+    { field: FIELD_LEDGER_ACCOUNT_ID, description: 'Ethereum address', exampleValue: '0x742d35Cc6634C0532925a3b844Bc9e7595f2bD18' },
+  ];
+  if (custodyProvider?.resolveAddressFromCustodyId) {
+    fields.unshift({
+      field: FIELD_CUSTODY_ACCOUNT_ID, description: 'Custody provider account ID (vault ID / wallet ID)', exampleValue: '85',
+    });
+  }
+  return {
+    fields,
+    validator: custodyProvider ? new CustodyMappingValidator(custodyProvider) : undefined,
+  };
+}
+
 function registerDirectServices(
   app: express.Application, logger: winston.Logger, custodyProvider: CustodyProvider, appConfig: AppConfig,
   paymentsService: PaymentsServiceImpl, pluginManager: PluginManager, workflowsConfig: workflows.Config | undefined,
 ) {
   const healthService = new DirectHealthServiceImpl(custodyProvider.rpcProvider);
+  const mappingConfig = buildMappingConfig(custodyProvider);
 
   if (appConfig.accountModel === 'omnibus') {
     if (!workflowsConfig?.storage) throw new Error('Workflows storage config is required for omnibus account model');
@@ -60,9 +78,7 @@ function registerDirectServices(
     // TODO(omnibus-inbound): use deterministic inbound idempotency key `${planId}:${instructionSequence}`
     // instead of request-scoped idempotency key to prevent duplicate credits on retried proposal callbacks.
     const planApprovalService = new PlanApprovalServiceImpl(appConfig.orgId, pluginManager, appConfig.finP2PClient, inboundTransferHook);
-    register(app, tokenService, escrowService, commonService, commonService, delegate, planApprovalService, pluginManager, workflowsConfig, {
-      fields: [{ field: 'ledgerAccountId', description: 'Ethereum address', exampleValue: '0x742d35Cc6634C0532925a3b844Bc9e7595f2bD18' }],
-    }, mappingService);
+    register(app, tokenService, escrowService, commonService, commonService, delegate, planApprovalService, pluginManager, workflowsConfig, mappingConfig, mappingService);
     if (distributionService) {
       registerDistributionRoutes(app, distributionService);
     }
@@ -70,12 +86,11 @@ function registerDirectServices(
   }
 
   const accountMapping = resolveAccountMapping(appConfig);
+  const dbMapping = accountMapping instanceof DbAccountMapping ? accountMapping : undefined;
   const tokenService = new DirectTokenService(logger, custodyProvider, accountMapping);
   const commonService = new DirectCommonServiceImpl();
   const planApprovalService = new PlanApprovalServiceImpl(appConfig.orgId, pluginManager, appConfig.finP2PClient);
-  register(app, tokenService, tokenService, commonService, healthService, paymentsService, planApprovalService, pluginManager, workflowsConfig, {
-    fields: [{ field: 'ledgerAccountId', description: 'Ethereum address', exampleValue: '0x742d35Cc6634C0532925a3b844Bc9e7595f2bD18' }],
-  });
+  register(app, tokenService, tokenService, commonService, healthService, paymentsService, planApprovalService, pluginManager, workflowsConfig, mappingConfig, dbMapping);
 }
 
 async function createApp(
@@ -115,9 +130,8 @@ async function createApp(
       const escrowService = new EscrowServiceImpl(appConfig.finP2PContract, appConfig.finP2PClient, appConfig.execDetailsStore, appConfig.proofProvider, pluginManager);
       const tokenService = new TokenServiceImpl(appConfig.finP2PContract, appConfig.finP2PClient, appConfig.execDetailsStore, appConfig.proofProvider, pluginManager);
       const mappingService = new CredentialsMappingService(appConfig.finP2PContract);
-      register(app, tokenService, escrowService, tokenService, tokenService, paymentsService, planApprovalService, pluginManager, workflowsConfig, {
-        fields: [{ field: 'ledgerAccountId', description: 'Ethereum address', exampleValue: '0x742d35Cc6634C0532925a3b844Bc9e7595f2bD18' }],
-      }, mappingService);
+      const mappingConfig = buildMappingConfig();
+      register(app, tokenService, escrowService, tokenService, tokenService, paymentsService, planApprovalService, pluginManager, workflowsConfig, mappingConfig, mappingService);
       break
     }
   }

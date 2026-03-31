@@ -50,6 +50,11 @@ export class DirectTokenService implements TokenService, EscrowService {
     return address;
   }
 
+  private async resolveDestinationAddress(destination: Destination): Promise<string> {
+    if (destination.account.type === 'crypto') return destination.account.address;
+    return this.resolveAddress(destination.finId);
+  }
+
   private async fundGas(wallet: CustodyWallet): Promise<void> {
     return fundGasIfNeeded(this.logger, this.custodyProvider.gasStation, wallet);
   }
@@ -98,8 +103,9 @@ export class DirectTokenService implements TokenService, EscrowService {
   }
 
   async getBalance(ast: Asset, finId: string): Promise<string> {
+    const address = await this.accountMapping.resolveAccount(finId);
+    if (address === undefined) return "0";
     const asset = await getAssetFromDb(ast);
-    const address = await this.resolveAddress(finId);
     const c = new ERC20Contract(this.custodyProvider.issuer.provider, this.custodyProvider.issuer.signer, asset.contract_address, this.logger);
     return formatUnits(await c.balanceOf(address), asset.decimals);
   }
@@ -145,7 +151,8 @@ export class DirectTokenService implements TokenService, EscrowService {
 
     const c = new ERC20Contract(wallet.provider, wallet.signer, asset.contract_address, this.logger);
     await this.fundGas(wallet);
-    const tx = await c.transfer(await this.resolveAddress(destination.finId), amount);
+    const destinationAddress = await this.resolveDestinationAddress(destination);
+    const tx = await c.transfer(destinationAddress, amount);
     const receipt = await tx.wait();
     if (receipt === null) return failedReceiptOperation(1, "receipt is null");
 
@@ -206,7 +213,7 @@ export class DirectTokenService implements TokenService, EscrowService {
     quantity: string, operationId: string, exCtx: ExecutionContext | undefined
   ): Promise<ReceiptOperation> {
     const asset = await getAssetFromDb(ast);
-    const destinationAddress = await this.resolveAddress(destination.finId);
+    const destinationAddress = await this.resolveDestinationAddress(destination);
     const wallet = this.custodyProvider.escrow;
     const amount = parseUnits(quantity, asset.decimals);
 
