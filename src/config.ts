@@ -1,6 +1,4 @@
-import * as fs from "fs";
-import { ApiBaseUrl, ChainId, FireblocksWeb3Provider } from "@fireblocks/fireblocks-web3-provider";
-import { BrowserProvider, JsonRpcProvider, NonceManager, Provider, Signer, Wallet } from "ethers";
+import { JsonRpcProvider, NonceManager, Provider, Signer, Wallet } from "ethers";
 import process from "process";
 import { FinP2PContract } from '@owneraio/finp2p-contracts'
 import { FinP2PClient } from '@owneraio/finp2p-client'
@@ -8,9 +6,8 @@ import { ExecDetailsStore } from './services/finp2p-contract/common'
 import { ProofProvider } from '@owneraio/finp2p-nodejs-skeleton-adapter'
 import { Logger } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import { InMemoryExecDetailsStore } from './services/finp2p-contract/exec-details-store'
-import { DfnsApiClient } from "@dfns/sdk";
-import { AsymmetricKeySigner } from "@dfns/sdk-keysigner";
-import { DfnsWallet } from "@dfns/lib-ethersjs6";
+import { FireblocksAppConfig, createFireblocksAppConfig } from './services/direct/fireblocks-config'
+import { DfnsAppConfig, createDfnsAppConfig } from './services/direct/dfns-config'
 
 export type AccountMappingType = 'derivation' | 'database'
 
@@ -54,37 +51,8 @@ export type FinP2PContractAppConfig = BaseAppConfig & {
   execDetailsStore: ExecDetailsStore | undefined
 }
 
-export type FireblocksAppConfig = BaseAppConfig & {
-  type: 'fireblocks'
-  apiKey: string
-  apiPrivateKey: string
-  chainId: ChainId
-  apiBaseUrl: ApiBaseUrl | string
-  assetIssuerVaultId: string
-  assetEscrowVaultId: string
-  omnibusVaultId?: string
-  gasFunding?: {
-    vaultId: string
-    amount: string
-  }
-}
-
-export type DfnsAppConfig = BaseAppConfig & {
-  type: 'dfns'
-  dfnsBaseUrl: string
-  dfnsOrgId: string
-  dfnsAuthToken: string
-  dfnsCredId: string
-  dfnsPrivateKey: string
-  rpcUrl: string
-  assetIssuerWalletId: string
-  assetEscrowWalletId: string
-  omnibusWalletId?: string
-  gasFunding?: {
-    walletId: string
-    amount: string
-  }
-}
+export { FireblocksAppConfig } from './services/direct/fireblocks-config'
+export { DfnsAppConfig } from './services/direct/dfns-config'
 
 export type AppConfig = FinP2PContractAppConfig | FireblocksAppConfig | DfnsAppConfig
 
@@ -118,160 +86,6 @@ export const createJsonProvider = (
   }
 
   return { provider, signer };
-};
-
-export const createFireblocksEthersProvider = async (config: {
-  apiKey: string;
-  privateKey: string;
-  chainId: ChainId;
-  apiBaseUrl?: ApiBaseUrl | string;
-  vaultAccountIds: number | number[] | string | string[];
-}): Promise<{ provider: Provider; signer: Signer }> => {
-  const eip1193Provider = new FireblocksWeb3Provider({
-    privateKey: config.privateKey,
-    apiKey: config.apiKey,
-    chainId: config.chainId,
-    apiBaseUrl: config.apiBaseUrl,
-    vaultAccountIds: config.vaultAccountIds,
-  });
-  const provider = new BrowserProvider(eip1193Provider);
-  const signer = await provider.getSigner();
-  return { provider, signer };
-};
-
-export const createDfnsEthersProvider = async (config: {
-  dfnsClient: DfnsApiClient;
-  walletId: string;
-  rpcUrl: string;
-}): Promise<{ provider: Provider; signer: Signer }> => {
-  const provider = new JsonRpcProvider(config.rpcUrl);
-  const dfnsWallet = await DfnsWallet.init({
-    walletId: config.walletId,
-    dfnsClient: config.dfnsClient,
-  });
-  const signer = dfnsWallet.connect(provider);
-  return { provider, signer };
-};
-
-const createDfnsProvider = async (): Promise<Omit<DfnsAppConfig, 'accountMappingType' | 'accountModel'>> => {
-  const orgId = process.env.ORGANIZATION_ID || '';
-  const dfnsBaseUrl = process.env.DFNS_BASE_URL || 'https://api.dfns.io';
-  const dfnsOrgId = process.env.DFNS_ORG_ID;
-  if (!dfnsOrgId) throw new Error('DFNS_ORG_ID is not set');
-
-  const dfnsAuthToken = process.env.DFNS_AUTH_TOKEN;
-  if (!dfnsAuthToken) throw new Error('DFNS_AUTH_TOKEN is not set');
-
-  const dfnsCredId = process.env.DFNS_CRED_ID;
-  if (!dfnsCredId) throw new Error('DFNS_CRED_ID is not set');
-
-  const privateKeyPath = process.env.DFNS_PRIVATE_KEY_PATH;
-  const privateKeyEnv = process.env.DFNS_PRIVATE_KEY;
-  const dfnsPrivateKey = privateKeyPath
-    ? fs.readFileSync(privateKeyPath, 'utf-8')
-    : privateKeyEnv;
-  if (!dfnsPrivateKey) throw new Error('DFNS_PRIVATE_KEY or DFNS_PRIVATE_KEY_PATH is not set');
-
-  const rpcUrl = getNetworkRpcUrl();
-  const provider = new JsonRpcProvider(rpcUrl);
-
-  const issuerWalletId = process.env.DFNS_ASSET_ISSUER_WALLET_ID;
-  if (!issuerWalletId) throw new Error('DFNS_ASSET_ISSUER_WALLET_ID is not set');
-
-  const escrowWalletId = process.env.DFNS_ASSET_ESCROW_WALLET_ID;
-  if (!escrowWalletId) throw new Error('DFNS_ASSET_ESCROW_WALLET_ID is not set');
-
-  const omnibusWalletId = process.env.DFNS_OMNIBUS_WALLET_ID || undefined;
-
-  // Use issuer wallet as the common signer
-  const keySigner = new AsymmetricKeySigner({ credId: dfnsCredId, privateKey: dfnsPrivateKey });
-  const dfnsClient = new DfnsApiClient({ baseUrl: dfnsBaseUrl, orgId: dfnsOrgId, authToken: dfnsAuthToken, signer: keySigner });
-  const { signer } = await createDfnsEthersProvider({ dfnsClient, walletId: issuerWalletId, rpcUrl });
-
-  let gasFunding: DfnsAppConfig['gasFunding'] = undefined
-  const fundingWalletId = process.env.DFNS_GAS_FUNDING_WALLET_ID
-  const fundingAmount = process.env.DFNS_GAS_FUNDING_AMOUNT
-  if (fundingWalletId !== undefined && fundingAmount !== undefined) {
-    gasFunding = { walletId: fundingWalletId, amount: fundingAmount }
-  }
-
-  return {
-    type: 'dfns',
-    orgId,
-    provider,
-    signer,
-    finP2PClient: undefined,
-    proofProvider: undefined,
-    dfnsBaseUrl,
-    dfnsOrgId,
-    dfnsAuthToken,
-    dfnsCredId,
-    dfnsPrivateKey,
-    rpcUrl,
-    assetIssuerWalletId: issuerWalletId,
-    assetEscrowWalletId: escrowWalletId,
-    omnibusWalletId,
-    gasFunding,
-  };
-};
-
-const createFireblocksProvider = async (): Promise<Omit<FireblocksAppConfig, 'accountMappingType' | 'accountModel'>> => {
-  const orgId = process.env.ORGANIZATION_ID || '';
-  const apiKey = process.env.FIREBLOCKS_API_KEY || "";
-  if (!apiKey) {
-    throw new Error("FIREBLOCKS_API_KEY is not set");
-  }
-
-  let apiPrivateKey: string;
-  if (process.env.FIREBLOCKS_API_PRIVATE_KEY) {
-    apiPrivateKey = process.env.FIREBLOCKS_API_PRIVATE_KEY;
-  } else if (process.env.FIREBLOCKS_API_PRIVATE_KEY_BASE64) {
-    apiPrivateKey = Buffer.from(process.env.FIREBLOCKS_API_PRIVATE_KEY_BASE64, "base64").toString("utf-8");
-  } else {
-    throw new Error("FIREBLOCKS_API_PRIVATE_KEY or FIREBLOCKS_API_PRIVATE_KEY_BASE64 must be set");
-  }
-
-  const chainId = (process.env.FIREBLOCKS_CHAIN_ID || ChainId.MAINNET) as ChainId;
-  const apiBaseUrl = (process.env.FIREBLOCKS_API_BASE_URL || ApiBaseUrl.Production) as ApiBaseUrl;
-
-  const requireVaultIdEnv = (envVar: string): string => {
-    const val = process.env[envVar]
-    if (val === undefined || val === '') throw new Error(`${envVar} environment variable expected but not set or empty`)
-    return val
-  }
-
-  const assetIssuerVaultId = requireVaultIdEnv('FIREBLOCKS_ASSET_ISSUER_VAULT_ID')
-  const assetEscrowVaultId = requireVaultIdEnv('FIREBLOCKS_ASSET_ESCROW_VAULT_ID')
-  const omnibusVaultId = process.env.FIREBLOCKS_OMNIBUS_VAULT_ID || undefined
-
-  // Use issuer vault as the common provider/signer
-  const { provider, signer } = await createFireblocksEthersProvider({
-    apiKey, privateKey: apiPrivateKey, chainId, apiBaseUrl, vaultAccountIds: [assetIssuerVaultId]
-  });
-
-  let gasFunding: FireblocksAppConfig['gasFunding'] = undefined
-  const fundingVaultId = process.env.FIREBLOCKS_GAS_FUNDING_VAULT_ID
-  const fundingAssetAmount = process.env.FIREBLOCKS_GAS_FUNDING_AMOUNT
-  if (fundingVaultId !== undefined && fundingAssetAmount !== undefined) {
-    gasFunding = { vaultId: fundingVaultId, amount: fundingAssetAmount }
-  }
-
-  return {
-    type: 'fireblocks',
-    orgId,
-    provider,
-    signer,
-    finP2PClient: undefined,
-    proofProvider: undefined,
-    apiKey,
-    apiPrivateKey,
-    chainId,
-    apiBaseUrl,
-    assetIssuerVaultId,
-    assetEscrowVaultId,
-    omnibusVaultId,
-    gasFunding,
-  };
 };
 
 export async function envVarsToAppConfig(logger: Logger): Promise<AppConfig> {
@@ -342,10 +156,10 @@ export async function envVarsToAppConfig(logger: Logger): Promise<AppConfig> {
       }
     }
     case 'fireblocks': {
-      return { ...await createFireblocksProvider(), accountMappingType, accountModel }
+      return { ...await createFireblocksAppConfig(), accountMappingType, accountModel }
     }
     case 'dfns': {
-      return { ...await createDfnsProvider(), accountMappingType, accountModel }
+      return { ...await createDfnsAppConfig(), accountMappingType, accountModel }
     }
   }
 }
@@ -409,7 +223,7 @@ function printUsage(scriptName: string, params: ParamDefinition[], missingParams
   });
 
   if (missingParams && missingParams.length > 0) {
-    console.error(`\n❌ Missing required parameters: ${missingParams.join(", ")}`);
+    console.error(`\nMissing required parameters: ${missingParams.join(", ")}`);
   }
 
   console.error("\nExamples:");

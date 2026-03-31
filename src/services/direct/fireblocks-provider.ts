@@ -1,5 +1,5 @@
 import { FireblocksSDK } from 'fireblocks-sdk';
-import { createFireblocksEthersProvider, FireblocksAppConfig } from '../../config';
+import { createFireblocksEthersProvider, FireblocksAppConfig } from './fireblocks-config';
 import { createVaultManagementFunctions } from '../../vaults';
 import { CustodyProvider, CustodyWallet, GasStation } from './custody-provider';
 
