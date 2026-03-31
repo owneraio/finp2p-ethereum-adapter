@@ -1,42 +1,22 @@
-import { BrowserProvider, Provider, Signer } from "ethers";
+import { JsonRpcProvider, Provider, Signer } from "ethers";
 import { BaseAppConfig } from "../../config";
-
-// eslint-disable-next-line @typescript-eslint/no-var-requires
-const loadBuilderVaultProvider = () => require("@blockdaemon/buildervault-web3-provider");
+import { InstitutionalVaultClient } from "./blockdaemon/iv-client";
+import { IVSigner } from "./blockdaemon/iv-signer";
 
 export type BlockdaemonAppConfig = BaseAppConfig & {
   type: 'blockdaemon'
-  rpcUrl: string
-  masterKeyId: string
-  assetIssuerAddressIndex: number
-  assetEscrowAddressIndex: number
-  omnibusAddressIndex?: number
+  ivClient: InstitutionalVaultClient
+  ivApiUrl: string
+  ivNetwork: string
+  nativeAssetID: number
+  assetIssuerAccountID: number
+  assetEscrowAccountID: number
+  omnibusAccountID?: number
   gasFunding?: {
-    addressIndex: number
+    accountID: number
     amount: string
   }
 }
-
-export const createBlockdaemonEthersProvider = async (config: {
-  rpcUrl: string
-  masterKeyId: string
-  accountId?: number
-  addressIndex: number
-}): Promise<{ provider: Provider; signer: Signer }> => {
-  const mod = loadBuilderVaultProvider();
-  const BuilderVaultProvider = mod.default || mod;
-
-  const eip1193Provider = new BuilderVaultProvider({
-    chains: [{ rpcUrl: config.rpcUrl }],
-    masterKeyId: config.masterKeyId,
-    accountId: config.accountId ?? 0,
-    addressIndex: config.addressIndex,
-  });
-
-  const provider = new BrowserProvider(eip1193Provider);
-  const signer = await provider.getSigner();
-  return { provider, signer };
-};
 
 const getNetworkRpcUrl = (): string => {
   let networkHost = process.env.NETWORK_HOST;
@@ -56,31 +36,72 @@ const getNetworkRpcUrl = (): string => {
   return networkHost;
 };
 
+/**
+ * Resolve the Ethereum address for a given IV account.
+ * Looks up the account's Ethereum assets and returns the first address on the
+ * matching network.
+ */
+async function resolveAccountAddress(
+  ivClient: InstitutionalVaultClient,
+  accountID: number,
+  network: string,
+): Promise<string> {
+  const account = await ivClient.getAccount(accountID);
+  for (const aa of account.config.assets ?? []) {
+    if (aa.asset.config.protocol !== 'ethereum') continue;
+    if (aa.asset.config.network !== network) continue;
+    for (const addr of aa.addresses) {
+      if (addr.config.address) return addr.config.address;
+    }
+  }
+  throw new Error(`No Ethereum/${network} address found for IV account ${accountID}`);
+}
+
+export async function createIVWallet(
+  ivClient: InstitutionalVaultClient,
+  accountID: number,
+  nativeAssetID: number,
+  network: string,
+  rpcProvider: JsonRpcProvider,
+): Promise<{ provider: Provider; signer: Signer }> {
+  const address = await resolveAccountAddress(ivClient, accountID, network);
+  const signer = new IVSigner(address, accountID, nativeAssetID, ivClient, rpcProvider);
+  return { provider: rpcProvider, signer };
+}
+
 export async function createBlockdaemonAppConfig(): Promise<Omit<BlockdaemonAppConfig, 'accountMappingType' | 'accountModel'>> {
   const orgId = process.env.ORGANIZATION_ID || '';
 
+  const ivApiUrl = process.env.BLOCKDAEMON_API_URL;
+  if (!ivApiUrl) throw new Error('BLOCKDAEMON_API_URL is not set');
+
+  const ivApiKey = process.env.BLOCKDAEMON_API_KEY;
+  if (!ivApiKey) throw new Error('BLOCKDAEMON_API_KEY is not set');
+
+  const ivNetwork = process.env.BLOCKDAEMON_NETWORK || 'hoodi';
+
+  const nativeAssetID = parseInt(process.env.BLOCKDAEMON_NATIVE_ASSET_ID || '12', 10);
+
+  const issuerAccountID = parseInt(process.env.BLOCKDAEMON_ASSET_ISSUER_ACCOUNT_ID || '', 10);
+  if (isNaN(issuerAccountID)) throw new Error('BLOCKDAEMON_ASSET_ISSUER_ACCOUNT_ID is not set');
+
+  const escrowAccountID = parseInt(process.env.BLOCKDAEMON_ASSET_ESCROW_ACCOUNT_ID || '', 10);
+  if (isNaN(escrowAccountID)) throw new Error('BLOCKDAEMON_ASSET_ESCROW_ACCOUNT_ID is not set');
+
+  const ivClient = new InstitutionalVaultClient(ivApiUrl, ivApiKey);
   const rpcUrl = getNetworkRpcUrl();
+  const rpcProvider = new JsonRpcProvider(rpcUrl);
 
-  const masterKeyId = process.env.BLOCKDAEMON_MASTER_KEY_ID;
-  if (!masterKeyId) throw new Error('BLOCKDAEMON_MASTER_KEY_ID is not set');
+  const { provider, signer } = await createIVWallet(ivClient, issuerAccountID, nativeAssetID, ivNetwork, rpcProvider);
 
-  const assetIssuerAddressIndex = parseInt(process.env.BLOCKDAEMON_ASSET_ISSUER_ADDRESS_INDEX || '0', 10);
-  const assetEscrowAddressIndex = parseInt(process.env.BLOCKDAEMON_ASSET_ESCROW_ADDRESS_INDEX || '1', 10);
-
-  const { provider, signer } = await createBlockdaemonEthersProvider({
-    rpcUrl,
-    masterKeyId,
-    addressIndex: assetIssuerAddressIndex,
-  });
-
-  const omnibusAddressIndexStr = process.env.BLOCKDAEMON_OMNIBUS_ADDRESS_INDEX;
-  const omnibusAddressIndex = omnibusAddressIndexStr !== undefined ? parseInt(omnibusAddressIndexStr, 10) : undefined;
+  const omnibusAccountIDStr = process.env.BLOCKDAEMON_OMNIBUS_ACCOUNT_ID;
+  const omnibusAccountID = omnibusAccountIDStr ? parseInt(omnibusAccountIDStr, 10) : undefined;
 
   let gasFunding: BlockdaemonAppConfig['gasFunding'] = undefined;
-  const fundingAddressIndexStr = process.env.BLOCKDAEMON_GAS_FUNDING_ADDRESS_INDEX;
+  const fundingAccountIDStr = process.env.BLOCKDAEMON_GAS_FUNDING_ACCOUNT_ID;
   const fundingAmount = process.env.BLOCKDAEMON_GAS_FUNDING_AMOUNT;
-  if (fundingAddressIndexStr !== undefined && fundingAmount !== undefined) {
-    gasFunding = { addressIndex: parseInt(fundingAddressIndexStr, 10), amount: fundingAmount };
+  if (fundingAccountIDStr !== undefined && fundingAmount !== undefined) {
+    gasFunding = { accountID: parseInt(fundingAccountIDStr, 10), amount: fundingAmount };
   }
 
   return {
@@ -90,11 +111,13 @@ export async function createBlockdaemonAppConfig(): Promise<Omit<BlockdaemonAppC
     signer,
     finP2PClient: undefined,
     proofProvider: undefined,
-    rpcUrl,
-    masterKeyId,
-    assetIssuerAddressIndex,
-    assetEscrowAddressIndex,
-    omnibusAddressIndex,
+    ivClient,
+    ivApiUrl,
+    ivNetwork,
+    nativeAssetID,
+    assetIssuerAccountID: issuerAccountID,
+    assetEscrowAccountID: escrowAccountID,
+    omnibusAccountID,
     gasFunding,
   };
 }
