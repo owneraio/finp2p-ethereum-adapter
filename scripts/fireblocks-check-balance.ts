@@ -4,7 +4,7 @@ import { resolve } from "node:path";
 import { FireblocksSDK } from "fireblocks-sdk";
 import { ApiBaseUrl, ChainId } from "@fireblocks/fireblocks-web3-provider";
 import { ethers } from "ethers";
-import { createFireblocksEthersProvider } from "../src/config";
+import { createFireblocksEthersProvider } from "../src/services/direct/fireblocks-config";
 
 dotenv.config({ path: resolve(process.cwd(), ".env.fireblocks") });
 
