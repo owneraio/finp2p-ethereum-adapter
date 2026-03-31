@@ -1,6 +1,6 @@
 import { JsonRpcProvider, Provider, Signer } from "ethers";
 import { BaseAppConfig } from "../../config";
-import { InstitutionalVaultClient } from "./blockdaemon/iv-client";
+import { InstitutionalVaultClient, Account } from "./blockdaemon/iv-client";
 import { IVSigner } from "./blockdaemon/iv-signer";
 
 export type BlockdaemonAppConfig = BaseAppConfig & {
@@ -37,9 +37,29 @@ const getNetworkRpcUrl = (): string => {
 };
 
 /**
- * Resolve the Ethereum address for a given IV account.
- * Looks up the account's Ethereum assets and returns the first address on the
- * matching network.
+ * Discover the Ethereum network and native asset ID from an IV account.
+ * Looks at the account's assets to find the first Ethereum-protocol entry
+ * with no contractAddress (i.e. the native ETH asset).
+ */
+function discoverEthereumContext(account: Account): { network: string; nativeAssetID: number } {
+  for (const aa of account.config.assets ?? []) {
+    if (aa.asset.config.protocol !== 'ethereum') continue;
+    // Native asset has no contract address
+    if (!aa.asset.config.contractAddress) {
+      return {
+        network: aa.asset.config.network,
+        nativeAssetID: aa.asset.metadata.id,
+      };
+    }
+  }
+  throw new Error(
+    `IV account ${account.metadata.id} (${account.metadata.name}) has no Ethereum native asset. ` +
+    `Add ETH to the account first.`
+  );
+}
+
+/**
+ * Resolve the Ethereum address for a given IV account on a specific network.
  */
 async function resolveAccountAddress(
   ivClient: InstitutionalVaultClient,
@@ -78,10 +98,6 @@ export async function createBlockdaemonAppConfig(): Promise<Omit<BlockdaemonAppC
   const ivApiKey = process.env.BLOCKDAEMON_API_KEY;
   if (!ivApiKey) throw new Error('BLOCKDAEMON_API_KEY is not set');
 
-  const ivNetwork = process.env.BLOCKDAEMON_NETWORK || 'hoodi';
-
-  const nativeAssetID = parseInt(process.env.BLOCKDAEMON_NATIVE_ASSET_ID || '12', 10);
-
   const issuerAccountID = parseInt(process.env.BLOCKDAEMON_ASSET_ISSUER_ACCOUNT_ID || '', 10);
   if (isNaN(issuerAccountID)) throw new Error('BLOCKDAEMON_ASSET_ISSUER_ACCOUNT_ID is not set');
 
@@ -89,6 +105,11 @@ export async function createBlockdaemonAppConfig(): Promise<Omit<BlockdaemonAppC
   if (isNaN(escrowAccountID)) throw new Error('BLOCKDAEMON_ASSET_ESCROW_ACCOUNT_ID is not set');
 
   const ivClient = new InstitutionalVaultClient(ivApiUrl, ivApiKey);
+
+  // Discover network and native asset ID from the issuer account
+  const issuerAccount = await ivClient.getAccount(issuerAccountID);
+  const { network: ivNetwork, nativeAssetID } = discoverEthereumContext(issuerAccount);
+
   const rpcUrl = getNetworkRpcUrl();
   const rpcProvider = new JsonRpcProvider(rpcUrl);
 
