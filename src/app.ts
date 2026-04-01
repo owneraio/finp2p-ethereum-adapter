@@ -24,6 +24,10 @@ import {
   DirectTokenService,
   CustodyProvider,
   custodyRegistry,
+  FireblocksCustodyProvider,
+  FireblocksAppConfig,
+  DfnsCustodyProvider,
+  DfnsAppConfig,
   DerivationAccountMapping,
   DbAccountMapping,
   AccountMappingService,
@@ -31,9 +35,10 @@ import {
   CommonServiceImpl as DirectCommonServiceImpl,
   HealthServiceImpl as DirectHealthServiceImpl,
 } from "./services/direct"
-// Import provider modules to trigger self-registration in the custody registry
-import "./services/direct/fireblocks-provider"
-import "./services/direct/dfns-provider"
+
+// Register compiled-in custody providers
+custodyRegistry.register('fireblocks', (config) => FireblocksCustodyProvider.create(config as FireblocksAppConfig));
+custodyRegistry.register('dfns', (config) => DfnsCustodyProvider.create(config as DfnsAppConfig));
 import { CustodyMappingValidator, FIELD_CUSTODY_ACCOUNT_ID, FIELD_LEDGER_ACCOUNT_ID } from "./services/direct/mapping-validator";
 
 function resolveAccountMapping(appConfig: AppConfig): AccountMappingService {

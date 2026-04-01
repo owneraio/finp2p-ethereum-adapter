@@ -2,7 +2,6 @@ import { FireblocksSDK } from 'fireblocks-sdk';
 import { createFireblocksEthersProvider, FireblocksAppConfig } from './fireblocks-config';
 import { createVaultManagementFunctions } from '../../vaults';
 import { CustodyProvider, CustodyWallet, GasStation } from './custody-provider';
-import { custodyRegistry } from './custody-registry';
 
 export class FireblocksCustodyProvider implements CustodyProvider {
   readonly issuer: CustodyWallet;
@@ -95,7 +94,3 @@ export class FireblocksCustodyProvider implements CustodyProvider {
     );
   }
 }
-
-custodyRegistry.register('fireblocks', (appConfig) =>
-  FireblocksCustodyProvider.create(appConfig as FireblocksAppConfig)
-);

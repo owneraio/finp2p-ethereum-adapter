@@ -1,18 +1,28 @@
-import { AppConfig } from '../../config';
 import { CustodyProvider } from './custody-provider';
 
 /**
- * Factory function that creates a CustodyProvider from application config.
- * Each custody module registers one of these at boot time.
+ * Factory function that creates a CustodyProvider from provider-specific config.
+ * Each custody module exports one of these.
  */
-export type CustodyProviderFactory = (appConfig: AppConfig) => Promise<CustodyProvider>;
+export type CustodyProviderFactory<TConfig = any> = (config: TConfig) => Promise<CustodyProvider>;
 
 /**
  * Embedded registry for custody provider modules.
  *
  * Provides config-driven activation: the adapter ships with all compiled-in
  * providers and selects the active one based on PROVIDER_TYPE at boot time.
- * No dynamic loading — all providers are statically imported and registered.
+ *
+ * Registration is explicit — the adapter's bootstrap code imports provider
+ * modules and registers their factories. This works for both in-repo providers
+ * and external packages:
+ *
+ *   // In-repo provider
+ *   import { FireblocksCustodyProvider } from './fireblocks-provider';
+ *   custodyRegistry.register('fireblocks', config => FireblocksCustodyProvider.create(config));
+ *
+ *   // External package
+ *   import { BlockdaemonCustodyProvider } from '@owneraio/finp2p-custody-blockdaemon';
+ *   custodyRegistry.register('blockdaemon', config => BlockdaemonCustodyProvider.create(config));
  */
 class CustodyProviderRegistry {
   private factories = new Map<string, CustodyProviderFactory>();
@@ -24,13 +34,13 @@ class CustodyProviderRegistry {
     this.factories.set(providerType, factory);
   }
 
-  async create(providerType: string, appConfig: AppConfig): Promise<CustodyProvider> {
+  async create(providerType: string, config: any): Promise<CustodyProvider> {
     const factory = this.factories.get(providerType);
     if (!factory) {
       const available = Array.from(this.factories.keys()).join(', ');
       throw new Error(`Unknown custody provider type: '${providerType}'. Available: ${available}`);
     }
-    return factory(appConfig);
+    return factory(config);
   }
 
   has(providerType: string): boolean {
@@ -42,5 +52,5 @@ class CustodyProviderRegistry {
   }
 }
 
-/** Singleton registry — providers register themselves at import time. */
+/** Singleton registry — populated at bootstrap before the app starts. */
 export const custodyRegistry = new CustodyProviderRegistry();
