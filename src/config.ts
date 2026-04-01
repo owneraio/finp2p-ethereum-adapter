@@ -54,7 +54,16 @@ export type FinP2PContractAppConfig = BaseAppConfig & {
 export { FireblocksAppConfig } from './services/direct/fireblocks-config'
 export { DfnsAppConfig } from './services/direct/dfns-config'
 
-export type AppConfig = FinP2PContractAppConfig | FireblocksAppConfig | DfnsAppConfig
+/**
+ * Generic config for custody providers activated via the registry.
+ * The provider factory is responsible for reading its own env vars.
+ * The type excludes known built-in types to allow TypeScript narrowing.
+ */
+export type CustodyAppConfig = BaseAppConfig & {
+  type: string
+}
+
+export type AppConfig = FinP2PContractAppConfig | FireblocksAppConfig | DfnsAppConfig | CustodyAppConfig
 
 const getNetworkRpcUrl = (): string => {
   let networkHost = process.env.NETWORK_HOST;
@@ -160,6 +169,23 @@ export async function envVarsToAppConfig(logger: Logger): Promise<AppConfig> {
     }
     case 'dfns': {
       return { ...await createDfnsAppConfig(), accountMappingType, accountModel }
+    }
+    default: {
+      // For registry-based providers: return generic config.
+      // The provider factory reads its own env vars.
+      const orgId = process.env.ORGANIZATION_ID || '';
+      const rpcUrl = getNetworkRpcUrl();
+      const provider = new JsonRpcProvider(rpcUrl);
+      return {
+        type: configType,
+        orgId,
+        provider,
+        signer: provider as any, // Provider-factory will set up the real signer
+        finP2PClient: undefined,
+        proofProvider: undefined,
+        accountMappingType,
+        accountModel,
+      } as CustodyAppConfig;
     }
   }
 }
