@@ -10,6 +10,7 @@ import {
   workflows,
   MappingConfig,
 } from "@owneraio/finp2p-nodejs-skeleton-adapter";
+import { register as registerDtcc } from "@owneraio/finp2p-ethereum-dtcc-plugin";
 import { createVanillaServices, registerDistributionRoutes } from "@owneraio/finp2p-vanilla-service";
 import { FinP2PClient } from "@owneraio/finp2p-client";
 import { FinP2PContract } from "@owneraio/finp2p-contracts";
@@ -116,6 +117,20 @@ async function createApp(
   }));
 
   const pluginManager = new PluginManager();
+
+  // Runtime plugin activation
+  if (process.env.DTCC_PLUGIN_ENABLED === 'true') {
+    if (appConfig.type !== 'finp2p-contract') {
+      throw new Error('DTCC plugin currently needs finp2p-contract mode');
+    }
+    if (!workflowsConfig?.finP2PClient) {
+      throw new Error('DTCC plugin requires finP2PClient in workflow config (set FINP2P_ADDRESS and OSS_URL)');
+    }
+    const contractConfig = appConfig as FinP2PContractAppConfig;
+    await registerDtcc(pluginManager, contractConfig.finP2PContract, workflowsConfig.finP2PClient, contractConfig.orgId, logger);
+    logger.info('DTCC plugin activated');
+  }
+
   const paymentsService = new PaymentsServiceImpl(pluginManager);
 
   if (custodyRegistry.has(appConfig.type)) {
