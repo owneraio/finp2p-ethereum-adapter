@@ -1,6 +1,6 @@
 import { ContractTransactionResponse, Provider, Signer } from 'ethers';
 import winston from 'winston';
-import { CustodyWallet } from './custody-provider';
+import { CustodyWallet } from '../custody-provider';
 
 /**
  * Stored asset data from the DB, used to resolve the token standard.

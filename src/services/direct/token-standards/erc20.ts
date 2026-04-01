@@ -1,8 +1,8 @@
 import { ContractTransactionResponse, Provider, Signer } from 'ethers';
 import { ContractsManager, ERC20Contract } from '@owneraio/finp2p-contracts';
 import winston from 'winston';
-import { CustodyWallet } from './custody-provider';
-import { AssetRecord, DeployResult, TokenStandard } from './token-standard';
+import { CustodyWallet } from '../custody-provider';
+import { AssetRecord, DeployResult, TokenStandard } from './interface';
 
 export const ERC20_TOKEN_STANDARD = 'ERC20';
 

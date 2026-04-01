@@ -10,8 +10,8 @@ import { parseUnits, formatUnits, TransactionReceipt } from "ethers";
 import { CustodyProvider, CustodyWallet } from './custody-provider';
 import { AccountMappingService } from './account-mapping';
 import { getAssetFromDb, fundGasIfNeeded } from './helpers';
-import { tokenStandardRegistry } from './token-standard-registry';
-import { ERC20_TOKEN_STANDARD } from './token-standard-erc20';
+import { tokenStandardRegistry } from './token-standards/registry';
+import { ERC20_TOKEN_STANDARD } from './token-standards/erc20';
 
 function buildReceiptOperation(
   receipt: TransactionReceipt, asset: Asset, operationType: OperationType, quantity: string,

@@ -1,4 +1,4 @@
-import { TokenStandard } from './token-standard';
+import { TokenStandard } from './interface';
 
 /**
  * Registry for token standard implementations in direct mode.

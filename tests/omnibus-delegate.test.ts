@@ -1,7 +1,10 @@
 import { OmnibusDelegate } from '../src/services/direct/omnibus-delegate';
 import { CustodyProvider, CustodyWallet } from '../src/services/direct/custody-provider';
 import { AccountMappingService } from '../src/services/direct/account-mapping';
+import { registerBuiltinTokenStandards } from '../src/services/direct/token-standards/register-builtins';
 import winston from 'winston';
+
+registerBuiltinTokenStandards();
 
 // Mock @owneraio/finp2p-contracts
 const mockBalanceOf = jest.fn();
