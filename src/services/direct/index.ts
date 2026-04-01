@@ -1,4 +1,5 @@
 export * from './custody-provider'
+export * from './custody-registry'
 export * from './account-mapping'
 export * from './token-service'
 export * from './common'

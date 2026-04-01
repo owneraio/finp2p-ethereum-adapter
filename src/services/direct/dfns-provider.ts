@@ -2,8 +2,9 @@ import { DfnsApiClient } from '@dfns/sdk';
 import { AsymmetricKeySigner } from '@dfns/sdk-keysigner';
 import { DfnsWallet } from '@dfns/lib-ethersjs6';
 import { JsonRpcProvider } from 'ethers';
-import { DfnsAppConfig } from '../../config';
+import { DfnsAppConfig } from './dfns-config';
 import { CustodyProvider, CustodyWallet, GasStation } from './custody-provider';
+import { custodyRegistry } from './custody-registry';
 
 export class DfnsCustodyProvider implements CustodyProvider {
   readonly issuer: CustodyWallet;
@@ -88,3 +89,7 @@ export class DfnsCustodyProvider implements CustodyProvider {
     return wallet.address;
   }
 }
+
+custodyRegistry.register('dfns', (appConfig) =>
+  DfnsCustodyProvider.create(appConfig as DfnsAppConfig)
+);
