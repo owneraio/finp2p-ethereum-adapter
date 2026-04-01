@@ -19,7 +19,7 @@ import {
   ExecDetailsStore,
   TokenServiceImpl
 } from "./services/finp2p-contract";
-import { AppConfig } from './config'
+import { AppConfig, FinP2PContractAppConfig } from './config'
 import {
   DirectTokenService,
   CustodyProvider,
@@ -119,16 +119,18 @@ async function createApp(
   const paymentsService = new PaymentsServiceImpl(pluginManager);
 
   if (custodyRegistry.has(appConfig.type)) {
+    logger.info(`Activating custody provider: ${appConfig.type} (available: ${custodyRegistry.availableProviders.join(', ')})`);
     const custodyProvider = await custodyRegistry.create(appConfig.type, appConfig);
     registerDirectServices(app, logger, custodyProvider, appConfig, paymentsService, pluginManager, workflowsConfig);
   } else if (appConfig.type === 'finp2p-contract') {
-    if (appConfig.accountModel === 'omnibus') {
+    const contractConfig = appConfig as FinP2PContractAppConfig;
+    if (contractConfig.accountModel === 'omnibus') {
       throw new Error('Omnibus account model is not supported with finp2p-contract provider');
     }
-    const planApprovalService = new PlanApprovalServiceImpl(appConfig.orgId, pluginManager, appConfig.finP2PClient);
-    const escrowService = new EscrowServiceImpl(appConfig.finP2PContract, appConfig.finP2PClient, appConfig.execDetailsStore, appConfig.proofProvider, pluginManager);
-    const tokenService = new TokenServiceImpl(appConfig.finP2PContract, appConfig.finP2PClient, appConfig.execDetailsStore, appConfig.proofProvider, pluginManager);
-    const mappingService = new CredentialsMappingService(appConfig.finP2PContract);
+    const planApprovalService = new PlanApprovalServiceImpl(contractConfig.orgId, pluginManager, contractConfig.finP2PClient);
+    const escrowService = new EscrowServiceImpl(contractConfig.finP2PContract, contractConfig.finP2PClient, contractConfig.execDetailsStore, contractConfig.proofProvider, pluginManager);
+    const tokenService = new TokenServiceImpl(contractConfig.finP2PContract, contractConfig.finP2PClient, contractConfig.execDetailsStore, contractConfig.proofProvider, pluginManager);
+    const mappingService = new CredentialsMappingService(contractConfig.finP2PContract);
     const mappingConfig = buildMappingConfig();
     register(app, tokenService, escrowService, tokenService, tokenService, paymentsService, planApprovalService, pluginManager, workflowsConfig, mappingConfig, mappingService);
   } else {
