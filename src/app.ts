@@ -120,14 +120,17 @@ async function createApp(
 
   // Runtime plugin activation
   if (process.env.DTCC_PLUGIN_ENABLED === 'true') {
-    if (appConfig.type !== 'finp2p-contract') {
-      throw new Error('DTCC plugin currently needs finp2p-contract mode');
-    }
     if (!workflowsConfig?.finP2PClient) {
       throw new Error('DTCC plugin requires finP2PClient in workflow config (set FINP2P_ADDRESS and OSS_URL)');
     }
-    const contractConfig = appConfig as FinP2PContractAppConfig;
-    await registerDtcc(pluginManager, contractConfig.finP2PContract, workflowsConfig.finP2PClient, contractConfig.orgId, logger);
+    const contractAddress = process.env.FINP2P_CONTRACT_ADDRESS;
+    if (!contractAddress) {
+      throw new Error('DTCC plugin requires FINP2P_CONTRACT_ADDRESS');
+    }
+    const finP2PContract = appConfig.type === 'finp2p-contract'
+      ? (appConfig as FinP2PContractAppConfig).finP2PContract
+      : new FinP2PContract(appConfig.provider, appConfig.signer, contractAddress, logger);
+    await registerDtcc(pluginManager, finP2PContract, workflowsConfig.finP2PClient, appConfig.orgId, logger);
     logger.info('DTCC plugin activated');
   }
 
