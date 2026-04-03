@@ -36,3 +36,40 @@ export interface DeployResult {
   decimals: number;
   tokenStandard: string;
 }
+
+/**
+ * Compiled contract artifact — ABI + bytecode for on-chain deployment.
+ * Token standard packages include these so `deploy()` can use them
+ * without depending on a separate contracts package.
+ */
+export interface ContractArtifact {
+  abi: any[];
+  bytecode: string;
+}
+
+/**
+ * A complete token standard package: off-chain implementation + on-chain artifacts.
+ *
+ * Plugin packages export this so the adapter can both:
+ * - register the off-chain standard for runtime operations
+ * - access the contract artifacts for deployment
+ *
+ * Example:
+ *   import { erc20Standard } from '@owneraio/finp2p-ethereum-adapter';
+ *   // erc20Standard.standard  → TokenStandard implementation
+ *   // erc20Standard.artifacts → { token: { abi, bytecode } }
+ */
+export interface TokenStandardPackage {
+  /** Unique key used in the token_standard registry and DB field. */
+  name: string;
+
+  /** Off-chain implementation: deploy, balanceOf, mint, transfer, burn, hold, release. */
+  standard: import('./interface').TokenStandard;
+
+  /**
+   * On-chain contract artifacts keyed by role.
+   * The 'token' key is the primary token contract.
+   * Additional keys are standard-specific (e.g. 'factory', 'escrow', 'priceOracle').
+   */
+  artifacts?: Record<string, ContractArtifact>;
+}
