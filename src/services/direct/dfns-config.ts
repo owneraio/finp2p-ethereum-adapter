@@ -4,6 +4,7 @@ import { AsymmetricKeySigner } from "@dfns/sdk-keysigner";
 import { DfnsWallet } from "@dfns/lib-ethersjs6";
 import { JsonRpcProvider, Provider, Signer } from "ethers";
 import { BaseAppConfig } from "../../config";
+import { DfnsCustodySigner } from "./signers/dfns-signer";
 
 export type DfnsAppConfig = BaseAppConfig & {
   type: 'dfns'
@@ -22,18 +23,18 @@ export type DfnsAppConfig = BaseAppConfig & {
   }
 }
 
-export const createDfnsEthersProvider = async (config: {
+export const createDfnsCustodyWallet = async (config: {
   dfnsClient: DfnsApiClient;
   walletId: string;
-  rpcUrl: string;
+  rpcProvider: JsonRpcProvider;
 }): Promise<{ provider: Provider; signer: Signer }> => {
-  const provider = new JsonRpcProvider(config.rpcUrl);
   const dfnsWallet = await DfnsWallet.init({
     walletId: config.walletId,
     dfnsClient: config.dfnsClient,
   });
-  const signer = dfnsWallet.connect(provider);
-  return { provider, signer };
+  const address = await dfnsWallet.getAddress();
+  const signer = new DfnsCustodySigner(address, dfnsWallet, config.rpcProvider);
+  return { provider: config.rpcProvider, signer };
 };
 
 const getNetworkRpcUrl = (): string => {
@@ -86,7 +87,7 @@ export async function createDfnsAppConfig(): Promise<Omit<DfnsAppConfig, 'accoun
 
   const keySigner = new AsymmetricKeySigner({ credId: dfnsCredId, privateKey: dfnsPrivateKey });
   const dfnsClient = new DfnsApiClient({ baseUrl: dfnsBaseUrl, orgId: dfnsOrgId, authToken: dfnsAuthToken, signer: keySigner });
-  const { signer } = await createDfnsEthersProvider({ dfnsClient, walletId: issuerWalletId, rpcUrl });
+  const { signer } = await createDfnsCustodyWallet({ dfnsClient, walletId: issuerWalletId, rpcProvider: provider });
 
   let gasFunding: DfnsAppConfig['gasFunding'] = undefined
   const fundingWalletId = process.env.DFNS_GAS_FUNDING_WALLET_ID

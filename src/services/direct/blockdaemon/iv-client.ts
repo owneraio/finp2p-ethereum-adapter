@@ -214,6 +214,17 @@ export class InstitutionalVaultClient {
     return this.request('POST', '/api/v2/transfers', post);
   }
 
+  createRawTransfer(post: {
+    fromAccountID?: number;
+    fromAddress: string;
+    protocol: string;
+    network: string;
+    symbol: string;
+    rawTransaction: string;
+  }): Promise<{ asyncOperationID: string }> {
+    return this.request('POST', '/api/v2/raw-transfers', post);
+  }
+
   // ── Transactions ──
 
   getTransaction(transactionID: number): Promise<Transaction> {

@@ -3,7 +3,8 @@ import * as fs from "fs";
 import { resolve } from "node:path";
 import { FireblocksSDK } from "fireblocks-sdk";
 import { ApiBaseUrl, ChainId } from "@fireblocks/fireblocks-web3-provider";
-import { createFireblocksEthersProvider } from "../src/services/direct/fireblocks-config";
+import { JsonRpcProvider } from "ethers";
+import { createFireblocksCustodyWallet } from "../src/services/direct/fireblocks-config";
 import { createVaultManagementFunctions } from "../src/vaults";
 
 dotenv.config({ path: resolve(process.cwd(), ".env.fireblocks") });
@@ -42,12 +43,12 @@ const run = async () => {
 
   // 2. Test ethers provider connection
   console.log("--- Testing ethers provider ---");
-  const { provider, signer } = await createFireblocksEthersProvider({
-    apiKey,
-    privateKey: apiPrivateKey,
-    chainId,
-    apiBaseUrl,
-    vaultAccountIds: [vaultId],
+  const rpcUrl = process.env.NETWORK_HOST!;
+  const rpcProvider = new JsonRpcProvider(rpcUrl);
+  const fireblocksAssetId = process.env.FIREBLOCKS_ASSET_ID || 'ETH_TEST5';
+
+  const { provider, signer } = await createFireblocksCustodyWallet({
+    fireblocksSdk: sdk, vaultAccountId: vaultId, fireblocksAssetId, rpcProvider,
   });
 
   const network = await provider.getNetwork();

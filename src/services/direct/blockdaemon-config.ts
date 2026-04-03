@@ -8,7 +8,6 @@ export type BlockdaemonAppConfig = BaseAppConfig & {
   ivClient: InstitutionalVaultClient
   ivApiUrl: string
   ivNetwork: string
-  nativeAssetID: number
   assetIssuerAccountID: number
   assetEscrowAccountID: number
   omnibusAccountID?: number
@@ -41,20 +40,14 @@ const getNetworkRpcUrl = (): string => {
  * Looks at the account's assets to find the first Ethereum-protocol entry
  * with no contractAddress (i.e. the native ETH asset).
  */
-function discoverEthereumContext(account: Account): { network: string; nativeAssetID: number } {
+function discoverEthereumNetwork(account: Account): string {
   for (const aa of account.config.assets ?? []) {
     if (aa.asset.config.protocol !== 'ethereum') continue;
-    // Native asset has no contract address
-    if (!aa.asset.config.contractAddress) {
-      return {
-        network: aa.asset.config.network,
-        nativeAssetID: aa.asset.metadata.id,
-      };
-    }
+    return aa.asset.config.network;
   }
   throw new Error(
-    `IV account ${account.metadata.id} (${account.metadata.name}) has no Ethereum native asset. ` +
-    `Add ETH to the account first.`
+    `IV account ${account.metadata.id} (${account.metadata.name}) has no Ethereum asset. ` +
+    `Add an Ethereum asset to the account first.`
   );
 }
 
@@ -80,12 +73,11 @@ async function resolveAccountAddress(
 export async function createIVWallet(
   ivClient: InstitutionalVaultClient,
   accountID: number,
-  nativeAssetID: number,
   network: string,
   rpcProvider: JsonRpcProvider,
 ): Promise<{ provider: Provider; signer: Signer }> {
   const address = await resolveAccountAddress(ivClient, accountID, network);
-  const signer = new IVSigner(address, accountID, nativeAssetID, ivClient, rpcProvider);
+  const signer = new IVSigner(address, accountID, network, ivClient, rpcProvider);
   return { provider: rpcProvider, signer };
 }
 
@@ -108,12 +100,12 @@ export async function createBlockdaemonAppConfig(): Promise<Omit<BlockdaemonAppC
 
   // Discover network and native asset ID from the issuer account
   const issuerAccount = await ivClient.getAccount(issuerAccountID);
-  const { network: ivNetwork, nativeAssetID } = discoverEthereumContext(issuerAccount);
+  const ivNetwork = discoverEthereumNetwork(issuerAccount);
 
   const rpcUrl = getNetworkRpcUrl();
   const rpcProvider = new JsonRpcProvider(rpcUrl);
 
-  const { provider, signer } = await createIVWallet(ivClient, issuerAccountID, nativeAssetID, ivNetwork, rpcProvider);
+  const { provider, signer } = await createIVWallet(ivClient, issuerAccountID, ivNetwork, rpcProvider);
 
   const omnibusAccountIDStr = process.env.BLOCKDAEMON_OMNIBUS_ACCOUNT_ID;
   const omnibusAccountID = omnibusAccountIDStr ? parseInt(omnibusAccountIDStr, 10) : undefined;
@@ -135,7 +127,6 @@ export async function createBlockdaemonAppConfig(): Promise<Omit<BlockdaemonAppC
     ivClient,
     ivApiUrl,
     ivNetwork,
-    nativeAssetID,
     assetIssuerAccountID: issuerAccountID,
     assetEscrowAccountID: escrowAccountID,
     omnibusAccountID,

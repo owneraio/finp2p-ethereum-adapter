@@ -4,7 +4,7 @@ import { resolve } from "node:path";
 import { FireblocksSDK } from "fireblocks-sdk";
 import { ApiBaseUrl, ChainId } from "@fireblocks/fireblocks-web3-provider";
 import { ethers } from "ethers";
-import { createFireblocksEthersProvider } from "../src/services/direct/fireblocks-config";
+import { JsonRpcProvider } from "ethers";
 
 dotenv.config({ path: resolve(process.cwd(), ".env.fireblocks") });
 
@@ -36,13 +36,8 @@ const run = async () => {
 
   // On-chain balances
   console.log("\n--- On-chain balances (Sepolia) ---");
-  const { provider } = await createFireblocksEthersProvider({
-    apiKey,
-    privateKey: apiPrivateKey,
-    chainId,
-    apiBaseUrl,
-    vaultAccountIds: [vaultId],
-  });
+  const rpcUrl = process.env.NETWORK_HOST!;
+  const provider = new JsonRpcProvider(rpcUrl);
 
   const address = "0xfc4C657a9209B8b2C5f4388ad5c4eCb88BCE3050";
   const ethBal = await provider.getBalance(address);

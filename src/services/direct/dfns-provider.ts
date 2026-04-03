@@ -1,9 +1,9 @@
 import { DfnsApiClient } from '@dfns/sdk';
 import { AsymmetricKeySigner } from '@dfns/sdk-keysigner';
-import { DfnsWallet } from '@dfns/lib-ethersjs6';
 import { JsonRpcProvider } from 'ethers';
 import { DfnsAppConfig } from '../../config';
 import { CustodyProvider, CustodyWallet, GasStation } from './custody-provider';
+import { createDfnsCustodyWallet } from './dfns-config';
 
 export class DfnsCustodyProvider implements CustodyProvider {
   readonly issuer: CustodyWallet;
@@ -39,10 +39,8 @@ export class DfnsCustodyProvider implements CustodyProvider {
   }
 
   private static async createWalletProvider(dfnsClient: DfnsApiClient, walletId: string, rpcUrl: string): Promise<CustodyWallet> {
-    const provider = new JsonRpcProvider(rpcUrl);
-    const dfnsWallet = await DfnsWallet.init({ walletId, dfnsClient });
-    const signer = dfnsWallet.connect(provider);
-    return { provider, signer };
+    const rpcProvider = new JsonRpcProvider(rpcUrl);
+    return createDfnsCustodyWallet({ dfnsClient, walletId, rpcProvider });
   }
 
   static async create(config: DfnsAppConfig): Promise<DfnsCustodyProvider> {
