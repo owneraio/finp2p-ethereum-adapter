@@ -47,6 +47,7 @@
     "url": "https://github.com/owneraio/finp2p-ethereum-adapter"
   },
   "dependencies": {
+    "@owneraio/finp2p-ethereum-token-standard": "^0.27.3",
     "ethers": "^6.11.1"
   },
   "peerDependencies": {
