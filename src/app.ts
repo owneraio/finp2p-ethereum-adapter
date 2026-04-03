@@ -10,7 +10,7 @@ import {
   workflows,
   MappingConfig,
 } from "@owneraio/finp2p-nodejs-skeleton-adapter";
-import { register as registerDtcc } from "@owneraio/finp2p-ethereum-dtcc-plugin";
+import { CollateralDepositPlugin, CollateralTokenStandard, TokenStandardName as DTCC_TOKEN_STANDARD } from "@owneraio/finp2p-ethereum-dtcc-plugin";
 import { createVanillaServices, registerDistributionRoutes } from "@owneraio/finp2p-vanilla-service";
 import { FinP2PClient } from "@owneraio/finp2p-client";
 import { FinP2PContract } from "@owneraio/finp2p-contracts";
@@ -42,6 +42,7 @@ custodyRegistry.register('fireblocks', (config) => FireblocksCustodyProvider.cre
 custodyRegistry.register('dfns', (config) => DfnsCustodyProvider.create(config as DfnsAppConfig));
 
 // Register built-in token standards
+import { tokenStandardRegistry } from "./services/direct/token-standards/registry";
 import { registerBuiltinTokenStandards } from "./services/direct/token-standards/register-builtins";
 registerBuiltinTokenStandards();
 import { CustodyMappingValidator, FIELD_CUSTODY_ACCOUNT_ID, FIELD_LEDGER_ACCOUNT_ID } from "./services/direct/mapping-validator";
@@ -122,20 +123,27 @@ async function createApp(
 
   const pluginManager = new PluginManager();
 
-  // Runtime plugin activation
+  // Runtime plugin activation: DTCC collateral
   if (process.env.DTCC_PLUGIN_ENABLED === 'true') {
     if (!workflowsConfig?.finP2PClient) {
       throw new Error('DTCC plugin requires finP2PClient in workflow config (set FINP2P_ADDRESS and OSS_URL)');
     }
-    const contractAddress = process.env.FINP2P_CONTRACT_ADDRESS;
-    if (!contractAddress) {
-      throw new Error('DTCC plugin requires FINP2P_CONTRACT_ADDRESS');
+    const factoryAddress = process.env.FACTORY_ADDRESS;
+    if (!factoryAddress) {
+      throw new Error('DTCC plugin requires FACTORY_ADDRESS');
     }
-    const finP2PContract = appConfig.type === 'finp2p-contract'
-      ? (appConfig as FinP2PContractAppConfig).finP2PContract
-      : new FinP2PContract(appConfig.provider, appConfig.signer, contractAddress, logger);
-    await registerDtcc(pluginManager, finP2PContract, workflowsConfig.finP2PClient, appConfig.orgId, logger);
-    logger.info('DTCC plugin activated');
+
+    // Register collateral token standard
+    tokenStandardRegistry.register(DTCC_TOKEN_STANDARD, new CollateralTokenStandard(factoryAddress));
+
+    // Register collateral deposit plugin
+    const depositPlugin = new CollateralDepositPlugin(
+      appConfig.orgId, appConfig.provider, appConfig.signer,
+      workflowsConfig.finP2PClient, logger,
+    );
+    pluginManager.registerPaymentsPlugin({ syncIface: depositPlugin, isAsync: false });
+
+    logger.info(`DTCC plugin activated: token standard '${DTCC_TOKEN_STANDARD}', deposit plugin registered`);
   }
 
   const paymentsService = new PaymentsServiceImpl(pluginManager);
