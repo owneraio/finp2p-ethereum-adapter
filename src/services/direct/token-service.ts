@@ -229,7 +229,7 @@ export class DirectTokenService implements TokenService, EscrowService {
       const amount = parseUnits(quantity, asset.decimals);
 
       await this.fundGas(wallet);
-      const tx = await standard.transfer(wallet, asset, await this.custodyProvider.escrow.signer.getAddress(), amount, this.logger);
+      const tx = await standard.hold(wallet, this.custodyProvider.escrow, asset, amount, this.logger);
       const receipt = await tx.wait();
       if (receipt === null) return failedReceiptOperation(1, "receipt is null");
 
@@ -250,11 +250,11 @@ export class DirectTokenService implements TokenService, EscrowService {
       const asset = await getAssetFromDb(ast);
       const standard = tokenStandardRegistry.resolve(asset.token_standard);
       const destinationAddress = await this.resolveDestinationAddress(destination);
-      const wallet = this.custodyProvider.escrow;
+      const escrowWallet = this.custodyProvider.escrow;
       const amount = parseUnits(quantity, asset.decimals);
 
-      await this.fundGas(wallet);
-      const tx = await standard.transfer(wallet, asset, destinationAddress, amount, this.logger);
+      await this.fundGas(escrowWallet);
+      const tx = await standard.release(escrowWallet, asset, destinationAddress, amount, this.logger);
       const receipt = await tx.wait();
       if (receipt === null) return failedReceiptOperation(1, "receipt is null");
 
@@ -275,11 +275,11 @@ export class DirectTokenService implements TokenService, EscrowService {
       const asset = await getAssetFromDb(ast);
       const standard = tokenStandardRegistry.resolve(asset.token_standard);
       const sourceAddress = await this.resolveAddress(source.finId);
-      const wallet = this.custodyProvider.escrow;
+      const escrowWallet = this.custodyProvider.escrow;
       const amount = parseUnits(quantity, asset.decimals);
 
-      await this.fundGas(wallet);
-      const tx = await standard.transfer(wallet, asset, sourceAddress, amount, this.logger);
+      await this.fundGas(escrowWallet);
+      const tx = await standard.release(escrowWallet, asset, sourceAddress, amount, this.logger);
       const receipt = await tx.wait();
       if (receipt === null) return failedReceiptOperation(1, "receipt is null");
 

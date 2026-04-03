@@ -21,9 +21,9 @@ export interface DeployResult {
 }
 
 /**
- * Token standard implementation for direct-mode ERC20-style operations.
+ * Token standard implementation for direct-mode operations.
  *
- * Each method returns a ContractTransactionResponse that the adapter
+ * Each mutating method returns a ContractTransactionResponse that the adapter
  * awaits via tx.wait(). The adapter owns gas funding, receipt shaping,
  * logging, and error handling — the standard only constructs the on-chain call.
  */
@@ -80,6 +80,37 @@ export interface TokenStandard {
     wallet: CustodyWallet,
     asset: AssetRecord,
     from: string,
+    amount: bigint,
+    logger: winston.Logger,
+  ): Promise<ContractTransactionResponse>;
+
+  /**
+   * Hold (escrow) tokens for a pending settlement.
+   *
+   * The sourceWallet signs the transaction. The escrowWallet is provided
+   * so the standard can decide where funds go:
+   * - ERC20: trivializes to transfer(sourceWallet → escrowAddress)
+   * - Other standards may use native lock/escrow mechanics
+   */
+  hold(
+    sourceWallet: CustodyWallet,
+    escrowWallet: CustodyWallet,
+    asset: AssetRecord,
+    amount: bigint,
+    logger: winston.Logger,
+  ): Promise<ContractTransactionResponse>;
+
+  /**
+   * Release held tokens to a destination address.
+   *
+   * The escrowWallet signs the transaction:
+   * - ERC20: trivializes to transfer(escrowWallet → destinationAddress)
+   * - Other standards may use native release/unlock mechanics
+   */
+  release(
+    escrowWallet: CustodyWallet,
+    asset: AssetRecord,
+    to: string,
     amount: bigint,
     logger: winston.Logger,
   ): Promise<ContractTransactionResponse>;

@@ -175,11 +175,10 @@ export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowD
     asset: Asset, quantity: string, operationId: string, exCtx: ExecutionContext | undefined,
   ): Promise<DelegateResult> {
     const dbAsset = await getAssetFromDb(asset);
-    const escrowAddress = await this.custodyProvider.escrow.signer.getAddress();
     const amount = parseUnits(quantity, dbAsset.decimals);
 
     const standard = tokenStandardRegistry.resolve(dbAsset.token_standard);
-    const tx = await standard.transfer(this.omnibusWallet, dbAsset, escrowAddress, amount, this.logger);
+    const tx = await standard.hold(this.omnibusWallet, this.custodyProvider.escrow, dbAsset, amount, this.logger);
     const receipt = await tx.wait();
     if (receipt === null) return { success: false, error: 'Transaction receipt is null' };
 
@@ -197,7 +196,7 @@ export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowD
     const amount = parseUnits(quantity, dbAsset.decimals);
 
     const standard = tokenStandardRegistry.resolve(dbAsset.token_standard);
-    const tx = await standard.transfer(escrowWallet, dbAsset, omnibusAddress, amount, this.logger);
+    const tx = await standard.release(escrowWallet, dbAsset, omnibusAddress, amount, this.logger);
     const receipt = await tx.wait();
     if (receipt === null) return { success: false, error: 'Transaction receipt is null' };
 
@@ -215,7 +214,7 @@ export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowD
     const amount = parseUnits(quantity, dbAsset.decimals);
 
     const standard = tokenStandardRegistry.resolve(dbAsset.token_standard);
-    const tx = await standard.transfer(escrowWallet, dbAsset, omnibusAddress, amount, this.logger);
+    const tx = await standard.release(escrowWallet, dbAsset, omnibusAddress, amount, this.logger);
     const receipt = await tx.wait();
     if (receipt === null) return { success: false, error: 'Transaction receipt is null' };
 

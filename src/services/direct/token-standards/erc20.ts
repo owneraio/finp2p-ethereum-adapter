@@ -33,4 +33,13 @@ export class ERC20TokenStandard implements TokenStandard {
     const c = new ERC20Contract(wallet.provider, wallet.signer, asset.contract_address, logger);
     return c.burn(from, amount);
   }
+
+  async hold(sourceWallet: CustodyWallet, escrowWallet: CustodyWallet, asset: AssetRecord, amount: bigint, logger: winston.Logger): Promise<ContractTransactionResponse> {
+    const escrowAddress = await escrowWallet.signer.getAddress();
+    return this.transfer(sourceWallet, asset, escrowAddress, amount, logger);
+  }
+
+  async release(escrowWallet: CustodyWallet, asset: AssetRecord, to: string, amount: bigint, logger: winston.Logger): Promise<ContractTransactionResponse> {
+    return this.transfer(escrowWallet, asset, to, amount, logger);
+  }
 }
