@@ -38,6 +38,49 @@ export interface DeployResult {
 }
 
 /**
+ * Operation context — mirrors the on-chain OperationParams struct.
+ * Carries the business semantics of an operation so token standards
+ * can vary behavior based on leg, phase, and primary type.
+ *
+ * For REPO/Loan flows, Phase is critical:
+ * - INITIATE: collateral pledged, cash lent
+ * - CLOSE: collateral returned, cash + rebate repaid
+ */
+
+export enum LegType {
+  Asset = 0,
+  Settlement = 1,
+}
+
+export enum PrimaryType {
+  PrimarySale = 0,
+  Buying = 1,
+  Selling = 2,
+  Redemption = 3,
+  Transfer = 4,
+  PrivateOffer = 5,
+  Loan = 6,
+}
+
+export enum Phase {
+  Initiate = 0,
+  Close = 1,
+}
+
+export enum ReleaseType {
+  Release = 0,
+  Redeem = 1,
+}
+
+export interface OperationContext {
+  leg: LegType;
+  phase: Phase;
+  primaryType: PrimaryType;
+  operationId?: string;
+  releaseType: ReleaseType;
+}
+
+/**
  * Compiled contract artifact — ABI + bytecode for on-chain deployment.
  * Token standard packages include these so `deploy()` can use them
  * without depending on a separate contracts package.
