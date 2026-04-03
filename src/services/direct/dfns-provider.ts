@@ -1,7 +1,7 @@
 import { DfnsApiClient } from '@dfns/sdk';
 import { AsymmetricKeySigner } from '@dfns/sdk-keysigner';
 import { JsonRpcProvider } from 'ethers';
-import { DfnsAppConfig } from '../../config';
+import { DfnsAppConfig } from './dfns-config';
 import { CustodyProvider, CustodyWallet, GasStation } from './custody-provider';
 import { createDfnsCustodyWallet } from './dfns-config';
 
