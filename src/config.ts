@@ -8,6 +8,7 @@ import { Logger } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import { InMemoryExecDetailsStore } from './services/finp2p-contract/exec-details-store'
 import { FireblocksAppConfig, createFireblocksAppConfig } from './services/direct/fireblocks-config'
 import { DfnsAppConfig, createDfnsAppConfig } from './services/direct/dfns-config'
+import { BlockdaemonAppConfig, createBlockdaemonAppConfig } from './services/direct/blockdaemon-config'
 
 export type AccountMappingType = 'derivation' | 'database'
 
@@ -53,6 +54,7 @@ export type FinP2PContractAppConfig = BaseAppConfig & {
 
 export { FireblocksAppConfig } from './services/direct/fireblocks-config'
 export { DfnsAppConfig } from './services/direct/dfns-config'
+export { BlockdaemonAppConfig } from './services/direct/blockdaemon-config'
 
 /**
  * Generic config for custody providers activated via the registry.
@@ -63,7 +65,7 @@ export type CustodyAppConfig = BaseAppConfig & {
   type: string
 }
 
-export type AppConfig = FinP2PContractAppConfig | FireblocksAppConfig | DfnsAppConfig | CustodyAppConfig
+export type AppConfig = FinP2PContractAppConfig | FireblocksAppConfig | DfnsAppConfig | BlockdaemonAppConfig | CustodyAppConfig
 
 const getNetworkRpcUrl = (): string => {
   let networkHost = process.env.NETWORK_HOST;
@@ -169,6 +171,9 @@ export async function envVarsToAppConfig(logger: Logger): Promise<AppConfig> {
     }
     case 'dfns': {
       return { ...await createDfnsAppConfig(), accountMappingType, accountModel }
+    }
+    case 'blockdaemon': {
+      return { ...await createBlockdaemonAppConfig(), accountMappingType, accountModel }
     }
     default: {
       // For registry-based providers: return generic config.

@@ -1,7 +1,9 @@
 import * as fs from "fs";
-import { ApiBaseUrl, ChainId, FireblocksWeb3Provider } from "@fireblocks/fireblocks-web3-provider";
-import { BrowserProvider, Provider, Signer } from "ethers";
+import { ApiBaseUrl, ChainId } from "@fireblocks/fireblocks-web3-provider";
+import { JsonRpcProvider, Provider, Signer } from "ethers";
+import { FireblocksSDK } from "fireblocks-sdk";
 import { BaseAppConfig } from "../../config";
+import { FireblocksCustodySigner } from "./signers/fireblocks-signer";
 
 export type FireblocksAppConfig = BaseAppConfig & {
   type: 'fireblocks'
@@ -9,6 +11,7 @@ export type FireblocksAppConfig = BaseAppConfig & {
   apiPrivateKey: string
   chainId: ChainId
   apiBaseUrl: ApiBaseUrl | string
+  fireblocksAssetId: string
   assetIssuerVaultId: string
   assetEscrowVaultId: string
   omnibusVaultId?: string
@@ -18,23 +21,28 @@ export type FireblocksAppConfig = BaseAppConfig & {
   }
 }
 
-export const createFireblocksEthersProvider = async (config: {
-  apiKey: string;
-  privateKey: string;
-  chainId: ChainId;
-  apiBaseUrl?: ApiBaseUrl | string;
-  vaultAccountIds: number | number[] | string | string[];
+/**
+ * Resolve the deposit address for a Fireblocks vault account.
+ */
+async function resolveVaultAddress(fireblocksSdk: FireblocksSDK, vaultAccountId: string, assetId: string): Promise<string> {
+  const addresses = await fireblocksSdk.getDepositAddresses(vaultAccountId, assetId);
+  if (addresses.length === 0) {
+    throw new Error(`No deposit address found for Fireblocks vault ${vaultAccountId} asset ${assetId}`);
+  }
+  return addresses[0].address;
+}
+
+export const createFireblocksCustodyWallet = async (config: {
+  fireblocksSdk: FireblocksSDK;
+  vaultAccountId: string;
+  fireblocksAssetId: string;
+  rpcProvider: JsonRpcProvider;
 }): Promise<{ provider: Provider; signer: Signer }> => {
-  const eip1193Provider = new FireblocksWeb3Provider({
-    privateKey: config.privateKey,
-    apiKey: config.apiKey,
-    chainId: config.chainId,
-    apiBaseUrl: config.apiBaseUrl,
-    vaultAccountIds: config.vaultAccountIds,
-  });
-  const provider = new BrowserProvider(eip1193Provider);
-  const signer = await provider.getSigner();
-  return { provider, signer };
+  const address = await resolveVaultAddress(config.fireblocksSdk, config.vaultAccountId, config.fireblocksAssetId);
+  const signer = new FireblocksCustodySigner(
+    address, config.fireblocksSdk, config.vaultAccountId, config.rpcProvider, config.fireblocksAssetId,
+  );
+  return { provider: config.rpcProvider, signer };
 };
 
 const getNetworkRpcUrl = (): string => {
@@ -73,6 +81,7 @@ export async function createFireblocksAppConfig(): Promise<Omit<FireblocksAppCon
 
   const chainId = (process.env.FIREBLOCKS_CHAIN_ID || ChainId.MAINNET) as ChainId;
   const apiBaseUrl = (process.env.FIREBLOCKS_API_BASE_URL || ApiBaseUrl.Production) as ApiBaseUrl;
+  const fireblocksAssetId = process.env.FIREBLOCKS_ASSET_ID || 'ETH_TEST5';
 
   const requireVaultIdEnv = (envVar: string): string => {
     const val = process.env[envVar]
@@ -84,8 +93,12 @@ export async function createFireblocksAppConfig(): Promise<Omit<FireblocksAppCon
   const assetEscrowVaultId = requireVaultIdEnv('FIREBLOCKS_ASSET_ESCROW_VAULT_ID')
   const omnibusVaultId = process.env.FIREBLOCKS_OMNIBUS_VAULT_ID || undefined
 
-  const { provider, signer } = await createFireblocksEthersProvider({
-    apiKey, privateKey: apiPrivateKey, chainId, apiBaseUrl, vaultAccountIds: [assetIssuerVaultId]
+  const rpcUrl = getNetworkRpcUrl();
+  const rpcProvider = new JsonRpcProvider(rpcUrl);
+  const fireblocksSdk = new FireblocksSDK(apiPrivateKey, apiKey, apiBaseUrl as string);
+
+  const { provider, signer } = await createFireblocksCustodyWallet({
+    fireblocksSdk, vaultAccountId: assetIssuerVaultId, fireblocksAssetId, rpcProvider,
   });
 
   let gasFunding: FireblocksAppConfig['gasFunding'] = undefined
@@ -106,6 +119,7 @@ export async function createFireblocksAppConfig(): Promise<Omit<FireblocksAppCon
     apiPrivateKey,
     chainId,
     apiBaseUrl,
+    fireblocksAssetId,
     assetIssuerVaultId,
     assetEscrowVaultId,
     omnibusVaultId,

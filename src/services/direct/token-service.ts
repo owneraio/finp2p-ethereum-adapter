@@ -7,7 +7,7 @@ import {
 import winston from 'winston';
 import { workflows } from '@owneraio/finp2p-nodejs-skeleton-adapter';
 import { parseUnits, formatUnits, TransactionReceipt } from "ethers";
-import { CustodyProvider, CustodyWallet } from './custody-provider';
+import { CustodyProvider, CustodyRoleBindings, CustodyWallet } from './custody-provider';
 import { AccountMappingService } from './account-mapping';
 import { getAssetFromDb, fundGasIfNeeded } from './helpers';
 import { tokenStandardRegistry } from './token-standards/registry';
@@ -41,6 +41,7 @@ export class DirectTokenService implements TokenService, EscrowService {
 
   constructor(
     readonly logger: winston.Logger,
+    readonly roles: CustodyRoleBindings<CustodyWallet>,
     readonly custodyProvider: CustodyProvider,
     readonly accountMapping: AccountMappingService,
   ) {}
@@ -71,7 +72,7 @@ export class DirectTokenService implements TokenService, EscrowService {
     const standard = tokenStandardRegistry.resolve(tokenStandard);
 
     if (assetBind === undefined || assetBind.tokenIdentifier === undefined) {
-      const wallet = this.custodyProvider.issuer;
+      const wallet = this.roles.issuer;
       const symbol = assetIdentifier?.value ?? "OWNERA";
       const result = await standard.deploy(wallet, assetName ?? "OWNERACOIN", symbol, 6, this.logger);
       await workflows.saveAsset({
@@ -118,7 +119,7 @@ export class DirectTokenService implements TokenService, EscrowService {
     const asset = await getAssetFromDb(ast);
     const standard = tokenStandardRegistry.resolve(asset.token_standard);
     const balance = await standard.balanceOf(
-      this.custodyProvider.issuer.provider, this.custodyProvider.issuer.signer,
+      this.roles.issuer.provider, this.roles.issuer.signer,
       asset, address, this.logger,
     );
     return formatUnits(balance, asset.decimals);
@@ -136,7 +137,7 @@ export class DirectTokenService implements TokenService, EscrowService {
     try {
       const asset = await getAssetFromDb(ast);
       const standard = tokenStandardRegistry.resolve(asset.token_standard);
-      const wallet = this.custodyProvider.issuer;
+      const wallet = this.roles.issuer;
       const address = await this.resolveAddress(to.finId);
       const amount = parseUnits(quantity, asset.decimals);
 
@@ -193,8 +194,8 @@ export class DirectTokenService implements TokenService, EscrowService {
     try {
       const asset = await getAssetFromDb(ast);
       const standard = tokenStandardRegistry.resolve(asset.token_standard);
-      const escrowAddress = await this.custodyProvider.escrow.signer.getAddress();
-      const wallet = this.custodyProvider.issuer;
+      const escrowAddress = await this.roles.escrow.signer.getAddress();
+      const wallet = this.roles.issuer;
       const amount = parseUnits(quantity, asset.decimals);
 
       await this.fundGas(wallet);
@@ -229,7 +230,7 @@ export class DirectTokenService implements TokenService, EscrowService {
       const amount = parseUnits(quantity, asset.decimals);
 
       await this.fundGas(wallet);
-      const tx = await standard.hold(wallet, this.custodyProvider.escrow, asset, amount, this.logger);
+      const tx = await standard.hold(wallet, this.roles.escrow, asset, amount, this.logger);
       const receipt = await tx.wait();
       if (receipt === null) return failedReceiptOperation(1, "receipt is null");
 
@@ -250,7 +251,7 @@ export class DirectTokenService implements TokenService, EscrowService {
       const asset = await getAssetFromDb(ast);
       const standard = tokenStandardRegistry.resolve(asset.token_standard);
       const destinationAddress = await this.resolveDestinationAddress(destination);
-      const escrowWallet = this.custodyProvider.escrow;
+      const escrowWallet = this.roles.escrow;
       const amount = parseUnits(quantity, asset.decimals);
 
       await this.fundGas(escrowWallet);
@@ -275,7 +276,7 @@ export class DirectTokenService implements TokenService, EscrowService {
       const asset = await getAssetFromDb(ast);
       const standard = tokenStandardRegistry.resolve(asset.token_standard);
       const sourceAddress = await this.resolveAddress(source.finId);
-      const escrowWallet = this.custodyProvider.escrow;
+      const escrowWallet = this.roles.escrow;
       const amount = parseUnits(quantity, asset.decimals);
 
       await this.fundGas(escrowWallet);

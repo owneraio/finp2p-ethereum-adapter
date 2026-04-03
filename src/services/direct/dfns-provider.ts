@@ -1,14 +1,16 @@
 import { DfnsApiClient } from '@dfns/sdk';
 import { AsymmetricKeySigner } from '@dfns/sdk-keysigner';
-import { DfnsWallet } from '@dfns/lib-ethersjs6';
 import { JsonRpcProvider } from 'ethers';
 import { DfnsAppConfig } from './dfns-config';
-import { CustodyProvider, CustodyWallet, GasStation } from './custody-provider';
+import { CustodyProvider, CustodyRoleBindings, CustodyWallet, GasStation } from './custody-provider';
+import { createDfnsCustodyWallet } from './dfns-config';
+
+export interface DfnsCustodyResult {
+  provider: DfnsCustodyProvider;
+  roles: CustodyRoleBindings<CustodyWallet>;
+}
 
 export class DfnsCustodyProvider implements CustodyProvider {
-  readonly issuer: CustodyWallet;
-  readonly escrow: CustodyWallet;
-  readonly omnibus?: CustodyWallet;
   readonly rpcProvider;
   readonly gasStation?: GasStation;
 
@@ -16,17 +18,11 @@ export class DfnsCustodyProvider implements CustodyProvider {
   private addressToWalletId: Map<string, string>;
 
   private constructor(
-    issuer: CustodyWallet,
-    escrow: CustodyWallet,
     private readonly config: DfnsAppConfig,
     dfnsClient: DfnsApiClient,
     addressToWalletId: Map<string, string>,
     gasStation?: GasStation,
-    omnibus?: CustodyWallet,
   ) {
-    this.issuer = issuer;
-    this.escrow = escrow;
-    this.omnibus = omnibus;
     this.rpcProvider = config.provider;
     this.dfnsClient = dfnsClient;
     this.addressToWalletId = addressToWalletId;
@@ -39,13 +35,11 @@ export class DfnsCustodyProvider implements CustodyProvider {
   }
 
   private static async createWalletProvider(dfnsClient: DfnsApiClient, walletId: string, rpcUrl: string): Promise<CustodyWallet> {
-    const provider = new JsonRpcProvider(rpcUrl);
-    const dfnsWallet = await DfnsWallet.init({ walletId, dfnsClient });
-    const signer = dfnsWallet.connect(provider);
-    return { provider, signer };
+    const rpcProvider = new JsonRpcProvider(rpcUrl);
+    return createDfnsCustodyWallet({ dfnsClient, walletId, rpcProvider });
   }
 
-  static async create(config: DfnsAppConfig): Promise<DfnsCustodyProvider> {
+  static async create(config: DfnsAppConfig): Promise<DfnsCustodyResult> {
     const dfnsClient = DfnsCustodyProvider.createDfnsClient(config);
 
     const issuerWallet = await DfnsCustodyProvider.createWalletProvider(dfnsClient, config.assetIssuerWalletId, config.rpcUrl);
@@ -71,7 +65,16 @@ export class DfnsCustodyProvider implements CustodyProvider {
       omnibusWallet = await DfnsCustodyProvider.createWalletProvider(dfnsClient, config.omnibusWalletId, config.rpcUrl);
     }
 
-    return new DfnsCustodyProvider(issuerWallet, escrowWallet, config, dfnsClient, addressToWalletId, gasStation, omnibusWallet);
+    const roles: CustodyRoleBindings<CustodyWallet> = {
+      issuer: issuerWallet,
+      escrow: escrowWallet,
+      ...(omnibusWallet ? { omnibus: omnibusWallet } : {}),
+    };
+
+    return {
+      provider: new DfnsCustodyProvider(config, dfnsClient, addressToWalletId, gasStation),
+      roles,
+    };
   }
 
   async resolveWallet(address: string): Promise<CustodyWallet | undefined> {

@@ -24,11 +24,15 @@ import { AppConfig, FinP2PContractAppConfig } from './config'
 import {
   DirectTokenService,
   CustodyProvider,
+  CustodyRoleBindings,
+  CustodyWallet,
   custodyRegistry,
   FireblocksCustodyProvider,
   FireblocksAppConfig,
   DfnsCustodyProvider,
   DfnsAppConfig,
+  BlockdaemonCustodyProvider,
+  BlockdaemonAppConfig,
   DerivationAccountMapping,
   DbAccountMapping,
   AccountMappingService,
@@ -40,6 +44,7 @@ import {
 // Register compiled-in custody providers
 custodyRegistry.register('fireblocks', (config) => FireblocksCustodyProvider.create(config as FireblocksAppConfig));
 custodyRegistry.register('dfns', (config) => DfnsCustodyProvider.create(config as DfnsAppConfig));
+custodyRegistry.register('blockdaemon', (config) => BlockdaemonCustodyProvider.create(config as BlockdaemonAppConfig));
 
 // Register built-in token standards
 import { registerBuiltinTokenStandards } from "./services/direct/token-standards/register-builtins";
@@ -72,7 +77,9 @@ function buildMappingConfig(custodyProvider?: CustodyProvider): MappingConfig {
 }
 
 function registerDirectServices(
-  app: express.Application, logger: winston.Logger, custodyProvider: CustodyProvider, appConfig: AppConfig,
+  app: express.Application, logger: winston.Logger,
+  roles: CustodyRoleBindings<CustodyWallet>, custodyProvider: CustodyProvider,
+  appConfig: AppConfig,
   paymentsService: PaymentsServiceImpl, pluginManager: PluginManager, workflowsConfig: workflows.Config | undefined,
 ) {
   const healthService = new DirectHealthServiceImpl(custodyProvider.rpcProvider);
@@ -81,7 +88,7 @@ function registerDirectServices(
   if (appConfig.accountModel === 'omnibus') {
     if (!workflowsConfig?.storage) throw new Error('Workflows storage config is required for omnibus account model');
     const accountMapping = resolveAccountMapping(appConfig);
-    const delegate = new OmnibusDelegate(logger, custodyProvider, accountMapping);
+    const delegate = new OmnibusDelegate(logger, roles, custodyProvider, accountMapping);
     const { tokenService, escrowService, commonService, mappingService, distributionService, inboundTransferHook } = createVanillaServices(
       { transfer: delegate, asset: delegate, escrow: delegate, omnibus: delegate },
       workflowsConfig.storage,
@@ -99,7 +106,7 @@ function registerDirectServices(
 
   const accountMapping = resolveAccountMapping(appConfig);
   const dbMapping = accountMapping instanceof DbAccountMapping ? accountMapping : undefined;
-  const tokenService = new DirectTokenService(logger, custodyProvider, accountMapping);
+  const tokenService = new DirectTokenService(logger, roles, custodyProvider, accountMapping);
   const commonService = new DirectCommonServiceImpl();
   const planApprovalService = new PlanApprovalServiceImpl(appConfig.orgId, pluginManager, appConfig.finP2PClient);
   register(app, tokenService, tokenService, commonService, healthService, paymentsService, planApprovalService, pluginManager, workflowsConfig, mappingConfig, dbMapping);
@@ -142,8 +149,8 @@ async function createApp(
 
   if (custodyRegistry.has(appConfig.type)) {
     logger.info(`Activating custody provider: ${appConfig.type} (available: ${custodyRegistry.availableProviders.join(', ')})`);
-    const custodyProvider = await custodyRegistry.create(appConfig.type, appConfig);
-    registerDirectServices(app, logger, custodyProvider, appConfig, paymentsService, pluginManager, workflowsConfig);
+    const { provider: custodyProvider, roles } = await custodyRegistry.create(appConfig.type, appConfig);
+    registerDirectServices(app, logger, roles, custodyProvider, appConfig, paymentsService, pluginManager, workflowsConfig);
   } else if (appConfig.type === 'finp2p-contract') {
     const contractConfig = appConfig as FinP2PContractAppConfig;
     if (contractConfig.accountModel === 'omnibus') {

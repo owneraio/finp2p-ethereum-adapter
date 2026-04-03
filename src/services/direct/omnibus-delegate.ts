@@ -8,7 +8,7 @@ import { TransferDelegate, AssetDelegate, EscrowDelegate, OmnibusDelegate as Omn
 import { workflows } from '@owneraio/finp2p-nodejs-skeleton-adapter';
 import { parseUnits, formatUnits, id as keccak256 } from 'ethers';
 import winston from 'winston';
-import { CustodyProvider, CustodyWallet } from './custody-provider';
+import { CustodyProvider, CustodyRoleBindings, CustodyWallet } from './custody-provider';
 import { tokenStandardRegistry } from './token-standards/registry';
 import { ERC20_TOKEN_STANDARD } from './token-standards/erc20';
 import { AccountMappingService } from './account-mapping';
@@ -35,12 +35,13 @@ export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowD
 
   constructor(
     private readonly logger: winston.Logger,
+    private readonly roles: CustodyRoleBindings<CustodyWallet>,
     private readonly custodyProvider: CustodyProvider,
     private readonly accountMapping: AccountMappingService,
     receiptPolling?: Partial<ReceiptPollingConfig>,
   ) {
-    if (!custodyProvider.omnibus) throw new Error('Omnibus wallet is required for omnibus delegate');
-    this.omnibusWallet = custodyProvider.omnibus;
+    if (!roles.omnibus) throw new Error('Omnibus wallet is required for omnibus delegate');
+    this.omnibusWallet = roles.omnibus;
     this.receiptPolling = { ...defaultReceiptPolling, ...receiptPolling };
   }
 
@@ -178,7 +179,7 @@ export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowD
     const amount = parseUnits(quantity, dbAsset.decimals);
 
     const standard = tokenStandardRegistry.resolve(dbAsset.token_standard);
-    const tx = await standard.hold(this.omnibusWallet, this.custodyProvider.escrow, dbAsset, amount, this.logger);
+    const tx = await standard.hold(this.omnibusWallet, this.roles.escrow, dbAsset, amount, this.logger);
     const receipt = await tx.wait();
     if (receipt === null) return { success: false, error: 'Transaction receipt is null' };
 
@@ -192,7 +193,7 @@ export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowD
   ): Promise<DelegateResult> {
     const dbAsset = await getAssetFromDb(asset);
     const omnibusAddress = await this.omnibusWallet.signer.getAddress();
-    const escrowWallet = this.custodyProvider.escrow;
+    const escrowWallet = this.roles.escrow;
     const amount = parseUnits(quantity, dbAsset.decimals);
 
     const standard = tokenStandardRegistry.resolve(dbAsset.token_standard);
@@ -210,7 +211,7 @@ export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowD
   ): Promise<DelegateResult> {
     const dbAsset = await getAssetFromDb(asset);
     const omnibusAddress = await this.omnibusWallet.signer.getAddress();
-    const escrowWallet = this.custodyProvider.escrow;
+    const escrowWallet = this.roles.escrow;
     const amount = parseUnits(quantity, dbAsset.decimals);
 
     const standard = tokenStandardRegistry.resolve(dbAsset.token_standard);
