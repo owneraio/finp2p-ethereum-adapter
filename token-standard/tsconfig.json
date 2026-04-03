@@ -7,10 +7,12 @@
     "declarationMap": true,
     "sourceMap": true,
     "outDir": "dist",
+    "rootDir": "src",
     "strict": true,
     "esModuleInterop": true,
-    "moduleResolution": "node",
-    "skipLibCheck": true
+    "moduleResolution": "node10",
+    "skipLibCheck": true,
+    "ignoreDeprecations": "5.0"
   },
   "include": ["src/**/*.ts"]
 }
