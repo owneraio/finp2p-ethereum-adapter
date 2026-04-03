@@ -1,6 +1,16 @@
 import { Provider, Signer } from 'ethers';
 
 /**
+ * Minimal logger interface. Structurally compatible with winston, console, or any logger.
+ */
+export interface Logger {
+  info(message: string, ...args: any[]): void;
+  warn(message: string, ...args: any[]): void;
+  error(message: string, ...args: any[]): void;
+  debug(message: string, ...args: any[]): void;
+}
+
+/**
  * A wallet with a provider and signer, used for signing and submitting transactions.
  * Mirrors the adapter's CustodyWallet without coupling to the adapter package.
  */

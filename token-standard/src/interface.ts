@@ -1,6 +1,5 @@
 import { ContractTransactionResponse, Provider, Signer } from 'ethers';
-import winston from 'winston';
-import { TokenWallet, AssetRecord, DeployResult } from './types';
+import { TokenWallet, AssetRecord, DeployResult, Logger } from './types';
 
 /**
  * Token standard implementation for direct-mode operations.
@@ -22,7 +21,7 @@ export interface TokenStandard {
     name: string,
     symbol: string,
     decimals: number,
-    logger: winston.Logger,
+    logger: Logger,
   ): Promise<DeployResult>;
 
   /**
@@ -33,7 +32,7 @@ export interface TokenStandard {
     signer: Signer,
     asset: AssetRecord,
     address: string,
-    logger: winston.Logger,
+    logger: Logger,
   ): Promise<bigint>;
 
   /**
@@ -44,7 +43,7 @@ export interface TokenStandard {
     asset: AssetRecord,
     to: string,
     amount: bigint,
-    logger: winston.Logger,
+    logger: Logger,
   ): Promise<ContractTransactionResponse>;
 
   /**
@@ -55,7 +54,7 @@ export interface TokenStandard {
     asset: AssetRecord,
     to: string,
     amount: bigint,
-    logger: winston.Logger,
+    logger: Logger,
   ): Promise<ContractTransactionResponse>;
 
   /**
@@ -66,7 +65,7 @@ export interface TokenStandard {
     asset: AssetRecord,
     from: string,
     amount: bigint,
-    logger: winston.Logger,
+    logger: Logger,
   ): Promise<ContractTransactionResponse>;
 
   /**
@@ -82,7 +81,7 @@ export interface TokenStandard {
     escrowWallet: TokenWallet,
     asset: AssetRecord,
     amount: bigint,
-    logger: winston.Logger,
+    logger: Logger,
   ): Promise<ContractTransactionResponse>;
 
   /**
@@ -97,6 +96,6 @@ export interface TokenStandard {
     asset: AssetRecord,
     to: string,
     amount: bigint,
-    logger: winston.Logger,
+    logger: Logger,
   ): Promise<ContractTransactionResponse>;
 }

@@ -1,6 +1,5 @@
 import { ContractTransactionResponse, Provider, Signer } from 'ethers';
-import winston from 'winston';
-import { TokenWallet, AssetRecord, DeployResult } from './types';
+import { TokenWallet, AssetRecord, DeployResult, Logger } from './types';
 /**
  * Token standard implementation for direct-mode operations.
  *
@@ -16,23 +15,23 @@ export interface TokenStandard {
      * Deploy a new token contract. Returns the contract address and metadata.
      * Called when createAsset has no tokenIdentifier binding.
      */
-    deploy(wallet: TokenWallet, name: string, symbol: string, decimals: number, logger: winston.Logger): Promise<DeployResult>;
+    deploy(wallet: TokenWallet, name: string, symbol: string, decimals: number, logger: Logger): Promise<DeployResult>;
     /**
      * Query the balance of an address for the given asset.
      */
-    balanceOf(provider: Provider, signer: Signer, asset: AssetRecord, address: string, logger: winston.Logger): Promise<bigint>;
+    balanceOf(provider: Provider, signer: Signer, asset: AssetRecord, address: string, logger: Logger): Promise<bigint>;
     /**
      * Mint tokens to an address.
      */
-    mint(wallet: TokenWallet, asset: AssetRecord, to: string, amount: bigint, logger: winston.Logger): Promise<ContractTransactionResponse>;
+    mint(wallet: TokenWallet, asset: AssetRecord, to: string, amount: bigint, logger: Logger): Promise<ContractTransactionResponse>;
     /**
      * Transfer tokens from the signer's address to another address.
      */
-    transfer(wallet: TokenWallet, asset: AssetRecord, to: string, amount: bigint, logger: winston.Logger): Promise<ContractTransactionResponse>;
+    transfer(wallet: TokenWallet, asset: AssetRecord, to: string, amount: bigint, logger: Logger): Promise<ContractTransactionResponse>;
     /**
      * Burn tokens from a given address (operator burn).
      */
-    burn(wallet: TokenWallet, asset: AssetRecord, from: string, amount: bigint, logger: winston.Logger): Promise<ContractTransactionResponse>;
+    burn(wallet: TokenWallet, asset: AssetRecord, from: string, amount: bigint, logger: Logger): Promise<ContractTransactionResponse>;
     /**
      * Hold (escrow) tokens for a pending settlement.
      *
@@ -41,7 +40,7 @@ export interface TokenStandard {
      * - ERC20: trivializes to transfer(sourceWallet → escrowAddress)
      * - Other standards may use native lock/escrow mechanics
      */
-    hold(sourceWallet: TokenWallet, escrowWallet: TokenWallet, asset: AssetRecord, amount: bigint, logger: winston.Logger): Promise<ContractTransactionResponse>;
+    hold(sourceWallet: TokenWallet, escrowWallet: TokenWallet, asset: AssetRecord, amount: bigint, logger: Logger): Promise<ContractTransactionResponse>;
     /**
      * Release held tokens to a destination address.
      *
@@ -49,6 +48,6 @@ export interface TokenStandard {
      * - ERC20: trivializes to transfer(escrowWallet → destinationAddress)
      * - Other standards may use native release/unlock mechanics
      */
-    release(escrowWallet: TokenWallet, asset: AssetRecord, to: string, amount: bigint, logger: winston.Logger): Promise<ContractTransactionResponse>;
+    release(escrowWallet: TokenWallet, asset: AssetRecord, to: string, amount: bigint, logger: Logger): Promise<ContractTransactionResponse>;
 }
 //# sourceMappingURL=interface.d.ts.map

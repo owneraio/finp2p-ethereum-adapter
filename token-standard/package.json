@@ -1,6 +1,6 @@
 {
   "name": "@owneraio/finp2p-ethereum-token-standard",
-  "version": "0.27.7",
+  "version": "0.27.8",
   "description": "Token standard interface for FinP2P Ethereum adapter plugins",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -23,8 +23,5 @@
   "license": "TBD",
   "dependencies": {
     "ethers": "^6.11.1"
-  },
-  "peerDependencies": {
-    "winston": "^3.0.0"
   }
 }
