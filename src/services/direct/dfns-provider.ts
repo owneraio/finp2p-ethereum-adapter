@@ -3,12 +3,14 @@ import { AsymmetricKeySigner } from '@dfns/sdk-keysigner';
 import { DfnsWallet } from '@dfns/lib-ethersjs6';
 import { JsonRpcProvider } from 'ethers';
 import { DfnsAppConfig } from '../../config';
-import { CustodyProvider, CustodyWallet, GasStation, withLocalSubmit } from './custody-provider';
+import { CustodyProvider, CustodyRoleBindings, CustodyWallet, GasStation, withLocalSubmit } from './custody-provider';
+
+export interface DfnsCustodyResult {
+  provider: DfnsCustodyProvider;
+  roles: CustodyRoleBindings<CustodyWallet>;
+}
 
 export class DfnsCustodyProvider implements CustodyProvider {
-  readonly issuer: CustodyWallet;
-  readonly escrow: CustodyWallet;
-  readonly omnibus?: CustodyWallet;
   readonly rpcProvider;
   readonly gasStation?: GasStation;
 
@@ -17,23 +19,16 @@ export class DfnsCustodyProvider implements CustodyProvider {
   private localSubmit: boolean;
 
   private constructor(
-    issuer: CustodyWallet,
-    escrow: CustodyWallet,
     private readonly config: DfnsAppConfig,
     dfnsClient: DfnsApiClient,
     addressToWalletId: Map<string, string>,
     gasStation?: GasStation,
-    omnibus?: CustodyWallet,
   ) {
     this.localSubmit = config.localSubmit ?? false;
-    const wrap = (w: CustodyWallet) => this.localSubmit ? withLocalSubmit(w, config.provider) : w;
-    this.issuer = wrap(issuer);
-    this.escrow = wrap(escrow);
-    this.omnibus = omnibus ? wrap(omnibus) : undefined;
     this.rpcProvider = config.provider;
     this.dfnsClient = dfnsClient;
     this.addressToWalletId = addressToWalletId;
-    this.gasStation = gasStation ? { wallet: wrap(gasStation.wallet), amount: gasStation.amount } : undefined;
+    this.gasStation = gasStation;
   }
 
   private static createDfnsClient(config: DfnsAppConfig): DfnsApiClient {
@@ -48,11 +43,13 @@ export class DfnsCustodyProvider implements CustodyProvider {
     return { provider, signer };
   }
 
-  static async create(config: DfnsAppConfig): Promise<DfnsCustodyProvider> {
+  static async create(config: DfnsAppConfig): Promise<DfnsCustodyResult> {
     const dfnsClient = DfnsCustodyProvider.createDfnsClient(config);
+    const localSubmit = config.localSubmit ?? false;
+    const wrap = (w: CustodyWallet) => localSubmit ? withLocalSubmit(w, config.provider) : w;
 
-    const issuerWallet = await DfnsCustodyProvider.createWalletProvider(dfnsClient, config.assetIssuerWalletId, config.rpcUrl);
-    const escrowWallet = await DfnsCustodyProvider.createWalletProvider(dfnsClient, config.assetEscrowWalletId, config.rpcUrl);
+    const issuerWallet = wrap(await DfnsCustodyProvider.createWalletProvider(dfnsClient, config.assetIssuerWalletId, config.rpcUrl));
+    const escrowWallet = wrap(await DfnsCustodyProvider.createWalletProvider(dfnsClient, config.assetEscrowWalletId, config.rpcUrl));
 
     // Cache address → walletId mapping
     const addressToWalletId = new Map<string, string>();
@@ -65,16 +62,25 @@ export class DfnsCustodyProvider implements CustodyProvider {
 
     let gasStation: GasStation | undefined;
     if (config.gasFunding) {
-      const gasWallet = await DfnsCustodyProvider.createWalletProvider(dfnsClient, config.gasFunding.walletId, config.rpcUrl);
+      const gasWallet = wrap(await DfnsCustodyProvider.createWalletProvider(dfnsClient, config.gasFunding.walletId, config.rpcUrl));
       gasStation = { wallet: gasWallet, amount: config.gasFunding.amount };
     }
 
     let omnibusWallet: CustodyWallet | undefined;
     if (config.omnibusWalletId) {
-      omnibusWallet = await DfnsCustodyProvider.createWalletProvider(dfnsClient, config.omnibusWalletId, config.rpcUrl);
+      omnibusWallet = wrap(await DfnsCustodyProvider.createWalletProvider(dfnsClient, config.omnibusWalletId, config.rpcUrl));
     }
 
-    return new DfnsCustodyProvider(issuerWallet, escrowWallet, config, dfnsClient, addressToWalletId, gasStation, omnibusWallet);
+    const roles: CustodyRoleBindings<CustodyWallet> = {
+      issuer: issuerWallet,
+      escrow: escrowWallet,
+      ...(omnibusWallet ? { omnibus: omnibusWallet } : {}),
+    };
+
+    return {
+      provider: new DfnsCustodyProvider(config, dfnsClient, addressToWalletId, gasStation),
+      roles,
+    };
   }
 
   async resolveWallet(address: string): Promise<CustodyWallet | undefined> {

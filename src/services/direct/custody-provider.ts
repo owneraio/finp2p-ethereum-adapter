@@ -11,10 +11,13 @@ export interface GasStation {
   amount: string;
 }
 
+export interface CustodyRoleBindings<TWallet> {
+  readonly issuer: TWallet;
+  readonly escrow: TWallet;
+  readonly omnibus?: TWallet;
+}
+
 export interface CustodyProvider {
-  readonly issuer: CustodyWallet;
-  readonly escrow: CustodyWallet;
-  readonly omnibus?: CustodyWallet;
   readonly rpcProvider: Provider;
   readonly gasStation?: GasStation;
 

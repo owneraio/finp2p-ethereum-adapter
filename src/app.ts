@@ -24,6 +24,8 @@ import {
   FireblocksCustodyProvider,
   DfnsCustodyProvider,
   CustodyProvider,
+  CustodyRoleBindings,
+  CustodyWallet,
   DerivationAccountMapping,
   DbAccountMapping,
   AccountMappingService,
@@ -43,7 +45,9 @@ function resolveAccountMapping(appConfig: AppConfig): AccountMappingService {
 }
 
 function registerDirectServices(
-  app: express.Application, logger: winston.Logger, custodyProvider: CustodyProvider, appConfig: AppConfig,
+  app: express.Application, logger: winston.Logger,
+  roles: CustodyRoleBindings<CustodyWallet>, custodyProvider: CustodyProvider,
+  appConfig: AppConfig,
   paymentsService: PaymentsServiceImpl, pluginManager: PluginManager, workflowsConfig: workflows.Config | undefined,
 ) {
   const healthService = new DirectHealthServiceImpl(custodyProvider.rpcProvider);
@@ -51,7 +55,7 @@ function registerDirectServices(
   if (appConfig.accountModel === 'omnibus') {
     if (!workflowsConfig?.storage) throw new Error('Workflows storage config is required for omnibus account model');
     const accountMapping = resolveAccountMapping(appConfig);
-    const delegate = new OmnibusDelegate(logger, custodyProvider, accountMapping);
+    const delegate = new OmnibusDelegate(logger, roles, custodyProvider, accountMapping);
     const { tokenService, escrowService, commonService, mappingService, distributionService, inboundTransferHook } = createVanillaServices(
       { transfer: delegate, asset: delegate, escrow: delegate, omnibus: delegate },
       workflowsConfig.storage,
@@ -70,7 +74,7 @@ function registerDirectServices(
   }
 
   const accountMapping = resolveAccountMapping(appConfig);
-  const tokenService = new DirectTokenService(logger, custodyProvider, accountMapping);
+  const tokenService = new DirectTokenService(logger, roles, custodyProvider, accountMapping);
   const commonService = new DirectCommonServiceImpl();
   const planApprovalService = new PlanApprovalServiceImpl(appConfig.orgId, pluginManager, appConfig.finP2PClient);
   register(app, tokenService, tokenService, commonService, healthService, paymentsService, planApprovalService, pluginManager, workflowsConfig, {
@@ -98,13 +102,13 @@ async function createApp(
 
   switch (appConfig.type) {
     case 'fireblocks': {
-      const custodyProvider = await FireblocksCustodyProvider.create(appConfig);
-      registerDirectServices(app, logger, custodyProvider, appConfig, paymentsService, pluginManager, workflowsConfig);
+      const { provider: custodyProvider, roles } = await FireblocksCustodyProvider.create(appConfig);
+      registerDirectServices(app, logger, roles, custodyProvider, appConfig, paymentsService, pluginManager, workflowsConfig);
       break
     }
     case 'dfns': {
-      const custodyProvider = await DfnsCustodyProvider.create(appConfig);
-      registerDirectServices(app, logger, custodyProvider, appConfig, paymentsService, pluginManager, workflowsConfig);
+      const { provider: custodyProvider, roles } = await DfnsCustodyProvider.create(appConfig);
+      registerDirectServices(app, logger, roles, custodyProvider, appConfig, paymentsService, pluginManager, workflowsConfig);
       break
     }
     case 'finp2p-contract': {

@@ -1,13 +1,15 @@
 import { FireblocksSDK } from 'fireblocks-sdk';
 import { createFireblocksEthersProvider, FireblocksAppConfig } from '../../config';
 import { createVaultManagementFunctions } from '../../vaults';
-import { CustodyProvider, CustodyWallet, GasStation } from './custody-provider';
+import { CustodyProvider, CustodyRoleBindings, CustodyWallet, GasStation } from './custody-provider';
 import { FireblocksRawSigner } from './fireblocks-raw-signer';
 
+export interface FireblocksCustodyResult {
+  provider: FireblocksCustodyProvider;
+  roles: CustodyRoleBindings<CustodyWallet>;
+}
+
 export class FireblocksCustodyProvider implements CustodyProvider {
-  readonly issuer: CustodyWallet;
-  readonly escrow: CustodyWallet;
-  readonly omnibus?: CustodyWallet;
   readonly rpcProvider;
   readonly gasStation?: GasStation;
 
@@ -15,24 +17,18 @@ export class FireblocksCustodyProvider implements CustodyProvider {
   private vaultManagement: ReturnType<typeof createVaultManagementFunctions>;
 
   private constructor(
-    issuer: CustodyWallet,
-    escrow: CustodyWallet,
     private readonly config: FireblocksAppConfig,
     fireblocksSdk: FireblocksSDK,
     vaultManagement: ReturnType<typeof createVaultManagementFunctions>,
     gasStation?: GasStation,
-    omnibus?: CustodyWallet,
   ) {
-    this.issuer = issuer;
-    this.escrow = escrow;
-    this.omnibus = omnibus;
     this.rpcProvider = config.provider;
     this.fireblocksSdk = fireblocksSdk;
     this.vaultManagement = vaultManagement;
     this.gasStation = gasStation;
   }
 
-  static async create(config: FireblocksAppConfig): Promise<FireblocksCustodyProvider> {
+  static async create(config: FireblocksAppConfig): Promise<FireblocksCustodyResult> {
     const fireblocksSdk = new FireblocksSDK(config.apiPrivateKey, config.apiKey, config.apiBaseUrl as string);
     const vaultManagement = createVaultManagementFunctions(fireblocksSdk);
 
@@ -66,10 +62,16 @@ export class FireblocksCustodyProvider implements CustodyProvider {
       omnibusWallet = await createWallet(config.omnibusVaultId);
     }
 
-    return new FireblocksCustodyProvider(
-      issuerWallet, escrowWallet,
-      config, fireblocksSdk, vaultManagement, gasStation, omnibusWallet
-    );
+    const roles: CustodyRoleBindings<CustodyWallet> = {
+      issuer: issuerWallet,
+      escrow: escrowWallet,
+      ...(omnibusWallet ? { omnibus: omnibusWallet } : {}),
+    };
+
+    return {
+      provider: new FireblocksCustodyProvider(config, fireblocksSdk, vaultManagement, gasStation),
+      roles,
+    };
   }
 
   async resolveWallet(address: string): Promise<CustodyWallet | undefined> {
