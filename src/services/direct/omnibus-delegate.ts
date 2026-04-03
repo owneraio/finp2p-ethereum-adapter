@@ -9,7 +9,7 @@ import { workflows } from '@owneraio/finp2p-nodejs-skeleton-adapter';
 import { parseUnits, formatUnits, id as keccak256 } from 'ethers';
 import { ContractsManager, ERC20Contract } from '@owneraio/finp2p-contracts';
 import winston from 'winston';
-import { CustodyProvider, CustodyWallet } from './custody-provider';
+import { CustodyProvider, CustodyRoleBindings, CustodyWallet } from './custody-provider';
 import { AccountMappingService } from './account-mapping';
 import { getAssetFromDb } from './helpers';
 
@@ -34,12 +34,13 @@ export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowD
 
   constructor(
     private readonly logger: winston.Logger,
+    private readonly roles: CustodyRoleBindings<CustodyWallet>,
     private readonly custodyProvider: CustodyProvider,
     private readonly accountMapping: AccountMappingService,
     receiptPolling?: Partial<ReceiptPollingConfig>,
   ) {
-    if (!custodyProvider.omnibus) throw new Error('Omnibus wallet is required for omnibus delegate');
-    this.omnibusWallet = custodyProvider.omnibus;
+    if (!roles.omnibus) throw new Error('Omnibus wallet is required for omnibus delegate');
+    this.omnibusWallet = roles.omnibus;
     this.receiptPolling = { ...defaultReceiptPolling, ...receiptPolling };
   }
 
@@ -174,7 +175,7 @@ export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowD
     asset: Asset, quantity: string, operationId: string, exCtx: ExecutionContext | undefined,
   ): Promise<DelegateResult> {
     const dbAsset = await getAssetFromDb(asset);
-    const escrowAddress = await this.custodyProvider.escrow.signer.getAddress();
+    const escrowAddress = await this.roles.escrow.signer.getAddress();
     const amount = parseUnits(quantity, dbAsset.decimals);
 
     const c = new ERC20Contract(this.omnibusWallet.provider, this.omnibusWallet.signer, dbAsset.contract_address, this.logger);
@@ -192,7 +193,7 @@ export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowD
   ): Promise<DelegateResult> {
     const dbAsset = await getAssetFromDb(asset);
     const omnibusAddress = await this.omnibusWallet.signer.getAddress();
-    const escrowWallet = this.custodyProvider.escrow;
+    const escrowWallet = this.roles.escrow;
     const amount = parseUnits(quantity, dbAsset.decimals);
 
     const c = new ERC20Contract(escrowWallet.provider, escrowWallet.signer, dbAsset.contract_address, this.logger);
@@ -210,7 +211,7 @@ export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowD
   ): Promise<DelegateResult> {
     const dbAsset = await getAssetFromDb(asset);
     const omnibusAddress = await this.omnibusWallet.signer.getAddress();
-    const escrowWallet = this.custodyProvider.escrow;
+    const escrowWallet = this.roles.escrow;
     const amount = parseUnits(quantity, dbAsset.decimals);
 
     const c = new ERC20Contract(escrowWallet.provider, escrowWallet.signer, dbAsset.contract_address, this.logger);

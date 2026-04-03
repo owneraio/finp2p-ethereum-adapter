@@ -1,12 +1,14 @@
 import { JsonRpcProvider } from 'ethers';
 import { BlockdaemonAppConfig, createIVWallet } from './blockdaemon-config';
 import { InstitutionalVaultClient } from './blockdaemon/iv-client';
-import { CustodyProvider, CustodyWallet, GasStation } from './custody-provider';
+import { CustodyProvider, CustodyRoleBindings, CustodyWallet, GasStation } from './custody-provider';
+
+export interface BlockdaemonCustodyResult {
+  provider: BlockdaemonCustodyProvider;
+  roles: CustodyRoleBindings<CustodyWallet>;
+}
 
 export class BlockdaemonCustodyProvider implements CustodyProvider {
-  readonly issuer: CustodyWallet;
-  readonly escrow: CustodyWallet;
-  readonly omnibus?: CustodyWallet;
   readonly rpcProvider;
   readonly gasStation?: GasStation;
 
@@ -15,17 +17,11 @@ export class BlockdaemonCustodyProvider implements CustodyProvider {
   private config: BlockdaemonAppConfig;
 
   private constructor(
-    issuer: CustodyWallet,
-    escrow: CustodyWallet,
     config: BlockdaemonAppConfig,
     ivClient: InstitutionalVaultClient,
     addressToAccountID: Map<string, number>,
     gasStation?: GasStation,
-    omnibus?: CustodyWallet,
   ) {
-    this.issuer = issuer;
-    this.escrow = escrow;
-    this.omnibus = omnibus;
     this.rpcProvider = config.provider;
     this.ivClient = ivClient;
     this.addressToAccountID = addressToAccountID;
@@ -33,7 +29,7 @@ export class BlockdaemonCustodyProvider implements CustodyProvider {
     this.gasStation = gasStation;
   }
 
-  static async create(config: BlockdaemonAppConfig): Promise<BlockdaemonCustodyProvider> {
+  static async create(config: BlockdaemonAppConfig): Promise<BlockdaemonCustodyResult> {
     const { ivClient, ivNetwork } = config;
     const rpcProvider = config.provider as JsonRpcProvider;
 
@@ -69,10 +65,16 @@ export class BlockdaemonCustodyProvider implements CustodyProvider {
       omnibusWallet = await createWallet(config.omnibusAccountID);
     }
 
-    return new BlockdaemonCustodyProvider(
-      issuerWallet, escrowWallet,
-      config, ivClient, addressToAccountID, gasStation, omnibusWallet,
-    );
+    const roles: CustodyRoleBindings<CustodyWallet> = {
+      issuer: issuerWallet,
+      escrow: escrowWallet,
+      ...(omnibusWallet ? { omnibus: omnibusWallet } : {}),
+    };
+
+    return {
+      provider: new BlockdaemonCustodyProvider(config, ivClient, addressToAccountID, gasStation),
+      roles,
+    };
   }
 
   async resolveWallet(address: string): Promise<CustodyWallet | undefined> {

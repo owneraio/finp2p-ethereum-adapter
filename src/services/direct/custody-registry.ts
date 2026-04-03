@@ -1,10 +1,15 @@
-import { CustodyProvider } from './custody-provider';
+import { CustodyProvider, CustodyRoleBindings, CustodyWallet } from './custody-provider';
+
+export interface CustodyProviderResult {
+  provider: CustodyProvider;
+  roles: CustodyRoleBindings<CustodyWallet>;
+}
 
 /**
- * Factory function that creates a CustodyProvider from provider-specific config.
+ * Factory function that creates a CustodyProvider + role bindings from provider-specific config.
  * Each custody module exports one of these.
  */
-export type CustodyProviderFactory<TConfig = any> = (config: TConfig) => Promise<CustodyProvider>;
+export type CustodyProviderFactory<TConfig = any> = (config: TConfig) => Promise<CustodyProviderResult>;
 
 /**
  * Embedded registry for custody provider modules.
@@ -34,7 +39,7 @@ class CustodyProviderRegistry {
     this.factories.set(providerType, factory);
   }
 
-  async create(providerType: string, config: any): Promise<CustodyProvider> {
+  async create(providerType: string, config: any): Promise<CustodyProviderResult> {
     const factory = this.factories.get(providerType);
     if (!factory) {
       const available = Array.from(this.factories.keys()).join(', ');
