@@ -2,7 +2,7 @@ import { DfnsApiClient } from '@dfns/sdk';
 import { AsymmetricKeySigner } from '@dfns/sdk-keysigner';
 import { DfnsWallet } from '@dfns/lib-ethersjs6';
 import { JsonRpcProvider } from 'ethers';
-import { DfnsAppConfig } from '../../config';
+import { DfnsAppConfig } from './dfns-config';
 import { CustodyProvider, CustodyRoleBindings, CustodyWallet, GasStation, withLocalSubmit } from './custody-provider';
 
 export interface DfnsCustodyResult {
@@ -88,5 +88,13 @@ export class DfnsCustodyProvider implements CustodyProvider {
     if (walletId === undefined) return undefined;
     const wallet = await DfnsCustodyProvider.createWalletProvider(this.dfnsClient, walletId, this.config.rpcUrl);
     return this.localSubmit ? withLocalSubmit(wallet, this.config.provider) : wallet;
+  }
+
+  async resolveAddressFromCustodyId(walletId: string): Promise<string> {
+    const wallet = await this.dfnsClient.wallets.getWallet({ walletId });
+    if (!wallet.address) {
+      throw new Error(`No address found for DFNS wallet ${walletId}`);
+    }
+    return wallet.address;
   }
 }

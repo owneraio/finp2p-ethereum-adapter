@@ -1,5 +1,6 @@
-import { MappingService, OwnerMapping } from '@owneraio/finp2p-adapter-models';
+import { MappingService, OwnerMapping } from '@owneraio/finp2p-nodejs-skeleton-adapter';
 import { FinP2PContract } from '@owneraio/finp2p-contracts';
+import { FIELD_LEDGER_ACCOUNT_ID } from '../direct/mapping-validator';
 
 /**
  * MappingService backed by the on-chain credentials registry.
@@ -14,8 +15,8 @@ export class CredentialsMappingService implements MappingService {
     const results: OwnerMapping[] = [];
     for (const finId of finIds) {
       try {
-        const account = await this.finP2PContract.getCredentialAddress(finId);
-        results.push({ finId, account });
+        const address = await this.finP2PContract.getCredentialAddress(finId);
+        results.push({ finId, fields: { [FIELD_LEDGER_ACCOUNT_ID]: address } });
       } catch {
         // credential not found — skip
       }
@@ -23,12 +24,19 @@ export class CredentialsMappingService implements MappingService {
     return results;
   }
 
-  async saveOwnerMapping(finId: string, account: string): Promise<OwnerMapping> {
-    await this.finP2PContract.addCredential(finId, account);
-    return { finId, account };
+  async getByFieldValue(fieldName: string, value: string): Promise<OwnerMapping[]> {
+    // On-chain registry only supports lookup by finId, not by field value
+    return [];
   }
 
-  async deleteOwnerMapping(finId: string, _account?: string): Promise<void> {
+  async saveOwnerMapping(finId: string, fields: Record<string, string>): Promise<OwnerMapping> {
+    const address = fields[FIELD_LEDGER_ACCOUNT_ID];
+    if (!address) throw new Error(`Field '${FIELD_LEDGER_ACCOUNT_ID}' is required for on-chain credential mapping`);
+    await this.finP2PContract.addCredential(finId, address);
+    return { finId, fields };
+  }
+
+  async deleteOwnerMapping(finId: string, _fieldName?: string): Promise<void> {
     await this.finP2PContract.removeCredential(finId);
   }
 }

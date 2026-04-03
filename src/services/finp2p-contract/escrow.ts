@@ -1,11 +1,11 @@
+import { EIP712Template, EscrowService, Signature, logger } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import {
-  Asset, Destination, EIP712Template, ExecutionContext,
-  failedReceiptOperation, pendingReceiptOperation, ReceiptOperation, Signature, Source, EscrowService, ValidationError
-} from "@owneraio/finp2p-adapter-models";
-import { logger } from "@owneraio/finp2p-nodejs-skeleton-adapter";
+  Asset, Destination, ExecutionContext,
+  failedReceiptOperation, pendingReceiptOperation, ReceiptOperation, Source, ValidationError,
+  EthereumTransactionError
+} from "@owneraio/finp2p-contracts";
 import { CommonServiceImpl } from "./common";
 import { emptyOperationParams, extractBusinessDetails } from "./helpers";
-import { EthereumTransactionError } from "@owneraio/finp2p-contracts";
 import { validateRequest } from "./validator";
 
 export class EscrowServiceImpl extends CommonServiceImpl implements EscrowService {

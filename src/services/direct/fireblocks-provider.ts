@@ -1,5 +1,5 @@
 import { FireblocksSDK } from 'fireblocks-sdk';
-import { createFireblocksEthersProvider, FireblocksAppConfig } from '../../config';
+import { createFireblocksEthersProvider, FireblocksAppConfig } from './fireblocks-config';
 import { createVaultManagementFunctions } from '../../vaults';
 import { CustodyProvider, CustodyRoleBindings, CustodyWallet, GasStation } from './custody-provider';
 import { FireblocksRawSigner } from './fireblocks-raw-signer';
@@ -94,6 +94,15 @@ export class FireblocksCustodyProvider implements CustodyProvider {
       apiBaseUrl: this.config.apiBaseUrl!,
       vaultAccountIds: [vaultId],
     });
+  }
+
+  async resolveAddressFromCustodyId(vaultAccountId: string): Promise<string> {
+    const assetId = 'ETH_TEST5'; // TODO: make configurable
+    const addresses = await this.fireblocksSdk.getDepositAddresses(vaultAccountId, assetId);
+    if (addresses.length === 0) {
+      throw new Error(`No deposit address found for vault ${vaultAccountId} asset ${assetId}`);
+    }
+    return addresses[0].address;
   }
 
   async onAssetRegistered(tokenAddress: string, symbol?: string): Promise<void> {

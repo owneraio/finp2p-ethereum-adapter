@@ -1,4 +1,4 @@
-import { HealthService } from '@owneraio/finp2p-adapter-models'
+import { HealthService } from '@owneraio/finp2p-nodejs-skeleton-adapter'
 import { Provider } from 'ethers'
 
 export class HealthServiceImpl implements HealthService {

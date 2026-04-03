@@ -10,7 +10,7 @@ import {
 import FINP2P from "../artifacts/contracts/finp2p/FINP2POperator.sol/FINP2POperator.json";
 import ERC20 from "../artifacts/contracts/token/ERC20/ERC20WithOperator.sol/ERC20WithOperator.json";
 import { ERC20WithOperator, FINP2POperator } from "../typechain-types";
-import { Logger } from "@owneraio/finp2p-adapter-models";
+import { Logger } from "./adapter-types";
 import { PayableOverrides } from "../typechain-types/common";
 import { EthereumTransactionError, NonceAlreadyBeenUsedError, NonceTooHighError } from "./model";
 import { compactSerialize, hashEIP712, signEIP712 } from "./utils";

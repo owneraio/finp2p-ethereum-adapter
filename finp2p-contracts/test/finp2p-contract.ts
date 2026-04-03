@@ -11,7 +11,7 @@ import {
   emptyLoanTerms,
   loanTerms,
   newInvestmentMessage,
-} from "@owneraio/finp2p-adapter-models";
+} from "../src/adapter-types";
 import { FINP2POperator, FinP2PSignatureVerifier } from "../typechain-types";
 import {
   AssetType,

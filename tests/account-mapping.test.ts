@@ -3,8 +3,8 @@ import {
   AccountMappingService,
   DerivationAccountMapping,
   DbAccountMapping,
-  CustodyAccountMapping,
 } from '../src/services/direct/account-mapping';
+import { FIELD_LEDGER_ACCOUNT_ID } from '../src/services/direct/mapping-validator';
 import {
   PostgreSqlContainer,
   StartedPostgreSqlContainer,
@@ -100,8 +100,8 @@ describe('DbAccountMapping', () => {
     await container.stop();
   });
 
-  it('should add and resolve a mapping', async () => {
-    await service.addMapping(TEST_FIN_ID, TEST_ADDRESS);
+  it('should save and resolve a mapping', async () => {
+    await service.saveOwnerMapping(TEST_FIN_ID, { [FIELD_LEDGER_ACCOUNT_ID]: TEST_ADDRESS });
     const account = await service.resolveAccount(TEST_FIN_ID);
     expect(account?.toLowerCase()).toBe(TEST_ADDRESS.toLowerCase());
   });
@@ -116,33 +116,25 @@ describe('DbAccountMapping', () => {
     expect(finId).toBe(TEST_FIN_ID);
   });
 
-  it('should support multiple accounts per finId (1:N)', async () => {
-    const secondAddress = '0x1111111111111111111111111111111111111111';
-    await service.addMapping(TEST_FIN_ID, secondAddress);
-    // resolveAccount returns the first match
-    const account = await service.resolveAccount(TEST_FIN_ID);
-    expect(account).toBeDefined();
-    // clean up
-    await service.removeMapping(TEST_FIN_ID, secondAddress);
-  });
-
   it('should be idempotent on duplicate insert', async () => {
-    await service.addMapping(TEST_FIN_ID, TEST_ADDRESS);
+    await service.saveOwnerMapping(TEST_FIN_ID, { [FIELD_LEDGER_ACCOUNT_ID]: TEST_ADDRESS });
     const account = await service.resolveAccount(TEST_FIN_ID);
     expect(account?.toLowerCase()).toBe(TEST_ADDRESS.toLowerCase());
   });
 
-  it('should remove a specific mapping', async () => {
-    await service.addMapping(TEST_FIN_ID_2, TEST_ADDRESS_2);
-    await service.removeMapping(TEST_FIN_ID_2, TEST_ADDRESS_2);
+  it('should delete a specific field mapping', async () => {
+    await service.saveOwnerMapping(TEST_FIN_ID_2, { [FIELD_LEDGER_ACCOUNT_ID]: TEST_ADDRESS_2 });
+    await service.deleteOwnerMapping(TEST_FIN_ID_2, FIELD_LEDGER_ACCOUNT_ID);
     const account = await service.resolveAccount(TEST_FIN_ID_2);
     expect(account).toBeUndefined();
   });
 
-  it('should remove all mappings for a finId', async () => {
-    await service.addMapping(TEST_FIN_ID_2, TEST_ADDRESS_2);
-    await service.addMapping(TEST_FIN_ID_2, '0x2222222222222222222222222222222222222222');
-    await service.removeMapping(TEST_FIN_ID_2);
+  it('should delete all mappings for a finId', async () => {
+    await service.saveOwnerMapping(TEST_FIN_ID_2, {
+      [FIELD_LEDGER_ACCOUNT_ID]: TEST_ADDRESS_2,
+      custodyAccountId: 'vault-99',
+    });
+    await service.deleteOwnerMapping(TEST_FIN_ID_2);
     const account = await service.resolveAccount(TEST_FIN_ID_2);
     expect(account).toBeUndefined();
   });
@@ -156,14 +148,10 @@ describe('DbAccountMapping', () => {
     const finId = await service.resolveFinId('0x0000000000000000000000000000000000000000');
     expect(finId).toBeUndefined();
   });
-});
 
-// --- CustodyAccountMapping ---
-runSharedTests('CustodyAccountMapping', async () => {
-  const entries = [
-    { finId: TEST_FIN_ID, account: TEST_ADDRESS },
-    { finId: TEST_FIN_ID_2, account: TEST_ADDRESS_2 },
-  ];
-  const service = new CustodyAccountMapping(async () => entries);
-  return { service };
+  it('should query by field value', async () => {
+    const mappings = await service.getByFieldValue(FIELD_LEDGER_ACCOUNT_ID, TEST_ADDRESS);
+    expect(mappings.length).toBeGreaterThan(0);
+    expect(mappings[0].finId).toBe(TEST_FIN_ID);
+  });
 });

@@ -1,4 +1,4 @@
-import { Logger, ConsoleLogger } from "@owneraio/finp2p-adapter-models";
+import { Logger, ConsoleLogger } from "../src/adapter-types";
 import { ContractsManager } from "../src";
 import { createJsonProvider, parseConfig } from "./config";
 
