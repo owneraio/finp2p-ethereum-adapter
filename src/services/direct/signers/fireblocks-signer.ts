@@ -1,4 +1,4 @@
-import { Provider, Transaction, TransactionRequest, keccak256 } from 'ethers';
+import { Provider, Transaction, TransactionRequest, TransactionResponse, keccak256, formatEther } from 'ethers';
 import {
   FireblocksSDK,
   TransactionOperation,
@@ -96,6 +96,38 @@ export class FireblocksCustodySigner extends CustodySigner {
     };
 
     return txObj.serialized;
+  }
+
+  get supportsCustodySubmit(): boolean {
+    return true;
+  }
+
+  protected async custodySendTransaction(tx: TransactionRequest): Promise<TransactionResponse> {
+    const pop = await this.populateTransaction(tx);
+    const to = pop.to as string;
+    if (!to) throw new Error('FireblocksCustodySigner: transaction must have a "to" address');
+
+    const hasCalldata = pop.data && pop.data !== '0x';
+
+    const { id } = await this.fireblocksSdk.createTransaction({
+      operation: hasCalldata ? TransactionOperation.CONTRACT_CALL : TransactionOperation.TRANSFER,
+      assetId: this.assetId,
+      source: {
+        type: PeerType.VAULT_ACCOUNT,
+        id: this.vaultAccountId,
+      },
+      destination: {
+        type: PeerType.ONE_TIME_ADDRESS,
+        oneTimeAddress: { address: to },
+      },
+      amount: pop.value ? formatEther(pop.value) : '0',
+      ...(hasCalldata ? { extraParameters: { contractCallData: pop.data } } : {}),
+    });
+
+    const completed = await this.pollTransaction(id);
+    const txHash = completed.txHash;
+    if (!txHash) throw new Error(`Fireblocks transaction ${id} completed but has no txHash`);
+    return this.provider!.getTransaction(txHash) as Promise<TransactionResponse>;
   }
 
   private async pollTransaction(txId: string): Promise<FBTransactionResponse> {

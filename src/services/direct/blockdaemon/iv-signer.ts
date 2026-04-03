@@ -1,4 +1,4 @@
-import { Provider, TransactionRequest, Transaction } from 'ethers';
+import { Provider, TransactionRequest, TransactionResponse, Transaction, formatEther, hexlify } from 'ethers';
 import { CustodySigner } from '../signers/custody-signer';
 import { InstitutionalVaultClient } from './iv-client';
 
@@ -16,23 +16,82 @@ const POLL_TIMEOUT_MS = 120_000;
 export class IVSigner extends CustodySigner {
   private readonly _accountID: number;
   private readonly _network: string;
+  private readonly _nativeAssetID: number;
   private readonly _ivClient: InstitutionalVaultClient;
 
   constructor(
     address: string,
     accountID: number,
     network: string,
+    nativeAssetID: number,
     ivClient: InstitutionalVaultClient,
     provider: Provider,
   ) {
     super(address, provider);
     this._accountID = accountID;
     this._network = network;
+    this._nativeAssetID = nativeAssetID;
     this._ivClient = ivClient;
   }
 
   connect(provider: Provider): IVSigner {
-    return new IVSigner(this._address, this._accountID, this._network, this._ivClient, provider);
+    return new IVSigner(this._address, this._accountID, this._network, this._nativeAssetID, this._ivClient, provider);
+  }
+
+  get supportsCustodySubmit(): boolean {
+    return true;
+  }
+
+  protected async custodySendTransaction(tx: TransactionRequest): Promise<TransactionResponse> {
+    const pop = await this.populateTransaction(tx);
+    const to = pop.to as string;
+    if (!to) throw new Error('IVSigner: transaction must have a "to" address');
+
+    const hasCalldata = pop.data && pop.data !== '0x';
+    const value = pop.value ? formatEther(pop.value) : '0';
+
+    const transfer = await this._ivClient.createTransfer({
+      type: hasCalldata ? 'contract' : 'transfer',
+      assetID: this._nativeAssetID,
+      fromAddressAmountArray: [{
+        address: this._address,
+        accountID: this._accountID,
+        amount: value,
+      }],
+      toAddressAmountArray: [{
+        address: to,
+        ...(hasCalldata ? { calldata: hexlify(pop.data!) } : {}),
+        ...(hasCalldata ? {} : { amount: value }),
+      }],
+      feePriority: 'Medium',
+    });
+
+    const txHash = await this.waitForTxHash(transfer.metadata.id);
+    return this.provider!.getTransaction(txHash) as Promise<TransactionResponse>;
+  }
+
+  private async waitForTxHash(transferID: number): Promise<string> {
+    const deadline = Date.now() + POLL_TIMEOUT_MS;
+
+    while (Date.now() < deadline) {
+      const tx = await this._ivClient.getTransaction(transferID);
+      const status = tx.status?.status;
+
+      if (status === 'Succeeded' || status === 'Completed') {
+        if (!tx.status?.txHash) {
+          throw new Error(`IV transfer ${transferID} succeeded but has no txHash`);
+        }
+        return tx.status.txHash;
+      }
+
+      if (status === 'Failed' || status === 'Cancelled' || status === 'Rejected' || status === 'Error') {
+        throw new Error(`IV transfer ${transferID} terminal status: ${status}`);
+      }
+
+      await new Promise(r => setTimeout(r, POLL_INTERVAL_MS));
+    }
+
+    throw new Error(`IV transfer ${transferID} timed out after ${POLL_TIMEOUT_MS}ms`);
   }
 
   async signTransaction(tx: TransactionRequest): Promise<string> {

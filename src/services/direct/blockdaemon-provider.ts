@@ -30,11 +30,11 @@ export class BlockdaemonCustodyProvider implements CustodyProvider {
   }
 
   static async create(config: BlockdaemonAppConfig): Promise<BlockdaemonCustodyResult> {
-    const { ivClient, ivNetwork } = config;
+    const { ivClient, ivNetwork, nativeAssetID } = config;
     const rpcProvider = config.provider as JsonRpcProvider;
 
     const createWallet = (accountID: number) =>
-      createIVWallet(ivClient, accountID, ivNetwork, rpcProvider);
+      createIVWallet(ivClient, accountID, ivNetwork, nativeAssetID, rpcProvider);
 
     const issuerWallet = await createWallet(config.assetIssuerAccountID);
     const escrowWallet = await createWallet(config.assetEscrowAccountID);
@@ -83,7 +83,7 @@ export class BlockdaemonCustodyProvider implements CustodyProvider {
 
     return createIVWallet(
       this.ivClient, accountID,
-      this.config.ivNetwork, this.config.provider as JsonRpcProvider,
+      this.config.ivNetwork, this.config.nativeAssetID, this.config.provider as JsonRpcProvider,
     );
   }
 
