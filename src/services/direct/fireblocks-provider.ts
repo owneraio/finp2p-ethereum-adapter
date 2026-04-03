@@ -1,12 +1,15 @@
 import { FireblocksSDK } from 'fireblocks-sdk';
 import { createFireblocksEthersProvider, FireblocksAppConfig } from './fireblocks-config';
 import { createVaultManagementFunctions } from '../../vaults';
-import { CustodyProvider, CustodyWallet, GasStation } from './custody-provider';
+import { CustodyProvider, CustodyRoleBindings, CustodyWallet, GasStation } from './custody-provider';
+import { FireblocksRawSigner } from './fireblocks-raw-signer';
+
+export interface FireblocksCustodyResult {
+  provider: FireblocksCustodyProvider;
+  roles: CustodyRoleBindings<CustodyWallet>;
+}
 
 export class FireblocksCustodyProvider implements CustodyProvider {
-  readonly issuer: CustodyWallet;
-  readonly escrow: CustodyWallet;
-  readonly omnibus?: CustodyWallet;
   readonly rpcProvider;
   readonly gasStation?: GasStation;
 
@@ -14,64 +17,81 @@ export class FireblocksCustodyProvider implements CustodyProvider {
   private vaultManagement: ReturnType<typeof createVaultManagementFunctions>;
 
   private constructor(
-    issuer: CustodyWallet,
-    escrow: CustodyWallet,
     private readonly config: FireblocksAppConfig,
     fireblocksSdk: FireblocksSDK,
     vaultManagement: ReturnType<typeof createVaultManagementFunctions>,
     gasStation?: GasStation,
-    omnibus?: CustodyWallet,
   ) {
-    this.issuer = issuer;
-    this.escrow = escrow;
-    this.omnibus = omnibus;
     this.rpcProvider = config.provider;
     this.fireblocksSdk = fireblocksSdk;
     this.vaultManagement = vaultManagement;
     this.gasStation = gasStation;
   }
 
-  static async create(config: FireblocksAppConfig): Promise<FireblocksCustodyProvider> {
-    const createProvider = (vaultId: string) => createFireblocksEthersProvider({
-      apiKey: config.apiKey,
-      privateKey: config.apiPrivateKey,
-      chainId: config.chainId,
-      apiBaseUrl: config.apiBaseUrl,
-      vaultAccountIds: [vaultId],
-    });
-
-    const issuerWallet = await createProvider(config.assetIssuerVaultId);
-    const escrowWallet = await createProvider(config.assetEscrowVaultId);
-
+  static async create(config: FireblocksAppConfig): Promise<FireblocksCustodyResult> {
     const fireblocksSdk = new FireblocksSDK(config.apiPrivateKey, config.apiKey, config.apiBaseUrl as string);
     const vaultManagement = createVaultManagementFunctions(fireblocksSdk);
 
+    const createWallet = config.localSubmit
+      ? (vaultId: string): CustodyWallet => {
+          const signer = new FireblocksRawSigner({ fireblocksSdk, vaultAccountId: vaultId }, config.provider);
+          return { provider: config.provider, signer };
+        }
+      : async (vaultId: string) => {
+          if (!config.chainId) throw new Error('FIREBLOCKS_CHAIN_ID is required when LOCAL_SUBMIT is not enabled');
+          return createFireblocksEthersProvider({
+            apiKey: config.apiKey,
+            privateKey: config.apiPrivateKey,
+            chainId: config.chainId,
+            apiBaseUrl: config.apiBaseUrl!,
+            vaultAccountIds: [vaultId],
+          });
+        };
+
+    const issuerWallet = await createWallet(config.assetIssuerVaultId);
+    const escrowWallet = await createWallet(config.assetEscrowVaultId);
+
     let gasStation: GasStation | undefined;
     if (config.gasFunding) {
-      const gasWallet = await createProvider(config.gasFunding.vaultId);
+      const gasWallet = await createWallet(config.gasFunding.vaultId);
       gasStation = { wallet: gasWallet, amount: config.gasFunding.amount };
     }
 
     let omnibusWallet: CustodyWallet | undefined;
     if (config.omnibusVaultId) {
-      omnibusWallet = await createProvider(config.omnibusVaultId);
+      omnibusWallet = await createWallet(config.omnibusVaultId);
     }
 
-    return new FireblocksCustodyProvider(
-      issuerWallet, escrowWallet,
-      config, fireblocksSdk, vaultManagement, gasStation, omnibusWallet
-    );
+    const roles: CustodyRoleBindings<CustodyWallet> = {
+      issuer: issuerWallet,
+      escrow: escrowWallet,
+      ...(omnibusWallet ? { omnibus: omnibusWallet } : {}),
+    };
+
+    return {
+      provider: new FireblocksCustodyProvider(config, fireblocksSdk, vaultManagement, gasStation),
+      roles,
+    };
   }
 
   async resolveWallet(address: string): Promise<CustodyWallet | undefined> {
     const vaultId = await this.vaultManagement.getVaultIdForAddress(address);
     if (vaultId === undefined) return undefined;
 
+    if (this.config.localSubmit) {
+      const signer = new FireblocksRawSigner({
+        fireblocksSdk: this.fireblocksSdk,
+        vaultAccountId: vaultId,
+      }, this.config.provider);
+      return { provider: this.config.provider, signer };
+    }
+
+    if (!this.config.chainId) throw new Error('FIREBLOCKS_CHAIN_ID is required when LOCAL_SUBMIT is not enabled');
     return createFireblocksEthersProvider({
       apiKey: this.config.apiKey,
       privateKey: this.config.apiPrivateKey,
       chainId: this.config.chainId,
-      apiBaseUrl: this.config.apiBaseUrl,
+      apiBaseUrl: this.config.apiBaseUrl!,
       vaultAccountIds: [vaultId],
     });
   }

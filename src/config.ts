@@ -165,10 +165,12 @@ export async function envVarsToAppConfig(logger: Logger): Promise<AppConfig> {
       }
     }
     case 'fireblocks': {
-      return { ...await createFireblocksAppConfig(), accountMappingType, accountModel }
+      const localSubmit = process.env.LOCAL_SUBMIT === 'true'
+      return { ...await createFireblocksAppConfig(), accountMappingType, accountModel, localSubmit }
     }
     case 'dfns': {
-      return { ...await createDfnsAppConfig(), accountMappingType, accountModel }
+      const localSubmit = process.env.LOCAL_SUBMIT === 'true'
+      return { ...await createDfnsAppConfig(), accountMappingType, accountModel, localSubmit }
     }
     default: {
       // For registry-based providers: return generic config.

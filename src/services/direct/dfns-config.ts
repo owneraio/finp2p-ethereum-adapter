@@ -7,6 +7,7 @@ import { BaseAppConfig } from "../../config";
 
 export type DfnsAppConfig = BaseAppConfig & {
   type: 'dfns'
+  localSubmit?: boolean
   dfnsBaseUrl: string
   dfnsOrgId: string
   dfnsAuthToken: string
