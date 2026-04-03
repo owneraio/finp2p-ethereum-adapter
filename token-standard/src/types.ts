@@ -1,0 +1,75 @@
+import { Provider, Signer } from 'ethers';
+
+/**
+ * Minimal logger interface. Structurally compatible with winston, console, or any logger.
+ */
+export interface Logger {
+  info(message: string, ...args: any[]): void;
+  warn(message: string, ...args: any[]): void;
+  error(message: string, ...args: any[]): void;
+  debug(message: string, ...args: any[]): void;
+}
+
+/**
+ * A wallet with a provider and signer, used for signing and submitting transactions.
+ * Mirrors the adapter's CustodyWallet without coupling to the adapter package.
+ */
+export interface TokenWallet {
+  provider: Provider;
+  signer: Signer;
+}
+
+/**
+ * Stored asset data from the DB, used to resolve the token standard.
+ */
+export interface AssetRecord {
+  contract_address: string;
+  decimals: number;
+  token_standard: string;
+}
+
+/**
+ * Result of deploying a new token contract.
+ */
+export interface DeployResult {
+  contractAddress: string;
+  decimals: number;
+  tokenStandard: string;
+}
+
+/**
+ * Compiled contract artifact — ABI + bytecode for on-chain deployment.
+ * Token standard packages include these so `deploy()` can use them
+ * without depending on a separate contracts package.
+ */
+export interface ContractArtifact {
+  abi: any[];
+  bytecode: string;
+}
+
+/**
+ * A complete token standard package: off-chain implementation + on-chain artifacts.
+ *
+ * Plugin packages export this so the adapter can both:
+ * - register the off-chain standard for runtime operations
+ * - access the contract artifacts for deployment
+ *
+ * Example:
+ *   import { erc20Standard } from '@owneraio/finp2p-ethereum-adapter';
+ *   // erc20Standard.standard  → TokenStandard implementation
+ *   // erc20Standard.artifacts → { token: { abi, bytecode } }
+ */
+export interface TokenStandardPackage {
+  /** Unique key used in the token_standard registry and DB field. */
+  name: string;
+
+  /** Off-chain implementation: deploy, balanceOf, mint, transfer, burn, hold, release. */
+  standard: import('./interface').TokenStandard;
+
+  /**
+   * On-chain contract artifacts keyed by role.
+   * The 'token' key is the primary token contract.
+   * Additional keys are standard-specific (e.g. 'factory', 'escrow', 'priceOracle').
+   */
+  artifacts?: Record<string, ContractArtifact>;
+}

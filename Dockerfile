@@ -38,6 +38,7 @@ COPY \
     jest.config.js \
     ./
 COPY src ./src
+COPY migrations ./migrations
 COPY --from=contracts-builder /usr/app/package.json ./finp2p-contracts/package.json
 COPY --from=contracts-builder /usr/app/dist ./finp2p-contracts/dist
 
@@ -68,6 +69,7 @@ ENV NODE_ENV=production
 
 COPY --from=dependencies /usr/app/node_modules ./node_modules
 COPY --from=build /usr/app/dist ./dist
+COPY --from=build /usr/app/migrations ./migrations
 COPY --from=migrator /go/bin/goose /usr/bin/goose
 
 CMD [ "node", "/usr/app/dist/index.js" ]

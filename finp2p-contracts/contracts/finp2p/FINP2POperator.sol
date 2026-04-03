@@ -4,7 +4,7 @@ pragma solidity ^0.8.20;
 
 import "../utils/StringUtils.sol";
 import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
-import {OperationParams, LegType, PrimaryType, Phase, ReleaseType} from "../utils/finp2p/OperationParams.sol";
+import {OperationParams, LegType, PrimaryType, Phase, ReleaseType} from "@owneraio/finp2p-ethereum-token-standard/contracts/OperationParams.sol";
 import {FinIdUtils} from "../utils/finp2p/FinIdUtils.sol";
 import {FinP2PSignatureVerifier} from "../utils/finp2p/FinP2PSignatureVerifier.sol";
 import {Burnable} from "../utils/erc20/Burnable.sol";
