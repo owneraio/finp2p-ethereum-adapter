@@ -40,6 +40,10 @@ import {
 // Register compiled-in custody providers
 custodyRegistry.register('fireblocks', (config) => FireblocksCustodyProvider.create(config as FireblocksAppConfig));
 custodyRegistry.register('dfns', (config) => DfnsCustodyProvider.create(config as DfnsAppConfig));
+
+// Register built-in token standards
+import { registerBuiltinTokenStandards } from "./services/direct/token-standards/register-builtins";
+registerBuiltinTokenStandards();
 import { CustodyMappingValidator, FIELD_CUSTODY_ACCOUNT_ID, FIELD_LEDGER_ACCOUNT_ID } from "./services/direct/mapping-validator";
 
 function resolveAccountMapping(appConfig: AppConfig): AccountMappingService {

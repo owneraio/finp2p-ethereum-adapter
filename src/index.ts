@@ -4,6 +4,7 @@ import { FinP2PClient } from "@owneraio/finp2p-client";
 import winston, { format, transports } from "winston";
 import { FinP2PContract } from "@owneraio/finp2p-contracts";
 import { migrationsDir as vanillaMigrationsDir, migrationsTableName as vanillaMigrationsTable } from "@owneraio/finp2p-vanilla-service";
+import { join } from "path";
 import { envVarsToAppConfig } from "./config";
 import createApp from "./app";
 import { InMemoryExecDetailsStore } from "./services/finp2p-contract";
@@ -38,6 +39,7 @@ const init = async () => {
       storageUser,
       additionalMigrations: [
         { migrationsDir: vanillaMigrationsDir, tableName: vanillaMigrationsTable },
+        { migrationsDir: join(__dirname, '..', 'migrations'), tableName: 'finp2p_ethereum_adapter_extensions' },
       ],
     },
     storage: { connectionString: dbConnectionString },

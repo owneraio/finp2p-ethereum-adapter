@@ -2,7 +2,7 @@
 
 pragma solidity ^0.8.0;
 
-import "./OperationParams.sol";
+import "@owneraio/finp2p-ethereum-token-standard/contracts/OperationParams.sol";
 import {EIP712} from "./EIP712.sol";
 import {FinIdUtils} from "./FinIdUtils.sol";
 import {Signature} from "./Signature.sol";
