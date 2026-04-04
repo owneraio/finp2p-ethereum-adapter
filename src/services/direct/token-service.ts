@@ -57,6 +57,29 @@ export class DirectTokenService implements TokenService, EscrowService {
     return this.resolveAddress(destination.finId);
   }
 
+  /**
+   * Resolve a custody wallet for the given finId.
+   * Uses custodyAccountId from the DB mapping when available (fast path),
+   * falls back to resolveWallet(address) reverse lookup (slow — triggers vault scan on Fireblocks).
+   */
+  private async resolveSourceWallet(finId: string): Promise<{ address: string; wallet: CustodyWallet } | undefined> {
+    const full = this.accountMapping.resolveFullAccount
+      ? await this.accountMapping.resolveFullAccount(finId)
+      : undefined;
+
+    if (full?.custodyAccountId && this.custodyProvider.createWalletForCustodyId) {
+      const wallet = await this.custodyProvider.createWalletForCustodyId(full.custodyAccountId);
+      return { address: full.ledgerAccountId, wallet };
+    }
+
+    // Fallback: resolve address then reverse-lookup wallet
+    const address = full?.ledgerAccountId ?? await this.accountMapping.resolveAccount(finId);
+    if (!address) return undefined;
+    const wallet = await this.custodyProvider.resolveWallet(address);
+    if (!wallet) return undefined;
+    return { address, wallet };
+  }
+
   private async fundGas(wallet: CustodyWallet): Promise<void> {
     return fundGasIfNeeded(this.logger, this.custodyProvider.gasStation, wallet);
   }
@@ -166,9 +189,9 @@ export class DirectTokenService implements TokenService, EscrowService {
     try {
       const asset = await getAssetFromDb(ast);
       const standard = tokenStandardRegistry.resolve(asset.token_standard);
-      const sourceAddress = await this.resolveAddress(source.finId);
-      const wallet = await this.custodyProvider.resolveWallet(sourceAddress);
-      if (wallet === undefined) return failedReceiptOperation(1, 'Source address cannot be resolved to a custody wallet');
+      const resolved = await this.resolveSourceWallet(source.finId);
+      if (!resolved) return failedReceiptOperation(1, 'Source address cannot be resolved to a custody wallet');
+      const { wallet } = resolved;
       const amount = parseUnits(quantity, asset.decimals);
 
       await this.fundGas(wallet);
@@ -227,11 +250,10 @@ export class DirectTokenService implements TokenService, EscrowService {
       const t0 = Date.now();
       const asset = await getAssetFromDb(ast);
       const standard = tokenStandardRegistry.resolve(asset.token_standard);
-      const sourceAddress = await this.resolveAddress(source.finId);
-      this.logger.info(`Hold[${operationId}] resolveAddress: ${Date.now() - t0}ms`);
-      const wallet = await this.custodyProvider.resolveWallet(sourceAddress);
-      this.logger.info(`Hold[${operationId}] resolveWallet: ${Date.now() - t0}ms`);
-      if (wallet === undefined) return failedReceiptOperation(1, 'Source address cannot be resolved to a custody wallet');
+      const resolved = await this.resolveSourceWallet(source.finId);
+      this.logger.info(`Hold[${operationId}] resolveSourceWallet: ${Date.now() - t0}ms`);
+      if (!resolved) return failedReceiptOperation(1, 'Source address cannot be resolved to a custody wallet');
+      const { wallet } = resolved;
       const amount = parseUnits(quantity, asset.decimals);
 
       await this.fundGas(wallet);
