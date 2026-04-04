@@ -12,6 +12,7 @@ import { AccountMappingService } from './account-mapping';
 import { getAssetFromDb, fundGasIfNeeded } from './helpers';
 import { tokenStandardRegistry } from './token-standards/registry';
 import { ERC20_TOKEN_STANDARD } from './token-standards/erc20';
+import { buildOperationContext } from './operation-context';
 
 function buildReceiptOperation(
   receipt: TransactionReceipt, asset: Asset, operationType: OperationType, quantity: string,
@@ -54,6 +55,29 @@ export class DirectTokenService implements TokenService, EscrowService {
   private async resolveDestinationAddress(destination: Destination): Promise<string> {
     if (destination.account.type === 'crypto') return destination.account.address;
     return this.resolveAddress(destination.finId);
+  }
+
+  /**
+   * Resolve a custody wallet for the given finId.
+   * Uses custodyAccountId from the DB mapping when available (fast path),
+   * falls back to resolveWallet(address) reverse lookup (slow — triggers vault scan on Fireblocks).
+   */
+  private async resolveSourceWallet(finId: string): Promise<{ address: string; wallet: CustodyWallet } | undefined> {
+    const full = this.accountMapping.resolveFullAccount
+      ? await this.accountMapping.resolveFullAccount(finId)
+      : undefined;
+
+    if (full?.custodyAccountId && this.custodyProvider.createWalletForCustodyId) {
+      const wallet = await this.custodyProvider.createWalletForCustodyId(full.custodyAccountId);
+      return { address: full.ledgerAccountId, wallet };
+    }
+
+    // Fallback: resolve address then reverse-lookup wallet
+    const address = full?.ledgerAccountId ?? await this.accountMapping.resolveAccount(finId);
+    if (!address) return undefined;
+    const wallet = await this.custodyProvider.resolveWallet(address);
+    if (!wallet) return undefined;
+    return { address, wallet };
   }
 
   private async fundGas(wallet: CustodyWallet): Promise<void> {
@@ -165,14 +189,15 @@ export class DirectTokenService implements TokenService, EscrowService {
     try {
       const asset = await getAssetFromDb(ast);
       const standard = tokenStandardRegistry.resolve(asset.token_standard);
-      const sourceAddress = await this.resolveAddress(source.finId);
-      const wallet = await this.custodyProvider.resolveWallet(sourceAddress);
-      if (wallet === undefined) return failedReceiptOperation(1, 'Source address cannot be resolved to a custody wallet');
+      const resolved = await this.resolveSourceWallet(source.finId);
+      if (!resolved) return failedReceiptOperation(1, 'Source address cannot be resolved to a custody wallet');
+      const { wallet } = resolved;
       const amount = parseUnits(quantity, asset.decimals);
 
       await this.fundGas(wallet);
       const destinationAddress = await this.resolveDestinationAddress(destination);
-      const tx = await standard.transfer(wallet, asset, destinationAddress, amount, this.logger);
+      const opCtx = buildOperationContext(ast, signature, exCtx);
+      const tx = await standard.transfer(wallet, asset, destinationAddress, amount, this.logger, opCtx);
       const receipt = await tx.wait();
       if (receipt === null) return failedReceiptOperation(1, "receipt is null");
 
@@ -198,7 +223,8 @@ export class DirectTokenService implements TokenService, EscrowService {
       const amount = parseUnits(quantity, asset.decimals);
 
       await this.fundGas(wallet);
-      const tx = await standard.burn(wallet, asset, escrowAddress, amount, this.logger);
+      const opCtx = buildOperationContext(ast, signature, exCtx, operationId);
+      const tx = await standard.burn(wallet, asset, escrowAddress, amount, this.logger, opCtx);
       const receipt = await tx.wait();
       if (receipt === null) return failedReceiptOperation(1, "receipt is null");
 
@@ -223,13 +249,14 @@ export class DirectTokenService implements TokenService, EscrowService {
     try {
       const asset = await getAssetFromDb(ast);
       const standard = tokenStandardRegistry.resolve(asset.token_standard);
-      const sourceAddress = await this.resolveAddress(source.finId);
-      const wallet = await this.custodyProvider.resolveWallet(sourceAddress);
-      if (wallet === undefined) return failedReceiptOperation(1, 'Source address cannot be resolved to a custody wallet');
+      const resolved = await this.resolveSourceWallet(source.finId);
+      if (!resolved) return failedReceiptOperation(1, 'Source address cannot be resolved to a custody wallet');
+      const { wallet } = resolved;
       const amount = parseUnits(quantity, asset.decimals);
 
       await this.fundGas(wallet);
-      const tx = await standard.hold(wallet, this.custodyProvider.escrow, asset, amount, this.logger);
+      const opCtx = buildOperationContext(ast, signature, exCtx, operationId);
+      const tx = await standard.hold(wallet, this.custodyProvider.escrow, asset, amount, this.logger, opCtx);
       const receipt = await tx.wait();
       if (receipt === null) return failedReceiptOperation(1, "receipt is null");
 
@@ -254,7 +281,8 @@ export class DirectTokenService implements TokenService, EscrowService {
       const amount = parseUnits(quantity, asset.decimals);
 
       await this.fundGas(escrowWallet);
-      const tx = await standard.release(escrowWallet, asset, destinationAddress, amount, this.logger);
+      const opCtx = buildOperationContext(ast, undefined, exCtx, operationId);
+      const tx = await standard.release(escrowWallet, asset, destinationAddress, amount, this.logger, opCtx);
       const receipt = await tx.wait();
       if (receipt === null) return failedReceiptOperation(1, "receipt is null");
 
@@ -279,7 +307,8 @@ export class DirectTokenService implements TokenService, EscrowService {
       const amount = parseUnits(quantity, asset.decimals);
 
       await this.fundGas(escrowWallet);
-      const tx = await standard.release(escrowWallet, asset, sourceAddress, amount, this.logger);
+      const opCtx = buildOperationContext(ast, undefined, exCtx, operationId);
+      const tx = await standard.release(escrowWallet, asset, sourceAddress, amount, this.logger, opCtx);
       const receipt = await tx.wait();
       if (receipt === null) return failedReceiptOperation(1, "receipt is null");
 

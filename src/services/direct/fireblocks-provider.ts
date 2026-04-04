@@ -63,6 +63,16 @@ export class FireblocksCustodyProvider implements CustodyProvider {
     );
   }
 
+  async createWalletForCustodyId(vaultAccountId: string): Promise<CustodyWallet> {
+    return createFireblocksEthersProvider({
+      apiKey: this.config.apiKey,
+      privateKey: this.config.apiPrivateKey,
+      chainId: this.config.chainId,
+      apiBaseUrl: this.config.apiBaseUrl,
+      vaultAccountIds: [vaultAccountId],
+    });
+  }
+
   async resolveWallet(address: string): Promise<CustodyWallet | undefined> {
     const vaultId = await this.vaultManagement.getVaultIdForAddress(address);
     if (vaultId === undefined) return undefined;

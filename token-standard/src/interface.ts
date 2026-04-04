@@ -1,5 +1,5 @@
 import { ContractTransactionResponse, Provider, Signer } from 'ethers';
-import { TokenWallet, AssetRecord, DeployResult, Logger } from './types';
+import { TokenWallet, AssetRecord, DeployResult, Logger, OperationContext } from './types';
 
 /**
  * Token standard implementation for direct-mode operations.
@@ -7,6 +7,10 @@ import { TokenWallet, AssetRecord, DeployResult, Logger } from './types';
  * Each mutating method returns a ContractTransactionResponse that the adapter
  * awaits via tx.wait(). The adapter owns gas funding, receipt shaping,
  * logging, and error handling — the standard only constructs the on-chain call.
+ *
+ * The optional OperationContext mirrors the on-chain OperationParams struct,
+ * carrying business semantics (leg, phase, primaryType) so standards can
+ * vary behavior — e.g. REPO flows use Phase to distinguish initiation from closure.
  *
  * Implement this interface in a plugin package and register it with the
  * adapter's tokenStandardRegistry at bootstrap.
@@ -44,6 +48,7 @@ export interface TokenStandard {
     to: string,
     amount: bigint,
     logger: Logger,
+    opCtx?: OperationContext,
   ): Promise<ContractTransactionResponse>;
 
   /**
@@ -55,6 +60,7 @@ export interface TokenStandard {
     to: string,
     amount: bigint,
     logger: Logger,
+    opCtx?: OperationContext,
   ): Promise<ContractTransactionResponse>;
 
   /**
@@ -66,6 +72,7 @@ export interface TokenStandard {
     from: string,
     amount: bigint,
     logger: Logger,
+    opCtx?: OperationContext,
   ): Promise<ContractTransactionResponse>;
 
   /**
@@ -74,7 +81,7 @@ export interface TokenStandard {
    * The sourceWallet signs the transaction. The escrowWallet is provided
    * so the standard can decide where funds go:
    * - ERC20: trivializes to transfer(sourceWallet → escrowAddress)
-   * - Other standards may use native lock/escrow mechanics
+   * - REPO standards may use Phase to vary behavior (INITIATE vs CLOSE)
    */
   hold(
     sourceWallet: TokenWallet,
@@ -82,6 +89,7 @@ export interface TokenStandard {
     asset: AssetRecord,
     amount: bigint,
     logger: Logger,
+    opCtx?: OperationContext,
   ): Promise<ContractTransactionResponse>;
 
   /**
@@ -89,7 +97,7 @@ export interface TokenStandard {
    *
    * The escrowWallet signs the transaction:
    * - ERC20: trivializes to transfer(escrowWallet → destinationAddress)
-   * - Other standards may use native release/unlock mechanics
+   * - REPO standards may use Phase to trigger settlement closure
    */
   release(
     escrowWallet: TokenWallet,
@@ -97,5 +105,6 @@ export interface TokenStandard {
     to: string,
     amount: bigint,
     logger: Logger,
+    opCtx?: OperationContext,
   ): Promise<ContractTransactionResponse>;
 }
