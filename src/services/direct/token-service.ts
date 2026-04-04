@@ -12,6 +12,7 @@ import { AccountMappingService } from './account-mapping';
 import { getAssetFromDb, fundGasIfNeeded } from './helpers';
 import { tokenStandardRegistry } from './token-standards/registry';
 import { ERC20_TOKEN_STANDARD } from './token-standards/erc20';
+import { buildOperationContext } from './operation-context';
 
 function buildReceiptOperation(
   receipt: TransactionReceipt, asset: Asset, operationType: OperationType, quantity: string,
@@ -172,7 +173,8 @@ export class DirectTokenService implements TokenService, EscrowService {
 
       await this.fundGas(wallet);
       const destinationAddress = await this.resolveDestinationAddress(destination);
-      const tx = await standard.transfer(wallet, asset, destinationAddress, amount, this.logger);
+      const opCtx = buildOperationContext(ast, signature, exCtx);
+      const tx = await standard.transfer(wallet, asset, destinationAddress, amount, this.logger, opCtx);
       const receipt = await tx.wait();
       if (receipt === null) return failedReceiptOperation(1, "receipt is null");
 
@@ -198,7 +200,8 @@ export class DirectTokenService implements TokenService, EscrowService {
       const amount = parseUnits(quantity, asset.decimals);
 
       await this.fundGas(wallet);
-      const tx = await standard.burn(wallet, asset, escrowAddress, amount, this.logger);
+      const opCtx = buildOperationContext(ast, signature, exCtx, operationId);
+      const tx = await standard.burn(wallet, asset, escrowAddress, amount, this.logger, opCtx);
       const receipt = await tx.wait();
       if (receipt === null) return failedReceiptOperation(1, "receipt is null");
 
@@ -229,7 +232,8 @@ export class DirectTokenService implements TokenService, EscrowService {
       const amount = parseUnits(quantity, asset.decimals);
 
       await this.fundGas(wallet);
-      const tx = await standard.hold(wallet, this.custodyProvider.escrow, asset, amount, this.logger);
+      const opCtx = buildOperationContext(ast, signature, exCtx, operationId);
+      const tx = await standard.hold(wallet, this.custodyProvider.escrow, asset, amount, this.logger, opCtx);
       const receipt = await tx.wait();
       if (receipt === null) return failedReceiptOperation(1, "receipt is null");
 
@@ -254,7 +258,8 @@ export class DirectTokenService implements TokenService, EscrowService {
       const amount = parseUnits(quantity, asset.decimals);
 
       await this.fundGas(escrowWallet);
-      const tx = await standard.release(escrowWallet, asset, destinationAddress, amount, this.logger);
+      const opCtx = buildOperationContext(ast, undefined, exCtx, operationId);
+      const tx = await standard.release(escrowWallet, asset, destinationAddress, amount, this.logger, opCtx);
       const receipt = await tx.wait();
       if (receipt === null) return failedReceiptOperation(1, "receipt is null");
 
@@ -279,7 +284,8 @@ export class DirectTokenService implements TokenService, EscrowService {
       const amount = parseUnits(quantity, asset.decimals);
 
       await this.fundGas(escrowWallet);
-      const tx = await standard.release(escrowWallet, asset, sourceAddress, amount, this.logger);
+      const opCtx = buildOperationContext(ast, undefined, exCtx, operationId);
+      const tx = await standard.release(escrowWallet, asset, sourceAddress, amount, this.logger, opCtx);
       const receipt = await tx.wait();
       if (receipt === null) return failedReceiptOperation(1, "receipt is null");
 
