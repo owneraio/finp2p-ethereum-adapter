@@ -7,11 +7,12 @@ export type FireblocksAppConfig = BaseAppConfig & {
   type: 'fireblocks'
   apiKey: string
   apiPrivateKey: string
-  chainId: ChainId
-  apiBaseUrl: ApiBaseUrl | string
+  chainId?: ChainId
+  apiBaseUrl?: ApiBaseUrl | string
   assetIssuerVaultId: string
   assetEscrowVaultId: string
   omnibusVaultId?: string
+  localSubmit?: boolean
   gasFunding?: {
     vaultId: string
     amount: string
@@ -109,6 +110,7 @@ export async function createFireblocksAppConfig(): Promise<Omit<FireblocksAppCon
     assetIssuerVaultId,
     assetEscrowVaultId,
     omnibusVaultId,
+    localSubmit: process.env.LOCAL_SUBMIT === 'true',
     gasFunding,
   };
 }
