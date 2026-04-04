@@ -224,17 +224,23 @@ export class DirectTokenService implements TokenService, EscrowService {
     exCtx: ExecutionContext | undefined
   ): Promise<ReceiptOperation> {
     try {
+      const t0 = Date.now();
       const asset = await getAssetFromDb(ast);
       const standard = tokenStandardRegistry.resolve(asset.token_standard);
       const sourceAddress = await this.resolveAddress(source.finId);
+      this.logger.info(`Hold[${operationId}] resolveAddress: ${Date.now() - t0}ms`);
       const wallet = await this.custodyProvider.resolveWallet(sourceAddress);
+      this.logger.info(`Hold[${operationId}] resolveWallet: ${Date.now() - t0}ms`);
       if (wallet === undefined) return failedReceiptOperation(1, 'Source address cannot be resolved to a custody wallet');
       const amount = parseUnits(quantity, asset.decimals);
 
       await this.fundGas(wallet);
+      this.logger.info(`Hold[${operationId}] fundGas: ${Date.now() - t0}ms`);
       const opCtx = buildOperationContext(ast, signature, exCtx, operationId);
       const tx = await standard.hold(wallet, this.custodyProvider.escrow, asset, amount, this.logger, opCtx);
+      this.logger.info(`Hold[${operationId}] standard.hold (tx submitted): ${Date.now() - t0}ms`);
       const receipt = await tx.wait();
+      this.logger.info(`Hold[${operationId}] tx.wait: ${Date.now() - t0}ms`);
       if (receipt === null) return failedReceiptOperation(1, "receipt is null");
 
       const block = await receipt.getBlock();
