@@ -120,6 +120,7 @@ export class FireblocksCustodyProvider implements CustodyProvider {
   }
 
   async onAssetRegistered(tokenAddress: string, symbol?: string): Promise<void> {
+    if (this.config.localSubmit) return; // No Fireblocks asset registration on private networks
     const responseRegister = await this.fireblocksSdk.registerNewAsset(
       'ETH_TEST5', tokenAddress, symbol
     );
