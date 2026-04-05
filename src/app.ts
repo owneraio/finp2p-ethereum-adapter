@@ -122,6 +122,7 @@ async function createApp(
   }));
 
   const pluginManager = new PluginManager();
+  let custodyProviderRef: CustodyProvider | undefined;
 
   // Runtime plugin activation: DTCC collateral
   if (process.env.DTCC_PLUGIN_ENABLED === 'true') {
@@ -137,17 +138,23 @@ async function createApp(
     tokenStandardRegistry.register(DTCC_TOKEN_STANDARD, new CollateralTokenStandard(factoryAddress));
 
     // Register collateral deposit plugin
-    const accountResolver = async (finId: string) => {
+    // walletResolver: finId → { walletAddress, wallet } using DB mapping + custody provider
+    // Resolved lazily — custodyProvider is created after plugin registration
+    const walletResolver = async (finId: string) => {
       const mappings = await workflows.getAccountMappings([finId]);
       if (mappings.length === 0) return undefined;
-      return {
-        ledgerAccountId: mappings[0].fields?.['ledgerAccountId'],
-        custodyAccountId: mappings[0].fields?.['custodyAccountId'],
-      };
+      const walletAddress = mappings[0].fields?.['ledgerAccountId'];
+      const custodyAccountId = mappings[0].fields?.['custodyAccountId'];
+      if (!walletAddress) return undefined;
+      let wallet;
+      if (custodyAccountId && custodyProviderRef?.createWalletForCustodyId) {
+        wallet = await custodyProviderRef.createWalletForCustodyId(custodyAccountId);
+      }
+      return { walletAddress, wallet };
     };
     const depositPlugin = new (CollateralDepositPlugin as any)(
       appConfig.orgId, appConfig.provider, appConfig.signer,
-      workflowsConfig.finP2PClient, logger, accountResolver,
+      workflowsConfig.finP2PClient, logger, walletResolver,
     );
     pluginManager.registerPaymentsPlugin(depositPlugin);
 
@@ -159,6 +166,7 @@ async function createApp(
   if (custodyRegistry.has(appConfig.type)) {
     logger.info(`Activating custody provider: ${appConfig.type} (available: ${custodyRegistry.availableProviders.join(', ')})`);
     const custodyProvider = await custodyRegistry.create(appConfig.type, appConfig);
+    custodyProviderRef = custodyProvider; // wire lazy ref for plugin walletResolver
     registerDirectServices(app, logger, custodyProvider, appConfig, paymentsService, pluginManager, workflowsConfig);
   } else if (appConfig.type === 'finp2p-contract') {
     const contractConfig = appConfig as FinP2PContractAppConfig;
