@@ -126,20 +126,6 @@ async function createApp(
 
   // Runtime plugin activation: DTCC collateral
   if (process.env.DTCC_PLUGIN_ENABLED === 'true') {
-    if (!workflowsConfig?.finP2PClient) {
-      throw new Error('DTCC plugin requires finP2PClient in workflow config (set FINP2P_ADDRESS and OSS_URL)');
-    }
-    const factoryAddress = process.env.FACTORY_ADDRESS;
-    if (!factoryAddress) {
-      throw new Error('DTCC plugin requires FACTORY_ADDRESS');
-    }
-
-    // Register collateral token standard
-    tokenStandardRegistry.register(DTCC_TOKEN_STANDARD, new CollateralTokenStandard(factoryAddress));
-
-    // Register collateral deposit plugin
-    // walletResolver: finId → { walletAddress, wallet } using DB mapping + custody provider
-    // Resolved lazily — custodyProvider is created after plugin registration
     const walletResolver = async (finId: string) => {
       const mappings = await workflows.getAccountMappings([finId]);
       if (mappings.length === 0) return undefined;
@@ -150,9 +136,12 @@ async function createApp(
       const wallet = await custodyProviderRef.createWalletForCustodyId(custodyAccountId);
       return { walletAddress, wallet };
     };
+
+    tokenStandardRegistry.register(DTCC_TOKEN_STANDARD, new CollateralTokenStandard(process.env.FACTORY_ADDRESS ?? ''));
+
     const rpcUrl = getNetworkRpcUrl();
     const depositPlugin = new CollateralDepositPlugin(
-      appConfig.orgId, rpcUrl, workflowsConfig.finP2PClient, logger, walletResolver,
+      appConfig.orgId, rpcUrl, workflowsConfig?.finP2PClient!, logger, walletResolver,
     );
     pluginManager.registerPaymentsPlugin(depositPlugin);
 
