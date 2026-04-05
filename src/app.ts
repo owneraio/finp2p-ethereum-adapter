@@ -137,9 +137,17 @@ async function createApp(
     tokenStandardRegistry.register(DTCC_TOKEN_STANDARD, new CollateralTokenStandard(factoryAddress));
 
     // Register collateral deposit plugin
-    const depositPlugin = new CollateralDepositPlugin(
+    const accountResolver = async (finId: string) => {
+      const mappings = await workflows.getAccountMappings([finId]);
+      if (mappings.length === 0) return undefined;
+      return {
+        ledgerAccountId: mappings[0].fields?.['ledgerAccountId'],
+        custodyAccountId: mappings[0].fields?.['custodyAccountId'],
+      };
+    };
+    const depositPlugin = new (CollateralDepositPlugin as any)(
       appConfig.orgId, appConfig.provider, appConfig.signer,
-      workflowsConfig.finP2PClient, logger,
+      workflowsConfig.finP2PClient, logger, accountResolver,
     );
     pluginManager.registerPaymentsPlugin(depositPlugin);
 
