@@ -137,11 +137,26 @@ async function createApp(
     tokenStandardRegistry.register(DTCC_TOKEN_STANDARD, new CollateralTokenStandard(factoryAddress));
 
     // Register collateral deposit plugin
-    const depositPlugin = new CollateralDepositPlugin(
-      appConfig.orgId, appConfig.provider, appConfig.signer,
-      workflowsConfig.finP2PClient, logger,
-    );
-    pluginManager.registerPaymentsPlugin(depositPlugin);
+    // TODO: restore CollateralDepositPlugin after debugging
+    // const depositPlugin = new CollateralDepositPlugin(
+    //   appConfig.orgId, appConfig.provider, appConfig.signer,
+    //   workflowsConfig.finP2PClient, logger,
+    // );
+    const mockDepositPlugin = {
+      async deposit(owner: any, asset: any, amount: any) {
+        logger.info('[MOCK] deposit() called', { finId: owner?.finId, assetType: asset?.assetType, amount });
+        return { operation: 'deposit' as const, type: 'success' as const, instruction: { description: 'mock deposit' } };
+      },
+      async depositCustom(owner: any, amount: any, details: any) {
+        logger.info('[MOCK] depositCustom() called', { finId: owner?.finId, amount, hasDetails: !!details });
+        return { operation: 'deposit' as const, type: 'success' as const, instruction: { description: 'mock depositCustom' } };
+      },
+      async payout(source: any, destination: any, asset: any, amount: any) {
+        logger.info('[MOCK] payout() called', { finId: source?.finId, amount });
+        return { operation: 'receipt' as const, type: 'failure' as const, error: { code: 1, message: 'mock payout not implemented' } };
+      },
+    };
+    pluginManager.registerPaymentsPlugin(mockDepositPlugin as any);
 
     logger.info(`DTCC plugin activated: token standard '${DTCC_TOKEN_STANDARD}', deposit plugin registered`);
   }
