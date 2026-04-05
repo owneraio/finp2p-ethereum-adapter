@@ -145,16 +145,13 @@ async function createApp(
       if (mappings.length === 0) return undefined;
       const walletAddress = mappings[0].fields?.['ledgerAccountId'];
       const custodyAccountId = mappings[0].fields?.['custodyAccountId'];
-      if (!walletAddress) return undefined;
-      let wallet;
-      if (custodyAccountId && custodyProviderRef?.createWalletForCustodyId) {
-        wallet = await custodyProviderRef.createWalletForCustodyId(custodyAccountId);
-      }
+      if (!walletAddress || !custodyAccountId) return undefined;
+      if (!custodyProviderRef?.createWalletForCustodyId) return undefined;
+      const wallet = await custodyProviderRef.createWalletForCustodyId(custodyAccountId);
       return { walletAddress, wallet };
     };
-    const depositPlugin = new (CollateralDepositPlugin as any)(
-      appConfig.orgId, appConfig.provider, appConfig.signer,
-      workflowsConfig.finP2PClient, logger, walletResolver,
+    const depositPlugin = new CollateralDepositPlugin(
+      appConfig.orgId, workflowsConfig.finP2PClient, logger, walletResolver,
     );
     pluginManager.registerPaymentsPlugin(depositPlugin);
 
