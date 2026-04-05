@@ -38,7 +38,8 @@ export class FireblocksCustodyProvider implements CustodyProvider {
 
     const createWallet = config.localSubmit
       ? (vaultId: string): CustodyWallet => {
-          const signer = new FireblocksRawSigner({ fireblocksSdk, vaultAccountId: vaultId }, config.provider);
+          const assetId = process.env.FIREBLOCKS_ASSET_ID ?? 'ETH_TEST5';
+          const signer = new FireblocksRawSigner({ fireblocksSdk, vaultAccountId: vaultId, assetId }, config.provider);
           return { provider: config.provider, signer };
         }
       : async (vaultId: string) => {
@@ -74,9 +75,11 @@ export class FireblocksCustodyProvider implements CustodyProvider {
 
   async createWalletForCustodyId(vaultAccountId: string): Promise<CustodyWallet> {
     if (this.config.localSubmit) {
+      const assetId = process.env.FIREBLOCKS_ASSET_ID ?? 'ETH_TEST5';
       const signer = new FireblocksRawSigner({
         fireblocksSdk: this.fireblocksSdk,
         vaultAccountId: vaultAccountId,
+        assetId,
       }, this.config.provider);
       return { provider: this.config.provider, signer };
     }
@@ -97,7 +100,7 @@ export class FireblocksCustodyProvider implements CustodyProvider {
   }
 
   async resolveAddressFromCustodyId(vaultAccountId: string): Promise<string> {
-    const assetId = 'ETH_TEST5'; // TODO: make configurable
+    const assetId = process.env.FIREBLOCKS_ASSET_ID ?? 'ETH_TEST5';
     const addresses = await this.fireblocksSdk.getDepositAddresses(vaultAccountId, assetId);
     if (addresses.length === 0) {
       throw new Error(`No deposit address found for vault ${vaultAccountId} asset ${assetId}`);
@@ -107,8 +110,9 @@ export class FireblocksCustodyProvider implements CustodyProvider {
 
   async onAssetRegistered(tokenAddress: string, symbol?: string): Promise<void> {
     if (this.config.localSubmit) return; // No Fireblocks asset registration on private networks
+    const assetId = process.env.FIREBLOCKS_ASSET_ID ?? 'ETH_TEST5';
     const responseRegister = await this.fireblocksSdk.registerNewAsset(
-      'ETH_TEST5', tokenAddress, symbol
+      assetId, tokenAddress, symbol
     );
     await this.fireblocksSdk.createVaultAsset(
       this.config.assetIssuerVaultId, responseRegister.legacyId
