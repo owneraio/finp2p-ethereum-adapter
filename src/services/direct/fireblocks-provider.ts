@@ -52,14 +52,19 @@ export class FireblocksCustodyProvider implements CustodyProvider {
           });
         };
 
-    // Fall back to omnibus vault when issuer/escrow not configured
+    // Create wallets for configured vaults, falling back to omnibus
     const issuerVault = config.assetIssuerVaultId ?? config.omnibusVaultId;
     const escrowVault = config.assetEscrowVaultId ?? config.omnibusVaultId;
-    if (!issuerVault || !escrowVault) {
+
+    let issuerWallet: CustodyWallet | undefined;
+    let escrowWallet: CustodyWallet | undefined;
+    if (issuerVault) issuerWallet = await createWallet(issuerVault);
+    if (escrowVault) escrowWallet = await createWallet(escrowVault);
+
+    // In standard mode, issuer and escrow are required
+    if (!config.localSubmit && (!issuerWallet || !escrowWallet)) {
       throw new Error('Either FIREBLOCKS_ASSET_ISSUER_VAULT_ID/FIREBLOCKS_ASSET_ESCROW_VAULT_ID or FIREBLOCKS_OMNIBUS_VAULT_ID must be set');
     }
-    const issuerWallet = await createWallet(issuerVault);
-    const escrowWallet = await createWallet(escrowVault);
 
     let gasStation: GasStation | undefined;
     if (config.gasFunding) {
@@ -72,8 +77,11 @@ export class FireblocksCustodyProvider implements CustodyProvider {
       omnibusWallet = await createWallet(config.omnibusVaultId);
     }
 
+    // In local submit mode, use a placeholder for unconfigured wallets.
+    // Real wallets are resolved per-operation via createWalletForCustodyId.
+    const placeholder: CustodyWallet = { provider: config.provider, signer: config.provider as any };
     return new FireblocksCustodyProvider(
-      issuerWallet, escrowWallet,
+      issuerWallet ?? placeholder, escrowWallet ?? placeholder,
       config, fireblocksSdk, vaultManagement, gasStation, omnibusWallet
     );
   }
