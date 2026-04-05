@@ -9,8 +9,8 @@ export type FireblocksAppConfig = BaseAppConfig & {
   apiPrivateKey: string
   chainId?: ChainId
   apiBaseUrl?: ApiBaseUrl | string
-  assetIssuerVaultId: string
-  assetEscrowVaultId: string
+  assetIssuerVaultId?: string
+  assetEscrowVaultId?: string
   omnibusVaultId?: string
   localSubmit?: boolean
   gasFunding?: {
@@ -75,18 +75,18 @@ export async function createFireblocksAppConfig(): Promise<Omit<FireblocksAppCon
   const chainId = (process.env.FIREBLOCKS_CHAIN_ID || ChainId.MAINNET) as ChainId;
   const apiBaseUrl = (process.env.FIREBLOCKS_API_BASE_URL || ApiBaseUrl.Production) as ApiBaseUrl;
 
-  const requireVaultIdEnv = (envVar: string): string => {
-    const val = process.env[envVar]
-    if (val === undefined || val === '') throw new Error(`${envVar} environment variable expected but not set or empty`)
-    return val
-  }
-
-  const assetIssuerVaultId = requireVaultIdEnv('FIREBLOCKS_ASSET_ISSUER_VAULT_ID')
-  const assetEscrowVaultId = requireVaultIdEnv('FIREBLOCKS_ASSET_ESCROW_VAULT_ID')
+  const assetIssuerVaultId = process.env.FIREBLOCKS_ASSET_ISSUER_VAULT_ID || undefined
+  const assetEscrowVaultId = process.env.FIREBLOCKS_ASSET_ESCROW_VAULT_ID || undefined
   const omnibusVaultId = process.env.FIREBLOCKS_OMNIBUS_VAULT_ID || undefined
 
+  // Use issuer vault for the base provider/signer if available, otherwise omnibus
+  const baseVaultId = assetIssuerVaultId ?? omnibusVaultId;
+  if (!baseVaultId) {
+    throw new Error('At least one of FIREBLOCKS_ASSET_ISSUER_VAULT_ID or FIREBLOCKS_OMNIBUS_VAULT_ID must be set');
+  }
+
   const { provider, signer } = await createFireblocksEthersProvider({
-    apiKey, privateKey: apiPrivateKey, chainId, apiBaseUrl, vaultAccountIds: [assetIssuerVaultId]
+    apiKey, privateKey: apiPrivateKey, chainId, apiBaseUrl, vaultAccountIds: [baseVaultId]
   });
 
   let gasFunding: FireblocksAppConfig['gasFunding'] = undefined

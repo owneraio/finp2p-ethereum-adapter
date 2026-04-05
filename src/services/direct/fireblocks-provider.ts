@@ -52,8 +52,14 @@ export class FireblocksCustodyProvider implements CustodyProvider {
           });
         };
 
-    const issuerWallet = await createWallet(config.assetIssuerVaultId);
-    const escrowWallet = await createWallet(config.assetEscrowVaultId);
+    // Fall back to omnibus vault when issuer/escrow not configured
+    const issuerVault = config.assetIssuerVaultId ?? config.omnibusVaultId;
+    const escrowVault = config.assetEscrowVaultId ?? config.omnibusVaultId;
+    if (!issuerVault || !escrowVault) {
+      throw new Error('Either FIREBLOCKS_ASSET_ISSUER_VAULT_ID/FIREBLOCKS_ASSET_ESCROW_VAULT_ID or FIREBLOCKS_OMNIBUS_VAULT_ID must be set');
+    }
+    const issuerWallet = await createWallet(issuerVault);
+    const escrowWallet = await createWallet(escrowVault);
 
     let gasStation: GasStation | undefined;
     if (config.gasFunding) {
@@ -109,8 +115,9 @@ export class FireblocksCustodyProvider implements CustodyProvider {
     const responseRegister = await this.fireblocksSdk.registerNewAsset(
       'ETH_TEST5', tokenAddress, symbol
     );
-    await this.fireblocksSdk.createVaultAsset(
-      this.config.assetIssuerVaultId, responseRegister.legacyId
-    );
+    const vaultId = this.config.assetIssuerVaultId ?? this.config.omnibusVaultId;
+    if (vaultId) {
+      await this.fireblocksSdk.createVaultAsset(vaultId, responseRegister.legacyId);
+    }
   }
 }
