@@ -141,30 +141,9 @@ async function createApp(
       appConfig.orgId, appConfig.provider, appConfig.signer,
       workflowsConfig.finP2PClient, logger,
     );
-    const wrappedPlugin = {
-      deposit: async (...args: Parameters<typeof depositPlugin.deposit>) => {
-        logger.info('[DTCC] deposit() called', { owner: args[0]?.finId, assetType: args[1]?.assetType });
-        const result = await depositPlugin.deposit(...args);
-        logger.info('[DTCC] deposit() result', { type: result.type });
-        return result;
-      },
-      depositCustom: async (...args: Parameters<typeof depositPlugin.depositCustom>) => {
-        logger.info('[DTCC] depositCustom() called', { owner: args[0]?.finId, details: !!args[2] });
-        const result = await depositPlugin.depositCustom(...args);
-        logger.info('[DTCC] depositCustom() result', { type: result.type });
-        return result;
-      },
-      payout: async (...args: Parameters<typeof depositPlugin.payout>) => {
-        logger.info('[DTCC] payout() called', { source: args[0]?.finId });
-        const result = await depositPlugin.payout(...args);
-        logger.info('[DTCC] payout() result', { type: result.type });
-        return result;
-      },
-    };
-    pluginManager.registerPaymentsPlugin({ syncIface: wrappedPlugin as any, isAsync: false });
+    pluginManager.registerPaymentsPlugin({ syncIface: depositPlugin, isAsync: false });
 
     logger.info(`DTCC plugin activated: token standard '${DTCC_TOKEN_STANDARD}', deposit plugin registered`);
-    logger.info(`[DTCC] pluginManager.getPaymentsPlugin(): ${pluginManager.getPaymentsPlugin() ? 'registered' : 'NULL'}`);
   }
 
   const paymentsService = new PaymentsServiceImpl(pluginManager);
