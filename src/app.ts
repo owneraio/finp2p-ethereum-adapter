@@ -141,7 +141,7 @@ async function createApp(
       appConfig.orgId, appConfig.provider, appConfig.signer,
       workflowsConfig.finP2PClient, logger,
     );
-    pluginManager.registerPaymentsPlugin({ syncIface: depositPlugin, isAsync: false });
+    pluginManager.registerPaymentsPlugin(depositPlugin);
 
     logger.info(`DTCC plugin activated: token standard '${DTCC_TOKEN_STANDARD}', deposit plugin registered`);
   }
