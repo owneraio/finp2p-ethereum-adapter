@@ -150,8 +150,10 @@ async function createApp(
       const wallet = await custodyProviderRef.createWalletForCustodyId(custodyAccountId);
       return { walletAddress, wallet };
     };
+    const rpcUrl = process.env.NETWORK_HOST;
+    if (!rpcUrl) throw new Error('DTCC plugin requires NETWORK_HOST');
     const depositPlugin = new CollateralDepositPlugin(
-      appConfig.orgId, workflowsConfig.finP2PClient, logger, walletResolver,
+      appConfig.orgId, rpcUrl, workflowsConfig.finP2PClient, logger, walletResolver,
     );
     pluginManager.registerPaymentsPlugin(depositPlugin);
 
