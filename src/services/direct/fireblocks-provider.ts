@@ -38,8 +38,7 @@ export class FireblocksCustodyProvider implements CustodyProvider {
 
     const createWallet = config.localSubmit
       ? (vaultId: string): CustodyWallet => {
-          const assetId = process.env.FIREBLOCKS_ASSET_ID ?? 'ETH_TEST5';
-          const signer = new FireblocksRawSigner({ fireblocksSdk, vaultAccountId: vaultId, assetId }, config.provider);
+          const signer = new FireblocksRawSigner({ fireblocksSdk, vaultAccountId: vaultId }, config.provider);
           return { provider: config.provider, signer };
         }
       : async (vaultId: string) => {
@@ -53,8 +52,19 @@ export class FireblocksCustodyProvider implements CustodyProvider {
           });
         };
 
-    const issuerWallet = await createWallet(config.assetIssuerVaultId);
-    const escrowWallet = await createWallet(config.assetEscrowVaultId);
+    // Create wallets for configured vaults, falling back to omnibus
+    const issuerVault = config.assetIssuerVaultId ?? config.omnibusVaultId;
+    const escrowVault = config.assetEscrowVaultId ?? config.omnibusVaultId;
+
+    let issuerWallet: CustodyWallet | undefined;
+    let escrowWallet: CustodyWallet | undefined;
+    if (issuerVault) issuerWallet = await createWallet(issuerVault);
+    if (escrowVault) escrowWallet = await createWallet(escrowVault);
+
+    // In standard mode, issuer and escrow are required
+    if (!config.localSubmit && (!issuerWallet || !escrowWallet)) {
+      throw new Error('Either FIREBLOCKS_ASSET_ISSUER_VAULT_ID/FIREBLOCKS_ASSET_ESCROW_VAULT_ID or FIREBLOCKS_OMNIBUS_VAULT_ID must be set');
+    }
 
     let gasStation: GasStation | undefined;
     if (config.gasFunding) {
@@ -67,19 +77,20 @@ export class FireblocksCustodyProvider implements CustodyProvider {
       omnibusWallet = await createWallet(config.omnibusVaultId);
     }
 
+    // In local submit mode, use a placeholder for unconfigured wallets.
+    // Real wallets are resolved per-operation via createWalletForCustodyId.
+    const placeholder: CustodyWallet = { provider: config.provider, signer: config.provider as any };
     return new FireblocksCustodyProvider(
-      issuerWallet, escrowWallet,
+      issuerWallet ?? placeholder, escrowWallet ?? placeholder,
       config, fireblocksSdk, vaultManagement, gasStation, omnibusWallet
     );
   }
 
   async createWalletForCustodyId(vaultAccountId: string): Promise<CustodyWallet> {
     if (this.config.localSubmit) {
-      const assetId = process.env.FIREBLOCKS_ASSET_ID ?? 'ETH_TEST5';
       const signer = new FireblocksRawSigner({
         fireblocksSdk: this.fireblocksSdk,
         vaultAccountId: vaultAccountId,
-        assetId,
       }, this.config.provider);
       return { provider: this.config.provider, signer };
     }
@@ -100,7 +111,7 @@ export class FireblocksCustodyProvider implements CustodyProvider {
   }
 
   async resolveAddressFromCustodyId(vaultAccountId: string): Promise<string> {
-    const assetId = process.env.FIREBLOCKS_ASSET_ID ?? 'ETH_TEST5';
+    const assetId = 'ETH_TEST5'; // TODO: make configurable
     const addresses = await this.fireblocksSdk.getDepositAddresses(vaultAccountId, assetId);
     if (addresses.length === 0) {
       throw new Error(`No deposit address found for vault ${vaultAccountId} asset ${assetId}`);
@@ -109,13 +120,12 @@ export class FireblocksCustodyProvider implements CustodyProvider {
   }
 
   async onAssetRegistered(tokenAddress: string, symbol?: string): Promise<void> {
-    if (this.config.localSubmit) return; // No Fireblocks asset registration on private networks
-    const assetId = process.env.FIREBLOCKS_ASSET_ID ?? 'ETH_TEST5';
     const responseRegister = await this.fireblocksSdk.registerNewAsset(
-      assetId, tokenAddress, symbol
+      'ETH_TEST5', tokenAddress, symbol
     );
-    await this.fireblocksSdk.createVaultAsset(
-      this.config.assetIssuerVaultId, responseRegister.legacyId
-    );
+    const vaultId = this.config.assetIssuerVaultId ?? this.config.omnibusVaultId;
+    if (vaultId) {
+      await this.fireblocksSdk.createVaultAsset(vaultId, responseRegister.legacyId);
+    }
   }
 }

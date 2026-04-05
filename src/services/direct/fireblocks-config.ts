@@ -9,8 +9,8 @@ export type FireblocksAppConfig = BaseAppConfig & {
   apiPrivateKey: string
   chainId?: ChainId
   apiBaseUrl?: ApiBaseUrl | string
-  assetIssuerVaultId: string
-  assetEscrowVaultId: string
+  assetIssuerVaultId?: string
+  assetEscrowVaultId?: string
   omnibusVaultId?: string
   localSubmit?: boolean
   gasFunding?: {
