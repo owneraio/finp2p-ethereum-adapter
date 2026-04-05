@@ -257,6 +257,13 @@ export class DirectTokenService implements TokenService, EscrowService {
       await this.fundGas(wallet);
       const opCtx = buildOperationContext(ast, signature, exCtx, operationId);
       const tx = await standard.hold(wallet, this.custodyProvider.escrow, asset, amount, this.logger, opCtx);
+      if (tx === null) {
+        // No on-chain operation needed (e.g. collateral validation-only hold)
+        return buildReceiptOperation(
+          { hash: `hold-${Date.now()}`, status: 1 } as any, ast, "hold", quantity,
+          source, destination, exCtx, operationId, Math.floor(Date.now() / 1000),
+        );
+      }
       const receipt = await tx.wait();
       if (receipt === null) return failedReceiptOperation(1, "receipt is null");
 
@@ -283,6 +290,12 @@ export class DirectTokenService implements TokenService, EscrowService {
       await this.fundGas(escrowWallet);
       const opCtx = buildOperationContext(ast, undefined, exCtx, operationId);
       const tx = await standard.release(escrowWallet, asset, destinationAddress, amount, this.logger, opCtx);
+      if (tx === null) {
+        return buildReceiptOperation(
+          { hash: `release-${Date.now()}`, status: 1 } as any, ast, "release", quantity,
+          source, destination, exCtx, operationId, Math.floor(Date.now() / 1000),
+        );
+      }
       const receipt = await tx.wait();
       if (receipt === null) return failedReceiptOperation(1, "receipt is null");
 
@@ -309,6 +322,12 @@ export class DirectTokenService implements TokenService, EscrowService {
       await this.fundGas(escrowWallet);
       const opCtx = buildOperationContext(ast, undefined, exCtx, operationId);
       const tx = await standard.release(escrowWallet, asset, sourceAddress, amount, this.logger, opCtx);
+      if (tx === null) {
+        return buildReceiptOperation(
+          { hash: `rollback-${Date.now()}`, status: 1 } as any, ast, "release", quantity,
+          source, undefined, exCtx, operationId, Math.floor(Date.now() / 1000),
+        );
+      }
       const receipt = await tx.wait();
       if (receipt === null) return failedReceiptOperation(1, "receipt is null");
 
