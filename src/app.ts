@@ -20,7 +20,7 @@ import {
   ExecDetailsStore,
   TokenServiceImpl
 } from "./services/finp2p-contract";
-import { AppConfig, FinP2PContractAppConfig } from './config'
+import { AppConfig, FinP2PContractAppConfig, getNetworkRpcUrl } from './config'
 import {
   DirectTokenService,
   CustodyProvider,
@@ -150,8 +150,7 @@ async function createApp(
       const wallet = await custodyProviderRef.createWalletForCustodyId(custodyAccountId);
       return { walletAddress, wallet };
     };
-    const rpcUrl = process.env.NETWORK_HOST;
-    if (!rpcUrl) throw new Error('DTCC plugin requires NETWORK_HOST');
+    const rpcUrl = getNetworkRpcUrl();
     const depositPlugin = new CollateralDepositPlugin(
       appConfig.orgId, rpcUrl, workflowsConfig.finP2PClient, logger, walletResolver,
     );
