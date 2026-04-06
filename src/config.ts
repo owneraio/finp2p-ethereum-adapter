@@ -65,7 +65,7 @@ export type CustodyAppConfig = BaseAppConfig & {
 
 export type AppConfig = FinP2PContractAppConfig | FireblocksAppConfig | DfnsAppConfig | CustodyAppConfig
 
-const getNetworkRpcUrl = (): string => {
+export const getNetworkRpcUrl = (): string => {
   let networkHost = process.env.NETWORK_HOST;
   if (!networkHost) {
     throw new Error("NETWORK_HOST is not set");
