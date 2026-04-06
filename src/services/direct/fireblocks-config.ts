@@ -87,11 +87,9 @@ export async function createFireblocksAppConfig(): Promise<Omit<FireblocksAppCon
   let signer: Signer;
 
   if (localSubmit) {
-    // Local submit: use RPC provider directly, signers are created per-vault later
     provider = rpcProvider;
-    signer = rpcProvider as any; // Placeholder — real signers created in FireblocksCustodyProvider
+    signer = rpcProvider as any;
   } else {
-    // Standard mode: use FireblocksWeb3Provider for the base vault
     const baseVaultId = assetIssuerVaultId ?? omnibusVaultId;
     if (!baseVaultId) {
       throw new Error('At least one of FIREBLOCKS_ASSET_ISSUER_VAULT_ID or FIREBLOCKS_OMNIBUS_VAULT_ID must be set');
