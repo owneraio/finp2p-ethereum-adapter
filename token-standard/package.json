@@ -1,6 +1,6 @@
 {
   "name": "@owneraio/finp2p-ethereum-token-standard",
-  "version": "0.27.5",
+  "version": "0.27.10",
   "description": "Token standard interface for FinP2P Ethereum adapter plugins",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

@@ -6,7 +6,7 @@ import {
 } from '@owneraio/finp2p-nodejs-skeleton-adapter';
 import { TransferDelegate, AssetDelegate, EscrowDelegate, OmnibusDelegate as OmnibusDelegateInterface, DelegateResult, InboundTransferVerificationError } from '@owneraio/finp2p-vanilla-service';
 import { workflows } from '@owneraio/finp2p-nodejs-skeleton-adapter';
-import { parseUnits, formatUnits, id as keccak256 } from 'ethers';
+import { parseUnits, id as keccak256 } from 'ethers';
 import winston from 'winston';
 import { CustodyProvider, CustodyWallet } from './custody-provider';
 import { tokenStandardRegistry } from './token-standards/registry';
@@ -66,13 +66,12 @@ export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowD
     const destinationAddress = await this.resolveDestinationAddress(destination);
 
     const amount = parseUnits(quantity, dbAsset.decimals);
-    const standard = tokenStandardRegistry.resolve(dbAsset.token_standard);
-    const tx = await standard.transfer(this.omnibusWallet, dbAsset, destinationAddress, amount, this.logger);
-    const receipt = await tx.wait();
-    if (receipt === null) return { success: false, error: 'Transaction receipt is null' };
+    const standard = tokenStandardRegistry.resolve(dbAsset.tokenStandard);
+    const result = await standard.transfer(this.omnibusWallet, dbAsset, destinationAddress, amount, this.logger);
+    if (result.status === 'failure') return { success: false, error: result.reason };
 
-    this.logger.info(`Outbound transfer: ${quantity} of ${asset.assetId} to ${destinationAddress}, tx: ${receipt.hash}`);
-    return { success: true, transactionId: receipt.hash };
+    this.logger.info(`Outbound transfer: ${quantity} of ${asset.assetId} to ${destinationAddress}, tx: ${result.transactionId}`);
+    return { success: true, transactionId: result.transactionId ?? '' };
   }
 
   private async pollTransactionReceipt(transactionId: string) {
@@ -123,9 +122,9 @@ export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowD
     }
 
     const dbAsset = await getAssetFromDb(asset);
-    if (receipt.to?.toLowerCase() !== dbAsset.contract_address.toLowerCase()) {
+    if (receipt.to?.toLowerCase() !== dbAsset.contractAddress.toLowerCase()) {
       throw new InboundTransferVerificationError(
-        `Transaction ${transactionId} target contract ${receipt.to} does not match asset contract ${dbAsset.contract_address}`,
+        `Transaction ${transactionId} target contract ${receipt.to} does not match asset contract ${dbAsset.contractAddress}`,
       );
     }
 
@@ -177,13 +176,12 @@ export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowD
     const dbAsset = await getAssetFromDb(asset);
     const amount = parseUnits(quantity, dbAsset.decimals);
 
-    const standard = tokenStandardRegistry.resolve(dbAsset.token_standard);
-    const tx = await standard.hold(this.omnibusWallet, this.custodyProvider.escrow, dbAsset, amount, this.logger);
-    const receipt = await tx.wait();
-    if (receipt === null) return { success: false, error: 'Transaction receipt is null' };
+    const standard = tokenStandardRegistry.resolve(dbAsset.tokenStandard);
+    const result = await standard.hold(this.omnibusWallet, this.custodyProvider.escrow, dbAsset, amount, this.logger);
+    if (result.status === 'failure') return { success: false, error: result.reason };
 
-    this.logger.info(`Hold: ${quantity} of ${asset.assetId} from omnibus to escrow, tx: ${receipt.hash}`);
-    return { success: true, transactionId: receipt.hash };
+    this.logger.info(`Hold: ${quantity} of ${asset.assetId} from omnibus to escrow, tx: ${result.transactionId}`);
+    return { success: true, transactionId: result.transactionId ?? '' };
   }
 
   async release(
@@ -195,13 +193,12 @@ export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowD
     const escrowWallet = this.custodyProvider.escrow;
     const amount = parseUnits(quantity, dbAsset.decimals);
 
-    const standard = tokenStandardRegistry.resolve(dbAsset.token_standard);
-    const tx = await standard.release(escrowWallet, dbAsset, omnibusAddress, amount, this.logger);
-    const receipt = await tx.wait();
-    if (receipt === null) return { success: false, error: 'Transaction receipt is null' };
+    const standard = tokenStandardRegistry.resolve(dbAsset.tokenStandard);
+    const result = await standard.release(escrowWallet, dbAsset, omnibusAddress, amount, this.logger);
+    if (result.status === 'failure') return { success: false, error: result.reason };
 
-    this.logger.info(`Release: ${quantity} of ${asset.assetId} from escrow to omnibus, tx: ${receipt.hash}`);
-    return { success: true, transactionId: receipt.hash };
+    this.logger.info(`Release: ${quantity} of ${asset.assetId} from escrow to omnibus, tx: ${result.transactionId}`);
+    return { success: true, transactionId: result.transactionId ?? '' };
   }
 
   async rollback(
@@ -213,21 +210,19 @@ export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowD
     const escrowWallet = this.custodyProvider.escrow;
     const amount = parseUnits(quantity, dbAsset.decimals);
 
-    const standard = tokenStandardRegistry.resolve(dbAsset.token_standard);
-    const tx = await standard.release(escrowWallet, dbAsset, omnibusAddress, amount, this.logger);
-    const receipt = await tx.wait();
-    if (receipt === null) return { success: false, error: 'Transaction receipt is null' };
+    const standard = tokenStandardRegistry.resolve(dbAsset.tokenStandard);
+    const result = await standard.release(escrowWallet, dbAsset, omnibusAddress, amount, this.logger);
+    if (result.status === 'failure') return { success: false, error: result.reason };
 
-    this.logger.info(`Rollback: ${quantity} of ${asset.assetId} from escrow to omnibus, tx: ${receipt.hash}`);
-    return { success: true, transactionId: receipt.hash };
+    this.logger.info(`Rollback: ${quantity} of ${asset.assetId} from escrow to omnibus, tx: ${result.transactionId}`);
+    return { success: true, transactionId: result.transactionId ?? '' };
   }
 
   async getOmnibusBalance(assetId: string, assetType: AssetType): Promise<string> {
     const dbAsset = await getAssetFromDb({ assetId, assetType });
     const omnibusAddress = await this.omnibusWallet.signer.getAddress();
-    const standard = tokenStandardRegistry.resolve(dbAsset.token_standard);
-    const balance = await standard.balanceOf(this.omnibusWallet.provider, this.omnibusWallet.signer, dbAsset, omnibusAddress, this.logger);
-    return formatUnits(balance, dbAsset.decimals);
+    const standard = tokenStandardRegistry.resolve(dbAsset.tokenStandard);
+    return standard.balanceOf(this.omnibusWallet.provider, this.omnibusWallet.signer, dbAsset, omnibusAddress, this.logger);
   }
 
   async getDepositInstruction(

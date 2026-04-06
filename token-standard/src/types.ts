@@ -23,10 +23,27 @@ export interface TokenWallet {
  * Stored asset data from the DB, used to resolve the token standard.
  */
 export interface AssetRecord {
-  contract_address: string;
+  contractAddress: string;
   decimals: number;
-  token_standard: string;
+  tokenStandard: string;
 }
+
+/**
+ * Result of a token standard operation (mint, transfer, burn, hold, release).
+ *
+ * - success: transactionId is always present — standards that don't produce
+ *   an on-chain tx must generate a synthetic ID themselves
+ * - failure: operation failed with a reason
+ */
+export type TokenOperationResult =
+  | { status: 'success'; transactionId: string; timestamp: number }
+  | { status: 'failure'; reason: string };
+
+export const successfulTokenOp = (transactionId: string, timestamp: number): TokenOperationResult =>
+  ({ status: 'success', transactionId, timestamp });
+
+export const failedTokenOp = (reason: string): TokenOperationResult =>
+  ({ status: 'failure', reason });
 
 /**
  * Result of deploying a new token contract.

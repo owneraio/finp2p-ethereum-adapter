@@ -1,12 +1,16 @@
-import { ContractTransactionResponse, Provider, Signer } from 'ethers';
-import { TokenWallet, AssetRecord, DeployResult, Logger, OperationContext } from './types';
+import { Provider, Signer } from 'ethers';
+import { TokenWallet, AssetRecord, DeployResult, Logger, OperationContext, TokenOperationResult } from './types';
 
 /**
  * Token standard implementation for direct-mode operations.
  *
- * Each mutating method returns a ContractTransactionResponse that the adapter
- * awaits via tx.wait(). The adapter owns gas funding, receipt shaping,
- * logging, and error handling — the standard only constructs the on-chain call.
+ * Each mutating method returns a TokenOperationResult:
+ * - success with transactionId: on-chain tx was submitted and confirmed
+ * - success without transactionId: no on-chain tx needed (e.g. validation-only hold)
+ * - failure: operation failed with a reason
+ *
+ * The adapter owns gas funding, receipt shaping, logging, and error handling.
+ * The standard owns on-chain call construction and tx.wait().
  *
  * The optional OperationContext mirrors the on-chain OperationParams struct,
  * carrying business semantics (leg, phase, primaryType) so standards can
@@ -16,10 +20,6 @@ import { TokenWallet, AssetRecord, DeployResult, Logger, OperationContext } from
  * adapter's tokenStandardRegistry at bootstrap.
  */
 export interface TokenStandard {
-  /**
-   * Deploy a new token contract. Returns the contract address and metadata.
-   * Called when createAsset has no tokenIdentifier binding.
-   */
   deploy(
     wallet: TokenWallet,
     name: string,
@@ -28,20 +28,14 @@ export interface TokenStandard {
     logger: Logger,
   ): Promise<DeployResult>;
 
-  /**
-   * Query the balance of an address for the given asset.
-   */
   balanceOf(
     provider: Provider,
     signer: Signer,
     asset: AssetRecord,
     address: string,
     logger: Logger,
-  ): Promise<bigint>;
+  ): Promise<string>;
 
-  /**
-   * Mint tokens to an address.
-   */
   mint(
     wallet: TokenWallet,
     asset: AssetRecord,
@@ -49,11 +43,8 @@ export interface TokenStandard {
     amount: bigint,
     logger: Logger,
     opCtx?: OperationContext,
-  ): Promise<ContractTransactionResponse>;
+  ): Promise<TokenOperationResult>;
 
-  /**
-   * Transfer tokens from the signer's address to another address.
-   */
   transfer(
     wallet: TokenWallet,
     asset: AssetRecord,
@@ -61,11 +52,8 @@ export interface TokenStandard {
     amount: bigint,
     logger: Logger,
     opCtx?: OperationContext,
-  ): Promise<ContractTransactionResponse>;
+  ): Promise<TokenOperationResult>;
 
-  /**
-   * Burn tokens from a given address (operator burn).
-   */
   burn(
     wallet: TokenWallet,
     asset: AssetRecord,
@@ -73,16 +61,8 @@ export interface TokenStandard {
     amount: bigint,
     logger: Logger,
     opCtx?: OperationContext,
-  ): Promise<ContractTransactionResponse>;
+  ): Promise<TokenOperationResult>;
 
-  /**
-   * Hold (escrow) tokens for a pending settlement.
-   *
-   * The sourceWallet signs the transaction. The escrowWallet is provided
-   * so the standard can decide where funds go:
-   * - ERC20: trivializes to transfer(sourceWallet → escrowAddress)
-   * - REPO standards may use Phase to vary behavior (INITIATE vs CLOSE)
-   */
   hold(
     sourceWallet: TokenWallet,
     escrowWallet: TokenWallet,
@@ -90,15 +70,8 @@ export interface TokenStandard {
     amount: bigint,
     logger: Logger,
     opCtx?: OperationContext,
-  ): Promise<ContractTransactionResponse>;
+  ): Promise<TokenOperationResult>;
 
-  /**
-   * Release held tokens to a destination address.
-   *
-   * The escrowWallet signs the transaction:
-   * - ERC20: trivializes to transfer(escrowWallet → destinationAddress)
-   * - REPO standards may use Phase to trigger settlement closure
-   */
   release(
     escrowWallet: TokenWallet,
     asset: AssetRecord,
@@ -106,5 +79,5 @@ export interface TokenStandard {
     amount: bigint,
     logger: Logger,
     opCtx?: OperationContext,
-  ): Promise<ContractTransactionResponse>;
+  ): Promise<TokenOperationResult>;
 }
