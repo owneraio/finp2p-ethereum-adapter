@@ -143,7 +143,7 @@ async function createApp(
     const depositPlugin = new CollateralDepositPlugin(
       appConfig.orgId, rpcUrl, workflowsConfig?.finP2PClient!, logger, walletResolver,
     );
-    pluginManager.registerPaymentsPlugin(depositPlugin);
+    pluginManager.registerPaymentsPlugin(depositPlugin as any);
 
     logger.info(`DTCC plugin activated: token standard '${DTCC_TOKEN_STANDARD}', deposit plugin registered`);
   }
