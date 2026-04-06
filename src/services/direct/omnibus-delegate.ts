@@ -66,7 +66,7 @@ export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowD
     const destinationAddress = await this.resolveDestinationAddress(destination);
 
     const amount = parseUnits(quantity, dbAsset.decimals);
-    const standard = tokenStandardRegistry.resolve(dbAsset.token_standard);
+    const standard = tokenStandardRegistry.resolve(dbAsset.tokenStandard);
     const tx = await standard.transfer(this.omnibusWallet, dbAsset, destinationAddress, amount, this.logger);
     const receipt = await tx.wait();
     if (receipt === null) return { success: false, error: 'Transaction receipt is null' };
@@ -123,9 +123,9 @@ export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowD
     }
 
     const dbAsset = await getAssetFromDb(asset);
-    if (receipt.to?.toLowerCase() !== dbAsset.contract_address.toLowerCase()) {
+    if (receipt.to?.toLowerCase() !== dbAsset.contractAddress.toLowerCase()) {
       throw new InboundTransferVerificationError(
-        `Transaction ${transactionId} target contract ${receipt.to} does not match asset contract ${dbAsset.contract_address}`,
+        `Transaction ${transactionId} target contract ${receipt.to} does not match asset contract ${dbAsset.contractAddress}`,
       );
     }
 
@@ -177,7 +177,7 @@ export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowD
     const dbAsset = await getAssetFromDb(asset);
     const amount = parseUnits(quantity, dbAsset.decimals);
 
-    const standard = tokenStandardRegistry.resolve(dbAsset.token_standard);
+    const standard = tokenStandardRegistry.resolve(dbAsset.tokenStandard);
     const tx = await standard.hold(this.omnibusWallet, this.custodyProvider.escrow, dbAsset, amount, this.logger);
     const receipt = await tx.wait();
     if (receipt === null) return { success: false, error: 'Transaction receipt is null' };
@@ -195,7 +195,7 @@ export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowD
     const escrowWallet = this.custodyProvider.escrow;
     const amount = parseUnits(quantity, dbAsset.decimals);
 
-    const standard = tokenStandardRegistry.resolve(dbAsset.token_standard);
+    const standard = tokenStandardRegistry.resolve(dbAsset.tokenStandard);
     const tx = await standard.release(escrowWallet, dbAsset, omnibusAddress, amount, this.logger);
     const receipt = await tx.wait();
     if (receipt === null) return { success: false, error: 'Transaction receipt is null' };
@@ -213,7 +213,7 @@ export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowD
     const escrowWallet = this.custodyProvider.escrow;
     const amount = parseUnits(quantity, dbAsset.decimals);
 
-    const standard = tokenStandardRegistry.resolve(dbAsset.token_standard);
+    const standard = tokenStandardRegistry.resolve(dbAsset.tokenStandard);
     const tx = await standard.release(escrowWallet, dbAsset, omnibusAddress, amount, this.logger);
     const receipt = await tx.wait();
     if (receipt === null) return { success: false, error: 'Transaction receipt is null' };
@@ -225,7 +225,7 @@ export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowD
   async getOmnibusBalance(assetId: string, assetType: AssetType): Promise<string> {
     const dbAsset = await getAssetFromDb({ assetId, assetType });
     const omnibusAddress = await this.omnibusWallet.signer.getAddress();
-    const standard = tokenStandardRegistry.resolve(dbAsset.token_standard);
+    const standard = tokenStandardRegistry.resolve(dbAsset.tokenStandard);
     const balance = await standard.balanceOf(this.omnibusWallet.provider, this.omnibusWallet.signer, dbAsset, omnibusAddress, this.logger);
     return formatUnits(balance, dbAsset.decimals);
   }
