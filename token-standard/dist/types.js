@@ -1,6 +1,12 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.ReleaseType = exports.Phase = exports.PrimaryType = exports.LegType = void 0;
+exports.ReleaseType = exports.Phase = exports.PrimaryType = exports.LegType = exports.failedTokenOp = exports.successfulTokenOpNoTx = exports.successfulTokenOp = void 0;
+const successfulTokenOp = (transactionId, timestamp) => ({ status: 'success', transactionId, timestamp });
+exports.successfulTokenOp = successfulTokenOp;
+const successfulTokenOpNoTx = (timestamp) => ({ status: 'success', timestamp: timestamp ?? Math.floor(Date.now() / 1000) });
+exports.successfulTokenOpNoTx = successfulTokenOpNoTx;
+const failedTokenOp = (reason) => ({ status: 'failure', reason });
+exports.failedTokenOp = failedTokenOp;
 /**
  * Operation context — mirrors the on-chain OperationParams struct.
  * Carries the business semantics of an operation so token standards

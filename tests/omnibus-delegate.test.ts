@@ -134,7 +134,7 @@ describe('OmnibusDelegate', () => {
 
   describe('outboundTransfer', () => {
     it('should transfer to resolved destination address', async () => {
-      const mockReceipt = { hash: '0xTX_HASH' };
+      const mockReceipt = { hash: '0xTX_HASH', status: 1, getBlock: jest.fn().mockResolvedValue({ timestamp: 1700000000 }) };
       mockTransfer.mockResolvedValue({ wait: jest.fn().mockResolvedValue(mockReceipt) });
       (accountMapping.resolveAccount as jest.Mock).mockResolvedValue('0xDEST_ADDRESS');
 
@@ -153,7 +153,7 @@ describe('OmnibusDelegate', () => {
     });
 
     it('should use crypto address directly', async () => {
-      const mockReceipt = { hash: '0xTX_HASH' };
+      const mockReceipt = { hash: '0xTX_HASH', status: 1, getBlock: jest.fn().mockResolvedValue({ timestamp: 1700000000 }) };
       mockTransfer.mockResolvedValue({ wait: jest.fn().mockResolvedValue(mockReceipt) });
 
       const result = await delegate.outboundTransfer(
@@ -188,7 +188,7 @@ describe('OmnibusDelegate', () => {
 
   describe('hold', () => {
     it('should transfer from omnibus to escrow', async () => {
-      const mockReceipt = { hash: '0xHOLD_TX' };
+      const mockReceipt = { hash: '0xHOLD_TX', status: 1, getBlock: jest.fn().mockResolvedValue({ timestamp: 1700000000 }) };
       mockTransfer.mockResolvedValue({ wait: jest.fn().mockResolvedValue(mockReceipt) });
 
       const result = await delegate.hold(
@@ -205,7 +205,7 @@ describe('OmnibusDelegate', () => {
 
   describe('release', () => {
     it('should transfer from escrow to omnibus', async () => {
-      const mockReceipt = { hash: '0xRELEASE_TX' };
+      const mockReceipt = { hash: '0xRELEASE_TX', status: 1, getBlock: jest.fn().mockResolvedValue({ timestamp: 1700000000 }) };
       mockTransfer.mockResolvedValue({ wait: jest.fn().mockResolvedValue(mockReceipt) });
 
       const result = await delegate.release(
@@ -222,7 +222,7 @@ describe('OmnibusDelegate', () => {
 
   describe('rollback', () => {
     it('should transfer from escrow back to omnibus', async () => {
-      const mockReceipt = { hash: '0xROLLBACK_TX' };
+      const mockReceipt = { hash: '0xROLLBACK_TX', status: 1, getBlock: jest.fn().mockResolvedValue({ timestamp: 1700000000 }) };
       mockTransfer.mockResolvedValue({ wait: jest.fn().mockResolvedValue(mockReceipt) });
 
       const result = await delegate.rollback(

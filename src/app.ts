@@ -134,7 +134,7 @@ async function createApp(
     }
 
     // Register collateral token standard
-    tokenStandardRegistry.register(DTCC_TOKEN_STANDARD, new CollateralTokenStandard(factoryAddress));
+    tokenStandardRegistry.register(DTCC_TOKEN_STANDARD, new CollateralTokenStandard(factoryAddress) as any);
 
     // Register collateral deposit plugin
     const depositPlugin = new CollateralDepositPlugin(
