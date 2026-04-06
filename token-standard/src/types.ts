@@ -31,20 +31,16 @@ export interface AssetRecord {
 /**
  * Result of a token standard operation (mint, transfer, burn, hold, release).
  *
- * - success with transactionId: an on-chain tx was submitted and confirmed
- * - success without transactionId: operation completed without on-chain tx (e.g. validation-only hold)
+ * - success: transactionId is always present — standards that don't produce
+ *   an on-chain tx must generate a synthetic ID themselves
  * - failure: operation failed with a reason
  */
 export type TokenOperationResult =
   | { status: 'success'; transactionId: string; timestamp: number }
-  | { status: 'success'; transactionId?: undefined; timestamp: number }
   | { status: 'failure'; reason: string };
 
 export const successfulTokenOp = (transactionId: string, timestamp: number): TokenOperationResult =>
   ({ status: 'success', transactionId, timestamp });
-
-export const successfulTokenOpNoTx = (timestamp?: number): TokenOperationResult =>
-  ({ status: 'success', timestamp: timestamp ?? Math.floor(Date.now() / 1000) });
 
 export const failedTokenOp = (reason: string): TokenOperationResult =>
   ({ status: 'failure', reason });
