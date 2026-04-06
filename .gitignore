@@ -11,4 +11,3 @@ node_modules
 .env.dfns
 *.key
 .claude/
-CUSTODY_REFACTOR_DEBT.md
