@@ -139,12 +139,10 @@ export class DirectTokenService implements TokenService, EscrowService {
     if (address === undefined) return "0";
     const asset = await getAssetFromDb(ast);
     const standard = tokenStandardRegistry.resolve(asset.tokenStandard);
-    const balance = await standard.balanceOf(
+    return standard.balanceOf(
       this.custodyProvider.issuer.provider, this.custodyProvider.issuer.signer,
       asset, address, this.logger,
     );
-    this.logger.debug(`getBalance: assetId=${ast.assetId} finId=${finId} tokenStandard=${asset.tokenStandard} address=${address} balance=${balance}`);
-    return balance;
   }
 
   async balance(ast: Asset, finId: string): Promise<Balance> {
