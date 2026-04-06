@@ -20,7 +20,7 @@ import {
   ExecDetailsStore,
   TokenServiceImpl
 } from "./services/finp2p-contract";
-import { AppConfig, FinP2PContractAppConfig } from './config'
+import { AppConfig, FinP2PContractAppConfig, getNetworkRpcUrl } from './config'
 import {
   DirectTokenService,
   CustodyProvider,
@@ -122,26 +122,28 @@ async function createApp(
   }));
 
   const pluginManager = new PluginManager();
+  let custodyProviderRef: CustodyProvider | undefined;
 
   // Runtime plugin activation: DTCC collateral
   if (process.env.DTCC_PLUGIN_ENABLED === 'true') {
-    if (!workflowsConfig?.finP2PClient) {
-      throw new Error('DTCC plugin requires finP2PClient in workflow config (set FINP2P_ADDRESS and OSS_URL)');
-    }
-    const factoryAddress = process.env.FACTORY_ADDRESS;
-    if (!factoryAddress) {
-      throw new Error('DTCC plugin requires FACTORY_ADDRESS');
-    }
+    const walletResolver = async (finId: string) => {
+      const mappings = await workflows.getAccountMappings([finId]);
+      if (mappings.length === 0) return undefined;
+      const walletAddress = mappings[0].fields?.['ledgerAccountId'];
+      const custodyAccountId = mappings[0].fields?.['custodyAccountId'];
+      if (!walletAddress || !custodyAccountId) return undefined;
+      if (!custodyProviderRef?.createWalletForCustodyId) return undefined;
+      const wallet = await custodyProviderRef.createWalletForCustodyId(custodyAccountId);
+      return { walletAddress, wallet };
+    };
 
-    // Register collateral token standard
-    tokenStandardRegistry.register(DTCC_TOKEN_STANDARD, new CollateralTokenStandard(factoryAddress) as any);
+    tokenStandardRegistry.register(DTCC_TOKEN_STANDARD, new CollateralTokenStandard(process.env.FACTORY_ADDRESS ?? '') as any);
 
-    // Register collateral deposit plugin
+    const rpcUrl = getNetworkRpcUrl();
     const depositPlugin = new CollateralDepositPlugin(
-      appConfig.orgId, appConfig.provider, appConfig.signer,
-      workflowsConfig.finP2PClient, logger,
+      appConfig.orgId, rpcUrl, workflowsConfig?.finP2PClient!, logger, walletResolver,
     );
-    pluginManager.registerPaymentsPlugin({ syncIface: depositPlugin, isAsync: false });
+    pluginManager.registerPaymentsPlugin(depositPlugin);
 
     logger.info(`DTCC plugin activated: token standard '${DTCC_TOKEN_STANDARD}', deposit plugin registered`);
   }
@@ -151,6 +153,7 @@ async function createApp(
   if (custodyRegistry.has(appConfig.type)) {
     logger.info(`Activating custody provider: ${appConfig.type} (available: ${custodyRegistry.availableProviders.join(', ')})`);
     const custodyProvider = await custodyRegistry.create(appConfig.type, appConfig);
+    custodyProviderRef = custodyProvider; // wire lazy ref for plugin walletResolver
     registerDirectServices(app, logger, custodyProvider, appConfig, paymentsService, pluginManager, workflowsConfig);
   } else if (appConfig.type === 'finp2p-contract') {
     const contractConfig = appConfig as FinP2PContractAppConfig;
