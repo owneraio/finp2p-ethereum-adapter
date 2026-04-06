@@ -6,7 +6,7 @@ import {
 } from '@owneraio/finp2p-nodejs-skeleton-adapter';
 import winston from 'winston';
 import { workflows } from '@owneraio/finp2p-nodejs-skeleton-adapter';
-import { parseUnits, formatUnits } from "ethers";
+import { parseUnits, formatUnits, randomBytes, hexlify } from "ethers";
 import { TokenOperationResult } from '@owneraio/finp2p-ethereum-token-standard';
 import { CustodyProvider, CustodyWallet } from './custody-provider';
 import { AccountMappingService } from './account-mapping';
@@ -24,11 +24,12 @@ function resultToReceipt(
   if (result.status === 'failure') {
     return failedReceiptOperation(1, result.reason);
   }
+  const txId = result.transactionId ?? hexlify(randomBytes(32));
   return {
     operation: "receipt",
     type: "success",
     receipt: {
-      id: result.transactionId ?? `op-${Date.now()}`,
+      id: txId,
       asset: ast,
       source,
       destination,
@@ -37,7 +38,7 @@ function resultToReceipt(
       quantity,
       timestamp: result.timestamp,
       tradeDetails: { executionContext: exCtx },
-      transactionDetails: { operationId, transactionId: result.transactionId ?? '' }
+      transactionDetails: { operationId, transactionId: txId }
     }
   };
 }
