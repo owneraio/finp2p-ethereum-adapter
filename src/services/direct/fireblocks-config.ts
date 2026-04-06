@@ -1,17 +1,18 @@
 import * as fs from "fs";
 import { ApiBaseUrl, ChainId, FireblocksWeb3Provider } from "@fireblocks/fireblocks-web3-provider";
-import { BrowserProvider, Provider, Signer } from "ethers";
+import { BrowserProvider, JsonRpcProvider, Provider, Signer } from "ethers";
 import { BaseAppConfig } from "../../config";
 
 export type FireblocksAppConfig = BaseAppConfig & {
   type: 'fireblocks'
   apiKey: string
   apiPrivateKey: string
-  chainId: ChainId
-  apiBaseUrl: ApiBaseUrl | string
-  assetIssuerVaultId: string
-  assetEscrowVaultId: string
+  chainId?: ChainId
+  apiBaseUrl?: ApiBaseUrl | string
+  assetIssuerVaultId?: string
+  assetEscrowVaultId?: string
   omnibusVaultId?: string
+  localSubmit?: boolean
   gasFunding?: {
     vaultId: string
     amount: string
@@ -74,19 +75,31 @@ export async function createFireblocksAppConfig(): Promise<Omit<FireblocksAppCon
   const chainId = (process.env.FIREBLOCKS_CHAIN_ID || ChainId.MAINNET) as ChainId;
   const apiBaseUrl = (process.env.FIREBLOCKS_API_BASE_URL || ApiBaseUrl.Production) as ApiBaseUrl;
 
-  const requireVaultIdEnv = (envVar: string): string => {
-    const val = process.env[envVar]
-    if (val === undefined || val === '') throw new Error(`${envVar} environment variable expected but not set or empty`)
-    return val
-  }
-
-  const assetIssuerVaultId = requireVaultIdEnv('FIREBLOCKS_ASSET_ISSUER_VAULT_ID')
-  const assetEscrowVaultId = requireVaultIdEnv('FIREBLOCKS_ASSET_ESCROW_VAULT_ID')
+  const assetIssuerVaultId = process.env.FIREBLOCKS_ASSET_ISSUER_VAULT_ID || undefined
+  const assetEscrowVaultId = process.env.FIREBLOCKS_ASSET_ESCROW_VAULT_ID || undefined
   const omnibusVaultId = process.env.FIREBLOCKS_OMNIBUS_VAULT_ID || undefined
 
-  const { provider, signer } = await createFireblocksEthersProvider({
-    apiKey, privateKey: apiPrivateKey, chainId, apiBaseUrl, vaultAccountIds: [assetIssuerVaultId]
-  });
+  const localSubmit = process.env.LOCAL_SUBMIT === 'true';
+  const rpcUrl = getNetworkRpcUrl();
+  const rpcProvider = new JsonRpcProvider(rpcUrl);
+
+  let provider: Provider;
+  let signer: Signer;
+
+  if (localSubmit) {
+    provider = rpcProvider;
+    signer = rpcProvider as any;
+  } else {
+    const baseVaultId = assetIssuerVaultId ?? omnibusVaultId;
+    if (!baseVaultId) {
+      throw new Error('At least one of FIREBLOCKS_ASSET_ISSUER_VAULT_ID or FIREBLOCKS_OMNIBUS_VAULT_ID must be set');
+    }
+    const fb = await createFireblocksEthersProvider({
+      apiKey, privateKey: apiPrivateKey, chainId, apiBaseUrl, vaultAccountIds: [baseVaultId]
+    });
+    provider = fb.provider;
+    signer = fb.signer;
+  }
 
   let gasFunding: FireblocksAppConfig['gasFunding'] = undefined
   const fundingVaultId = process.env.FIREBLOCKS_GAS_FUNDING_VAULT_ID
@@ -109,6 +122,7 @@ export async function createFireblocksAppConfig(): Promise<Omit<FireblocksAppCon
     assetIssuerVaultId,
     assetEscrowVaultId,
     omnibusVaultId,
+    localSubmit,
     gasFunding,
   };
 }
