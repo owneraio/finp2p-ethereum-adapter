@@ -34,7 +34,7 @@ export interface TokenStandard {
     asset: AssetRecord,
     address: string,
     logger: Logger,
-  ): Promise<bigint>;
+  ): Promise<string>;
 
   mint(
     wallet: TokenWallet,

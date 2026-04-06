@@ -6,7 +6,7 @@ import {
 } from '@owneraio/finp2p-nodejs-skeleton-adapter';
 import winston from 'winston';
 import { workflows } from '@owneraio/finp2p-nodejs-skeleton-adapter';
-import { parseUnits, formatUnits, randomBytes, hexlify } from "ethers";
+import { parseUnits, randomBytes, hexlify } from "ethers";
 import { TokenOperationResult } from '@owneraio/finp2p-ethereum-token-standard';
 import { CustodyProvider, CustodyWallet } from './custody-provider';
 import { AccountMappingService } from './account-mapping';
@@ -140,11 +140,10 @@ export class DirectTokenService implements TokenService, EscrowService {
     if (address === undefined) return "0";
     const asset = await getAssetFromDb(ast);
     const standard = tokenStandardRegistry.resolve(asset.tokenStandard);
-    const balance = await standard.balanceOf(
+    return standard.balanceOf(
       this.custodyProvider.issuer.provider, this.custodyProvider.issuer.signer,
       asset, address, this.logger,
     );
-    return formatUnits(balance, asset.decimals);
   }
 
   async balance(ast: Asset, finId: string): Promise<Balance> {

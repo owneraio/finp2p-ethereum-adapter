@@ -6,7 +6,7 @@ import {
 } from '@owneraio/finp2p-nodejs-skeleton-adapter';
 import { TransferDelegate, AssetDelegate, EscrowDelegate, OmnibusDelegate as OmnibusDelegateInterface, DelegateResult, InboundTransferVerificationError } from '@owneraio/finp2p-vanilla-service';
 import { workflows } from '@owneraio/finp2p-nodejs-skeleton-adapter';
-import { parseUnits, formatUnits, id as keccak256 } from 'ethers';
+import { parseUnits, id as keccak256 } from 'ethers';
 import winston from 'winston';
 import { CustodyProvider, CustodyWallet } from './custody-provider';
 import { tokenStandardRegistry } from './token-standards/registry';
@@ -222,8 +222,7 @@ export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowD
     const dbAsset = await getAssetFromDb({ assetId, assetType });
     const omnibusAddress = await this.omnibusWallet.signer.getAddress();
     const standard = tokenStandardRegistry.resolve(dbAsset.tokenStandard);
-    const balance = await standard.balanceOf(this.omnibusWallet.provider, this.omnibusWallet.signer, dbAsset, omnibusAddress, this.logger);
-    return formatUnits(balance, dbAsset.decimals);
+    return standard.balanceOf(this.omnibusWallet.provider, this.omnibusWallet.signer, dbAsset, omnibusAddress, this.logger);
   }
 
   async getDepositInstruction(

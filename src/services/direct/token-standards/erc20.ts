@@ -1,4 +1,4 @@
-import { Provider, Signer } from 'ethers';
+import { Provider, Signer, formatUnits } from 'ethers';
 import { ContractsManager, ERC20Contract } from '@owneraio/finp2p-contracts';
 import winston from 'winston';
 import {
@@ -16,9 +16,10 @@ export class ERC20TokenStandard implements TokenStandard {
     return { contractAddress, decimals, tokenStandard: ERC20_TOKEN_STANDARD };
   }
 
-  async balanceOf(provider: Provider, signer: Signer, asset: AssetRecord, address: string, logger: winston.Logger): Promise<bigint> {
+  async balanceOf(provider: Provider, signer: Signer, asset: AssetRecord, address: string, logger: winston.Logger): Promise<string> {
     const c = new ERC20Contract(provider, signer, asset.contractAddress, logger);
-    return c.balanceOf(address);
+    const balance = await c.balanceOf(address);
+    return formatUnits(balance, asset.decimals);
   }
 
   private async execAndWait(txPromise: Promise<any>): Promise<TokenOperationResult> {
