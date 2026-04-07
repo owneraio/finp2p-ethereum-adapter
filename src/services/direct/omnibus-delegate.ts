@@ -287,17 +287,18 @@ export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowD
       ? (tokenStandardRegistry.has(assetIdentifier.value) ? assetIdentifier.value : ERC20_TOKEN_STANDARD)
       : ERC20_TOKEN_STANDARD;
     const standard = tokenStandardRegistry.resolve(tokenStandard);
+    const networkId = assetIdentifier?.networkId;
 
     if (assetBind === undefined || assetBind.tokenIdentifier === undefined) {
       const symbol = assetIdentifier?.value ?? 'OWNERA';
       const result = await standard.deploy(this.omnibusWallet, assetName ?? 'OWNERACOIN', symbol, decimals, this.logger);
-      await workflows.saveAsset({ contract_address: result.contractAddress, decimals: result.decimals, token_standard: result.tokenStandard as any, id: asset.assetId, type: asset.assetType });
+      await workflows.saveAsset({ contract_address: result.contractAddress, decimals: result.decimals, token_standard: result.tokenStandard as any, id: asset.assetId, type: asset.assetType, network_id: networkId });
       await this.custodyProvider.onAssetRegistered?.(result.contractAddress, symbol);
       return { tokenId: result.contractAddress, reference: undefined };
     }
 
     const tokenAddress = assetBind.tokenIdentifier.tokenId;
-    await workflows.saveAsset({ contract_address: tokenAddress, decimals, token_standard: tokenStandard as any, id: asset.assetId, type: asset.assetType });
+    await workflows.saveAsset({ contract_address: tokenAddress, decimals, token_standard: tokenStandard as any, id: asset.assetId, type: asset.assetType, network_id: networkId });
     try {
       await this.custodyProvider.onAssetRegistered?.(tokenAddress);
     } catch (e) {
