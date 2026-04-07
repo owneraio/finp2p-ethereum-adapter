@@ -17,7 +17,7 @@
     "clean": "rm -rf dist",
     "prebuild": "eslint ./src --ext .ts --fix",
     "build": "tsc",
-    "test": "jest && jest --config jest.account-mapping.config.js && jest --config jest.omnibus.config.js",
+    "test": "jest && jest --config jest.account-mapping.config.js && jest --config jest.omnibus.config.js && jest --config jest.network-mapping.config.js",
     "test:fireblocks": "jest --config jest.fireblocks.config.js",
     "test:dfns": "jest --config jest.dfns.config.js",
     "test:account-mapping": "jest --config jest.account-mapping.config.js",
