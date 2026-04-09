@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { formatUnits, parseUnits } from "ethers";
-import { Logger, ConsoleLogger } from "@owneraio/finp2p-adapter-models";
+import { Logger, ConsoleLogger } from "../src/adapter-types";
 import { FinP2PContract, ERC20Contract } from "../src";
 import { createJsonProvider, parseConfig } from "./config";
 

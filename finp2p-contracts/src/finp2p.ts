@@ -1,5 +1,5 @@
-import { BytesLike, ContractFactory, Provider, Signer, TransactionReceipt } from "ethers";
-import { Logger } from "@owneraio/finp2p-adapter-models";
+import { ContractFactory, Provider, Signer, TransactionReceipt } from "ethers";
+import { Logger } from "./adapter-types";
 import FINP2P from "../artifacts/contracts/finp2p/FINP2POperator.sol/FINP2POperator.json";
 import { FINP2POperator } from "../typechain-types";
 import { FINP2POperatorInterface } from "../typechain-types/contracts/finp2p/FINP2POperator";
@@ -14,7 +14,7 @@ import {
   EIP712Domain, EIP712LoanTerms, PrimaryType, ReceiptOperation,
   failedReceiptOperation, pendingReceiptOperation,
   successfulReceiptOperation
-} from "@owneraio/finp2p-adapter-models";
+} from "./adapter-types";
 import { assetTypeToService } from "./mappers";
 
 
@@ -58,18 +58,30 @@ export class FinP2PContract extends ContractsManager {
     return { name, version, chainId, verifyingContract };
   }
 
-  async getAssetRegistryAddress() {
-    return this.finP2P.getAssetRegistry();
-  }
-
   async getAssetAddress(assetId: string) {
     return this.finP2P.getAssetAddress(assetId);
   }
 
-  async associateAsset(assetId: string, tokenAddress: string, tokenStandard: BytesLike) {
+  async associateAsset(assetId: string, tokenAddress: string) {
     return this.safeExecuteTransaction(this.finP2P, async (finP2P: FINP2POperator, txParams: PayableOverrides) => {
-      return finP2P.associateAsset(assetId, tokenAddress, tokenStandard, txParams);
+      return finP2P.associateAsset(assetId, tokenAddress, txParams);
     });
+  }
+
+  async addCredential(finId: string, address: string) {
+    return this.safeExecuteTransaction(this.finP2P, async (finP2P: FINP2POperator, txParams: PayableOverrides) => {
+      return finP2P.addCredential(finId, address, txParams);
+    });
+  }
+
+  async removeCredential(finId: string) {
+    return this.safeExecuteTransaction(this.finP2P, async (finP2P: FINP2POperator, txParams: PayableOverrides) => {
+      return finP2P.removeCredential(finId, txParams);
+    });
+  }
+
+  async getCredentialAddress(finId: string) {
+    return this.finP2P.getCredentialAddress(finId);
   }
 
   async setEscrowWalletAddress(escrowAccountAddress: string) {

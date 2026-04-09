@@ -11,58 +11,37 @@ import {
   emptyLoanTerms,
   loanTerms,
   newInvestmentMessage,
-} from "@owneraio/finp2p-adapter-models";
+} from "../src/adapter-types";
 import { FINP2POperator, FinP2PSignatureVerifier } from "../typechain-types";
 import {
   AssetType,
   emptyTerm,
+  finIdToAddress,
   operationParams,
   Phase,
   ReleaseType,
   term,
   Term,
   termToEIP712,
-  getFinId, ERC20_STANDARD_ID
+  getFinId
 } from "../src";
 
 
 describe("FinP2P proxy contract test", function() {
-  // We define a fixture to reuse the same setup in every test.
-  // We use loadFixture to run this setup once, snapshot that state,
-  // and reset Hardhat Network to that snapshot in every test.
+
   async function deployERC20(name: string, symbol: string, decimals: number, operatorAddress: string) {
     const deployer = await ethers.getContractFactory("ERC20WithOperator");
     const contract = await deployer.deploy(name, symbol, decimals, operatorAddress);
     return contract.getAddress();
   }
 
-  async function deployAssetRegistry() {
-    const deployer = await ethers.getContractFactory("AssetRegistry");
-    const contract = await deployer.deploy();
-    const address = await contract.getAddress();
-    return { contract, address };
-  }
-
-  async function deployERC20Standard(executor: string) {
-    const deployer = await ethers.getContractFactory("ERC20Standard");
-    const contract = await deployer.deploy(executor);
-    const address = await contract.getAddress();
-    return { contract, address };
-  }
-
-
   async function deployFinP2PProxyFixture() {
-    const { contract: ar, address: assetRegistry } = await deployAssetRegistry();
-
     const deployer = await ethers.getContractFactory("FINP2POperator");
     const [admin] = await ethers.getSigners();
-    const contract = await deployer.deploy(admin, assetRegistry);
+    const contract = await deployer.deploy(admin);
     const finP2PAddress = await contract.getAddress();
 
-    const { address: erc20StandardAddress } = await deployERC20Standard(finP2PAddress);
-    await ar.registerAssetStandard(ERC20_STANDARD_ID, erc20StandardAddress);
-
-    return { contract, erc20StandardAddress, finP2PAddress };
+    return { contract, finP2PAddress };
   }
 
   function generateAssetId(): string {
@@ -70,11 +49,18 @@ describe("FinP2P proxy contract test", function() {
   }
 
   function generateInvestor(): {
-    signer: Signer, finId: string
+    signer: Signer, finId: string, address: string
   } {
     const signer = Wallet.createRandom();
     const finId = getFinId(signer);
-    return { signer, finId };
+    const address = finIdToAddress(finId);
+    return { signer, finId, address };
+  }
+
+  /** Register credential mapping for a finId */
+  async function registerCredential(contract: FINP2POperator, finId: string) {
+    const address = finIdToAddress(finId);
+    await contract.addCredential(finId, address);
   }
 
   function extractInvestors(
@@ -131,7 +117,6 @@ describe("FinP2P proxy contract test", function() {
     let operator: Signer;
     let contract: FINP2POperator;
     let finP2PAddress: string;
-    let erc20StandardAddress: string;
     let chainId: bigint;
     let verifyingContract: string;
 
@@ -195,14 +180,15 @@ describe("FinP2P proxy contract test", function() {
 
     before(async () => {
       [operator] = await ethers.getSigners();
-      ({ contract, erc20StandardAddress, finP2PAddress } = await loadFixture(deployFinP2PProxyFixture));
+      ({ contract, finP2PAddress } = await loadFixture(deployFinP2PProxyFixture));
       ({ chainId, verifyingContract } = await contract.eip712Domain());
-      for (const term of testCases) {
-        const asset = await deployERC20(term.asset.assetId, term.asset.assetId, term.decimals, erc20StandardAddress);
-        await contract.associateAsset(term.asset.assetId, asset, ERC20_STANDARD_ID, { from: operator });
+      for (const tc of testCases) {
+        // Deploy ERC20 tokens with finP2P contract as operator (minter + transferFrom bypasser)
+        const assetToken = await deployERC20(tc.asset.assetId, tc.asset.assetId, tc.decimals, finP2PAddress);
+        await contract.associateAsset(tc.asset.assetId, assetToken, { from: operator });
 
-        const settlement = await deployERC20(term.settlement.assetId, term.settlement.assetId, term.decimals, erc20StandardAddress);
-        await contract.associateAsset(term.settlement.assetId, settlement, ERC20_STANDARD_ID, { from: operator });
+        const settlementToken = await deployERC20(tc.settlement.assetId, tc.settlement.assetId, tc.decimals, finP2PAddress);
+        await contract.associateAsset(tc.settlement.assetId, settlementToken, { from: operator });
       }
     });
 
@@ -213,6 +199,10 @@ describe("FinP2P proxy contract test", function() {
             it(`issue/transfer/redeem operations (asset: ${asset}, settlement ${settlement}, primaryType: ${primaryType}, leg: ${leg}, phase: ${phase}, decimals: ${decimals}`, async () => {
               const buyer = generateInvestor();
               const seller = generateInvestor();
+              // Register credentials for both investors
+              await registerCredential(contract, buyer.finId);
+              await registerCredential(contract, seller.finId);
+
               const { from, to, signer } = extractInvestors(buyer, seller, leg, phase);
               const { assetId, assetType, amount } = extractAsset(asset, settlement, loan, primaryType, leg, phase);
 
@@ -240,6 +230,9 @@ describe("FinP2P proxy contract test", function() {
             it(`hold/release operations (asset: ${asset}, settlement ${settlement}, primaryType: ${primaryType}, leg: ${leg}, phase: ${phase},decimals: ${decimals})`, async () => {
               const buyer = generateInvestor();
               const seller = generateInvestor();
+              await registerCredential(contract, buyer.finId);
+              await registerCredential(contract, seller.finId);
+
               const { from, to, signer } = extractInvestors(buyer, seller, leg, phase);
               const { assetId, assetType, amount } = extractAsset(asset, settlement, loan, primaryType, leg, phase);
 
@@ -271,7 +264,7 @@ describe("FinP2P proxy contract test", function() {
 
               expect(await contract.getBalance(assetId, from)).to.equal(`${(0).toFixed(decimals)}`);
               expect(await contract.getBalance(assetId, to)).to.equal(toFixedDecimals(amount, decimals));
-              await expect(contract.getLockInfo(operationId)).to.be.revertedWith("Contract not found"); // TODO update chai
+              await expect(contract.getLockInfo(operationId)).to.be.revertedWith("Contract not found");
 
             });
 
@@ -280,6 +273,8 @@ describe("FinP2P proxy contract test", function() {
               const buyerFinId = getFinId(buyer);
               const seller = Wallet.createRandom();
               const sellerFinId = getFinId(seller);
+              await registerCredential(contract, buyerFinId);
+              await registerCredential(contract, sellerFinId);
 
               let assetId: string, assetType: AssetType, amount: string;
               let from: string, to: string;
@@ -341,7 +336,7 @@ describe("FinP2P proxy contract test", function() {
 
               expect(await contract.getBalance(assetId, from)).to.equal(toFixedDecimals(amount, decimals));
               expect(await contract.getBalance(assetId, to)).to.equal(`${(0).toFixed(decimals)}`);
-              await expect(contract.getLockInfo(operationId)).to.be.revertedWith("Contract not found"); // TODO update chai
+              await expect(contract.getLockInfo(operationId)).to.be.revertedWith("Contract not found");
             });
 
             it(`hold/redeem operations (asset: ${asset}, settlement ${settlement}, leg: ${leg}, phase: ${phase}, decimals: ${decimals})`, async () => {
@@ -353,6 +348,9 @@ describe("FinP2P proxy contract test", function() {
 
               const owner = Wallet.createRandom();
               const ownerFinId = getFinId(owner);
+
+              await registerCredential(contract, issuerFinId);
+              await registerCredential(contract, ownerFinId);
 
               let assetId: string, assetType: AssetType, amount: string;
               let investorFinId: string;

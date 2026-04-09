@@ -1,17 +1,21 @@
 import {
-  Asset, AssetCreationStatus, Destination, EIP712Template,
-  ExecutionContext, ReceiptOperation, Balance, TokenService, Signature, Source,
-  failedAssetCreation, failedReceiptOperation, successfulAssetCreation,
-  AssetBind, AssetDenomination, FinIdAccount,
-  AssetCreationResult, ValidationError
-} from "@owneraio/finp2p-adapter-models";
-import { logger, ProofProvider, PluginManager} from "@owneraio/finp2p-nodejs-skeleton-adapter"
+  Asset, AssetBase, AssetCreationStatus, EIP712Template, Balance, TokenService,
+  failedAssetCreation, successfulAssetCreation,
+  AssetBind, AssetDenomination,
+  AssetCreationResult, Signature, Destination, ExecutionContext,
+  ReceiptOperation, Source, FinIdAccount,
+  logger, ProofProvider, PluginManager,
+  failedReceiptOperation,
+} from "@owneraio/finp2p-nodejs-skeleton-adapter";
+import {
+  ValidationError
+} from "@owneraio/finp2p-contracts";
 import { FinP2PClient } from "@owneraio/finp2p-client";
 import {
   FinP2PContract,
   assetTypeFromString,
   EthereumTransactionError,
-  term, isEthereumAddress, ERC20_STANDARD_ID
+  term, isEthereumAddress
 } from "@owneraio/finp2p-contracts";
 
 import { CommonServiceImpl, ExecDetailsStore } from "./common";
@@ -31,11 +35,10 @@ export class TokenServiceImpl extends CommonServiceImpl implements TokenService 
     super(finP2PContract, finP2PClient, execDetailsStore, proofProvider, pluginManager);
   }
 
-  public async createAsset(idempotencyKey: string, asset: Asset,
+  public async createAsset(idempotencyKey: string, asset: AssetBase,
                            assetBind: AssetBind | undefined, assetMetadata: any | undefined, assetName: string | undefined, issuerId: string | undefined,
                            assetDenomination: AssetDenomination | undefined): Promise<AssetCreationStatus> {
     const { assetId } = asset;
-    let tokenStandard = ERC20_STANDARD_ID;
     let tokenAddress: string;
     let allowanceRequired: boolean
     if (assetBind && assetBind.tokenIdentifier) {
@@ -50,13 +53,13 @@ export class TokenServiceImpl extends CommonServiceImpl implements TokenService 
       logger.debug(`Associating existing token ${tokenAddress} to asset ${assetId}`);
     } else {
 
-      tokenAddress = await this.finP2PContract.deployERC20ViaAssetRegistry(assetId, assetId, DefaultDecimals, this.finP2PContract.finP2PContractAddress);
+      tokenAddress = await this.finP2PContract.deployERC20(assetId, assetId, DefaultDecimals, this.finP2PContract.finP2PContractAddress);
       allowanceRequired = false;
       logger.debug(`Deployed new token ${tokenAddress} for asset ${assetId}`);
     }
 
     try {
-      const txHash = await this.finP2PContract.associateAsset(assetId, tokenAddress, tokenStandard);
+      const txHash = await this.finP2PContract.associateAsset(assetId, tokenAddress);
     } catch (e) {
       logger.error(`Error creating asset: ${e}`);
       if (e instanceof EthereumTransactionError) {
@@ -68,16 +71,17 @@ export class TokenServiceImpl extends CommonServiceImpl implements TokenService 
 
     // TODO: parse assetMetadata to determine token standard and other details
 
-    const { chainId, name } = await this.finP2PContract.provider.getNetwork();
-    const network = `name: ${name}, chainId: ${chainId}`; // public or private network?
+    const { chainId } = await this.finP2PContract.provider.getNetwork();
+    // TODO: use proper CAIP-19 network: `eip155:${chainId}`
+    const network = 'ethereum';
     const finP2POperatorContractAddress = this.finP2PContract.finP2PContractAddress;
     const result: AssetCreationResult = {
-      ledgerIdentifier: { network, tokenId: tokenAddress, standard: tokenStandard },
+      ledgerIdentifier: { network, tokenId: tokenAddress, standard: "ERC20" },
       reference: {
         type: "ledgerReference",
         network,
         address: tokenAddress,
-        tokenStandard, // TODO: tokenStandardToService(..)
+        tokenStandard: "ERC20",
         additionalContractDetails: {
           finP2POperatorContractAddress,
           allowanceRequired
@@ -87,18 +91,15 @@ export class TokenServiceImpl extends CommonServiceImpl implements TokenService 
     return successfulAssetCreation(result);
   }
 
-  public async doesSupportCrosschainTransfer(_sourceAsset: Asset, _destinationAsset: Asset): Promise<boolean> {
-    return false;
-  }
-
-  public async issue(idempotencyKey: string, asset: Asset, to: Destination, quantity: string, exCtx: ExecutionContext): Promise<ReceiptOperation> {
-    const { finId: issuerFinId } = to;
+  public async issue(idempotencyKey: string, asset: Asset, to: Destination, quantity: string, exCtx: ExecutionContext | undefined): Promise<ReceiptOperation> {
+    const issuerFinId = to.finId;
     try {
+      await this.ensureCredential(issuerFinId);
       const transactionReceipt = await this.finP2PContract.issue(issuerFinId, term(asset.assetId, assetTypeFromString(asset.assetType), quantity), emptyOperationParams())
       if (exCtx) {
         this.execDetailsStore?.addExecutionContext(transactionReceipt.hash, exCtx.planId, exCtx.sequence);
       }
-      return await this.finP2PContract.getReceiptFromTransactionReceipt(transactionReceipt)
+      return await this.finP2PContract.getReceiptFromTransactionReceipt(transactionReceipt) as unknown as ReceiptOperation // TODO: remove cast after updating finp2p-contracts Asset type to include ledgerIdentifier
     } catch (e) {
       logger.error(`Error on asset issuance: ${e}`);
       if (e instanceof EthereumTransactionError) {
@@ -109,25 +110,32 @@ export class TokenServiceImpl extends CommonServiceImpl implements TokenService 
     }
   }
 
+  public async doesSupportCrosschainTransfer(_sourceAsset: Asset, _destinationAsset: Asset): Promise<boolean> {
+    return false;
+  }
+
   public async transfer(idempotencyKey: string, nonce: string, source: Source, destination: Destination,
                         sourceAsset: Asset, destinationAsset: Asset,
-                        quantity: string, signature: Signature, exCtx: ExecutionContext
+                        quantity: string, signature: Signature, exCtx: ExecutionContext | undefined
   ): Promise<ReceiptOperation> {
+    const ast = sourceAsset;
     const { signature: sgn, template } = signature;
     if (template.type != "EIP712") {
       throw new ValidationError(`Unsupported signature template type: ${template.type}`);
     }
     const eip712Template = template as EIP712Template;
-    const details = extractBusinessDetails(sourceAsset, source, destination, undefined, eip712Template, exCtx);
+    const details = extractBusinessDetails(ast, source, destination, undefined, eip712Template, exCtx);
     validateRequest(source, destination, quantity, details);
     const { buyerFinId, sellerFinId, asset, settlement, loan, params } = details;
 
     try {
+      await this.ensureCredential(sellerFinId);
+      await this.ensureCredential(buyerFinId);
       const transactionReceipt  = await this.finP2PContract.transfer(nonce, sellerFinId, buyerFinId, asset, settlement, loan, params, sgn);
     if (exCtx) {
       this.execDetailsStore?.addExecutionContext(transactionReceipt.hash, exCtx.planId, exCtx.sequence);
     }
-      return await this.finP2PContract.getReceiptFromTransactionReceipt(transactionReceipt)
+      return await this.finP2PContract.getReceiptFromTransactionReceipt(transactionReceipt) as unknown as ReceiptOperation // TODO: remove cast after updating finp2p-contracts Asset type to include ledgerIdentifier
     } catch (e) {
       logger.error(`Error on asset transfer: ${e}`);
       if (e instanceof EthereumTransactionError) {
@@ -148,13 +156,14 @@ export class TokenServiceImpl extends CommonServiceImpl implements TokenService 
     }
 
     try {
+      await this.ensureCredential(source.finId);
       const transactionReceipt = await this.finP2PContract.releaseAndRedeem(operationId, source.finId, quantity, emptyOperationParams());
 
       if (exCtx) {
         this.execDetailsStore?.addExecutionContext(transactionReceipt.hash, exCtx.planId, exCtx.sequence);
       }
 
-      return await this.finP2PContract.getReceiptFromTransactionReceipt(transactionReceipt)
+      return await this.finP2PContract.getReceiptFromTransactionReceipt(transactionReceipt) as unknown as ReceiptOperation // TODO: remove cast after updating finp2p-contracts Asset type to include ledgerIdentifier
     } catch (e) {
       logger.error(`Error releasing asset: ${e}`);
       if (e instanceof EthereumTransactionError) {
@@ -167,10 +176,12 @@ export class TokenServiceImpl extends CommonServiceImpl implements TokenService 
   }
 
   public async getBalance(asset: Asset, finId: string): Promise<string> {
+    await this.ensureCredential(finId);
     return await this.finP2PContract.balance(asset.assetId, finId);
   }
 
   public async balance(asset: Asset, finId: string): Promise<Balance> {
+    await this.ensureCredential(finId);
     const balance = await this.finP2PContract.balance(asset.assetId, finId);
     return {
       current: balance,

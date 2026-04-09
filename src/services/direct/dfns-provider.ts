@@ -1,8 +1,8 @@
 import { DfnsApiClient } from '@dfns/sdk';
 import { AsymmetricKeySigner } from '@dfns/sdk-keysigner';
 import { DfnsWallet } from '@dfns/lib-ethersjs6';
-import { JsonRpcProvider, parseEther } from 'ethers';
-import { DfnsAppConfig } from '../../config';
+import { JsonRpcProvider } from 'ethers';
+import { DfnsAppConfig } from './dfns-config';
 import { CustodyProvider, CustodyWallet, GasStation } from './custody-provider';
 
 export class DfnsCustodyProvider implements CustodyProvider {
@@ -74,22 +74,21 @@ export class DfnsCustodyProvider implements CustodyProvider {
     return new DfnsCustodyProvider(issuerWallet, escrowWallet, config, dfnsClient, addressToWalletId, gasStation, omnibusWallet);
   }
 
-  async fundGasIfNeeded(wallet: CustodyWallet): Promise<void> {
-    if (!this.gasStation) return;
-    try {
-      const targetAddress = await wallet.signer.getAddress();
-      await this.gasStation.wallet.signer.sendTransaction({
-        to: targetAddress,
-        value: parseEther(this.gasStation.amount),
-      });
-    } catch (e) {
-      console.warn(`Gas funding failed (wallet may already have sufficient gas): ${e}`);
-    }
+  async createWalletForCustodyId(walletId: string): Promise<CustodyWallet> {
+    return DfnsCustodyProvider.createWalletProvider(this.dfnsClient, walletId, this.config.rpcUrl);
   }
 
   async resolveWallet(address: string): Promise<CustodyWallet | undefined> {
     const walletId = this.addressToWalletId.get(address.toLowerCase());
     if (walletId === undefined) return undefined;
     return DfnsCustodyProvider.createWalletProvider(this.dfnsClient, walletId, this.config.rpcUrl);
+  }
+
+  async resolveAddressFromCustodyId(walletId: string): Promise<string> {
+    const wallet = await this.dfnsClient.wallets.getWallet({ walletId });
+    if (!wallet.address) {
+      throw new Error(`No address found for DFNS wallet ${walletId}`);
+    }
+    return wallet.address;
   }
 }

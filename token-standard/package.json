@@ -1,0 +1,30 @@
+{
+  "name": "@owneraio/finp2p-ethereum-token-standard",
+  "version": "0.27.10",
+  "description": "Token standard interface for FinP2P Ethereum adapter plugins",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist/**/*.js",
+    "dist/**/*.d.ts",
+    "dist/**/*.d.ts.map",
+    "contracts/**/*.sol"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json"
+  },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com",
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/owneraio/finp2p-ethereum-adapter.git",
+    "directory": "token-standard"
+  },
+  "license": "TBD",
+  "dependencies": {
+    "@owneraio/finp2p-ethereum-token-standard": "^0.27.5",
+    "ethers": "^6.11.1"
+  }
+}

@@ -4,6 +4,7 @@ import { FinP2PClient } from "@owneraio/finp2p-client";
 import winston, { format, transports } from "winston";
 import { FinP2PContract } from "@owneraio/finp2p-contracts";
 import { migrationsDir as vanillaMigrationsDir, migrationsTableName as vanillaMigrationsTable } from "@owneraio/finp2p-vanilla-service";
+import { join } from "path";
 import { envVarsToAppConfig } from "./config";
 import createApp from "./app";
 import { InMemoryExecDetailsStore } from "./services/finp2p-contract";
@@ -26,6 +27,10 @@ const init = async () => {
     throw new Error("LEDGER_USER is not set");
   }
 
+  const finP2PUrl = process.env.FINP2P_ADDRESS;
+  const ossUrl = process.env.OSS_URL;
+  const finP2PClient = finP2PUrl && ossUrl ? new FinP2PClient("http://" + finP2PUrl, ossUrl) : undefined;
+
   const workflowsConfig = {
     migration: {
       connectionString: migrationConnectionString,
@@ -34,10 +39,11 @@ const init = async () => {
       storageUser,
       additionalMigrations: [
         { migrationsDir: vanillaMigrationsDir, tableName: vanillaMigrationsTable },
+        { migrationsDir: join(__dirname, '..', 'migrations'), tableName: 'finp2p_ethereum_adapter_extensions' },
       ],
     },
     storage: { connectionString: dbConnectionString },
-    service: {},
+    finP2PClient,
   };
 
   const level = process.env.LOG_LEVEL || "info";

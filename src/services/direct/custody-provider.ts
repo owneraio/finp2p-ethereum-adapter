@@ -18,6 +18,8 @@ export interface CustodyProvider {
   readonly gasStation?: GasStation;
 
   resolveWallet(account: string): Promise<CustodyWallet | undefined>;
-  fundGasIfNeeded?(wallet: CustodyWallet): Promise<void>;
+  /** Create a wallet directly from custody account ID (vault ID / wallet ID). No reverse scan needed. */
+  createWalletForCustodyId?(custodyAccountId: string): Promise<CustodyWallet>;
+  resolveAddressFromCustodyId?(custodyAccountId: string): Promise<string>;
   onAssetRegistered?(tokenAddress: string, symbol?: string): Promise<void>;
 }

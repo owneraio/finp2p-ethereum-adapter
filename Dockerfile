@@ -38,6 +38,7 @@ COPY \
     jest.config.js \
     ./
 COPY src ./src
+COPY migrations ./migrations
 COPY --from=contracts-builder /usr/app/package.json ./finp2p-contracts/package.json
 COPY --from=contracts-builder /usr/app/dist ./finp2p-contracts/dist
 
@@ -45,7 +46,7 @@ RUN --mount=type=secret,id=npm_token \
     NPM_TOKEN="$(cat /run/secrets/npm_token)" && \
     echo "//npm.pkg.github.com/:_authToken=${NPM_TOKEN}" > .npmrc && \
     echo "@owneraio:registry=https://npm.pkg.github.com" >> .npmrc && \
-    npm clean-install --ignore-scripts && \
+    npm clean-install --ignore-scripts --legacy-peer-deps && \
     rm .npmrc
 RUN npm run build
 
@@ -58,7 +59,7 @@ RUN --mount=type=secret,id=npm_token \
     NPM_TOKEN="$(cat /run/secrets/npm_token)" && \
     echo "//npm.pkg.github.com/:_authToken=${NPM_TOKEN}" > .npmrc && \
     echo "@owneraio:registry=https://npm.pkg.github.com" >> .npmrc && \
-    npm clean-install --production --ignore-scripts && \
+    npm clean-install --production --ignore-scripts --legacy-peer-deps && \
     rm .npmrc
 
 # ------- Release ----------
@@ -68,6 +69,7 @@ ENV NODE_ENV=production
 
 COPY --from=dependencies /usr/app/node_modules ./node_modules
 COPY --from=build /usr/app/dist ./dist
+COPY --from=build /usr/app/migrations ./migrations
 COPY --from=migrator /go/bin/goose /usr/bin/goose
 
 CMD [ "node", "/usr/app/dist/index.js" ]

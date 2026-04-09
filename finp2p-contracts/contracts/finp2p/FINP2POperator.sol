@@ -4,26 +4,29 @@ pragma solidity ^0.8.20;
 
 import "../utils/StringUtils.sol";
 import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
-import {OperationParams, LegType, PrimaryType, Phase, ReleaseType} from "../utils/finp2p/OperationParams.sol";
-import {AssetRegistry} from "../utils/finp2p/AssetRegistry.sol";
-import {AssetStandard} from "../utils/finp2p/AssetStandard.sol";
+import {OperationParams, LegType, PrimaryType, Phase, ReleaseType} from "@owneraio/finp2p-ethereum-token-standard/contracts/OperationParams.sol";
 import {FinIdUtils} from "../utils/finp2p/FinIdUtils.sol";
 import {FinP2PSignatureVerifier} from "../utils/finp2p/FinP2PSignatureVerifier.sol";
+import {Burnable} from "../utils/erc20/Burnable.sol";
+import {Mintable} from "../utils/erc20/Mintable.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 
 /**
- * @dev FINP2POperatorERC20
+ * @dev FINP2POperator
  *
- * This contract implements the FINP2P protocol operations for ERC20 tokens.
- * It allows to associate and remove assets, issue, transfer and redeem tokens.
- * It also allows to hold and release tokens in escrow.
+ * Simplified FinP2P operator contract that works directly with ERC20 tokens.
+ * Manages finId-to-address credential mappings and asset-to-token associations.
+ * Signature verification still uses cryptographic derivation from finId (secp256k1),
+ * while token operations use the mapped wallet address from the credentials registry.
  *
  */
 contract FINP2POperator is AccessControl, FinP2PSignatureVerifier {
     using StringUtils for string;
+    using StringUtils for uint256;
     using FinIdUtils for string;
 
-
-    string public constant VERSION = "0.27.0";
+    string public constant VERSION = "0.27.2";
 
     bytes32 private constant ASSET_MANAGER = keccak256("ASSET_MANAGER");
     bytes32 private constant TRANSACTION_MANAGER = keccak256("TRANSACTION_MANAGER");
@@ -37,48 +40,22 @@ contract FINP2POperator is AccessControl, FinP2PSignatureVerifier {
     }
 
     /// @notice Issue event
-    /// @param assetId The asset id
-    /// @param assetType The asset type
-    /// @param issuerFinId The FinID of the issuer
-    /// @param quantity The quantity issued
     event Issue(string assetId, AssetType assetType, string issuerFinId, string quantity);
 
     /// @notice Transfer event
-    /// @param assetId The asset id
-    /// @param assetType The asset type
-    /// @param sourceFinId The FinID of the source
-    /// @param destinationFinId The FinID of the destination
-    /// @param quantity The quantity transferred
     event Transfer(string assetId, AssetType assetType, string sourceFinId, string destinationFinId, string quantity);
 
     /// @notice Hold event
-    /// @param assetId The asset id
-    /// @param assetType The asset type
-    /// @param finId The FinID of the holder
-    /// @param quantity The quantity held
-    /// @param operationId The operation id
     event Hold(string assetId, AssetType assetType, string finId, string quantity, string operationId);
 
     /// @notice Release event
-    /// @param assetId The asset id
-    /// @param assetType The asset type
-    /// @param sourceFinId The FinID of the source
-    /// @param destinationFinId The FinID of the destination
-    /// @param quantity The quantity released
-    /// @param operationId The operation id
     event Release(string assetId, AssetType assetType, string sourceFinId, string destinationFinId, string quantity, string operationId);
 
     /// @notice Redeem event
-    /// @param assetId The asset id
-    /// @param assetType The asset type
-    /// @param ownerFinId The FinID of the owner
-    /// @param quantity The quantity redeemed
-    /// @param operationId The operation id
     event Redeem(string assetId, AssetType assetType, string ownerFinId, string quantity, string operationId);
 
     struct Asset {
         string id;
-        bytes32 standard;
         address tokenAddress;
     }
 
@@ -93,62 +70,80 @@ contract FINP2POperator is AccessControl, FinP2PSignatureVerifier {
     address private escrowWalletAddress;
     mapping(string => Asset) private assets;
     mapping(string => Lock) private locks;
-    address private assetRegistry;
 
-    constructor(address admin, address _assetRegistry) {
+    // Credentials: finId -> wallet address
+    mapping(string => address) private credentials;
+
+    constructor(address admin) {
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
         _grantRole(ASSET_MANAGER, admin);
         _grantRole(TRANSACTION_MANAGER, admin);
-        assetRegistry = _assetRegistry;
     }
 
     function getVersion() external pure returns (string memory) {
         return VERSION;
     }
 
-    function getAssetRegistry() external view returns (address) {
-        return assetRegistry;
-    }
+    // ---- Role management ----
 
-    /// @notice Grant the asset manager role to an account
-    /// @param account The account to grant the role
     function grantAssetManagerRole(address account) external {
-        require(hasRole(DEFAULT_ADMIN_ROLE, _msgSender()), "FINP2POperatorERC20: must have admin role to grant asset manager role");
+        require(hasRole(DEFAULT_ADMIN_ROLE, _msgSender()), "FINP2POperator: must have admin role to grant asset manager role");
         grantRole(ASSET_MANAGER, account);
     }
 
-    /// @notice Grant the transaction manager role to an account
-    /// @param account The account to grant the role
     function grantTransactionManagerRole(address account) external {
-        require(hasRole(DEFAULT_ADMIN_ROLE, _msgSender()), "FINP2POperatorERC20: must have admin role to grant transaction manager role");
+        require(hasRole(DEFAULT_ADMIN_ROLE, _msgSender()), "FINP2POperator: must have admin role to grant transaction manager role");
         grantRole(TRANSACTION_MANAGER, account);
     }
 
-    /// @notice Set escrow wallet address
-    /// @param _escrowWalletAddress The escrow wallet address
     function setEscrowWalletAddress(address _escrowWalletAddress) external {
-        require(hasRole(DEFAULT_ADMIN_ROLE, _msgSender()), "FINP2POperatorERC20: must have admin role to set escrow wallet address");
+        require(hasRole(DEFAULT_ADMIN_ROLE, _msgSender()), "FINP2POperator: must have admin role to set escrow wallet address");
         escrowWalletAddress = _escrowWalletAddress;
     }
+
+    // ---- Credential management ----
+
+    /// @notice Add a credential mapping from finId to wallet address
+    /// @param finId The FinP2P identity
+    /// @param addr The wallet address to associate
+    function addCredential(string calldata finId, address addr) external {
+        require(hasRole(ASSET_MANAGER, _msgSender()), "FINP2POperator: must have asset manager role to add credential");
+        require(addr != address(0), "Wallet address cannot be zero");
+        credentials[finId] = addr;
+    }
+
+    /// @notice Remove a credential mapping
+    /// @param finId The FinP2P identity to remove
+    function removeCredential(string calldata finId) external {
+        require(hasRole(ASSET_MANAGER, _msgSender()), "FINP2POperator: must have asset manager role to remove credential");
+        require(_haveCredential(finId), "Credential not found");
+        delete credentials[finId];
+    }
+
+    /// @notice Get the wallet address for a finId
+    /// @param finId The FinP2P identity
+    /// @return The mapped wallet address
+    function getCredentialAddress(string calldata finId) external view returns (address) {
+        require(_haveCredential(finId), "Credential not found");
+        return credentials[finId];
+    }
+
+    // ---- Asset management ----
 
     /// @notice Associate an asset with a token address
     /// @param assetId The asset id
     /// @param tokenAddress The token address
-    function associateAsset(string calldata assetId, address tokenAddress, bytes32 assetStandard) external {
-        require(hasRole(ASSET_MANAGER, _msgSender()), "FINP2POperatorERC20: must have asset manager role to associate asset");
+    function associateAsset(string calldata assetId, address tokenAddress) external {
+        require(hasRole(ASSET_MANAGER, _msgSender()), "FINP2POperator: must have asset manager role to associate asset");
         require(!_haveAsset(assetId), "Asset already exists");
         require(tokenAddress != address(0), "Token address cannot be zero");
-
-        address standardAddress = AssetRegistry(assetRegistry).getAssetStandard(assetStandard);
-        require(standardAddress != address(0), "Asset standard not found");
-
-        assets[assetId] = Asset(assetId, assetStandard, tokenAddress);
+        assets[assetId] = Asset(assetId, tokenAddress);
     }
 
     /// @notice Remove an asset
     /// @param assetId The asset id
     function removeAsset(string calldata assetId) external {
-        require(hasRole(ASSET_MANAGER, _msgSender()), "FINP2POperatorERC20: must have asset manager role to remove asset");
+        require(hasRole(ASSET_MANAGER, _msgSender()), "FINP2POperator: must have asset manager role to remove asset");
         require(_haveAsset(assetId), "Asset not found");
         delete assets[assetId];
     }
@@ -158,8 +153,7 @@ contract FINP2POperator is AccessControl, FinP2PSignatureVerifier {
     /// @return The token address
     function getAssetAddress(string calldata assetId) external view returns (address) {
         require(_haveAsset(assetId), "Asset not found");
-        Asset memory asset = assets[assetId];
-        return asset.tokenAddress;
+        return assets[assetId].tokenAddress;
     }
 
     /// @notice Get the balance of an asset for a FinID
@@ -171,34 +165,27 @@ contract FINP2POperator is AccessControl, FinP2PSignatureVerifier {
         string calldata finId
     ) external view returns (string memory) {
         require(_haveAsset(assetId), "Asset not found");
-        address addr = finId.toAddress();
+        address addr = _resolveAddress(finId);
         Asset memory asset = assets[assetId];
-        AssetStandard standard = AssetStandard(AssetRegistry(assetRegistry).getAssetStandard(asset.standard));
-        return standard.balanceOf(asset.tokenAddress, addr);
+        uint8 tokenDecimals = IERC20Metadata(asset.tokenAddress).decimals();
+        uint256 tokenBalance = IERC20(asset.tokenAddress).balanceOf(addr);
+        return tokenBalance.uintToString(tokenDecimals);
     }
 
+    // ---- Operations ----
+
     /// @notice Issue asset to the issuer
-    /// @param issuerFinId The FinID of the issuer
-    /// @param assetTerm The asset term to issue
     function issue(
         string calldata issuerFinId,
         Term calldata assetTerm,
         OperationParams memory op
     ) external {
-        require(hasRole(TRANSACTION_MANAGER, _msgSender()), "FINP2POperatorERC20: must have transaction manager role to issue asset");
-        _mint(issuerFinId.toAddress(), assetTerm.assetId, assetTerm.amount, op);
+        require(hasRole(TRANSACTION_MANAGER, _msgSender()), "FINP2POperator: must have transaction manager role to issue asset");
+        _mint(_resolveAddress(issuerFinId), assetTerm.assetId, assetTerm.amount);
         emit Issue(assetTerm.assetId, assetTerm.assetType, issuerFinId, assetTerm.amount);
     }
 
     /// @notice Transfer asset from seller to buyer
-    /// @param nonce The investor signature nonce
-    /// @param sellerFinId The FinID of the seller
-    /// @param buyerFinId The FinID of the buyer
-    /// @param assetTerm The asset term to transfer
-    /// @param settlementTerm The settlement term to transfer
-    /// @param loanTerm The loan term to transfer, could be empty
-    /// @param op The operation parameters
-    /// @param signature The investor signature
     function transfer(
         string memory nonce,
         string memory sellerFinId,
@@ -209,7 +196,7 @@ contract FINP2POperator is AccessControl, FinP2PSignatureVerifier {
         OperationParams memory op,
         bytes memory signature
     ) external {
-        require(hasRole(TRANSACTION_MANAGER, _msgSender()), "FINP2POperatorERC20: must have transaction manager role to transfer asset");
+        require(hasRole(TRANSACTION_MANAGER, _msgSender()), "FINP2POperator: must have transaction manager role to transfer asset");
         (string memory source,
             string memory destination,
             string memory assetId,
@@ -226,32 +213,22 @@ contract FINP2POperator is AccessControl, FinP2PSignatureVerifier {
             source,
             signature
         ), "Signature is not verified");
-        _transfer(source.toAddress(), destination.toAddress(), assetId, amount, op);
+        _transfer(_resolveAddress(source), _resolveAddress(destination), assetId, amount);
         emit Transfer(assetId, assetType, source, destination, amount);
     }
 
     /// @notice Redeem asset from the owner
-    /// @param ownerFinId The FinID of the owner
-    /// @param term The term to redeem
     function redeem(
         string calldata ownerFinId,
         Term calldata term,
         OperationParams memory op
     ) external {
-        require(hasRole(TRANSACTION_MANAGER, _msgSender()), "FINP2POperatorERC20: must have transaction manager role to release asset");
-        _burn(ownerFinId.toAddress(), term.assetId, term.amount, op);
+        require(hasRole(TRANSACTION_MANAGER, _msgSender()), "FINP2POperator: must have transaction manager role to redeem asset");
+        _burn(_resolveAddress(ownerFinId), term.assetId, term.amount);
         emit Redeem(term.assetId, term.assetType, ownerFinId, term.amount, '');
     }
 
     /// @notice Hold asset in escrow
-    /// @param nonce The investor signature nonce
-    /// @param sellerFinId The FinID of the seller
-    /// @param buyerFinId The FinID of the buyer
-    /// @param assetTerm The asset term to hold
-    /// @param settlementTerm The settlement term to hold
-    /// @param loanTerm The loan term to hold, could be empty
-    /// @param op The operation parameters
-    /// @param signature The investor signature
     function hold(
         string memory nonce,
         string memory sellerFinId,
@@ -262,7 +239,7 @@ contract FINP2POperator is AccessControl, FinP2PSignatureVerifier {
         OperationParams memory op,
         bytes memory signature
     ) external {
-        require(hasRole(TRANSACTION_MANAGER, _msgSender()), "FINP2POperatorERC20: must have transaction manager role to hold asset");
+        require(hasRole(TRANSACTION_MANAGER, _msgSender()), "FINP2POperator: must have transaction manager role to hold asset");
         (string memory source,
             string memory destination,
             string memory assetId, AssetType assetType,
@@ -279,7 +256,7 @@ contract FINP2POperator is AccessControl, FinP2PSignatureVerifier {
             signature
         ), "Signature is not verified");
 
-        _hold(source.toAddress(), assetId, amount, op);
+        _transfer(_resolveAddress(source), _getEscrow(), assetId, amount);
         if (op.releaseType == ReleaseType.RELEASE) {
             locks[op.operationId] = Lock(assetId, assetType, source, destination, amount);
         } else if (op.releaseType == ReleaseType.REDEEM) {
@@ -291,9 +268,6 @@ contract FINP2POperator is AccessControl, FinP2PSignatureVerifier {
     }
 
     /// @notice Release asset from escrow to the destination
-    /// @param operationId The operation id, a connection between hold and release
-    /// @param toFinId The FinID of the destination
-    /// @param quantity The quantity to release
     function releaseTo(
         string memory operationId,
         string memory fromFinId,
@@ -301,56 +275,50 @@ contract FINP2POperator is AccessControl, FinP2PSignatureVerifier {
         string memory quantity,
         OperationParams memory op
     ) external {
-        require(hasRole(TRANSACTION_MANAGER, _msgSender()), "FINP2POperatorERC20: must have transaction manager role to release asset");
+        require(hasRole(TRANSACTION_MANAGER, _msgSender()), "FINP2POperator: must have transaction manager role to release asset");
         require(_haveContract(operationId), "Contract does not exists");
         Lock storage lock = locks[operationId];
         require(lock.amount.equals(quantity), "Trying to release amount different from the one held");
         require(lock.source.equals(fromFinId), "Trying to release asset with source different from the one who held it");
         require(lock.destination.equals(toFinId), "Trying to release to different destination than the one expected in the lock");
 
-        _release(toFinId.toAddress(), lock.assetId, lock.amount, op);
+        _transfer(_getEscrow(), _resolveAddress(toFinId), lock.assetId, lock.amount);
         emit Release(lock.assetId, lock.assetType, lock.source, lock.destination, quantity, operationId);
         delete locks[operationId];
     }
 
     /// @notice Release asset from escrow and redeem it
-    /// @param operationId The operation id, a connection between hold and release
-    /// @param ownerFinId The FinID of the owner
-    /// @param quantity The quantity to redeem
     function releaseAndRedeem(
         string calldata operationId,
         string calldata ownerFinId,
         string calldata quantity,
         OperationParams memory op
     ) external {
-        require(hasRole(TRANSACTION_MANAGER, _msgSender()), "FINP2POperatorERC20: must have transaction manager role to release asset");
+        require(hasRole(TRANSACTION_MANAGER, _msgSender()), "FINP2POperator: must have transaction manager role to release asset");
         require(_haveContract(operationId), "Contract does not exists");
         Lock storage lock = locks[operationId];
         require(lock.source.equals(ownerFinId), "Trying to redeem asset with owner different from the one who held it");
         require(bytes(lock.destination).length == 0, "Trying to redeem asset with non-empty destination");
         require(lock.amount.equals(quantity), "Trying to redeem amount different from the one held");
-        _releaseBurn(lock.assetId, lock.amount, op);
+        _burn(_getEscrow(), lock.assetId, lock.amount);
         emit Redeem(lock.assetId, lock.assetType, ownerFinId, quantity, operationId);
         delete locks[operationId];
     }
 
     /// @notice Release asset from escrow back to the source
-    /// @param operationId The operation id of the withheld asset
     function releaseBack(
         string memory operationId,
         OperationParams memory op
     ) external {
-        require(hasRole(TRANSACTION_MANAGER, _msgSender()), "FINP2POperatorERC20: must have transaction manager role to rollback asset");
+        require(hasRole(TRANSACTION_MANAGER, _msgSender()), "FINP2POperator: must have transaction manager role to rollback asset");
         require(_haveContract(operationId), "contract does not exists");
         Lock storage lock = locks[operationId];
-        _release(lock.source.toAddress(), lock.assetId, lock.amount, op);
+        _transfer(_getEscrow(), _resolveAddress(lock.source), lock.assetId, lock.amount);
         emit Release(lock.assetId, lock.assetType, lock.source, "", lock.amount, operationId);
         delete locks[operationId];
     }
 
     /// @notice Get the lock info
-    /// @param operationId The operation id
-    /// @return The lock info
     function getLockInfo(string memory operationId) external view returns (LockInfo memory) {
         require(_haveContract(operationId), "Contract not found");
         Lock storage l = locks[operationId];
@@ -367,55 +335,45 @@ contract FINP2POperator is AccessControl, FinP2PSignatureVerifier {
         exists = (bytes(locks[operationId].amount).length > 0);
     }
 
-    function _mint(address to, string memory assetId, string memory quantity, OperationParams memory op) internal {
-        require(_haveAsset(assetId), "Asset not found");
-        Asset memory asset = assets[assetId];
-        AssetStandard standard = AssetStandard(AssetRegistry(assetRegistry).getAssetStandard(asset.standard));
-        standard.mint(asset.tokenAddress, to, quantity, op);
+    function _haveCredential(string memory finId) internal view returns (bool) {
+        return credentials[finId] != address(0);
     }
 
-    function _transfer(address from, address to, string memory assetId, string memory quantity, OperationParams memory op) internal {
-        require(_haveAsset(assetId), "Asset not found");
-        Asset memory asset = assets[assetId];
-        AssetStandard standard = AssetStandard(AssetRegistry(assetRegistry).getAssetStandard(asset.standard));
-        standard.transferFrom(asset.tokenAddress, from, to, quantity, op);
+    /// @notice Resolve finId to wallet address via credentials mapping
+    function _resolveAddress(string memory finId) internal view returns (address) {
+        address addr = credentials[finId];
+        require(addr != address(0), "Credential not found for finId");
+        return addr;
     }
 
-    function _hold(address from, string memory assetId, string memory quantity, OperationParams memory op) internal {
+    function _mint(address to, string memory assetId, string memory quantity) internal {
         require(_haveAsset(assetId), "Asset not found");
         Asset memory asset = assets[assetId];
-        AssetStandard standard = AssetStandard(AssetRegistry(assetRegistry).getAssetStandard(asset.standard));
-        standard.transferFrom(asset.tokenAddress, from, address(standard), quantity, op);
+        uint8 tokenDecimals = IERC20Metadata(asset.tokenAddress).decimals();
+        uint256 tokenAmount = quantity.stringToUint(tokenDecimals);
+        Mintable(asset.tokenAddress).mint(to, tokenAmount);
     }
 
-    function _release(address to, string memory assetId, string memory quantity, OperationParams memory op) internal {
+    function _transfer(address from, address to, string memory assetId, string memory quantity) internal {
         require(_haveAsset(assetId), "Asset not found");
         Asset memory asset = assets[assetId];
-        AssetStandard standard = AssetStandard(AssetRegistry(assetRegistry).getAssetStandard(asset.standard));
-        standard.transferFrom(asset.tokenAddress, address(standard), to, quantity, op);
+        uint8 tokenDecimals = IERC20Metadata(asset.tokenAddress).decimals();
+        uint256 tokenAmount = quantity.stringToUint(tokenDecimals);
+        uint256 balance = IERC20(asset.tokenAddress).balanceOf(from);
+        require(balance >= tokenAmount, "Not sufficient balance to transfer");
+        IERC20(asset.tokenAddress).transferFrom(from, to, tokenAmount);
     }
 
-    function _burn(address from, string memory assetId, string memory quantity, OperationParams memory op) internal {
+    function _burn(address from, string memory assetId, string memory quantity) internal {
         require(_haveAsset(assetId), "Asset not found");
         Asset memory asset = assets[assetId];
-        AssetStandard standard = AssetStandard(AssetRegistry(assetRegistry).getAssetStandard(asset.standard));
-        standard.burn(asset.tokenAddress, from, quantity, op);
+        uint8 tokenDecimals = IERC20Metadata(asset.tokenAddress).decimals();
+        uint256 tokenAmount = quantity.stringToUint(tokenDecimals);
+        uint256 balance = IERC20(asset.tokenAddress).balanceOf(from);
+        require(balance >= tokenAmount, "Not sufficient balance to burn");
+        Burnable(asset.tokenAddress).burn(from, tokenAmount);
     }
 
-    function _releaseBurn(string memory assetId, string memory quantity, OperationParams memory op) internal {
-        require(_haveAsset(assetId), "Asset not found");
-        Asset memory asset = assets[assetId];
-        AssetStandard standard = AssetStandard(AssetRegistry(assetRegistry).getAssetStandard(asset.standard));
-        standard.burn(asset.tokenAddress, address(standard), quantity, op);
-    }
-
-    /// @notice Extract the direction of the operation
-    /// @param sellerFinId The FinID of the seller
-    /// @param buyerFinId The FinID of the buyer
-    /// @param assetTerm The asset term
-    /// @param settlementTerm The settlement term
-    /// @param op The operation parameters
-    /// @return The source FinID, the destination FinID, the asset id, the asset type, the amount
     function _extractDetails(
         string memory sellerFinId,
         string memory buyerFinId,
@@ -444,7 +402,6 @@ contract FINP2POperator is AccessControl, FinP2PSignatureVerifier {
             } else {
                 return (buyerFinId, sellerFinId, settlementTerm.assetId, settlementTerm.assetType, settlementTerm.amount);
             }
-
         } else {
             revert("Invalid leg");
         }

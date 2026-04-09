@@ -1,11 +1,15 @@
 import { finIdToAddress } from '@owneraio/finp2p-contracts';
-import { workflows } from '@owneraio/finp2p-nodejs-skeleton-adapter';
+import { MappingService, OwnerMapping, workflows } from '@owneraio/finp2p-nodejs-skeleton-adapter';
+import { FIELD_LEDGER_ACCOUNT_ID, FIELD_CUSTODY_ACCOUNT_ID } from './mapping-validator';
 
-const earliest = <T extends { created_at: Date }>(rows: T[]): T | undefined =>
-  rows.length === 0 ? undefined : rows.reduce((a, b) => (a.created_at <= b.created_at ? a : b));
+export interface ResolvedAccount {
+  ledgerAccountId: string;
+  custodyAccountId?: string;
+}
 
 export interface AccountMappingService {
   resolveAccount(finId: string): Promise<string | undefined>;
+  resolveFullAccount?(finId: string): Promise<ResolvedAccount | undefined>;
   resolveFinId(account: string): Promise<string | undefined>;
 }
 
@@ -37,67 +41,48 @@ export class DerivationAccountMapping implements AccountMappingService {
 }
 
 /**
- * DB-backed mapping: uses skeleton's globally exposed account mapping storage functions.
- * Supports 1:N (finId → multiple accounts), resolves to the earliest mapping (ORDER BY created_at).
+ * DB-backed mapping: uses skeleton's multi-field account mapping storage.
+ * Resolves ledgerAccountId field for address lookups.
+ * Also implements MappingService for the mapping API routes.
  */
-export class DbAccountMapping implements AccountMappingService {
+export class DbAccountMapping implements AccountMappingService, MappingService {
 
   async resolveAccount(finId: string): Promise<string | undefined> {
     const mappings = await workflows.getAccountMappings([finId]);
-    return earliest(mappings)?.account;
+    if (mappings.length === 0) return undefined;
+    return mappings[0].fields[FIELD_LEDGER_ACCOUNT_ID];
+  }
+
+  async resolveFullAccount(finId: string): Promise<ResolvedAccount | undefined> {
+    const mappings = await workflows.getAccountMappings([finId]);
+    if (mappings.length === 0) return undefined;
+    const ledgerAccountId = mappings[0].fields[FIELD_LEDGER_ACCOUNT_ID];
+    if (!ledgerAccountId) return undefined;
+    return {
+      ledgerAccountId,
+      custodyAccountId: mappings[0].fields[FIELD_CUSTODY_ACCOUNT_ID],
+    };
   }
 
   async resolveFinId(account: string): Promise<string | undefined> {
-    const mappings = await workflows.getAccountMappingsByAccount(account);
-    return earliest(mappings)?.fin_id;
+    const mappings = await workflows.getAccountMappingsByFieldValue(FIELD_LEDGER_ACCOUNT_ID, account);
+    if (mappings.length === 0) return undefined;
+    return mappings[0].finId;
   }
 
-  async addMapping(finId: string, account: string): Promise<void> {
-    await workflows.saveAccountMapping(finId, account);
+  async getOwnerMappings(finIds?: string[]): Promise<OwnerMapping[]> {
+    return workflows.getAccountMappings(finIds);
   }
 
-  async removeMapping(finId: string, account?: string): Promise<void> {
-    await workflows.deleteAccountMapping(finId, account);
-  }
-}
-
-/**
- * Custody-provider-based mapping: queries the custody provider's address list
- * and maintains a bidirectional in-memory cache.
- */
-export class CustodyAccountMapping implements AccountMappingService {
-  private readonly finIdToAccount = new Map<string, string>();
-  private readonly accountToFinId = new Map<string, string>();
-
-  constructor(
-    private readonly listAccounts: () => Promise<Array<{ finId: string; account: string }>>,
-  ) {}
-
-  private cacheEntry(finId: string, account: string): void {
-    this.finIdToAccount.set(finId, account);
-    this.accountToFinId.set(account.toLowerCase(), finId);
+  async getByFieldValue(fieldName: string, value: string): Promise<OwnerMapping[]> {
+    return workflows.getAccountMappingsByFieldValue(fieldName, value);
   }
 
-  private async refresh(): Promise<void> {
-    const entries = await this.listAccounts();
-    for (const { finId, account } of entries) {
-      this.cacheEntry(finId, account);
-    }
+  async saveOwnerMapping(finId: string, fields: Record<string, string>): Promise<OwnerMapping> {
+    return workflows.saveAccountMapping(finId, fields);
   }
 
-  async resolveAccount(finId: string): Promise<string | undefined> {
-    const cached = this.finIdToAccount.get(finId);
-    if (cached) return cached;
-
-    await this.refresh();
-    return this.finIdToAccount.get(finId);
-  }
-
-  async resolveFinId(account: string): Promise<string | undefined> {
-    const cached = this.accountToFinId.get(account.toLowerCase());
-    if (cached) return cached;
-
-    await this.refresh();
-    return this.accountToFinId.get(account.toLowerCase());
+  async deleteOwnerMapping(finId: string, fieldName?: string): Promise<void> {
+    return workflows.deleteAccountMapping(finId, fieldName);
   }
 }

@@ -2,18 +2,16 @@ import {
   PaymentService,
   DepositAsset,
   DepositOperation,
-  DepositInstruction,
   Asset,
   AssetType,
-  Caip19LedgerAssetIdentifier,
   ReceiptOperation,
   Destination,
   Source,
   Signature,
-  generateCid,
   successfulDepositOperation,
-} from '@owneraio/finp2p-adapter-models';
-import { AppConfig, FireblocksAppConfig } from '../../config';
+} from '@owneraio/finp2p-nodejs-skeleton-adapter';
+import { workflows } from '@owneraio/finp2p-nodejs-skeleton-adapter';
+import { FireblocksAppConfig } from './fireblocks-config';
 import { getAssetFromDb } from './helpers';
 import { CustodyProvider } from './custody-provider';
 import { DetectedDeposit, FireblocksCustodyProvider } from './fireblocks-provider';
@@ -27,7 +25,7 @@ type DepositEntry = {
   walletAddress: string;
   vaultId: string;
   contractAddress: string;
-  ledgerIdentifier: Caip19LedgerAssetIdentifier | undefined;
+  asset: DepositAsset;
 };
 
 export class DirectPaymentsServiceImpl implements PaymentService {
@@ -39,14 +37,11 @@ export class DirectPaymentsServiceImpl implements PaymentService {
 
   constructor(
     distributionService: DistributionService | undefined,
-    appConfig: AppConfig,
+    appConfig: FireblocksAppConfig,
     custodyProvider: CustodyProvider,
   ) {
     if (!distributionService) {
       throw new Error('Distribution service is required');
-    }
-    if (appConfig.type !== 'fireblocks') {
-      throw new Error(`DirectPaymentsServiceImpl requires fireblocks config, got: ${appConfig.type}`);
     }
     if (!(custodyProvider instanceof FireblocksCustodyProvider)) {
       throw new Error('DirectPaymentsServiceImpl requires a FireblocksCustodyProvider');
@@ -85,13 +80,6 @@ export class DirectPaymentsServiceImpl implements PaymentService {
     console.debug("sync result", syncResult)
     await this.distributionService.distribute(entry.finId, entry.assetId, entry.assetType, wholeAmount);
 
-    const ledgerIdentifier = entry.ledgerIdentifier ?? {
-      assetIdentifierType: 'CAIP-19' as const,
-      network: 'ethereum',
-      tokenId: entry.contractAddress,
-      standard: 'ERC20',
-    };
-
     await this.appConfig.finP2PClient?.importTransactions([{
       id: deposit.txHash,
       quantity: wholeAmount,
@@ -101,7 +89,13 @@ export class DirectPaymentsServiceImpl implements PaymentService {
           account: { finId: entry.finId },
           asset: {
             id: entry.assetId,
-            ledgerIdentifier,
+            // TODO: use proper CAIP-19 network
+            ledgerIdentifier: {
+              assetIdentifierType: 'CAIP-19' as const,
+              network: 'ethereum',
+              tokenId: entry.contractAddress,
+              standard: 'ERC20',
+            },
           },
         },
       },
@@ -129,23 +123,23 @@ export class DirectPaymentsServiceImpl implements PaymentService {
 
     const dbAsset = await getAssetFromDb(asset);
 
-    const correlationId = generateCid();
+    const correlationId = workflows.generateCid();
     const finId = owner.finId;
     const vaultName = `deposit:${correlationId}:${finId.slice(0, 6)}...${finId.slice(-6)}:${asset.assetId.slice(-6)}`;
     const vault = await this.createVault(vaultName);
-    const { walletAddress, legacyAssetId } = await this.getDepositAddress(vault.id, dbAsset.contract_address);
+    const { walletAddress, legacyAssetId } = await this.getDepositAddress(vault.id, dbAsset.contractAddress);
     await this.fireblocksProvider.fundDepositVault(vault.id);
     this.depositStore.set(correlationId, {
       correlationId, finId,
       assetId: asset.assetId, assetType: asset.assetType,
       walletAddress, vaultId: vault.id,
-      contractAddress: dbAsset.contract_address,
-      ledgerIdentifier: asset.ledgerIdentifier,
+      contractAddress: dbAsset.contractAddress,
+      asset,
     });
 
-    this.startDepositMonitor(vault.id, legacyAssetId, dbAsset.contract_address, correlationId);
+    this.startDepositMonitor(vault.id, legacyAssetId, dbAsset.contractAddress, correlationId);
 
-    const instruction: DepositInstruction = {
+    return successfulDepositOperation({
       account: destination,
       asset,
       description: 'Crypto deposit',
@@ -154,16 +148,14 @@ export class DirectPaymentsServiceImpl implements PaymentService {
         currency: asset.assetId,
         methodInstruction: {
           type: 'cryptoTransfer',
-          network: asset.ledgerIdentifier?.network ?? 'ethereum',
-          contractAddress: dbAsset.contract_address,
+          network: 'ethereum',
+          contractAddress: dbAsset.contractAddress,
           walletAddress,
         },
       }],
       operationId: correlationId,
       details: undefined,
-    };
-
-    return successfulDepositOperation(instruction);
+    });
   }
 
   async payout(

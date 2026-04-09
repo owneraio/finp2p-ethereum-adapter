@@ -1,28 +1,27 @@
 import {
-  Asset,
-  Destination,
   EIP712LoanMessage,
   EIP712PrimarySaleMessage,
   EIP712PrivateOfferMessage,
   EIP712SellingMessage,
-  EIP712Term,
   EIP712BuyingMessage,
   EIP712Template,
   EIP712TransferMessage,
   EIP712RedemptionMessage,
+  SignatureTemplate,
+} from "@owneraio/finp2p-nodejs-skeleton-adapter";
+import {
+  Asset,
+  Destination,
   ExecutionContext,
   LegType,
   PrimaryType,
-  SignatureTemplate,
   Source,
-  ValidationError
-} from "@owneraio/finp2p-adapter-models";
-import {
+  ValidationError,
   emptyTerm,
   operationParams,
   Phase,
   ReleaseType,
-  emptyLoanTerms, termFromEIP712, OperationParams
+  EIP712Term, emptyLoanTerms, termFromEIP712, OperationParams,
 } from "@owneraio/finp2p-contracts";
 import { BusinessContract } from "./model";
 
@@ -46,7 +45,7 @@ export const extractBusinessDetails = (asset: Asset,
                                        destination: Destination | undefined,
                                        operationId: string | undefined,
                                        template: SignatureTemplate,
-                                       executionContext: ExecutionContext): BusinessContract => {
+                                       executionContext: ExecutionContext | undefined): BusinessContract => {
 
   if (template.type != "EIP712") {
     throw new ValidationError(`Unsupported signature template type: ${template.type}`);

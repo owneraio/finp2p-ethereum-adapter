@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { Logger, ConsoleLogger } from "@owneraio/finp2p-adapter-models";
+import { Logger, ConsoleLogger } from "../src/adapter-types";
 import { ContractsManager, FinP2PContract } from "../src";
 import { createJsonProvider, parseConfig } from "./config";
 
@@ -24,9 +24,6 @@ const deploy = async (
 
   const eip712Domain = await finP2P.eip712Domain();
   logger.info(`EIP712 Domain: ${JSON.stringify(eip712Domain)}`);
-
-  const assetRegistryAddress = await finP2P.getAssetRegistryAddress();
-  logger.info(`Asset Registry Address: ${assetRegistryAddress}`);
 };
 
 const config = parseConfig([

@@ -20,7 +20,7 @@ import createApp from "../../src/app";
 import {
   createDfnsEthersProvider,
   DfnsAppConfig,
-} from "../../src/config";
+} from "../../src/services/direct/dfns-config";
 import { randomPort } from "./utils";
 
 dotenv.config({ path: resolve(process.cwd(), ".env.dfns") });
