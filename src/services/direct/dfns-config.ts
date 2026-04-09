@@ -15,7 +15,6 @@ export type DfnsAppConfig = BaseAppConfig & {
   rpcUrl: string
   assetIssuerWalletId: string
   assetEscrowWalletId: string
-  omnibusWalletId?: string
   gasFunding?: {
     walletId: string
     amount: string
@@ -82,8 +81,6 @@ export async function createDfnsAppConfig(): Promise<Omit<DfnsAppConfig, 'accoun
   const escrowWalletId = process.env.DFNS_ASSET_ESCROW_WALLET_ID;
   if (!escrowWalletId) throw new Error('DFNS_ASSET_ESCROW_WALLET_ID is not set');
 
-  const omnibusWalletId = process.env.DFNS_OMNIBUS_WALLET_ID || undefined;
-
   const keySigner = new AsymmetricKeySigner({ credId: dfnsCredId, privateKey: dfnsPrivateKey });
   const dfnsClient = new DfnsApiClient({ baseUrl: dfnsBaseUrl, orgId: dfnsOrgId, authToken: dfnsAuthToken, signer: keySigner });
   const { signer } = await createDfnsEthersProvider({ dfnsClient, walletId: issuerWalletId, rpcUrl });
@@ -110,7 +107,6 @@ export async function createDfnsAppConfig(): Promise<Omit<DfnsAppConfig, 'accoun
     rpcUrl,
     assetIssuerWalletId: issuerWalletId,
     assetEscrowWalletId: escrowWalletId,
-    omnibusWalletId,
     gasFunding,
   };
 }

@@ -96,7 +96,7 @@ function registerDirectServices(
     const planApprovalService = new PlanApprovalServiceImpl(appConfig.orgId, pluginManager, appConfig.finP2PClient, inboundTransferHook);
     // Override payments service with DirectPaymentsServiceImpl when using fireblocks custody
     const effectivePayments = (appConfig.type === 'fireblocks' && distributionService)
-      ? new DirectPaymentsServiceImpl(distributionService, appConfig as FireblocksAppConfig, custodyProvider)
+      ? new DirectPaymentsServiceImpl(distributionService, appConfig as FireblocksAppConfig, custodyProvider, finP2PClient)
       : delegate;
     register(app, tokenService, escrowService, commonService, commonService, effectivePayments, planApprovalService, pluginManager, workflowsConfig, mappingConfig, mappingService);
     if (distributionService) {

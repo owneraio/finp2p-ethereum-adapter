@@ -11,7 +11,6 @@ export type FireblocksAppConfig = BaseAppConfig & {
   apiBaseUrl?: ApiBaseUrl | string
   assetIssuerVaultId?: string
   assetEscrowVaultId?: string
-  omnibusVaultId?: string
   localSubmit?: boolean
   gasFunding?: {
     vaultId: string
@@ -77,7 +76,6 @@ export async function createFireblocksAppConfig(): Promise<Omit<FireblocksAppCon
 
   const assetIssuerVaultId = process.env.FIREBLOCKS_ASSET_ISSUER_VAULT_ID || undefined
   const assetEscrowVaultId = process.env.FIREBLOCKS_ASSET_ESCROW_VAULT_ID || undefined
-  const omnibusVaultId = process.env.FIREBLOCKS_OMNIBUS_VAULT_ID || undefined
 
   const localSubmit = process.env.LOCAL_SUBMIT === 'true';
   const rpcUrl = getNetworkRpcUrl();
@@ -90,12 +88,11 @@ export async function createFireblocksAppConfig(): Promise<Omit<FireblocksAppCon
     provider = rpcProvider;
     signer = rpcProvider as any;
   } else {
-    const baseVaultId = assetIssuerVaultId ?? omnibusVaultId;
-    if (!baseVaultId) {
-      throw new Error('At least one of FIREBLOCKS_ASSET_ISSUER_VAULT_ID or FIREBLOCKS_OMNIBUS_VAULT_ID must be set');
+    if (!assetIssuerVaultId) {
+      throw new Error('FIREBLOCKS_ASSET_ISSUER_VAULT_ID must be set');
     }
     const fb = await createFireblocksEthersProvider({
-      apiKey, privateKey: apiPrivateKey, chainId, apiBaseUrl, vaultAccountIds: [baseVaultId]
+      apiKey, privateKey: apiPrivateKey, chainId, apiBaseUrl, vaultAccountIds: [assetIssuerVaultId]
     });
     provider = fb.provider;
     signer = fb.signer;
@@ -121,7 +118,6 @@ export async function createFireblocksAppConfig(): Promise<Omit<FireblocksAppCon
     apiBaseUrl,
     assetIssuerVaultId,
     assetEscrowVaultId,
-    omnibusVaultId,
     localSubmit,
     gasFunding,
   };

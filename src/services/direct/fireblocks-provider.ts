@@ -58,9 +58,8 @@ export class FireblocksCustodyProvider implements CustodyProvider {
           });
         };
 
-    // Create wallets for configured vaults, falling back to omnibus
-    const issuerVault = config.assetIssuerVaultId ?? config.omnibusVaultId;
-    const escrowVault = config.assetEscrowVaultId ?? config.omnibusVaultId;
+    const issuerVault = config.assetIssuerVaultId;
+    const escrowVault = config.assetEscrowVaultId;
 
     let issuerWallet: CustodyWallet | undefined;
     let escrowWallet: CustodyWallet | undefined;
@@ -69,7 +68,7 @@ export class FireblocksCustodyProvider implements CustodyProvider {
 
     // In standard mode, issuer and escrow are required
     if (!config.localSubmit && (!issuerWallet || !escrowWallet)) {
-      throw new Error('Either FIREBLOCKS_ASSET_ISSUER_VAULT_ID/FIREBLOCKS_ASSET_ESCROW_VAULT_ID or FIREBLOCKS_OMNIBUS_VAULT_ID must be set');
+      throw new Error('FIREBLOCKS_ASSET_ISSUER_VAULT_ID and FIREBLOCKS_ASSET_ESCROW_VAULT_ID must be set');
     }
 
     let gasStation: GasStation | undefined;
@@ -127,9 +126,8 @@ export class FireblocksCustodyProvider implements CustodyProvider {
     const responseRegister = await this.fireblocksSdk.registerNewAsset(
       'ETH_TEST5', tokenAddress, symbol
     );
-    const vaultId = this.config.assetIssuerVaultId ?? this.config.omnibusVaultId;
-    if (vaultId) {
-      await this.fireblocksSdk.createVaultAsset(vaultId, responseRegister.legacyId);
+    if (this.config.assetIssuerVaultId) {
+      await this.fireblocksSdk.createVaultAsset(this.config.assetIssuerVaultId, responseRegister.legacyId);
     }
   }
 
@@ -243,12 +241,12 @@ export class FireblocksCustodyProvider implements CustodyProvider {
     poll().catch(e => console.error(`Deposit monitor crashed for vault ${vaultId}: ${e}`));
   }
 
-  async transferToOmnibus(fromVaultId: string, legacyAssetId: string, amount: string, note?: string): Promise<void> {
-    if (!this.config.omnibusVaultId) {
-      throw new Error('Omnibus vault ID is not configured');
+  async transferToVaultByAddress(fromVaultId: string, destinationAddress: string, legacyAssetId: string, amount: string, note?: string): Promise<void> {
+    const destinationVaultId = await this.vaultManagement.getVaultIdForAddress(destinationAddress);
+    if (!destinationVaultId) {
+      throw new Error(`Cannot resolve vault ID for address ${destinationAddress}`);
     }
-    console.log(`Transferring ${amount} of asset ${legacyAssetId} from vault ${fromVaultId} to omnibus vault ${this.config.omnibusVaultId}`);
-    await this.vaultManagement.transferAssetFromVaultToVault(fromVaultId, this.config.omnibusVaultId, legacyAssetId, amount, note);
+    await this.vaultManagement.transferAssetFromVaultToVault(fromVaultId, destinationVaultId, legacyAssetId, amount, note);
   }
 
   private async fetchDepositTransaction(vaultId: string, legacyAssetId: string): Promise<DetectedDeposit> {

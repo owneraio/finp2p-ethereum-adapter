@@ -11,6 +11,7 @@ import {
   successfulDepositOperation,
 } from '@owneraio/finp2p-nodejs-skeleton-adapter';
 import { workflows } from '@owneraio/finp2p-nodejs-skeleton-adapter';
+import { FinP2PClient } from '@owneraio/finp2p-client';
 import { FireblocksAppConfig } from './fireblocks-config';
 import { getAssetFromDb } from './helpers';
 import { CustodyProvider } from './custody-provider';
@@ -33,12 +34,14 @@ export class DirectPaymentsServiceImpl implements PaymentService {
   private readonly distributionService: DistributionService;
   private readonly appConfig: FireblocksAppConfig;
   private readonly fireblocksProvider: FireblocksCustodyProvider;
+  private readonly finP2PClient: FinP2PClient;
   private readonly depositStore = new Map<string, DepositEntry>();
 
   constructor(
     distributionService: DistributionService | undefined,
     appConfig: FireblocksAppConfig,
     custodyProvider: CustodyProvider,
+    finP2PClient: FinP2PClient,
   ) {
     if (!distributionService) {
       throw new Error('Distribution service is required');
@@ -49,6 +52,7 @@ export class DirectPaymentsServiceImpl implements PaymentService {
     this.distributionService = distributionService;
     this.appConfig = appConfig;
     this.fireblocksProvider = custodyProvider;
+    this.finP2PClient = finP2PClient;
   }
 
   private async createVault(name: string) {
@@ -71,7 +75,12 @@ export class DirectPaymentsServiceImpl implements PaymentService {
       throw new Error(`Deposit entry not found for correlationId ${correlationId}`);
     }
 
-    await this.fireblocksProvider.transferToOmnibus(vaultId, legacyAssetId, deposit.amount, `deposit instruction: ${correlationId}`);
+    const ossAsset = await this.finP2PClient.getAsset(entry.assetId);
+    const omnibusAddress = ossAsset.orgSettlementAccount?.wallet?.address;
+    if (!omnibusAddress) {
+      throw new Error(`Asset ${entry.assetId} has no orgSettlementAccount wallet address`);
+    }
+    await this.fireblocksProvider.transferToVaultByAddress(vaultId, omnibusAddress, legacyAssetId, deposit.amount, `deposit instruction: ${correlationId}`);
 
     // TODO: remove whole number workaround once distribution service supports decimals
     // https://github.com/owneraio/finp2p-nodejs-skeleton-adapter/issues/146
