@@ -10,7 +10,7 @@ import {
   workflows,
   MappingConfig,
 } from "@owneraio/finp2p-nodejs-skeleton-adapter";
-import { CollateralDepositPlugin, CollateralTokenStandard, TokenStandardName as DTCC_TOKEN_STANDARD } from "@owneraio/finp2p-ethereum-dtcc-plugin";
+import { CollateralDepositPlugin, CollateralPlanApprovalPlugin, CollateralTokenStandard, TokenStandardName as DTCC_TOKEN_STANDARD } from "@owneraio/finp2p-ethereum-dtcc-plugin";
 import { createVanillaServices, registerDistributionRoutes } from "@owneraio/finp2p-vanilla-service";
 import { FinP2PClient } from "@owneraio/finp2p-client";
 import { FinP2PContract } from "@owneraio/finp2p-contracts";
@@ -90,7 +90,7 @@ function registerDirectServices(
     );
     // TODO(omnibus-inbound): use deterministic inbound idempotency key `${planId}:${instructionSequence}`
     // instead of request-scoped idempotency key to prevent duplicate credits on retried proposal callbacks.
-    const planApprovalService = new PlanApprovalServiceImpl(appConfig.orgId, pluginManager, appConfig.finP2PClient, inboundTransferHook);
+    const planApprovalService = new PlanApprovalServiceImpl(appConfig.orgId, pluginManager, workflowsConfig?.finP2PClient, inboundTransferHook);
     register(app, tokenService, escrowService, commonService, commonService, delegate, planApprovalService, pluginManager, workflowsConfig, mappingConfig, mappingService);
     if (distributionService) {
       registerDistributionRoutes(app, distributionService);
@@ -102,7 +102,7 @@ function registerDirectServices(
   const dbMapping = accountMapping instanceof DbAccountMapping ? accountMapping : undefined;
   const tokenService = new DirectTokenService(logger, custodyProvider, accountMapping);
   const commonService = new DirectCommonServiceImpl();
-  const planApprovalService = new PlanApprovalServiceImpl(appConfig.orgId, pluginManager, appConfig.finP2PClient);
+  const planApprovalService = new PlanApprovalServiceImpl(appConfig.orgId, pluginManager, workflowsConfig?.finP2PClient);
   register(app, tokenService, tokenService, commonService, healthService, paymentsService, planApprovalService, pluginManager, workflowsConfig, mappingConfig, dbMapping);
 }
 
@@ -145,7 +145,12 @@ async function createApp(
     );
     pluginManager.registerPaymentsPlugin(depositPlugin);
 
-    logger.info(`DTCC plugin activated: token standard '${DTCC_TOKEN_STANDARD}', deposit plugin registered`);
+    const planApprovalPlugin = new CollateralPlanApprovalPlugin(
+      rpcUrl, workflowsConfig?.finP2PClient!, logger, walletResolver,
+    );
+    pluginManager.registerPlanApprovalPlugin(planApprovalPlugin);
+
+    logger.info(`DTCC plugin activated: token standard '${DTCC_TOKEN_STANDARD}', deposit + plan approval plugins registered`);
   }
 
   const paymentsService = new PaymentsServiceImpl(pluginManager);
