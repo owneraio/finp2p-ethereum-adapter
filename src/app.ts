@@ -10,7 +10,7 @@ import {
   workflows,
   MappingConfig,
 } from "@owneraio/finp2p-nodejs-skeleton-adapter";
-import { CollateralDepositPlugin, CollateralTokenStandard, TokenStandardName as DTCC_TOKEN_STANDARD } from "@owneraio/finp2p-ethereum-dtcc-plugin";
+import { CollateralDepositPlugin, CollateralPlanApprovalPlugin, CollateralTokenStandard, TokenStandardName as DTCC_TOKEN_STANDARD } from "@owneraio/finp2p-ethereum-dtcc-plugin";
 import { createVanillaServices, registerDistributionRoutes } from "@owneraio/finp2p-vanilla-service";
 import { FinP2PClient } from "@owneraio/finp2p-client";
 import { FinP2PContract } from "@owneraio/finp2p-contracts";
@@ -145,7 +145,12 @@ async function createApp(
     );
     pluginManager.registerPaymentsPlugin(depositPlugin);
 
-    logger.info(`DTCC plugin activated: token standard '${DTCC_TOKEN_STANDARD}', deposit plugin registered`);
+    const planApprovalPlugin = new CollateralPlanApprovalPlugin(
+      rpcUrl, workflowsConfig?.finP2PClient!, logger, walletResolver,
+    );
+    pluginManager.registerPlanApprovalPlugin(planApprovalPlugin);
+
+    logger.info(`DTCC plugin activated: token standard '${DTCC_TOKEN_STANDARD}', deposit + plan approval plugins registered`);
   }
 
   const paymentsService = new PaymentsServiceImpl(pluginManager);
