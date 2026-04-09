@@ -89,7 +89,7 @@ export class DirectPaymentsServiceImpl implements PaymentService {
     console.debug("sync result", syncResult)
     await this.distributionService.distribute(entry.finId, entry.assetId, entry.assetType, wholeAmount);
 
-    await this.appConfig.finP2PClient?.importTransactions([{
+    await this.finP2PClient.importTransactions([{
       id: deposit.txHash,
       quantity: wholeAmount,
       timestamp: Math.floor(Date.now() / 1000),
