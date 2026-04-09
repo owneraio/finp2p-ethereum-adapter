@@ -90,7 +90,7 @@ function registerDirectServices(
     );
     // TODO(omnibus-inbound): use deterministic inbound idempotency key `${planId}:${instructionSequence}`
     // instead of request-scoped idempotency key to prevent duplicate credits on retried proposal callbacks.
-    const planApprovalService = new PlanApprovalServiceImpl(appConfig.orgId, pluginManager, appConfig.finP2PClient, inboundTransferHook);
+    const planApprovalService = new PlanApprovalServiceImpl(appConfig.orgId, pluginManager, workflowsConfig?.finP2PClient, inboundTransferHook);
     register(app, tokenService, escrowService, commonService, commonService, delegate, planApprovalService, pluginManager, workflowsConfig, mappingConfig, mappingService);
     if (distributionService) {
       registerDistributionRoutes(app, distributionService);
@@ -102,7 +102,7 @@ function registerDirectServices(
   const dbMapping = accountMapping instanceof DbAccountMapping ? accountMapping : undefined;
   const tokenService = new DirectTokenService(logger, custodyProvider, accountMapping);
   const commonService = new DirectCommonServiceImpl();
-  const planApprovalService = new PlanApprovalServiceImpl(appConfig.orgId, pluginManager, appConfig.finP2PClient);
+  const planApprovalService = new PlanApprovalServiceImpl(appConfig.orgId, pluginManager, workflowsConfig?.finP2PClient);
   register(app, tokenService, tokenService, commonService, healthService, paymentsService, planApprovalService, pluginManager, workflowsConfig, mappingConfig, dbMapping);
 }
 
