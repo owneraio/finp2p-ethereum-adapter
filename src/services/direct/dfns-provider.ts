@@ -8,7 +8,6 @@ import { CustodyProvider, CustodyWallet, GasStation } from './custody-provider';
 export class DfnsCustodyProvider implements CustodyProvider {
   readonly issuer: CustodyWallet;
   readonly escrow: CustodyWallet;
-  readonly omnibus?: CustodyWallet;
   readonly rpcProvider;
   readonly gasStation?: GasStation;
 
@@ -22,11 +21,9 @@ export class DfnsCustodyProvider implements CustodyProvider {
     dfnsClient: DfnsApiClient,
     addressToWalletId: Map<string, string>,
     gasStation?: GasStation,
-    omnibus?: CustodyWallet,
   ) {
     this.issuer = issuer;
     this.escrow = escrow;
-    this.omnibus = omnibus;
     this.rpcProvider = config.provider;
     this.dfnsClient = dfnsClient;
     this.addressToWalletId = addressToWalletId;
@@ -66,12 +63,7 @@ export class DfnsCustodyProvider implements CustodyProvider {
       gasStation = { wallet: gasWallet, amount: config.gasFunding.amount };
     }
 
-    let omnibusWallet: CustodyWallet | undefined;
-    if (config.omnibusWalletId) {
-      omnibusWallet = await DfnsCustodyProvider.createWalletProvider(dfnsClient, config.omnibusWalletId, config.rpcUrl);
-    }
-
-    return new DfnsCustodyProvider(issuerWallet, escrowWallet, config, dfnsClient, addressToWalletId, gasStation, omnibusWallet);
+    return new DfnsCustodyProvider(issuerWallet, escrowWallet, config, dfnsClient, addressToWalletId, gasStation);
   }
 
   async createWalletForCustodyId(walletId: string): Promise<CustodyWallet> {

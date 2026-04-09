@@ -14,7 +14,6 @@ export type DetectedDeposit = {
 export class FireblocksCustodyProvider implements CustodyProvider {
   readonly issuer: CustodyWallet;
   readonly escrow: CustodyWallet;
-  readonly omnibus?: CustodyWallet;
   readonly rpcProvider;
   readonly gasStation?: GasStation;
 
@@ -28,11 +27,9 @@ export class FireblocksCustodyProvider implements CustodyProvider {
     fireblocksSdk: FireblocksSDK,
     vaultManagement: ReturnType<typeof createVaultManagementFunctions>,
     gasStation?: GasStation,
-    omnibus?: CustodyWallet,
   ) {
     this.issuer = issuer;
     this.escrow = escrow;
-    this.omnibus = omnibus;
     this.rpcProvider = config.provider;
     this.fireblocksSdk = fireblocksSdk;
     this.vaultManagement = vaultManagement;
@@ -81,17 +78,12 @@ export class FireblocksCustodyProvider implements CustodyProvider {
       gasStation = { wallet: gasWallet, amount: config.gasFunding.amount };
     }
 
-    let omnibusWallet: CustodyWallet | undefined;
-    if (config.omnibusVaultId) {
-      omnibusWallet = await createWallet(config.omnibusVaultId);
-    }
-
     // In local submit mode, use a placeholder for unconfigured wallets.
     // Real wallets are resolved per-operation via createWalletForCustodyId.
     const placeholder: CustodyWallet = { provider: config.provider, signer: config.provider as any };
     return new FireblocksCustodyProvider(
       issuerWallet ?? placeholder, escrowWallet ?? placeholder,
-      config, fireblocksSdk, vaultManagement, gasStation, omnibusWallet
+      config, fireblocksSdk, vaultManagement, gasStation,
     );
   }
 

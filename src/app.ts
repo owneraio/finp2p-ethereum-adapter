@@ -82,8 +82,10 @@ function registerDirectServices(
 
   if (appConfig.accountModel === 'omnibus') {
     if (!workflowsConfig?.storage) throw new Error('Workflows storage config is required for omnibus account model');
+    const finP2PClient = workflowsConfig.finP2PClient ?? appConfig.finP2PClient;
+    if (!finP2PClient) throw new Error('FinP2PClient is required for omnibus account model');
     const accountMapping = resolveAccountMapping(appConfig);
-    const delegate = new OmnibusDelegate(logger, custodyProvider, accountMapping);
+    const delegate = new OmnibusDelegate(logger, custodyProvider, accountMapping, finP2PClient);
     const { tokenService, escrowService, commonService, mappingService, distributionService, inboundTransferHook } = createVanillaServices(
       { transfer: delegate, asset: delegate, escrow: delegate, omnibus: delegate },
       workflowsConfig.storage,

@@ -13,7 +13,6 @@ export interface GasStation {
 export interface CustodyProvider {
   readonly issuer: CustodyWallet;
   readonly escrow: CustodyWallet;
-  readonly omnibus?: CustodyWallet;
   readonly rpcProvider: Provider;
   readonly gasStation?: GasStation;
 
