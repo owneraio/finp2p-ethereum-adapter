@@ -91,6 +91,7 @@ export class DirectTokenService implements TokenService, EscrowService {
       ? (tokenStandardRegistry.has(assetIdentifier.value) ? assetIdentifier.value : ERC20_TOKEN_STANDARD)
       : ERC20_TOKEN_STANDARD;
     const standard = tokenStandardRegistry.resolve(tokenStandard);
+    const networkId = assetIdentifier?.networkId;
 
     if (assetBind === undefined || assetBind.tokenIdentifier === undefined) {
       const wallet = this.custodyProvider.issuer;
@@ -102,6 +103,7 @@ export class DirectTokenService implements TokenService, EscrowService {
         token_standard: result.tokenStandard as any,
         id: asset.assetId,
         type: asset.assetType,
+        network_id: networkId,
       });
       await this.custodyProvider.onAssetRegistered?.(result.contractAddress, symbol);
 
@@ -118,6 +120,7 @@ export class DirectTokenService implements TokenService, EscrowService {
         token_standard: tokenStandard as any,
         id: asset.assetId,
         type: asset.assetType,
+        network_id: networkId,
       });
 
       try {

@@ -9,6 +9,7 @@ import {
   PaymentsServiceImpl,
   workflows,
   MappingConfig,
+  NetworkMappingConfig,
 } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import { CollateralDepositPlugin, CollateralPlanApprovalPlugin, CollateralTokenStandard, TokenStandardName as DTCC_TOKEN_STANDARD } from "@owneraio/finp2p-ethereum-dtcc-plugin";
 import { createVanillaServices, registerDistributionRoutes } from "@owneraio/finp2p-vanilla-service";
@@ -46,6 +47,14 @@ import { tokenStandardRegistry } from "./services/direct/token-standards/registr
 import { registerBuiltinTokenStandards } from "./services/direct/token-standards/register-builtins";
 registerBuiltinTokenStandards();
 import { CustodyMappingValidator, FIELD_CUSTODY_ACCOUNT_ID, FIELD_LEDGER_ACCOUNT_ID } from "./services/direct/mapping-validator";
+import { EvmNetworkMappingValidator, EVM_NETWORK_FIELDS } from "./services/direct/network-mapping-validator";
+import { DbNetworkMappingService } from "./services/direct/network-mapping-service";
+
+const networkMappingConfig: NetworkMappingConfig = {
+  fields: EVM_NETWORK_FIELDS,
+  validator: new EvmNetworkMappingValidator(),
+};
+const networkMappingService = new DbNetworkMappingService();
 
 function resolveAccountMapping(appConfig: AppConfig): AccountMappingService {
   switch (appConfig.accountMappingType) {
@@ -91,7 +100,7 @@ function registerDirectServices(
     // TODO(omnibus-inbound): use deterministic inbound idempotency key `${planId}:${instructionSequence}`
     // instead of request-scoped idempotency key to prevent duplicate credits on retried proposal callbacks.
     const planApprovalService = new PlanApprovalServiceImpl(appConfig.orgId, pluginManager, workflowsConfig?.finP2PClient, inboundTransferHook);
-    register(app, tokenService, escrowService, commonService, commonService, delegate, planApprovalService, pluginManager, workflowsConfig, mappingConfig, mappingService);
+    register(app, tokenService, escrowService, commonService, commonService, delegate, planApprovalService, pluginManager, workflowsConfig, mappingConfig, mappingService, networkMappingConfig, networkMappingService);
     if (distributionService) {
       registerDistributionRoutes(app, distributionService);
     }
@@ -103,7 +112,7 @@ function registerDirectServices(
   const tokenService = new DirectTokenService(logger, custodyProvider, accountMapping);
   const commonService = new DirectCommonServiceImpl();
   const planApprovalService = new PlanApprovalServiceImpl(appConfig.orgId, pluginManager, workflowsConfig?.finP2PClient);
-  register(app, tokenService, tokenService, commonService, healthService, paymentsService, planApprovalService, pluginManager, workflowsConfig, mappingConfig, dbMapping);
+  register(app, tokenService, tokenService, commonService, healthService, paymentsService, planApprovalService, pluginManager, workflowsConfig, mappingConfig, dbMapping, networkMappingConfig, networkMappingService);
 }
 
 async function createApp(
@@ -170,7 +179,7 @@ async function createApp(
     const tokenService = new TokenServiceImpl(contractConfig.finP2PContract, contractConfig.finP2PClient, contractConfig.execDetailsStore, contractConfig.proofProvider, pluginManager);
     const mappingService = new CredentialsMappingService(contractConfig.finP2PContract);
     const mappingConfig = buildMappingConfig();
-    register(app, tokenService, escrowService, tokenService, tokenService, paymentsService, planApprovalService, pluginManager, workflowsConfig, mappingConfig, mappingService);
+    register(app, tokenService, escrowService, tokenService, tokenService, paymentsService, planApprovalService, pluginManager, workflowsConfig, mappingConfig, mappingService, networkMappingConfig, networkMappingService);
   } else {
     throw new Error(`Unknown provider type: '${appConfig.type}'. Available custody providers: ${custodyRegistry.availableProviders.join(', ')}`);
   }
