@@ -1,23 +1,6 @@
 import { TokenStandard } from '@owneraio/finp2p-ethereum-token-standard';
 
 /**
- * Signing mode determines how the adapter resolves wallets for operations:
- *
- * - per-investor: each operation resolves the investor's custody wallet.
- *   hold/transfer use the investor wallet, release/rollback use escrow.
- *
- * - operator: the standard owns its own operator signer internally.
- *   The adapter does not resolve investor wallets — all operations
- *   receive a read-only provider wallet (the standard ignores it).
- */
-export type SigningMode = 'per-investor' | 'operator';
-
-interface RegisteredStandard {
-  impl: TokenStandard;
-  signingMode: SigningMode;
-}
-
-/**
  * Registry for token standard implementations in direct mode.
  *
  * Each registered standard handles the on-chain call construction for
@@ -28,22 +11,24 @@ interface RegisteredStandard {
  * ERC20 and plugin packages may register additional standards.
  */
 class TokenStandardRegistry {
-  private standards = new Map<string, RegisteredStandard>();
+  private standards = new Map<string, TokenStandard>();
 
-  register(tokenStandard: string, impl: TokenStandard, signingMode: SigningMode = 'per-investor'): void {
+  register(tokenStandard: string, impl: TokenStandard): void {
     const key = tokenStandard.toUpperCase();
     if (this.standards.has(key)) {
       throw new Error(`Token standard '${tokenStandard}' is already registered`);
     }
-    this.standards.set(key, { impl, signingMode });
+    this.standards.set(key, impl);
   }
 
   resolve(tokenStandard: string): TokenStandard {
-    return this.resolveEntry(tokenStandard).impl;
-  }
-
-  signingMode(tokenStandard: string): SigningMode {
-    return this.resolveEntry(tokenStandard).signingMode;
+    const key = tokenStandard.toUpperCase();
+    const impl = this.standards.get(key);
+    if (!impl) {
+      const available = Array.from(this.standards.keys()).join(', ');
+      throw new Error(`Unknown token standard: '${tokenStandard}'. Available: ${available}`);
+    }
+    return impl;
   }
 
   has(tokenStandard: string): boolean {
@@ -52,16 +37,6 @@ class TokenStandardRegistry {
 
   get availableStandards(): string[] {
     return Array.from(this.standards.keys());
-  }
-
-  private resolveEntry(tokenStandard: string): RegisteredStandard {
-    const key = tokenStandard.toUpperCase();
-    const entry = this.standards.get(key);
-    if (!entry) {
-      const available = Array.from(this.standards.keys()).join(', ');
-      throw new Error(`Unknown token standard: '${tokenStandard}'. Available: ${available}`);
-    }
-    return entry;
   }
 }
 

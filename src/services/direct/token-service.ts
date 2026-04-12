@@ -78,14 +78,6 @@ export class DirectTokenService implements TokenService, EscrowService {
     return { address, wallet };
   }
 
-  private async resolveWalletForOperation(tokenStandard: string, finId: string): Promise<CustodyWallet | undefined> {
-    if (tokenStandardRegistry.signingMode(tokenStandard) === 'operator') {
-      return this.custodyProvider.escrow;
-    }
-    const resolved = await this.resolveSourceWallet(finId);
-    return resolved?.wallet;
-  }
-
   private async fundGas(wallet: CustodyWallet): Promise<void> {
     return fundGasIfNeeded(this.logger, this.custodyProvider.gasStation, wallet);
   }
@@ -187,8 +179,9 @@ export class DirectTokenService implements TokenService, EscrowService {
     try {
       const asset = await getAssetFromDb(ast);
       const standard = tokenStandardRegistry.resolve(asset.tokenStandard);
-      const wallet = await this.resolveWalletForOperation(asset.tokenStandard, source.finId);
-      if (!wallet) return failedReceiptOperation(1, 'Source address cannot be resolved to a custody wallet');
+      const resolved = await this.resolveSourceWallet(source.finId);
+      if (!resolved) return failedReceiptOperation(1, 'Source address cannot be resolved to a custody wallet');
+      const { wallet } = resolved;
       const amount = parseUnits(quantity, asset.decimals);
 
       await this.fundGas(wallet);
@@ -233,8 +226,9 @@ export class DirectTokenService implements TokenService, EscrowService {
     try {
       const asset = await getAssetFromDb(ast);
       const standard = tokenStandardRegistry.resolve(asset.tokenStandard);
-      const wallet = await this.resolveWalletForOperation(asset.tokenStandard, source.finId);
-      if (!wallet) return failedReceiptOperation(1, 'Source address cannot be resolved to a custody wallet');
+      const resolved = await this.resolveSourceWallet(source.finId);
+      if (!resolved) return failedReceiptOperation(1, 'Source address cannot be resolved to a custody wallet');
+      const { wallet } = resolved;
       const amount = parseUnits(quantity, asset.decimals);
 
       await this.fundGas(wallet);
