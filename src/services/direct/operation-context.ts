@@ -23,8 +23,8 @@ export function buildOperationContext(
   const leg = template ? detectLeg(asset, template) : LegType.Asset;
   const primaryType = template ? mapPrimaryType(template.primaryType) : PrimaryType.Transfer;
 
-  // Phase heuristic: sequence > 3 means closing phase (loan/repo maturity)
-  const phase = exCtx.sequence > 3 ? Phase.Close : Phase.Initiate;
+  // Phase heuristic: sequence > 4 means closing phase (loan/repo maturity)
+  const phase = exCtx.sequence > 4 ? Phase.Close : Phase.Initiate;
 
   return {
     leg,
