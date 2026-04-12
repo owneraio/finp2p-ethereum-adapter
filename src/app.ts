@@ -146,8 +146,9 @@ async function createApp(
     const providerSigner = new NonceManager(new Wallet(providerKey, provider));
 
     tokenStandardRegistry.register(DTCC_TOKEN_STANDARD, new CollateralTokenStandard(process.env.FACTORY_ADDRESS ?? '', provider, agentSigner) as any);
+    const subgraphBaseUrl = process.env.SUBGRAPH_BASE_URL;
     const depositPlugin = new CollateralDepositPlugin(
-      appConfig.orgId, provider, agentSigner, workflowsConfig?.finP2PClient!, logger, walletResolver, providerSigner, process.env.SUBGRAPH_BASE_URL,
+      appConfig.orgId, provider, agentSigner, workflowsConfig?.finP2PClient!, logger, walletResolver, providerSigner, subgraphBaseUrl,
     );
     pluginManager.registerPaymentsPlugin(depositPlugin);
 
