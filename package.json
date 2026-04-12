@@ -43,7 +43,7 @@
     "@fireblocks/fireblocks-web3-provider": "^1.3.12",
     "@owneraio/finp2p-client": "^0.27.7",
     "@owneraio/finp2p-contracts": "^0.27.10",
-    "@owneraio/finp2p-ethereum-dtcc-plugin": "^0.27.46",
+    "@owneraio/finp2p-ethereum-dtcc-plugin": "^0.27.47",
     "@owneraio/finp2p-ethereum-token-standard": "^0.27.10",
     "@owneraio/finp2p-nodejs-skeleton-adapter": "^0.27.17",
     "@owneraio/finp2p-vanilla-service": "^0.27.7",

@@ -20,6 +20,7 @@ import {
   ExecDetailsStore,
   TokenServiceImpl
 } from "./services/finp2p-contract";
+import { JsonRpcProvider, Wallet, NonceManager } from 'ethers';
 import { AppConfig, FinP2PContractAppConfig, getNetworkRpcUrl } from './config'
 import {
   DirectTokenService,
@@ -138,14 +139,20 @@ async function createApp(
     };
 
     const rpcUrl = getNetworkRpcUrl();
-    tokenStandardRegistry.register(DTCC_TOKEN_STANDARD, new CollateralTokenStandard(process.env.FACTORY_ADDRESS ?? '', rpcUrl) as any);
+    const provider = new JsonRpcProvider(rpcUrl);
+    const operatorKey = process.env.OPERATOR_PRIVATE_KEY!;
+    const providerKey = process.env.PROVIDER_PRIVATE_KEY!;
+    const agentSigner = new NonceManager(new Wallet(operatorKey, provider));
+    const providerSigner = new NonceManager(new Wallet(providerKey, provider));
+
+    tokenStandardRegistry.register(DTCC_TOKEN_STANDARD, new CollateralTokenStandard(process.env.FACTORY_ADDRESS ?? '', provider, agentSigner) as any);
     const depositPlugin = new CollateralDepositPlugin(
-      appConfig.orgId, rpcUrl, workflowsConfig?.finP2PClient!, logger, walletResolver,
+      appConfig.orgId, provider, agentSigner, workflowsConfig?.finP2PClient!, logger, walletResolver, providerSigner,
     );
     pluginManager.registerPaymentsPlugin(depositPlugin);
 
     const planApprovalPlugin = new CollateralPlanApprovalPlugin(
-      rpcUrl, workflowsConfig?.finP2PClient!, logger, walletResolver,
+      provider, agentSigner, workflowsConfig?.finP2PClient!, logger, walletResolver,
     );
     pluginManager.registerPlanApprovalPlugin(planApprovalPlugin);
 
