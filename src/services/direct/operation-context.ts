@@ -6,10 +6,9 @@ import { Asset, ExecutionContext, Signature } from '@owneraio/finp2p-nodejs-skel
 /**
  * Build OperationContext from adapter request parameters.
  *
- * Mirrors the on-chain OperationParams derivation in finp2p-contract helpers:
- * - LegType: detected from whether the asset matches the EIP712 asset or settlement term
- * - PrimaryType: mapped from the EIP712 template primaryType
- * - Phase: INITIATE by default; CLOSE when executionContext.sequence > 3 (REPO heuristic)
+ * - LegType: detected from EIP712 template when available, defaults to Asset
+ * - PrimaryType: mapped from EIP712 template primaryType when available, defaults to Transfer
+ * - Phase: INITIATE by default; CLOSE when sequence > 3 (loan/repo maturity heuristic)
  * - ReleaseType: RELEASE by default
  */
 export function buildOperationContext(
@@ -18,18 +17,14 @@ export function buildOperationContext(
   exCtx: ExecutionContext | undefined,
   operationId?: string,
 ): OperationContext | undefined {
-  if (!signature || !exCtx) return undefined;
+  if (!exCtx) return undefined;
 
-  const template = signature.template;
-  if (!template || template.type !== 'EIP712') return undefined;
+  const template = (signature?.template?.type === 'EIP712') ? signature.template : undefined;
+  const leg = template ? detectLeg(asset, template) : LegType.Asset;
+  const primaryType = template ? mapPrimaryType(template.primaryType) : PrimaryType.Transfer;
 
-  const leg = detectLeg(asset, template);
-  const primaryType = mapPrimaryType(template.primaryType);
-
-  // Phase heuristic: sequence > 3 means closing phase (REPO maturity)
-  const phase = (primaryType === PrimaryType.Loan && exCtx.sequence > 3)
-    ? Phase.Close
-    : Phase.Initiate;
+  // Phase heuristic: sequence > 4 means closing phase (loan/repo maturity)
+  const phase = exCtx.sequence > 4 ? Phase.Close : Phase.Initiate;
 
   return {
     leg,
@@ -44,7 +39,7 @@ function detectLeg(asset: Asset, template: any): LegType {
   const msg = template.message;
   if (msg?.asset && msg.asset.assetId === asset.assetId) return LegType.Asset;
   if (msg?.settlement && msg.settlement.assetId === asset.assetId) return LegType.Settlement;
-  return LegType.Asset; // default
+  return LegType.Asset;
 }
 
 function mapPrimaryType(templateType: string | undefined): PrimaryType {

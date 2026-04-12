@@ -137,9 +137,8 @@ async function createApp(
       return { walletAddress, wallet };
     };
 
-    tokenStandardRegistry.register(DTCC_TOKEN_STANDARD, new CollateralTokenStandard(process.env.FACTORY_ADDRESS ?? '') as any);
-
     const rpcUrl = getNetworkRpcUrl();
+    tokenStandardRegistry.register(DTCC_TOKEN_STANDARD, new CollateralTokenStandard(process.env.FACTORY_ADDRESS ?? '', rpcUrl) as any);
     const depositPlugin = new CollateralDepositPlugin(
       appConfig.orgId, rpcUrl, workflowsConfig?.finP2PClient!, logger, walletResolver,
     );
