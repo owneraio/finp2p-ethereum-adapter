@@ -147,7 +147,7 @@ async function createApp(
 
     tokenStandardRegistry.register(DTCC_TOKEN_STANDARD, new CollateralTokenStandard(process.env.FACTORY_ADDRESS ?? '', provider, agentSigner) as any);
     const depositPlugin = new CollateralDepositPlugin(
-      appConfig.orgId, provider, agentSigner, workflowsConfig?.finP2PClient!, logger, walletResolver, providerSigner,
+      appConfig.orgId, provider, agentSigner, workflowsConfig?.finP2PClient!, logger, walletResolver, providerSigner, process.env.SUBGRAPH_BASE_URL,
     );
     pluginManager.registerPaymentsPlugin(depositPlugin);
 
