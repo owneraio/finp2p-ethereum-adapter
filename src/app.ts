@@ -1,27 +1,27 @@
 import express from "express";
 import { logger as expressLogger } from "express-winston";
 import winston from "winston";
+import { JsonRpcProvider, Wallet, NonceManager } from "ethers";
 import {
   register,
   PluginManager,
-  ProofProvider,
   PlanApprovalServiceImpl,
   PaymentsServiceImpl,
   workflows,
   MappingConfig,
 } from "@owneraio/finp2p-nodejs-skeleton-adapter";
-import { CollateralDepositPlugin, CollateralPlanApprovalPlugin, CollateralTokenStandard, TokenStandardName as DTCC_TOKEN_STANDARD } from "@owneraio/finp2p-ethereum-dtcc-plugin";
+import {
+  CollateralDepositPlugin,
+  CollateralPlanApprovalPlugin,
+  CollateralTokenStandard,
+  TokenStandardName as DTCC_TOKEN_STANDARD,
+} from "@owneraio/finp2p-ethereum-dtcc-plugin";
 import { createVanillaServices, registerDistributionRoutes } from "@owneraio/finp2p-vanilla-service";
-import { FinP2PClient } from "@owneraio/finp2p-client";
-import { FinP2PContract } from "@owneraio/finp2p-contracts";
 import {
   CredentialsMappingService,
   EscrowServiceImpl,
-  ExecDetailsStore,
-  TokenServiceImpl
+  TokenServiceImpl,
 } from "./services/finp2p-contract";
-import { JsonRpcProvider, Wallet, NonceManager } from 'ethers';
-import { AppConfig, FinP2PContractAppConfig, getNetworkRpcUrl } from './config'
 import {
   DirectTokenService,
   CustodyProvider,
@@ -36,27 +36,19 @@ import {
   OmnibusDelegate,
   CommonServiceImpl as DirectCommonServiceImpl,
   HealthServiceImpl as DirectHealthServiceImpl,
-} from "./services/direct"
+  tokenStandardRegistry,
+  ERC20TokenStandard,
+  ERC20_TOKEN_STANDARD,
+  CustodyMappingValidator,
+  FIELD_CUSTODY_ACCOUNT_ID,
+  FIELD_LEDGER_ACCOUNT_ID,
+} from "./services/direct";
+import { AppConfig, FinP2PContractAppConfig, getNetworkRpcUrl } from "./config";
 
-// Register compiled-in custody providers
+// Register compiled-in custody providers and built-in token standards
 custodyRegistry.register('fireblocks', (config) => FireblocksCustodyProvider.create(config as FireblocksAppConfig));
 custodyRegistry.register('dfns', (config) => DfnsCustodyProvider.create(config as DfnsAppConfig));
-
-// Register built-in token standards
-import { tokenStandardRegistry } from "./services/direct/token-standards/registry";
-import { registerBuiltinTokenStandards } from "./services/direct/token-standards/register-builtins";
-registerBuiltinTokenStandards();
-import { CustodyMappingValidator, FIELD_CUSTODY_ACCOUNT_ID, FIELD_LEDGER_ACCOUNT_ID } from "./services/direct/mapping-validator";
-
-function resolveAccountMapping(appConfig: AppConfig): AccountMappingService {
-  switch (appConfig.accountMappingType) {
-    case 'database':
-      return new DbAccountMapping();
-    case 'derivation':
-    default:
-      return new DerivationAccountMapping();
-  }
-}
+tokenStandardRegistry.register(ERC20_TOKEN_STANDARD, new ERC20TokenStandard());
 
 function buildMappingConfig(custodyProvider?: CustodyProvider): MappingConfig {
   const fields = [
@@ -79,10 +71,12 @@ function registerDirectServices(
 ) {
   const healthService = new DirectHealthServiceImpl(custodyProvider.rpcProvider);
   const mappingConfig = buildMappingConfig(custodyProvider);
+  const accountMapping: AccountMappingService = appConfig.accountMappingType === 'database'
+    ? new DbAccountMapping()
+    : new DerivationAccountMapping();
 
   if (appConfig.accountModel === 'omnibus') {
     if (!workflowsConfig?.storage) throw new Error('Workflows storage config is required for omnibus account model');
-    const accountMapping = resolveAccountMapping(appConfig);
     const delegate = new OmnibusDelegate(logger, custodyProvider, accountMapping);
     const { tokenService, escrowService, commonService, mappingService, distributionService, inboundTransferHook } = createVanillaServices(
       { transfer: delegate, asset: delegate, escrow: delegate, omnibus: delegate },
@@ -99,7 +93,6 @@ function registerDirectServices(
     return;
   }
 
-  const accountMapping = resolveAccountMapping(appConfig);
   const dbMapping = accountMapping instanceof DbAccountMapping ? accountMapping : undefined;
   const tokenService = new DirectTokenService(logger, custodyProvider, accountMapping);
   const commonService = new DirectCommonServiceImpl();
