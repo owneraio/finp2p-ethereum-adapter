@@ -1,7 +1,6 @@
 import express from "express";
 import { logger as expressLogger } from "express-winston";
 import winston from "winston";
-import { JsonRpcProvider, Wallet, NonceManager } from "ethers";
 import {
   register,
   PluginManager,
@@ -10,12 +9,6 @@ import {
   workflows,
   MappingConfig,
 } from "@owneraio/finp2p-nodejs-skeleton-adapter";
-import {
-  CollateralDepositPlugin,
-  CollateralPlanApprovalPlugin,
-  CollateralTokenStandard,
-  TokenStandardName as DTCC_TOKEN_STANDARD,
-} from "@owneraio/finp2p-ethereum-dtcc-plugin";
 import { createVanillaServices, registerDistributionRoutes } from "@owneraio/finp2p-vanilla-service";
 import {
   CredentialsMappingService,
@@ -42,7 +35,9 @@ import {
   CustodyMappingValidator,
   FIELD_CUSTODY_ACCOUNT_ID,
   FIELD_LEDGER_ACCOUNT_ID,
+  createWalletResolver,
 } from "./services/direct";
+import { registerIntegrations } from "./integrations/registry";
 import { AppConfig, FinP2PContractAppConfig, getNetworkRpcUrl } from "./config";
 
 // Register compiled-in custody providers and built-in token standards
@@ -118,40 +113,14 @@ async function createApp(
   const pluginManager = new PluginManager();
   let custodyProviderRef: CustodyProvider | undefined;
 
-  // Runtime plugin activation: DTCC collateral
-  if (process.env.DTCC_PLUGIN_ENABLED === 'true') {
-    const walletResolver = async (finId: string) => {
-      const mappings = await workflows.getAccountMappings([finId]);
-      if (mappings.length === 0) return undefined;
-      const walletAddress = mappings[0].fields?.['ledgerAccountId'];
-      const custodyAccountId = mappings[0].fields?.['custodyAccountId'];
-      if (!walletAddress || !custodyAccountId) return undefined;
-      if (!custodyProviderRef?.createWalletForCustodyId) return undefined;
-      const wallet = await custodyProviderRef.createWalletForCustodyId(custodyAccountId);
-      return { walletAddress, wallet };
-    };
-
-    const rpcUrl = getNetworkRpcUrl();
-    const provider = new JsonRpcProvider(rpcUrl);
-    const operatorKey = process.env.OPERATOR_PRIVATE_KEY!;
-    const providerKey = process.env.PROVIDER_PRIVATE_KEY!;
-    const agentSigner = new NonceManager(new Wallet(operatorKey, provider));
-    const providerSigner = new NonceManager(new Wallet(providerKey, provider));
-
-    tokenStandardRegistry.register(DTCC_TOKEN_STANDARD, new CollateralTokenStandard(process.env.FACTORY_ADDRESS ?? '', provider, agentSigner) as any);
-    const subgraphBaseUrl = process.env.SUBGRAPH_BASE_URL;
-    const depositPlugin = new CollateralDepositPlugin(
-      appConfig.orgId, provider, agentSigner, workflowsConfig?.finP2PClient!, logger, walletResolver, providerSigner, subgraphBaseUrl,
-    );
-    pluginManager.registerPaymentsPlugin(depositPlugin);
-
-    const planApprovalPlugin = new CollateralPlanApprovalPlugin(
-      provider, agentSigner, workflowsConfig?.finP2PClient!, logger, walletResolver,
-    );
-    pluginManager.registerPlanApprovalPlugin(planApprovalPlugin);
-
-    logger.info(`DTCC plugin activated: token standard '${DTCC_TOKEN_STANDARD}', deposit + plan approval plugins registered`);
-  }
+  registerIntegrations({
+    orgId: appConfig.orgId,
+    logger,
+    pluginManager,
+    finP2PClient: workflowsConfig?.finP2PClient!,
+    walletResolver: createWalletResolver(() => custodyProviderRef),
+    rpcUrl: getNetworkRpcUrl(),
+  });
 
   const paymentsService = new PaymentsServiceImpl(pluginManager);
 
