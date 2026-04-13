@@ -6,8 +6,8 @@ import { ExecDetailsStore } from './services/finp2p-contract/common'
 import { ProofProvider } from '@owneraio/finp2p-nodejs-skeleton-adapter'
 import { Logger } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import { InMemoryExecDetailsStore } from './services/finp2p-contract/exec-details-store'
-import { FireblocksAppConfig, createFireblocksAppConfig } from './services/direct/fireblocks-config'
-import { DfnsAppConfig, createDfnsAppConfig } from './services/direct/dfns-config'
+import { FireblocksAppConfig, createFireblocksAppConfig } from './integrations/fireblocks/config'
+import { DfnsAppConfig, createDfnsAppConfig } from './integrations/dfns/config'
 
 export type AccountMappingType = 'derivation' | 'database'
 
@@ -51,8 +51,8 @@ export type FinP2PContractAppConfig = BaseAppConfig & {
   execDetailsStore: ExecDetailsStore | undefined
 }
 
-export { FireblocksAppConfig } from './services/direct/fireblocks-config'
-export { DfnsAppConfig } from './services/direct/dfns-config'
+export { FireblocksAppConfig } from './integrations/fireblocks/config'
+export { DfnsAppConfig } from './integrations/dfns/config'
 
 /**
  * Generic config for custody providers activated via the registry.

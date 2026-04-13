@@ -3,7 +3,7 @@ import * as fs from "fs";
 import { resolve } from "node:path";
 import { FireblocksSDK } from "fireblocks-sdk";
 import { ApiBaseUrl, ChainId } from "@fireblocks/fireblocks-web3-provider";
-import { createFireblocksEthersProvider } from "../src/services/direct/fireblocks-config";
+import { createFireblocksEthersProvider } from "../src/integrations/fireblocks/config";
 import { createVaultManagementFunctions } from "../src/vaults";
 
 dotenv.config({ path: resolve(process.cwd(), ".env.fireblocks") });

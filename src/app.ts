@@ -7,7 +7,6 @@ import {
   PlanApprovalServiceImpl,
   PaymentsServiceImpl,
   workflows,
-  MappingConfig,
 } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import { createVanillaServices, registerDistributionRoutes } from "@owneraio/finp2p-vanilla-service";
 import {
@@ -19,10 +18,6 @@ import {
   DirectTokenService,
   CustodyProvider,
   custodyRegistry,
-  FireblocksCustodyProvider,
-  FireblocksAppConfig,
-  DfnsCustodyProvider,
-  DfnsAppConfig,
   DerivationAccountMapping,
   DbAccountMapping,
   AccountMappingService,
@@ -32,33 +27,15 @@ import {
   tokenStandardRegistry,
   ERC20TokenStandard,
   ERC20_TOKEN_STANDARD,
-  CustodyMappingValidator,
-  FIELD_CUSTODY_ACCOUNT_ID,
-  FIELD_LEDGER_ACCOUNT_ID,
+  buildMappingConfig,
   createWalletResolver,
 } from "./services/direct";
-import { registerIntegrations } from "./integrations/registry";
+import { registerCustodyIntegrations, registerIntegrations } from "./integrations/registry";
 import { AppConfig, FinP2PContractAppConfig, getNetworkRpcUrl } from "./config";
 
 // Register compiled-in custody providers and built-in token standards
-custodyRegistry.register('fireblocks', (config) => FireblocksCustodyProvider.create(config as FireblocksAppConfig));
-custodyRegistry.register('dfns', (config) => DfnsCustodyProvider.create(config as DfnsAppConfig));
+registerCustodyIntegrations();
 tokenStandardRegistry.register(ERC20_TOKEN_STANDARD, new ERC20TokenStandard());
-
-function buildMappingConfig(custodyProvider?: CustodyProvider): MappingConfig {
-  const fields = [
-    { field: FIELD_LEDGER_ACCOUNT_ID, description: 'Ethereum address', exampleValue: '0x742d35Cc6634C0532925a3b844Bc9e7595f2bD18' },
-  ];
-  if (custodyProvider?.resolveAddressFromCustodyId) {
-    fields.unshift({
-      field: FIELD_CUSTODY_ACCOUNT_ID, description: 'Custody provider account ID (vault ID / wallet ID)', exampleValue: '85',
-    });
-  }
-  return {
-    fields,
-    validator: custodyProvider ? new CustodyMappingValidator(custodyProvider) : undefined,
-  };
-}
 
 function registerDirectServices(
   app: express.Application, logger: winston.Logger, custodyProvider: CustodyProvider, appConfig: AppConfig,
@@ -95,6 +72,22 @@ function registerDirectServices(
   register(app, tokenService, tokenService, commonService, healthService, paymentsService, planApprovalService, pluginManager, workflowsConfig, mappingConfig, dbMapping);
 }
 
+function registerFinP2PContractServices(
+  app: express.Application, contractConfig: FinP2PContractAppConfig,
+  paymentsService: PaymentsServiceImpl, pluginManager: PluginManager,
+  workflowsConfig: workflows.Config | undefined,
+) {
+  if (contractConfig.accountModel === 'omnibus') {
+    throw new Error('Omnibus account model is not supported with finp2p-contract provider');
+  }
+  const planApprovalService = new PlanApprovalServiceImpl(contractConfig.orgId, pluginManager, contractConfig.finP2PClient);
+  const escrowService = new EscrowServiceImpl(contractConfig.finP2PContract, contractConfig.finP2PClient, contractConfig.execDetailsStore, contractConfig.proofProvider, pluginManager);
+  const tokenService = new TokenServiceImpl(contractConfig.finP2PContract, contractConfig.finP2PClient, contractConfig.execDetailsStore, contractConfig.proofProvider, pluginManager);
+  const mappingService = new CredentialsMappingService(contractConfig.finP2PContract);
+  const mappingConfig = buildMappingConfig();
+  register(app, tokenService, escrowService, tokenService, tokenService, paymentsService, planApprovalService, pluginManager, workflowsConfig, mappingConfig, mappingService);
+}
+
 async function createApp(
   workflowsConfig: workflows.Config | undefined,
   logger: winston.Logger,
@@ -111,35 +104,28 @@ async function createApp(
   }));
 
   const pluginManager = new PluginManager();
-  let custodyProviderRef: CustodyProvider | undefined;
+
+  let custodyProvider: CustodyProvider | undefined;
+  if (custodyRegistry.has(appConfig.type)) {
+    logger.info(`Activating custody provider: ${appConfig.type} (available: ${custodyRegistry.availableProviders.join(', ')})`);
+    custodyProvider = await custodyRegistry.create(appConfig.type, appConfig);
+  }
 
   registerIntegrations({
     orgId: appConfig.orgId,
     logger,
     pluginManager,
     finP2PClient: workflowsConfig?.finP2PClient!,
-    walletResolver: createWalletResolver(() => custodyProviderRef),
+    walletResolver: custodyProvider ? createWalletResolver(custodyProvider) : undefined,
     rpcUrl: getNetworkRpcUrl(),
   });
 
   const paymentsService = new PaymentsServiceImpl(pluginManager);
 
-  if (custodyRegistry.has(appConfig.type)) {
-    logger.info(`Activating custody provider: ${appConfig.type} (available: ${custodyRegistry.availableProviders.join(', ')})`);
-    const custodyProvider = await custodyRegistry.create(appConfig.type, appConfig);
-    custodyProviderRef = custodyProvider; // wire lazy ref for plugin walletResolver
+  if (custodyProvider) {
     registerDirectServices(app, logger, custodyProvider, appConfig, paymentsService, pluginManager, workflowsConfig);
   } else if (appConfig.type === 'finp2p-contract') {
-    const contractConfig = appConfig as FinP2PContractAppConfig;
-    if (contractConfig.accountModel === 'omnibus') {
-      throw new Error('Omnibus account model is not supported with finp2p-contract provider');
-    }
-    const planApprovalService = new PlanApprovalServiceImpl(contractConfig.orgId, pluginManager, contractConfig.finP2PClient);
-    const escrowService = new EscrowServiceImpl(contractConfig.finP2PContract, contractConfig.finP2PClient, contractConfig.execDetailsStore, contractConfig.proofProvider, pluginManager);
-    const tokenService = new TokenServiceImpl(contractConfig.finP2PContract, contractConfig.finP2PClient, contractConfig.execDetailsStore, contractConfig.proofProvider, pluginManager);
-    const mappingService = new CredentialsMappingService(contractConfig.finP2PContract);
-    const mappingConfig = buildMappingConfig();
-    register(app, tokenService, escrowService, tokenService, tokenService, paymentsService, planApprovalService, pluginManager, workflowsConfig, mappingConfig, mappingService);
+    registerFinP2PContractServices(app, appConfig as FinP2PContractAppConfig, paymentsService, pluginManager, workflowsConfig);
   } else {
     throw new Error(`Unknown provider type: '${appConfig.type}'. Available custody providers: ${custodyRegistry.availableProviders.join(', ')}`);
   }

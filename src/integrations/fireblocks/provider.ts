@@ -1,8 +1,8 @@
 import { FireblocksSDK } from 'fireblocks-sdk';
-import { createFireblocksEthersProvider, FireblocksAppConfig } from './fireblocks-config';
+import { createFireblocksEthersProvider, FireblocksAppConfig } from './config';
 import { createVaultManagementFunctions } from '../../vaults';
-import { CustodyProvider, CustodyWallet, GasStation } from './custody-provider';
-import { FireblocksRawSigner } from './fireblocks-raw-signer';
+import { CustodyProvider, CustodyWallet, GasStation } from '../../services/direct';
+import { FireblocksRawSigner } from './raw-signer';
 
 export class FireblocksCustodyProvider implements CustodyProvider {
   readonly issuer: CustodyWallet;

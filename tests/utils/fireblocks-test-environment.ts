@@ -20,7 +20,7 @@ import createApp from "../../src/app";
 import {
   createFireblocksEthersProvider,
   FireblocksAppConfig,
-} from "../../src/services/direct/fireblocks-config";
+} from "../../src/integrations/fireblocks/config";
 import { randomPort } from "./utils";
 
 dotenv.config({ path: resolve(process.cwd(), ".env.fireblocks") });
