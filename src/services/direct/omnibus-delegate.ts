@@ -10,7 +10,7 @@ import winston from 'winston';
 import { CustodyProvider, CustodyWallet } from './custody-provider';
 import { tokenStandardRegistry } from './token-standards/registry';
 import { ERC20_TOKEN_STANDARD } from './token-standards/erc20';
-import { AccountMappingService, StorageInstance } from './account-mapping';
+import { AccountMappingService, SharedStorage } from './account-mapping';
 import { getAssetFromDb } from './helpers';
 
 export interface ReceiptPollingConfig {
@@ -36,7 +36,7 @@ export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowD
     private readonly logger: winston.Logger,
     private readonly custodyProvider: CustodyProvider,
     private readonly accountMapping: AccountMappingService,
-    private readonly storage: StorageInstance,
+    private readonly storage: SharedStorage,
     receiptPolling?: Partial<ReceiptPollingConfig>,
   ) {
     if (!custodyProvider.omnibus) throw new Error('Omnibus wallet is required for omnibus delegate');
@@ -291,13 +291,13 @@ export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowD
     if (assetBind === undefined || assetBind.tokenIdentifier === undefined) {
       const symbol = assetIdentifier?.value ?? 'OWNERA';
       const result = await standard.deploy(this.omnibusWallet, assetName ?? 'OWNERACOIN', symbol, decimals, this.logger);
-      await this.storage.saveAsset({ contract_address: result.contractAddress, decimals: result.decimals, token_standard: result.tokenStandard as any, id: asset.assetId, type: asset.assetType });
+      await this.storage.assets.saveAsset({ contract_address: result.contractAddress, decimals: result.decimals, token_standard: result.tokenStandard as any, id: asset.assetId, type: asset.assetType });
       await this.custodyProvider.onAssetRegistered?.(result.contractAddress, symbol);
       return { tokenId: result.contractAddress, reference: undefined };
     }
 
     const tokenAddress = assetBind.tokenIdentifier.tokenId;
-    await this.storage.saveAsset({ contract_address: tokenAddress, decimals, token_standard: tokenStandard as any, id: asset.assetId, type: asset.assetType });
+    await this.storage.assets.saveAsset({ contract_address: tokenAddress, decimals, token_standard: tokenStandard as any, id: asset.assetId, type: asset.assetType });
     try {
       await this.custodyProvider.onAssetRegistered?.(tokenAddress);
     } catch (e) {

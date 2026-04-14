@@ -8,7 +8,7 @@ import winston from 'winston';
 import { parseUnits } from "ethers";
 import { TokenOperationResult } from '@owneraio/finp2p-ethereum-token-standard';
 import { CustodyProvider, CustodyWallet } from './custody-provider';
-import { AccountMappingService, StorageInstance } from './account-mapping';
+import { AccountMappingService, SharedStorage } from './account-mapping';
 import { getAssetFromDb, fundGasIfNeeded } from './helpers';
 import { tokenStandardRegistry } from './token-standards/registry';
 import { ERC20_TOKEN_STANDARD } from './token-standards/erc20';
@@ -47,7 +47,7 @@ export class DirectTokenService implements TokenService, EscrowService {
     readonly logger: winston.Logger,
     readonly custodyProvider: CustodyProvider,
     readonly accountMapping: AccountMappingService,
-    readonly storage: StorageInstance,
+    readonly storage: SharedStorage,
   ) {}
 
   private async resolveAddress(finId: string): Promise<string> {
@@ -96,7 +96,7 @@ export class DirectTokenService implements TokenService, EscrowService {
       const wallet = this.custodyProvider.issuer;
       const symbol = assetIdentifier?.value ?? "OWNERA";
       const result = await standard.deploy(wallet, assetName ?? "OWNERACOIN", symbol, 6, this.logger);
-      await this.storage.saveAsset({
+      await this.storage.assets.saveAsset({
         contract_address: result.contractAddress,
         decimals: result.decimals,
         token_standard: result.tokenStandard as any,
@@ -112,7 +112,7 @@ export class DirectTokenService implements TokenService, EscrowService {
       };
     } else {
       const tokenAddress = assetBind.tokenIdentifier.tokenId;
-      await this.storage.saveAsset({
+      await this.storage.assets.saveAsset({
         contract_address: tokenAddress,
         decimals: 6,
         token_standard: tokenStandard as any,

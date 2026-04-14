@@ -7,6 +7,7 @@ import {
   PlanApprovalServiceImpl,
   PaymentsServiceImpl,
   workflows,
+  storage as storageModule,
 } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import { createVanillaServices, registerDistributionRoutes } from "@owneraio/finp2p-vanilla-service";
 import {
@@ -43,7 +44,7 @@ function registerDirectServices(
 ) {
   const healthService = new DirectHealthServiceImpl(custodyProvider.rpcProvider);
   const mappingConfig = buildMappingConfig(custodyProvider);
-  const storage = workflowsConfig?.storage ? new workflows.Storage(workflowsConfig.storage) : undefined;
+  const storage = workflowsConfig?.storage ? new storageModule.SharedStorage(workflowsConfig.storage) : undefined;
   const accountMapping: AccountMappingService = appConfig.accountMappingType === 'database' && storage
     ? new DbAccountMapping(storage)
     : new DerivationAccountMapping();
@@ -66,10 +67,11 @@ function registerDirectServices(
     return;
   }
 
-  if (!storage) throw new Error('Workflows storage config is required for direct mode');
+  if (!storage || !workflowsConfig?.storage) throw new Error('Workflows storage config is required for direct mode');
   const dbMapping = accountMapping instanceof DbAccountMapping ? accountMapping : undefined;
   const tokenService = new DirectTokenService(logger, custodyProvider, accountMapping, storage);
-  const commonService = new DirectCommonServiceImpl(storage);
+  const workflowStorage = new workflows.Storage(workflowsConfig.storage);
+  const commonService = new DirectCommonServiceImpl(workflowStorage);
   const planApprovalService = new PlanApprovalServiceImpl(appConfig.orgId, pluginManager, workflowsConfig?.finP2PClient);
   register(app, tokenService, tokenService, commonService, healthService, paymentsService, planApprovalService, pluginManager, workflowsConfig, mappingConfig, dbMapping);
 }
@@ -113,7 +115,7 @@ async function createApp(
     custodyProvider = await custodyRegistry.create(appConfig.type, appConfig);
   }
 
-  const integrationStorage = workflowsConfig?.storage ? new workflows.Storage(workflowsConfig.storage) : undefined;
+  const integrationStorage = workflowsConfig?.storage ? new storageModule.SharedStorage(workflowsConfig.storage) : undefined;
   registerIntegrations({
     orgId: appConfig.orgId,
     logger,

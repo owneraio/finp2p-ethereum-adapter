@@ -1,8 +1,9 @@
-import { CommonService, OperationStatus, ReceiptOperation } from '@owneraio/finp2p-nodejs-skeleton-adapter'
-import { StorageInstance } from './account-mapping';
+import { CommonService, OperationStatus, ReceiptOperation, workflows } from '@owneraio/finp2p-nodejs-skeleton-adapter'
+
+type WorkflowStorage = InstanceType<typeof workflows.Storage>;
 
 export class CommonServiceImpl implements CommonService {
-  constructor(private readonly storage: StorageInstance) {}
+  constructor(private readonly storage: WorkflowStorage) {}
 
   async getReceipt(id: string): Promise<ReceiptOperation> {
     const operation = await this.storage.getReceiptOperation(id)
