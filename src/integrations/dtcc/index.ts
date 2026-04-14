@@ -19,6 +19,9 @@ export function registerDtccPlugin(ctx: IntegrationContext): void {
   if (!walletResolver) {
     throw new Error('DTCC plugin requires a custody provider to resolve investor wallets');
   }
+  if (!rpcUrl) {
+    throw new Error('DTCC plugin requires NETWORK_HOST to be set');
+  }
 
   const provider = new JsonRpcProvider(rpcUrl);
   const operatorKey = process.env.OPERATOR_PRIVATE_KEY!;

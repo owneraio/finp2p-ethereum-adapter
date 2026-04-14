@@ -12,7 +12,7 @@ export interface IntegrationContext {
   pluginManager: PluginManager;
   finP2PClient: FinP2PClient;
   walletResolver: WalletResolver | undefined;
-  rpcUrl: string;
+  rpcUrl: string | undefined;
 }
 
 export type IntegrationRegistrar = (ctx: IntegrationContext) => void;

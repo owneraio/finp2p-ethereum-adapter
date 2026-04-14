@@ -117,7 +117,7 @@ async function createApp(
     pluginManager,
     finP2PClient: workflowsConfig?.finP2PClient!,
     walletResolver: custodyProvider ? createWalletResolver(custodyProvider) : undefined,
-    rpcUrl: getNetworkRpcUrl(),
+    rpcUrl: process.env.NETWORK_HOST ? getNetworkRpcUrl() : undefined,
   });
 
   const paymentsService = new PaymentsServiceImpl(pluginManager);
