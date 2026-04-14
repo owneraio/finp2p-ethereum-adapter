@@ -227,7 +227,8 @@ class CustomTestEnvironment extends NodeEnvironment {
         accountModel: 'segregated',
         finP2PContract,
         execDetailsStore,
-      }
+      },
+      connectionString,
     );
     console.log("App created successfully.");
 
