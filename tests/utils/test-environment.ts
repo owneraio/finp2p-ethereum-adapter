@@ -51,12 +51,17 @@ class CustomTestEnvironment extends NodeEnvironment {
   }
 
   async setup() {
-    // Suppress pg pool errors during teardown when postgres container is stopped
-    process.on('uncaughtException', (err: any) => {
-      if (err?.code === '57P01' || err?.message?.includes('terminating connection')) return;
-      console.error('Uncaught exception:', err);
-      process.exit(1);
-    });
+    // Suppress pg pool errors during teardown when postgres container is stopped.
+    // Patch pg.Pool to add a no-op error handler on every new pool instance,
+    // preventing unhandled 'error' events from crashing the process.
+    const pg = require('pg');
+    const OrigPool = pg.Pool;
+    pg.Pool = class PatchedPool extends OrigPool {
+      constructor(...args: any[]) {
+        super(...args);
+        this.on('error', () => {});
+      }
+    };
 
     if (this.adapter !== undefined && this.adapter.url !== undefined) {
       console.log("Using predefined network configuration...");
