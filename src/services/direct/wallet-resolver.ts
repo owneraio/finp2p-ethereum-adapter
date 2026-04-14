@@ -11,7 +11,7 @@ export type WalletResolver = (finId: string) => Promise<{ walletAddress: string;
 export function createWalletResolver(accountMappingStore: AccountMappingStore, custodyProvider: CustodyProvider): WalletResolver {
   return async (finId) => {
     if (!custodyProvider.createWalletForCustodyId) return undefined;
-    const mappings = await accountMappingStore.getOwnerMappings([finId]);
+    const mappings = await accountMappingStore.getAccounts([finId]);
     if (mappings.length === 0) return undefined;
     const walletAddress = mappings[0].fields?.[FIELD_LEDGER_ACCOUNT_ID];
     const custodyAccountId = mappings[0].fields?.[FIELD_CUSTODY_ACCOUNT_ID];

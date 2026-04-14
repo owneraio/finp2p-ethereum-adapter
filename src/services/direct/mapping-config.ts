@@ -1,8 +1,12 @@
-import { MappingConfig } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import { CustodyProvider } from "./custody-provider";
-import { CustodyMappingValidator, FIELD_CUSTODY_ACCOUNT_ID, FIELD_LEDGER_ACCOUNT_ID } from "./mapping-validator";
+import { AccountMappingValidator, CustodyMappingValidator, FIELD_CUSTODY_ACCOUNT_ID, FIELD_LEDGER_ACCOUNT_ID } from "./mapping-validator";
 
-export function buildMappingConfig(custodyProvider?: CustodyProvider): MappingConfig {
+export interface AccountMappingConfig {
+  fields: { field: string; description: string; exampleValue: string }[];
+  validator?: AccountMappingValidator;
+}
+
+export function buildMappingConfig(custodyProvider?: CustodyProvider): AccountMappingConfig {
   const fields = [
     { field: FIELD_LEDGER_ACCOUNT_ID, description: 'Ethereum address', exampleValue: '0x742d35Cc6634C0532925a3b844Bc9e7595f2bD18' },
   ];

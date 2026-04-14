@@ -1,4 +1,4 @@
-import { MappingValidator, ValidationError } from '@owneraio/finp2p-nodejs-skeleton-adapter';
+import { ValidationError } from '@owneraio/finp2p-nodejs-skeleton-adapter';
 import { isAddress } from 'ethers';
 import { CustodyProvider } from './custody-provider';
 
@@ -12,7 +12,11 @@ export const FIELD_LEDGER_ACCOUNT_ID = 'ledgerAccountId';
  * custody provider and stores it as ledgerAccountId.
  * When ledgerAccountId is provided directly, validates it's a valid Ethereum address.
  */
-export class CustodyMappingValidator implements MappingValidator {
+export interface AccountMappingValidator {
+  validate(finId: string, fields: Record<string, string>): Promise<Record<string, string>>;
+}
+
+export class CustodyMappingValidator implements AccountMappingValidator {
 
   constructor(private readonly custodyProvider: CustodyProvider) {}
 

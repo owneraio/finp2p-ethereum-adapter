@@ -132,7 +132,7 @@ const deployERC20Contract = async (
 
 const startApp = async (
   port: number,
-  workflowsConfig: workflows.Config | undefined,
+  workflowsConfig: any,
   logger: winston.Logger,
   appConfig: AppConfig,
 ) => {

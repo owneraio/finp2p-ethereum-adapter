@@ -1,8 +1,8 @@
 import { finIdToAddress } from '@owneraio/finp2p-contracts';
-import { MappingService, OwnerMapping, storage } from '@owneraio/finp2p-nodejs-skeleton-adapter';
+import { storage } from '@owneraio/finp2p-nodejs-skeleton-adapter';
 import { FIELD_LEDGER_ACCOUNT_ID, FIELD_CUSTODY_ACCOUNT_ID } from './mapping-validator';
 
-export type AccountMappingStore = InstanceType<typeof storage.PgAccountMappingStore>;
+export type AccountMappingStore = InstanceType<typeof storage.PgAccountStore>;
 export type AssetStore = InstanceType<typeof storage.PgAssetStore>;
 
 export interface ResolvedAccount {
@@ -44,21 +44,19 @@ export class DerivationAccountMapping implements AccountMappingService {
 }
 
 /**
- * DB-backed mapping: uses skeleton's multi-field account mapping storage.
- * Resolves ledgerAccountId field for address lookups.
- * Also implements MappingService for the mapping API routes.
+ * DB-backed mapping: uses skeleton's account store for address resolution.
  */
-export class DbAccountMapping implements AccountMappingService, MappingService {
-  constructor(private readonly accountMappingStore: AccountMappingStore) {}
+export class DbAccountMapping implements AccountMappingService {
+  constructor(private readonly accountStore: AccountMappingStore) {}
 
   async resolveAccount(finId: string): Promise<string | undefined> {
-    const mappings = await this.accountMappingStore.getOwnerMappings([finId]);
+    const mappings = await this.accountStore.getAccounts([finId]);
     if (mappings.length === 0) return undefined;
     return mappings[0].fields[FIELD_LEDGER_ACCOUNT_ID];
   }
 
   async resolveFullAccount(finId: string): Promise<ResolvedAccount | undefined> {
-    const mappings = await this.accountMappingStore.getOwnerMappings([finId]);
+    const mappings = await this.accountStore.getAccounts([finId]);
     if (mappings.length === 0) return undefined;
     const ledgerAccountId = mappings[0].fields[FIELD_LEDGER_ACCOUNT_ID];
     if (!ledgerAccountId) return undefined;
@@ -69,24 +67,8 @@ export class DbAccountMapping implements AccountMappingService, MappingService {
   }
 
   async resolveFinId(account: string): Promise<string | undefined> {
-    const mappings = await this.accountMappingStore.getByFieldValue(FIELD_LEDGER_ACCOUNT_ID, account);
+    const mappings = await this.accountStore.getByFieldValue(FIELD_LEDGER_ACCOUNT_ID, account);
     if (mappings.length === 0) return undefined;
     return mappings[0].finId;
-  }
-
-  async getOwnerMappings(finIds?: string[]): Promise<OwnerMapping[]> {
-    return this.accountMappingStore.getOwnerMappings(finIds);
-  }
-
-  async getByFieldValue(fieldName: string, value: string): Promise<OwnerMapping[]> {
-    return this.accountMappingStore.getByFieldValue(fieldName, value);
-  }
-
-  async saveOwnerMapping(finId: string, fields: Record<string, string>): Promise<OwnerMapping> {
-    return this.accountMappingStore.saveOwnerMapping(finId, fields);
-  }
-
-  async deleteOwnerMapping(finId: string, fieldName?: string): Promise<void> {
-    return this.accountMappingStore.deleteOwnerMapping(finId, fieldName);
   }
 }
