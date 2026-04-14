@@ -10,7 +10,7 @@ import winston from 'winston';
 import { CustodyProvider, CustodyWallet } from './custody-provider';
 import { tokenStandardRegistry } from './token-standards/registry';
 import { ERC20_TOKEN_STANDARD } from './token-standards/erc20';
-import { AccountMappingService, SharedStorage } from './account-mapping';
+import { AccountMappingService, AssetStore } from './account-mapping';
 import { getAssetFromDb } from './helpers';
 
 export interface ReceiptPollingConfig {
@@ -36,7 +36,7 @@ export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowD
     private readonly logger: winston.Logger,
     private readonly custodyProvider: CustodyProvider,
     private readonly accountMapping: AccountMappingService,
-    private readonly storage: SharedStorage,
+    private readonly assetStore: AssetStore,
     receiptPolling?: Partial<ReceiptPollingConfig>,
   ) {
     if (!custodyProvider.omnibus) throw new Error('Omnibus wallet is required for omnibus delegate');
@@ -62,7 +62,7 @@ export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowD
     idempotencyKey: string, source: Source, destination: Destination,
     asset: Asset, quantity: string, exCtx: ExecutionContext | undefined,
   ): Promise<DelegateResult> {
-    const dbAsset = await getAssetFromDb(this.storage, asset);
+    const dbAsset = await getAssetFromDb(this.assetStore,asset);
     const destinationAddress = await this.resolveDestinationAddress(destination);
 
     const amount = parseUnits(quantity, dbAsset.decimals);
@@ -121,7 +121,7 @@ export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowD
       await this.waitForFinalizedBlock(receipt.blockNumber);
     }
 
-    const dbAsset = await getAssetFromDb(this.storage, asset);
+    const dbAsset = await getAssetFromDb(this.assetStore,asset);
     if (receipt.to?.toLowerCase() !== dbAsset.contractAddress.toLowerCase()) {
       throw new InboundTransferVerificationError(
         `Transaction ${transactionId} target contract ${receipt.to} does not match asset contract ${dbAsset.contractAddress}`,
@@ -173,7 +173,7 @@ export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowD
     idempotencyKey: string, source: Source, destination: Destination | undefined,
     asset: Asset, quantity: string, operationId: string, exCtx: ExecutionContext | undefined,
   ): Promise<DelegateResult> {
-    const dbAsset = await getAssetFromDb(this.storage, asset);
+    const dbAsset = await getAssetFromDb(this.assetStore,asset);
     const amount = parseUnits(quantity, dbAsset.decimals);
 
     const standard = tokenStandardRegistry.resolve(dbAsset.tokenStandard);
@@ -188,7 +188,7 @@ export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowD
     idempotencyKey: string, source: Source, destination: Destination,
     asset: Asset, quantity: string, operationId: string, exCtx: ExecutionContext | undefined,
   ): Promise<DelegateResult> {
-    const dbAsset = await getAssetFromDb(this.storage, asset);
+    const dbAsset = await getAssetFromDb(this.assetStore,asset);
     const omnibusAddress = await this.omnibusWallet.signer.getAddress();
     const escrowWallet = this.custodyProvider.escrow;
     const amount = parseUnits(quantity, dbAsset.decimals);
@@ -205,7 +205,7 @@ export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowD
     idempotencyKey: string, source: Source,
     asset: Asset, quantity: string, operationId: string, exCtx: ExecutionContext | undefined,
   ): Promise<DelegateResult> {
-    const dbAsset = await getAssetFromDb(this.storage, asset);
+    const dbAsset = await getAssetFromDb(this.assetStore,asset);
     const omnibusAddress = await this.omnibusWallet.signer.getAddress();
     const escrowWallet = this.custodyProvider.escrow;
     const amount = parseUnits(quantity, dbAsset.decimals);
@@ -219,7 +219,7 @@ export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowD
   }
 
   async getOmnibusBalance(assetId: string, assetType: AssetType): Promise<string> {
-    const dbAsset = await getAssetFromDb(this.storage, { assetId, assetType });
+    const dbAsset = await getAssetFromDb(this.assetStore,{ assetId, assetType });
     const omnibusAddress = await this.omnibusWallet.signer.getAddress();
     const standard = tokenStandardRegistry.resolve(dbAsset.tokenStandard);
     return standard.balanceOf(this.omnibusWallet.provider, this.omnibusWallet.signer, dbAsset, omnibusAddress, this.logger);
@@ -291,13 +291,13 @@ export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowD
     if (assetBind === undefined || assetBind.tokenIdentifier === undefined) {
       const symbol = assetIdentifier?.value ?? 'OWNERA';
       const result = await standard.deploy(this.omnibusWallet, assetName ?? 'OWNERACOIN', symbol, decimals, this.logger);
-      await this.storage.assets.saveAsset({ contract_address: result.contractAddress, decimals: result.decimals, token_standard: result.tokenStandard as any, id: asset.assetId, type: asset.assetType });
+      await this.assetStore.saveAsset({ contract_address: result.contractAddress, decimals: result.decimals, token_standard: result.tokenStandard as any, id: asset.assetId, type: asset.assetType });
       await this.custodyProvider.onAssetRegistered?.(result.contractAddress, symbol);
       return { tokenId: result.contractAddress, reference: undefined };
     }
 
     const tokenAddress = assetBind.tokenIdentifier.tokenId;
-    await this.storage.assets.saveAsset({ contract_address: tokenAddress, decimals, token_standard: tokenStandard as any, id: asset.assetId, type: asset.assetType });
+    await this.assetStore.saveAsset({ contract_address: tokenAddress, decimals, token_standard: tokenStandard as any, id: asset.assetId, type: asset.assetType });
     try {
       await this.custodyProvider.onAssetRegistered?.(tokenAddress);
     } catch (e) {

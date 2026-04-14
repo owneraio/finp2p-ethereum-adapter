@@ -1,6 +1,6 @@
 import { CommonService, OperationStatus, ReceiptOperation, workflows } from '@owneraio/finp2p-nodejs-skeleton-adapter'
 
-type WorkflowStorage = InstanceType<typeof workflows.Storage>;
+type WorkflowStorage = InstanceType<typeof workflows.WorkflowStorage>;
 
 export class CommonServiceImpl implements CommonService {
   constructor(private readonly storage: WorkflowStorage) {}

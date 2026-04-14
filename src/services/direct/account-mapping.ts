@@ -2,7 +2,8 @@ import { finIdToAddress } from '@owneraio/finp2p-contracts';
 import { MappingService, OwnerMapping, storage } from '@owneraio/finp2p-nodejs-skeleton-adapter';
 import { FIELD_LEDGER_ACCOUNT_ID, FIELD_CUSTODY_ACCOUNT_ID } from './mapping-validator';
 
-export type SharedStorage = InstanceType<typeof storage.SharedStorage>;
+export type AccountMappingStore = InstanceType<typeof storage.PgAccountMappingStore>;
+export type AssetStore = InstanceType<typeof storage.PgAssetStore>;
 
 export interface ResolvedAccount {
   ledgerAccountId: string;
@@ -48,16 +49,16 @@ export class DerivationAccountMapping implements AccountMappingService {
  * Also implements MappingService for the mapping API routes.
  */
 export class DbAccountMapping implements AccountMappingService, MappingService {
-  constructor(private readonly storage: SharedStorage) {}
+  constructor(private readonly accountMappingStore: AccountMappingStore) {}
 
   async resolveAccount(finId: string): Promise<string | undefined> {
-    const mappings = await this.storage.accountMappings.getOwnerMappings([finId]);
+    const mappings = await this.accountMappingStore.getOwnerMappings([finId]);
     if (mappings.length === 0) return undefined;
     return mappings[0].fields[FIELD_LEDGER_ACCOUNT_ID];
   }
 
   async resolveFullAccount(finId: string): Promise<ResolvedAccount | undefined> {
-    const mappings = await this.storage.accountMappings.getOwnerMappings([finId]);
+    const mappings = await this.accountMappingStore.getOwnerMappings([finId]);
     if (mappings.length === 0) return undefined;
     const ledgerAccountId = mappings[0].fields[FIELD_LEDGER_ACCOUNT_ID];
     if (!ledgerAccountId) return undefined;
@@ -68,24 +69,24 @@ export class DbAccountMapping implements AccountMappingService, MappingService {
   }
 
   async resolveFinId(account: string): Promise<string | undefined> {
-    const mappings = await this.storage.accountMappings.getByFieldValue(FIELD_LEDGER_ACCOUNT_ID, account);
+    const mappings = await this.accountMappingStore.getByFieldValue(FIELD_LEDGER_ACCOUNT_ID, account);
     if (mappings.length === 0) return undefined;
     return mappings[0].finId;
   }
 
   async getOwnerMappings(finIds?: string[]): Promise<OwnerMapping[]> {
-    return this.storage.accountMappings.getOwnerMappings(finIds);
+    return this.accountMappingStore.getOwnerMappings(finIds);
   }
 
   async getByFieldValue(fieldName: string, value: string): Promise<OwnerMapping[]> {
-    return this.storage.accountMappings.getByFieldValue(fieldName, value);
+    return this.accountMappingStore.getByFieldValue(fieldName, value);
   }
 
   async saveOwnerMapping(finId: string, fields: Record<string, string>): Promise<OwnerMapping> {
-    return this.storage.accountMappings.saveOwnerMapping(finId, fields);
+    return this.accountMappingStore.saveOwnerMapping(finId, fields);
   }
 
   async deleteOwnerMapping(finId: string, fieldName?: string): Promise<void> {
-    return this.storage.accountMappings.deleteOwnerMapping(finId, fieldName);
+    return this.accountMappingStore.deleteOwnerMapping(finId, fieldName);
   }
 }

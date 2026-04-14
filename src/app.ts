@@ -44,14 +44,15 @@ function registerDirectServices(
 ) {
   const healthService = new DirectHealthServiceImpl(custodyProvider.rpcProvider);
   const mappingConfig = buildMappingConfig(custodyProvider);
-  const storage = workflowsConfig?.storage ? new storageModule.SharedStorage(workflowsConfig.storage) : undefined;
-  const accountMapping: AccountMappingService = appConfig.accountMappingType === 'database' && storage
-    ? new DbAccountMapping(storage)
+  const accountMappingStore = workflowsConfig?.storage ? new storageModule.PgAccountMappingStore(workflowsConfig.storage) : undefined;
+  const assetStore = workflowsConfig?.storage ? new storageModule.PgAssetStore(workflowsConfig.storage) : undefined;
+  const accountMapping: AccountMappingService = appConfig.accountMappingType === 'database' && accountMappingStore
+    ? new DbAccountMapping(accountMappingStore)
     : new DerivationAccountMapping();
 
   if (appConfig.accountModel === 'omnibus') {
-    if (!workflowsConfig?.storage || !storage) throw new Error('Workflows storage config is required for omnibus account model');
-    const delegate = new OmnibusDelegate(logger, custodyProvider, accountMapping, storage);
+    if (!workflowsConfig?.storage || !assetStore) throw new Error('Workflows storage config is required for omnibus account model');
+    const delegate = new OmnibusDelegate(logger, custodyProvider, accountMapping, assetStore);
     const { tokenService, escrowService, commonService, mappingService, distributionService, inboundTransferHook } = createVanillaServices(
       { transfer: delegate, asset: delegate, escrow: delegate, omnibus: delegate },
       workflowsConfig.storage,
@@ -67,10 +68,10 @@ function registerDirectServices(
     return;
   }
 
-  if (!storage || !workflowsConfig?.storage) throw new Error('Workflows storage config is required for direct mode');
+  if (!assetStore || !workflowsConfig?.storage) throw new Error('Workflows storage config is required for direct mode');
   const dbMapping = accountMapping instanceof DbAccountMapping ? accountMapping : undefined;
-  const tokenService = new DirectTokenService(logger, custodyProvider, accountMapping, storage);
-  const workflowStorage = new workflows.Storage(workflowsConfig.storage);
+  const tokenService = new DirectTokenService(logger, custodyProvider, accountMapping, assetStore);
+  const workflowStorage = new workflows.WorkflowStorage(workflowsConfig.storage);
   const commonService = new DirectCommonServiceImpl(workflowStorage);
   const planApprovalService = new PlanApprovalServiceImpl(appConfig.orgId, pluginManager, workflowsConfig?.finP2PClient);
   register(app, tokenService, tokenService, commonService, healthService, paymentsService, planApprovalService, pluginManager, workflowsConfig, mappingConfig, dbMapping);
@@ -115,13 +116,13 @@ async function createApp(
     custodyProvider = await custodyRegistry.create(appConfig.type, appConfig);
   }
 
-  const integrationStorage = workflowsConfig?.storage ? new storageModule.SharedStorage(workflowsConfig.storage) : undefined;
+  const integrationMappingStore = workflowsConfig?.storage ? new storageModule.PgAccountMappingStore(workflowsConfig.storage) : undefined;
   registerIntegrations({
     orgId: appConfig.orgId,
     logger,
     pluginManager,
     finP2PClient: workflowsConfig?.finP2PClient!,
-    walletResolver: custodyProvider && integrationStorage ? createWalletResolver(integrationStorage, custodyProvider) : undefined,
+    walletResolver: custodyProvider && integrationMappingStore ? createWalletResolver(integrationMappingStore, custodyProvider) : undefined,
     rpcUrl: process.env.NETWORK_HOST ? getNetworkRpcUrl() : undefined,
   });
 
