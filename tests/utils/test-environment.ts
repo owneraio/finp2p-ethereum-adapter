@@ -92,7 +92,6 @@ class CustomTestEnvironment extends NodeEnvironment {
       }
       this.httpServer?.close();
       await this.ethereumNodeContainer?.stop();
-      await workflows.WorkflowStorage.closeAllConnections();
       await this.postgresSqlContainer?.stop();
       console.log("Ganache container stopped successfully.");
     } catch (err) {
