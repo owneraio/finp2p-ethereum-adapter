@@ -53,8 +53,9 @@ class CustomTestEnvironment extends NodeEnvironment {
   async setup() {
     // Suppress pg pool errors during teardown when postgres container is stopped
     process.on('uncaughtException', (err: any) => {
-      if (err?.code === '57P01') return; // admin_shutdown — expected during teardown
-      throw err;
+      if (err?.code === '57P01' || err?.message?.includes('terminating connection')) return;
+      console.error('Uncaught exception:', err);
+      process.exit(1);
     });
 
     if (this.adapter !== undefined && this.adapter.url !== undefined) {
