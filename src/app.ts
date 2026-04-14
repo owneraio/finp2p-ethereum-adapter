@@ -118,6 +118,11 @@ async function createApp(
     ignoreRoute: (req) => req.url.toLowerCase() === "/health/readiness" || req.url.toLowerCase() === "/health/liveness"
   }));
 
+  // Run database migrations if configured
+  if (workflowsConfig?.migration) {
+    await workflows.migrateIfNeeded(workflowsConfig.migration);
+  }
+
   const pluginManager = new PluginManager();
   const finP2PClient = workflowsConfig?.finP2PClient;
 
