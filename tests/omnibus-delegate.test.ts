@@ -1,10 +1,10 @@
 import { OmnibusDelegate } from '../src/services/direct/omnibus-delegate';
 import { CustodyProvider, CustodyWallet } from '../src/services/direct/custody-provider';
 import { AccountMappingService } from '../src/services/direct/account-mapping';
-import { registerBuiltinTokenStandards } from '../src/services/direct/token-standards/register-builtins';
+import { tokenStandardRegistry, ERC20TokenStandard, ERC20_TOKEN_STANDARD } from '../src/services/direct';
 import winston from 'winston';
 
-registerBuiltinTokenStandards();
+tokenStandardRegistry.register(ERC20_TOKEN_STANDARD, new ERC20TokenStandard());
 
 // Mock @owneraio/finp2p-contracts
 const mockBalanceOf = jest.fn();
