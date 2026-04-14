@@ -79,7 +79,7 @@ function registerDirectServices(
 
   if (!assetStore || !dbConnectionString || !accountMappingStore) throw new Error('DB connection is required for direct mode');
   const tokenService = new DirectTokenService(logger, custodyProvider, accountMapping, assetStore);
-  const workflowStorage = new workflows.WorkflowStorage({ connectionString: dbConnectionString });
+  const workflowStorage = new workflows.WorkflowStorage(dbConnectionString);
   const commonService = new DirectCommonServiceImpl(workflowStorage);
   const planApprovalService = new PlanApprovalServiceImpl(appConfig.orgId, pluginManager, finP2PClient);
   const mappingService = new AccountMappingServiceImpl(accountMappingStore);
