@@ -129,6 +129,7 @@ async function createApp(
   // Shared data stores — decoupled from workflow storage
   const { Pool } = require('pg');
   const dbPool = dbConnectionString ? new Pool({ connectionString: dbConnectionString }) : undefined;
+  dbPool?.on('error', () => {}); // Suppress pool errors during shutdown
   const accountMappingStore = dbPool ? new storageModule.PgAccountStore(dbPool) : undefined;
   const assetStore = dbPool ? new storageModule.PgAssetStore(dbPool) : undefined;
 
