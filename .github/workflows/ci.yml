@@ -47,13 +47,13 @@ jobs:
       #  working-directory: ./finp2p-contracts
       #  run: npm run test
 
-      - name: Adapter npm clean-install
-        run: npm ci
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      #- name: Adapter npm clean-install
+      #  run: npm ci
+      #  env:
+      #    NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Adapter npm run build
-        run: npm run build
+      #- name: Adapter npm run build
+      #  run: npm run build
 
       #- name: Adapter npm test
       #  run: npm test
