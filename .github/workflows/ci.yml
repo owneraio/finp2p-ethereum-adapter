@@ -4,7 +4,7 @@ on:
   push:
     branches:
       - 'master'
-      - 'feature/deposit-image'
+      - 'feature/deposit-image-oss-docker'
     tags:
       - 'v0.**'
   pull_request:
