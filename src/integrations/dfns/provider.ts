@@ -1,7 +1,7 @@
 import { DfnsApiClient } from '@dfns/sdk';
 import { AsymmetricKeySigner } from '@dfns/sdk-keysigner';
 import { DfnsWallet } from '@dfns/lib-ethersjs6';
-import { JsonRpcProvider } from 'ethers';
+import { JsonRpcProvider, parseEther } from 'ethers';
 import { DfnsAppConfig } from './config';
 import { CustodyProvider, CustodyWallet, GasStation } from '../../services/direct';
 
@@ -72,6 +72,20 @@ export class DfnsCustodyProvider implements CustodyProvider {
     }
 
     return new DfnsCustodyProvider(issuerWallet, escrowWallet, config, dfnsClient, addressToWalletId, gasStation, omnibusWallet);
+  }
+
+  async fundGasIfNeeded(wallet: CustodyWallet): Promise<void> {
+    if (!this.gasStation) return;
+    try {
+      const targetAddress = await wallet.signer.getAddress();
+      const tx = await this.gasStation.wallet.signer.sendTransaction({
+        to: targetAddress,
+        value: parseEther(this.gasStation.amount),
+      });
+      await tx.wait();
+    } catch (e) {
+      console.warn(`Gas funding failed (wallet may already have sufficient gas): ${e}`);
+    }
   }
 
   async createWalletForCustodyId(walletId: string): Promise<CustodyWallet> {
