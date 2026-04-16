@@ -57,8 +57,10 @@ export class DirectTokenService implements TokenService, EscrowService {
   }
 
   private async resolveDestinationAddress(destination: Destination): Promise<string> {
+    const internal = await this.accountMapping.resolveAccount(destination.finId);
+    if (internal) return internal;
     if (destination.ledgerAccount?.address) return destination.ledgerAccount.address;
-    return this.resolveAddress(destination.finId);
+    throw new Error(`Cannot resolve address for finId: ${destination.finId}`);
   }
 
   private async resolveSourceWallet(finId: string): Promise<{ address: string; wallet: CustodyWallet } | undefined> {
