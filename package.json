@@ -44,7 +44,7 @@
     "@owneraio/finp2p-client": "^0.28.0",
     "@owneraio/finp2p-contracts": "^0.28.0",
     "@owneraio/finp2p-ethereum-token-standard": "^0.28.0",
-    "@owneraio/finp2p-nodejs-skeleton-adapter": "^0.28.1",
+    "@owneraio/finp2p-nodejs-skeleton-adapter": "^0.28.2",
     "@owneraio/finp2p-vanilla-service": "^0.28.0",
     "@types/node": "^24.10.1",
     "axios": "^1.1.3",
