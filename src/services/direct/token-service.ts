@@ -1,5 +1,5 @@
 import {
-  Asset, AssetBind, AssetCreationStatus, AssetDenomination, AssetIdentifier,
+  Asset, AssetBase, AssetBind, AssetCreationStatus, AssetDenomination,
   Balance, Destination, ExecutionContext, FinIdAccount, OperationType,
   ReceiptOperation, Signature, Source, TokenService, EscrowService,
   failedReceiptOperation
@@ -83,18 +83,16 @@ export class DirectTokenService implements TokenService, EscrowService {
   }
 
   async createAsset(
-    idempotencyKey: string, asset: Asset, assetBind: AssetBind | undefined,
+    idempotencyKey: string, asset: AssetBase, assetBind: AssetBind | undefined,
     assetMetadata: any, assetName: string | undefined, issuerId: string | undefined,
-    assetDenomination: AssetDenomination | undefined, assetIdentifier: AssetIdentifier | undefined
+    assetDenomination: AssetDenomination | undefined,
   ): Promise<AssetCreationStatus> {
-    const tokenStandard = assetIdentifier?.value
-      ? (tokenStandardRegistry.has(assetIdentifier.value) ? assetIdentifier.value : ERC20_TOKEN_STANDARD)
-      : ERC20_TOKEN_STANDARD;
+    const tokenStandard = ERC20_TOKEN_STANDARD;
     const standard = tokenStandardRegistry.resolve(tokenStandard);
 
     if (assetBind === undefined || assetBind.tokenIdentifier === undefined) {
       const wallet = this.custodyProvider.issuer;
-      const symbol = assetIdentifier?.value ?? "OWNERA";
+      const symbol = "OWNERA";
       const result = await standard.deploy(wallet, assetName ?? "OWNERACOIN", symbol, 6, this.logger);
       await this.assetStore.saveAsset({
         contract_address: result.contractAddress,
@@ -108,7 +106,7 @@ export class DirectTokenService implements TokenService, EscrowService {
       return {
         operation: "createAsset",
         type: "success",
-        result: { tokenId: result.contractAddress, reference: undefined }
+        result: { ledgerIdentifier: { network: '', tokenId: result.contractAddress, standard: tokenStandard }, reference: undefined }
       };
     } else {
       const tokenAddress = assetBind.tokenIdentifier.tokenId;
@@ -129,7 +127,7 @@ export class DirectTokenService implements TokenService, EscrowService {
       return {
         operation: "createAsset",
         type: "success",
-        result: { tokenId: tokenAddress, reference: undefined }
+        result: { ledgerIdentifier: { network: assetBind.tokenIdentifier.network ?? '', tokenId: tokenAddress, standard: tokenStandard }, reference: undefined }
       };
     }
   }
@@ -151,31 +149,37 @@ export class DirectTokenService implements TokenService, EscrowService {
   }
 
   async issue(
-    idempotencyKey: string, ast: Asset, to: FinIdAccount, quantity: string,
+    idempotencyKey: string, ast: Asset, to: Destination, quantity: string,
     exCtx: ExecutionContext | undefined
   ): Promise<ReceiptOperation> {
     try {
       const asset = await getAssetFromDb(this.assetStore, ast);
       const standard = tokenStandardRegistry.resolve(asset.tokenStandard);
       const wallet = this.custodyProvider.issuer;
-      const address = await this.resolveAddress(to.finId);
+      const address = await this.resolveDestinationAddress(to);
       const amount = parseUnits(quantity, asset.decimals);
 
       await this.fundGas(wallet);
       const result = await standard.mint(wallet, asset, address, amount, this.logger);
       return resultToReceipt(result, ast, "issue", quantity,
-        { account: to, finId: to.finId }, { account: to, finId: to.finId },
-        exCtx, undefined);
+        { account: { finId: to.finId, type: 'finId' as const }, finId: to.finId },
+        to, exCtx, undefined);
     } catch (e) {
       this.logger.error(`Issue failed: asset=${ast.assetId} to=${to.finId} quantity=${quantity}`, e);
       return failedReceiptOperation(1, `${e}`);
     }
   }
 
+  async doesSupportCrosschainTransfer(sourceAsset: Asset, destinationAsset: Asset): Promise<boolean> {
+    return false;
+  }
+
   async transfer(
     idempotencyKey: string, nonce: string, source: Source, destination: Destination,
-    ast: Asset, quantity: string, signature: Signature, exCtx: ExecutionContext | undefined
+    sourceAsset: Asset, destinationAsset: Asset, quantity: string, signature: Signature,
+    exCtx: ExecutionContext | undefined
   ): Promise<ReceiptOperation> {
+    const ast = sourceAsset;
     try {
       const asset = await getAssetFromDb(this.assetStore, ast);
       const standard = tokenStandardRegistry.resolve(asset.tokenStandard);
