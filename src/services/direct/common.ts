@@ -6,7 +6,7 @@ export class CommonServiceImpl implements CommonService {
   constructor(private readonly storage: WorkflowStorage) {}
 
   async getReceipt(id: string): Promise<ReceiptOperation> {
-    const operation = await this.storage.getReceiptOperation(id)
+    const operation = await this.storage.getOperationByReceiptId(id)
     if (operation === undefined) throw new Error(`Operation containing receipt '${id}' not found`)
     return operation.outputs
   }
