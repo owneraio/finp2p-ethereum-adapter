@@ -56,13 +56,6 @@ export class DirectTokenService implements TokenService, EscrowService {
     return address;
   }
 
-  private async resolveDestinationAddress(destination: Destination): Promise<string> {
-    const internal = await this.accountMapping.resolveAccount(destination.finId);
-    if (internal) return internal;
-    if (destination.ledgerAccount?.address) return destination.ledgerAccount.address;
-    throw new Error(`Cannot resolve address for finId: ${destination.finId}`);
-  }
-
   private async resolveSourceWallet(finId: string): Promise<{ address: string; wallet: CustodyWallet } | undefined> {
     const full = this.accountMapping.resolveFullAccount
       ? await this.accountMapping.resolveFullAccount(finId)
@@ -185,7 +178,9 @@ export class DirectTokenService implements TokenService, EscrowService {
       const amount = parseUnits(quantity, asset.decimals);
 
       await this.fundGas(wallet);
-      const destinationAddress = await this.resolveDestinationAddress(destination);
+      const destinationAddress = await this.accountMapping.resolveAccount(destination.finId)
+        ?? destination.ledgerAccount?.address;
+      if (!destinationAddress) throw new Error(`Cannot resolve address for finId: ${destination.finId}`);
       const opCtx = buildOperationContext(ast, signature, exCtx);
       const result = await standard.transfer(wallet, asset, destinationAddress, amount, this.logger, opCtx);
       return resultToReceipt(result, ast, "transfer", quantity, source, destination, exCtx, undefined);
@@ -248,7 +243,9 @@ export class DirectTokenService implements TokenService, EscrowService {
     try {
       const asset = await getAssetFromDb(this.assetStore, ast);
       const standard = tokenStandardRegistry.resolve(asset.tokenStandard);
-      const destinationAddress = await this.resolveDestinationAddress(destination);
+      const destinationAddress = await this.accountMapping.resolveAccount(destination.finId)
+        ?? destination.ledgerAccount?.address;
+      if (!destinationAddress) throw new Error(`Cannot resolve address for finId: ${destination.finId}`);
       const escrowWallet = this.custodyProvider.escrow;
       const amount = parseUnits(quantity, asset.decimals);
 

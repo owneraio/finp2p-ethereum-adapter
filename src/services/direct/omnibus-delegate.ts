@@ -45,19 +45,14 @@ export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowD
     this.receiptPolling = { ...defaultReceiptPolling, ...receiptPolling };
   }
 
-  private async resolveDestinationAddress(destination: Destination): Promise<string> {
-    const internal = await this.accountMapping.resolveAccount(destination.finId);
-    if (internal) return internal;
-    if (destination.ledgerAccount?.address) return destination.ledgerAccount.address;
-    throw new Error(`Cannot resolve address for finId: ${destination.finId}`);
-  }
-
   async outboundTransfer(
     idempotencyKey: string, source: Source, destination: Destination,
     sourceAsset: Asset, destinationAsset: Asset, quantity: string, exCtx: ExecutionContext | undefined,
   ): Promise<DelegateResult> {
     const dbAsset = await getAssetFromDb(this.assetStore, sourceAsset);
-    const destinationAddress = await this.resolveDestinationAddress(destination);
+    const destinationAddress = await this.accountMapping.resolveAccount(destination.finId)
+      ?? destination.ledgerAccount?.address;
+    if (!destinationAddress) throw new Error(`Cannot resolve address for finId: ${destination.finId}`);
 
     const amount = parseUnits(quantity, dbAsset.decimals);
     const standard = tokenStandardRegistry.resolve(dbAsset.tokenStandard);
