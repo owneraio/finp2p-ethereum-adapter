@@ -3,13 +3,14 @@ import {
   AccountMappingService,
   DerivationAccountMapping,
   DbAccountMapping,
+  AccountMappingStore,
 } from '../src/services/direct/account-mapping';
 import { FIELD_LEDGER_ACCOUNT_ID } from '../src/services/direct/mapping-validator';
 import {
   PostgreSqlContainer,
   StartedPostgreSqlContainer,
 } from '@testcontainers/postgresql';
-import { workflows } from '@owneraio/finp2p-nodejs-skeleton-adapter';
+import { storage } from '@owneraio/finp2p-nodejs-skeleton-adapter';
 import { execSync } from 'child_process';
 import { join } from 'path';
 
@@ -74,15 +75,18 @@ runSharedTests('DerivationAccountMapping', async () => ({
 // --- DbAccountMapping ---
 describe('DbAccountMapping', () => {
   let container: StartedPostgreSqlContainer;
-  let storage: workflows.Storage;
+  let accountStore: AccountMappingStore;
   let service: DbAccountMapping;
+  let pool: any;
 
   beforeAll(async () => {
     container = await new PostgreSqlContainer('postgres:16-alpine').start();
     const connectionString = container.getConnectionUri();
 
-    // Initialize skeleton Storage (registers Pool in openConnections)
-    storage = new workflows.Storage({ connectionString });
+    const { Pool } = require('pg');
+    pool = new Pool({ connectionString });
+    pool.on('error', () => {});
+    accountStore = new storage.PgAccountStore(pool);
 
     // Run skeleton migrations (includes account_mappings table)
     const gooseBin = join(process.cwd(), 'bin', 'goose');
@@ -92,16 +96,16 @@ describe('DbAccountMapping', () => {
       { env: { ...process.env, GOOSE_DRIVER: 'postgres', GOOSE_DBSTRING: connectionString } }
     );
 
-    service = new DbAccountMapping();
+    service = new DbAccountMapping(accountStore);
   }, 60000);
 
   afterAll(async () => {
-    await storage.closeConnections();
+    await pool?.end();
     await container.stop();
   });
 
   it('should save and resolve a mapping', async () => {
-    await service.saveOwnerMapping(TEST_FIN_ID, { [FIELD_LEDGER_ACCOUNT_ID]: TEST_ADDRESS });
+    await accountStore.saveAccount(TEST_FIN_ID, { [FIELD_LEDGER_ACCOUNT_ID]: TEST_ADDRESS });
     const account = await service.resolveAccount(TEST_FIN_ID);
     expect(account?.toLowerCase()).toBe(TEST_ADDRESS.toLowerCase());
   });
@@ -117,24 +121,24 @@ describe('DbAccountMapping', () => {
   });
 
   it('should be idempotent on duplicate insert', async () => {
-    await service.saveOwnerMapping(TEST_FIN_ID, { [FIELD_LEDGER_ACCOUNT_ID]: TEST_ADDRESS });
+    await accountStore.saveAccount(TEST_FIN_ID, { [FIELD_LEDGER_ACCOUNT_ID]: TEST_ADDRESS });
     const account = await service.resolveAccount(TEST_FIN_ID);
     expect(account?.toLowerCase()).toBe(TEST_ADDRESS.toLowerCase());
   });
 
   it('should delete a specific field mapping', async () => {
-    await service.saveOwnerMapping(TEST_FIN_ID_2, { [FIELD_LEDGER_ACCOUNT_ID]: TEST_ADDRESS_2 });
-    await service.deleteOwnerMapping(TEST_FIN_ID_2, FIELD_LEDGER_ACCOUNT_ID);
+    await accountStore.saveAccount(TEST_FIN_ID_2, { [FIELD_LEDGER_ACCOUNT_ID]: TEST_ADDRESS_2 });
+    await accountStore.deleteAccount(TEST_FIN_ID_2, FIELD_LEDGER_ACCOUNT_ID);
     const account = await service.resolveAccount(TEST_FIN_ID_2);
     expect(account).toBeUndefined();
   });
 
   it('should delete all mappings for a finId', async () => {
-    await service.saveOwnerMapping(TEST_FIN_ID_2, {
+    await accountStore.saveAccount(TEST_FIN_ID_2, {
       [FIELD_LEDGER_ACCOUNT_ID]: TEST_ADDRESS_2,
       custodyAccountId: 'vault-99',
     });
-    await service.deleteOwnerMapping(TEST_FIN_ID_2);
+    await accountStore.deleteAccount(TEST_FIN_ID_2);
     const account = await service.resolveAccount(TEST_FIN_ID_2);
     expect(account).toBeUndefined();
   });
@@ -149,8 +153,8 @@ describe('DbAccountMapping', () => {
     expect(finId).toBeUndefined();
   });
 
-  it('should query by field value', async () => {
-    const mappings = await service.getByFieldValue(FIELD_LEDGER_ACCOUNT_ID, TEST_ADDRESS);
+  it('should query by field value via store', async () => {
+    const mappings = await accountStore.getByFieldValue(FIELD_LEDGER_ACCOUNT_ID, TEST_ADDRESS);
     expect(mappings.length).toBeGreaterThan(0);
     expect(mappings[0].finId).toBe(TEST_FIN_ID);
   });

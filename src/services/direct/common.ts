@@ -1,14 +1,19 @@
-import { CommonService, OperationStatus, ReceiptOperation } from '@owneraio/finp2p-nodejs-skeleton-adapter'
-import { workflows } from '@owneraio/finp2p-nodejs-skeleton-adapter'
+import { CommonService, OperationStatus, ReceiptOperation, workflows } from '@owneraio/finp2p-nodejs-skeleton-adapter'
+
+type WorkflowStorage = InstanceType<typeof workflows.WorkflowStorage>;
 
 export class CommonServiceImpl implements CommonService {
+  constructor(private readonly storage: WorkflowStorage) {}
+
   async getReceipt(id: string): Promise<ReceiptOperation> {
-    const operation = await workflows.getReceiptOperation(id)
+    const operation = await this.storage.getOperationByReceiptId(id)
     if (operation === undefined) throw new Error(`Operation containing receipt '${id}' not found`)
     return operation.outputs
   }
 
-  operationStatus(cid: string): Promise<OperationStatus> {
-    throw new Error('Method not implemented.');
+  async operationStatus(cid: string): Promise<OperationStatus> {
+    const operation = await this.storage.getOperationByCid(cid);
+    if (operation === undefined) throw new Error(`Operation '${cid}' not found`);
+    return operation.outputs;
   }
 }

@@ -71,7 +71,8 @@ const init = async () => {
   (await createApp(
     workflowsConfig,
     logger,
-    await envVarsToAppConfig(logger)
+    await envVarsToAppConfig(logger),
+    dbConnectionString,
   )).listen(port, () => {
     logger.info(`listening at http://localhost:${port}`);
   });

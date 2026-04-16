@@ -17,6 +17,7 @@ module.exports = {
     }
   },
   testTimeout: 120000,
+  forceExit: true,
   "roots": [
     "<rootDir>/src",
     "<rootDir>/tests"

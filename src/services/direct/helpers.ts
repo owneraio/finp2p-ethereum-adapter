@@ -1,12 +1,12 @@
 import { Asset } from '@owneraio/finp2p-nodejs-skeleton-adapter';
-import { workflows } from '@owneraio/finp2p-nodejs-skeleton-adapter';
 import { AssetRecord } from '@owneraio/finp2p-ethereum-token-standard';
 import { parseEther } from 'ethers';
 import winston from 'winston';
 import { CustodyWallet, GasStation } from './custody-provider';
+import { AssetStore } from './account-mapping';
 
-export async function getAssetFromDb(ast: Asset): Promise<AssetRecord> {
-  const dbAsset = await workflows.getAsset({ id: ast.assetId, type: ast.assetType });
+export async function getAssetFromDb(assetStore: AssetStore, ast: Asset): Promise<AssetRecord> {
+  const dbAsset = await assetStore.getAsset({ id: ast.assetId, type: ast.assetType });
   if (dbAsset === undefined) throw new Error(`Asset(type=${ast.assetType},id=${ast.assetId}) is not registered in DB`);
   return {
     contractAddress: dbAsset.contract_address,

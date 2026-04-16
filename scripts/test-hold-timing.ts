@@ -9,7 +9,7 @@ import * as dotenv from 'dotenv';
 import { resolve } from 'path';
 import { BrowserProvider, parseUnits, formatUnits } from 'ethers';
 import { ERC20Contract } from '@owneraio/finp2p-contracts';
-import { createFireblocksEthersProvider } from '../src/services/direct/fireblocks-config';
+import { createFireblocksEthersProvider } from '../src/integrations/fireblocks/config';
 
 dotenv.config({ path: resolve(process.cwd(), '.env.fireblocks') });
 

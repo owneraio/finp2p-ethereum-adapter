@@ -51,6 +51,18 @@ class CustomTestEnvironment extends NodeEnvironment {
   }
 
   async setup() {
+    // Suppress pg pool errors during teardown when postgres container is stopped.
+    // Patch pg.Pool to add a no-op error handler on every new pool instance,
+    // preventing unhandled 'error' events from crashing the process.
+    const pg = require('pg');
+    const OrigPool = pg.Pool;
+    pg.Pool = class PatchedPool extends OrigPool {
+      constructor(...args: any[]) {
+        super(...args);
+        this.on('error', () => {});
+      }
+    };
+
     if (this.adapter !== undefined && this.adapter.url !== undefined) {
       console.log("Using predefined network configuration...");
       return;
@@ -92,7 +104,6 @@ class CustomTestEnvironment extends NodeEnvironment {
       }
       this.httpServer?.close();
       await this.ethereumNodeContainer?.stop();
-      await workflows.Storage.closeAllConnections();
       await this.postgresSqlContainer?.stop();
       console.log("Ganache container stopped successfully.");
     } catch (err) {
@@ -227,7 +238,8 @@ class CustomTestEnvironment extends NodeEnvironment {
         accountModel: 'segregated',
         finP2PContract,
         execDetailsStore,
-      }
+      },
+      connectionString,
     );
     console.log("App created successfully.");
 

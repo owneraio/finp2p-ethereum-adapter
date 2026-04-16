@@ -1,10 +1,10 @@
 import { OmnibusDelegate } from '../src/services/direct/omnibus-delegate';
 import { CustodyProvider, CustodyWallet } from '../src/services/direct/custody-provider';
-import { AccountMappingService } from '../src/services/direct/account-mapping';
-import { registerBuiltinTokenStandards } from '../src/services/direct/token-standards/register-builtins';
+import { AccountMappingService, AssetStore } from '../src/services/direct/account-mapping';
+import { tokenStandardRegistry, ERC20TokenStandard, ERC20_TOKEN_STANDARD } from '../src/services/direct';
 import winston from 'winston';
 
-registerBuiltinTokenStandards();
+tokenStandardRegistry.register(ERC20_TOKEN_STANDARD, new ERC20TokenStandard());
 
 // Mock @owneraio/finp2p-contracts
 const mockBalanceOf = jest.fn();
@@ -20,15 +20,9 @@ jest.mock('@owneraio/finp2p-contracts', () => ({
   })),
 }));
 
-// Mock workflows from skeleton
+// Mock asset store
 const mockGetAsset = jest.fn();
 const mockSaveAsset = jest.fn();
-jest.mock('@owneraio/finp2p-nodejs-skeleton-adapter', () => ({
-  workflows: {
-    getAsset: (...args: any[]) => mockGetAsset(...args),
-    saveAsset: (...args: any[]) => mockSaveAsset(...args),
-  },
-}));
 
 const logger = winston.createLogger({ silent: true });
 
@@ -85,12 +79,14 @@ describe('OmnibusDelegate', () => {
 
     custodyProvider = createMockCustodyProvider();
     accountMapping = createMockAccountMapping();
-    delegate = new OmnibusDelegate(logger, custodyProvider, accountMapping);
+    const mockAssetStore = { getAsset: mockGetAsset, saveAsset: mockSaveAsset } as unknown as AssetStore;
+    delegate = new OmnibusDelegate(logger, custodyProvider, accountMapping, mockAssetStore);
   });
 
   it('should throw if custody provider has no omnibus wallet', () => {
     const noOmnibus = createMockCustodyProvider({ omnibus: undefined });
-    expect(() => new OmnibusDelegate(logger, noOmnibus, accountMapping))
+    const mockAssetStore = { getAsset: jest.fn(), saveAsset: jest.fn() } as unknown as AssetStore;
+    expect(() => new OmnibusDelegate(logger, noOmnibus, accountMapping, mockAssetStore))
       .toThrow('Omnibus wallet is required');
   });
 

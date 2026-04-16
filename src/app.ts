@@ -4,113 +4,130 @@ import winston from "winston";
 import {
   register,
   PluginManager,
-  ProofProvider,
   PlanApprovalServiceImpl,
   PaymentsServiceImpl,
+  AccountMappingServiceImpl,
   workflows,
-  MappingConfig,
+  storage as storageModule,
 } from "@owneraio/finp2p-nodejs-skeleton-adapter";
-import { CollateralDepositPlugin, CollateralPlanApprovalPlugin, CollateralTokenStandard, TokenStandardName as DTCC_TOKEN_STANDARD } from "@owneraio/finp2p-ethereum-dtcc-plugin";
-import { createVanillaServices, registerDistributionRoutes } from "@owneraio/finp2p-vanilla-service";
 import { FinP2PClient } from "@owneraio/finp2p-client";
-import { FinP2PContract } from "@owneraio/finp2p-contracts";
+import { createVanillaServices, registerDistributionRoutes } from "@owneraio/finp2p-vanilla-service";
 import {
   CredentialsMappingService,
   EscrowServiceImpl,
-  ExecDetailsStore,
-  TokenServiceImpl
+  TokenServiceImpl,
 } from "./services/finp2p-contract";
-import { JsonRpcProvider, Wallet, NonceManager } from 'ethers';
-import { AppConfig, FinP2PContractAppConfig, getNetworkRpcUrl } from './config'
 import {
   DirectTokenService,
   CustodyProvider,
   custodyRegistry,
-  FireblocksCustodyProvider,
-  FireblocksAppConfig,
-  DfnsCustodyProvider,
-  DfnsAppConfig,
   DerivationAccountMapping,
   DbAccountMapping,
   AccountMappingService,
+  AccountMappingStore,
+  AssetStore,
   OmnibusDelegate,
   CommonServiceImpl as DirectCommonServiceImpl,
   HealthServiceImpl as DirectHealthServiceImpl,
-} from "./services/direct"
+  tokenStandardRegistry,
+  ERC20TokenStandard,
+  ERC20_TOKEN_STANDARD,
+  buildMappingConfig,
+  createWalletResolver,
+} from "./services/direct";
+import { registerCustodyIntegrations, registerIntegrations } from "./integrations/registry";
+import { AppConfig, FinP2PContractAppConfig, getNetworkRpcUrl } from "./config";
 
-// Register compiled-in custody providers
-custodyRegistry.register('fireblocks', (config) => FireblocksCustodyProvider.create(config as FireblocksAppConfig));
-custodyRegistry.register('dfns', (config) => DfnsCustodyProvider.create(config as DfnsAppConfig));
+// Register compiled-in custody providers and built-in token standards
+registerCustodyIntegrations();
+tokenStandardRegistry.register(ERC20_TOKEN_STANDARD, new ERC20TokenStandard());
 
-// Register built-in token standards
-import { tokenStandardRegistry } from "./services/direct/token-standards/registry";
-import { registerBuiltinTokenStandards } from "./services/direct/token-standards/register-builtins";
-registerBuiltinTokenStandards();
-import { CustodyMappingValidator, FIELD_CUSTODY_ACCOUNT_ID, FIELD_LEDGER_ACCOUNT_ID } from "./services/direct/mapping-validator";
-
-function resolveAccountMapping(appConfig: AppConfig): AccountMappingService {
-  switch (appConfig.accountMappingType) {
-    case 'database':
-      return new DbAccountMapping();
-    case 'derivation':
-    default:
-      return new DerivationAccountMapping();
-  }
+export interface WorkflowsConfig {
+  migration: workflows.MigrationConfig;
+  finP2PClient?: FinP2PClient;
 }
 
-function buildMappingConfig(custodyProvider?: CustodyProvider): MappingConfig {
-  const fields = [
-    { field: FIELD_LEDGER_ACCOUNT_ID, description: 'Ethereum address', exampleValue: '0x742d35Cc6634C0532925a3b844Bc9e7595f2bD18' },
-  ];
-  if (custodyProvider?.resolveAddressFromCustodyId) {
-    fields.unshift({
-      field: FIELD_CUSTODY_ACCOUNT_ID, description: 'Custody provider account ID (vault ID / wallet ID)', exampleValue: '85',
-    });
-  }
-  return {
-    fields,
-    validator: custodyProvider ? new CustodyMappingValidator(custodyProvider) : undefined,
-  };
+function wrapWithWorkflowProxy<T extends object>(
+  service: T, workflowStorage: InstanceType<typeof workflows.WorkflowStorage> | undefined,
+  finP2PClient: FinP2PClient | undefined, ...methods: (keyof T)[]
+): T {
+  if (!workflowStorage) return service;
+  return workflows.createServiceProxy(() => Promise.resolve(), workflowStorage, finP2PClient, service, ...methods);
 }
 
 function registerDirectServices(
   app: express.Application, logger: winston.Logger, custodyProvider: CustodyProvider, appConfig: AppConfig,
-  paymentsService: PaymentsServiceImpl, pluginManager: PluginManager, workflowsConfig: workflows.Config | undefined,
+  paymentsService: PaymentsServiceImpl, pluginManager: PluginManager,
+  dbPool: any, finP2PClient: FinP2PClient | undefined,
+  accountMappingStore: AccountMappingStore | undefined,
+  assetStore: AssetStore | undefined,
 ) {
   const healthService = new DirectHealthServiceImpl(custodyProvider.rpcProvider);
   const mappingConfig = buildMappingConfig(custodyProvider);
+  const accountMapping: AccountMappingService = appConfig.accountMappingType === 'database' && accountMappingStore
+    ? new DbAccountMapping(accountMappingStore)
+    : new DerivationAccountMapping();
+  const workflowStorage = dbPool ? new workflows.WorkflowStorage(dbPool) : undefined;
 
   if (appConfig.accountModel === 'omnibus') {
-    if (!workflowsConfig?.storage) throw new Error('Workflows storage config is required for omnibus account model');
-    const accountMapping = resolveAccountMapping(appConfig);
-    const delegate = new OmnibusDelegate(logger, custodyProvider, accountMapping);
+    if (!dbPool || !assetStore) throw new Error('DB connection is required for omnibus account model');
+    const delegate = new OmnibusDelegate(logger, custodyProvider, accountMapping, assetStore);
     const { tokenService, escrowService, commonService, mappingService, distributionService, inboundTransferHook } = createVanillaServices(
       { transfer: delegate, asset: delegate, escrow: delegate, omnibus: delegate },
-      workflowsConfig.storage,
+      { connectionString: dbPool.options?.connectionString ?? '' },
       logger,
     );
-    // TODO(omnibus-inbound): use deterministic inbound idempotency key `${planId}:${instructionSequence}`
-    // instead of request-scoped idempotency key to prevent duplicate credits on retried proposal callbacks.
-    const planApprovalService = new PlanApprovalServiceImpl(appConfig.orgId, pluginManager, workflowsConfig?.finP2PClient, inboundTransferHook);
-    register(app, tokenService, escrowService, commonService, commonService, delegate, planApprovalService, pluginManager, workflowsConfig, mappingConfig, mappingService);
+    const planApprovalService = new PlanApprovalServiceImpl(appConfig.orgId, pluginManager, finP2PClient, inboundTransferHook);
+    const proxiedPlanService = wrapWithWorkflowProxy(planApprovalService, workflowStorage, finP2PClient, 'approvePlan', 'proposeCancelPlan', 'proposeResetPlan', 'proposeInstructionApproval');
+    const proxiedTokenService = wrapWithWorkflowProxy(tokenService, workflowStorage, finP2PClient, 'createAsset', 'issue', 'transfer', 'redeem');
+    const proxiedEscrowService = wrapWithWorkflowProxy(escrowService, workflowStorage, finP2PClient, 'hold', 'release', 'rollback');
+    register(app, proxiedTokenService, proxiedEscrowService, commonService, commonService, delegate, proxiedPlanService, mappingConfig, mappingService);
     if (distributionService) {
       registerDistributionRoutes(app, distributionService);
     }
     return;
   }
 
-  const accountMapping = resolveAccountMapping(appConfig);
-  const dbMapping = accountMapping instanceof DbAccountMapping ? accountMapping : undefined;
-  const tokenService = new DirectTokenService(logger, custodyProvider, accountMapping);
-  const commonService = new DirectCommonServiceImpl();
-  const planApprovalService = new PlanApprovalServiceImpl(appConfig.orgId, pluginManager, workflowsConfig?.finP2PClient);
-  register(app, tokenService, tokenService, commonService, healthService, paymentsService, planApprovalService, pluginManager, workflowsConfig, mappingConfig, dbMapping);
+  if (!assetStore || !dbPool || !accountMappingStore) throw new Error('DB connection is required for direct mode');
+  let tokenService: DirectTokenService = new DirectTokenService(logger, custodyProvider, accountMapping, assetStore);
+  const commonService = new DirectCommonServiceImpl(workflowStorage!);
+  let planApprovalService = new PlanApprovalServiceImpl(appConfig.orgId, pluginManager, finP2PClient);
+  const accountMappingService = new AccountMappingServiceImpl(accountMappingStore);
+
+  const proxiedTokenService = wrapWithWorkflowProxy(tokenService, workflowStorage, finP2PClient, 'createAsset', 'issue', 'transfer', 'redeem');
+  const proxiedEscrowService = wrapWithWorkflowProxy(tokenService, workflowStorage, finP2PClient, 'hold', 'release', 'rollback');
+  const proxiedPlanService = wrapWithWorkflowProxy(planApprovalService, workflowStorage, finP2PClient, 'approvePlan', 'proposeCancelPlan', 'proposeResetPlan', 'proposeInstructionApproval');
+  register(app, proxiedTokenService, proxiedEscrowService, commonService, healthService, paymentsService, proxiedPlanService, mappingConfig, accountMappingService);
+}
+
+function registerFinP2PContractServices(
+  app: express.Application, contractConfig: FinP2PContractAppConfig,
+  paymentsService: PaymentsServiceImpl, pluginManager: PluginManager,
+  dbPool: any, finP2PClient: FinP2PClient | undefined,
+) {
+  if (contractConfig.accountModel === 'omnibus') {
+    throw new Error('Omnibus account model is not supported with finp2p-contract provider');
+  }
+  const workflowStorage = dbPool ? new workflows.WorkflowStorage(dbPool) : undefined;
+  let planApprovalService = new PlanApprovalServiceImpl(contractConfig.orgId, pluginManager, contractConfig.finP2PClient);
+  const escrowService = new EscrowServiceImpl(contractConfig.finP2PContract, contractConfig.finP2PClient, contractConfig.execDetailsStore, contractConfig.proofProvider, pluginManager);
+  const tokenService = new TokenServiceImpl(contractConfig.finP2PContract, contractConfig.finP2PClient, contractConfig.execDetailsStore, contractConfig.proofProvider, pluginManager);
+  const mappingService = new CredentialsMappingService(contractConfig.finP2PContract);
+  const mappingConfig = buildMappingConfig();
+
+  const commonService = workflowStorage ? new DirectCommonServiceImpl(workflowStorage) : tokenService as any;
+
+  const proxiedTokenService = wrapWithWorkflowProxy(tokenService, workflowStorage, finP2PClient, 'createAsset', 'issue', 'transfer', 'redeem');
+  const proxiedEscrowService = wrapWithWorkflowProxy(escrowService, workflowStorage, finP2PClient, 'hold', 'release', 'rollback');
+  const proxiedPlanService = wrapWithWorkflowProxy(planApprovalService, workflowStorage, finP2PClient, 'approvePlan', 'proposeCancelPlan', 'proposeResetPlan', 'proposeInstructionApproval');
+  register(app, proxiedTokenService, proxiedEscrowService, commonService, tokenService, paymentsService, proxiedPlanService, mappingConfig, mappingService);
 }
 
 async function createApp(
-  workflowsConfig: workflows.Config | undefined,
+  workflowsConfig: WorkflowsConfig | undefined,
   logger: winston.Logger,
   appConfig: AppConfig,
+  dbConnectionString?: string,
 ): Promise<express.Application> {
   const app = express();
   app.use(express.json({ limit: "50mb" }));
@@ -122,62 +139,42 @@ async function createApp(
     ignoreRoute: (req) => req.url.toLowerCase() === "/health/readiness" || req.url.toLowerCase() === "/health/liveness"
   }));
 
-  const pluginManager = new PluginManager();
-  let custodyProviderRef: CustodyProvider | undefined;
-
-  // Runtime plugin activation: DTCC collateral
-  if (process.env.DTCC_PLUGIN_ENABLED === 'true') {
-    const walletResolver = async (finId: string) => {
-      const mappings = await workflows.getAccountMappings([finId]);
-      if (mappings.length === 0) return undefined;
-      const walletAddress = mappings[0].fields?.['ledgerAccountId'];
-      const custodyAccountId = mappings[0].fields?.['custodyAccountId'];
-      if (!walletAddress || !custodyAccountId) return undefined;
-      if (!custodyProviderRef?.createWalletForCustodyId) return undefined;
-      const wallet = await custodyProviderRef.createWalletForCustodyId(custodyAccountId);
-      return { walletAddress, wallet };
-    };
-
-    const rpcUrl = getNetworkRpcUrl();
-    const provider = new JsonRpcProvider(rpcUrl);
-    const operatorKey = process.env.OPERATOR_PRIVATE_KEY!;
-    const providerKey = process.env.PROVIDER_PRIVATE_KEY!;
-    const agentSigner = new NonceManager(new Wallet(operatorKey, provider));
-    const providerSigner = new NonceManager(new Wallet(providerKey, provider));
-
-    tokenStandardRegistry.register(DTCC_TOKEN_STANDARD, new CollateralTokenStandard(process.env.FACTORY_ADDRESS ?? '', provider, agentSigner) as any);
-    const subgraphBaseUrl = process.env.SUBGRAPH_BASE_URL;
-    const depositPlugin = new CollateralDepositPlugin(
-      appConfig.orgId, provider, agentSigner, workflowsConfig?.finP2PClient!, logger, walletResolver, providerSigner, subgraphBaseUrl,
-    );
-    pluginManager.registerPaymentsPlugin(depositPlugin);
-
-    const planApprovalPlugin = new CollateralPlanApprovalPlugin(
-      provider, agentSigner, workflowsConfig?.finP2PClient!, logger, walletResolver,
-    );
-    pluginManager.registerPlanApprovalPlugin(planApprovalPlugin);
-
-    logger.info(`DTCC plugin activated: token standard '${DTCC_TOKEN_STANDARD}', deposit + plan approval plugins registered`);
+  // Run database migrations if configured
+  if (workflowsConfig?.migration) {
+    await workflows.migrateIfNeeded(workflowsConfig.migration);
   }
+
+  const pluginManager = new PluginManager();
+  const finP2PClient = workflowsConfig?.finP2PClient;
+
+  // Shared data stores — decoupled from workflow storage
+  const { Pool } = require('pg');
+  const dbPool = dbConnectionString ? new Pool({ connectionString: dbConnectionString }) : undefined;
+  dbPool?.on('error', () => {}); // Suppress pool errors during shutdown
+  const accountMappingStore = dbPool ? new storageModule.PgAccountStore(dbPool) : undefined;
+  const assetStore = dbPool ? new storageModule.PgAssetStore(dbPool) : undefined;
+
+  let custodyProvider: CustodyProvider | undefined;
+  if (custodyRegistry.has(appConfig.type)) {
+    logger.info(`Activating custody provider: ${appConfig.type} (available: ${custodyRegistry.availableProviders.join(', ')})`);
+    custodyProvider = await custodyRegistry.create(appConfig.type, appConfig);
+  }
+
+  registerIntegrations({
+    orgId: appConfig.orgId,
+    logger,
+    pluginManager,
+    finP2PClient: finP2PClient!,
+    walletResolver: custodyProvider && accountMappingStore ? createWalletResolver(accountMappingStore, custodyProvider) : undefined,
+    rpcUrl: process.env.NETWORK_HOST ? getNetworkRpcUrl() : undefined,
+  });
 
   const paymentsService = new PaymentsServiceImpl(pluginManager);
 
-  if (custodyRegistry.has(appConfig.type)) {
-    logger.info(`Activating custody provider: ${appConfig.type} (available: ${custodyRegistry.availableProviders.join(', ')})`);
-    const custodyProvider = await custodyRegistry.create(appConfig.type, appConfig);
-    custodyProviderRef = custodyProvider; // wire lazy ref for plugin walletResolver
-    registerDirectServices(app, logger, custodyProvider, appConfig, paymentsService, pluginManager, workflowsConfig);
+  if (custodyProvider) {
+    registerDirectServices(app, logger, custodyProvider, appConfig, paymentsService, pluginManager, dbPool, finP2PClient, accountMappingStore, assetStore);
   } else if (appConfig.type === 'finp2p-contract') {
-    const contractConfig = appConfig as FinP2PContractAppConfig;
-    if (contractConfig.accountModel === 'omnibus') {
-      throw new Error('Omnibus account model is not supported with finp2p-contract provider');
-    }
-    const planApprovalService = new PlanApprovalServiceImpl(contractConfig.orgId, pluginManager, contractConfig.finP2PClient);
-    const escrowService = new EscrowServiceImpl(contractConfig.finP2PContract, contractConfig.finP2PClient, contractConfig.execDetailsStore, contractConfig.proofProvider, pluginManager);
-    const tokenService = new TokenServiceImpl(contractConfig.finP2PContract, contractConfig.finP2PClient, contractConfig.execDetailsStore, contractConfig.proofProvider, pluginManager);
-    const mappingService = new CredentialsMappingService(contractConfig.finP2PContract);
-    const mappingConfig = buildMappingConfig();
-    register(app, tokenService, escrowService, tokenService, tokenService, paymentsService, planApprovalService, pluginManager, workflowsConfig, mappingConfig, mappingService);
+    registerFinP2PContractServices(app, appConfig as FinP2PContractAppConfig, paymentsService, pluginManager, dbPool, finP2PClient);
   } else {
     throw new Error(`Unknown provider type: '${appConfig.type}'. Available custody providers: ${custodyRegistry.availableProviders.join(', ')}`);
   }
