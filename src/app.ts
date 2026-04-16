@@ -81,7 +81,8 @@ function registerDirectServices(
     const proxiedPlanService = wrapWithWorkflowProxy(planApprovalService, workflowStorage, finP2PClient, 'approvePlan', 'proposeCancelPlan', 'proposeResetPlan', 'proposeInstructionApproval');
     const proxiedTokenService = wrapWithWorkflowProxy(tokenService, workflowStorage, finP2PClient, 'createAsset', 'issue', 'transfer', 'redeem');
     const proxiedEscrowService = wrapWithWorkflowProxy(escrowService, workflowStorage, finP2PClient, 'hold', 'release', 'rollback');
-    register(app, proxiedTokenService, proxiedEscrowService, commonService, commonService, delegate, proxiedPlanService, mappingConfig, mappingService);
+    const proxiedPaymentService = wrapWithWorkflowProxy(delegate, workflowStorage, finP2PClient, 'getDepositInstruction', 'payout');
+    register(app, proxiedTokenService, proxiedEscrowService, commonService, commonService, proxiedPaymentService, proxiedPlanService, mappingConfig, mappingService);
     if (distributionService) {
       registerDistributionRoutes(app, distributionService);
     }
@@ -97,7 +98,8 @@ function registerDirectServices(
   const proxiedTokenService = wrapWithWorkflowProxy(tokenService, workflowStorage, finP2PClient, 'createAsset', 'issue', 'transfer', 'redeem');
   const proxiedEscrowService = wrapWithWorkflowProxy(tokenService, workflowStorage, finP2PClient, 'hold', 'release', 'rollback');
   const proxiedPlanService = wrapWithWorkflowProxy(planApprovalService, workflowStorage, finP2PClient, 'approvePlan', 'proposeCancelPlan', 'proposeResetPlan', 'proposeInstructionApproval');
-  register(app, proxiedTokenService, proxiedEscrowService, commonService, healthService, paymentsService, proxiedPlanService, mappingConfig, accountMappingService);
+  const proxiedPaymentsService = wrapWithWorkflowProxy(paymentsService, workflowStorage, finP2PClient, 'getDepositInstruction', 'payout');
+  register(app, proxiedTokenService, proxiedEscrowService, commonService, healthService, proxiedPaymentsService, proxiedPlanService, mappingConfig, accountMappingService);
 }
 
 function registerFinP2PContractServices(
