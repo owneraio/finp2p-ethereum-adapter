@@ -115,10 +115,12 @@ function registerFinP2PContractServices(
   const mappingService = new CredentialsMappingService(contractConfig.finP2PContract);
   const mappingConfig = buildMappingConfig();
 
+  const commonService = workflowStorage ? new DirectCommonServiceImpl(workflowStorage) : tokenService as any;
+
   const proxiedTokenService = wrapWithWorkflowProxy(tokenService, workflowStorage, finP2PClient, 'createAsset', 'issue', 'transfer', 'redeem');
   const proxiedEscrowService = wrapWithWorkflowProxy(escrowService, workflowStorage, finP2PClient, 'hold', 'release', 'rollback');
   const proxiedPlanService = wrapWithWorkflowProxy(planApprovalService, workflowStorage, finP2PClient, 'approvePlan', 'proposeCancelPlan', 'proposeResetPlan', 'proposeInstructionApproval');
-  register(app, proxiedTokenService, proxiedEscrowService, tokenService, tokenService, paymentsService, proxiedPlanService, mappingConfig, mappingService);
+  register(app, proxiedTokenService, proxiedEscrowService, commonService, tokenService, paymentsService, proxiedPlanService, mappingConfig, mappingService);
 }
 
 async function createApp(

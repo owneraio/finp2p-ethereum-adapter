@@ -11,7 +11,9 @@ export class CommonServiceImpl implements CommonService {
     return operation.outputs
   }
 
-  operationStatus(cid: string): Promise<OperationStatus> {
-    throw new Error('Method not implemented.');
+  async operationStatus(cid: string): Promise<OperationStatus> {
+    const operation = await this.storage.getOperationByCid(cid);
+    if (operation === undefined) throw new Error(`Operation '${cid}' not found`);
+    return operation.outputs;
   }
 }
