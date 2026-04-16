@@ -1,5 +1,6 @@
 import {
-  Asset, AssetBind, AssetCreationResult, AssetDenomination, AssetIdentifier, AssetType,
+  Asset, AssetBase, AssetBind, AssetCreationResult, AssetDenomination, AssetType,
+  LedgerAssetIdentifier,
   Destination, ExecutionContext, Source,
   PaymentService, DepositAsset, DepositOperation, ReceiptOperation, Signature,
   successfulDepositOperation, failedReceiptOperation,
@@ -45,24 +46,19 @@ export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowD
   }
 
   private async resolveDestinationAddress(destination: Destination): Promise<string> {
-    switch (destination.account.type) {
-      case 'crypto':
-        return destination.account.address;
-      case 'finId': {
-        const address = await this.accountMapping.resolveAccount(destination.account.finId);
-        if (address === undefined) throw new Error(`Cannot resolve address for finId: ${destination.account.finId}`);
-        return address;
-      }
-      default:
-        throw new Error(`Unsupported destination type: ${destination.account.type}`);
+    if (destination.ledgerAccount?.address) {
+      return destination.ledgerAccount.address;
     }
+    const address = await this.accountMapping.resolveAccount(destination.finId);
+    if (address === undefined) throw new Error(`Cannot resolve address for finId: ${destination.finId}`);
+    return address;
   }
 
   async outboundTransfer(
     idempotencyKey: string, source: Source, destination: Destination,
-    asset: Asset, quantity: string, exCtx: ExecutionContext | undefined,
+    sourceAsset: Asset, destinationAsset: Asset, quantity: string, exCtx: ExecutionContext | undefined,
   ): Promise<DelegateResult> {
-    const dbAsset = await getAssetFromDb(this.assetStore,asset);
+    const dbAsset = await getAssetFromDb(this.assetStore, sourceAsset);
     const destinationAddress = await this.resolveDestinationAddress(destination);
 
     const amount = parseUnits(quantity, dbAsset.decimals);
@@ -70,7 +66,7 @@ export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowD
     const result = await standard.transfer(this.omnibusWallet, dbAsset, destinationAddress, amount, this.logger);
     if (result.status === 'failure') return { success: false, error: result.reason };
 
-    this.logger.info(`Outbound transfer: ${quantity} of ${asset.assetId} to ${destinationAddress}, tx: ${result.transactionId}`);
+    this.logger.info(`Outbound transfer: ${quantity} of ${sourceAsset.assetId} to ${destinationAddress}, tx: ${result.transactionId}`);
     return { success: true, transactionId: result.transactionId ?? '' };
   }
 
@@ -240,9 +236,10 @@ export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowD
     const chainId = Number(network.chainId);
 
     return successfulDepositOperation({
+      asset: _asset,
       account: {
         finId: '',
-        account: {
+        ledgerAccount: {
           type: 'crypto',
           address: omnibusAddress,
         },
@@ -279,21 +276,28 @@ export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowD
   async createAsset(
     idempotencyKey: string, asset: Asset, assetBind: AssetBind | undefined,
     assetMetadata: any | undefined, assetName: string | undefined, issuerId: string | undefined,
-    assetDenomination: AssetDenomination | undefined, assetIdentifier: AssetIdentifier | undefined,
+    assetDenomination: AssetDenomination | undefined,
   ): Promise<AssetCreationResult> {
     const decimals = 6;
 
-    const tokenStandard = assetIdentifier?.value
-      ? (tokenStandardRegistry.has(assetIdentifier.value) ? assetIdentifier.value : ERC20_TOKEN_STANDARD)
+    const tokenStandard = assetBind?.tokenIdentifier?.standard
+      ? (tokenStandardRegistry.has(assetBind.tokenIdentifier.standard) ? assetBind.tokenIdentifier.standard : ERC20_TOKEN_STANDARD)
       : ERC20_TOKEN_STANDARD;
     const standard = tokenStandardRegistry.resolve(tokenStandard);
 
+    const makeLedgerIdentifier = (tokenId: string, std: string): LedgerAssetIdentifier => ({
+      assetIdentifierType: 'CAIP-19',
+      network: '',
+      tokenId,
+      standard: std,
+    });
+
     if (assetBind === undefined || assetBind.tokenIdentifier === undefined) {
-      const symbol = assetIdentifier?.value ?? 'OWNERA';
+      const symbol = 'OWNERA';
       const result = await standard.deploy(this.omnibusWallet, assetName ?? 'OWNERACOIN', symbol, decimals, this.logger);
       await this.assetStore.saveAsset({ contract_address: result.contractAddress, decimals: result.decimals, token_standard: result.tokenStandard as any, id: asset.assetId, type: asset.assetType });
       await this.custodyProvider.onAssetRegistered?.(result.contractAddress, symbol);
-      return { tokenId: result.contractAddress, reference: undefined };
+      return { ledgerIdentifier: makeLedgerIdentifier(result.contractAddress, result.tokenStandard), reference: undefined };
     }
 
     const tokenAddress = assetBind.tokenIdentifier.tokenId;
@@ -303,6 +307,6 @@ export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowD
     } catch (e) {
       this.logger.warn(`Asset registration failed (may already exist): ${e}`);
     }
-    return { tokenId: tokenAddress, reference: undefined };
+    return { ledgerIdentifier: makeLedgerIdentifier(tokenAddress, tokenStandard), reference: undefined };
   }
 }

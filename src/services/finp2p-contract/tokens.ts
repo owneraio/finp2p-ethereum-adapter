@@ -1,7 +1,7 @@
 import {
   AssetCreationStatus, EIP712Template, Balance, TokenService,
   failedAssetCreation, successfulAssetCreation,
-  AssetBind, AssetDenomination, AssetIdentifier,
+  AssetBind, AssetDenomination,
   AssetCreationResult, Signature, logger, ProofProvider, PluginManager
 } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import {
@@ -24,7 +24,8 @@ import { validateRequest } from "./validator";
 
 const DefaultDecimals = 2;
 
-export class TokenServiceImpl extends CommonServiceImpl implements TokenService {
+// TODO: update finp2p-contracts adapter-types to match skeleton 0.28 types
+export class TokenServiceImpl extends CommonServiceImpl {
 
 
   constructor(finP2PContract: FinP2PContract, finP2PClient: FinP2PClient | undefined,
@@ -34,10 +35,9 @@ export class TokenServiceImpl extends CommonServiceImpl implements TokenService 
     super(finP2PContract, finP2PClient, execDetailsStore, proofProvider, pluginManager);
   }
 
-  public async createAsset(idempotencyKey: string, asset: Asset,
+  public async createAsset(idempotencyKey: string, assetId: string,
                            assetBind: AssetBind | undefined, assetMetadata: any | undefined, assetName: string | undefined, issuerId: string | undefined,
-                           assetDenomination: AssetDenomination | undefined, assetIdentifier: AssetIdentifier | undefined): Promise<AssetCreationStatus> {
-    const { assetId } = asset;
+                           assetDenomination: AssetDenomination | undefined): Promise<AssetCreationStatus> {
     let tokenAddress: string;
     let allowanceRequired: boolean
     if (assetBind && assetBind.tokenIdentifier) {
@@ -74,7 +74,7 @@ export class TokenServiceImpl extends CommonServiceImpl implements TokenService 
     const network = `name: ${name}, chainId: ${chainId}`; // public or private network?
     const finP2POperatorContractAddress = this.finP2PContract.finP2PContractAddress;
     const result: AssetCreationResult = {
-      tokenId: tokenAddress,
+      ledgerIdentifier: { assetIdentifierType: 'CAIP-19', network, tokenId: tokenAddress, standard: 'ERC20' },
       reference: {
         type: "ledgerReference",
         network,
