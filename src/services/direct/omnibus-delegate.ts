@@ -52,7 +52,7 @@ export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowD
   ): Promise<DelegateResult> {
     const dbAsset = await getAssetFromDb(this.assetStore, sourceAsset.assetId);
     const destinationAddress = await this.accountMapping.resolveAccount(destination.finId)
-      ?? destination.ledgerAccount?.address;
+      ?? destination.account?.address;
     if (!destinationAddress) throw new Error(`Cannot resolve address for finId: ${destination.finId}`);
 
     const amount = parseUnits(quantity, dbAsset.decimals);
@@ -233,7 +233,7 @@ export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowD
       asset: _asset,
       account: {
         finId: '',
-        ledgerAccount: {
+        account: {
           type: 'crypto',
           address: omnibusAddress,
         },
