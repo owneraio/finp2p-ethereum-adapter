@@ -25,7 +25,7 @@ import {
   DbAccountMapping,
   AccountMappingService,
   AccountMappingStore,
-  PgAssetStore, AssetStore,
+  AssetStore,
   OmnibusDelegate,
   CommonServiceImpl as DirectCommonServiceImpl,
   HealthServiceImpl as DirectHealthServiceImpl,
@@ -81,7 +81,8 @@ function registerDirectServices(
     const proxiedPlanService = wrapWithWorkflowProxy(planApprovalService, workflowStorage, finP2PClient, 'approvePlan', 'proposeCancelPlan', 'proposeResetPlan', 'proposeInstructionApproval');
     const proxiedTokenService = wrapWithWorkflowProxy(tokenService, workflowStorage, finP2PClient, 'createAsset', 'issue', 'transfer', 'redeem');
     const proxiedEscrowService = wrapWithWorkflowProxy(escrowService, workflowStorage, finP2PClient, 'hold', 'release', 'rollback');
-    register(app, proxiedTokenService, proxiedEscrowService, commonService, commonService, delegate, proxiedPlanService, mappingConfig, mappingService);
+    const proxiedPaymentService = wrapWithWorkflowProxy(delegate, workflowStorage, finP2PClient, 'getDepositInstruction', 'payout');
+    register(app, proxiedTokenService, proxiedEscrowService, commonService, commonService, proxiedPaymentService, proxiedPlanService, mappingConfig, mappingService);
     if (distributionService) {
       registerDistributionRoutes(app, distributionService);
     }
@@ -97,7 +98,8 @@ function registerDirectServices(
   const proxiedTokenService = wrapWithWorkflowProxy(tokenService, workflowStorage, finP2PClient, 'createAsset', 'issue', 'transfer', 'redeem');
   const proxiedEscrowService = wrapWithWorkflowProxy(tokenService, workflowStorage, finP2PClient, 'hold', 'release', 'rollback');
   const proxiedPlanService = wrapWithWorkflowProxy(planApprovalService, workflowStorage, finP2PClient, 'approvePlan', 'proposeCancelPlan', 'proposeResetPlan', 'proposeInstructionApproval');
-  register(app, proxiedTokenService, proxiedEscrowService, commonService, healthService, paymentsService, proxiedPlanService, mappingConfig, accountMappingService);
+  const proxiedPaymentsService = wrapWithWorkflowProxy(paymentsService, workflowStorage, finP2PClient, 'getDepositInstruction', 'payout');
+  register(app, proxiedTokenService, proxiedEscrowService, commonService, healthService, proxiedPaymentsService, proxiedPlanService, mappingConfig, accountMappingService);
 }
 
 function registerFinP2PContractServices(
@@ -120,8 +122,7 @@ function registerFinP2PContractServices(
   const proxiedTokenService = wrapWithWorkflowProxy(tokenService, workflowStorage, finP2PClient, 'createAsset', 'issue', 'transfer', 'redeem');
   const proxiedEscrowService = wrapWithWorkflowProxy(escrowService, workflowStorage, finP2PClient, 'hold', 'release', 'rollback');
   const proxiedPlanService = wrapWithWorkflowProxy(planApprovalService, workflowStorage, finP2PClient, 'approvePlan', 'proposeCancelPlan', 'proposeResetPlan', 'proposeInstructionApproval');
-  // Cast: finp2p-contracts 0.27 types don't match skeleton 0.28 types at the boundary
-  register(app, proxiedTokenService as any, proxiedEscrowService as any, commonService, tokenService as any, paymentsService, proxiedPlanService, mappingConfig, mappingService);
+  register(app, proxiedTokenService, proxiedEscrowService, commonService, tokenService, paymentsService, proxiedPlanService, mappingConfig, mappingService);
 }
 
 async function createApp(
@@ -153,7 +154,7 @@ async function createApp(
   const dbPool = dbConnectionString ? new Pool({ connectionString: dbConnectionString }) : undefined;
   dbPool?.on('error', () => {}); // Suppress pool errors during shutdown
   const accountMappingStore = dbPool ? new storageModule.PgAccountStore(dbPool) : undefined;
-  const assetStore = dbPool ? new PgAssetStore(dbPool) : undefined;
+  const assetStore = dbPool ? new storageModule.PgAssetStore(dbPool) : undefined;
 
   let custodyProvider: CustodyProvider | undefined;
   if (custodyRegistry.has(appConfig.type)) {

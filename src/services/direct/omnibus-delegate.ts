@@ -1,5 +1,5 @@
 import {
-  Asset, AssetBase, AssetBind, AssetCreationResult, AssetDenomination, AssetType,
+  Asset, AssetBind, AssetCreationResult, AssetDenomination, AssetType,
   LedgerAssetIdentifier,
   Destination, ExecutionContext, Source,
   PaymentService, DepositAsset, DepositOperation, ReceiptOperation, Signature,
@@ -9,8 +9,8 @@ import { TransferDelegate, AssetDelegate, EscrowDelegate, OmnibusDelegate as Omn
 import { parseUnits, id as keccak256 } from 'ethers';
 import winston from 'winston';
 import { CustodyProvider, CustodyWallet } from './custody-provider';
-import { tokenStandardRegistry } from './token-standards/registry';
-import { ERC20_TOKEN_STANDARD } from './token-standards/erc20';
+import { tokenStandardRegistry } from "./token-standards";
+import { ERC20_TOKEN_STANDARD } from "./token-standards";
 import { AccountMappingService } from './account-mapping';
 import { AssetStore } from './asset-store';
 import { getAssetFromDb } from './helpers';
