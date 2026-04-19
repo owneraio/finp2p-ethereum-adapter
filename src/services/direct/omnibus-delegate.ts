@@ -9,8 +9,8 @@ import { TransferDelegate, AssetDelegate, EscrowDelegate, OmnibusDelegate as Omn
 import { parseUnits, id as keccak256 } from 'ethers';
 import winston from 'winston';
 import { CustodyProvider, CustodyWallet } from './custody-provider';
-import { tokenStandardRegistry } from "./token-standards";
-import { ERC20_TOKEN_STANDARD } from "./token-standards";
+import { tokenStandardRegistry } from "./token-standards/registry";
+import { ERC20_TOKEN_STANDARD } from "./token-standards/erc20";
 import { AccountMappingService, AssetStore } from './account-mapping';
 import { getAssetFromDb } from './helpers';
 
