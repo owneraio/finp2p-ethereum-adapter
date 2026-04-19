@@ -3,7 +3,24 @@ import {
   ProofProvider, PluginManager,
   ReceiptOperation, ExecutionContext,
 } from "@owneraio/finp2p-nodejs-skeleton-adapter";
-import { FinP2PContract, finIdToAddress } from "@owneraio/finp2p-contracts";
+import { FinP2PContract, finIdToAddress, ReceiptOperation as ContractReceiptOperation } from "@owneraio/finp2p-contracts";
+
+function mapAccount(acc: { finId: string; account?: string } | undefined) {
+  if (!acc) return undefined;
+  return { finId: acc.finId, account: acc.account ? { type: 'ledger', address: acc.account } : undefined };
+}
+
+export function mapReceiptOperation(op: ContractReceiptOperation): ReceiptOperation {
+  if (op.type !== 'success') return op as any;
+  return {
+    ...op,
+    receipt: {
+      ...op.receipt,
+      source: mapAccount(op.receipt.source as any),
+      destination: mapAccount(op.receipt.destination as any),
+    },
+  } as any;
+}
 import { FinP2PClient } from "@owneraio/finp2p-client";
 
 
@@ -57,11 +74,13 @@ export class CommonServiceImpl implements CommonService, HealthService {
   }
 
   public async getReceipt(id: string): Promise<ReceiptOperation> {
-    return await this.finP2PContract.getReceipt(id);
+    return mapReceiptOperation(await this.finP2PContract.getReceipt(id));
   }
 
   public async operationStatus(cid: string): Promise<OperationStatus> {
-    return await this.finP2PContract.getOperationStatus(cid);
+    const op = await this.finP2PContract.getOperationStatus(cid);
+    if (op.operation === 'receipt') return mapReceiptOperation(op);
+    return op as any;
   }
 
 

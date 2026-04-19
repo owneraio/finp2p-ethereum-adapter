@@ -14,7 +14,7 @@ import {
   term, isEthereumAddress
 } from "@owneraio/finp2p-contracts";
 
-import { CommonServiceImpl, ExecDetailsStore } from "./common";
+import { CommonServiceImpl, ExecDetailsStore, mapReceiptOperation } from "./common";
 import { emptyOperationParams, extractBusinessDetails } from "./helpers";
 import { validateRequest } from "./validator";
 
@@ -93,7 +93,7 @@ export class TokenServiceImpl extends CommonServiceImpl implements TokenService 
       if (exCtx) {
         this.execDetailsStore?.addExecutionContext(transactionReceipt.hash, exCtx.planId, exCtx.sequence);
       }
-      return await this.finP2PContract.getReceiptFromTransactionReceipt(transactionReceipt)
+      return mapReceiptOperation(await this.finP2PContract.getReceiptFromTransactionReceipt(transactionReceipt))
     } catch (e) {
       logger.error(`Error on asset issuance: ${e}`);
       if (e instanceof EthereumTransactionError) {
@@ -123,7 +123,7 @@ export class TokenServiceImpl extends CommonServiceImpl implements TokenService 
     if (exCtx) {
       this.execDetailsStore?.addExecutionContext(transactionReceipt.hash, exCtx.planId, exCtx.sequence);
     }
-      return await this.finP2PContract.getReceiptFromTransactionReceipt(transactionReceipt)
+      return mapReceiptOperation(await this.finP2PContract.getReceiptFromTransactionReceipt(transactionReceipt))
     } catch (e) {
       logger.error(`Error on asset transfer: ${e}`);
       if (e instanceof EthereumTransactionError) {
@@ -151,7 +151,7 @@ export class TokenServiceImpl extends CommonServiceImpl implements TokenService 
         this.execDetailsStore?.addExecutionContext(transactionReceipt.hash, exCtx.planId, exCtx.sequence);
       }
 
-      return await this.finP2PContract.getReceiptFromTransactionReceipt(transactionReceipt)
+      return mapReceiptOperation(await this.finP2PContract.getReceiptFromTransactionReceipt(transactionReceipt))
     } catch (e) {
       logger.error(`Error releasing asset: ${e}`);
       if (e instanceof EthereumTransactionError) {
