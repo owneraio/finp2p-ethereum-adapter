@@ -4,8 +4,6 @@ import { FinP2PClient } from "@owneraio/finp2p-client";
 import { WalletResolver } from "../services/direct";
 import { registerFireblocks } from "./fireblocks";
 import { registerDfns } from "./dfns";
-// TODO: re-enable when dtcc-plugin is updated for skeleton 0.28
-// import { registerDtccPlugin } from "./dtcc";
 
 export interface IntegrationContext {
   orgId: string;
@@ -24,10 +22,7 @@ export function registerCustodyIntegrations(): void {
   registerDfns();
 }
 
-const integrations: IntegrationRegistrar[] = [
-  // TODO: re-enable when dtcc-plugin is updated for skeleton 0.28
-  // registerDtccPlugin,
-];
+const integrations: IntegrationRegistrar[] = [];
 
 /** Register runtime integrations (plugins, token standards) — runs after custody provider is created. */
 export function registerIntegrations(ctx: IntegrationContext): void {

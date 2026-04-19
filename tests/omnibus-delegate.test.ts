@@ -58,7 +58,11 @@ function createMockAccountMapping(): AccountMappingService {
   };
 }
 
-const TEST_ASSET = { assetId: 'test-asset-123', assetType: 'finp2p' as const };
+const TEST_ASSET = {
+  assetId: 'test-asset-123',
+  assetType: 'finp2p' as const,
+  ledgerIdentifier: { assetIdentifierType: 'CAIP-19' as const, network: '', tokenId: '', standard: 'ERC20' },
+};
 const TEST_DB_ASSET = {
   id: TEST_ASSET.assetId,
   type: TEST_ASSET.assetType,
@@ -136,8 +140,9 @@ describe('OmnibusDelegate', () => {
 
       const result = await delegate.outboundTransfer(
         'idem-1',
-        { finId: 'source-fin-id', account: { type: 'finId', finId: 'source-fin-id' } } as any,
-        { account: { type: 'finId', finId: 'dest-fin-id' } } as any,
+        { finId: 'source-fin-id' } as any,
+        { finId: 'dest-fin-id' } as any,
+        TEST_ASSET,
         TEST_ASSET,
         '1.5',
         undefined,
@@ -154,8 +159,9 @@ describe('OmnibusDelegate', () => {
 
       const result = await delegate.outboundTransfer(
         'idem-2',
-        { finId: 'source-fin-id', account: { type: 'finId', finId: 'source-fin-id' } } as any,
-        { account: { type: 'crypto', address: '0xDIRECT_ADDR' } } as any,
+        { finId: 'source-fin-id' } as any,
+        { finId: 'dest-fin-id', account: { type: 'crypto', address: '0xDIRECT_ADDR' } } as any,
+        TEST_ASSET,
         TEST_ASSET,
         '2.0',
         undefined,
@@ -171,7 +177,8 @@ describe('OmnibusDelegate', () => {
       const result = await delegate.outboundTransfer(
         'idem-3',
         {} as any,
-        { account: { type: 'crypto', address: '0xDEST' } } as any,
+        { finId: 'dest', account: { type: 'crypto', address: '0xDEST' } } as any,
+        TEST_ASSET,
         TEST_ASSET,
         '1.0',
         undefined,
@@ -240,10 +247,9 @@ describe('OmnibusDelegate', () => {
       const result = await delegate.createAsset(
         'idem-create', TEST_ASSET, undefined,
         undefined, 'TestCoin', undefined, undefined,
-        { value: 'TST' } as any,
       );
 
-      expect(result.tokenId).toBe(deployedAddress);
+      expect(result.ledgerIdentifier.tokenId).toBe(deployedAddress);
       expect(mockSaveAsset).toHaveBeenCalledWith(expect.objectContaining({
         contract_address: deployedAddress,
         id: TEST_ASSET.assetId,
@@ -257,10 +263,10 @@ describe('OmnibusDelegate', () => {
       const result = await delegate.createAsset(
         'idem-create-2', TEST_ASSET,
         { tokenIdentifier: { tokenId: existingAddress } } as any,
-        undefined, 'TestCoin', undefined, undefined, undefined,
+        undefined, 'TestCoin', undefined, undefined,
       );
 
-      expect(result.tokenId).toBe(existingAddress);
+      expect(result.ledgerIdentifier.tokenId).toBe(existingAddress);
       expect(mockDeployERC20Detached).not.toHaveBeenCalled();
       expect(mockSaveAsset).toHaveBeenCalledWith(expect.objectContaining({
         contract_address: existingAddress,
