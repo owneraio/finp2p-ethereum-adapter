@@ -122,8 +122,7 @@ function registerFinP2PContractServices(
   const proxiedTokenService = wrapWithWorkflowProxy(tokenService, workflowStorage, finP2PClient, 'createAsset', 'issue', 'transfer', 'redeem');
   const proxiedEscrowService = wrapWithWorkflowProxy(escrowService, workflowStorage, finP2PClient, 'hold', 'release', 'rollback');
   const proxiedPlanService = wrapWithWorkflowProxy(planApprovalService, workflowStorage, finP2PClient, 'approvePlan', 'proposeCancelPlan', 'proposeResetPlan', 'proposeInstructionApproval');
-  // Cast: finp2p-contracts 0.27 types don't match skeleton 0.28 types at the boundary
-  register(app, proxiedTokenService as any, proxiedEscrowService as any, commonService, tokenService as any, paymentsService, proxiedPlanService, mappingConfig, mappingService);
+  register(app, proxiedTokenService, proxiedEscrowService, commonService, tokenService, paymentsService, proxiedPlanService, mappingConfig, mappingService);
 }
 
 async function createApp(

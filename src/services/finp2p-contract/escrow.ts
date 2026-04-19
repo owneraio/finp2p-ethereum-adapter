@@ -8,8 +8,7 @@ import { CommonServiceImpl } from "./common";
 import { emptyOperationParams, extractBusinessDetails } from "./helpers";
 import { validateRequest } from "./validator";
 
-// TODO: update finp2p-contracts adapter-types to match skeleton 0.28 types
-export class EscrowServiceImpl extends CommonServiceImpl {
+export class EscrowServiceImpl extends CommonServiceImpl implements EscrowService {
 
   public async hold(idempotencyKey: string, nonce: string, source: Source, destination: Destination | undefined, ast: Asset,
     quantity: string, sgn: Signature, operationId: string, exCtx: ExecutionContext

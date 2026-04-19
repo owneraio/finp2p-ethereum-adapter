@@ -9,7 +9,11 @@ import { AssetType, assetTypeToEIP712, Term } from "./model";
 
 
 export const assetToService = (assetId: string, assetType: bigint): Asset => {
-  return { assetId, assetType: assetTypeToService(assetType) };
+  return {
+    assetId,
+    assetType: assetTypeToService(assetType),
+    ledgerIdentifier: { assetIdentifierType: 'CAIP-19', network: '', tokenId: '', standard: '' },
+  };
 };
 
 export const assetTypeToService = (assetType: bigint): SrvAssetType => {
@@ -26,11 +30,11 @@ export const assetTypeToService = (assetType: bigint): SrvAssetType => {
 };
 
 export const finIdSource = (finId: string): Source => {
-  return { finId, account: { type: "finId", finId } };
+  return { finId };
 };
 
 export const finIdDestination = (finId: string): Destination => {
-  return { finId, account: { type: "finId", finId } };
+  return { finId };
 }
 
 export const assetTypeFromString = (assetType: string): AssetType => {

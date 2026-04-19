@@ -24,8 +24,7 @@ import { validateRequest } from "./validator";
 
 const DefaultDecimals = 2;
 
-// TODO: update finp2p-contracts adapter-types to match skeleton 0.28 types
-export class TokenServiceImpl extends CommonServiceImpl {
+export class TokenServiceImpl extends CommonServiceImpl implements TokenService {
 
 
   constructor(finP2PContract: FinP2PContract, finP2PClient: FinP2PClient | undefined,

@@ -12,8 +12,7 @@ export interface ExecDetailsStore {
   getExecutionContext(txHash: string): ExecutionContext;
 }
 
-// TODO: update finp2p-contracts adapter-types to match skeleton 0.28 types
-export class CommonServiceImpl implements HealthService {
+export class CommonServiceImpl implements CommonService, HealthService {
 
   finP2PContract: FinP2PContract;
   finP2PClient: FinP2PClient | undefined;
@@ -57,11 +56,11 @@ export class CommonServiceImpl implements HealthService {
   }
 
   public async getReceipt(id: string): Promise<ReceiptOperation> {
-    return await this.finP2PContract.getReceipt(id) as any;
+    return await this.finP2PContract.getReceipt(id);
   }
 
   public async operationStatus(cid: string): Promise<OperationStatus> {
-    return await this.finP2PContract.getOperationStatus(cid) as any;
+    return await this.finP2PContract.getOperationStatus(cid);
   }
 
 
