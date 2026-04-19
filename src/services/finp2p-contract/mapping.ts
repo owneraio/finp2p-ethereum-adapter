@@ -1,6 +1,23 @@
-import { AccountMappingService, AccountMapping } from '@owneraio/finp2p-nodejs-skeleton-adapter';
-import { FinP2PContract } from '@owneraio/finp2p-contracts';
+import { AccountMappingService, AccountMapping, ReceiptOperation } from '@owneraio/finp2p-nodejs-skeleton-adapter';
+import { FinP2PContract, ReceiptOperation as ContractReceiptOperation } from '@owneraio/finp2p-contracts';
 import { FIELD_LEDGER_ACCOUNT_ID } from '../direct/mapping-validator';
+
+function mapAccount(acc: { finId: string; account?: string } | undefined) {
+  if (!acc) return undefined;
+  return { finId: acc.finId, account: acc.account ? { type: 'ledger', address: acc.account } : undefined };
+}
+
+export function mapReceiptOperation(op: ContractReceiptOperation): ReceiptOperation {
+  if (op.type !== 'success') return op as any;
+  return {
+    ...op,
+    receipt: {
+      ...op.receipt,
+      source: mapAccount(op.receipt.source as any),
+      destination: mapAccount(op.receipt.destination as any),
+    },
+  } as any;
+}
 
 /**
  * AccountMappingService backed by the on-chain credentials registry.

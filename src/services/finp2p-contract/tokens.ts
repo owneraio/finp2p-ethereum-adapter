@@ -14,7 +14,8 @@ import {
   term, isEthereumAddress
 } from "@owneraio/finp2p-contracts";
 
-import { CommonServiceImpl, ExecDetailsStore, mapReceiptOperation } from "./common";
+import { CommonServiceImpl, ExecDetailsStore } from "./common";
+import { mapReceiptOperation } from "./mapping";
 import { emptyOperationParams, extractBusinessDetails } from "./helpers";
 import { validateRequest } from "./validator";
 

@@ -3,25 +3,9 @@ import {
   ProofProvider, PluginManager,
   ReceiptOperation, ExecutionContext,
 } from "@owneraio/finp2p-nodejs-skeleton-adapter";
-import { FinP2PContract, finIdToAddress, ReceiptOperation as ContractReceiptOperation } from "@owneraio/finp2p-contracts";
-
-function mapAccount(acc: { finId: string; account?: string } | undefined) {
-  if (!acc) return undefined;
-  return { finId: acc.finId, account: acc.account ? { type: 'ledger', address: acc.account } : undefined };
-}
-
-export function mapReceiptOperation(op: ContractReceiptOperation): ReceiptOperation {
-  if (op.type !== 'success') return op as any;
-  return {
-    ...op,
-    receipt: {
-      ...op.receipt,
-      source: mapAccount(op.receipt.source as any),
-      destination: mapAccount(op.receipt.destination as any),
-    },
-  } as any;
-}
+import { FinP2PContract, finIdToAddress } from "@owneraio/finp2p-contracts";
 import { FinP2PClient } from "@owneraio/finp2p-client";
+import { mapReceiptOperation } from "./mapping";
 
 
 export interface ExecDetailsStore {
