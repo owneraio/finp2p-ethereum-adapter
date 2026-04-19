@@ -8,8 +8,7 @@ import winston from 'winston';
 import { parseUnits } from "ethers";
 import { TokenOperationResult } from '@owneraio/finp2p-ethereum-token-standard';
 import { CustodyProvider, CustodyWallet } from './custody-provider';
-import { AccountMappingService } from './account-mapping';
-import { AssetStore } from './asset-store';
+import { AccountMappingService, AssetStore } from './account-mapping';
 import { getAssetFromDb, fundGasIfNeeded } from './helpers';
 import { tokenStandardRegistry } from './token-standards/registry';
 import { ERC20_TOKEN_STANDARD } from './token-standards/erc20';
@@ -95,6 +94,7 @@ export class DirectTokenService implements TokenService, EscrowService {
         decimals: result.decimals,
         token_standard: result.tokenStandard,
         id: assetId,
+        type: 'finp2p',
       });
       await this.custodyProvider.onAssetRegistered?.(result.contractAddress, symbol);
 
@@ -110,6 +110,7 @@ export class DirectTokenService implements TokenService, EscrowService {
         decimals: 6,
         token_standard: tokenStandard,
         id: assetId,
+        type: 'finp2p',
       });
 
       try {
@@ -129,7 +130,7 @@ export class DirectTokenService implements TokenService, EscrowService {
   async getBalance(ast: Asset, finId: string): Promise<string> {
     const address = await this.accountMapping.resolveAccount(finId);
     if (address === undefined) return "0";
-    const asset = await getAssetFromDb(this.assetStore, ast.assetId);
+    const asset = await getAssetFromDb(this.assetStore, ast);
     const standard = tokenStandardRegistry.resolve(asset.tokenStandard);
     return standard.balanceOf(
       this.custodyProvider.issuer.provider, this.custodyProvider.issuer.signer,
@@ -147,7 +148,7 @@ export class DirectTokenService implements TokenService, EscrowService {
     exCtx: ExecutionContext | undefined
   ): Promise<ReceiptOperation> {
     try {
-      const asset = await getAssetFromDb(this.assetStore, ast.assetId);
+      const asset = await getAssetFromDb(this.assetStore, ast);
       const standard = tokenStandardRegistry.resolve(asset.tokenStandard);
       const wallet = this.custodyProvider.issuer;
       const address = await this.resolveAddress(destinationFinId);
@@ -169,7 +170,7 @@ export class DirectTokenService implements TokenService, EscrowService {
     exCtx: ExecutionContext | undefined
   ): Promise<ReceiptOperation> {
     try {
-      const asset = await getAssetFromDb(this.assetStore, ast.assetId);
+      const asset = await getAssetFromDb(this.assetStore, ast);
       const standard = tokenStandardRegistry.resolve(asset.tokenStandard);
       const resolved = await this.resolveSourceWallet(source.finId);
       if (!resolved) return failedReceiptOperation(1, 'Source address cannot be resolved to a custody wallet');
@@ -195,7 +196,7 @@ export class DirectTokenService implements TokenService, EscrowService {
     exCtx: ExecutionContext | undefined
   ): Promise<ReceiptOperation> {
     try {
-      const asset = await getAssetFromDb(this.assetStore, ast.assetId);
+      const asset = await getAssetFromDb(this.assetStore, ast);
       const standard = tokenStandardRegistry.resolve(asset.tokenStandard);
       const escrowAddress = await this.custodyProvider.escrow.signer.getAddress();
       const wallet = this.custodyProvider.issuer;
@@ -218,7 +219,7 @@ export class DirectTokenService implements TokenService, EscrowService {
     exCtx: ExecutionContext | undefined
   ): Promise<ReceiptOperation> {
     try {
-      const asset = await getAssetFromDb(this.assetStore, ast.assetId);
+      const asset = await getAssetFromDb(this.assetStore, ast);
       const standard = tokenStandardRegistry.resolve(asset.tokenStandard);
       const resolved = await this.resolveSourceWallet(source.finId);
       if (!resolved) return failedReceiptOperation(1, 'Source address cannot be resolved to a custody wallet');
@@ -240,7 +241,7 @@ export class DirectTokenService implements TokenService, EscrowService {
     quantity: string, operationId: string, exCtx: ExecutionContext | undefined
   ): Promise<ReceiptOperation> {
     try {
-      const asset = await getAssetFromDb(this.assetStore, ast.assetId);
+      const asset = await getAssetFromDb(this.assetStore, ast);
       const standard = tokenStandardRegistry.resolve(asset.tokenStandard);
       const destinationAddress = await this.accountMapping.resolveAccount(destination.finId)
         ?? destination.account?.address;
@@ -263,7 +264,7 @@ export class DirectTokenService implements TokenService, EscrowService {
     operationId: string, exCtx: ExecutionContext | undefined
   ): Promise<ReceiptOperation> {
     try {
-      const asset = await getAssetFromDb(this.assetStore, ast.assetId);
+      const asset = await getAssetFromDb(this.assetStore, ast);
       const standard = tokenStandardRegistry.resolve(asset.tokenStandard);
       const sourceAddress = await this.resolveAddress(source.finId);
       const escrowWallet = this.custodyProvider.escrow;

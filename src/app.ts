@@ -25,7 +25,7 @@ import {
   DbAccountMapping,
   AccountMappingService,
   AccountMappingStore,
-  AssetStore, PgAssetStore,
+  AssetStore,
   OmnibusDelegate,
   CommonServiceImpl as DirectCommonServiceImpl,
   HealthServiceImpl as DirectHealthServiceImpl,
@@ -155,7 +155,7 @@ async function createApp(
   const dbPool = dbConnectionString ? new Pool({ connectionString: dbConnectionString }) : undefined;
   dbPool?.on('error', () => {}); // Suppress pool errors during shutdown
   const accountMappingStore = dbPool ? new storageModule.PgAccountStore(dbPool) : undefined;
-  const assetStore = dbPool ? new PgAssetStore(dbPool) : undefined;
+  const assetStore = dbPool ? new storageModule.PgAssetStore(dbPool) : undefined;
 
   let custodyProvider: CustodyProvider | undefined;
   if (custodyRegistry.has(appConfig.type)) {
