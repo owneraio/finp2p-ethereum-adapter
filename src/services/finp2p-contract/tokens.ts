@@ -37,18 +37,11 @@ export class TokenServiceImpl extends CommonServiceImpl implements TokenService 
                            assetDenomination: AssetDenomination | undefined): Promise<AssetCreationStatus> {
     let tokenAddress: string;
     let allowanceRequired: boolean
-    if (assetBind && assetBind.tokenIdentifier) {
-      const { tokenIdentifier: { tokenId } } = assetBind;
-
-      if (!isEthereumAddress(tokenId)) {
-        return failedAssetCreation(1, `Token ID ${tokenId} is not a valid Ethereum address`);
-      }
-      tokenAddress = tokenId;
+    if (assetBind?.tokenIdentifier?.tokenId && isEthereumAddress(assetBind.tokenIdentifier.tokenId)) {
+      tokenAddress = assetBind.tokenIdentifier.tokenId;
       allowanceRequired = true; // TODO: parse from metadata
-
       logger.debug(`Associating existing token ${tokenAddress} to asset ${assetId}`);
     } else {
-
       tokenAddress = await this.finP2PContract.deployERC20(assetId, assetId, DefaultDecimals, this.finP2PContract.finP2PContractAddress);
       allowanceRequired = false;
       logger.debug(`Deployed new token ${tokenAddress} for asset ${assetId}`);
