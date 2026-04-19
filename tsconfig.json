@@ -21,8 +21,5 @@
     "src/**/*.ts",
     "test/**/*.ts",
     "scripts/**/*.ts"
-  ],
-  "exclude": [
-    "scripts/verify-signature.ts"
   ]
 }

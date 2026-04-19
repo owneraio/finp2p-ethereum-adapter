@@ -87,7 +87,7 @@ export class DirectTokenService implements TokenService, EscrowService {
 
     if (assetBind === undefined || assetBind.tokenIdentifier === undefined) {
       const wallet = this.custodyProvider.issuer;
-      const symbol = "OWNERA";
+      const symbol = "OWNERA"; // TODO: align with product team which metadata fields to use for token name/symbol/decimals
       const result = await standard.deploy(wallet, assetName ?? "OWNERACOIN", symbol, 6, this.logger);
       await this.assetStore.saveAsset({
         contract_address: result.contractAddress,
