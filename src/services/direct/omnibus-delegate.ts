@@ -49,7 +49,7 @@ export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowD
     idempotencyKey: string, source: Source, destination: Destination,
     asset: Asset, quantity: string, exCtx: ExecutionContext | undefined,
   ): Promise<DelegateResult> {
-    const dbAsset = await getAssetFromDb(this.assetStore, asset);
+    const dbAsset = await getAssetFromDb(this.assetStore,asset);
     const destinationAddress = await this.accountMapping.resolveAccount(destination.finId)
       ?? destination.account?.address;
     if (!destinationAddress) throw new Error(`Cannot resolve address for finId: ${destination.finId}`);
@@ -110,7 +110,7 @@ export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowD
       await this.waitForFinalizedBlock(receipt.blockNumber);
     }
 
-    const dbAsset = await getAssetFromDb(this.assetStore, asset);
+    const dbAsset = await getAssetFromDb(this.assetStore,asset);
     if (receipt.to?.toLowerCase() !== dbAsset.contractAddress.toLowerCase()) {
       throw new InboundTransferVerificationError(
         `Transaction ${transactionId} target contract ${receipt.to} does not match asset contract ${dbAsset.contractAddress}`,
@@ -162,7 +162,7 @@ export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowD
     idempotencyKey: string, source: Source, destination: Destination | undefined,
     asset: Asset, quantity: string, operationId: string, exCtx: ExecutionContext | undefined,
   ): Promise<DelegateResult> {
-    const dbAsset = await getAssetFromDb(this.assetStore, asset);
+    const dbAsset = await getAssetFromDb(this.assetStore,asset);
     const amount = parseUnits(quantity, dbAsset.decimals);
 
     const standard = tokenStandardRegistry.resolve(dbAsset.tokenStandard);
@@ -177,7 +177,7 @@ export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowD
     idempotencyKey: string, source: Source, destination: Destination,
     asset: Asset, quantity: string, operationId: string, exCtx: ExecutionContext | undefined,
   ): Promise<DelegateResult> {
-    const dbAsset = await getAssetFromDb(this.assetStore, asset);
+    const dbAsset = await getAssetFromDb(this.assetStore,asset);
     const omnibusAddress = await this.omnibusWallet.signer.getAddress();
     const escrowWallet = this.custodyProvider.escrow;
     const amount = parseUnits(quantity, dbAsset.decimals);
@@ -194,7 +194,7 @@ export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowD
     idempotencyKey: string, source: Source,
     asset: Asset, quantity: string, operationId: string, exCtx: ExecutionContext | undefined,
   ): Promise<DelegateResult> {
-    const dbAsset = await getAssetFromDb(this.assetStore, asset);
+    const dbAsset = await getAssetFromDb(this.assetStore,asset);
     const omnibusAddress = await this.omnibusWallet.signer.getAddress();
     const escrowWallet = this.custodyProvider.escrow;
     const amount = parseUnits(quantity, dbAsset.decimals);
