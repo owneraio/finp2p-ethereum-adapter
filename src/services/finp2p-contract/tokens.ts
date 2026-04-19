@@ -7,7 +7,7 @@ import {
 import {
   Asset, Destination, ExecutionContext, ReceiptOperation, Source,
   failedReceiptOperation, successfulReceiptOperation, pendingReceiptOperation,
-  FinIdAccount, ValidationError
+  ValidationError
 } from "@owneraio/finp2p-contracts";
 import { FinP2PClient } from "@owneraio/finp2p-client";
 import {
@@ -88,8 +88,8 @@ export class TokenServiceImpl extends CommonServiceImpl implements TokenService 
     return successfulAssetCreation(result);
   }
 
-  public async issue(idempotencyKey: string, asset: Asset, to: FinIdAccount, quantity: string, exCtx: ExecutionContext): Promise<ReceiptOperation> {
-    const { finId: issuerFinId } = to;
+  public async issue(idempotencyKey: string, asset: Asset, destinationFinId: string, quantity: string, exCtx: ExecutionContext): Promise<ReceiptOperation> {
+    const issuerFinId = destinationFinId;
     try {
       await this.ensureCredential(issuerFinId);
       const transactionReceipt = await this.finP2PContract.issue(issuerFinId, term(asset.assetId, assetTypeFromString(asset.assetType), quantity), emptyOperationParams())
@@ -138,7 +138,7 @@ export class TokenServiceImpl extends CommonServiceImpl implements TokenService 
     }
   }
 
-  public async redeem(idempotencyKey: string, nonce: string, source: FinIdAccount, asset: Asset, quantity: string, operationId: string | undefined,
+  public async redeem(idempotencyKey: string, nonce: string, sourceFinId: string, asset: Asset, quantity: string, operationId: string | undefined,
     signature: Signature, exCtx: ExecutionContext
   ): Promise<ReceiptOperation> {
     if (!operationId) {
@@ -147,8 +147,8 @@ export class TokenServiceImpl extends CommonServiceImpl implements TokenService 
     }
 
     try {
-      await this.ensureCredential(source.finId);
-      const transactionReceipt = await this.finP2PContract.releaseAndRedeem(operationId, source.finId, quantity, emptyOperationParams());
+      await this.ensureCredential(sourceFinId);
+      const transactionReceipt = await this.finP2PContract.releaseAndRedeem(operationId, sourceFinId, quantity, emptyOperationParams());
 
       if (exCtx) {
         this.execDetailsStore?.addExecutionContext(transactionReceipt.hash, exCtx.planId, exCtx.sequence);
