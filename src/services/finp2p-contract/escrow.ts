@@ -33,7 +33,7 @@ export class EscrowServiceImpl extends CommonServiceImpl implements EscrowServic
         this.execDetailsStore?.addExecutionContext(transactionReceipt.hash, exCtx.planId, exCtx.sequence);
       }
 
-      return mapReceiptOperation(await this.finP2PContract.getReceiptFromTransactionReceipt(transactionReceipt))
+      return mapReceiptOperation(await this.finP2PContract.getReceiptFromTransactionReceipt(transactionReceipt), ast)
     } catch (e) {
       logger.error(`Error asset hold: ${e}`);
       if (e instanceof EthereumTransactionError) {
@@ -57,7 +57,7 @@ export class EscrowServiceImpl extends CommonServiceImpl implements EscrowServic
         this.execDetailsStore?.addExecutionContext(transactionReceipt.hash, exCtx.planId, exCtx.sequence);
       }
 
-      return mapReceiptOperation(await this.finP2PContract.getReceiptFromTransactionReceipt(transactionReceipt))
+      return mapReceiptOperation(await this.finP2PContract.getReceiptFromTransactionReceipt(transactionReceipt), asset)
     } catch (e) {
       logger.error(`Error releasing asset: ${e}`);
       if (e instanceof EthereumTransactionError) {
@@ -79,7 +79,7 @@ export class EscrowServiceImpl extends CommonServiceImpl implements EscrowServic
         this.execDetailsStore?.addExecutionContext(transactionReceipt.hash, exCtx.planId, exCtx.sequence);
       }
 
-      return mapReceiptOperation(await this.finP2PContract.getReceiptFromTransactionReceipt(transactionReceipt))
+      return mapReceiptOperation(await this.finP2PContract.getReceiptFromTransactionReceipt(transactionReceipt), asset)
     } catch (e) {
       logger.error(`Error rolling-back asset: ${e}`);
       if (e instanceof EthereumTransactionError) {

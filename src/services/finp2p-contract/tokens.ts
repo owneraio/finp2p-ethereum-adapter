@@ -87,7 +87,7 @@ export class TokenServiceImpl extends CommonServiceImpl implements TokenService 
       if (exCtx) {
         this.execDetailsStore?.addExecutionContext(transactionReceipt.hash, exCtx.planId, exCtx.sequence);
       }
-      return mapReceiptOperation(await this.finP2PContract.getReceiptFromTransactionReceipt(transactionReceipt))
+      return mapReceiptOperation(await this.finP2PContract.getReceiptFromTransactionReceipt(transactionReceipt), asset)
     } catch (e) {
       logger.error(`Error on asset issuance: ${e}`);
       if (e instanceof EthereumTransactionError) {
@@ -117,7 +117,7 @@ export class TokenServiceImpl extends CommonServiceImpl implements TokenService 
     if (exCtx) {
       this.execDetailsStore?.addExecutionContext(transactionReceipt.hash, exCtx.planId, exCtx.sequence);
     }
-      return mapReceiptOperation(await this.finP2PContract.getReceiptFromTransactionReceipt(transactionReceipt))
+      return mapReceiptOperation(await this.finP2PContract.getReceiptFromTransactionReceipt(transactionReceipt), ast)
     } catch (e) {
       logger.error(`Error on asset transfer: ${e}`);
       if (e instanceof EthereumTransactionError) {
@@ -145,7 +145,7 @@ export class TokenServiceImpl extends CommonServiceImpl implements TokenService 
         this.execDetailsStore?.addExecutionContext(transactionReceipt.hash, exCtx.planId, exCtx.sequence);
       }
 
-      return mapReceiptOperation(await this.finP2PContract.getReceiptFromTransactionReceipt(transactionReceipt))
+      return mapReceiptOperation(await this.finP2PContract.getReceiptFromTransactionReceipt(transactionReceipt), asset)
     } catch (e) {
       logger.error(`Error releasing asset: ${e}`);
       if (e instanceof EthereumTransactionError) {
