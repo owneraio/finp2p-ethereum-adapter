@@ -1,9 +1,11 @@
 import {
   CommonService, HealthService, OperationStatus,
-  ProofProvider, PluginManager
+  ProofProvider, PluginManager,
+  ReceiptOperation, ExecutionContext,
 } from "@owneraio/finp2p-nodejs-skeleton-adapter";
-import { ReceiptOperation, ExecutionContext, FinP2PContract, finIdToAddress } from "@owneraio/finp2p-contracts";
+import { FinP2PContract, finIdToAddress } from "@owneraio/finp2p-contracts";
 import { FinP2PClient } from "@owneraio/finp2p-client";
+import { mapReceiptOperation } from "./mapping";
 
 
 export interface ExecDetailsStore {
@@ -56,11 +58,13 @@ export class CommonServiceImpl implements CommonService, HealthService {
   }
 
   public async getReceipt(id: string): Promise<ReceiptOperation> {
-    return await this.finP2PContract.getReceipt(id);
+    return mapReceiptOperation(await this.finP2PContract.getReceipt(id));
   }
 
   public async operationStatus(cid: string): Promise<OperationStatus> {
-    return await this.finP2PContract.getOperationStatus(cid);
+    const op = await this.finP2PContract.getOperationStatus(cid);
+    if (op.operation === 'receipt') return mapReceiptOperation(op);
+    return op as any;
   }
 
 

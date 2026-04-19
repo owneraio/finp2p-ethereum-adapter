@@ -51,39 +51,31 @@ export enum PrimaryType {
 export type ServiceAssetType = 'finp2p' | 'fiat' | 'cryptocurrency';
 export type EIP712AssetType = 'finp2p' | 'fiat' | 'cryptocurrency';
 
+export type Caip19LedgerAssetIdentifier = {
+  assetIdentifierType: 'CAIP-19';
+  network: string;
+  tokenId: string;
+  standard: string;
+};
+
+export type LedgerAssetIdentifier = Caip19LedgerAssetIdentifier;
+
 export type Asset = {
   assetId: string;
   assetType: ServiceAssetType;
+  ledgerIdentifier: LedgerAssetIdentifier;
 };
 
 // Accounts
 
-export type FinIdAccount = {
-  type: 'finId';
-  finId: string;
-};
-
-export type CryptocurrencyWallet = {
-  type: 'crypto';
-  address: string;
-};
-
-export type IbanIdentifier = {
-  type: 'iban';
-  code: string;
-};
-
-export type SourceAccount = FinIdAccount;
-export type DestinationAccount = FinIdAccount | CryptocurrencyWallet | IbanIdentifier;
-
 export type Source = {
   finId: string;
-  account: SourceAccount;
+  account?: string;
 };
 
 export type Destination = {
   finId: string;
-  account: DestinationAccount;
+  account?: string;
 };
 
 // Execution context

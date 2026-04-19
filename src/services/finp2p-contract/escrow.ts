@@ -1,10 +1,12 @@
-import { EIP712Template, EscrowService, Signature, logger } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import {
-  Asset, Destination, ExecutionContext,
-  failedReceiptOperation, pendingReceiptOperation, ReceiptOperation, Source, ValidationError,
-  EthereumTransactionError
-} from "@owneraio/finp2p-contracts";
+  Asset, Destination, EIP712Template, EscrowService,
+  ExecutionContext, ReceiptOperation, Signature, Source,
+  failedReceiptOperation, pendingReceiptOperation,
+  logger
+} from "@owneraio/finp2p-nodejs-skeleton-adapter";
+import { ValidationError, EthereumTransactionError } from "@owneraio/finp2p-contracts";
 import { CommonServiceImpl } from "./common";
+import { mapReceiptOperation } from "./mapping";
 import { emptyOperationParams, extractBusinessDetails } from "./helpers";
 import { validateRequest } from "./validator";
 
@@ -31,7 +33,7 @@ export class EscrowServiceImpl extends CommonServiceImpl implements EscrowServic
         this.execDetailsStore?.addExecutionContext(transactionReceipt.hash, exCtx.planId, exCtx.sequence);
       }
 
-      return await this.finP2PContract.getReceiptFromTransactionReceipt(transactionReceipt)
+      return mapReceiptOperation(await this.finP2PContract.getReceiptFromTransactionReceipt(transactionReceipt), ast)
     } catch (e) {
       logger.error(`Error asset hold: ${e}`);
       if (e instanceof EthereumTransactionError) {
@@ -55,7 +57,7 @@ export class EscrowServiceImpl extends CommonServiceImpl implements EscrowServic
         this.execDetailsStore?.addExecutionContext(transactionReceipt.hash, exCtx.planId, exCtx.sequence);
       }
 
-      return await this.finP2PContract.getReceiptFromTransactionReceipt(transactionReceipt)
+      return mapReceiptOperation(await this.finP2PContract.getReceiptFromTransactionReceipt(transactionReceipt), asset)
     } catch (e) {
       logger.error(`Error releasing asset: ${e}`);
       if (e instanceof EthereumTransactionError) {
@@ -77,7 +79,7 @@ export class EscrowServiceImpl extends CommonServiceImpl implements EscrowServic
         this.execDetailsStore?.addExecutionContext(transactionReceipt.hash, exCtx.planId, exCtx.sequence);
       }
 
-      return await this.finP2PContract.getReceiptFromTransactionReceipt(transactionReceipt)
+      return mapReceiptOperation(await this.finP2PContract.getReceiptFromTransactionReceipt(transactionReceipt), asset)
     } catch (e) {
       logger.error(`Error rolling-back asset: ${e}`);
       if (e instanceof EthereumTransactionError) {

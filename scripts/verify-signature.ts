@@ -34,18 +34,12 @@ type RequestWithSignature =
 const parseRequest = (request: RequestWithSignature) => {
   const { nonce } = request;
 
-  const asset = assetFromAPI(request.asset);
-  let source: Source | undefined;
-  if ("account" in request.source) {
-    source = sourceFromAPI(request.source as LedgerAPI["schemas"]["source"]);
-  } else {
-    const { finId } = request.source as LedgerAPI["schemas"]["finIdAccount"];
-    source = sourceFromAPI({ finId, account: { type: "finId", finId } });
-  }
+  // New API: asset is carried on the account, not at the request top-level
+  const asset = assetFromAPI(request.source.asset);
+  const source: Source = sourceFromAPI(request.source);
   let destination: Destination | undefined;
   if ("destination" in request && request.destination) {
-    const { destination: dst } = request;
-    destination = destinationFromAPI(dst);
+    destination = destinationFromAPI(request.destination);
   }
   const signature = signatureFromAPI(request.signature);
   const exCtx = executionContextOptFromAPI(request.executionContext);
@@ -101,7 +95,7 @@ const verifySignature = async (
   }
 
   const { provider, signer } = await createJsonProvider(operatorPrivateKey, ethereumRPCUrl);
-  logger.info(`Using FinP2P contract at address ${finp2pContractAddress} 
+  logger.info(`Using FinP2P contract at address ${finp2pContractAddress}
     of ${JSON.stringify(await provider.getNetwork())} network`);
   const finP2PContract = new FinP2PContract(provider, signer, finp2pContractAddress, logger);
   const onChainHash = await finP2PContract.hashInvestment(
@@ -156,4 +150,3 @@ verifySignature(
   fs.readFileSync(config.request_file!, "utf-8")
 ).then(() => {
 }).catch(console.error);
-
