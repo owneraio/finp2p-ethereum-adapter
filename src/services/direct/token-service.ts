@@ -144,22 +144,22 @@ export class DirectTokenService implements TokenService, EscrowService {
   }
 
   async issue(
-    idempotencyKey: string, ast: Asset, destinationFinId: string, quantity: string,
+    idempotencyKey: string, ast: Asset, toFinId: string, quantity: string,
     exCtx: ExecutionContext | undefined
   ): Promise<ReceiptOperation> {
     try {
       const asset = await getAssetFromDb(this.assetStore, ast);
       const standard = tokenStandardRegistry.resolve(asset.tokenStandard);
       const wallet = this.custodyProvider.issuer;
-      const address = await this.resolveAddress(destinationFinId);
+      const address = await this.resolveAddress(toFinId);
       const amount = parseUnits(quantity, asset.decimals);
 
       await this.fundGas(wallet);
       const result = await standard.mint(wallet, asset, address, amount, this.logger);
-      const dest: Destination = { finId: destinationFinId };
+      const dest: Destination = { finId: toFinId };
       return resultToReceipt(result, ast, "issue", quantity, dest, dest, exCtx, undefined);
     } catch (e) {
-      this.logger.error(`Issue failed: asset=${ast.assetId} to=${destinationFinId} quantity=${quantity}`, e);
+      this.logger.error(`Issue failed: asset=${ast.assetId} to=${toFinId} quantity=${quantity}`, e);
       return failedReceiptOperation(1, `${e}`);
     }
   }
