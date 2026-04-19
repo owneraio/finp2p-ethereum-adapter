@@ -8,14 +8,14 @@ import {
   EIP712TransferMessage,
   EIP712RedemptionMessage,
   SignatureTemplate,
-} from "@owneraio/finp2p-nodejs-skeleton-adapter";
-import {
   Asset,
   Destination,
+  Source,
+} from "@owneraio/finp2p-nodejs-skeleton-adapter";
+import {
   ExecutionContext,
   LegType,
   PrimaryType,
-  Source,
   ValidationError,
   emptyTerm,
   operationParams,
@@ -195,8 +195,10 @@ export const eip712PrimaryTypeFromTemplate = (template: EIP712Template): Primary
 };
 
 const compareAssets = (asset: Asset, eipAsset: EIP712Term): boolean => {
+  // Settlement fallback: skeleton's assetFromAPI returns assetType='finp2p' for all assets,
+  // but EIP712 settlement terms use 'fiat'/'cryptocurrency'. Match well-known symbols across types.
   if (isIn(eipAsset.assetType as string, "fiat", "cryptocurrency") && isIn(eipAsset.assetId as string, "USD", "USDC") &&
-    isIn(asset.assetType as string, "fiat", "cryptocurrency") && isIn(asset.assetId, "USD", "USDC")) {
+    isIn(asset.assetType as string, "fiat", "cryptocurrency", "finp2p") && isIn(asset.assetId, "USD", "USDC")) {
     return true;
   }
   return (eipAsset.assetId === asset.assetId && eipAsset.assetType === asset.assetType);

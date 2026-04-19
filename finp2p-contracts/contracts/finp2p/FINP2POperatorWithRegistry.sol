@@ -23,7 +23,7 @@ contract FINP2POperatorWithRegistry is AccessControl, FinP2PSignatureVerifier {
     using FinIdUtils for string;
 
 
-    string public constant VERSION = "0.27.0";
+    string public constant VERSION = "0.28.0";
 
     bytes32 private constant ASSET_MANAGER = keccak256("ASSET_MANAGER");
     bytes32 private constant TRANSACTION_MANAGER = keccak256("TRANSACTION_MANAGER");
