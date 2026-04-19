@@ -250,7 +250,6 @@ describe('OmnibusDelegate', () => {
       expect(mockSaveAsset).toHaveBeenCalledWith(expect.objectContaining({
         contract_address: deployedAddress,
         id: TEST_ASSET.assetId,
-        type: 'finp2p',
       }));
     });
 
