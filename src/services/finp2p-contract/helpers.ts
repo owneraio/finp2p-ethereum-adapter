@@ -8,14 +8,14 @@ import {
   EIP712TransferMessage,
   EIP712RedemptionMessage,
   SignatureTemplate,
-} from "@owneraio/finp2p-nodejs-skeleton-adapter";
-import {
   Asset,
   Destination,
+  Source,
+} from "@owneraio/finp2p-nodejs-skeleton-adapter";
+import {
   ExecutionContext,
   LegType,
   PrimaryType,
-  Source,
   ValidationError,
   emptyTerm,
   operationParams,
