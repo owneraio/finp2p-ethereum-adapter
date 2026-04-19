@@ -143,7 +143,6 @@ describe('OmnibusDelegate', () => {
         { finId: 'source-fin-id' } as any,
         { finId: 'dest-fin-id' } as any,
         TEST_ASSET,
-        TEST_ASSET,
         '1.5',
         undefined,
       );
@@ -162,7 +161,6 @@ describe('OmnibusDelegate', () => {
         { finId: 'source-fin-id' } as any,
         { finId: 'dest-fin-id', account: { type: 'crypto', address: '0xDIRECT_ADDR' } } as any,
         TEST_ASSET,
-        TEST_ASSET,
         '2.0',
         undefined,
       );
@@ -178,7 +176,6 @@ describe('OmnibusDelegate', () => {
         'idem-3',
         {} as any,
         { finId: 'dest', account: { type: 'crypto', address: '0xDEST' } } as any,
-        TEST_ASSET,
         TEST_ASSET,
         '1.0',
         undefined,
@@ -245,7 +242,7 @@ describe('OmnibusDelegate', () => {
       mockDeployERC20Detached.mockResolvedValue(deployedAddress);
 
       const result = await delegate.createAsset(
-        'idem-create', TEST_ASSET, undefined,
+        'idem-create', TEST_ASSET.assetId, undefined,
         undefined, 'TestCoin', undefined, undefined,
       );
 
@@ -253,7 +250,7 @@ describe('OmnibusDelegate', () => {
       expect(mockSaveAsset).toHaveBeenCalledWith(expect.objectContaining({
         contract_address: deployedAddress,
         id: TEST_ASSET.assetId,
-        type: TEST_ASSET.assetType,
+        type: 'finp2p',
       }));
     });
 
@@ -261,7 +258,7 @@ describe('OmnibusDelegate', () => {
       const existingAddress = '0xEXISTING_TOKEN';
 
       const result = await delegate.createAsset(
-        'idem-create-2', TEST_ASSET,
+        'idem-create-2', TEST_ASSET.assetId,
         { tokenIdentifier: { tokenId: existingAddress } } as any,
         undefined, 'TestCoin', undefined, undefined,
       );
