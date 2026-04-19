@@ -80,13 +80,13 @@ export async function createFireblocksAppConfig(): Promise<Omit<FireblocksAppCon
   const omnibusVaultId = process.env.FIREBLOCKS_OMNIBUS_VAULT_ID || undefined
 
   const localSubmit = process.env.LOCAL_SUBMIT === 'true';
-  const rpcUrl = getNetworkRpcUrl();
-  const rpcProvider = new JsonRpcProvider(rpcUrl);
 
   let provider: Provider;
   let signer: Signer;
 
   if (localSubmit) {
+    const rpcUrl = getNetworkRpcUrl();
+    const rpcProvider = new JsonRpcProvider(rpcUrl);
     provider = rpcProvider;
     signer = rpcProvider as any;
   } else {
