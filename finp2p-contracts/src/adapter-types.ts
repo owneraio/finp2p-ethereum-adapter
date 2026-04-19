@@ -60,30 +60,22 @@ export type Caip19LedgerAssetIdentifier = {
 
 export type LedgerAssetIdentifier = Caip19LedgerAssetIdentifier;
 
-export type AssetBase = {
+export type Asset = {
   assetId: string;
   assetType: ServiceAssetType;
-};
-
-export type Asset = AssetBase & {
   ledgerIdentifier: LedgerAssetIdentifier;
 };
 
 // Accounts
 
-export type LedgerAccount = {
-  type: string;
-  address: string;
-};
-
 export type Source = {
   finId: string;
-  account?: LedgerAccount;
+  account?: string;
 };
 
 export type Destination = {
   finId: string;
-  account?: LedgerAccount;
+  account?: string;
 };
 
 // Execution context
