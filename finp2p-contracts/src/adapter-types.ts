@@ -68,19 +68,14 @@ export type Asset = {
 
 // Accounts
 
-export type LedgerAccount = {
-  type: string;
-  address: string;
-};
-
 export type Source = {
   finId: string;
-  account?: LedgerAccount;
+  account?: string;
 };
 
 export type Destination = {
   finId: string;
-  account?: LedgerAccount;
+  account?: string;
 };
 
 // Execution context
