@@ -10,6 +10,7 @@ const ERC20_PULL_ABI = [
 export interface PullIntent {
   correlationId: string;
   finId: string;
+  assetId: string;
   contractAddress: string;
   destinationAddress: string;
   expectedAmount?: string;
