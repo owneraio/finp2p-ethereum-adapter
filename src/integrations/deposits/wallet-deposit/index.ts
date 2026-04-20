@@ -31,6 +31,8 @@ export function registerWalletDeposit(ctx: IntegrationContext): void {
   const dtccEnabled = process.env.DTCC_PLUGIN_ENABLED === 'true';
   if (dtccEnabled) return;
   if (ctx.accountModel === 'omnibus') return;
+  const depositMethod = process.env.DEPOSIT_METHOD ?? 'wallet';
+  if (depositMethod !== 'wallet') return;
 
   const { pluginManager, logger, assetStore, walletResolver } = ctx;
   if (!assetStore || !walletResolver) {

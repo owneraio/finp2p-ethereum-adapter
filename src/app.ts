@@ -171,6 +171,7 @@ async function createApp(
     rpcUrl: process.env.NETWORK_HOST ? getNetworkRpcUrl() : undefined,
     assetStore,
     accountModel: appConfig.accountModel,
+    custodyProvider,
   });
 
   const paymentsService = new PaymentsServiceImpl(pluginManager);
