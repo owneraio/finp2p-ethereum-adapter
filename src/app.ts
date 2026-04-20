@@ -191,6 +191,7 @@ async function createApp(
     assetStore,
     accountModel: appConfig.accountModel,
     custodyProvider,
+    inboundTransferHook: undefined, // populated in omnibus path via createVanillaServices — see registerDirectServices
   });
 
   const paymentsService = new PaymentsServiceImpl(pluginManager);
