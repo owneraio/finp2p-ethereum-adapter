@@ -12,8 +12,8 @@ import {
   successfulDepositOperation,
   failedDepositOperation,
 } from "@owneraio/finp2p-nodejs-skeleton-adapter";
-import { AssetStore, WalletResolver } from "../../services/direct";
-import { IntegrationContext } from "../registry";
+import { AssetStore, WalletResolver } from "../../../services/direct";
+import { IntegrationContext } from "../../registry";
 
 /**
  * Registers a PaymentsPlugin that handles deposits in segregated (non-omnibus) mode

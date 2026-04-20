@@ -6,7 +6,7 @@ import { AccountModel } from "../config";
 import { registerFireblocks } from "./fireblocks";
 import { registerDfns } from "./dfns";
 import { registerDtccPlugin } from "./dtcc";
-import { registerDirectDeposit } from "./direct-deposit";
+import { registerDirectDeposit } from "./deposits/direct-wallet";
 
 export interface IntegrationContext {
   orgId: string;
