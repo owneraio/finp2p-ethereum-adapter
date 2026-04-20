@@ -6,6 +6,7 @@ import {
   Asset,
   ReceiptOperation,
   Signature,
+  InboundTransferHook,
 } from "@owneraio/finp2p-nodejs-skeleton-adapter/plugin";
 import {
   workflows,
@@ -42,7 +43,7 @@ export function registerPullDeposit(ctx: IntegrationContext): void {
   if (ctx.accountModel === 'omnibus') return;
   if (process.env.DEPOSIT_METHOD !== 'pull') return;
 
-  const { pluginManager, logger, custodyProvider, assetStore, walletResolver, finP2PClient } = ctx;
+  const { pluginManager, logger, custodyProvider, assetStore, walletResolver, finP2PClient, inboundTransferHook } = ctx;
   if (!custodyProvider || !assetStore || !walletResolver) {
     logger.info('Pull-deposit plugin not registered: requires custody provider + asset store + wallet resolver');
     return;
@@ -52,9 +53,9 @@ export function registerPullDeposit(ctx: IntegrationContext): void {
   const operatorWallet = custodyProvider.escrow;
 
   pluginManager.registerPaymentsPlugin(
-    new PullDepositPlugin(logger, assetStore, walletResolver, network, operatorWallet, custodyProvider, finP2PClient),
+    new PullDepositPlugin(logger, assetStore, walletResolver, network, operatorWallet, custodyProvider, finP2PClient, inboundTransferHook),
   );
-  logger.info(`Pull-deposit plugin activated (network='${network}')`);
+  logger.info(`Pull-deposit plugin activated (network='${network}', inboundTransferHook=${inboundTransferHook ? 'present' : 'absent'})`);
 }
 
 class PullDepositPlugin implements PaymentsPlugin {
@@ -69,6 +70,7 @@ class PullDepositPlugin implements PaymentsPlugin {
     private readonly operatorWallet: CustodyWallet,
     private readonly custodyProvider: CustodyProvider,
     private readonly finP2PClient: FinP2PClient | undefined,
+    private readonly inboundTransferHook: InboundTransferHook | undefined,
   ) {}
 
   private async getWatcher(): Promise<ApprovalWatcher> {
@@ -86,6 +88,36 @@ class PullDepositPlugin implements PaymentsPlugin {
   }
 
   private async onPullCompleted(result: PullResult): Promise<void> {
+    // When an InboundTransferHook is provided (omnibus mode), delegate crediting entirely to the hook —
+    // its implementation is expected to call distributionService.distribute + finP2PClient.importTransactions.
+    // Synthetic plan context is used until the skeleton makes plan fields optional.
+    if (this.inboundTransferHook) {
+      try {
+        await this.inboundTransferHook.onInboundTransfer(result.intent.correlationId, {
+          planId: result.intent.correlationId,
+          sourceFinId: '', // TODO: no plan-scoped sender for out-of-plan deposits
+          destinationFinId: result.intent.finId,
+          asset: {
+            assetId: result.intent.assetId,
+            assetType: 'finp2p',
+            ledgerIdentifier: {
+              assetIdentifierType: 'CAIP-19',
+              network: this.network,
+              tokenId: result.intent.contractAddress,
+              standard: 'ERC20',
+            },
+          },
+          amount: result.amount,
+          instructionSequence: 0, // TODO: no plan sequence for out-of-plan deposits
+          result: { type: 'receipt', transactionId: result.txHash },
+        });
+        this.logger.info(`Pull-deposit: inboundTransferHook delivered for intent ${result.intent.correlationId}`);
+      } catch (e: any) {
+        this.logger.error(`Pull-deposit: inboundTransferHook failed for intent ${result.intent.correlationId}: ${e?.message ?? e}`);
+      }
+      return;
+    }
+
     if (!this.finP2PClient) {
       this.logger.warn(`Pull-deposit: no FinP2PClient configured — skipping importTransactions for intent ${result.intent.correlationId}`);
       return;
