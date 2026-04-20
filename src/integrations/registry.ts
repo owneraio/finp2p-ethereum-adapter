@@ -6,7 +6,7 @@ import { AccountModel } from "../config";
 import { registerFireblocks } from "./fireblocks";
 import { registerDfns } from "./dfns";
 import { registerDtccPlugin } from "./dtcc";
-import { registerDirectDeposit } from "./deposits/direct-wallet";
+import { registerWalletDeposit } from "./deposits/wallet-deposit";
 
 export interface IntegrationContext {
   orgId: string;
@@ -28,7 +28,7 @@ export function registerCustodyIntegrations(): void {
 }
 
 const integrations: IntegrationRegistrar[] = [
-  registerDirectDeposit,
+  registerWalletDeposit,
   registerDtccPlugin,
 ];
 
