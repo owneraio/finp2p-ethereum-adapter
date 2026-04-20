@@ -169,6 +169,8 @@ async function createApp(
     finP2PClient: finP2PClient!,
     walletResolver: custodyProvider && accountMappingStore ? createWalletResolver(accountMappingStore, custodyProvider) : undefined,
     rpcUrl: process.env.NETWORK_HOST ? getNetworkRpcUrl() : undefined,
+    assetStore,
+    accountModel: appConfig.accountModel,
   });
 
   const paymentsService = new PaymentsServiceImpl(pluginManager);
