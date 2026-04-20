@@ -16,9 +16,8 @@ import { AssetStore, WalletResolver } from "../../../services/direct";
 import { IntegrationContext } from "../../registry";
 
 /**
- * Registers a PaymentsPlugin that handles deposits in segregated (non-omnibus) mode
- * by exposing the investor's own on-chain wallet address (from the account mapping)
- * as the deposit target.
+ * Wallet-deposit method: returns the investor's own on-chain wallet address
+ * (resolved from the account-mapping store) as the deposit target.
  *
  * TODO: auto-create a custody account + mapping when no mapping exists for the finId.
  * For now, deposits fail if the finId has no pre-registered wallet mapping — the
@@ -28,23 +27,23 @@ import { IntegrationContext } from "../../registry";
  *   - ACCOUNT_MODEL is omnibus (omnibus has its own deposit flow)
  *   - DTCC_PLUGIN_ENABLED=true (DTCC registers its own PaymentsPlugin — single-plugin manager)
  */
-export function registerDirectDeposit(ctx: IntegrationContext): void {
+export function registerWalletDeposit(ctx: IntegrationContext): void {
   const dtccEnabled = process.env.DTCC_PLUGIN_ENABLED === 'true';
   if (dtccEnabled) return;
   if (ctx.accountModel === 'omnibus') return;
 
   const { pluginManager, logger, assetStore, walletResolver } = ctx;
   if (!assetStore || !walletResolver) {
-    logger.info('Direct deposit plugin not registered: requires asset store + wallet resolver');
+    logger.info('Wallet-deposit plugin not registered: requires asset store + wallet resolver');
     return;
   }
 
   const network = process.env.NETWORK_NAME ?? 'ethereum';
-  pluginManager.registerPaymentsPlugin(new DirectDepositPlugin(logger, assetStore, walletResolver, network));
-  logger.info(`Direct deposit plugin activated (segregated mode, network='${network}')`);
+  pluginManager.registerPaymentsPlugin(new WalletDepositPlugin(logger, assetStore, walletResolver, network));
+  logger.info(`Wallet-deposit plugin activated (network='${network}')`);
 }
 
-class DirectDepositPlugin implements PaymentsPlugin {
+class WalletDepositPlugin implements PaymentsPlugin {
 
   constructor(
     private readonly logger: winston.Logger,
@@ -61,7 +60,7 @@ class DirectDepositPlugin implements PaymentsPlugin {
     signature: Signature | undefined,
   ): Promise<DepositOperation> {
     if (asset.assetType !== 'finp2p' || !('assetId' in asset)) {
-      return failedDepositOperation(1, 'Direct deposit only supports finp2p asset type');
+      return failedDepositOperation(1, 'Wallet deposit only supports finp2p asset type');
     }
 
     const dbAsset = await this.assetStore.getAsset(asset.assetId);
@@ -78,7 +77,7 @@ class DirectDepositPlugin implements PaymentsPlugin {
     return successfulDepositOperation({
       asset,
       account: { finId: ownerFinId, account: { type: 'crypto', address: resolved.walletAddress } },
-      description: 'Direct deposit to investor wallet',
+      description: 'Wallet deposit to investor address',
       paymentOptions: [{
         description: 'Crypto transfer',
         currency: asset.assetId,
@@ -97,12 +96,12 @@ class DirectDepositPlugin implements PaymentsPlugin {
   async depositCustom(
     idempotencyKey: string, ownerFinId: string, amount: string | undefined, details: any, signature: Signature | undefined,
   ): Promise<DepositOperation> {
-    return failedDepositOperation(1, 'Custom deposits are not supported by direct-deposit plugin');
+    return failedDepositOperation(1, 'Custom deposits are not supported by wallet-deposit plugin');
   }
 
   async payout(
     idempotencyKey: string, sourceFinId: string, destinationFinId: string, asset: Asset, amount: string, signature: Signature | undefined,
   ): Promise<ReceiptOperation> {
-    throw new Error('Payout not implemented for direct-deposit plugin');
+    throw new Error('Payout not implemented for wallet-deposit plugin');
   }
 }
