@@ -12,15 +12,19 @@ import {
   successfulDepositOperation,
   failedDepositOperation,
 } from "@owneraio/finp2p-nodejs-skeleton-adapter";
+import { FinP2PClient } from "@owneraio/finp2p-client";
 import { AssetStore, CustodyProvider, CustodyWallet, WalletResolver } from "../../../services/direct";
 import { IntegrationContext } from "../../registry";
-import { ApprovalWatcher } from "./approval-watcher";
+import { ApprovalWatcher, PullResult } from "./approval-watcher";
 
 /**
  * Pull-deposit method: returns the adapter's operator address as the spender to approve.
  * The investor approves from their external wallet (E_I). The ApprovalWatcher detects
  * the approval and executes transferFrom(E_I, W_I, amount) — moving funds into the
  * investor's adapter-managed wallet (W_I, resolved from the account mapping).
+ *
+ * After a successful transferFrom, the plugin calls finP2PClient.importTransactions
+ * to register the deposit with OSS.
  *
  * The operator wallet (env / adapter constant) is the ERC20 spender AND the transferFrom
  * signer. For v1 it reuses `custodyProvider.escrow`; a dedicated
@@ -38,7 +42,7 @@ export function registerPullDeposit(ctx: IntegrationContext): void {
   if (ctx.accountModel === 'omnibus') return;
   if (process.env.DEPOSIT_METHOD !== 'pull') return;
 
-  const { pluginManager, logger, custodyProvider, assetStore, walletResolver } = ctx;
+  const { pluginManager, logger, custodyProvider, assetStore, walletResolver, finP2PClient } = ctx;
   if (!custodyProvider || !assetStore || !walletResolver) {
     logger.info('Pull-deposit plugin not registered: requires custody provider + asset store + wallet resolver');
     return;
@@ -48,7 +52,7 @@ export function registerPullDeposit(ctx: IntegrationContext): void {
   const operatorWallet = custodyProvider.escrow;
 
   pluginManager.registerPaymentsPlugin(
-    new PullDepositPlugin(logger, assetStore, walletResolver, network, operatorWallet, custodyProvider),
+    new PullDepositPlugin(logger, assetStore, walletResolver, network, operatorWallet, custodyProvider, finP2PClient),
   );
   logger.info(`Pull-deposit plugin activated (network='${network}')`);
 }
@@ -64,6 +68,7 @@ class PullDepositPlugin implements PaymentsPlugin {
     private readonly network: string,
     private readonly operatorWallet: CustodyWallet,
     private readonly custodyProvider: CustodyProvider,
+    private readonly finP2PClient: FinP2PClient | undefined,
   ) {}
 
   private async getWatcher(): Promise<ApprovalWatcher> {
@@ -74,9 +79,46 @@ class PullDepositPlugin implements PaymentsPlugin {
       this.operatorWallet.signer,
       this.custodyProvider.rpcProvider,
       this.logger,
+      (result) => this.onPullCompleted(result),
     );
     this.logger.info(`Pull-deposit: operator address=${operatorAddress}`);
     return this.watcher;
+  }
+
+  private async onPullCompleted(result: PullResult): Promise<void> {
+    if (!this.finP2PClient) {
+      this.logger.warn(`Pull-deposit: no FinP2PClient configured — skipping importTransactions for intent ${result.intent.correlationId}`);
+      return;
+    }
+    try {
+      await this.finP2PClient.importTransactions([{
+        id: result.txHash,
+        quantity: result.amount,
+        timestamp: Math.floor(Date.now() / 1000),
+        destination: {
+          finp2pAccount: {
+            account: { finId: result.intent.finId },
+            asset: {
+              id: result.intent.assetId,
+              ledgerIdentifier: {
+                assetIdentifierType: 'CAIP-19',
+                network: this.network,
+                tokenId: result.intent.contractAddress,
+                standard: 'ERC20',
+              },
+            },
+          },
+        },
+        transactionDetails: {
+          transactionId: result.txHash,
+          operationId: result.intent.correlationId,
+        },
+        operationType: 'transfer',
+      }] as any);
+      this.logger.info(`Pull-deposit: importTransactions succeeded for intent ${result.intent.correlationId}`);
+    } catch (e: any) {
+      this.logger.error(`Pull-deposit: importTransactions failed for intent ${result.intent.correlationId}: ${e?.message ?? e}`);
+    }
   }
 
   async deposit(
@@ -107,6 +149,7 @@ class PullDepositPlugin implements PaymentsPlugin {
     watcher.addIntent({
       correlationId,
       finId: ownerFinId,
+      assetId: asset.assetId,
       contractAddress: dbAsset.contract_address,
       destinationAddress: resolved.walletAddress,
       expectedAmount: amount,
