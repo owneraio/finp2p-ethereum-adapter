@@ -295,11 +295,7 @@ export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowD
 
     const tokenAddress = assetBind.tokenIdentifier.tokenId;
     await this.assetStore.saveAsset({ contract_address: tokenAddress, decimals, token_standard: tokenStandard, id: assetId });
-    try {
-      await this.custodyProvider.onAssetRegistered?.(tokenAddress);
-    } catch (e) {
-      this.logger.warn(`Asset registration failed (may already exist): ${e}`);
-    }
+    await this.custodyProvider.onAssetRegistered?.(tokenAddress);
     return { ledgerIdentifier: makeLedgerIdentifier(tokenAddress, tokenStandard), reference: undefined };
   }
 }

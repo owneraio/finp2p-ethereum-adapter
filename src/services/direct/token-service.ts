@@ -111,11 +111,7 @@ export class DirectTokenService implements TokenService, EscrowService {
         id: assetId,
       });
 
-      try {
-        await this.custodyProvider.onAssetRegistered?.(tokenAddress);
-      } catch (e) {
-        this.logger.warn(`Asset registration failed (may already exist): ${e}`);
-      }
+      await this.custodyProvider.onAssetRegistered?.(tokenAddress);
 
       return {
         operation: "createAsset",
