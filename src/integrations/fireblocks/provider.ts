@@ -1,4 +1,5 @@
 import { FireblocksSDK } from 'fireblocks-sdk';
+import axios from 'axios';
 import { createFireblocksEthersProvider, FireblocksAppConfig } from './config';
 import { createVaultManagementFunctions } from '../../vaults';
 import { CustodyProvider, CustodyWallet, GasStation } from '../../services/direct';
@@ -125,12 +126,11 @@ export class FireblocksCustodyProvider implements CustodyProvider {
 
   async onAssetRegistered(tokenAddress: string, symbol?: string): Promise<void> {
     if (this.config.localSubmit) return;
-    const responseRegister = await this.fireblocksSdk.registerNewAsset(
-      'ETH_TEST5', tokenAddress, symbol
-    );
-    const vaultId = this.config.assetIssuerVaultId ?? this.config.omnibusVaultId;
-    if (vaultId) {
-      await this.fireblocksSdk.createVaultAsset(vaultId, responseRegister.legacyId);
+    try {
+      await this.fireblocksSdk.registerNewAsset('ETH_TEST5', tokenAddress, symbol);
+    } catch (e) {
+      if (axios.isAxiosError(e) && e.response?.status === 409) return; // already registered — idempotent
+      throw e;
     }
   }
 }
