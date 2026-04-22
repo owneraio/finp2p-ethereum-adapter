@@ -8,13 +8,12 @@ const logger: Logger = new ConsoleLogger("info");
 const deploy = async (
   deployerPrivateKey: string,
   ethereumRPCUrl: string,
-  operatorAddress: string,
-  paymentAssetCode: string | undefined
+  operatorAddress: string
 ) => {
   const { provider, signer } = await createJsonProvider(deployerPrivateKey, ethereumRPCUrl);
   const contractManger = new ContractsManager(provider, signer, logger);
   logger.info("Deploying from env variables...");
-  const finP2PContractAddress = await contractManger.deployFinP2PContract(operatorAddress, paymentAssetCode);
+  const finP2PContractAddress = await contractManger.deployFinP2PContract(operatorAddress);
   logger.info(`FINP2P Contract deployed at address: ${finP2PContractAddress}`);
   const finP2P = new FinP2PContract(provider, signer, finP2PContractAddress, logger);
 
@@ -44,14 +43,9 @@ const config = parseConfig([
     envVar: "OPERATOR_ADDRESS",
     description: "Operator address",
     required: true
-  },
-  {
-    name: "payment_asset_code",
-    envVar: "PAYMENT_ASSET_CODE",
-    description: "Payment asset code"
   }
 ]);
 
-deploy(config.deployer_pk!, config.rpc_url!, config.operator!, config.payment_asset_code)
+deploy(config.deployer_pk!, config.rpc_url!, config.operator!)
   .then(() => {
   }).catch(console.error);

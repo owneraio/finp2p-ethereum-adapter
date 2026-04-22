@@ -8,8 +8,6 @@
     "node": ">=20"
   },
   "bin": {
-    "migration": "./dist/scripts/migration.js",
-    "sync-balances": "./dist/scripts/sync-balances.js",
     "mass-approve": "./dist/scripts/mass-approve.js"
   },
   "scripts": {
@@ -23,8 +21,6 @@
     "test:account-mapping": "jest --config jest.account-mapping.config.js",
     "test:omnibus": "jest --config jest.omnibus.config.js",
     "test-server": "ts-node ./scripts/test-server.ts",
-    "migration": "ts-node ./scripts/migration.ts",
-    "sync-balances": "ts-node ./scripts/sync-balances.ts",
     "mass-approve": "ts-node ./scripts/mass-approve.ts",
     "verify-signature": "ts-node ./scripts/verify-signature.ts",
     "start-debug": "ts-node ./src/index.ts",

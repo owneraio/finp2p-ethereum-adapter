@@ -26,7 +26,7 @@ contract FINP2POperator is AccessControl, FinP2PSignatureVerifier {
     using StringUtils for uint256;
     using FinIdUtils for string;
 
-    string public constant VERSION = "0.28.1";
+    string public constant VERSION = "0.28.2";
 
     bytes32 private constant ASSET_MANAGER = keccak256("ASSET_MANAGER");
     bytes32 private constant TRANSACTION_MANAGER = keccak256("TRANSACTION_MANAGER");
@@ -54,11 +54,6 @@ contract FINP2POperator is AccessControl, FinP2PSignatureVerifier {
     /// @notice Redeem event
     event Redeem(string assetId, AssetType assetType, string ownerFinId, string quantity, string operationId);
 
-    struct Asset {
-        string id;
-        address tokenAddress;
-    }
-
     struct Lock {
         string assetId;
         AssetType assetType;
@@ -68,7 +63,6 @@ contract FINP2POperator is AccessControl, FinP2PSignatureVerifier {
     }
 
     address private escrowWalletAddress;
-    mapping(string => Asset) private assets;
     mapping(string => Lock) private locks;
 
     // Credentials: finId -> wallet address
@@ -128,47 +122,24 @@ contract FINP2POperator is AccessControl, FinP2PSignatureVerifier {
         return credentials[finId];
     }
 
-    // ---- Asset management ----
+    // ---- Asset resolution ----
+    // 0.28.2: asset metadata is no longer stored on-chain. The `assetId` in
+    // each EIP712 Term carries the ERC20 contract address inline:
+    //   "name: <net>, chainId: <id>/<standard>:0x<40-hex>"
+    // Off-chain assets (e.g. "vanilla/high:<uuid>") return address(0); token
+    // operations become no-ops for those legs (emit event only).
 
-    /// @notice Associate an asset with a token address
-    /// @param assetId The asset id
-    /// @param tokenAddress The token address
-    function associateAsset(string calldata assetId, address tokenAddress) external {
-        require(hasRole(ASSET_MANAGER, _msgSender()), "FINP2POperator: must have asset manager role to associate asset");
-        require(!_haveAsset(assetId), "Asset already exists");
-        require(tokenAddress != address(0), "Token address cannot be zero");
-        assets[assetId] = Asset(assetId, tokenAddress);
-    }
-
-    /// @notice Remove an asset
-    /// @param assetId The asset id
-    function removeAsset(string calldata assetId) external {
-        require(hasRole(ASSET_MANAGER, _msgSender()), "FINP2POperator: must have asset manager role to remove asset");
-        require(_haveAsset(assetId), "Asset not found");
-        delete assets[assetId];
-    }
-
-    /// @notice Get the token address of an asset
-    /// @param assetId The asset id
-    /// @return The token address
-    function getAssetAddress(string calldata assetId) external view returns (address) {
-        require(_haveAsset(assetId), "Asset not found");
-        return assets[assetId].tokenAddress;
-    }
-
-    /// @notice Get the balance of an asset for a FinID
-    /// @param assetId The asset id
-    /// @param finId The FinID
-    /// @return The balance of the asset
+    /// @notice Get the balance of an asset for a FinID.
+    /// @return The balance as a decimal string, or "0" if the asset is off-chain.
     function getBalance(
         string calldata assetId,
         string calldata finId
     ) external view returns (string memory) {
-        require(_haveAsset(assetId), "Asset not found");
+        address tokenAddress = _extractTokenAddress(assetId);
+        if (tokenAddress == address(0)) return "0";
         address addr = _resolveAddress(finId);
-        Asset memory asset = assets[assetId];
-        uint8 tokenDecimals = IERC20Metadata(asset.tokenAddress).decimals();
-        uint256 tokenBalance = IERC20(asset.tokenAddress).balanceOf(addr);
+        uint8 tokenDecimals = IERC20Metadata(tokenAddress).decimals();
+        uint256 tokenBalance = IERC20(tokenAddress).balanceOf(addr);
         return tokenBalance.uintToString(tokenDecimals);
     }
 
@@ -327,10 +298,6 @@ contract FINP2POperator is AccessControl, FinP2PSignatureVerifier {
 
     // ------------------------------------------------------------------------------------------
 
-    function _haveAsset(string memory assetId) internal view returns (bool exists) {
-        exists = (assets[assetId].tokenAddress != address(0));
-    }
-
     function _haveContract(string memory operationId) internal view returns (bool exists) {
         exists = (bytes(locks[operationId].amount).length > 0);
     }
@@ -346,32 +313,57 @@ contract FINP2POperator is AccessControl, FinP2PSignatureVerifier {
         return addr;
     }
 
+    /// @notice Extracts the ERC20 contract address from a CAIP-style assetId
+    ///         of the form: "...<prefix>/<standard>:0x<40-hex>"
+    /// Returns address(0) if the assetId doesn't end with that pattern (e.g.
+    /// "vanilla/high:<uuid>") — caller should treat as an off-chain asset.
+    function _extractTokenAddress(string memory assetId) internal pure returns (address) {
+        bytes memory b = bytes(assetId);
+        // Minimum length for ":0x<40 hex>" suffix is 43 chars.
+        if (b.length < 43) return address(0);
+        uint256 xPos = b.length - 42;
+        // Expect ':' at xPos-1, then '0' 'x' at xPos, xPos+1
+        if (xPos == 0) return address(0);
+        if (b[xPos - 1] != ':' || b[xPos] != '0' || (b[xPos + 1] != 'x' && b[xPos + 1] != 'X')) return address(0);
+        uint160 addr = 0;
+        for (uint256 i = b.length - 40; i < b.length; i++) {
+            uint8 c = uint8(b[i]);
+            uint8 v;
+            if (c >= 0x30 && c <= 0x39) v = c - 0x30;            // '0'-'9'
+            else if (c >= 0x61 && c <= 0x66) v = c - 0x61 + 10;  // 'a'-'f'
+            else if (c >= 0x41 && c <= 0x46) v = c - 0x41 + 10;  // 'A'-'F'
+            else return address(0);
+            addr = (addr << 4) | v;
+        }
+        return address(addr);
+    }
+
     function _mint(address to, string memory assetId, string memory quantity) internal {
-        require(_haveAsset(assetId), "Asset not found");
-        Asset memory asset = assets[assetId];
-        uint8 tokenDecimals = IERC20Metadata(asset.tokenAddress).decimals();
+        address tokenAddress = _extractTokenAddress(assetId);
+        require(tokenAddress != address(0), "Cannot mint an off-chain asset");
+        uint8 tokenDecimals = IERC20Metadata(tokenAddress).decimals();
         uint256 tokenAmount = quantity.stringToUint(tokenDecimals);
-        Mintable(asset.tokenAddress).mint(to, tokenAmount);
+        Mintable(tokenAddress).mint(to, tokenAmount);
     }
 
     function _transfer(address from, address to, string memory assetId, string memory quantity) internal {
-        require(_haveAsset(assetId), "Asset not found");
-        Asset memory asset = assets[assetId];
-        uint8 tokenDecimals = IERC20Metadata(asset.tokenAddress).decimals();
+        address tokenAddress = _extractTokenAddress(assetId);
+        if (tokenAddress == address(0)) return; // off-chain asset — event-only leg
+        uint8 tokenDecimals = IERC20Metadata(tokenAddress).decimals();
         uint256 tokenAmount = quantity.stringToUint(tokenDecimals);
-        uint256 balance = IERC20(asset.tokenAddress).balanceOf(from);
+        uint256 balance = IERC20(tokenAddress).balanceOf(from);
         require(balance >= tokenAmount, "Not sufficient balance to transfer");
-        IERC20(asset.tokenAddress).transferFrom(from, to, tokenAmount);
+        IERC20(tokenAddress).transferFrom(from, to, tokenAmount);
     }
 
     function _burn(address from, string memory assetId, string memory quantity) internal {
-        require(_haveAsset(assetId), "Asset not found");
-        Asset memory asset = assets[assetId];
-        uint8 tokenDecimals = IERC20Metadata(asset.tokenAddress).decimals();
+        address tokenAddress = _extractTokenAddress(assetId);
+        require(tokenAddress != address(0), "Cannot burn an off-chain asset");
+        uint8 tokenDecimals = IERC20Metadata(tokenAddress).decimals();
         uint256 tokenAmount = quantity.stringToUint(tokenDecimals);
-        uint256 balance = IERC20(asset.tokenAddress).balanceOf(from);
+        uint256 balance = IERC20(tokenAddress).balanceOf(from);
         require(balance >= tokenAmount, "Not sufficient balance to burn");
-        Burnable(asset.tokenAddress).burn(from, tokenAmount);
+        Burnable(tokenAddress).burn(from, tokenAmount);
     }
 
     function _extractDetails(

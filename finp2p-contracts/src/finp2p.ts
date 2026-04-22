@@ -58,16 +58,6 @@ export class FinP2PContract extends ContractsManager {
     return { name, version, chainId, verifyingContract };
   }
 
-  async getAssetAddress(assetId: string) {
-    return this.finP2P.getAssetAddress(assetId);
-  }
-
-  async associateAsset(assetId: string, tokenAddress: string) {
-    return this.safeExecuteTransaction(this.finP2P, async (finP2P: FINP2POperator, txParams: PayableOverrides) => {
-      return finP2P.associateAsset(assetId, tokenAddress, txParams);
-    });
-  }
-
   async addCredential(finId: string, address: string) {
     return this.safeExecuteTransaction(this.finP2P, async (finP2P: FINP2POperator, txParams: PayableOverrides) => {
       return finP2P.addCredential(finId, address, txParams);
