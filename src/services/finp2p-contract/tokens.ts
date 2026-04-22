@@ -36,21 +36,25 @@ export class TokenServiceImpl extends CommonServiceImpl implements TokenService 
                            assetBind: AssetBind | undefined, assetMetadata: any | undefined, assetName: string | undefined, issuerId: string | undefined,
                            assetDenomination: AssetDenomination | undefined): Promise<AssetCreationStatus> {
     let tokenAddress: string;
-    let allowanceRequired: boolean
+    let allowanceRequired: boolean;
+    const operatorAddress = this.finP2PContract.finP2PContractAddress;
     if (assetBind?.tokenIdentifier?.tokenId && isEthereumAddress(assetBind.tokenIdentifier.tokenId)) {
       tokenAddress = assetBind.tokenIdentifier.tokenId;
       allowanceRequired = true; // TODO: parse from metadata
-      logger.debug(`Associating existing token ${tokenAddress} to asset ${assetId}`);
+      logger.info(`createAsset(${assetId}): binding to existing ERC20 at ${tokenAddress}`);
     } else {
-      tokenAddress = await this.finP2PContract.deployERC20(assetId, assetId, DefaultDecimals, this.finP2PContract.finP2PContractAddress);
+      logger.info(`createAsset(${assetId}): deploying new ERC20 (decimals=${DefaultDecimals}, operator=${operatorAddress})`);
+      tokenAddress = await this.finP2PContract.deployERC20(assetId, assetId, DefaultDecimals, operatorAddress);
       allowanceRequired = false;
-      logger.debug(`Deployed new token ${tokenAddress} for asset ${assetId}`);
+      logger.info(`createAsset(${assetId}): deployed ERC20 at ${tokenAddress}`);
     }
 
     try {
+      logger.info(`createAsset(${assetId}): associating ${tokenAddress} with FinP2P operator ${operatorAddress}`);
       const txHash = await this.finP2PContract.associateAsset(assetId, tokenAddress);
+      logger.info(`createAsset(${assetId}): associateAsset tx ${txHash} confirmed`);
     } catch (e) {
-      logger.error(`Error creating asset: ${e}`);
+      logger.error(`createAsset(${assetId}): associateAsset failed for token ${tokenAddress}: ${e}`);
       if (e instanceof EthereumTransactionError) {
         return failedAssetCreation(1, e.message);
       } else {
