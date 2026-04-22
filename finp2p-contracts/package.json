@@ -1,6 +1,6 @@
 {
   "name": "@owneraio/finp2p-contracts",
-  "version": "0.28.5",
+  "version": "0.28.6",
   "description": "",
   "homepage": "https://ownera.io/",
   "main": "./dist/index.js",

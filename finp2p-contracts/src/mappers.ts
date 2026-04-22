@@ -52,9 +52,11 @@ export const assetTypeFromString = (assetType: string): AssetType => {
 
 
 export const termToEIP712 = (term: Term): EIP712Term => {
+  // 0.28: assetType is no longer part of the EIP712 hash. Emit only the fields
+  // that participate in hashing so consumers (ethers signTypedData / tests /
+  // verify-signature scripts) produce a digest that matches the on-chain hash.
   return {
     assetId: term.assetId,
-    assetType: assetTypeToEIP712(term.assetType),
     amount: term.amount
   };
 };
