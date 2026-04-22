@@ -22,6 +22,21 @@ import { validateRequest } from "./validator";
 
 const DefaultDecimals = 2;
 
+/**
+ * 0.28.2+ FINP2POperator extracts the ERC20 contract address from the trailing
+ * ":0x<40-hex>" of each assetId. EIP712-signed flows carry the CAIP-style id
+ * natively (e.g. "name: sepolia, chainId: .../ERC20:0x..."); for unsigned
+ * paths (`issue`, balance reads), the adapter appends the standard + tokenId
+ * suffix from the asset's ledgerIdentifier so the contract can route.
+ */
+const toContractAssetId = (asset: Asset): string => {
+  // Already CAIP-encoded with a token-address suffix — pass through.
+  if (/:0x[a-fA-F0-9]{40}$/.test(asset.assetId)) return asset.assetId;
+  const li = asset.ledgerIdentifier;
+  if (!li?.tokenId) return asset.assetId;
+  return `${asset.assetId}/${li.standard ?? 'ERC20'}:${li.tokenId}`;
+};
+
 export class TokenServiceImpl extends CommonServiceImpl implements TokenService {
 
 
@@ -83,7 +98,7 @@ export class TokenServiceImpl extends CommonServiceImpl implements TokenService 
     const issuerFinId = destinationFinId;
     try {
       await this.ensureCredential(issuerFinId);
-      const transactionReceipt = await this.finP2PContract.issue(issuerFinId, term(asset.assetId, assetTypeFromString(asset.assetType), quantity), emptyOperationParams())
+      const transactionReceipt = await this.finP2PContract.issue(issuerFinId, term(toContractAssetId(asset), assetTypeFromString(asset.assetType), quantity), emptyOperationParams())
       if (exCtx) {
         this.execDetailsStore?.addExecutionContext(transactionReceipt.hash, exCtx.planId, exCtx.sequence);
       }
@@ -159,12 +174,12 @@ export class TokenServiceImpl extends CommonServiceImpl implements TokenService 
 
   public async getBalance(asset: Asset, finId: string): Promise<string> {
     await this.ensureCredential(finId);
-    return await this.finP2PContract.balance(asset.assetId, finId);
+    return await this.finP2PContract.balance(toContractAssetId(asset), finId);
   }
 
   public async balance(asset: Asset, finId: string): Promise<Balance> {
     await this.ensureCredential(finId);
-    const balance = await this.finP2PContract.balance(asset.assetId, finId);
+    const balance = await this.finP2PContract.balance(toContractAssetId(asset), finId);
     return {
       current: balance,
       available: balance,
