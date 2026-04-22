@@ -13,13 +13,23 @@ export type AccountMappingType = 'derivation' | 'database'
 
 const ACCOUNT_MAPPING_TYPES: ReadonlyArray<AccountMappingType> = ['derivation', 'database'];
 
-function resolveAccountMappingType(rawValue: string | undefined): AccountMappingType {
-  if (!rawValue) return 'derivation';
+/**
+ * @deprecated `derivation` is retained for backward compatibility and will be removed.
+ * Switch to `database` (the default); it is DB-backed and supports custody-account mappings.
+ */
+const DEPRECATED_ACCOUNT_MAPPING_TYPES: ReadonlyArray<AccountMappingType> = ['derivation'];
+
+function resolveAccountMappingType(rawValue: string | undefined, logger: Logger): AccountMappingType {
+  if (!rawValue) return 'database';
 
   const normalized = rawValue.trim() as AccountMappingType;
-  if (ACCOUNT_MAPPING_TYPES.includes(normalized)) return normalized;
-
-  throw new Error(`Invalid ACCOUNT_MAPPING_TYPE: ${rawValue}. Supported values: ${ACCOUNT_MAPPING_TYPES.join(', ')}`);
+  if (!ACCOUNT_MAPPING_TYPES.includes(normalized)) {
+    throw new Error(`Invalid ACCOUNT_MAPPING_TYPE: ${rawValue}. Supported values: ${ACCOUNT_MAPPING_TYPES.join(', ')}`);
+  }
+  if (DEPRECATED_ACCOUNT_MAPPING_TYPES.includes(normalized)) {
+    logger.warning(`ACCOUNT_MAPPING_TYPE='${normalized}' is deprecated and will be removed; switch to 'database'`);
+  }
+  return normalized;
 }
 
 export type AccountModel = 'segregated' | 'omnibus'
@@ -99,7 +109,7 @@ export const createJsonProvider = (
 
 export async function envVarsToAppConfig(logger: Logger): Promise<AppConfig> {
   const configType = (process.env.PROVIDER_TYPE || 'finp2p-contract') as AppConfig['type']
-  const accountMappingType = resolveAccountMappingType(process.env.ACCOUNT_MAPPING_TYPE)
+  const accountMappingType = resolveAccountMappingType(process.env.ACCOUNT_MAPPING_TYPE, logger)
   const accountModel = resolveAccountModel(process.env.ACCOUNT_MODEL)
 
   switch (configType) {
