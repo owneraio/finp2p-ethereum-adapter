@@ -21,11 +21,10 @@ const logger = winston.createLogger({
 });
 
 const getTokenAddress = (ledgerAssetInfo: LedgerAssetInfo): string => {
-  const { tokenId, ledgerReference } = ledgerAssetInfo;
-  if (ledgerReference) {
-    return ledgerReference.address;
+  if (ledgerAssetInfo.ledgerReference) {
+    return ledgerAssetInfo.ledgerReference.address;
   }
-  return tokenId;
+  return ledgerAssetInfo.ledgerIdentifier?.tokenId ?? '';
 };
 
 const whitelistERC20 = async (
@@ -123,27 +122,10 @@ const startMigration = async (
     }
   }
 
+  // TODO: payment-asset migration path removed when FinP2PClient.getPaymentAssets was dropped in 0.28.6.
+  // Re-implement via getAssets({ key: 'type', operator: 'equals', value: 'payment' }) if still needed.
   if (oldFinp2pAddress) {
-    const oldFinP2PContract = new FinP2PContract(provider, signer, oldFinp2pAddress, logger);
-    const paymentAssets = await finp2p.getPaymentAssets();
-    logger.info(`Got a list of ${paymentAssets.length} assets to migrate`);
-    for (const { orgId: assetOrg, assets } of paymentAssets) {
-      if (assets.length > 0 && assetOrg === orgId) {
-        for (const { code } of assets) {
-          let tokenAddress: string;
-          try {
-            tokenAddress = await oldFinP2PContract.getAssetAddress(code);
-          } catch (e) {
-            if (!`${e}`.includes("Asset not found")) {
-              logger.error(e);
-            }
-            continue;
-          }
-          logger.info(`Migrating payment asset ${code} with token address ${tokenAddress}`);
-          await finP2PContract.associateAsset(code, tokenAddress);
-        }
-      }
-    }
+    logger.warn(`oldFinp2pAddress=${oldFinp2pAddress} provided, but payment-asset migration is not implemented for finp2p-client ^0.28.6`);
   }
 
   logger.info("Migration complete");
