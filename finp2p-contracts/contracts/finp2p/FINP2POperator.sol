@@ -26,7 +26,7 @@ contract FINP2POperator is AccessControl, FinP2PSignatureVerifier {
     using StringUtils for uint256;
     using FinIdUtils for string;
 
-    string public constant VERSION = "0.28.3";
+    string public constant VERSION = "0.28.4";
 
     bytes32 private constant ASSET_MANAGER = keccak256("ASSET_MANAGER");
     bytes32 private constant TRANSACTION_MANAGER = keccak256("TRANSACTION_MANAGER");
@@ -54,6 +54,11 @@ contract FINP2POperator is AccessControl, FinP2PSignatureVerifier {
     /// @notice Redeem event
     event Redeem(string assetId, AssetType assetType, string ownerFinId, string quantity, string operationId);
 
+    struct Asset {
+        string id;
+        address tokenAddress;
+    }
+
     struct Lock {
         string assetId;
         AssetType assetType;
@@ -68,10 +73,10 @@ contract FINP2POperator is AccessControl, FinP2PSignatureVerifier {
     // Credentials: finId -> wallet address
     mapping(string => address) private credentials;
 
-    // Fallback assetId → ERC20 mapping for signers that don't yet emit CAIP-style
-    // assetIds inline. `_extractTokenAddress(assetId)` is tried first; this map is
-    // only consulted when the parser returns address(0).
-    mapping(string => address) private assetTokens;
+    // assetId → ERC20 fallback registry. Operational resolution prefers the
+    // CAIP-encoded tokenAddress carried inline in the assetId; this map is
+    // only consulted when the parser returns address(0) (legacy signers).
+    mapping(string => Asset) private assets;
 
     constructor(address admin) {
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
@@ -127,20 +132,34 @@ contract FINP2POperator is AccessControl, FinP2PSignatureVerifier {
         return credentials[finId];
     }
 
-    // ---- Asset resolution ----
-    // Primary: the assetId in each EIP712 Term carries the ERC20 contract address
-    // inline — "name: <net>, chainId: <id>/<standard>:0x<40-hex>" — and
-    // _extractTokenAddress(assetId) parses it out.
-    // Fallback: for signers that still emit plain resourceIds (e.g. adapter-tests
-    // legacy builders), `associateAsset(assetId, tokenAddress)` registers a
-    // lookup so the operator can still resolve the token address.
+    // ---- Asset registry (fallback) ----
+    // Operational resolution prefers the CAIP-encoded tokenAddress carried inline
+    // in the EIP712 Term.assetId (e.g. "name: <net>, chainId: <id>/<standard>:0x<40-hex>").
+    // The registry below is consulted only when `_extractTokenAddress` returns
+    // address(0) — i.e. for legacy signers that emit plain resourceIds.
 
-    /// @notice Register an assetId → ERC20 fallback mapping. Only consulted when
-    /// the assetId doesn't carry the tokenAddress inline.
+    /// @notice Register an assetId → ERC20 fallback mapping.
     function associateAsset(string calldata assetId, address tokenAddress) external {
         require(hasRole(ASSET_MANAGER, _msgSender()), "FINP2POperator: must have asset manager role to associate asset");
+        require(!_haveAsset(assetId), "Asset already exists");
         require(tokenAddress != address(0), "Token address cannot be zero");
-        assetTokens[assetId] = tokenAddress;
+        assets[assetId] = Asset(assetId, tokenAddress);
+    }
+
+    /// @notice Remove an asset from the fallback registry.
+    function removeAsset(string calldata assetId) external {
+        require(hasRole(ASSET_MANAGER, _msgSender()), "FINP2POperator: must have asset manager role to remove asset");
+        require(_haveAsset(assetId), "Asset not found");
+        delete assets[assetId];
+    }
+
+    /// @notice Look up the ERC20 address registered for `assetId`.
+    /// @dev Only reflects the fallback registry; does NOT parse CAIP-encoded
+    ///      assetIds. Use _resolveToken(assetId) inside the contract to honor
+    ///      the parser-first / registry-fallback resolution order.
+    function getAssetAddress(string calldata assetId) external view returns (address) {
+        require(_haveAsset(assetId), "Asset not found");
+        return assets[assetId].tokenAddress;
     }
 
     /// @notice Get the balance of an asset for a FinID.
@@ -320,6 +339,10 @@ contract FINP2POperator is AccessControl, FinP2PSignatureVerifier {
         return credentials[finId] != address(0);
     }
 
+    function _haveAsset(string memory assetId) internal view returns (bool) {
+        return assets[assetId].tokenAddress != address(0);
+    }
+
     /// @notice Resolve finId to wallet address via credentials mapping
     function _resolveAddress(string memory finId) internal view returns (address) {
         address addr = credentials[finId];
@@ -333,7 +356,7 @@ contract FINP2POperator is AccessControl, FinP2PSignatureVerifier {
     function _resolveToken(string memory assetId) internal view returns (address) {
         address parsed = _extractTokenAddress(assetId);
         if (parsed != address(0)) return parsed;
-        return assetTokens[assetId];
+        return assets[assetId].tokenAddress;
     }
 
     /// @notice Extracts the ERC20 contract address from a CAIP-style assetId
