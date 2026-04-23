@@ -8,8 +8,6 @@
     "node": ">=20"
   },
   "bin": {
-    "migration": "./dist/scripts/migration.js",
-    "sync-balances": "./dist/scripts/sync-balances.js",
     "mass-approve": "./dist/scripts/mass-approve.js"
   },
   "scripts": {
@@ -23,8 +21,6 @@
     "test:account-mapping": "jest --config jest.account-mapping.config.js",
     "test:omnibus": "jest --config jest.omnibus.config.js",
     "test-server": "ts-node ./scripts/test-server.ts",
-    "migration": "ts-node ./scripts/migration.ts",
-    "sync-balances": "ts-node ./scripts/sync-balances.ts",
     "mass-approve": "ts-node ./scripts/mass-approve.ts",
     "verify-signature": "ts-node ./scripts/verify-signature.ts",
     "start-debug": "ts-node ./src/index.ts",
@@ -41,11 +37,11 @@
     "@dfns/sdk": "^0.8.11",
     "@dfns/sdk-keysigner": "^0.8.11",
     "@fireblocks/fireblocks-web3-provider": "^1.3.12",
-    "@owneraio/finp2p-client": "^0.28.0",
-    "@owneraio/finp2p-contracts": "^0.28.4",
+    "@owneraio/finp2p-client": "^0.28.6",
+    "@owneraio/finp2p-contracts": "^0.28.8",
     "@owneraio/finp2p-ethereum-dtcc-plugin": "^0.28.0",
     "@owneraio/finp2p-ethereum-token-standard": "^0.28.0",
-    "@owneraio/finp2p-nodejs-skeleton-adapter": "^0.28.5",
+    "@owneraio/finp2p-nodejs-skeleton-adapter": "^0.28.6",
     "@owneraio/finp2p-vanilla-service": "^0.28.1",
     "@types/node": "^24.10.1",
     "axios": "^1.1.3",
@@ -57,7 +53,7 @@
     "uuid": "^9.0.0"
   },
   "devDependencies": {
-    "@owneraio/adapter-tests": "^0.28.0",
+    "@owneraio/adapter-tests": "^0.28.1",
     "@testcontainers/postgresql": "^11.8.1",
     "@types/express": "^5.0.3",
     "@types/jest": "^29.2.0",

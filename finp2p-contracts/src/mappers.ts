@@ -52,17 +52,22 @@ export const assetTypeFromString = (assetType: string): AssetType => {
 
 
 export const termToEIP712 = (term: Term): EIP712Term => {
+  // 0.28: assetType is no longer part of the EIP712 hash. Emit only the fields
+  // that participate in hashing so consumers (ethers signTypedData / tests /
+  // verify-signature scripts) produce a digest that matches the on-chain hash.
   return {
     assetId: term.assetId,
-    assetType: assetTypeToEIP712(term.assetType),
     amount: term.amount
   };
 };
 
 export const termFromEIP712 = (eip712Term: EIP712Term): Term => {
+  // 0.28 dropped `assetType` from the on-the-wire Term payload; default to FinP2P
+  // so adapter parsing still works against new-format messages. Pre-0.28 messages
+  // still carry assetType and take the explicit path.
   return {
     assetId: eip712Term.assetId,
-    assetType: assetTypeFromString(eip712Term.assetType),
+    assetType: eip712Term.assetType ? assetTypeFromString(eip712Term.assetType) : AssetType.FinP2P,
     amount: eip712Term.amount
   };
 }
