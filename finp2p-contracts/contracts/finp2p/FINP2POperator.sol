@@ -26,7 +26,7 @@ contract FINP2POperator is AccessControl, FinP2PSignatureVerifier {
     using StringUtils for uint256;
     using FinIdUtils for string;
 
-    string public constant VERSION = "0.28.2";
+    string public constant VERSION = "0.28.3";
 
     bytes32 private constant ASSET_MANAGER = keccak256("ASSET_MANAGER");
     bytes32 private constant TRANSACTION_MANAGER = keccak256("TRANSACTION_MANAGER");
@@ -67,6 +67,11 @@ contract FINP2POperator is AccessControl, FinP2PSignatureVerifier {
 
     // Credentials: finId -> wallet address
     mapping(string => address) private credentials;
+
+    // Fallback assetId → ERC20 mapping for signers that don't yet emit CAIP-style
+    // assetIds inline. `_extractTokenAddress(assetId)` is tried first; this map is
+    // only consulted when the parser returns address(0).
+    mapping(string => address) private assetTokens;
 
     constructor(address admin) {
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
@@ -123,11 +128,20 @@ contract FINP2POperator is AccessControl, FinP2PSignatureVerifier {
     }
 
     // ---- Asset resolution ----
-    // 0.28.2: asset metadata is no longer stored on-chain. The `assetId` in
-    // each EIP712 Term carries the ERC20 contract address inline:
-    //   "name: <net>, chainId: <id>/<standard>:0x<40-hex>"
-    // Off-chain assets (e.g. "vanilla/high:<uuid>") return address(0); token
-    // operations become no-ops for those legs (emit event only).
+    // Primary: the assetId in each EIP712 Term carries the ERC20 contract address
+    // inline — "name: <net>, chainId: <id>/<standard>:0x<40-hex>" — and
+    // _extractTokenAddress(assetId) parses it out.
+    // Fallback: for signers that still emit plain resourceIds (e.g. adapter-tests
+    // legacy builders), `associateAsset(assetId, tokenAddress)` registers a
+    // lookup so the operator can still resolve the token address.
+
+    /// @notice Register an assetId → ERC20 fallback mapping. Only consulted when
+    /// the assetId doesn't carry the tokenAddress inline.
+    function associateAsset(string calldata assetId, address tokenAddress) external {
+        require(hasRole(ASSET_MANAGER, _msgSender()), "FINP2POperator: must have asset manager role to associate asset");
+        require(tokenAddress != address(0), "Token address cannot be zero");
+        assetTokens[assetId] = tokenAddress;
+    }
 
     /// @notice Get the balance of an asset for a FinID.
     /// @return The balance as a decimal string, or "0" if the asset is off-chain.
@@ -135,7 +149,7 @@ contract FINP2POperator is AccessControl, FinP2PSignatureVerifier {
         string calldata assetId,
         string calldata finId
     ) external view returns (string memory) {
-        address tokenAddress = _extractTokenAddress(assetId);
+        address tokenAddress = _resolveToken(assetId);
         if (tokenAddress == address(0)) return "0";
         address addr = _resolveAddress(finId);
         uint8 tokenDecimals = IERC20Metadata(tokenAddress).decimals();
@@ -313,6 +327,15 @@ contract FINP2POperator is AccessControl, FinP2PSignatureVerifier {
         return addr;
     }
 
+    /// @notice Resolve an assetId to an ERC20 contract address.
+    ///         First tries to parse it inline (CAIP-style); falls back to the
+    ///         associateAsset registry; returns address(0) if neither yields a token.
+    function _resolveToken(string memory assetId) internal view returns (address) {
+        address parsed = _extractTokenAddress(assetId);
+        if (parsed != address(0)) return parsed;
+        return assetTokens[assetId];
+    }
+
     /// @notice Extracts the ERC20 contract address from a CAIP-style assetId
     ///         of the form: "...<prefix>/<standard>:0x<40-hex>"
     /// Returns address(0) if the assetId doesn't end with that pattern (e.g.
@@ -339,7 +362,7 @@ contract FINP2POperator is AccessControl, FinP2PSignatureVerifier {
     }
 
     function _mint(address to, string memory assetId, string memory quantity) internal {
-        address tokenAddress = _extractTokenAddress(assetId);
+        address tokenAddress = _resolveToken(assetId);
         require(tokenAddress != address(0), "Cannot mint an off-chain asset");
         uint8 tokenDecimals = IERC20Metadata(tokenAddress).decimals();
         uint256 tokenAmount = quantity.stringToUint(tokenDecimals);
@@ -347,7 +370,7 @@ contract FINP2POperator is AccessControl, FinP2PSignatureVerifier {
     }
 
     function _transfer(address from, address to, string memory assetId, string memory quantity) internal {
-        address tokenAddress = _extractTokenAddress(assetId);
+        address tokenAddress = _resolveToken(assetId);
         if (tokenAddress == address(0)) return; // off-chain asset — event-only leg
         uint8 tokenDecimals = IERC20Metadata(tokenAddress).decimals();
         uint256 tokenAmount = quantity.stringToUint(tokenDecimals);
@@ -357,7 +380,7 @@ contract FINP2POperator is AccessControl, FinP2PSignatureVerifier {
     }
 
     function _burn(address from, string memory assetId, string memory quantity) internal {
-        address tokenAddress = _extractTokenAddress(assetId);
+        address tokenAddress = _resolveToken(assetId);
         require(tokenAddress != address(0), "Cannot burn an off-chain asset");
         uint8 tokenDecimals = IERC20Metadata(tokenAddress).decimals();
         uint256 tokenAmount = quantity.stringToUint(tokenDecimals);
