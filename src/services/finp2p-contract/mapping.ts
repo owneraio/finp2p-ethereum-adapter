@@ -11,9 +11,21 @@ function mapAccount(acc: { finId: string; account?: string } | undefined) {
  * Map a contracts ReceiptOperation to the skeleton's shape.
  * Optionally overrides the receipt's asset with the caller's full asset
  * (which carries ledgerIdentifier the on-chain contract doesn't know about).
+ *
+ * Strips an empty `tradeDetails.executionContext` — finp2p-contracts
+ * seeds it with `{ planId: "", sequence: 0 }` when there's no real plan,
+ * and the router rejects empty `executionPlanId` strings.
  */
 export function mapReceiptOperation(op: ContractReceiptOperation, asset?: Asset): ReceiptOperation {
   if (op.type !== 'success') return op as any;
+  const rawTradeDetails = (op.receipt as any).tradeDetails;
+  const exCtx = rawTradeDetails?.executionContext;
+  const hasRealExCtx = exCtx && typeof exCtx.planId === 'string' && exCtx.planId.trim().length > 0;
+  const tradeDetails = hasRealExCtx
+    ? rawTradeDetails
+    : rawTradeDetails
+      ? { ...rawTradeDetails, executionContext: undefined }
+      : undefined;
   return {
     ...op,
     receipt: {
@@ -21,6 +33,7 @@ export function mapReceiptOperation(op: ContractReceiptOperation, asset?: Asset)
       asset: asset ?? op.receipt.asset,
       source: mapAccount(op.receipt.source as any),
       destination: mapAccount(op.receipt.destination as any),
+      tradeDetails,
     },
   } as any;
 }
