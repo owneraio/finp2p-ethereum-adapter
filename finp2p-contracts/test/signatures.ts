@@ -129,6 +129,28 @@ describe("Signing test", function() {
     });
   });
 
+  it("Transfer signature from platform", async function() {
+    // Real captured payload — verifies that the v0.27 Term shape
+    // (assetId, assetType, amount) reproduces the platform's EIP712 hash and
+    // that the signature recovers the seller's finId-derived address.
+    const chainId = 1;
+    const verifyingContract = "0x0000000000000000000000000000000000000000";
+    const nonce = "866c6baf0e2a1856bc25ba00436de5e0";
+    const buyerFinId  = "0341bf2178bc4e047f5782f3a25ed4ffd742edf4604ba22ae2f771036d3e4a6710";
+    const sellerFinId = "0376339d3cd3c44d704d27cfba39e13234732f47f2d10927c4f3a7b5032daa3649";
+    const asset = term("org-a:102:bb4dfc13-fa75-4387-82eb-2efaeabad499", AssetType.FinP2P, "1");
+    const { types, message } = newInvestmentMessage(
+      PrimaryType.Transfer, nonce, buyerFinId, sellerFinId,
+      termToEIP712(asset), termToEIP712(asset) /* unused for Transfer */,
+    );
+
+    const platformHash = "0xf86f07b52453bb32d98f8aa392bde5deb71c8e60176454883bc2c8a80cd59a49";
+    const platformSignature = "0x2add321a53b6bdb70c337040bf065f3dd0b549239afe7f33fcf955bca07d0efd2c6e254ff6936db1113075ea64993e6374d32c98959194e2305a591eeb6af32d1c";
+
+    expect(hashEIP712(chainId, verifyingContract, types, message)).to.equal(platformHash);
+    expect(verifyEIP712(chainId, verifyingContract, types, message, sellerFinId, platformSignature)).to.equal(true);
+  });
+
   it.skip("Investor signature from platform", async function() {
     const { contract: verifier } = await loadFixture(deployFinP2PSignatureVerifier);
     const chainId = 1337;
