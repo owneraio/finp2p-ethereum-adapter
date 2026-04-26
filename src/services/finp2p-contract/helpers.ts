@@ -195,25 +195,13 @@ export const eip712PrimaryTypeFromTemplate = (template: EIP712Template): Primary
 };
 
 const compareAssets = (asset: Asset, eipAsset: EIP712Term): boolean => {
-  // 1) Direct FinP2P-id match (settlement, non-bound assets, pre-0.28 messages).
-  if (eipAsset.assetId === asset.assetId) return true;
-
-  // 2) 0.28 bound-ERC20 assetId encodes the on-chain contract address inline, e.g.
-  //    "name: sepolia, chainId: 11155111/ERC20:0x9f9b..aea". Match on the contract address.
-  const tokenId = asset.ledgerIdentifier?.tokenId?.toLowerCase();
-  if (tokenId) {
-    const m = eipAsset.assetId.toLowerCase().match(/0x[a-f0-9]{40}/);
-    if (m && m[0] === tokenId) return true;
-  }
-
-  // 3) Legacy fallback: assetFromAPI returns assetType='finp2p' for all assets,
-  //    but pre-0.28 EIP712 settlement terms used 'fiat'/'cryptocurrency' for USD/USDC.
+  // Settlement fallback: skeleton's assetFromAPI returns assetType='finp2p' for all assets,
+  // but EIP712 settlement terms use 'fiat'/'cryptocurrency'. Match well-known symbols across types.
   if (isIn(eipAsset.assetType as string, "fiat", "cryptocurrency") && isIn(eipAsset.assetId as string, "USD", "USDC") &&
     isIn(asset.assetType as string, "fiat", "cryptocurrency", "finp2p") && isIn(asset.assetId, "USD", "USDC")) {
     return true;
   }
-
-  return false;
+  return (eipAsset.assetId === asset.assetId && eipAsset.assetType === asset.assetType);
 };
 
 const isIn = (str: string, ...args: string[]): boolean => args.includes(str);

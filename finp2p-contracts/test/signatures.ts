@@ -129,26 +129,56 @@ describe("Signing test", function() {
     });
   });
 
-  it("Selling signature from platform (0.28 wire format)", async function() {
-    // Real captured payload from the platform. Exercises:
-    //  - off-chain EIP712 hash matches the platform-computed hash byte-for-byte
-    //    (validates new 0.28 Term shape: { assetId, amount } — no assetType)
-    //  - off-chain signer recovery returns the seller's derived EVM address
+  it("Transfer signature from platform", async function() {
+    // Real captured payload — verifies that the v0.27 Term shape
+    // (assetId, assetType, amount) reproduces the platform's EIP712 hash and
+    // that the signature recovers the seller's finId-derived address.
     const chainId = 1;
     const verifyingContract = "0x0000000000000000000000000000000000000000";
-    const nonce = "75dbdf185a9ca33c5c1ef14d4cf1342c";
-    const buyerFinId  = "03897e68c1dc647ccb03875b1267c12ec7bcaaea7084b262b131d5fccef714433b";
-    const sellerFinId = "03f38f6b90efab51ed88e12e919e4975027c4cde5309bf4a82d89039f774b70446";
-    const asset      = term("name: sepolia, chainId: 11155111/ERC20:0x9f9bd18b402ee53dab974defd5ff1be2a3f2aaea", AssetType.FinP2P, "5");
-    const settlement = term("vanilla/high:12d019fc-4e4f-49aa-9121-4968c54240ba",                                AssetType.FinP2P, "50");
-    const primaryType = PrimaryType.Selling;
-    const { message, types } = newInvestmentMessage(primaryType, nonce, buyerFinId, sellerFinId, termToEIP712(asset), termToEIP712(settlement));
+    const nonce = "866c6baf0e2a1856bc25ba00436de5e0";
+    const buyerFinId  = "0341bf2178bc4e047f5782f3a25ed4ffd742edf4604ba22ae2f771036d3e4a6710";
+    const sellerFinId = "0376339d3cd3c44d704d27cfba39e13234732f47f2d10927c4f3a7b5032daa3649";
+    const asset = term("org-a:102:bb4dfc13-fa75-4387-82eb-2efaeabad499", AssetType.FinP2P, "1");
+    const { types, message } = newInvestmentMessage(
+      PrimaryType.Transfer, nonce, buyerFinId, sellerFinId,
+      termToEIP712(asset), termToEIP712(asset) /* unused for Transfer */,
+    );
 
-    const platformHash = "0xb728c7c6dc6f42d61979bb5095a4c1ec97b29250681eb36ae215e25cff8700d1";
-    const platformSignature = "0x05bba94ca10eef6c6485374146d82c5e166a9a8460c019796552c22f50394ee90409fb56f35af7b5c7abbc5371fd7fd121bcf6a1833acce1929549c8dda9a96d1c";
+    const platformHash = "0xf86f07b52453bb32d98f8aa392bde5deb71c8e60176454883bc2c8a80cd59a49";
+    const platformSignature = "0x2add321a53b6bdb70c337040bf065f3dd0b549239afe7f33fcf955bca07d0efd2c6e254ff6936db1113075ea64993e6374d32c98959194e2305a591eeb6af32d1c";
 
     expect(hashEIP712(chainId, verifyingContract, types, message)).to.equal(platformHash);
     expect(verifyEIP712(chainId, verifyingContract, types, message, sellerFinId, platformSignature)).to.equal(true);
+  });
+
+  it.skip("Investor signature from platform", async function() {
+    const { contract: verifier } = await loadFixture(deployFinP2PSignatureVerifier);
+    const chainId = 1337;
+    const verifyingContract = "0x5FbDB2315678afecb367f032d93F642f64180aa3";
+    const nonce = "e78c3a7f564c19667a7d90285e7fe443eca8403d45a2eea80000000067d1907d";
+    // borrower
+    const sellerFinId = "03da4a23d6385d7f591350f55d98176902580b8ed0412fe54de28a59d5fd5d1af7";
+    // lender
+    const buyerFinId = "02d34fde92bcd3baef081118e1e5fe9154ff47176a4118cc27b10f5347a56bec23";
+    const asset = term("bank-us:102:66fe5a05-ffc6-4754-8d46-68e8abd0e083", AssetType.FinP2P, "1");
+    const settlement = term("USD", AssetType.Fiat, "900");
+    const loan = loanTerms("1741787256", "1741787271", "900", "900.25");
+    const primaryType = PrimaryType.Loan;
+    const {
+      message,
+      types
+    } = newInvestmentMessage(primaryType, nonce, buyerFinId, sellerFinId, termToEIP712(asset), termToEIP712(settlement), loan);
+    const offChainHash = hashEIP712(chainId, verifyingContract, types, message);
+    const onChainHash = await verifier.hashInvestment(primaryType, nonce, buyerFinId, sellerFinId, asset, settlement, loan);
+
+    const platformHash = "0x28fc646eb6470c62252c9d4c2092bf34d86e590983429580b04578a8ff37e171";
+    const platformSignature = "0xd9c145d6f0f020276f268a83178ba08767eaab8fb71475a14f0a5c13275675885f6e89270cfca55cd9e9da29a9412564a2840af5680782f61cb7646181efbe941c";
+    expect(offChainHash).to.equal(platformHash);
+    expect(offChainHash).to.equal(onChainHash);
+
+    // const signerAddress = finIdToEthereumAddress(sellerFinId);
+    // expect(verify(chainId, verifyingContract, types, message, signerAddress, platformSignature)).to.equal(true);
+    expect(await verifier.verifyInvestmentSignature(primaryType, nonce, buyerFinId, sellerFinId, asset, settlement, loan, sellerFinId, platformSignature)).to.equal(true);
   });
 
   it("Receipt proof signature", async function() {

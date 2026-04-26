@@ -114,10 +114,11 @@ const startHardhatContainer = async () => {
 const deployContract = async (
   provider: Provider,
   signer: Signer,
-  operatorAddress: string | undefined
+  operatorAddress: string | undefined,
+  paymentAssetCode: string | undefined = undefined
 ) => {
   const contractManger = new ContractsManager(provider, signer, logger);
-  return contractManger.deployFinP2PContract(operatorAddress);
+  return contractManger.deployFinP2PContract(operatorAddress, paymentAssetCode);
 };
 
 const deployERC20Contract = async (
