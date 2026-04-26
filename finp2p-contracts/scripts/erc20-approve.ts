@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { formatUnits, parseUnits } from "ethers";
 import { Logger, ConsoleLogger } from "../src/adapter-types";
-import { ERC20Contract } from "../src";
+import { FinP2PContract, ERC20Contract } from "../src";
 import { createJsonProvider, parseConfig } from "./config";
 
 const logger: Logger = new ConsoleLogger("info");
@@ -10,7 +10,8 @@ const logger: Logger = new ConsoleLogger("info");
 const erc20Approve = async (
   operatorPrivateKey: string,
   ethereumRPCUrl: string,
-  tokenAddress: string,
+  finp2pContractAddress: string,
+  assetId: string,
   spender: string,
   amount: string
 ) => {
@@ -19,25 +20,29 @@ const erc20Approve = async (
   const network = await provider.getNetwork();
   logger.info("Network name: ", network.name);
   logger.info("Network chainId: ", network.chainId);
-  const signerAddress = await signer.getAddress();
+  const singerAddress = await signer.getAddress();
+
+  const finp2p = new FinP2PContract(provider, signer, finp2pContractAddress, logger);
+  const tokenAddress = await finp2p.getAssetAddress(assetId);
+  logger.info(`ERC20 token associated with ${assetId} is: ${tokenAddress}`);
 
   const erc20 = new ERC20Contract(provider, signer, tokenAddress, logger);
   logger.info("ERC20 token details: ");
   logger.info(`\tname: ${await erc20.name()}`);
   const decimals = await erc20.decimals();
 
-  const allowanceBefore = await erc20.allowance(signerAddress, spender);
+  const allowanceBefore = await erc20.allowance(singerAddress, spender);
   logger.info(`\tallowance before: ${formatUnits(allowanceBefore, decimals)}`);
 
   const txResp = await erc20.approve(spender, parseUnits(amount, decimals));
   logger.info(`\terc20 approve tx-hash: ${txResp.hash}`);
   await txResp.wait();
 
-  const allowanceAfter = await erc20.allowance(signerAddress, spender);
+  const allowanceAfter = await erc20.allowance(singerAddress, spender);
   logger.info(`\tallowance after: ${formatUnits(allowanceAfter, decimals)}`);
 
 
-  logger.info(`Approved ${amount} tokens for ${spender}`);
+  logger.info(`Approved ${amount} tokens for ${spender} (${spender})`);
 };
 
 const config = parseConfig([
@@ -54,9 +59,15 @@ const config = parseConfig([
     description: "Ethereum RPC URL"
   },
   {
-    name: "token_address",
-    envVar: "TOKEN_ADDRESS",
-    description: "ERC20 token address to approve",
+    name: "finp2p_contract_address",
+    envVar: "FINP2P_CONTRACT_ADDRESS",
+    description: "FinP2P contract address",
+    required: true
+  },
+  {
+    name: "asset_id",
+    envVar: "ASSET_ID",
+    description: "Asset ID to approve",
     required: true
   },
   {
@@ -73,6 +84,6 @@ const config = parseConfig([
   }
 ]);
 
-erc20Approve(config.operator_pk!, config.rpc_url!, config.token_address!, config.spender!, config.amount!)
+erc20Approve(config.operator_pk!, config.rpc_url!, config.finp2p_contract_address!, config.asset_id!, config.spender!, config.amount!)
   .then(() => {
   }).catch(console.error);

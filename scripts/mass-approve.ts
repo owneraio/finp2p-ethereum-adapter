@@ -29,12 +29,7 @@ const massApprove = async (
 
   const { provider, signer } = await createJsonProvider(operatorPrivateKey, ethereumRPCUrl);
   const signerAddress = await signer.getAddress();
-  for (const { id: assetId, ledgerAssetInfo } of assets) {
-    const tokenAddress = ledgerAssetInfo.ledgerReference?.address ?? ledgerAssetInfo.ledgerIdentifier?.tokenId;
-    if (!tokenAddress) {
-      logger.warn(`asset ${assetId}: no tokenAddress in ledgerAssetInfo, skipping`);
-      continue;
-    }
+  for (const { id: assetId, ledgerAssetInfo: { tokenId: tokenAddress } } of assets) {
     try {
       const erc20 = new ERC20Contract(provider, signer, tokenAddress, logger);
       const decimals = await erc20.decimals();
