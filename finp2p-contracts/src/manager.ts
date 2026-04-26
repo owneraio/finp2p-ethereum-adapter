@@ -53,7 +53,7 @@ export class ContractsManager {
     return await this.provider.getTransactionCount(this.signer.getAddress(), "latest");
   }
 
-  async deployFinP2PContract(operatorAddress: string | undefined) {
+  async deployFinP2PContract(operatorAddress: string | undefined, paymentAssetCode: string | undefined = undefined) {
     this.logger.info("Deploying FinP2P contract...");
     const factory = new ContractFactory<any[], FINP2POperator>(
       FINP2P.abi, FINP2P.bytecode, this.signer
@@ -70,8 +70,9 @@ export class ContractsManager {
       await this.grantTransactionManagerRole(address, operatorAddress);
     }
 
-    // 0.28.2: on-chain asset registry removed. Payment-asset pre-creation is no
-    // longer needed — asset tokenAddress is carried inline in EIP712 Term.assetId.
+    if (paymentAssetCode) {
+      await this.preCreatePaymentAsset(factory, address, paymentAssetCode, DefaultDecimalsCurrencies);
+    }
 
     return address;
   }
@@ -82,12 +83,28 @@ export class ContractsManager {
     );
     const contract = factory.attach(finP2PContractAddress);
     try {
-      // 0.28.2: on-chain asset registry was removed. Health-check via VERSION() instead.
-      const version = await contract.VERSION();
-      return typeof version === 'string' && version.length > 0;
-    } catch {
+      await contract.getAssetAddress("test-asset-id");
+    } catch (err) {
+      if (err instanceof Error) {
+        if (err.message.includes("Asset not found")) {
+          return true;
+        }
+      }
       return false;
     }
+    return true;
+  }
+
+  async preCreatePaymentAsset(factory: ContractFactory<any[], FINP2POperator>, finP2PContractAddress: string, assetId: string, decimals: number): Promise<void> {
+    this.logger.info(`Pre-creating payment asset ${assetId}...`);
+    const finP2PAddress = await factory.attach(finP2PContractAddress).getAddress();
+    const tokenAddress = await this.deployERC20(assetId, assetId, decimals, finP2PAddress);
+
+    const contract = factory.attach(finP2PContractAddress) as FINP2POperator;
+    this.logger.info(`Associating asset ${assetId} with token ${tokenAddress}...`);
+    await this.safeExecuteTransaction(contract, async (finP2P: FINP2POperator, txParams: PayableOverrides) => {
+      return finP2P.associateAsset(assetId, tokenAddress, txParams);
+    });
   }
 
   async grantAssetManagerRole(finP2PContractAddress: string, to: string) {

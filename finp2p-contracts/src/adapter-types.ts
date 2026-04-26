@@ -96,8 +96,7 @@ export type EIP712Domain = {
 
 export interface EIP712Term {
   assetId: string;
-  // 0.28: removed from EIP712 hash. Kept optional so pre-0.28 messages still parse.
-  assetType?: string;
+  assetType: string;
   amount: string;
 }
 
@@ -193,11 +192,10 @@ export const FINID_TYPE: EIP712Types = {
   FinId: [{ name: 'idkey', type: 'string' }],
 };
 
-// 0.28: assetType removed from EIP712 Term hash. Matches Solidity
-// TERM_TYPE_HASH in FinP2PSignatureVerifier.sol.
 export const TERM_TYPE: EIP712Types = {
   Term: [
     { name: 'assetId', type: 'string' },
+    { name: 'assetType', type: 'string' },
     { name: 'amount', type: 'string' },
   ],
 };
