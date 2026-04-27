@@ -1,5 +1,4 @@
 import winston from "winston";
-import { Wallet } from "ethers";
 import {
   PaymentsPlugin,
   DepositAsset,
@@ -20,24 +19,27 @@ import { IntegrationContext } from "../../registry";
 import { TransferWatcher, OtaResult } from "./transfer-watcher";
 
 /**
- * One-time-address (OTA) deposit method: returns a freshly-generated single-use wallet
- * address as the deposit target. The investor sends funds from their external wallet to
- * this ephemeral address; a TransferWatcher detects the inbound ERC20 Transfer event,
- * sweeps the balance to the configured sweep target (the investor's mapped wallet W_I
- * in segregated mode), and reports the deposit to OSS.
+ * One-time-address (OTA) deposit method: provisions a fresh custody account per deposit
+ * via CustodyProvider.createCustodyAccount and returns its EVM address as the deposit
+ * target. The investor sends funds to this address; a TransferWatcher detects the
+ * inbound ERC20 Transfer event, sweeps the balance to the configured sweep target
+ * (the investor's mapped wallet W_I in segregated mode), and reports the deposit to
+ * OSS. The ephemeral key never leaves custody — the sweep is signed by the
+ * custody-issued signer obtained via createWalletForCustodyId.
  *
- * Useful when the depositor's source address is not known in advance and 1:1 attribution
- * (intent ↔ address) is required.
+ * Useful when the depositor's source address is not known in advance and 1:1
+ * attribution (intent ↔ address) is required.
  *
- * The ephemeral wallet's private key is held in-memory for the lifetime of the intent,
- * used only to sign the sweep transfer. Gas is provided by the operator's gas-station.
- *
- * In-memory intent store; persistence is a TODO — see TransferWatcher.
+ * In-memory intent store; persistence is a TODO. Note: because the custody account
+ * is durable, intents can be recovered after process restart by re-instantiating
+ * the wallet via createWalletForCustodyId(custodyAccountId) — the EVM key isn't
+ * lost on crash, only the in-memory intent metadata is.
  *
  * Not registered when:
  *   - ACCOUNT_MODEL is omnibus (omnibus has its own flow)
  *   - DTCC_PLUGIN_ENABLED=true (DTCC owns the single PaymentsPlugin slot)
  *   - DEPOSIT_METHOD != 'ota' (default is 'wallet')
+ *   - custody provider lacks createCustodyAccount / createWalletForCustodyId
  */
 export function registerOtaDeposit(ctx: IntegrationContext): void {
   if (process.env.DTCC_PLUGIN_ENABLED === 'true') return;
@@ -47,6 +49,10 @@ export function registerOtaDeposit(ctx: IntegrationContext): void {
   const { pluginManager, logger, custodyProvider, assetStore, walletResolver, finP2PClient, inboundTransferHook } = ctx;
   if (!custodyProvider || !assetStore || !walletResolver) {
     logger.info('OTA-deposit plugin not registered: requires custody provider + asset store + wallet resolver');
+    return;
+  }
+  if (!custodyProvider.createCustodyAccount || !custodyProvider.createWalletForCustodyId) {
+    logger.info('OTA-deposit plugin not registered: custody provider does not support per-deposit account creation');
     return;
   }
 
@@ -168,9 +174,11 @@ class OtaDepositPlugin implements PaymentsPlugin {
       return failedDepositOperation(1, `No wallet mapping registered for finId ${ownerFinId}`);
     }
 
-    const ephemeralWallet = Wallet.createRandom();
-    const ephemeralAddress = ephemeralWallet.address;
     const correlationId = workflows.generateCid();
+    const { custodyAccountId, address: ephemeralAddress } = await this.custodyProvider.createCustodyAccount!(
+      `ota-${correlationId}`,
+    );
+    const ephemeralWallet = await this.custodyProvider.createWalletForCustodyId!(custodyAccountId);
 
     this.getWatcher().addIntent({
       correlationId,
@@ -178,6 +186,7 @@ class OtaDepositPlugin implements PaymentsPlugin {
       assetId: asset.assetId,
       contractAddress: dbAsset.contract_address,
       ephemeralAddress,
+      custodyAccountId,
       ephemeralWallet,
       sweepTarget: resolved.walletAddress,
       expectedAmount: amount,
@@ -185,7 +194,7 @@ class OtaDepositPlugin implements PaymentsPlugin {
     });
 
     this.logger.info(
-      `OTA-deposit: created intent ${correlationId} for finId=${ownerFinId} ephemeral=${ephemeralAddress} sweepTarget=${resolved.walletAddress}`,
+      `OTA-deposit: created intent ${correlationId} for finId=${ownerFinId} custodyId=${custodyAccountId} ephemeral=${ephemeralAddress} sweepTarget=${resolved.walletAddress}`,
     );
 
     return successfulDepositOperation({
