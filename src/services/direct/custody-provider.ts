@@ -34,4 +34,12 @@ export interface CustodyProvider {
    * in the custody dashboard (not load-bearing).
    */
   createCustodyAccount?(label?: string): Promise<{ custodyAccountId: string; address: string }>;
+  /**
+   * Mark a previously-created custody account as no-longer-in-use. Best-effort cleanup
+   * after a single-use OTA-deposit account has been swept. Neither Fireblocks nor DFNS
+   * support hard-delete of vault accounts/wallets — the underlying call is `hideVaultAccount`
+   * (Fireblocks) or `tagWallet` (DFNS). Any leftover dust (e.g. unused gas) remains in
+   * custody but invisible to operators.
+   */
+  archiveCustodyAccount?(custodyAccountId: string): Promise<void>;
 }

@@ -124,6 +124,28 @@ export class FireblocksCustodyProvider implements CustodyProvider {
     return addresses[0].address;
   }
 
+  async sweepCustodyAccount(vaultAccountId: string): Promise<void> {
+    await this.fireblocksSdk.hideVaultAccount(vaultAccountId);
+  }
+
+  async createCustodyAccount(label?: string): Promise<{ custodyAccountId: string; address: string }> {
+    const assetId = process.env.FIREBLOCKS_ASSET_ID ?? 'ETH_TEST5';
+    const name = label ?? `ota-${Date.now()}`;
+    const vault = await this.fireblocksSdk.createVaultAccount(name);
+    const vaultAsset = await this.fireblocksSdk.createVaultAsset(vault.id, assetId);
+    let address = vaultAsset.address;
+    if (!address) {
+      // Fallback: address may not be returned synchronously by createVaultAsset on
+      // some Fireblocks tenants. Query getDepositAddresses to fetch it.
+      const addresses = await this.fireblocksSdk.getDepositAddresses(vault.id, assetId);
+      if (addresses.length === 0) {
+        throw new Error(`Vault ${vault.id} created but no deposit address available for asset ${assetId}`);
+      }
+      address = addresses[0].address;
+    }
+    return { custodyAccountId: vault.id, address };
+  }
+
   async onAssetRegistered(tokenAddress: string, symbol?: string): Promise<void> {
     if (this.config.localSubmit) return;
     try {

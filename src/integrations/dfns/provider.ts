@@ -91,4 +91,23 @@ export class DfnsCustodyProvider implements CustodyProvider {
     }
     return wallet.address;
   }
+
+  async archiveCustodyAccount(walletId: string): Promise<void> {
+    // DFNS has no delete API; tag the wallet as archived so listing/filtering can exclude it.
+    await this.dfnsClient.wallets.tagWallet({ walletId, body: { tags: ['ota-archived'] } });
+  }
+
+  async createCustodyAccount(label?: string): Promise<{ custodyAccountId: string; address: string }> {
+    const network = process.env.DFNS_NETWORK;
+    if (!network) {
+      throw new Error('DFNS_NETWORK env var is required for createCustodyAccount (e.g. EthereumSepolia)');
+    }
+    const name = label ?? `ota-${Date.now()}`;
+    const wallet = await this.dfnsClient.wallets.createWallet({ body: { network: network as any, name } });
+    if (!wallet.address) {
+      throw new Error(`DFNS wallet ${wallet.id} created but address is not yet available (network=${network})`);
+    }
+    this.addressToWalletId.set(wallet.address.toLowerCase(), wallet.id);
+    return { custodyAccountId: wallet.id, address: wallet.address };
+  }
 }
