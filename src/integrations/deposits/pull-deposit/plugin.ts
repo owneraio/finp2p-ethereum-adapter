@@ -25,7 +25,7 @@ import { ApprovalWatcher, PullResult } from "./approval-watcher";
  * investor's adapter-managed wallet (W_I, resolved from the account mapping).
  *
  * After a successful transferFrom, the plugin calls finP2PClient.importTransactions
- * to register the deposit with OSS.
+ * to register the deposit with FinAPI.
  *
  * The operator wallet (env / adapter constant) is the ERC20 spender AND the transferFrom
  * signer. For v1 it reuses `custodyProvider.escrow`; a dedicated

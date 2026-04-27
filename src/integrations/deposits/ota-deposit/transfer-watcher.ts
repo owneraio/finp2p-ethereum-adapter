@@ -1,7 +1,6 @@
 import winston from "winston";
 import { Contract, Provider } from "ethers";
 import { CustodyWallet, GasStation } from "../../../services/direct";
-import { fundGasIfNeeded } from "../../../services/direct/helpers";
 
 const ERC20_TRANSFER_ABI = [
   'event Transfer(address indexed from, address indexed to, uint256 value)',
@@ -124,7 +123,7 @@ export class TransferWatcher {
       );
       return undefined;
     }
-    await fundGasIfNeeded(this.logger, this.gasStation, intent.ephemeralWallet);
+    await this.gasStation.ensureGas(await intent.ephemeralWallet.signer.getAddress());
 
     const sweepContract = new Contract(intent.contractAddress, ERC20_TRANSFER_ABI, intent.ephemeralWallet.signer);
     const tx = await sweepContract.transfer(intent.sweepTarget, amount);

@@ -24,7 +24,7 @@ import { TransferWatcher, OtaResult } from "./transfer-watcher";
  * target. The investor sends funds to this address; a TransferWatcher detects the
  * inbound ERC20 Transfer event, sweeps the balance to the configured sweep target
  * (the investor's mapped wallet W_I in segregated mode), and reports the deposit to
- * OSS. The ephemeral key never leaves custody — the sweep is signed by the
+ * FinAPI. The ephemeral key never leaves custody — the sweep is signed by the
  * custody-issued signer obtained via createWalletForCustodyId.
  *
  * Useful when the depositor's source address is not known in advance and 1:1
@@ -90,6 +90,22 @@ class OtaDepositPlugin implements PaymentsPlugin {
   }
 
   private async onTransferDetected(result: OtaResult): Promise<void> {
+    await this.exportReceipt(result);
+    await this.archiveIfSwept(result);
+  }
+
+  private async archiveIfSwept(result: OtaResult): Promise<void> {
+    if (!result.sweepTxHash) return; // funds still at the ephemeral — keep the account around
+    if (!this.custodyProvider.archiveCustodyAccount) return;
+    try {
+      await this.custodyProvider.archiveCustodyAccount(result.intent.custodyAccountId);
+      this.logger.info(`OTA-deposit: archived custody account ${result.intent.custodyAccountId}`);
+    } catch (e: any) {
+      this.logger.warn(`OTA-deposit: archive failed for ${result.intent.custodyAccountId}: ${e?.message ?? e}`);
+    }
+  }
+
+  private async exportReceipt(result: OtaResult): Promise<void> {
     if (this.inboundTransferHook) {
       try {
         await this.inboundTransferHook.onInboundTransfer(result.intent.correlationId, {
