@@ -14,18 +14,22 @@ import {
   failedDepositOperation,
 } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import { FinP2PClient } from "@owneraio/finp2p-client";
-import { AssetStore, CustodyProvider, WalletResolver } from "../../../services/direct";
+import { AssetStore, CustodyProvider } from "../../../services/direct";
 import { IntegrationContext } from "../../registry";
+import { DepositTargetResolver } from "../types";
 import { TransferWatcher, OtaResult } from "./transfer-watcher";
 
 /**
  * One-time-address (OTA) deposit method: provisions a fresh custody account per deposit
  * via CustodyProvider.createCustodyAccount and returns its EVM address as the deposit
  * target. The investor sends funds to this address; a TransferWatcher detects the
- * inbound ERC20 Transfer event, sweeps the balance to the configured sweep target
- * (the investor's mapped wallet W_I in segregated mode), and reports the deposit to
- * FinAPI. The ephemeral key never leaves custody — the sweep is signed by the
- * custody-issued signer obtained via createWalletForCustodyId.
+ * inbound ERC20 Transfer event, sweeps the balance to the configured sweep target,
+ * and exports a receipt to FinAPI. The ephemeral key never leaves custody — the sweep
+ * is signed by the custody-issued signer obtained via createWalletForCustodyId.
+ *
+ * Sweep target depends on account model:
+ *   - segregated: the investor's mapped wallet W_I (resolved via walletResolver)
+ *   - omnibus:    the operator's omnibus wallet (custodyProvider.omnibus)
  *
  * Useful when the depositor's source address is not known in advance and 1:1
  * attribution (intent ↔ address) is required.
@@ -36,32 +40,50 @@ import { TransferWatcher, OtaResult } from "./transfer-watcher";
  * lost on crash, only the in-memory intent metadata is.
  *
  * Not registered when:
- *   - ACCOUNT_MODEL is omnibus (omnibus has its own flow)
  *   - DTCC_PLUGIN_ENABLED=true (DTCC owns the single PaymentsPlugin slot)
  *   - DEPOSIT_METHOD != 'ota' (default is 'wallet')
  *   - custody provider lacks createCustodyAccount / createWalletForCustodyId
+ *   - segregated mode without walletResolver, or omnibus mode without an omnibus wallet
  */
 export function registerOtaDeposit(ctx: IntegrationContext): void {
   if (process.env.DTCC_PLUGIN_ENABLED === 'true') return;
-  if (ctx.accountModel === 'omnibus') return;
   if (process.env.DEPOSIT_METHOD !== 'ota') return;
 
-  const { pluginManager, logger, custodyProvider, assetStore, walletResolver, finP2PClient, inboundTransferHook } = ctx;
-  if (!custodyProvider || !assetStore || !walletResolver) {
-    logger.info('OTA-deposit plugin not registered: requires custody provider + asset store + wallet resolver');
+  const { pluginManager, logger, custodyProvider, assetStore, walletResolver, accountModel, finP2PClient, inboundTransferHook } = ctx;
+  if (!custodyProvider || !assetStore) {
+    logger.info('OTA-deposit plugin not registered: requires custody provider + asset store');
     return;
   }
   if (!custodyProvider.createCustodyAccount || !custodyProvider.createWalletForCustodyId) {
     logger.info('OTA-deposit plugin not registered: custody provider does not support per-deposit account creation');
     return;
   }
+  if (accountModel === 'omnibus' && !custodyProvider.omnibus) {
+    logger.info('OTA-deposit plugin not registered (omnibus mode): custody provider has no omnibus wallet configured');
+    return;
+  }
+  if (accountModel === 'segregated' && !walletResolver) {
+    logger.info('OTA-deposit plugin not registered (segregated mode): no wallet resolver available');
+    return;
+  }
 
   const network = process.env.NETWORK_NAME ?? 'ethereum';
 
+  let resolveSweepTarget: DepositTargetResolver;
+  if (accountModel === 'omnibus') {
+    let omnibusAddress: string | undefined;
+    resolveSweepTarget = async () => {
+      if (!omnibusAddress) omnibusAddress = await custodyProvider.omnibus!.signer.getAddress();
+      return omnibusAddress;
+    };
+  } else {
+    resolveSweepTarget = async (finId) => (await walletResolver!(finId))?.walletAddress;
+  }
+
   pluginManager.registerPaymentsPlugin(
-    new OtaDepositPlugin(logger, assetStore, walletResolver, network, custodyProvider, finP2PClient, inboundTransferHook),
+    new OtaDepositPlugin(logger, assetStore, resolveSweepTarget, network, custodyProvider, finP2PClient, inboundTransferHook),
   );
-  logger.info(`OTA-deposit plugin activated (network='${network}', inboundTransferHook=${inboundTransferHook ? 'present' : 'absent'})`);
+  logger.info(`OTA-deposit plugin activated (network='${network}', accountModel='${accountModel}', inboundTransferHook=${inboundTransferHook ? 'present' : 'absent'})`);
 }
 
 class OtaDepositPlugin implements PaymentsPlugin {
@@ -71,7 +93,7 @@ class OtaDepositPlugin implements PaymentsPlugin {
   constructor(
     private readonly logger: winston.Logger,
     private readonly assetStore: AssetStore,
-    private readonly walletResolver: WalletResolver,
+    private readonly resolveSweepTarget: DepositTargetResolver,
     private readonly network: string,
     private readonly custodyProvider: CustodyProvider,
     private readonly finP2PClient: FinP2PClient | undefined,
@@ -90,7 +112,11 @@ class OtaDepositPlugin implements PaymentsPlugin {
   }
 
   private async onTransferDetected(result: OtaResult): Promise<void> {
-    await this.exportReceipt(result);
+    if (this.inboundTransferHook) {
+      await this.notifyInboundHook(result);
+    } else {
+      await this.exportReceipt(result);
+    }
     await this.archiveIfSwept(result);
   }
 
@@ -105,34 +131,33 @@ class OtaDepositPlugin implements PaymentsPlugin {
     }
   }
 
-  private async exportReceipt(result: OtaResult): Promise<void> {
-    if (this.inboundTransferHook) {
-      try {
-        await this.inboundTransferHook.onInboundTransfer(result.intent.correlationId, {
-          planId: result.intent.correlationId,
-          sourceFinId: '',
-          destinationFinId: result.intent.finId,
-          asset: {
-            assetId: result.intent.assetId,
-            assetType: 'finp2p',
-            ledgerIdentifier: {
-              assetIdentifierType: 'CAIP-19',
-              network: this.network,
-              tokenId: result.intent.contractAddress,
-              standard: 'ERC20',
-            },
+  private async notifyInboundHook(result: OtaResult): Promise<void> {
+    try {
+      await this.inboundTransferHook!.onInboundTransfer(result.intent.correlationId, {
+        planId: result.intent.correlationId,
+        sourceFinId: '',
+        destinationFinId: result.intent.finId,
+        asset: {
+          assetId: result.intent.assetId,
+          assetType: 'finp2p',
+          ledgerIdentifier: {
+            assetIdentifierType: 'CAIP-19',
+            network: this.network,
+            tokenId: result.intent.contractAddress,
+            standard: 'ERC20',
           },
-          amount: result.receivedAmount,
-          instructionSequence: 0,
-          result: { type: 'receipt', transactionId: result.sweepTxHash ?? result.inboundTxHash },
-        });
-        this.logger.info(`OTA-deposit: inboundTransferHook delivered for intent ${result.intent.correlationId}`);
-      } catch (e: any) {
-        this.logger.error(`OTA-deposit: inboundTransferHook failed for intent ${result.intent.correlationId}: ${e?.message ?? e}`);
-      }
-      return;
+        },
+        amount: result.receivedAmount,
+        instructionSequence: 0,
+        result: { type: 'receipt', transactionId: result.sweepTxHash ?? result.inboundTxHash },
+      });
+      this.logger.info(`OTA-deposit: inboundTransferHook delivered for intent ${result.intent.correlationId}`);
+    } catch (e: any) {
+      this.logger.error(`OTA-deposit: inboundTransferHook failed for intent ${result.intent.correlationId}: ${e?.message ?? e}`);
     }
+  }
 
+  private async exportReceipt(result: OtaResult): Promise<void> {
     if (!this.finP2PClient) {
       this.logger.warn(`OTA-deposit: no FinP2PClient configured — skipping importTransactions for intent ${result.intent.correlationId}`);
       return;
@@ -185,9 +210,9 @@ class OtaDepositPlugin implements PaymentsPlugin {
       return failedDepositOperation(1, `Asset ${asset.assetId} is not registered`);
     }
 
-    const resolved = await this.walletResolver(ownerFinId);
-    if (!resolved) {
-      return failedDepositOperation(1, `No wallet mapping registered for finId ${ownerFinId}`);
+    const sweepTarget = await this.resolveSweepTarget(ownerFinId);
+    if (!sweepTarget) {
+      return failedDepositOperation(1, `No sweep target available for finId ${ownerFinId}`);
     }
 
     const correlationId = workflows.generateCid();
@@ -204,19 +229,19 @@ class OtaDepositPlugin implements PaymentsPlugin {
       ephemeralAddress,
       custodyAccountId,
       ephemeralWallet,
-      sweepTarget: resolved.walletAddress,
+      sweepTarget,
       expectedAmount: amount,
       createdAt: Date.now(),
     });
 
     this.logger.info(
-      `OTA-deposit: created intent ${correlationId} for finId=${ownerFinId} custodyId=${custodyAccountId} ephemeral=${ephemeralAddress} sweepTarget=${resolved.walletAddress}`,
+      `OTA-deposit: created intent ${correlationId} for finId=${ownerFinId} custodyId=${custodyAccountId} ephemeral=${ephemeralAddress} sweepTarget=${sweepTarget}`,
     );
 
     return successfulDepositOperation({
       asset,
       account: { finId: ownerFinId, account: { type: 'crypto', address: ephemeralAddress } },
-      description: `Send ${asset.assetId} to one-time address ${ephemeralAddress}; funds will be swept to ${resolved.walletAddress}`,
+      description: `Send ${asset.assetId} to one-time address ${ephemeralAddress}; funds will be swept to ${sweepTarget}`,
       paymentOptions: [{
         description: 'One-time-address deposit',
         currency: asset.assetId,
