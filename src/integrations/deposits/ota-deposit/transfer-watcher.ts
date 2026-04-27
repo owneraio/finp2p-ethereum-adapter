@@ -1,6 +1,6 @@
 import winston from "winston";
-import { Contract, HDNodeWallet, Provider, Signer } from "ethers";
-import { GasStation } from "../../../services/direct";
+import { Contract, Provider } from "ethers";
+import { CustodyWallet, GasStation } from "../../../services/direct";
 import { fundGasIfNeeded } from "../../../services/direct/helpers";
 
 const ERC20_TRANSFER_ABI = [
@@ -15,7 +15,8 @@ export interface OtaIntent {
   assetId: string;
   contractAddress: string;
   ephemeralAddress: string;
-  ephemeralWallet: HDNodeWallet;
+  custodyAccountId: string;
+  ephemeralWallet: CustodyWallet;
   sweepTarget: string;
   expectedAmount?: string;
   createdAt: number;
@@ -30,18 +31,18 @@ export interface OtaResult {
 }
 
 /**
- * Watches ERC20 Transfer events for incoming transfers to per-intent ephemeral addresses.
- * Each deposit gets a freshly-generated wallet; the watcher subscribes per-contract and
- * matches the inbound transfer's `to` field against open intents.
+ * Watches ERC20 Transfer events for incoming transfers to per-intent ephemeral addresses
+ * (custody-managed wallets, one per deposit). Subscribes per-contract and matches the
+ * inbound transfer's `to` field against open intents.
  *
  * On match:
- *   1. Re-read on-chain balanceOf(ephemeral) (race-safe — may capture later top-ups too).
- *   2. Fund the ephemeral with gas (operator gas-station) so it can sign the sweep.
- *   3. Sweep the full balance from ephemeral → sweepTarget (operator omnibus or W_I).
+ *   1. Re-read on-chain balanceOf(ephemeral) — race-safe; may capture later top-ups.
+ *   2. Fund the ephemeral with gas via the operator's gas-station (custody-managed).
+ *   3. Sweep balance from ephemeral → sweepTarget, signed by the custody-held key.
  *   4. Notify caller via onTransferDetected.
  *
- * If the sweep step fails (e.g. no gas-station configured), the inbound is still reported
- * but with sweepTxHash=undefined — funds remain at the ephemeral address until manually swept.
+ * If sweep fails (e.g. no gas-station configured), the inbound is still reported with
+ * sweepTxHash=undefined; funds remain at the ephemeral until manually swept.
  *
  * TODO: persist intents (DB), reorg handling, retry on transient failures, expire stale intents.
  */
@@ -86,7 +87,7 @@ export class TransferWatcher {
 
   private async handleTransfer(contractAddress: string, from: string, to: string, eventValue: bigint): Promise<void> {
     const intent = this.findMatchingIntent(contractAddress, to);
-    if (!intent) return; // not our address
+    if (!intent) return;
 
     this.logger.info(
       `OTA-deposit: detected Transfer(${from} → ${to}, ${eventValue}) for intent ${intent.correlationId}`,
@@ -110,7 +111,7 @@ export class TransferWatcher {
         intent,
         sender: from,
         receivedAmount: balance.toString(),
-        inboundTxHash: '', // not directly available on the event; could be obtained via getLogs
+        inboundTxHash: '',
         sweepTxHash,
       });
     }
@@ -119,14 +120,13 @@ export class TransferWatcher {
   private async sweep(intent: OtaIntent, amount: bigint): Promise<string | undefined> {
     if (!this.gasStation) {
       this.logger.warn(
-        `OTA-deposit: no gasStation configured — leaving ${amount} at ephemeral ${intent.ephemeralAddress} (intent ${intent.correlationId})`,
+        `OTA-deposit: no gasStation configured — leaving ${amount} at ephemeral ${intent.ephemeralAddress} (intent ${intent.correlationId}, custodyId ${intent.custodyAccountId})`,
       );
       return undefined;
     }
-    const ephemeralSigner: Signer = intent.ephemeralWallet.connect(this.provider);
-    await fundGasIfNeeded(this.logger, this.gasStation, { provider: this.provider, signer: ephemeralSigner });
+    await fundGasIfNeeded(this.logger, this.gasStation, intent.ephemeralWallet);
 
-    const sweepContract = new Contract(intent.contractAddress, ERC20_TRANSFER_ABI, ephemeralSigner);
+    const sweepContract = new Contract(intent.contractAddress, ERC20_TRANSFER_ABI, intent.ephemeralWallet.signer);
     const tx = await sweepContract.transfer(intent.sweepTarget, amount);
     const receipt = await tx.wait();
     if (!receipt || receipt.status !== 1) {
