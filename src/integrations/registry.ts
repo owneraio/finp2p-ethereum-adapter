@@ -9,6 +9,7 @@ import { registerDfns } from "./dfns";
 import { registerDtccPlugin } from "./dtcc";
 import { registerWalletDeposit } from "./deposits/wallet-deposit";
 import { registerPullDeposit } from "./deposits/pull-deposit";
+import { registerOtaDeposit } from "./deposits/ota-deposit";
 
 export interface IntegrationContext {
   orgId: string;
@@ -34,6 +35,7 @@ export function registerCustodyIntegrations(): void {
 const integrations: IntegrationRegistrar[] = [
   registerWalletDeposit,
   registerPullDeposit,
+  registerOtaDeposit,
   registerDtccPlugin,
 ];
 
