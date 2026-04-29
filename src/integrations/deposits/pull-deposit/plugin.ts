@@ -102,9 +102,10 @@ class PullDepositPlugin implements PaymentsPlugin {
     const operatorAddress = await this.operatorWallet.signer.getAddress();
     this.watcher = new ApprovalWatcher(
       operatorAddress,
-      this.operatorWallet.signer,
+      this.operatorWallet,
       this.custodyProvider.rpcProvider,
       this.logger,
+      this.custodyProvider.gasStation,
       (result) => this.onPullCompleted(result),
     );
     this.logger.info(`Pull-deposit: operator address=${operatorAddress}`);
@@ -202,7 +203,7 @@ class PullDepositPlugin implements PaymentsPlugin {
     const operatorAddress = await this.operatorWallet.signer.getAddress();
     const correlationId = workflows.generateCid();
 
-    watcher.addIntent({
+    await watcher.addIntent({
       correlationId,
       finId: ownerFinId,
       assetId: asset.assetId,
