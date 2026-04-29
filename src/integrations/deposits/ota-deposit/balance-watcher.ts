@@ -67,12 +67,19 @@ export class BalanceWatcher {
     try {
       this.logger.info(`OTA-deposit: detected balance ${balance} on ${deposit.ephemeralAddress} for deposit ${deposit.correlationId}`);
       const sweepTxHash = await this.sweep(deposit, balance, erc20);
+      if (!sweepTxHash) {
+        // Sweep didn't succeed (no gasStation, sweep tx failed, or gas-funding tx
+        // not yet settled → INSUFFICIENT_FUNDS_FOR_FEE). Don't fire onTransferDetected
+        // — that would credit a receipt with no on-chain proof and leave the funds
+        // stranded at the ephemeral. The next poll will retry the sweep with the
+        // same balance. Operator should ensure gasStation is configured if it isn't.
+        this.logger.info(`OTA-deposit: sweep not yet confirmed for deposit ${deposit.correlationId}, keeping it open for retry`);
+        return;
+      }
       this.stop(deposit.correlationId);
       await this.onTransferDetected({
         deposit,
-        sender: '',
         receivedAmount: balance.toString(),
-        inboundTxHash: '',
         sweepTxHash,
       });
     } finally {
