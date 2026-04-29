@@ -138,7 +138,6 @@ export class OtaDepositPlugin implements PaymentsPlugin {
   }
 
   private async archiveIfSwept(result: OtaResult): Promise<void> {
-    if (!result.sweepTxHash) return; // funds still at the ephemeral — keep the account around
     if (!this.custodyProvider.archiveCustodyAccount) return;
     try {
       await this.custodyProvider.archiveCustodyAccount(result.deposit.custodyAccountId);
@@ -166,7 +165,7 @@ export class OtaDepositPlugin implements PaymentsPlugin {
         },
         amount: result.receivedAmount,
         instructionSequence: 0,
-        result: { type: 'receipt', transactionId: result.sweepTxHash ?? result.inboundTxHash },
+        result: { type: 'receipt', transactionId: result.sweepTxHash },
       });
       this.logger.info(`OTA-deposit: inboundTransferHook delivered for deposit ${result.deposit.correlationId}`);
     } catch (e: any) {
@@ -179,10 +178,9 @@ export class OtaDepositPlugin implements PaymentsPlugin {
       this.logger.warn(`OTA-deposit: no FinP2PClient configured — skipping importTransactions for deposit ${result.deposit.correlationId}`);
       return;
     }
-    const txId = result.sweepTxHash ?? result.inboundTxHash;
     try {
       await this.finP2PClient.importTransactions([{
-        id: txId,
+        id: result.sweepTxHash,
         quantity: result.receivedAmount,
         timestamp: Math.floor(Date.now() / 1000),
         destination: {
@@ -200,7 +198,7 @@ export class OtaDepositPlugin implements PaymentsPlugin {
           },
         },
         transactionDetails: {
-          transactionId: txId,
+          transactionId: result.sweepTxHash,
           operationId: result.deposit.correlationId,
         },
         operationType: 'transfer',

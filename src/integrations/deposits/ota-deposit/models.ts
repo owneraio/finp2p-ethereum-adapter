@@ -18,11 +18,14 @@ export interface OtaDeposit {
   createdAt: number;
 }
 
-/** Result handed to the plugin once the OTA watcher has detected and (best-effort) swept funds. */
+/**
+ * Result handed to the plugin only after the OTA watcher has detected the inbound AND
+ * successfully swept the funds to the sweep target. The watcher does not fire this until
+ * sweep confirms — see BalanceWatcher.pollOnce. This guarantees the receipt downstream
+ * carries a real on-chain transaction id and that funds are no longer at the ephemeral.
+ */
 export interface OtaResult {
   deposit: OtaDeposit;
-  sender: string;
   receivedAmount: string;
-  inboundTxHash: string;
-  sweepTxHash: string | undefined;
+  sweepTxHash: string;
 }

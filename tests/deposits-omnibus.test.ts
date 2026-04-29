@@ -357,10 +357,13 @@ describe("Fireblocks + omnibus deposit plugins", () => {
       logger.info(`[pull] donor approving spender=${spender} amount=${amount}`);
       await donorApproveUsdc(spender, BigInt(amount));
 
+      // Pull can retry the watcher → transferFrom cycle several times when the
+      // operator's gas-funding tx hasn't settled. Allow up to 14 min so the inner
+      // poll doesn't fire before the jest test timeout (900s) does.
       const receipt = await pollUntil(
         "FinAPI receipt",
         async () => (captured.length > 0 ? captured[0] : undefined),
-        600000,
+        840000,
       );
 
       const omnibusAfter = await readUsdcBalance(provider, fireblocksConfig.omnibusAddress);
