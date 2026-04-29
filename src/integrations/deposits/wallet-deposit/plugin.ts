@@ -1,4 +1,3 @@
-import winston from "winston";
 import {
   PaymentsPlugin,
   DepositAsset,
@@ -41,14 +40,13 @@ export function registerWalletDeposit(ctx: IntegrationContext): void {
   }
 
   const network = process.env.NETWORK_NAME ?? 'ethereum';
-  pluginManager.registerPaymentsPlugin(new WalletDepositPlugin(logger, assetStore, walletResolver, network));
+  pluginManager.registerPaymentsPlugin(new WalletDepositPlugin(assetStore, walletResolver, network));
   logger.info(`Wallet-deposit plugin activated (network='${network}')`);
 }
 
 class WalletDepositPlugin implements PaymentsPlugin {
 
   constructor(
-    private readonly logger: winston.Logger,
     private readonly assetStore: AssetStore,
     private readonly walletResolver: WalletResolver,
     private readonly network: string,

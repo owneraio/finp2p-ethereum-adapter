@@ -2,6 +2,7 @@ import winston from "winston";
 import { Contract, Interface, Log, Provider, id as keccakStr, zeroPadValue } from "ethers";
 import { CustodyWallet, GasStation } from "../../../services/direct";
 import { fundGasIfNeeded } from "../../../services/direct/helpers";
+import { PullIntent, PullResult } from "./models";
 
 const ERC20_PULL_ABI = [
   'event Approval(address indexed owner, address indexed spender, uint256 value)',
@@ -11,23 +12,6 @@ const ERC20_PULL_ABI = [
 const APPROVAL_IFACE = new Interface(ERC20_PULL_ABI);
 const APPROVAL_TOPIC = keccakStr("Approval(address,address,uint256)");
 const DEFAULT_POLL_INTERVAL_MS = 5000;
-
-export interface PullIntent {
-  correlationId: string;
-  finId: string;
-  assetId: string;
-  contractAddress: string;
-  destinationAddress: string;
-  expectedAmount?: string;
-  createdAt: number;
-}
-
-export interface PullResult {
-  intent: PullIntent;
-  owner: string;
-  txHash: string;
-  amount: string;
-}
 
 /**
  * Polls `eth_getLogs` for ERC20 Approval(_, operator) events since the last seen block

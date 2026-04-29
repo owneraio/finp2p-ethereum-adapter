@@ -17,7 +17,8 @@ import { FinP2PClient } from "@owneraio/finp2p-client";
 import { AssetStore, CustodyProvider, CustodyWallet } from "../../../services/direct";
 import { IntegrationContext } from "../../registry";
 import { DepositTargetResolver } from "../types";
-import { ApprovalWatcher, PullResult } from "./approval-watcher";
+import { ApprovalWatcher } from "./approval-watcher";
+import { PullResult } from "./models";
 
 /**
  * Pull-deposit method: returns the adapter's operator address as the spender to approve.
@@ -96,6 +97,76 @@ class PullDepositPlugin implements PaymentsPlugin {
     private readonly finP2PClient: FinP2PClient | undefined,
     private readonly inboundTransferHook: InboundTransferHook | undefined,
   ) {}
+
+  // ─── PaymentsPlugin interface ───────────────────────────────────────────────
+
+  async deposit(
+    idempotencyKey: string,
+    ownerFinId: string,
+    asset: DepositAsset,
+    amount: string | undefined,
+    signature: Signature | undefined,
+  ): Promise<DepositOperation> {
+    if (asset.assetType !== 'finp2p' || !('assetId' in asset)) {
+      return failedDepositOperation(1, 'Pull deposit only supports finp2p asset type');
+    }
+
+    const dbAsset = await this.assetStore.getAsset(asset.assetId);
+    if (!dbAsset) {
+      return failedDepositOperation(1, `Asset ${asset.assetId} is not registered`);
+    }
+
+    const destinationAddress = await this.resolveDepositTarget(ownerFinId);
+    if (!destinationAddress) {
+      return failedDepositOperation(1, `No deposit target available for finId ${ownerFinId}`);
+    }
+
+    const watcher = await this.getWatcher();
+    const operatorAddress = await this.operatorWallet.signer.getAddress();
+    const correlationId = workflows.generateCid();
+
+    await watcher.addIntent({
+      correlationId,
+      finId: ownerFinId,
+      assetId: asset.assetId,
+      contractAddress: dbAsset.contract_address,
+      destinationAddress,
+      expectedAmount: amount,
+      createdAt: Date.now(),
+    });
+
+    return successfulDepositOperation({
+      asset,
+      account: { finId: ownerFinId, account: { type: 'crypto', address: destinationAddress } },
+      description: `Approve ${operatorAddress} on the token contract to deposit into ${destinationAddress}`,
+      paymentOptions: [{
+        description: 'ERC20 approve + pull',
+        currency: asset.assetId,
+        methodInstruction: {
+          type: 'cryptoTransfer',
+          network: this.network,
+          contractAddress: dbAsset.contract_address,
+          walletAddress: operatorAddress,
+        },
+      }],
+      operationId: correlationId,
+      details: undefined,
+    });
+  }
+
+  async depositCustom(
+    idempotencyKey: string, ownerFinId: string, amount: string | undefined, details: any, signature: Signature | undefined,
+  ): Promise<DepositOperation> {
+    return failedDepositOperation(1, 'Custom deposits are not supported by pull-deposit plugin');
+  }
+
+  async payout(
+    idempotencyKey: string, sourceFinId: string, destinationFinId: string, asset: Asset, amount: string, signature: Signature | undefined,
+  ): Promise<ReceiptOperation> {
+    throw new Error('Payout not implemented for pull-deposit plugin');
+  }
+
+  // ─── Internal helpers ───────────────────────────────────────────────────────
 
   private async getWatcher(): Promise<ApprovalWatcher> {
     if (this.watcher) return this.watcher;
@@ -176,71 +247,5 @@ class PullDepositPlugin implements PaymentsPlugin {
     } catch (e: any) {
       this.logger.error(`Pull-deposit: importTransactions failed for intent ${result.intent.correlationId}: ${e?.message ?? e}`);
     }
-  }
-
-  async deposit(
-    idempotencyKey: string,
-    ownerFinId: string,
-    asset: DepositAsset,
-    amount: string | undefined,
-    signature: Signature | undefined,
-  ): Promise<DepositOperation> {
-    if (asset.assetType !== 'finp2p' || !('assetId' in asset)) {
-      return failedDepositOperation(1, 'Pull deposit only supports finp2p asset type');
-    }
-
-    const dbAsset = await this.assetStore.getAsset(asset.assetId);
-    if (!dbAsset) {
-      return failedDepositOperation(1, `Asset ${asset.assetId} is not registered`);
-    }
-
-    const destinationAddress = await this.resolveDepositTarget(ownerFinId);
-    if (!destinationAddress) {
-      return failedDepositOperation(1, `No deposit target available for finId ${ownerFinId}`);
-    }
-
-    const watcher = await this.getWatcher();
-    const operatorAddress = await this.operatorWallet.signer.getAddress();
-    const correlationId = workflows.generateCid();
-
-    await watcher.addIntent({
-      correlationId,
-      finId: ownerFinId,
-      assetId: asset.assetId,
-      contractAddress: dbAsset.contract_address,
-      destinationAddress,
-      expectedAmount: amount,
-      createdAt: Date.now(),
-    });
-
-    return successfulDepositOperation({
-      asset,
-      account: { finId: ownerFinId, account: { type: 'crypto', address: destinationAddress } },
-      description: `Approve ${operatorAddress} on the token contract to deposit into ${destinationAddress}`,
-      paymentOptions: [{
-        description: 'ERC20 approve + pull',
-        currency: asset.assetId,
-        methodInstruction: {
-          type: 'cryptoTransfer',
-          network: this.network,
-          contractAddress: dbAsset.contract_address,
-          walletAddress: operatorAddress,
-        },
-      }],
-      operationId: correlationId,
-      details: undefined,
-    });
-  }
-
-  async depositCustom(
-    idempotencyKey: string, ownerFinId: string, amount: string | undefined, details: any, signature: Signature | undefined,
-  ): Promise<DepositOperation> {
-    return failedDepositOperation(1, 'Custom deposits are not supported by pull-deposit plugin');
-  }
-
-  async payout(
-    idempotencyKey: string, sourceFinId: string, destinationFinId: string, asset: Asset, amount: string, signature: Signature | undefined,
-  ): Promise<ReceiptOperation> {
-    throw new Error('Payout not implemented for pull-deposit plugin');
   }
 }

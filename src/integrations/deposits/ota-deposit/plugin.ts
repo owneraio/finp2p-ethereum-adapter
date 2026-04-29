@@ -15,10 +15,11 @@ import {
   failedDepositOperation,
 } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import { FinP2PClient } from "@owneraio/finp2p-client";
-import { AssetStore, CustodyProvider, CustodyWallet, GasStation } from "../../../services/direct";
+import { AssetStore, CustodyProvider, GasStation } from "../../../services/direct";
 import { fundGasIfNeeded } from "../../../services/direct/helpers";
 import { IntegrationContext } from "../../registry";
 import { DepositTargetResolver } from "../types";
+import { OtaIntent, OtaResult } from "./models";
 
 const ERC20_TRANSFER_ABI = [
   'function balanceOf(address account) view returns (uint256)',
@@ -26,27 +27,6 @@ const ERC20_TRANSFER_ABI = [
 ];
 
 const DEFAULT_POLL_INTERVAL_MS = 5000;
-
-interface OtaIntent {
-  correlationId: string;
-  finId: string;
-  assetId: string;
-  contractAddress: string;
-  ephemeralAddress: string;
-  custodyAccountId: string;
-  ephemeralWallet: CustodyWallet;
-  sweepTarget: string;
-  expectedAmount?: string;
-  createdAt: number;
-}
-
-interface OtaResult {
-  intent: OtaIntent;
-  sender: string;
-  receivedAmount: string;
-  inboundTxHash: string;
-  sweepTxHash: string | undefined;
-}
 
 /**
  * Per-intent balance-poll watcher: every `pollIntervalMs` it queries
@@ -219,6 +199,87 @@ class OtaDepositPlugin implements PaymentsPlugin {
     private readonly inboundTransferHook: InboundTransferHook | undefined,
   ) {}
 
+  // ─── PaymentsPlugin interface ───────────────────────────────────────────────
+
+  async deposit(
+    idempotencyKey: string,
+    ownerFinId: string,
+    asset: DepositAsset,
+    amount: string | undefined,
+    signature: Signature | undefined,
+  ): Promise<DepositOperation> {
+    if (asset.assetType !== 'finp2p' || !('assetId' in asset)) {
+      return failedDepositOperation(1, 'OTA deposit only supports finp2p asset type');
+    }
+
+    const dbAsset = await this.assetStore.getAsset(asset.assetId);
+    if (!dbAsset) {
+      return failedDepositOperation(1, `Asset ${asset.assetId} is not registered`);
+    }
+
+    const sweepTarget = await this.resolveSweepTarget(ownerFinId);
+    if (!sweepTarget) {
+      return failedDepositOperation(1, `No sweep target available for finId ${ownerFinId}`);
+    }
+
+    const correlationId = workflows.generateCid();
+    const { custodyAccountId, address: ephemeralAddress } = await this.custodyProvider.createCustodyAccount!(
+      `ota-${correlationId}`,
+    );
+    const ephemeralWallet = await this.custodyProvider.createWalletForCustodyId!(custodyAccountId);
+
+    this.getWatcher().addIntent({
+      correlationId,
+      finId: ownerFinId,
+      assetId: asset.assetId,
+      contractAddress: dbAsset.contract_address,
+      ephemeralAddress,
+      custodyAccountId,
+      ephemeralWallet,
+      sweepTarget,
+      expectedAmount: amount,
+      createdAt: Date.now(),
+    });
+
+    this.logger.info(
+      `OTA-deposit: created intent ${correlationId} for finId=${ownerFinId} custodyId=${custodyAccountId} ephemeral=${ephemeralAddress} sweepTarget=${sweepTarget}`,
+    );
+
+    return successfulDepositOperation({
+      asset,
+      account: { finId: ownerFinId, account: { type: 'crypto', address: ephemeralAddress } },
+      description: `Send ${asset.assetId} to one-time address ${ephemeralAddress}; funds will be swept to ${sweepTarget}`,
+      paymentOptions: [{
+        description: 'One-time-address deposit',
+        currency: asset.assetId,
+        methodInstruction: {
+          type: 'cryptoTransfer',
+          network: this.network,
+          contractAddress: dbAsset.contract_address,
+          walletAddress: ephemeralAddress,
+        },
+      }],
+      operationId: correlationId,
+      // Surface the underlying custody account id so operators (and integration tests)
+      // can inspect/audit the per-deposit account directly via the custody provider.
+      details: { custodyAccountId },
+    });
+  }
+
+  async depositCustom(
+    idempotencyKey: string, ownerFinId: string, amount: string | undefined, details: any, signature: Signature | undefined,
+  ): Promise<DepositOperation> {
+    return failedDepositOperation(1, 'Custom deposits are not supported by ota-deposit plugin');
+  }
+
+  async payout(
+    idempotencyKey: string, sourceFinId: string, destinationFinId: string, asset: Asset, amount: string, signature: Signature | undefined,
+  ): Promise<ReceiptOperation> {
+    throw new Error('Payout not implemented for ota-deposit plugin');
+  }
+
+  // ─── Internal helpers ───────────────────────────────────────────────────────
+
   private getWatcher(): BalanceWatcher {
     if (this.watcher) return this.watcher;
     this.watcher = new BalanceWatcher(
@@ -311,82 +372,5 @@ class OtaDepositPlugin implements PaymentsPlugin {
     } catch (e: any) {
       this.logger.error(`OTA-deposit: importTransactions failed for intent ${result.intent.correlationId}: ${e?.message ?? e}`);
     }
-  }
-
-  async deposit(
-    idempotencyKey: string,
-    ownerFinId: string,
-    asset: DepositAsset,
-    amount: string | undefined,
-    signature: Signature | undefined,
-  ): Promise<DepositOperation> {
-    if (asset.assetType !== 'finp2p' || !('assetId' in asset)) {
-      return failedDepositOperation(1, 'OTA deposit only supports finp2p asset type');
-    }
-
-    const dbAsset = await this.assetStore.getAsset(asset.assetId);
-    if (!dbAsset) {
-      return failedDepositOperation(1, `Asset ${asset.assetId} is not registered`);
-    }
-
-    const sweepTarget = await this.resolveSweepTarget(ownerFinId);
-    if (!sweepTarget) {
-      return failedDepositOperation(1, `No sweep target available for finId ${ownerFinId}`);
-    }
-
-    const correlationId = workflows.generateCid();
-    const { custodyAccountId, address: ephemeralAddress } = await this.custodyProvider.createCustodyAccount!(
-      `ota-${correlationId}`,
-    );
-    const ephemeralWallet = await this.custodyProvider.createWalletForCustodyId!(custodyAccountId);
-
-    this.getWatcher().addIntent({
-      correlationId,
-      finId: ownerFinId,
-      assetId: asset.assetId,
-      contractAddress: dbAsset.contract_address,
-      ephemeralAddress,
-      custodyAccountId,
-      ephemeralWallet,
-      sweepTarget,
-      expectedAmount: amount,
-      createdAt: Date.now(),
-    });
-
-    this.logger.info(
-      `OTA-deposit: created intent ${correlationId} for finId=${ownerFinId} custodyId=${custodyAccountId} ephemeral=${ephemeralAddress} sweepTarget=${sweepTarget}`,
-    );
-
-    return successfulDepositOperation({
-      asset,
-      account: { finId: ownerFinId, account: { type: 'crypto', address: ephemeralAddress } },
-      description: `Send ${asset.assetId} to one-time address ${ephemeralAddress}; funds will be swept to ${sweepTarget}`,
-      paymentOptions: [{
-        description: 'One-time-address deposit',
-        currency: asset.assetId,
-        methodInstruction: {
-          type: 'cryptoTransfer',
-          network: this.network,
-          contractAddress: dbAsset.contract_address,
-          walletAddress: ephemeralAddress,
-        },
-      }],
-      operationId: correlationId,
-      // Surface the underlying custody account id so operators (and integration tests)
-      // can inspect/audit the per-deposit account directly via the custody provider.
-      details: { custodyAccountId },
-    });
-  }
-
-  async depositCustom(
-    idempotencyKey: string, ownerFinId: string, amount: string | undefined, details: any, signature: Signature | undefined,
-  ): Promise<DepositOperation> {
-    return failedDepositOperation(1, 'Custom deposits are not supported by ota-deposit plugin');
-  }
-
-  async payout(
-    idempotencyKey: string, sourceFinId: string, destinationFinId: string, asset: Asset, amount: string, signature: Signature | undefined,
-  ): Promise<ReceiptOperation> {
-    throw new Error('Payout not implemented for ota-deposit plugin');
   }
 }
