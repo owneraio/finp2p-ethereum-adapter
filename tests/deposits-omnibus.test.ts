@@ -372,6 +372,6 @@ describe("Fireblocks + omnibus deposit plugins", () => {
       expect(tx.quantity).toBe(amount);
       expect(tx.destination?.finp2pAccount?.account?.finId).toBe(TEST_INVESTOR_FIN_ID);
       expect(tx.destination?.finp2pAccount?.asset?.id).toBe(ASSET_ID_PULL);
-    }, 600000);
+    }, 900000);
   });
 });

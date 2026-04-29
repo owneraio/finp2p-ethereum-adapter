@@ -5,7 +5,7 @@ import { CustodyWallet } from "../../../services/direct";
  * Held in memory by the BalanceWatcher; cleared once the inbound has been swept
  * and the receipt exported.
  */
-export interface OtaIntent {
+export interface OtaDeposit {
   correlationId: string;
   finId: string;
   assetId: string;
@@ -20,7 +20,7 @@ export interface OtaIntent {
 
 /** Result handed to the plugin once the OTA watcher has detected and (best-effort) swept funds. */
 export interface OtaResult {
-  intent: OtaIntent;
+  deposit: OtaDeposit;
   sender: string;
   receivedAmount: string;
   inboundTxHash: string;

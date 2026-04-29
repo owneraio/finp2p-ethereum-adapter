@@ -15,75 +15,11 @@ import {
 } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import { FinP2PClient } from "@owneraio/finp2p-client";
 import { AssetStore, CustodyProvider, CustodyWallet } from "../../../services/direct";
-import { IntegrationContext } from "../../registry";
 import { DepositTargetResolver } from "../types";
 import { ApprovalWatcher } from "./approval-watcher";
 import { PullResult } from "./models";
 
-/**
- * Pull-deposit method: returns the adapter's operator address as the spender to approve.
- * The investor approves from their external wallet (E_I). The ApprovalWatcher detects
- * the approval and executes transferFrom(E_I, destination, amount) — moving funds into
- * the deposit target.
- *
- * Destination depends on account model:
- *   - segregated: the investor's mapped wallet W_I (via walletResolver)
- *   - omnibus:    the operator's omnibus wallet
- *
- * After a successful transferFrom, the plugin either delegates crediting to an
- * InboundTransferHook (omnibus) or calls finP2PClient.importTransactions to register
- * the deposit with FinAPI (segregated).
- *
- * The operator wallet (env / adapter constant) is the ERC20 spender AND the transferFrom
- * signer. For v1 it reuses `custodyProvider.escrow`; a dedicated
- * PULL_DEPOSIT_OPERATOR_CUSTODY_ID can be added later.
- *
- * In-memory intent store; persistence is a TODO — see ApprovalWatcher.
- *
- * Not registered when:
- *   - DTCC_PLUGIN_ENABLED=true (DTCC owns the single PaymentsPlugin slot)
- *   - DEPOSIT_METHOD != 'pull' (default is 'wallet', handled by wallet-deposit)
- *   - segregated mode without walletResolver, or omnibus mode without an omnibus wallet
- */
-export function registerPullDeposit(ctx: IntegrationContext): void {
-  if (process.env.DTCC_PLUGIN_ENABLED === 'true') return;
-  if (process.env.DEPOSIT_METHOD !== 'pull') return;
-
-  const { pluginManager, logger, custodyProvider, assetStore, walletResolver, accountModel, finP2PClient, inboundTransferHook } = ctx;
-  if (!custodyProvider || !assetStore) {
-    logger.info('Pull-deposit plugin not registered: requires custody provider + asset store');
-    return;
-  }
-  if (accountModel === 'omnibus' && !custodyProvider.omnibus) {
-    logger.info('Pull-deposit plugin not registered (omnibus mode): custody provider has no omnibus wallet configured');
-    return;
-  }
-  if (accountModel === 'segregated' && !walletResolver) {
-    logger.info('Pull-deposit plugin not registered (segregated mode): no wallet resolver available');
-    return;
-  }
-
-  const network = process.env.NETWORK_NAME ?? 'ethereum';
-  const operatorWallet = custodyProvider.escrow;
-
-  let resolveDepositTarget: DepositTargetResolver;
-  if (accountModel === 'omnibus') {
-    let omnibusAddress: string | undefined;
-    resolveDepositTarget = async () => {
-      if (!omnibusAddress) omnibusAddress = await custodyProvider.omnibus!.signer.getAddress();
-      return omnibusAddress;
-    };
-  } else {
-    resolveDepositTarget = async (finId) => (await walletResolver!(finId))?.walletAddress;
-  }
-
-  pluginManager.registerPaymentsPlugin(
-    new PullDepositPlugin(logger, assetStore, resolveDepositTarget, network, operatorWallet, custodyProvider, finP2PClient, inboundTransferHook),
-  );
-  logger.info(`Pull-deposit plugin activated (network='${network}', accountModel='${accountModel}', inboundTransferHook=${inboundTransferHook ? 'present' : 'absent'})`);
-}
-
-class PullDepositPlugin implements PaymentsPlugin {
+export class PullDepositPlugin implements PaymentsPlugin {
 
   private watcher: ApprovalWatcher | undefined;
 
@@ -125,15 +61,19 @@ class PullDepositPlugin implements PaymentsPlugin {
     const operatorAddress = await this.operatorWallet.signer.getAddress();
     const correlationId = workflows.generateCid();
 
-    await watcher.addIntent({
-      correlationId,
-      finId: ownerFinId,
-      assetId: asset.assetId,
-      contractAddress: dbAsset.contract_address,
-      destinationAddress,
-      expectedAmount: amount,
-      createdAt: Date.now(),
-    });
+    try {
+      await watcher.addDeposit({
+        correlationId,
+        finId: ownerFinId,
+        assetId: asset.assetId,
+        contractAddress: dbAsset.contract_address,
+        destinationAddress,
+        expectedAmount: amount,
+        createdAt: Date.now(),
+      });
+    } catch (e: any) {
+      return failedDepositOperation(1, e?.message ?? String(e));
+    }
 
     return successfulDepositOperation({
       asset,
@@ -184,38 +124,47 @@ class PullDepositPlugin implements PaymentsPlugin {
   }
 
   private async onPullCompleted(result: PullResult): Promise<void> {
-    // When an InboundTransferHook is provided (omnibus mode), delegate crediting entirely to the hook —
-    // its implementation is expected to call distributionService.distribute + finP2PClient.importTransactions.
-    // Synthetic plan context is used until the skeleton makes plan fields optional.
+    // Both paths run when present:
+    //   - notifyInboundHook (omnibus mode): vanilla hook credits the operator's internal
+    //     omnibus ledger (storage.credit). Without it, omnibus balances stay stale.
+    //   - exportReceipt: importTransactions tells FinAPI about the deposit so the
+    //     investor's finId reflects the new holdings. The vanilla hook does NOT do this.
     if (this.inboundTransferHook) {
-      try {
-        await this.inboundTransferHook.onInboundTransfer(result.intent.correlationId, {
-          planId: result.intent.correlationId,
-          sourceFinId: '', // TODO: no plan-scoped sender for out-of-plan deposits
-          destinationFinId: result.intent.finId,
-          asset: {
-            assetId: result.intent.assetId,
-            assetType: 'finp2p',
-            ledgerIdentifier: {
-              assetIdentifierType: 'CAIP-19',
-              network: this.network,
-              tokenId: result.intent.contractAddress,
-              standard: 'ERC20',
-            },
-          },
-          amount: result.amount,
-          instructionSequence: 0, // TODO: no plan sequence for out-of-plan deposits
-          result: { type: 'receipt', transactionId: result.txHash },
-        });
-        this.logger.info(`Pull-deposit: inboundTransferHook delivered for intent ${result.intent.correlationId}`);
-      } catch (e: any) {
-        this.logger.error(`Pull-deposit: inboundTransferHook failed for intent ${result.intent.correlationId}: ${e?.message ?? e}`);
-      }
-      return;
+      await this.notifyInboundHook(result);
     }
+    await this.exportReceipt(result);
+  }
 
+  private async notifyInboundHook(result: PullResult): Promise<void> {
+    // Synthetic plan context is used until the skeleton makes plan fields optional.
+    try {
+      await this.inboundTransferHook!.onInboundTransfer(result.deposit.correlationId, {
+        planId: result.deposit.correlationId,
+        sourceFinId: '', // TODO: no plan-scoped sender for out-of-plan deposits
+        destinationFinId: result.deposit.finId,
+        asset: {
+          assetId: result.deposit.assetId,
+          assetType: 'finp2p',
+          ledgerIdentifier: {
+            assetIdentifierType: 'CAIP-19',
+            network: this.network,
+            tokenId: result.deposit.contractAddress,
+            standard: 'ERC20',
+          },
+        },
+        amount: result.amount,
+        instructionSequence: 0, // TODO: no plan sequence for out-of-plan deposits
+        result: { type: 'receipt', transactionId: result.txHash },
+      });
+      this.logger.info(`Pull-deposit: inboundTransferHook delivered for deposit ${result.deposit.correlationId}`);
+    } catch (e: any) {
+      this.logger.error(`Pull-deposit: inboundTransferHook failed for deposit ${result.deposit.correlationId}: ${e?.message ?? e}`);
+    }
+  }
+
+  private async exportReceipt(result: PullResult): Promise<void> {
     if (!this.finP2PClient) {
-      this.logger.warn(`Pull-deposit: no FinP2PClient configured — skipping importTransactions for intent ${result.intent.correlationId}`);
+      this.logger.warn(`Pull-deposit: no FinP2PClient configured — skipping importTransactions for deposit ${result.deposit.correlationId}`);
       return;
     }
     try {
@@ -225,13 +174,13 @@ class PullDepositPlugin implements PaymentsPlugin {
         timestamp: Math.floor(Date.now() / 1000),
         destination: {
           finp2pAccount: {
-            account: { finId: result.intent.finId },
+            account: { finId: result.deposit.finId },
             asset: {
-              id: result.intent.assetId,
+              id: result.deposit.assetId,
               ledgerIdentifier: {
                 assetIdentifierType: 'CAIP-19',
                 network: this.network,
-                tokenId: result.intent.contractAddress,
+                tokenId: result.deposit.contractAddress,
                 standard: 'ERC20',
               },
             },
@@ -239,13 +188,13 @@ class PullDepositPlugin implements PaymentsPlugin {
         },
         transactionDetails: {
           transactionId: result.txHash,
-          operationId: result.intent.correlationId,
+          operationId: result.deposit.correlationId,
         },
         operationType: 'transfer',
       }] as any);
-      this.logger.info(`Pull-deposit: importTransactions succeeded for intent ${result.intent.correlationId}`);
+      this.logger.info(`Pull-deposit: importTransactions succeeded for deposit ${result.deposit.correlationId}`);
     } catch (e: any) {
-      this.logger.error(`Pull-deposit: importTransactions failed for intent ${result.intent.correlationId}: ${e?.message ?? e}`);
+      this.logger.error(`Pull-deposit: importTransactions failed for deposit ${result.deposit.correlationId}: ${e?.message ?? e}`);
     }
   }
 }
