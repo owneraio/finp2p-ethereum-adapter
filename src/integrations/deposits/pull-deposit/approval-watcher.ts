@@ -60,8 +60,11 @@ export class ApprovalWatcher {
   private async ensurePolling(contractAddress: string): Promise<void> {
     const key = contractAddress.toLowerCase();
     if (this.timers.has(key)) return;
-    // Start from the current block — we don't backfill past approvals.
-    this.lastSeen.set(key, await this.provider.getBlockNumber());
+    // Seed one block before "now" so the first scan covers the current block —
+    // an Approval mined in the same block as deposit creation would otherwise be
+    // skipped forever (fromBlock = lastSeen + 1 would land at currentBlock + 1).
+    const currentBlock = await this.provider.getBlockNumber();
+    this.lastSeen.set(key, Math.max(0, currentBlock - 1));
     const timer = setInterval(() => {
       this.pollOnce(contractAddress).catch((e) =>
         this.logger.error(`Pull-deposit: poll failed for ${contractAddress}: ${e?.message ?? e}`),
