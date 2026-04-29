@@ -55,28 +55,34 @@ function wrapWithWorkflowProxy<T extends object>(
   return workflows.createServiceProxy(() => Promise.resolve(), workflowStorage, finP2PClient, service, ...methods);
 }
 
+/**
+ * Pre-built omnibus services. Created in createApp BEFORE registerIntegrations so the
+ * inboundTransferHook can be threaded into the deposit plugins at construction time —
+ * otherwise the plugins capture undefined and successful omnibus deposits silently fall
+ * back to importTransactions only, never crediting the adapter's own omnibus ledger.
+ */
+interface OmnibusContext {
+  delegate: OmnibusDelegate;
+  vanilla: ReturnType<typeof createVanillaServices>;
+}
+
 function registerDirectServices(
   app: express.Application, logger: winston.Logger, custodyProvider: CustodyProvider, appConfig: AppConfig,
   paymentsService: PaymentsServiceImpl, pluginManager: PluginManager,
   dbPool: any, finP2PClient: FinP2PClient | undefined,
   accountMappingStore: AccountMappingStore | undefined,
   assetStore: AssetStore | undefined,
+  accountMapping: AccountMappingService,
+  omnibusCtx: OmnibusContext | undefined,
 ) {
   const healthService = new DirectHealthServiceImpl(custodyProvider.rpcProvider);
   const mappingConfig = buildMappingConfig(custodyProvider);
-  const accountMapping: AccountMappingService = appConfig.accountMappingType === 'database' && accountMappingStore
-    ? new DbAccountMapping(accountMappingStore)
-    : new DerivationAccountMapping();
   const workflowStorage = dbPool ? new workflows.WorkflowStorage(dbPool) : undefined;
 
   if (appConfig.accountModel === 'omnibus') {
-    if (!dbPool || !assetStore) throw new Error('DB connection is required for omnibus account model');
-    const delegate = new OmnibusDelegate(logger, custodyProvider, accountMapping, assetStore);
-    const { tokenService, escrowService, commonService, mappingService, distributionService, inboundTransferHook } = createVanillaServices(
-      { transfer: delegate, asset: delegate, escrow: delegate, omnibus: delegate },
-      { connectionString: dbPool.options?.connectionString ?? '' },
-      logger,
-    );
+    if (!omnibusCtx) throw new Error('Omnibus context not built — createVanillaServices must run before registerDirectServices');
+    const { delegate, vanilla } = omnibusCtx;
+    const { tokenService, escrowService, commonService, mappingService, distributionService, inboundTransferHook } = vanilla;
     const planApprovalService = new PlanApprovalServiceImpl(appConfig.orgId, pluginManager, finP2PClient, inboundTransferHook);
     const proxiedPlanService = wrapWithWorkflowProxy(planApprovalService, workflowStorage, finP2PClient, 'approvePlan', 'proposeCancelPlan', 'proposeResetPlan', 'proposeInstructionApproval');
     const proxiedTokenService = wrapWithWorkflowProxy(tokenService, workflowStorage, finP2PClient, 'createAsset', 'issue', 'transfer', 'redeem');
@@ -172,6 +178,27 @@ async function createApp(
     custodyProvider = await custodyRegistry.create(appConfig.type, appConfig);
   }
 
+  // Pre-build accountMapping + (in omnibus mode) the OmnibusDelegate and vanilla services
+  // BEFORE plugin registration. Deposit plugins capture inboundTransferHook in their
+  // constructors; if it's undefined at registration time they fall back to
+  // finP2PClient.importTransactions only, skipping the vanilla hook's storage.credit(...)
+  // and leaving the adapter's omnibus balance state stale.
+  const accountMapping: AccountMappingService = appConfig.accountMappingType === 'database' && accountMappingStore
+    ? new DbAccountMapping(accountMappingStore)
+    : new DerivationAccountMapping();
+
+  let omnibusCtx: OmnibusContext | undefined;
+  if (appConfig.accountModel === 'omnibus' && custodyProvider) {
+    if (!dbPool || !assetStore) throw new Error('DB connection is required for omnibus account model');
+    const delegate = new OmnibusDelegate(logger, custodyProvider, accountMapping, assetStore);
+    const vanilla = createVanillaServices(
+      { transfer: delegate, asset: delegate, escrow: delegate, omnibus: delegate },
+      { connectionString: dbPool.options?.connectionString ?? '' },
+      logger,
+    );
+    omnibusCtx = { delegate, vanilla };
+  }
+
   registerIntegrations({
     orgId: appConfig.orgId,
     logger,
@@ -182,13 +209,13 @@ async function createApp(
     assetStore,
     accountModel: appConfig.accountModel,
     custodyProvider,
-    inboundTransferHook: undefined, // populated in omnibus path via createVanillaServices — see registerDirectServices
+    inboundTransferHook: omnibusCtx?.vanilla.inboundTransferHook,
   });
 
   const paymentsService = new PaymentsServiceImpl(pluginManager);
 
   if (custodyProvider) {
-    registerDirectServices(app, logger, custodyProvider, appConfig, paymentsService, pluginManager, dbPool, finP2PClient, accountMappingStore, assetStore);
+    registerDirectServices(app, logger, custodyProvider, appConfig, paymentsService, pluginManager, dbPool, finP2PClient, accountMappingStore, assetStore, accountMapping, omnibusCtx);
   } else if (appConfig.type === 'finp2p-contract') {
     registerFinP2PContractServices(app, appConfig as FinP2PContractAppConfig, paymentsService, pluginManager, dbPool, finP2PClient);
   } else {

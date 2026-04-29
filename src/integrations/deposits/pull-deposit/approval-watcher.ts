@@ -1,35 +1,37 @@
 import winston from "winston";
-import { Contract, Interface, Log, Provider, id as keccakStr, zeroPadValue } from "ethers";
+import { Interface, Log, Provider, id as keccakStr, zeroPadValue } from "ethers";
+import { ERC20Contract } from "@owneraio/finp2p-contracts";
 import { CustodyWallet, GasStation } from "../../../services/direct";
 import { fundGasIfNeeded } from "../../../services/direct/helpers";
-import { PullIntent, PullResult } from "./models";
+import { PullDeposit, PullResult } from "./models";
 
-const ERC20_PULL_ABI = [
+const APPROVAL_IFACE = new Interface([
   'event Approval(address indexed owner, address indexed spender, uint256 value)',
-  'function allowance(address owner, address spender) view returns (uint256)',
-  'function transferFrom(address from, address to, uint256 value) returns (bool)',
-];
-const APPROVAL_IFACE = new Interface(ERC20_PULL_ABI);
+]);
 const APPROVAL_TOPIC = keccakStr("Approval(address,address,uint256)");
-const DEFAULT_POLL_INTERVAL_MS = 5000;
+const DEFAULT_POLL_INTERVAL_MS = 60000;
 
 /**
  * Polls `eth_getLogs` for ERC20 Approval(_, operator) events since the last seen block
- * on every contract that has an open intent, then runs transferFrom for the matching
+ * on every contract that has an open deposit, then runs transferFrom for the matching
  * owner. Switched from `contract.on(filter, ...)` to log polling because event
  * subscriptions are unreliable across the providers we run against (Fireblocks
  * BrowserProvider drops filters; public RPCs garbage-collect them) — log polling
  * works on any RPC and is stateless on the provider side.
  *
- * Intent matching: oldest-first per contract. A single open intent per contract avoids
- * ambiguity; multiple concurrent intents on the same contract are served FIFO.
+ * Concurrency: pull-deposit currently lacks a declared-sender mechanism (the deposit
+ * API only carries finId, not the depositor's external EVM address), so we cannot tell
+ * which investor a given Approval event belongs to. To keep correctness, addDeposit()
+ * enforces one open deposit per contract — a second deposit on the same contract while
+ * the first is still in flight is rejected. This serializes throughput per contract but
+ * eliminates the cross-investor mis-credit risk that FIFO matching would create.
  *
- * TODO: persist intents (DB), opportunistic pre-check when sender is known, reorg
+ * TODO: persist deposits (DB), declared-sender support (match by owner), reorg
  * handling (block-confirmation lag), retry on transient failures.
  */
 export class ApprovalWatcher {
 
-  private readonly intents = new Map<string, PullIntent>();
+  private readonly deposits = new Map<string, PullDeposit>();
   private readonly timers = new Map<string, NodeJS.Timeout>();
   private readonly lastSeen = new Map<string, number>();
   private readonly inFlight = new Set<string>();
@@ -44,9 +46,15 @@ export class ApprovalWatcher {
     private readonly pollIntervalMs: number = DEFAULT_POLL_INTERVAL_MS,
   ) {}
 
-  async addIntent(intent: PullIntent): Promise<void> {
-    this.intents.set(intent.correlationId, intent);
-    await this.ensurePolling(intent.contractAddress);
+  async addDeposit(deposit: PullDeposit): Promise<void> {
+    if (this.hasOpenDepositFor(deposit.contractAddress)) {
+      throw new Error(
+        `Pull-deposit: another deposit on contract ${deposit.contractAddress} is already in flight; ` +
+        `concurrent pull-deposits on the same token are not yet supported (no declared-sender API).`,
+      );
+    }
+    this.deposits.set(deposit.correlationId, deposit);
+    await this.ensurePolling(deposit.contractAddress);
   }
 
   private async ensurePolling(contractAddress: string): Promise<void> {
@@ -74,7 +82,7 @@ export class ApprovalWatcher {
   private async pollOnce(contractAddress: string): Promise<void> {
     const key = contractAddress.toLowerCase();
     if (this.inFlight.has(key)) return;
-    if (!this.hasOpenIntentFor(contractAddress)) {
+    if (!this.hasOpenDepositFor(contractAddress)) {
       this.stopPolling(contractAddress);
       return;
     }
@@ -111,58 +119,57 @@ export class ApprovalWatcher {
     }
   }
 
-  private hasOpenIntentFor(contractAddress: string): boolean {
+  private hasOpenDepositFor(contractAddress: string): boolean {
     const lower = contractAddress.toLowerCase();
-    for (const intent of this.intents.values()) {
-      if (intent.contractAddress.toLowerCase() === lower) return true;
+    for (const deposit of this.deposits.values()) {
+      if (deposit.contractAddress.toLowerCase() === lower) return true;
     }
     return false;
   }
 
-  private findMatchingIntent(contractAddress: string): PullIntent | undefined {
-    let match: PullIntent | undefined;
-    for (const intent of this.intents.values()) {
-      if (intent.contractAddress.toLowerCase() !== contractAddress.toLowerCase()) continue;
-      if (!match || intent.createdAt < match.createdAt) match = intent;
+  private findMatchingDeposit(contractAddress: string): PullDeposit | undefined {
+    let match: PullDeposit | undefined;
+    for (const deposit of this.deposits.values()) {
+      if (deposit.contractAddress.toLowerCase() !== contractAddress.toLowerCase()) continue;
+      if (!match || deposit.createdAt < match.createdAt) match = deposit;
     }
     return match;
   }
 
   private async handleApproval(contractAddress: string, owner: string, eventValue: bigint): Promise<void> {
-    const intent = this.findMatchingIntent(contractAddress);
-    if (!intent) {
-      this.logger.info(`Pull-deposit: no open intent for contract ${contractAddress}, ignoring approval from ${owner} (${eventValue})`);
+    const deposit = this.findMatchingDeposit(contractAddress);
+    if (!deposit) {
+      this.logger.info(`Pull-deposit: no open deposit for contract ${contractAddress}, ignoring approval from ${owner} (${eventValue})`);
       return;
     }
 
-    const readContract = new Contract(contractAddress, ERC20_PULL_ABI, this.provider);
-    const currentAllowance: bigint = await readContract.allowance(owner, this.operatorAddress);
-    const desired: bigint = intent.expectedAmount ? BigInt(intent.expectedAmount) : eventValue;
+    const erc20 = new ERC20Contract(this.provider, this.operatorWallet.signer, contractAddress, this.logger);
+    const currentAllowance: bigint = await erc20.allowance(owner, this.operatorAddress);
+    const desired: bigint = deposit.expectedAmount ? BigInt(deposit.expectedAmount) : eventValue;
     if (currentAllowance < desired) {
       this.logger.info(`Pull-deposit: allowance ${currentAllowance} < desired ${desired} for owner=${owner}, waiting for more`);
       return;
     }
 
     this.logger.info(
-      `Pull-deposit: executing transferFrom(${owner}, ${intent.destinationAddress}, ${desired}) for intent ${intent.correlationId}`,
+      `Pull-deposit: executing transferFrom(${owner}, ${deposit.destinationAddress}, ${desired}) for deposit ${deposit.correlationId}`,
     );
     // Top up the operator with gas before transferFrom — Fireblocks rejects with
     // INSUFFICIENT_FUNDS_FOR_FEE if the operator wallet drifts low.
     await fundGasIfNeeded(this.logger, this.gasStation, this.operatorWallet);
-    const writeContract = new Contract(contractAddress, ERC20_PULL_ABI, this.operatorWallet.signer);
-    const tx = await writeContract.transferFrom(owner, intent.destinationAddress, desired);
+    const tx = await erc20.transferFrom(owner, deposit.destinationAddress, desired);
     const receipt = await tx.wait();
     if (!receipt || receipt.status !== 1) {
-      this.logger.error(`Pull-deposit: transferFrom failed for intent ${intent.correlationId}`);
+      this.logger.error(`Pull-deposit: transferFrom failed for deposit ${deposit.correlationId}`);
       return;
     }
 
-    this.intents.delete(intent.correlationId);
-    if (!this.hasOpenIntentFor(contractAddress)) this.stopPolling(contractAddress);
-    this.logger.info(`Pull-deposit: pulled ${desired} from ${owner} → ${intent.destinationAddress} (tx ${receipt.hash})`);
+    this.deposits.delete(deposit.correlationId);
+    if (!this.hasOpenDepositFor(contractAddress)) this.stopPolling(contractAddress);
+    this.logger.info(`Pull-deposit: pulled ${desired} from ${owner} → ${deposit.destinationAddress} (tx ${receipt.hash})`);
 
     if (this.onPullCompleted) {
-      await this.onPullCompleted({ intent, owner, txHash: receipt.hash, amount: desired.toString() });
+      await this.onPullCompleted({ deposit, owner, txHash: receipt.hash, amount: desired.toString() });
     }
   }
 }

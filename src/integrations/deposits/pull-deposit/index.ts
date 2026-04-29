@@ -1,1 +1,1 @@
-export { registerPullDeposit } from "./plugin";
+export { registerPullDeposit } from "./register";

@@ -1,1 +1,1 @@
-export { registerOtaDeposit } from "./plugin";
+export { registerOtaDeposit } from "./register";
