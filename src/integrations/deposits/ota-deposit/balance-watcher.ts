@@ -1,4 +1,5 @@
 import winston from "winston";
+import { formatUnits, parseUnits } from "ethers";
 import { ERC20Contract } from "@owneraio/finp2p-contracts";
 import { GasStation } from "../../../services/direct";
 import { fundGasIfNeeded } from "../../../services/direct/helpers";
@@ -59,8 +60,11 @@ export class BalanceWatcher {
     );
     const balance: bigint = await erc20.balanceOf(deposit.ephemeralAddress);
     if (balance === 0n) return;
-    if (deposit.expectedAmount && balance < BigInt(deposit.expectedAmount)) {
-      this.logger.info(`OTA-deposit: balance ${balance} < expected ${deposit.expectedAmount} on ${deposit.ephemeralAddress}, waiting for more`);
+    // expectedAmount is human-readable (caller convention); convert to base units for
+    // on-chain math.
+    const expectedBaseUnits = deposit.expectedAmount ? parseUnits(deposit.expectedAmount, deposit.decimals) : undefined;
+    if (expectedBaseUnits !== undefined && balance < expectedBaseUnits) {
+      this.logger.info(`OTA-deposit: balance ${balance} < expected ${expectedBaseUnits} (${deposit.expectedAmount}) on ${deposit.ephemeralAddress}, waiting for more`);
       return;
     }
     this.inFlight.add(deposit.correlationId);
@@ -79,7 +83,10 @@ export class BalanceWatcher {
       this.stop(deposit.correlationId);
       await this.onTransferDetected({
         deposit,
-        receivedAmount: balance.toString(),
+        // Hand caller-facing receivedAmount in human-readable units — vanilla hook does
+        // parseUnits(amount, decimals) internally; FinAPI importTransactions expects the
+        // same convention.
+        receivedAmount: formatUnits(balance, deposit.decimals),
         sweepTxHash,
       });
     } finally {

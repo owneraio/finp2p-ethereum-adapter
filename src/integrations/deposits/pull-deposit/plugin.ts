@@ -67,6 +67,7 @@ export class PullDepositPlugin implements PaymentsPlugin {
         finId: ownerFinId,
         assetId: asset.assetId,
         contractAddress: dbAsset.contract_address,
+        decimals: dbAsset.decimals,
         destinationAddress,
         expectedAmount: amount,
         createdAt: Date.now(),

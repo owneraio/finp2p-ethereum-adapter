@@ -67,6 +67,7 @@ export class OtaDepositPlugin implements PaymentsPlugin {
       finId: ownerFinId,
       assetId: asset.assetId,
       contractAddress: dbAsset.contract_address,
+      decimals: dbAsset.decimals,
       ephemeralAddress,
       custodyAccountId,
       ephemeralWallet,

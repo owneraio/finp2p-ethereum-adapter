@@ -1,5 +1,5 @@
 import winston from "winston";
-import { Interface, Log, Provider, id as keccakStr, zeroPadValue } from "ethers";
+import { formatUnits, Interface, Log, Provider, parseUnits, id as keccakStr, zeroPadValue } from "ethers";
 import { ERC20Contract } from "@owneraio/finp2p-contracts";
 import { CustodyWallet, GasStation } from "../../../services/direct";
 import { fundGasIfNeeded } from "../../../services/direct/helpers";
@@ -148,7 +148,12 @@ export class ApprovalWatcher {
 
     const erc20 = new ERC20Contract(this.provider, this.operatorWallet.signer, contractAddress, this.logger);
     const currentAllowance: bigint = await erc20.allowance(owner, this.operatorAddress);
-    const desired: bigint = deposit.expectedAmount ? BigInt(deposit.expectedAmount) : eventValue;
+    // expectedAmount is human-readable (caller convention); fall back to the on-chain
+    // event value when not specified. Compare and pull in base units; report in
+    // human-readable to match FinAPI / vanilla-hook conventions.
+    const desired: bigint = deposit.expectedAmount
+      ? parseUnits(deposit.expectedAmount, deposit.decimals)
+      : eventValue;
     if (currentAllowance < desired) {
       this.logger.info(`Pull-deposit: allowance ${currentAllowance} < desired ${desired} for owner=${owner}, waiting for more`);
       return;
@@ -172,7 +177,12 @@ export class ApprovalWatcher {
     this.logger.info(`Pull-deposit: pulled ${desired} from ${owner} → ${deposit.destinationAddress} (tx ${receipt.hash})`);
 
     if (this.onPullCompleted) {
-      await this.onPullCompleted({ deposit, owner, txHash: receipt.hash, amount: desired.toString() });
+      await this.onPullCompleted({
+        deposit,
+        owner,
+        txHash: receipt.hash,
+        amount: formatUnits(desired, deposit.decimals),
+      });
     }
   }
 }

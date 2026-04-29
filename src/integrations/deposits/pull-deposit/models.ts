@@ -8,7 +8,11 @@ export interface PullDeposit {
   finId: string;
   assetId: string;
   contractAddress: string;
+  /** ERC20 decimals — used to translate between the caller's human-readable amount
+   * (the deposit API convention, e.g. "0.1") and on-chain base units (100000). */
+  decimals: number;
   destinationAddress: string;
+  /** Human-readable amount as accepted from the caller (e.g. "0.1"); optional. */
   expectedAmount?: string;
   createdAt: number;
 }
