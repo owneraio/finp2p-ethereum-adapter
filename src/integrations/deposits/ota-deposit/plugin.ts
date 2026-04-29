@@ -1,4 +1,5 @@
 import winston from "winston";
+import { Contract, Provider } from "ethers";
 import {
   PaymentsPlugin,
   DepositAsset,
@@ -14,15 +15,133 @@ import {
   failedDepositOperation,
 } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import { FinP2PClient } from "@owneraio/finp2p-client";
-import { AssetStore, CustodyProvider } from "../../../services/direct";
+import { AssetStore, CustodyProvider, CustodyWallet, GasStation } from "../../../services/direct";
+import { fundGasIfNeeded } from "../../../services/direct/helpers";
 import { IntegrationContext } from "../../registry";
 import { DepositTargetResolver } from "../types";
-import { TransferWatcher, OtaResult } from "./transfer-watcher";
+
+const ERC20_TRANSFER_ABI = [
+  'function balanceOf(address account) view returns (uint256)',
+  'function transfer(address to, uint256 value) returns (bool)',
+];
+
+const DEFAULT_POLL_INTERVAL_MS = 5000;
+
+interface OtaIntent {
+  correlationId: string;
+  finId: string;
+  assetId: string;
+  contractAddress: string;
+  ephemeralAddress: string;
+  custodyAccountId: string;
+  ephemeralWallet: CustodyWallet;
+  sweepTarget: string;
+  expectedAmount?: string;
+  createdAt: number;
+}
+
+interface OtaResult {
+  intent: OtaIntent;
+  sender: string;
+  receivedAmount: string;
+  inboundTxHash: string;
+  sweepTxHash: string | undefined;
+}
+
+/**
+ * Per-intent balance-poll watcher: every `pollIntervalMs` it queries
+ * `balanceOf(ephemeralAddress)` for each open intent. When the balance crosses the
+ * expected threshold, it sweeps to `sweepTarget` (gas funded via the operator's
+ * gas-station), invokes onTransferDetected, and stops polling for that intent.
+ *
+ * Polling rather than event subscription because event-listener semantics vary across
+ * providers (Fireblocks BrowserProvider drops filters; public RPCs garbage-collect them),
+ * and we already know the destination address per intent — direct balanceOf is simpler
+ * and deterministic.
+ */
+class BalanceWatcher {
+  private readonly intents = new Map<string, OtaIntent>();
+  private readonly timers = new Map<string, NodeJS.Timeout>();
+  private readonly inFlight = new Set<string>();
+
+  constructor(
+    private readonly provider: Provider,
+    private readonly logger: winston.Logger,
+    private readonly gasStation: GasStation | undefined,
+    private readonly onTransferDetected: (result: OtaResult) => Promise<void>,
+    private readonly pollIntervalMs: number = DEFAULT_POLL_INTERVAL_MS,
+  ) {}
+
+  addIntent(intent: OtaIntent): void {
+    this.intents.set(intent.correlationId, intent);
+    this.logger.info(`OTA-deposit: polling balanceOf(${intent.ephemeralAddress}) on ${intent.contractAddress} every ${this.pollIntervalMs}ms`);
+    const timer = setInterval(() => {
+      this.pollOnce(intent).catch((e) =>
+        this.logger.error(`OTA-deposit: poll failed for intent ${intent.correlationId}: ${e?.message ?? e}`),
+      );
+    }, this.pollIntervalMs);
+    this.timers.set(intent.correlationId, timer);
+  }
+
+  private stop(correlationId: string): void {
+    const t = this.timers.get(correlationId);
+    if (t) clearInterval(t);
+    this.timers.delete(correlationId);
+    this.intents.delete(correlationId);
+    this.inFlight.delete(correlationId);
+  }
+
+  private async pollOnce(intent: OtaIntent): Promise<void> {
+    if (this.inFlight.has(intent.correlationId)) return;
+    if (!this.intents.has(intent.correlationId)) return;
+    const contract = new Contract(intent.contractAddress, ERC20_TRANSFER_ABI, this.provider);
+    const balance: bigint = await contract.balanceOf(intent.ephemeralAddress);
+    if (balance === 0n) return;
+    if (intent.expectedAmount && balance < BigInt(intent.expectedAmount)) {
+      this.logger.info(`OTA-deposit: balance ${balance} < expected ${intent.expectedAmount} on ${intent.ephemeralAddress}, waiting for more`);
+      return;
+    }
+    this.inFlight.add(intent.correlationId);
+    try {
+      this.logger.info(`OTA-deposit: detected balance ${balance} on ${intent.ephemeralAddress} for intent ${intent.correlationId}`);
+      const sweepTxHash = await this.sweep(intent, balance);
+      this.stop(intent.correlationId);
+      await this.onTransferDetected({
+        intent,
+        sender: '',
+        receivedAmount: balance.toString(),
+        inboundTxHash: '',
+        sweepTxHash,
+      });
+    } finally {
+      this.inFlight.delete(intent.correlationId);
+    }
+  }
+
+  private async sweep(intent: OtaIntent, amount: bigint): Promise<string | undefined> {
+    if (!this.gasStation) {
+      this.logger.warn(
+        `OTA-deposit: no gasStation configured — leaving ${amount} at ephemeral ${intent.ephemeralAddress} (intent ${intent.correlationId}, custodyId ${intent.custodyAccountId})`,
+      );
+      return undefined;
+    }
+    await fundGasIfNeeded(this.logger, this.gasStation, intent.ephemeralWallet);
+    const sweepContract = new Contract(intent.contractAddress, ERC20_TRANSFER_ABI, intent.ephemeralWallet.signer);
+    const tx = await sweepContract.transfer(intent.sweepTarget, amount);
+    const receipt = await tx.wait();
+    if (!receipt || receipt.status !== 1) {
+      this.logger.error(`OTA-deposit: sweep tx failed for intent ${intent.correlationId}`);
+      return undefined;
+    }
+    this.logger.info(`OTA-deposit: swept ${amount} from ${intent.ephemeralAddress} → ${intent.sweepTarget} (tx ${receipt.hash})`);
+    return receipt.hash;
+  }
+}
 
 /**
  * One-time-address (OTA) deposit method: provisions a fresh custody account per deposit
  * via CustodyProvider.createCustodyAccount and returns its EVM address as the deposit
- * target. The investor sends funds to this address; a TransferWatcher detects the
+ * target. The investor sends funds to this address; a BalanceWatcher detects the
  * inbound ERC20 Transfer event, sweeps the balance to the configured sweep target,
  * and exports a receipt to FinAPI. The ephemeral key never leaves custody — the sweep
  * is signed by the custody-issued signer obtained via createWalletForCustodyId.
@@ -88,7 +207,7 @@ export function registerOtaDeposit(ctx: IntegrationContext): void {
 
 class OtaDepositPlugin implements PaymentsPlugin {
 
-  private watcher: TransferWatcher | undefined;
+  private watcher: BalanceWatcher | undefined;
 
   constructor(
     private readonly logger: winston.Logger,
@@ -100,9 +219,9 @@ class OtaDepositPlugin implements PaymentsPlugin {
     private readonly inboundTransferHook: InboundTransferHook | undefined,
   ) {}
 
-  private getWatcher(): TransferWatcher {
+  private getWatcher(): BalanceWatcher {
     if (this.watcher) return this.watcher;
-    this.watcher = new TransferWatcher(
+    this.watcher = new BalanceWatcher(
       this.custodyProvider.rpcProvider,
       this.logger,
       this.custodyProvider.gasStation,
@@ -253,7 +372,9 @@ class OtaDepositPlugin implements PaymentsPlugin {
         },
       }],
       operationId: correlationId,
-      details: undefined,
+      // Surface the underlying custody account id so operators (and integration tests)
+      // can inspect/audit the per-deposit account directly via the custody provider.
+      details: { custodyAccountId },
     });
   }
 

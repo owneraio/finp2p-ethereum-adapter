@@ -7,4 +7,7 @@ module.exports = {
   transform: {
     "^.+\\.(ts|tsx)$": "ts-jest",
   },
+  moduleNameMapper: {
+    "\\.graphql$": "<rootDir>/tests/utils/graphql-stub.js",
+  },
 };

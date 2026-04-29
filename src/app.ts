@@ -87,7 +87,12 @@ function registerDirectServices(
     // instruction, which has no plugin awareness.
     const paymentImpl = pluginManager.getPaymentsPlugin() !== null ? paymentsService : delegate;
     const proxiedPaymentService = wrapWithWorkflowProxy(paymentImpl, workflowStorage, finP2PClient, 'getDepositInstruction', 'payout');
-    register(app, proxiedTokenService, proxiedEscrowService, commonService, commonService, proxiedPaymentService, proxiedPlanService, mappingConfig, mappingService);
+    // vanilla-service's commonService.operationStatus unconditionally throws — async ops
+    // persisted by the workflow proxy would be unreachable via /operations/status. Use the
+    // workflow-storage-backed DirectCommonServiceImpl for that route, keep vanilla
+    // commonService for liveness/readiness.
+    const directCommonService = workflowStorage ? new DirectCommonServiceImpl(workflowStorage) : commonService;
+    register(app, proxiedTokenService, proxiedEscrowService, directCommonService, commonService, proxiedPaymentService, proxiedPlanService, mappingConfig, mappingService);
     if (distributionService) {
       registerDistributionRoutes(app, distributionService);
     }
