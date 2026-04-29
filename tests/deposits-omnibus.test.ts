@@ -343,11 +343,7 @@ describe("Fireblocks + omnibus deposit plugins", () => {
   });
 
   describe("pull-deposit", () => {
-    // TODO: pull-deposit's ApprovalWatcher subscribes to ERC20 Approval events through the
-    // Fireblocks BrowserProvider, whose filter polling is unreliable on Sepolia. Unlike
-    // OTA we can't substitute polling here (the source is unknown until approve fires).
-    // Revisit once we have a stable RPC for event subscriptions or a different detection path.
-    it.skip("pulls an approved transfer into omnibus and reports a receipt", async () => {
+    it("pulls an approved transfer into omnibus and reports a receipt", async () => {
       adapter = await startAdapter("pull", makeMockFinP2PClient(captured));
 
       await bindAsset(adapter.url, ASSET_ID_PULL);
@@ -361,15 +357,21 @@ describe("Fireblocks + omnibus deposit plugins", () => {
       logger.info(`[pull] donor approving spender=${spender} amount=${amount}`);
       await donorApproveUsdc(spender, BigInt(amount));
 
-      const receipt = await pollUntil("FinAPI receipt", async () => captured.length > 0 ? captured[0] : undefined, 600000);
+      const receipt = await pollUntil(
+        "FinAPI receipt",
+        async () => (captured.length > 0 ? captured[0] : undefined),
+        600000,
+      );
 
       const omnibusAfter = await readUsdcBalance(provider, fireblocksConfig.omnibusAddress);
+      logger.info(`[pull] result: omnibusDelta=${omnibusAfter - omnibusBefore}`);
       expect(omnibusAfter - omnibusBefore).toBe(BigInt(amount));
 
+      expect(receipt.txs).toHaveLength(1);
       const tx = receipt.txs[0];
       expect(tx.quantity).toBe(amount);
       expect(tx.destination?.finp2pAccount?.account?.finId).toBe(TEST_INVESTOR_FIN_ID);
       expect(tx.destination?.finp2pAccount?.asset?.id).toBe(ASSET_ID_PULL);
-    }, 1200000);
+    }, 600000);
   });
 });
