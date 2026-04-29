@@ -19,7 +19,7 @@
  */
 
 import http from "http";
-import { Contract, JsonRpcProvider } from "ethers";
+import { Contract, JsonRpcProvider, parseUnits } from "ethers";
 import { FireblocksSDK, PeerType, TransactionOperation, TransactionStatus } from "fireblocks-sdk";
 import { ApiBaseUrl, ChainId } from "@fireblocks/fireblocks-web3-provider";
 import winston, { format, transports } from "winston";
@@ -295,7 +295,9 @@ describe("Fireblocks + omnibus deposit plugins", () => {
 
       await bindAsset(adapter.url, ASSET_ID_OTA);
 
-      const amount = "100000"; // 0.1 USDC (6 decimals)
+      // Caller convention: amount is human-readable (FinAPI / vanilla hook expect this).
+      const amount = "0.1"; // 0.1 USDC (6 decimals)
+      const amountBaseUnits = parseUnits(amount, 6);
       const omnibusBefore = await readUsdcBalance(provider, fireblocksConfig.omnibusAddress);
 
       const { walletAddress: ephemeral, custodyAccountId } = await requestDeposit(adapter.url, ASSET_ID_OTA, amount);
@@ -304,7 +306,7 @@ describe("Fireblocks + omnibus deposit plugins", () => {
       expect(custodyAccountId).toBeDefined();
 
       logger.info(`[ota] donor → ephemeral ${ephemeral} (${amount})`);
-      await donorTransferUsdc(fireblocksSdk, ephemeral, "0.1");
+      await donorTransferUsdc(fireblocksSdk, ephemeral, amount);
 
       // Wait until the mock has the receipt; the watcher fires this only after the
       // sweep tx (when a gas-station is configured). Then verify the full lifecycle.
@@ -319,7 +321,7 @@ describe("Fireblocks + omnibus deposit plugins", () => {
       logger.info(`[ota] result: ephemeralAfter=${ephemeralAfter} omnibusDelta=${omnibusAfter - omnibusBefore}`);
 
       expect(ephemeralAfter).toBe(0n);
-      expect(omnibusAfter - omnibusBefore).toBe(BigInt(amount));
+      expect(omnibusAfter - omnibusBefore).toBe(amountBaseUnits);
 
       expect(receipt.txs).toHaveLength(1);
       const tx = receipt.txs[0];
@@ -348,14 +350,16 @@ describe("Fireblocks + omnibus deposit plugins", () => {
 
       await bindAsset(adapter.url, ASSET_ID_PULL);
 
-      const amount = "100000"; // 0.1 USDC
+      // Caller convention: amount is human-readable (FinAPI / vanilla hook expect this).
+      const amount = "0.1"; // 0.1 USDC (6 decimals)
+      const amountBaseUnits = parseUnits(amount, 6);
       const omnibusBefore = await readUsdcBalance(provider, fireblocksConfig.omnibusAddress);
 
       const { walletAddress: spender } = await requestDeposit(adapter.url, ASSET_ID_PULL, amount);
       expect(spender).toMatch(/^0x[a-fA-F0-9]{40}$/);
 
       logger.info(`[pull] donor approving spender=${spender} amount=${amount}`);
-      await donorApproveUsdc(spender, BigInt(amount));
+      await donorApproveUsdc(spender, amountBaseUnits);
 
       // Pull can retry the watcher → transferFrom cycle several times when the
       // operator's gas-funding tx hasn't settled. Allow up to 14 min so the inner
@@ -368,7 +372,7 @@ describe("Fireblocks + omnibus deposit plugins", () => {
 
       const omnibusAfter = await readUsdcBalance(provider, fireblocksConfig.omnibusAddress);
       logger.info(`[pull] result: omnibusDelta=${omnibusAfter - omnibusBefore}`);
-      expect(omnibusAfter - omnibusBefore).toBe(BigInt(amount));
+      expect(omnibusAfter - omnibusBefore).toBe(amountBaseUnits);
 
       expect(receipt.txs).toHaveLength(1);
       const tx = receipt.txs[0];
