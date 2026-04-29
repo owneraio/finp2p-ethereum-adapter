@@ -124,7 +124,7 @@ export class FireblocksCustodyProvider implements CustodyProvider {
     return addresses[0].address;
   }
 
-  async sweepCustodyAccount(vaultAccountId: string): Promise<void> {
+  async archiveCustodyAccount(vaultAccountId: string): Promise<void> {
     await this.fireblocksSdk.hideVaultAccount(vaultAccountId);
   }
 
