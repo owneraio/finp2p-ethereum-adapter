@@ -81,7 +81,12 @@ function registerDirectServices(
     const proxiedPlanService = wrapWithWorkflowProxy(planApprovalService, workflowStorage, finP2PClient, 'approvePlan', 'proposeCancelPlan', 'proposeResetPlan', 'proposeInstructionApproval');
     const proxiedTokenService = wrapWithWorkflowProxy(tokenService, workflowStorage, finP2PClient, 'createAsset', 'issue', 'transfer', 'redeem');
     const proxiedEscrowService = wrapWithWorkflowProxy(escrowService, workflowStorage, finP2PClient, 'hold', 'release', 'rollback');
-    const proxiedPaymentService = wrapWithWorkflowProxy(delegate, workflowStorage, finP2PClient, 'getDepositInstruction', 'payout');
+    // When a PaymentsPlugin is registered (e.g. ota-deposit / pull-deposit), route deposits
+    // through it so per-deposit ephemeral addresses, approval-watchers, and FinAPI receipt
+    // export run. Otherwise fall back to the omnibus delegate's barebones "deposit to omnibus"
+    // instruction, which has no plugin awareness.
+    const paymentImpl = pluginManager.getPaymentsPlugin() !== null ? paymentsService : delegate;
+    const proxiedPaymentService = wrapWithWorkflowProxy(paymentImpl, workflowStorage, finP2PClient, 'getDepositInstruction', 'payout');
     register(app, proxiedTokenService, proxiedEscrowService, commonService, commonService, proxiedPaymentService, proxiedPlanService, mappingConfig, mappingService);
     if (distributionService) {
       registerDistributionRoutes(app, distributionService);
