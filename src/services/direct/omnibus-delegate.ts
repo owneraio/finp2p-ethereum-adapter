@@ -280,7 +280,7 @@ export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowD
 
     const makeLedgerIdentifier = (tokenId: string, std: string): LedgerAssetIdentifier => ({
       assetIdentifierType: 'CAIP-19',
-      network: '',
+      network: assetBind?.tokenIdentifier.network ?? '',
       tokenId,
       standard: std,
     });

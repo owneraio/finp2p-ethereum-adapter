@@ -1,0 +1,1 @@
+export { registerWalletDeposit } from "./plugin";

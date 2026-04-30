@@ -1,0 +1,1 @@
+export { registerPullDeposit } from "./register";
