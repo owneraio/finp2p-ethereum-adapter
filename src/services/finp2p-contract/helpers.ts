@@ -208,13 +208,16 @@ export const eip712PrimaryTypeFromTemplate = (template: EIP712Template): Primary
 };
 
 const compareAssets = (asset: Asset, eipAsset: EIP712Term): boolean => {
+  // Skeleton 0.28.9 dropped assetType from EIP712 messages; default to 'finp2p' to
+  // match assetFromAPI's convention at the route layer.
+  const eipAssetType = eipAsset.assetType ?? 'finp2p';
   // Settlement fallback: skeleton's assetFromAPI returns assetType='finp2p' for all assets,
   // but EIP712 settlement terms use 'fiat'/'cryptocurrency'. Match well-known symbols across types.
-  if (isIn(eipAsset.assetType as string, "fiat", "cryptocurrency") && isIn(eipAsset.assetId as string, "USD", "USDC") &&
+  if (isIn(eipAssetType, "fiat", "cryptocurrency") && isIn(eipAsset.assetId as string, "USD", "USDC") &&
     isIn(asset.assetType as string, "fiat", "cryptocurrency", "finp2p") && isIn(asset.assetId, "USD", "USDC")) {
     return true;
   }
-  return (eipAsset.assetId === asset.assetId && eipAsset.assetType === asset.assetType);
+  return (eipAsset.assetId === asset.assetId && eipAssetType === asset.assetType);
 };
 
 const isIn = (str: string, ...args: string[]): boolean => args.includes(str);
