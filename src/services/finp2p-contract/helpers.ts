@@ -25,19 +25,6 @@ import {
 } from "@owneraio/finp2p-contracts";
 import { BusinessContract } from "./model";
 
-/**
- * Skeleton 0.28.9 made `EIP712Term.assetType` optional, while the local
- * finp2p-contracts package still types it as required on its own EIP712Term.
- * Coerce to the required shape (default to 'finp2p' for omitted assetType,
- * matching the on-chain assumption used elsewhere) before forwarding to
- * `termFromEIP712`.
- */
-const toContractTerm = (t: { assetId: string; assetType?: string; amount: string }): EIP712Term => ({
-  assetId: t.assetId,
-  assetType: t.assetType ?? 'finp2p',
-  amount: t.amount,
-});
-
 
 export const detectLeg = (asset: Asset, template: SignatureTemplate): LegType => {
   if (template.type != "EIP712") {
@@ -77,8 +64,8 @@ export const extractBusinessDetails = (asset: Asset,
       } = template.message as EIP712PrimarySaleMessage;
       return {
         buyerFinId, sellerFinId,
-        asset: termFromEIP712(toContractTerm(asset)),
-        settlement: termFromEIP712(toContractTerm(settlement)),
+        asset: termFromEIP712(asset),
+        settlement: termFromEIP712(settlement),
         loan: emptyLoanTerms(),
         params: operationParams(leg, primaryType, Phase.Initiate, operationId, ReleaseType.Release)
       };
@@ -92,8 +79,8 @@ export const extractBusinessDetails = (asset: Asset,
       } = template.message as EIP712BuyingMessage;
       return {
         buyerFinId, sellerFinId,
-        asset: termFromEIP712(toContractTerm(asset)),
-        settlement: termFromEIP712(toContractTerm(settlement)),
+        asset: termFromEIP712(asset),
+        settlement: termFromEIP712(settlement),
         loan: emptyLoanTerms(),
         params: operationParams(leg, primaryType, Phase.Initiate, operationId, ReleaseType.Release)
       };
@@ -107,8 +94,8 @@ export const extractBusinessDetails = (asset: Asset,
       } = template.message as EIP712SellingMessage;
       return {
         buyerFinId, sellerFinId,
-        asset: termFromEIP712(toContractTerm(asset)),
-        settlement: termFromEIP712(toContractTerm(settlement)),
+        asset: termFromEIP712(asset),
+        settlement: termFromEIP712(settlement),
         loan: emptyLoanTerms(),
         params: operationParams(leg, primaryType, Phase.Initiate, operationId, ReleaseType.Release)
       };
@@ -121,7 +108,7 @@ export const extractBusinessDetails = (asset: Asset,
       } = template.message as EIP712TransferMessage;
       return {
         buyerFinId, sellerFinId,
-        asset: termFromEIP712(toContractTerm(asset)),
+        asset: termFromEIP712(asset),
         settlement: emptyTerm(),
         loan: emptyLoanTerms(),
         params: operationParams(leg, primaryType, Phase.Initiate, operationId, ReleaseType.Release)
@@ -141,8 +128,8 @@ export const extractBusinessDetails = (asset: Asset,
       }
       return {
         buyerFinId, sellerFinId,
-        asset: termFromEIP712(toContractTerm(asset)),
-        settlement: termFromEIP712(toContractTerm(settlement)),
+        asset: termFromEIP712(asset),
+        settlement: termFromEIP712(settlement),
         loan: emptyLoanTerms(),
         params: operationParams(leg, primaryType, Phase.Initiate, operationId, releaseType)
       };
@@ -161,8 +148,8 @@ export const extractBusinessDetails = (asset: Asset,
       } = template.message as EIP712LoanMessage;
       return {
         buyerFinId, sellerFinId,
-        asset: termFromEIP712(toContractTerm(asset)),
-        settlement: termFromEIP712(toContractTerm(settlement)), loan,
+        asset: termFromEIP712(asset),
+        settlement: termFromEIP712(settlement), loan,
         params: operationParams(leg, primaryType, phase, operationId, ReleaseType.Release)
       };
     }
@@ -175,8 +162,8 @@ export const extractBusinessDetails = (asset: Asset,
       } = template.message as EIP712PrivateOfferMessage;
       return {
         buyerFinId, sellerFinId,
-        asset: termFromEIP712(toContractTerm(asset)),
-        settlement: termFromEIP712(toContractTerm(settlement)),
+        asset: termFromEIP712(asset),
+        settlement: termFromEIP712(settlement),
         loan: emptyLoanTerms(),
         params: operationParams(leg, primaryType, Phase.Initiate, operationId, ReleaseType.Release)
       };
