@@ -61,14 +61,13 @@ function registerDirectServices(
   dbPool: any, finP2PClient: FinP2PClient | undefined,
   accountMappingStore: AccountMappingStore | undefined,
   assetStore: AssetStore | undefined,
-  ledgerSchema: string | undefined,
 ) {
   const healthService = new DirectHealthServiceImpl(custodyProvider.rpcProvider);
   const mappingConfig = buildMappingConfig(custodyProvider);
   const accountMapping: AccountMappingService = appConfig.accountMappingType === 'database' && accountMappingStore
     ? new DbAccountMapping(accountMappingStore)
     : new DerivationAccountMapping();
-  const workflowStorage = dbPool ? new workflows.WorkflowStorage(dbPool, ledgerSchema) : undefined;
+  const workflowStorage = dbPool ? new workflows.WorkflowStorage(dbPool) : undefined;
 
   if (appConfig.accountModel === 'omnibus') {
     if (!dbPool || !assetStore) throw new Error('DB connection is required for omnibus account model');
@@ -107,12 +106,11 @@ function registerFinP2PContractServices(
   app: express.Application, contractConfig: FinP2PContractAppConfig,
   paymentsService: PaymentsServiceImpl, pluginManager: PluginManager,
   dbPool: any, finP2PClient: FinP2PClient | undefined,
-  ledgerSchema: string | undefined,
 ) {
   if (contractConfig.accountModel === 'omnibus') {
     throw new Error('Omnibus account model is not supported with finp2p-contract provider');
   }
-  const workflowStorage = dbPool ? new workflows.WorkflowStorage(dbPool, ledgerSchema) : undefined;
+  const workflowStorage = dbPool ? new workflows.WorkflowStorage(dbPool) : undefined;
   let planApprovalService = new PlanApprovalServiceImpl(contractConfig.orgId, pluginManager, contractConfig.finP2PClient);
   const escrowService = new EscrowServiceImpl(contractConfig.finP2PContract, contractConfig.finP2PClient, contractConfig.execDetailsStore, contractConfig.proofProvider, pluginManager);
   const tokenService = new TokenServiceImpl(contractConfig.finP2PContract, contractConfig.finP2PClient, contractConfig.execDetailsStore, contractConfig.proofProvider, pluginManager);
@@ -151,16 +149,12 @@ async function createApp(
   const pluginManager = new PluginManager();
   const finP2PClient = workflowsConfig?.finP2PClient;
 
-  // Postgres schema for skeleton tables — must match what migration created.
-  // Read from migration config (preferred) or fall back to LEDGER_SCHEMA env var.
-  const ledgerSchema = workflowsConfig?.migration?.schemaName || process.env.LEDGER_SCHEMA || undefined;
-
   // Shared data stores — decoupled from workflow storage
   const { Pool } = require('pg');
   const dbPool = dbConnectionString ? new Pool({ connectionString: dbConnectionString }) : undefined;
   dbPool?.on('error', () => {}); // Suppress pool errors during shutdown
-  const accountMappingStore = dbPool ? new storageModule.PgAccountStore(dbPool, ledgerSchema) : undefined;
-  const assetStore = dbPool ? new storageModule.PgAssetStore(dbPool, ledgerSchema) : undefined;
+  const accountMappingStore = dbPool ? new storageModule.PgAccountStore(dbPool) : undefined;
+  const assetStore = dbPool ? new storageModule.PgAssetStore(dbPool) : undefined;
 
   let custodyProvider: CustodyProvider | undefined;
   if (custodyRegistry.has(appConfig.type)) {
@@ -180,9 +174,9 @@ async function createApp(
   const paymentsService = new PaymentsServiceImpl(pluginManager);
 
   if (custodyProvider) {
-    registerDirectServices(app, logger, custodyProvider, appConfig, paymentsService, pluginManager, dbPool, finP2PClient, accountMappingStore, assetStore, ledgerSchema);
+    registerDirectServices(app, logger, custodyProvider, appConfig, paymentsService, pluginManager, dbPool, finP2PClient, accountMappingStore, assetStore);
   } else if (appConfig.type === 'finp2p-contract') {
-    registerFinP2PContractServices(app, appConfig as FinP2PContractAppConfig, paymentsService, pluginManager, dbPool, finP2PClient, ledgerSchema);
+    registerFinP2PContractServices(app, appConfig as FinP2PContractAppConfig, paymentsService, pluginManager, dbPool, finP2PClient);
   } else {
     throw new Error(`Unknown provider type: '${appConfig.type}'. Available custody providers: ${custodyRegistry.availableProviders.join(', ')}`);
   }

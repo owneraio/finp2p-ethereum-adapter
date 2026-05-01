@@ -115,9 +115,10 @@ const deployContract = async (
   provider: Provider,
   signer: Signer,
   operatorAddress: string | undefined,
+  paymentAssetCode: string | undefined = undefined
 ) => {
   const contractManger = new ContractsManager(provider, signer, logger);
-  return contractManger.deployFinP2PContract(operatorAddress);
+  return contractManger.deployFinP2PContract(operatorAddress, paymentAssetCode);
 };
 
 const deployERC20Contract = async (
@@ -199,14 +200,12 @@ const start = async () => {
   );
 
   const connectionString = await startPostgresContainer();
-  const ledgerSchema = process.env.LEDGER_SCHEMA || 'ethereum_adapter';
   const workflowsConfig = {
     migration: {
       connectionString,
       gooseExecutablePath: await whichGoose(),
       migrationListTableName: "finp2p_ethereum_adapater_migrations",
       storageUser: new URL(connectionString).username,
-      schemaName: ledgerSchema,
     },
     storage: { connectionString },
     service: {},
