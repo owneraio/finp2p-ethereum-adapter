@@ -10,7 +10,7 @@ import {
   PostgreSqlContainer,
   StartedPostgreSqlContainer,
 } from '@testcontainers/postgresql';
-import { storage } from '@owneraio/finp2p-nodejs-skeleton-adapter';
+import { storage, AccountMappingServiceImpl } from '@owneraio/finp2p-nodejs-skeleton-adapter';
 import { execSync } from 'child_process';
 import { join } from 'path';
 
@@ -86,7 +86,9 @@ describe('DbAccountMapping', () => {
     const { Pool } = require('pg');
     pool = new Pool({ connectionString });
     pool.on('error', () => {});
-    accountStore = new storage.PgAccountStore(pool);
+    // Match production wiring: AccountMappingServiceImpl with caseSensitive=false
+    // normalizes EVM address fields on both save and lookup.
+    accountStore = new AccountMappingServiceImpl(new storage.PgAccountStore(pool), { caseSensitive: false });
 
     // Run skeleton migrations (includes account_mappings table)
     const gooseBin = join(process.cwd(), 'bin', 'goose');

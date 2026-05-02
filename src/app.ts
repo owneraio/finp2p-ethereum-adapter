@@ -65,8 +65,14 @@ function registerDirectServices(
 ) {
   const healthService = new DirectHealthServiceImpl(custodyProvider.rpcProvider);
   const mappingConfig = buildMappingConfig(custodyProvider);
-  const accountMapping: AccountMappingService = appConfig.accountMappingType === 'database' && accountMappingStore
-    ? new DbAccountMapping(accountMappingStore)
+  // Skeleton 0.28.11+: caseSensitive=false makes the service lowercase
+  // FIELD_LEDGER_ACCOUNT_ID values on save and lookup, so EIP-55 checksummed
+  // and lowercase EVM addresses resolve to the same record.
+  const accountMappingService = accountMappingStore
+    ? new AccountMappingServiceImpl(accountMappingStore, { caseSensitive: false })
+    : undefined;
+  const accountMapping: AccountMappingService = appConfig.accountMappingType === 'database' && accountMappingService
+    ? new DbAccountMapping(accountMappingService)
     : new DerivationAccountMapping();
   const workflowStorage = dbPool ? new workflows.WorkflowStorage(dbPool, ledgerSchema) : undefined;
 
@@ -90,11 +96,10 @@ function registerDirectServices(
     return;
   }
 
-  if (!assetStore || !dbPool || !accountMappingStore) throw new Error('DB connection is required for direct mode');
+  if (!assetStore || !dbPool || !accountMappingStore || !accountMappingService) throw new Error('DB connection is required for direct mode');
   let tokenService: DirectTokenService = new DirectTokenService(logger, custodyProvider, accountMapping, assetStore);
   const commonService = new DirectCommonServiceImpl(workflowStorage!);
   let planApprovalService = new PlanApprovalServiceImpl(appConfig.orgId, pluginManager, finP2PClient);
-  const accountMappingService = new AccountMappingServiceImpl(accountMappingStore);
 
   const proxiedTokenService = wrapWithWorkflowProxy(tokenService, workflowStorage, finP2PClient, 'createAsset', 'issue', 'transfer', 'redeem');
   const proxiedEscrowService = wrapWithWorkflowProxy(tokenService, workflowStorage, finP2PClient, 'hold', 'release', 'rollback');
