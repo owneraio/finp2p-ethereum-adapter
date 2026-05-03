@@ -207,19 +207,50 @@ describe('OmnibusDelegate', () => {
   });
 
   describe('release', () => {
-    it('should transfer from escrow to omnibus', async () => {
+    it('should transfer from escrow to omnibus when destination is locally mapped', async () => {
       const mockReceipt = { hash: '0xRELEASE_TX', status: 1, getBlock: jest.fn().mockResolvedValue({ timestamp: 1700000000 }) };
       mockTransfer.mockResolvedValue({ wait: jest.fn().mockResolvedValue(mockReceipt) });
+      (accountMapping.resolveAccount as jest.Mock).mockResolvedValue('0xLOCAL_INVESTOR');
 
       const result = await delegate.release(
         'idem-release',
         {} as any,
-        {} as any,
+        { finId: 'local-investor-finId' } as any,
         TEST_ASSET, '5.0', 'op-2', undefined,
       );
 
       expect(result.success).toBe(true);
       expect(mockTransfer).toHaveBeenCalledWith('0xOMNIBUS', 5000000n);
+    });
+
+    it('should transfer from escrow to external counterparty address when destination is unmapped', async () => {
+      const mockReceipt = { hash: '0xCROSS_ORG_TX', status: 1, getBlock: jest.fn().mockResolvedValue({ timestamp: 1700000000 }) };
+      mockTransfer.mockResolvedValue({ wait: jest.fn().mockResolvedValue(mockReceipt) });
+      (accountMapping.resolveAccount as jest.Mock).mockResolvedValue(undefined);
+
+      const result = await delegate.release(
+        'idem-release-cross-org',
+        {} as any,
+        { finId: 'remote-org-finId', account: { type: 'crypto', address: '0xREMOTE_ORG_OMNIBUS' } } as any,
+        TEST_ASSET, '7.0', 'op-cross', undefined,
+      );
+
+      expect(result.success).toBe(true);
+      expect(mockTransfer).toHaveBeenCalledWith('0xREMOTE_ORG_OMNIBUS', 7000000n);
+    });
+
+    it('should fail cleanly when neither local mapping nor external address is provided', async () => {
+      (accountMapping.resolveAccount as jest.Mock).mockResolvedValue(undefined);
+
+      const result = await delegate.release(
+        'idem-release-bad',
+        {} as any,
+        { finId: 'unknown-finId' } as any,
+        TEST_ASSET, '1.0', 'op-bad', undefined,
+      );
+
+      expect(result.success).toBe(false);
+      if (!result.success) expect(result.error).toContain('Cannot resolve release destination');
     });
   });
 
