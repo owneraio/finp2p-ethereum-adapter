@@ -10,7 +10,8 @@ import { parseUnits, id as keccak256 } from 'ethers';
 import winston from 'winston';
 import { CustodyProvider, CustodyWallet } from './custody-provider';
 import { tokenStandardRegistry } from "./token-standards/registry";
-import { ERC20_TOKEN_STANDARD } from "./token-standards/erc20";
+import { ERC20_TOKEN_STANDARD, DEFAULT_NEW_ERC20_DECIMALS } from "./token-standards/erc20";
+import { ERC20Contract } from "@owneraio/finp2p-contracts";
 import { AccountMappingService, AssetStore } from './account-mapping';
 import { getAssetFromDb } from './helpers';
 
@@ -271,31 +272,35 @@ export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowD
     assetMetadata: any | undefined, assetName: string | undefined, issuerId: string | undefined,
     assetDenomination: AssetDenomination | undefined,
   ): Promise<AssetCreationResult> {
-    const decimals = 6;
-
     const tokenStandard = assetBind?.tokenIdentifier?.standard
       ? (tokenStandardRegistry.has(assetBind.tokenIdentifier.standard) ? assetBind.tokenIdentifier.standard : ERC20_TOKEN_STANDARD)
       : ERC20_TOKEN_STANDARD;
     const standard = tokenStandardRegistry.resolve(tokenStandard);
 
-    const makeLedgerIdentifier = (tokenId: string, std: string): LedgerAssetIdentifier => ({
+    const { chainId } = await this.custodyProvider.rpcProvider.getNetwork();
+    const defaultNetwork = `eip155:${chainId}`;
+
+    const makeLedgerIdentifier = (tokenId: string, std: string, network: string): LedgerAssetIdentifier => ({
       assetIdentifierType: 'CAIP-19',
-      network: '',
+      network,
       tokenId,
       standard: std,
     });
 
     if (assetBind === undefined || assetBind.tokenIdentifier === undefined) {
       const symbol = 'OWNERA';
-      const result = await standard.deploy(this.omnibusWallet, assetName ?? 'OWNERACOIN', symbol, decimals, this.logger);
+      const result = await standard.deploy(this.omnibusWallet, assetName ?? 'OWNERACOIN', symbol, DEFAULT_NEW_ERC20_DECIMALS, this.logger);
       await this.assetStore.saveAsset({ contract_address: result.contractAddress, decimals: result.decimals, token_standard: result.tokenStandard, id: assetId });
       await this.custodyProvider.onAssetRegistered?.(result.contractAddress, symbol);
-      return { ledgerIdentifier: makeLedgerIdentifier(result.contractAddress, result.tokenStandard), reference: undefined };
+      return { ledgerIdentifier: makeLedgerIdentifier(result.contractAddress, result.tokenStandard, defaultNetwork), reference: undefined };
     }
 
     const tokenAddress = assetBind.tokenIdentifier.tokenId;
+    const network = assetBind.tokenIdentifier.network || defaultNetwork;
+    const erc20 = new ERC20Contract(this.omnibusWallet.provider, this.omnibusWallet.signer, tokenAddress, this.logger);
+    const decimals = Number(await erc20.decimals());
     await this.assetStore.saveAsset({ contract_address: tokenAddress, decimals, token_standard: tokenStandard, id: assetId });
     await this.custodyProvider.onAssetRegistered?.(tokenAddress);
-    return { ledgerIdentifier: makeLedgerIdentifier(tokenAddress, tokenStandard), reference: undefined };
+    return { ledgerIdentifier: makeLedgerIdentifier(tokenAddress, tokenStandard, network), reference: undefined };
   }
 }

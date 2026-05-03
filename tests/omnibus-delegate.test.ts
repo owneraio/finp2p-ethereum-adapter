@@ -9,11 +9,13 @@ tokenStandardRegistry.register(ERC20_TOKEN_STANDARD, new ERC20TokenStandard());
 // Mock @owneraio/finp2p-contracts
 const mockBalanceOf = jest.fn();
 const mockTransfer = jest.fn();
+const mockDecimals = jest.fn();
 const mockDeployERC20Detached = jest.fn();
 jest.mock('@owneraio/finp2p-contracts', () => ({
   ERC20Contract: jest.fn().mockImplementation(() => ({
     balanceOf: mockBalanceOf,
     transfer: mockTransfer,
+    decimals: mockDecimals,
   })),
   ContractsManager: jest.fn().mockImplementation(() => ({
     deployERC20: mockDeployERC20Detached,
@@ -45,6 +47,7 @@ function createMockCustodyProvider(overrides: Partial<CustodyProvider> = {}): Cu
     rpcProvider: {
       waitForTransaction: jest.fn(),
       getBlock: jest.fn(),
+      getNetwork: jest.fn().mockResolvedValue({ chainId: 11155111n, name: 'sepolia' }),
     } as any,
     resolveWallet: jest.fn(),
     ...overrides,
@@ -247,26 +250,42 @@ describe('OmnibusDelegate', () => {
       );
 
       expect(result.ledgerIdentifier.tokenId).toBe(deployedAddress);
+      expect(result.ledgerIdentifier.network).toBe('eip155:11155111');
       expect(mockSaveAsset).toHaveBeenCalledWith(expect.objectContaining({
         contract_address: deployedAddress,
         id: TEST_ASSET.assetId,
       }));
     });
 
-    it('should use provided tokenIdentifier address', async () => {
+    it('should use provided tokenIdentifier address and read decimals on-chain', async () => {
       const existingAddress = '0xEXISTING_TOKEN';
+      mockDecimals.mockResolvedValue(8n);
 
       const result = await delegate.createAsset(
         'idem-create-2', TEST_ASSET.assetId,
-        { tokenIdentifier: { tokenId: existingAddress } } as any,
+        { tokenIdentifier: { tokenId: existingAddress, network: 'eip155:42161' } } as any,
         undefined, 'TestCoin', undefined, undefined,
       );
 
       expect(result.ledgerIdentifier.tokenId).toBe(existingAddress);
+      expect(result.ledgerIdentifier.network).toBe('eip155:42161');
       expect(mockDeployERC20Detached).not.toHaveBeenCalled();
       expect(mockSaveAsset).toHaveBeenCalledWith(expect.objectContaining({
         contract_address: existingAddress,
+        decimals: 8,
       }));
+    });
+
+    it('should fall back to chain-derived network when bind omits it', async () => {
+      mockDecimals.mockResolvedValue(6n);
+
+      const result = await delegate.createAsset(
+        'idem-create-3', TEST_ASSET.assetId,
+        { tokenIdentifier: { tokenId: '0xANY' } } as any,
+        undefined, undefined, undefined, undefined,
+      );
+
+      expect(result.ledgerIdentifier.network).toBe('eip155:11155111');
     });
   });
 });
