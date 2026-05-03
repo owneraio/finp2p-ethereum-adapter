@@ -11,7 +11,8 @@ import { CustodyProvider, CustodyWallet } from './custody-provider';
 import { AccountMappingService, AssetStore } from './account-mapping';
 import { getAssetFromDb, fundGasIfNeeded } from './helpers';
 import { tokenStandardRegistry } from './token-standards/registry';
-import { ERC20_TOKEN_STANDARD } from './token-standards/erc20';
+import { ERC20_TOKEN_STANDARD, DEFAULT_NEW_ERC20_DECIMALS } from './token-standards/erc20';
+import { ERC20Contract } from '@owneraio/finp2p-contracts';
 import { buildOperationContext } from './operation-context';
 
 function resultToReceipt(
@@ -85,10 +86,13 @@ export class DirectTokenService implements TokenService, EscrowService {
     const tokenStandard = ERC20_TOKEN_STANDARD;
     const standard = tokenStandardRegistry.resolve(tokenStandard);
 
+    const { chainId } = await this.custodyProvider.rpcProvider.getNetwork();
+    const defaultNetwork = `eip155:${chainId}`;
+
     if (assetBind === undefined || assetBind.tokenIdentifier === undefined) {
       const wallet = this.custodyProvider.issuer;
       const symbol = "OWNERA"; // TODO: align with product team which metadata fields to use for token name/symbol/decimals
-      const result = await standard.deploy(wallet, assetName ?? "OWNERACOIN", symbol, 6, this.logger);
+      const result = await standard.deploy(wallet, assetName ?? "OWNERACOIN", symbol, DEFAULT_NEW_ERC20_DECIMALS, this.logger);
       await this.assetStore.saveAsset({
         contract_address: result.contractAddress,
         decimals: result.decimals,
@@ -100,13 +104,16 @@ export class DirectTokenService implements TokenService, EscrowService {
       return {
         operation: "createAsset",
         type: "success",
-        result: { ledgerIdentifier: { assetIdentifierType: 'CAIP-19', network: '', tokenId: result.contractAddress, standard: tokenStandard }, reference: undefined }
+        result: { ledgerIdentifier: { assetIdentifierType: 'CAIP-19', network: defaultNetwork, tokenId: result.contractAddress, standard: tokenStandard }, reference: undefined }
       };
     } else {
       const tokenAddress = assetBind.tokenIdentifier.tokenId;
+      const wallet = this.custodyProvider.issuer;
+      const erc20 = new ERC20Contract(wallet.provider, wallet.signer, tokenAddress, this.logger);
+      const decimals = Number(await erc20.decimals());
       await this.assetStore.saveAsset({
         contract_address: tokenAddress,
-        decimals: 6,
+        decimals,
         token_standard: tokenStandard,
         id: assetId,
       });
@@ -116,7 +123,7 @@ export class DirectTokenService implements TokenService, EscrowService {
       return {
         operation: "createAsset",
         type: "success",
-        result: { ledgerIdentifier: { assetIdentifierType: 'CAIP-19', network: assetBind.tokenIdentifier.network ?? '', tokenId: tokenAddress, standard: tokenStandard }, reference: undefined }
+        result: { ledgerIdentifier: { assetIdentifierType: 'CAIP-19', network: assetBind.tokenIdentifier.network || defaultNetwork, tokenId: tokenAddress, standard: tokenStandard }, reference: undefined }
       };
     }
   }
