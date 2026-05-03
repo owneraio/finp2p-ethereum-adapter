@@ -11,7 +11,7 @@ import {
   storage as storageModule,
 } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import { FinP2PClient } from "@owneraio/finp2p-client";
-import { createVanillaServices, registerDistributionRoutes } from "@owneraio/finp2p-vanilla-service";
+import { LedgerStorage, VanillaServiceImpl, registerDistributionRoutes } from "@owneraio/finp2p-vanilla-service";
 import {
   CredentialsMappingService,
   EscrowServiceImpl,
@@ -63,7 +63,14 @@ function wrapWithWorkflowProxy<T extends object>(
  */
 interface OmnibusContext {
   delegate: OmnibusDelegate;
-  vanilla: ReturnType<typeof createVanillaServices>;
+  vanilla: {
+    tokenService: VanillaServiceImpl;
+    escrowService: VanillaServiceImpl;
+    commonService: VanillaServiceImpl;
+    mappingService: VanillaServiceImpl;
+    distributionService: VanillaServiceImpl;
+    inboundTransferHook: VanillaServiceImpl;
+  };
 }
 
 function registerDirectServices(
@@ -71,13 +78,15 @@ function registerDirectServices(
   paymentsService: PaymentsServiceImpl, pluginManager: PluginManager,
   dbPool: any, finP2PClient: FinP2PClient | undefined,
   accountMappingStore: AccountMappingStore | undefined,
+  accountMappingService: AccountMappingServiceImpl | undefined,
   assetStore: AssetStore | undefined,
   accountMapping: AccountMappingService,
   omnibusCtx: OmnibusContext | undefined,
+  ledgerSchema: string | undefined,
 ) {
   const healthService = new DirectHealthServiceImpl(custodyProvider.rpcProvider);
   const mappingConfig = buildMappingConfig(custodyProvider);
-  const workflowStorage = dbPool ? new workflows.WorkflowStorage(dbPool) : undefined;
+  const workflowStorage = dbPool ? new workflows.WorkflowStorage(dbPool, ledgerSchema) : undefined;
 
   if (appConfig.accountModel === 'omnibus') {
     if (!omnibusCtx) throw new Error('Omnibus context not built — createVanillaServices must run before registerDirectServices');
@@ -105,11 +114,10 @@ function registerDirectServices(
     return;
   }
 
-  if (!assetStore || !dbPool || !accountMappingStore) throw new Error('DB connection is required for direct mode');
+  if (!assetStore || !dbPool || !accountMappingStore || !accountMappingService) throw new Error('DB connection is required for direct mode');
   let tokenService: DirectTokenService = new DirectTokenService(logger, custodyProvider, accountMapping, assetStore);
   const commonService = new DirectCommonServiceImpl(workflowStorage!);
   let planApprovalService = new PlanApprovalServiceImpl(appConfig.orgId, pluginManager, finP2PClient);
-  const accountMappingService = new AccountMappingServiceImpl(accountMappingStore);
 
   const proxiedTokenService = wrapWithWorkflowProxy(tokenService, workflowStorage, finP2PClient, 'createAsset', 'issue', 'transfer', 'redeem');
   const proxiedEscrowService = wrapWithWorkflowProxy(tokenService, workflowStorage, finP2PClient, 'hold', 'release', 'rollback');
@@ -188,20 +196,38 @@ async function createApp(
   // constructors; if it's undefined at registration time they fall back to
   // finP2PClient.importTransactions only, skipping the vanilla hook's storage.credit(...)
   // and leaving the adapter's omnibus balance state stale.
-  const accountMapping: AccountMappingService = appConfig.accountMappingType === 'database' && accountMappingStore
-    ? new DbAccountMapping(accountMappingStore)
+  //
+  // Skeleton 0.28.11+: caseSensitive=false makes the account-mapping service lowercase
+  // FIELD_LEDGER_ACCOUNT_ID values on save and lookup, so EIP-55 checksummed and lowercase
+  // EVM addresses resolve to the same record.
+  const accountMappingService = accountMappingStore
+    ? new AccountMappingServiceImpl(accountMappingStore, { caseSensitive: false })
+    : undefined;
+  const accountMapping: AccountMappingService = appConfig.accountMappingType === 'database' && accountMappingService
+    ? new DbAccountMapping(accountMappingService)
     : new DerivationAccountMapping();
 
   let omnibusCtx: OmnibusContext | undefined;
   if (appConfig.accountModel === 'omnibus' && custodyProvider) {
     if (!dbPool || !assetStore) throw new Error('DB connection is required for omnibus account model');
     const delegate = new OmnibusDelegate(logger, custodyProvider, accountMapping, assetStore);
-    const vanilla = createVanillaServices(
-      { transfer: delegate, asset: delegate, escrow: delegate, omnibus: delegate },
-      { connectionString: dbPool.options?.connectionString ?? '' },
-      logger,
-    );
-    omnibusCtx = { delegate, vanilla };
+    // vanilla 0.28.2's createVanillaServices doesn't forward schemaName to its LedgerStorage,
+    // so its account_mappings/accounts/transactions queries hit the default `ledger_adapter`
+    // schema even when migrations placed those tables in `ethereum_adapter`. Build the storage
+    // + service ourselves to pin the schema. (LedgerStorage + VanillaServiceImpl are public.)
+    const ledgerStorage = new LedgerStorage(dbPool, ledgerSchema);
+    const vanillaService = new VanillaServiceImpl(ledgerStorage, delegate, delegate, delegate, delegate);
+    omnibusCtx = {
+      delegate,
+      vanilla: {
+        tokenService: vanillaService,
+        escrowService: vanillaService,
+        commonService: vanillaService,
+        mappingService: vanillaService,
+        distributionService: vanillaService,
+        inboundTransferHook: vanillaService,
+      },
+    };
   }
 
   registerIntegrations({
@@ -220,7 +246,7 @@ async function createApp(
   const paymentsService = new PaymentsServiceImpl(pluginManager);
 
   if (custodyProvider) {
-    registerDirectServices(app, logger, custodyProvider, appConfig, paymentsService, pluginManager, dbPool, finP2PClient, accountMappingStore, assetStore, accountMapping, omnibusCtx);
+    registerDirectServices(app, logger, custodyProvider, appConfig, paymentsService, pluginManager, dbPool, finP2PClient, accountMappingStore, accountMappingService, assetStore, accountMapping, omnibusCtx, ledgerSchema);
   } else if (appConfig.type === 'finp2p-contract') {
     registerFinP2PContractServices(app, appConfig as FinP2PContractAppConfig, paymentsService, pluginManager, dbPool, finP2PClient, ledgerSchema);
   } else {
