@@ -183,11 +183,23 @@ export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowD
     const escrowWallet = this.custodyProvider.escrow;
     const amount = parseUnits(quantity, dbAsset.decimals);
 
+    // Local destination (mapped in our DB → our investor): funds stay pooled in our
+    // omnibus and per-finId accounting happens via vanilla's `accounts` table.
+    // External destination (counterparty in another org): the router supplies the
+    // counterparty's on-chain address via `destination.account.address`; deliver
+    // there directly so funds physically leave this org.
+    const localAddress = await this.accountMapping.resolveAccount(destination.finId);
+    const externalAddress = destination.account?.address;
+    if (!localAddress && !externalAddress) {
+      return { success: false, error: `Cannot resolve release destination for finId: ${destination.finId}` };
+    }
+    const onChainTarget = localAddress ? omnibusAddress : externalAddress!;
+
     const standard = tokenStandardRegistry.resolve(dbAsset.tokenStandard);
-    const result = await standard.release(escrowWallet, dbAsset, omnibusAddress, amount, this.logger);
+    const result = await standard.release(escrowWallet, dbAsset, onChainTarget, amount, this.logger);
     if (result.status === 'failure') return { success: false, error: result.reason };
 
-    this.logger.info(`Release: ${quantity} of ${asset.assetId} from escrow to omnibus, tx: ${result.transactionId}`);
+    this.logger.info(`Release: ${quantity} of ${asset.assetId} from escrow to ${onChainTarget} (${localAddress ? 'local omnibus' : 'external'}), tx: ${result.transactionId}`);
     return { success: true, transactionId: result.transactionId ?? '' };
   }
 
