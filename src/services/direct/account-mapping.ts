@@ -2,7 +2,7 @@ import { finIdToAddress } from '@owneraio/finp2p-contracts';
 import { storage } from '@owneraio/finp2p-nodejs-skeleton-adapter';
 import { FIELD_LEDGER_ACCOUNT_ID, FIELD_CUSTODY_ACCOUNT_ID } from './mapping-validator';
 
-export type AccountMappingStore = InstanceType<typeof storage.PgAccountStore>;
+export type AccountMappingStore = storage.AccountStore;
 export type AssetStore = InstanceType<typeof storage.PgAssetStore>;
 
 export interface ResolvedAccount {

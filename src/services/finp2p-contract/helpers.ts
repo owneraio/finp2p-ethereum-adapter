@@ -25,6 +25,18 @@ import {
 } from "@owneraio/finp2p-contracts";
 import { BusinessContract } from "./model";
 
+/**
+ * Skeleton 0.28.9 made `EIP712Term.assetType` optional, while finp2p-contracts
+ * still types it as required on its own EIP712Term. Coerce to the required shape
+ * (default to 'finp2p' for omitted assetType, matching the route layer's
+ * assetFromAPI convention) before forwarding to `termFromEIP712`.
+ */
+const toContractTerm = (t: { assetId: string; assetType?: string; amount: string }): EIP712Term => ({
+  assetId: t.assetId,
+  assetType: t.assetType ?? 'finp2p',
+  amount: t.amount,
+});
+
 
 export const detectLeg = (asset: Asset, template: SignatureTemplate): LegType => {
   if (template.type != "EIP712") {
@@ -64,8 +76,8 @@ export const extractBusinessDetails = (asset: Asset,
       } = template.message as EIP712PrimarySaleMessage;
       return {
         buyerFinId, sellerFinId,
-        asset: termFromEIP712(asset),
-        settlement: termFromEIP712(settlement),
+        asset: termFromEIP712(toContractTerm(asset)),
+        settlement: termFromEIP712(toContractTerm(settlement)),
         loan: emptyLoanTerms(),
         params: operationParams(leg, primaryType, Phase.Initiate, operationId, ReleaseType.Release)
       };
@@ -79,8 +91,8 @@ export const extractBusinessDetails = (asset: Asset,
       } = template.message as EIP712BuyingMessage;
       return {
         buyerFinId, sellerFinId,
-        asset: termFromEIP712(asset),
-        settlement: termFromEIP712(settlement),
+        asset: termFromEIP712(toContractTerm(asset)),
+        settlement: termFromEIP712(toContractTerm(settlement)),
         loan: emptyLoanTerms(),
         params: operationParams(leg, primaryType, Phase.Initiate, operationId, ReleaseType.Release)
       };
@@ -94,8 +106,8 @@ export const extractBusinessDetails = (asset: Asset,
       } = template.message as EIP712SellingMessage;
       return {
         buyerFinId, sellerFinId,
-        asset: termFromEIP712(asset),
-        settlement: termFromEIP712(settlement),
+        asset: termFromEIP712(toContractTerm(asset)),
+        settlement: termFromEIP712(toContractTerm(settlement)),
         loan: emptyLoanTerms(),
         params: operationParams(leg, primaryType, Phase.Initiate, operationId, ReleaseType.Release)
       };
@@ -108,7 +120,7 @@ export const extractBusinessDetails = (asset: Asset,
       } = template.message as EIP712TransferMessage;
       return {
         buyerFinId, sellerFinId,
-        asset: termFromEIP712(asset),
+        asset: termFromEIP712(toContractTerm(asset)),
         settlement: emptyTerm(),
         loan: emptyLoanTerms(),
         params: operationParams(leg, primaryType, Phase.Initiate, operationId, ReleaseType.Release)
@@ -128,8 +140,8 @@ export const extractBusinessDetails = (asset: Asset,
       }
       return {
         buyerFinId, sellerFinId,
-        asset: termFromEIP712(asset),
-        settlement: termFromEIP712(settlement),
+        asset: termFromEIP712(toContractTerm(asset)),
+        settlement: termFromEIP712(toContractTerm(settlement)),
         loan: emptyLoanTerms(),
         params: operationParams(leg, primaryType, Phase.Initiate, operationId, releaseType)
       };
@@ -148,8 +160,8 @@ export const extractBusinessDetails = (asset: Asset,
       } = template.message as EIP712LoanMessage;
       return {
         buyerFinId, sellerFinId,
-        asset: termFromEIP712(asset),
-        settlement: termFromEIP712(settlement), loan,
+        asset: termFromEIP712(toContractTerm(asset)),
+        settlement: termFromEIP712(toContractTerm(settlement)), loan,
         params: operationParams(leg, primaryType, phase, operationId, ReleaseType.Release)
       };
     }
@@ -162,8 +174,8 @@ export const extractBusinessDetails = (asset: Asset,
       } = template.message as EIP712PrivateOfferMessage;
       return {
         buyerFinId, sellerFinId,
-        asset: termFromEIP712(asset),
-        settlement: termFromEIP712(settlement),
+        asset: termFromEIP712(toContractTerm(asset)),
+        settlement: termFromEIP712(toContractTerm(settlement)),
         loan: emptyLoanTerms(),
         params: operationParams(leg, primaryType, Phase.Initiate, operationId, ReleaseType.Release)
       };
@@ -195,13 +207,16 @@ export const eip712PrimaryTypeFromTemplate = (template: EIP712Template): Primary
 };
 
 const compareAssets = (asset: Asset, eipAsset: EIP712Term): boolean => {
+  // Skeleton 0.28.9 dropped assetType from EIP712 messages; default to 'finp2p' to
+  // match assetFromAPI's convention at the route layer.
+  const eipAssetType = eipAsset.assetType ?? 'finp2p';
   // Settlement fallback: skeleton's assetFromAPI returns assetType='finp2p' for all assets,
   // but EIP712 settlement terms use 'fiat'/'cryptocurrency'. Match well-known symbols across types.
-  if (isIn(eipAsset.assetType as string, "fiat", "cryptocurrency") && isIn(eipAsset.assetId as string, "USD", "USDC") &&
+  if (isIn(eipAssetType, "fiat", "cryptocurrency") && isIn(eipAsset.assetId as string, "USD", "USDC") &&
     isIn(asset.assetType as string, "fiat", "cryptocurrency", "finp2p") && isIn(asset.assetId, "USD", "USDC")) {
     return true;
   }
-  return (eipAsset.assetId === asset.assetId && eipAsset.assetType === asset.assetType);
+  return (eipAsset.assetId === asset.assetId && eipAssetType === asset.assetType);
 };
 
 const isIn = (str: string, ...args: string[]): boolean => args.includes(str);
