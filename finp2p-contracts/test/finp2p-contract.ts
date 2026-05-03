@@ -48,13 +48,6 @@ describe("FinP2P proxy contract test", function() {
     return `bank-us:102:${uuid()}`;
   }
 
-  // 0.28.2: the on-chain verifier extracts the ERC20 address from the assetId
-  // string suffix. Tests build assetIds in the form the platform produces:
-  //   "<original-id>/ERC20:0x<40-hex>"
-  function buildCaipAssetId(originalId: string, tokenAddress: string): string {
-    return `${originalId}/ERC20:${tokenAddress.toLowerCase()}`;
-  }
-
   function generateInvestor(): {
     signer: Signer, finId: string, address: string
   } {
@@ -189,34 +182,21 @@ describe("FinP2P proxy contract test", function() {
       [operator] = await ethers.getSigners();
       ({ contract, finP2PAddress } = await loadFixture(deployFinP2PProxyFixture));
       ({ chainId, verifyingContract } = await contract.eip712Domain());
-      // 0.28.2: tokenAddress is carried inline in the EIP712 Term.assetId.
-      // Deploy ERC20 first, then rewrite each test case's assetId/settlement.assetId
-      // to the CAIP-style form the contract parses.
       for (const tc of testCases) {
+        // Deploy ERC20 tokens with finP2P contract as operator (minter + transferFrom bypasser)
         const assetToken = await deployERC20(tc.asset.assetId, tc.asset.assetId, tc.decimals, finP2PAddress);
-        tc.asset = term(buildCaipAssetId(tc.asset.assetId, assetToken), tc.asset.assetType, tc.asset.amount);
+        await contract.associateAsset(tc.asset.assetId, assetToken, { from: operator });
 
-        if (tc.settlement !== emptyTerm()) {
-          // Fiat/FinP2P settlement: deploy a backing ERC20 so the on-chain flow has something to transfer.
-          const settlementToken = await deployERC20(tc.settlement.assetId, tc.settlement.assetId, tc.decimals, finP2PAddress);
-          tc.settlement = term(buildCaipAssetId(tc.settlement.assetId, settlementToken), tc.settlement.assetType, tc.settlement.amount);
-        }
+        const settlementToken = await deployERC20(tc.settlement.assetId, tc.settlement.assetId, tc.decimals, finP2PAddress);
+        await contract.associateAsset(tc.settlement.assetId, settlementToken, { from: operator });
       }
     });
 
-    testCases.forEach((tc) => {
-      const { decimals, loan, primaryTypes, legs, phases } = tc;
-      // `tc.asset` / `tc.settlement` are rewritten by `before()` with the deployed
-      // ERC20 address inline. Read through getters so every `it()` picks up the
-      // post-rewrite values rather than describe-time snapshots.
-      const getAssetTerm = () => tc.asset;
-      const getSettlementTerm = () => tc.settlement;
+    testCases.forEach(({ decimals, asset, settlement, loan, primaryTypes, legs, phases }) => {
       primaryTypes.forEach((primaryType) => {
         legs.forEach((leg) => {
           phases.forEach((phase) => {
-            it(`issue/transfer/redeem operations (primaryType: ${primaryType}, leg: ${leg}, phase: ${phase}, decimals: ${decimals})`, async () => {
-              const asset = getAssetTerm();
-              const settlement = getSettlementTerm();
+            it(`issue/transfer/redeem operations (asset: ${asset}, settlement ${settlement}, primaryType: ${primaryType}, leg: ${leg}, phase: ${phase}, decimals: ${decimals}`, async () => {
               const buyer = generateInvestor();
               const seller = generateInvestor();
               // Register credentials for both investors
@@ -247,9 +227,7 @@ describe("FinP2P proxy contract test", function() {
               expect(await contract.getBalance(assetId, to)).to.equal(`${(0).toFixed(decimals)}`);
             });
 
-            it(`hold/release operations (primaryType: ${primaryType}, leg: ${leg}, phase: ${phase}, decimals: ${decimals})`, async () => {
-              const asset = getAssetTerm();
-              const settlement = getSettlementTerm();
+            it(`hold/release operations (asset: ${asset}, settlement ${settlement}, primaryType: ${primaryType}, leg: ${leg}, phase: ${phase},decimals: ${decimals})`, async () => {
               const buyer = generateInvestor();
               const seller = generateInvestor();
               await registerCredential(contract, buyer.finId);
@@ -290,9 +268,7 @@ describe("FinP2P proxy contract test", function() {
 
             });
 
-            it(`hold/rollback operations (primaryType: ${primaryType}, leg: ${leg}, phase: ${phase}, decimals: ${decimals})`, async () => {
-              const asset = getAssetTerm();
-              const settlement = getSettlementTerm();
+            it(`hold/rollback operations (asset: ${asset}, settlement ${settlement}, primaryType: ${primaryType}, leg: ${leg}, phase: ${phase},decimals: ${decimals})`, async () => {
               const buyer = Wallet.createRandom();
               const buyerFinId = getFinId(buyer);
               const seller = Wallet.createRandom();
@@ -363,12 +339,10 @@ describe("FinP2P proxy contract test", function() {
               await expect(contract.getLockInfo(operationId)).to.be.revertedWith("Contract not found");
             });
 
-            it(`hold/redeem operations (leg: ${leg}, phase: ${phase}, decimals: ${decimals})`, async () => {
+            it(`hold/redeem operations (asset: ${asset}, settlement ${settlement}, leg: ${leg}, phase: ${phase}, decimals: ${decimals})`, async () => {
               if (primaryType !== PrimaryType.Redemption) {
                 return;
               }
-              const asset = getAssetTerm();
-              const settlement = getSettlementTerm();
               const issuer = Wallet.createRandom();
               const issuerFinId = getFinId(issuer);
 

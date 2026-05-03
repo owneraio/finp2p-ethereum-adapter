@@ -4,9 +4,11 @@ on:
   push:
     branches:
       - 'master'
+      - 'release/**'
     tags:
       - 'v0.**'
   pull_request:
+  workflow_dispatch:
 
 jobs:
   build:
@@ -77,7 +79,7 @@ jobs:
         run: |
           set -euxo pipefail
           case $GITHUB_EVENT_NAME in
-            push)
+            push|workflow_dispatch)
               IMAGE_TAG=$GITHUB_REF_NAME
               ;;
             pull_request)

@@ -30,36 +30,33 @@ contract FinP2PSignatureVerifier is EIP712 {
         "FinId(string idkey)"
     );
 
-    // 0.28: assetType removed from the EIP712 hash input to align with the new
-    // on-the-wire Term format. The struct still carries assetType for ABI stability
-    // and for use in events; only the signed-digest excludes it.
     bytes32 private constant TERM_TYPE_HASH = keccak256(
-        "Term(string assetId,string amount)"
+        "Term(string assetId,string assetType,string amount)"
     );
 
 
     bytes32 private constant PRIMARY_SALE_TYPE_HASH = keccak256(
-        "PrimarySale(string nonce,FinId buyer,FinId issuer,Term asset,Term settlement)FinId(string idkey)Term(string assetId,string amount)"
+        "PrimarySale(string nonce,FinId buyer,FinId issuer,Term asset,Term settlement)FinId(string idkey)Term(string assetId,string assetType,string amount)"
     );
 
     bytes32 private constant BUYING_TYPE_HASH = keccak256(
-        "Buying(string nonce,FinId buyer,FinId seller,Term asset,Term settlement)FinId(string idkey)Term(string assetId,string amount)"
+        "Buying(string nonce,FinId buyer,FinId seller,Term asset,Term settlement)FinId(string idkey)Term(string assetId,string assetType,string amount)"
     );
 
     bytes32 private constant SELLING_TYPE_HASH = keccak256(
-        "Selling(string nonce,FinId buyer,FinId seller,Term asset,Term settlement)FinId(string idkey)Term(string assetId,string amount)"
+        "Selling(string nonce,FinId buyer,FinId seller,Term asset,Term settlement)FinId(string idkey)Term(string assetId,string assetType,string amount)"
     );
 
     bytes32 private constant REDEMPTION_TYPE_HASH = keccak256(
-        "Redemption(string nonce,FinId seller,FinId issuer,Term asset,Term settlement)FinId(string idkey)Term(string assetId,string amount)"
+        "Redemption(string nonce,FinId seller,FinId issuer,Term asset,Term settlement)FinId(string idkey)Term(string assetId,string assetType,string amount)"
     );
 
     bytes32 private constant TRANSFER_TYPE_HASH = keccak256(
-        "Transfer(string nonce,FinId buyer,FinId seller,Term asset)FinId(string idkey)Term(string assetId,string amount)"
+        "Transfer(string nonce,FinId buyer,FinId seller,Term asset)FinId(string idkey)Term(string assetId,string assetType,string amount)"
     );
 
     bytes32 private constant PRIVATE_OFFER_TYPE_HASH = keccak256(
-        "PrivateOffer(string nonce,FinId buyer,FinId seller,Term asset,Term settlement)FinId(string idkey)Term(string assetId,string amount)"
+        "PrivateOffer(string nonce,FinId buyer,FinId seller,Term asset,Term settlement)FinId(string idkey)Term(string assetId,string assetType,string amount)"
     );
 
     bytes32 private constant LOAN_TERMS_TYPE_HASH = keccak256(
@@ -67,7 +64,7 @@ contract FinP2PSignatureVerifier is EIP712 {
     );
 
     bytes32 private constant LOAN_TYPE_HASH = keccak256(
-        "Loan(string nonce,FinId borrower,FinId lender,Term asset,Term settlement,LoanTerms loanTerms)FinId(string idkey)LoanTerms(string openTime,string closeTime,string borrowedMoneyAmount,string returnedMoneyAmount)Term(string assetId,string amount)"
+        "Loan(string nonce,FinId borrower,FinId lender,Term asset,Term settlement,LoanTerms loanTerms)FinId(string idkey)LoanTerms(string openTime,string closeTime,string borrowedMoneyAmount,string returnedMoneyAmount)Term(string assetId,string assetType,string amount)"
     );
 
     struct Term {
@@ -123,6 +120,7 @@ contract FinP2PSignatureVerifier is EIP712 {
         return keccak256(abi.encode(
             TERM_TYPE_HASH,
             keccak256(bytes(term.assetId)),
+            hashAssetType(term.assetType),
             keccak256(bytes(term.amount))
         ));
     }

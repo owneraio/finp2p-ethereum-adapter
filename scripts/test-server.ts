@@ -114,7 +114,7 @@ const startHardhatContainer = async () => {
 const deployContract = async (
   provider: Provider,
   signer: Signer,
-  operatorAddress: string | undefined
+  operatorAddress: string | undefined,
 ) => {
   const contractManger = new ContractsManager(provider, signer, logger);
   return contractManger.deployFinP2PContract(operatorAddress);
@@ -199,12 +199,14 @@ const start = async () => {
   );
 
   const connectionString = await startPostgresContainer();
+  const ledgerSchema = process.env.LEDGER_SCHEMA || 'ethereum_adapter';
   const workflowsConfig = {
     migration: {
       connectionString,
       gooseExecutablePath: await whichGoose(),
       migrationListTableName: "finp2p_ethereum_adapater_migrations",
       storageUser: new URL(connectionString).username,
+      schemaName: ledgerSchema,
     },
     storage: { connectionString },
     service: {},
