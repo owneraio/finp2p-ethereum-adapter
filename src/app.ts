@@ -11,7 +11,7 @@ import {
   storage as storageModule,
 } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import { FinP2PClient } from "@owneraio/finp2p-client";
-import { createVanillaServices, registerDistributionRoutes } from "@owneraio/finp2p-vanilla-service";
+import { LedgerStorage, VanillaServiceImpl, registerDistributionRoutes } from "@owneraio/finp2p-vanilla-service";
 import {
   CredentialsMappingService,
   EscrowServiceImpl,
@@ -79,11 +79,19 @@ function registerDirectServices(
   if (appConfig.accountModel === 'omnibus') {
     if (!dbPool || !assetStore) throw new Error('DB connection is required for omnibus account model');
     const delegate = new OmnibusDelegate(logger, custodyProvider, accountMapping, assetStore);
-    const { tokenService, escrowService, commonService, mappingService, distributionService, inboundTransferHook } = createVanillaServices(
-      { transfer: delegate, asset: delegate, escrow: delegate, omnibus: delegate },
-      { connectionString: dbPool.options?.connectionString ?? '' },
-      logger,
-    );
+    // vanilla 0.28.2's createVanillaServices doesn't forward schemaName to its
+    // LedgerStorage, so its account_mappings/accounts/transactions queries hit
+    // the default `ledger_adapter` schema even when migrations placed those
+    // tables in `ethereum_adapter`. Build the storage + service ourselves to
+    // pin the schema. (LedgerStorage + VanillaServiceImpl are public exports.)
+    const ledgerStorage = new LedgerStorage(dbPool, ledgerSchema);
+    const vanillaService = new VanillaServiceImpl(ledgerStorage, delegate, delegate, delegate, delegate);
+    const tokenService = vanillaService;
+    const escrowService = vanillaService;
+    const commonService = vanillaService;
+    const mappingService = vanillaService;
+    const distributionService = vanillaService;
+    const inboundTransferHook = vanillaService;
     const planApprovalService = new PlanApprovalServiceImpl(appConfig.orgId, pluginManager, finP2PClient, inboundTransferHook);
     const proxiedPlanService = wrapWithWorkflowProxy(planApprovalService, workflowStorage, finP2PClient, 'approvePlan', 'proposeCancelPlan', 'proposeResetPlan', 'proposeInstructionApproval');
     const proxiedTokenService = wrapWithWorkflowProxy(tokenService, workflowStorage, finP2PClient, 'createAsset', 'issue', 'transfer', 'redeem');
