@@ -8,6 +8,12 @@ import {
 
 export const ERC20_TOKEN_STANDARD = 'ERC20';
 
+/**
+ * Decimals used when the adapter deploys a brand-new ERC20. For bind-to-existing
+ * we always read the on-chain `decimals()` instead — never assume.
+ */
+export const DEFAULT_NEW_ERC20_DECIMALS = 2;
+
 export class ERC20TokenStandard implements TokenStandard {
 
   async deploy(wallet: TokenWallet, name: string, symbol: string, decimals: number, logger: winston.Logger): Promise<DeployResult> {
