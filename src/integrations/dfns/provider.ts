@@ -99,24 +99,23 @@ export class DfnsCustodyProvider implements CustodyProvider {
    * the target balance is the strongest signal that the funding is usable
    * by the next op.
    */
-  async ensureGas(wallet: CustodyWallet): Promise<void> {
+  async ensureGas(walletAddress: string): Promise<void> {
     if (!this.gasStation) return;
-    const targetAddress = await wallet.signer.getAddress();
     const threshold = parseEther(this.gasStation.amount);
-    let balance = await wallet.provider.getBalance(targetAddress);
+    let balance = await this.rpcProvider.getBalance(walletAddress);
     if (balance >= threshold) return;
 
     await this.gasStation.wallet.signer.sendTransaction({
-      to: targetAddress,
+      to: walletAddress,
       value: threshold,
     });
 
     const deadline = Date.now() + GAS_FUNDING_TIMEOUT_MS;
     while (Date.now() < deadline) {
       await new Promise(r => setTimeout(r, GAS_FUNDING_POLL_INTERVAL_MS));
-      balance = await wallet.provider.getBalance(targetAddress);
+      balance = await this.rpcProvider.getBalance(walletAddress);
       if (balance >= threshold) return;
     }
-    throw new Error(`Gas top-up to ${targetAddress} did not reflect on-chain after ${GAS_FUNDING_TIMEOUT_MS}ms (last balance: ${balance})`);
+    throw new Error(`Gas top-up to ${walletAddress} did not reflect on-chain after ${GAS_FUNDING_TIMEOUT_MS}ms (last balance: ${balance})`);
   }
 }
