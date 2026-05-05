@@ -47,8 +47,8 @@ export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowD
   }
 
   private async ensureGas(wallet: CustodyWallet): Promise<void> {
-    if (!this.custodyProvider.ensureGas) return;
-    await this.custodyProvider.ensureGas(await wallet.signer.getAddress());
+    if (!this.custodyProvider.gasStation) return;
+    await this.custodyProvider.gasStation.ensureGas(await wallet.signer.getAddress());
   }
 
   async outboundTransfer(

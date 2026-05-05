@@ -1,9 +1,9 @@
 import { DfnsApiClient } from '@dfns/sdk';
 import { AsymmetricKeySigner } from '@dfns/sdk-keysigner';
 import { DfnsWallet } from '@dfns/lib-ethersjs6';
-import { JsonRpcProvider, parseEther } from 'ethers';
+import { JsonRpcProvider } from 'ethers';
 import { DfnsAppConfig } from './config';
-import { CustodyProvider, CustodyWallet, GasStation, GAS_FUNDING_TIMEOUT_MS, GAS_FUNDING_POLL_INTERVAL_MS } from '../../services/direct';
+import { CustodyProvider, CustodyWallet, GasStation } from '../../services/direct';
 
 export class DfnsCustodyProvider implements CustodyProvider {
   readonly issuer: CustodyWallet;
@@ -63,7 +63,7 @@ export class DfnsCustodyProvider implements CustodyProvider {
     let gasStation: GasStation | undefined;
     if (config.gasFunding) {
       const gasWallet = await DfnsCustodyProvider.createWalletProvider(dfnsClient, config.gasFunding.walletId, config.rpcUrl);
-      gasStation = { wallet: gasWallet, amount: config.gasFunding.amount };
+      gasStation = new GasStation(gasWallet, config.gasFunding.amount);
     }
 
     let omnibusWallet: CustodyWallet | undefined;
@@ -92,30 +92,4 @@ export class DfnsCustodyProvider implements CustodyProvider {
     return wallet.address;
   }
 
-  /**
-   * Pre-fund only when below threshold; block until the target's on-chain
-   * balance actually reflects the funding before returning. DFNS resolves
-   * sendTransaction once the broadcast is queued, not when mined; polling
-   * the target balance is the strongest signal that the funding is usable
-   * by the next op.
-   */
-  async ensureGas(walletAddress: string): Promise<void> {
-    if (!this.gasStation) return;
-    const threshold = parseEther(this.gasStation.amount);
-    let balance = await this.rpcProvider.getBalance(walletAddress);
-    if (balance >= threshold) return;
-
-    await this.gasStation.wallet.signer.sendTransaction({
-      to: walletAddress,
-      value: threshold,
-    });
-
-    const deadline = Date.now() + GAS_FUNDING_TIMEOUT_MS;
-    while (Date.now() < deadline) {
-      await new Promise(r => setTimeout(r, GAS_FUNDING_POLL_INTERVAL_MS));
-      balance = await this.rpcProvider.getBalance(walletAddress);
-      if (balance >= threshold) return;
-    }
-    throw new Error(`Gas top-up to ${walletAddress} did not reflect on-chain after ${GAS_FUNDING_TIMEOUT_MS}ms (last balance: ${balance})`);
-  }
 }

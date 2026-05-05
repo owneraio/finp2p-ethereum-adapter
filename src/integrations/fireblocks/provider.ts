@@ -1,9 +1,8 @@
 import { FireblocksSDK } from 'fireblocks-sdk';
 import axios from 'axios';
-import { parseEther } from 'ethers';
 import { createFireblocksEthersProvider, FireblocksAppConfig } from './config';
 import { createVaultManagementFunctions } from '../../vaults';
-import { CustodyProvider, CustodyWallet, GasStation, GAS_FUNDING_TIMEOUT_MS, GAS_FUNDING_POLL_INTERVAL_MS } from '../../services/direct';
+import { CustodyProvider, CustodyWallet, GasStation } from '../../services/direct';
 import { FireblocksRawSigner } from './raw-signer';
 
 export class FireblocksCustodyProvider implements CustodyProvider {
@@ -73,7 +72,7 @@ export class FireblocksCustodyProvider implements CustodyProvider {
     let gasStation: GasStation | undefined;
     if (config.gasFunding) {
       const gasWallet = await createWallet(config.gasFunding.vaultId);
-      gasStation = { wallet: gasWallet, amount: config.gasFunding.amount };
+      gasStation = new GasStation(gasWallet, config.gasFunding.amount);
     }
 
     let omnibusWallet: CustodyWallet | undefined;
@@ -133,35 +132,5 @@ export class FireblocksCustodyProvider implements CustodyProvider {
       if (axios.isAxiosError(e) && e.response?.status === 409) return; // already registered — idempotent
       throw e;
     }
-  }
-
-  /**
-   * Pre-fund only when below threshold; block until the target's on-chain
-   * balance actually reflects the funding before returning. Fireblocks'
-   * sendTransaction may resolve once Fireblocks accepts the request — not
-   * when the tx is broadcast/mined; tx.wait() additionally requires the tx
-   * to be observable through our local RPC. Polling the target balance is
-   * the strongest signal: it covers broadcast, mining, and our RPC seeing
-   * it, in one check. Without this guard the dependent op races and fails
-   * with INSUFFICIENT_FUNDS_FOR_FEE.
-   */
-  async ensureGas(walletAddress: string): Promise<void> {
-    if (!this.gasStation) return;
-    const threshold = parseEther(this.gasStation.amount);
-    let balance = await this.rpcProvider.getBalance(walletAddress);
-    if (balance >= threshold) return;
-
-    await this.gasStation.wallet.signer.sendTransaction({
-      to: walletAddress,
-      value: threshold,
-    });
-
-    const deadline = Date.now() + GAS_FUNDING_TIMEOUT_MS;
-    while (Date.now() < deadline) {
-      await new Promise(r => setTimeout(r, GAS_FUNDING_POLL_INTERVAL_MS));
-      balance = await this.rpcProvider.getBalance(walletAddress);
-      if (balance >= threshold) return;
-    }
-    throw new Error(`Gas top-up to ${walletAddress} did not reflect on-chain after ${GAS_FUNDING_TIMEOUT_MS}ms (last balance: ${balance})`);
   }
 }

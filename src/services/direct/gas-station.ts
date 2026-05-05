@@ -1,0 +1,42 @@
+import { parseEther } from 'ethers';
+import { CustodyWallet } from './custody-provider';
+
+/** How long GasStation.ensureGas waits for the target balance to reflect the funding tx. */
+export const GAS_FUNDING_TIMEOUT_MS = 60_000;
+/** Poll interval for target balance during GasStation.ensureGas. */
+export const GAS_FUNDING_POLL_INTERVAL_MS = 1_000;
+
+/**
+ * Tops up a target wallet from a dedicated funding wallet so it has gas for the
+ * next on-chain tx. Custody-agnostic: works with any signer/provider pair.
+ *
+ * `ensureGas` blocks until the target balance is observed on-chain (poll-by-
+ * balance) — the side-effect that actually matters is the same regardless of
+ * whether the underlying signer's sendTransaction returns after broadcast or
+ * after mining.
+ */
+export class GasStation {
+  constructor(
+    public readonly wallet: CustodyWallet,
+    public readonly amount: string,
+  ) {}
+
+  async ensureGas(walletAddress: string): Promise<void> {
+    const threshold = parseEther(this.amount);
+    let balance = await this.wallet.provider.getBalance(walletAddress);
+    if (balance >= threshold) return;
+
+    await this.wallet.signer.sendTransaction({
+      to: walletAddress,
+      value: threshold,
+    });
+
+    const deadline = Date.now() + GAS_FUNDING_TIMEOUT_MS;
+    while (Date.now() < deadline) {
+      await new Promise(r => setTimeout(r, GAS_FUNDING_POLL_INTERVAL_MS));
+      balance = await this.wallet.provider.getBalance(walletAddress);
+      if (balance >= threshold) return;
+    }
+    throw new Error(`Gas top-up to ${walletAddress} did not reflect on-chain after ${GAS_FUNDING_TIMEOUT_MS}ms (last balance: ${balance})`);
+  }
+}
