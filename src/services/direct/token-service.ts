@@ -9,7 +9,7 @@ import { parseUnits } from "ethers";
 import { TokenOperationResult } from '@owneraio/finp2p-ethereum-token-standard';
 import { CustodyProvider, CustodyWallet } from './custody-provider';
 import { AccountMappingService, AssetStore } from './account-mapping';
-import { getAssetFromDb, fundGasIfNeeded } from './helpers';
+import { getAssetFromDb } from './helpers';
 import { tokenStandardRegistry } from './token-standards/registry';
 import { ERC20_TOKEN_STANDARD, DEFAULT_NEW_ERC20_DECIMALS } from './token-standards/erc20';
 import { ERC20Contract } from '@owneraio/finp2p-contracts';
@@ -74,8 +74,9 @@ export class DirectTokenService implements TokenService, EscrowService {
     return { address, wallet };
   }
 
-  private async fundGas(wallet: CustodyWallet): Promise<void> {
-    return fundGasIfNeeded(this.logger, this.custodyProvider.gasStation, wallet);
+  private async ensureGas(wallet: CustodyWallet): Promise<void> {
+    if (!this.custodyProvider.gasStation) return;
+    await this.custodyProvider.gasStation.ensureGas(await wallet.signer.getAddress());
   }
 
   async createAsset(
@@ -155,7 +156,7 @@ export class DirectTokenService implements TokenService, EscrowService {
       const address = await this.resolveAddress(toFinId);
       const amount = parseUnits(quantity, asset.decimals);
 
-      await this.fundGas(wallet);
+      await this.ensureGas(wallet);
       const result = await standard.mint(wallet, asset, address, amount, this.logger);
       const dest: Destination = { finId: toFinId };
       return resultToReceipt(result, ast, "issue", quantity, dest, dest, exCtx, undefined);
@@ -178,7 +179,7 @@ export class DirectTokenService implements TokenService, EscrowService {
       const { wallet } = resolved;
       const amount = parseUnits(quantity, asset.decimals);
 
-      await this.fundGas(wallet);
+      await this.ensureGas(wallet);
       const destinationAddress = await this.accountMapping.resolveAccount(destination.finId)
         ?? destination.account?.address;
       if (!destinationAddress) throw new Error(`Cannot resolve address for finId: ${destination.finId}`);
@@ -203,7 +204,7 @@ export class DirectTokenService implements TokenService, EscrowService {
       const wallet = this.custodyProvider.issuer;
       const amount = parseUnits(quantity, asset.decimals);
 
-      await this.fundGas(wallet);
+      await this.ensureGas(wallet);
       const opCtx = buildOperationContext(ast, signature, exCtx, operationId);
       const result = await standard.burn(wallet, asset, escrowAddress, amount, this.logger, opCtx);
       const source: Source = { finId: sourceFinId };
@@ -227,7 +228,7 @@ export class DirectTokenService implements TokenService, EscrowService {
       const { wallet } = resolved;
       const amount = parseUnits(quantity, asset.decimals);
 
-      await this.fundGas(wallet);
+      await this.ensureGas(wallet);
       const opCtx = buildOperationContext(ast, signature, exCtx, operationId);
       const result = await standard.hold(wallet, this.custodyProvider.escrow, asset, amount, this.logger, opCtx);
       return resultToReceipt(result, ast, "hold", quantity, source, destination, exCtx, operationId);
@@ -250,7 +251,7 @@ export class DirectTokenService implements TokenService, EscrowService {
       const escrowWallet = this.custodyProvider.escrow;
       const amount = parseUnits(quantity, asset.decimals);
 
-      await this.fundGas(escrowWallet);
+      await this.ensureGas(escrowWallet);
       const opCtx = buildOperationContext(ast, undefined, exCtx, operationId);
       const result = await standard.release(escrowWallet, asset, destinationAddress, amount, this.logger, opCtx);
       return resultToReceipt(result, ast, "release", quantity, source, destination, exCtx, operationId);
@@ -271,7 +272,7 @@ export class DirectTokenService implements TokenService, EscrowService {
       const escrowWallet = this.custodyProvider.escrow;
       const amount = parseUnits(quantity, asset.decimals);
 
-      await this.fundGas(escrowWallet);
+      await this.ensureGas(escrowWallet);
       const opCtx = buildOperationContext(ast, undefined, exCtx, operationId);
       const result = await standard.release(escrowWallet, asset, sourceAddress, amount, this.logger, opCtx);
       return resultToReceipt(result, ast, "release", quantity, source, undefined, exCtx, operationId);
