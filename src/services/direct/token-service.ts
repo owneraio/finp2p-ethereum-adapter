@@ -9,7 +9,7 @@ import { parseUnits } from "ethers";
 import { TokenOperationResult } from '@owneraio/finp2p-ethereum-token-standard';
 import { CustodyProvider, CustodyWallet } from './custody-provider';
 import { AccountMappingService, AssetStore } from './account-mapping';
-import { getAssetFromDb, ensureGas } from './helpers';
+import { getAssetFromDb } from './helpers';
 import { tokenStandardRegistry } from './token-standards/registry';
 import { ERC20_TOKEN_STANDARD, DEFAULT_NEW_ERC20_DECIMALS } from './token-standards/erc20';
 import { ERC20Contract } from '@owneraio/finp2p-contracts';
@@ -75,7 +75,7 @@ export class DirectTokenService implements TokenService, EscrowService {
   }
 
   private async ensureGas(wallet: CustodyWallet): Promise<void> {
-    return ensureGas(this.logger, this.custodyProvider.gasStation, wallet);
+    if (this.custodyProvider.ensureGas) await this.custodyProvider.ensureGas(wallet);
   }
 
   async createAsset(

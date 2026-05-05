@@ -1,7 +1,7 @@
 import { DfnsApiClient } from '@dfns/sdk';
 import { AsymmetricKeySigner } from '@dfns/sdk-keysigner';
 import { DfnsWallet } from '@dfns/lib-ethersjs6';
-import { JsonRpcProvider } from 'ethers';
+import { JsonRpcProvider, parseEther } from 'ethers';
 import { DfnsAppConfig } from './config';
 import { CustodyProvider, CustodyWallet, GasStation } from '../../services/direct';
 
@@ -90,5 +90,23 @@ export class DfnsCustodyProvider implements CustodyProvider {
       throw new Error(`No address found for DFNS wallet ${walletId}`);
     }
     return wallet.address;
+  }
+
+  /**
+   * Pre-fund only when below threshold; await the funding tx receipt before
+   * returning so the dependent op sees the new on-chain balance. DFNS'
+   * sendTransaction returns once the broadcast is accepted, not when mined.
+   */
+  async ensureGas(wallet: CustodyWallet): Promise<void> {
+    if (!this.gasStation) return;
+    const targetAddress = await wallet.signer.getAddress();
+    const threshold = parseEther(this.gasStation.amount);
+    const balance = await wallet.provider.getBalance(targetAddress);
+    if (balance >= threshold) return;
+    const tx = await this.gasStation.wallet.signer.sendTransaction({
+      to: targetAddress,
+      value: threshold,
+    });
+    await tx.wait();
   }
 }

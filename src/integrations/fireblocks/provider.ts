@@ -1,5 +1,6 @@
 import { FireblocksSDK } from 'fireblocks-sdk';
 import axios from 'axios';
+import { parseEther } from 'ethers';
 import { createFireblocksEthersProvider, FireblocksAppConfig } from './config';
 import { createVaultManagementFunctions } from '../../vaults';
 import { CustodyProvider, CustodyWallet, GasStation } from '../../services/direct';
@@ -132,5 +133,26 @@ export class FireblocksCustodyProvider implements CustodyProvider {
       if (axios.isAxiosError(e) && e.response?.status === 409) return; // already registered — idempotent
       throw e;
     }
+  }
+
+  /**
+   * Pre-fund only when below threshold; await the funding tx receipt before
+   * returning. Fireblocks' raw signer (and the Fireblocks Web3 provider) both
+   * resolve sendTransaction() once Fireblocks accepts the request and a tx
+   * hash is known — not when the tx is mined. Without the .wait() the next
+   * dependent operation racing through Fireblocks sees on-chain balance still
+   * zero and fails with INSUFFICIENT_FUNDS_FOR_FEE.
+   */
+  async ensureGas(wallet: CustodyWallet): Promise<void> {
+    if (!this.gasStation) return;
+    const targetAddress = await wallet.signer.getAddress();
+    const threshold = parseEther(this.gasStation.amount);
+    const balance = await wallet.provider.getBalance(targetAddress);
+    if (balance >= threshold) return;
+    const tx = await this.gasStation.wallet.signer.sendTransaction({
+      to: targetAddress,
+      value: threshold,
+    });
+    await tx.wait();
   }
 }
