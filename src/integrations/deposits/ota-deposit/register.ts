@@ -1,5 +1,5 @@
 import { IntegrationContext } from "../../registry";
-import { DepositTargetResolver } from "../types";
+import { DepositTargetResolver, resolveDepositMethod } from "../types";
 import { OtaDepositPlugin } from "./plugin";
 
 /**
@@ -24,13 +24,14 @@ import { OtaDepositPlugin } from "./plugin";
  *
  * Not registered when:
  *   - DTCC_PLUGIN_ENABLED=true (DTCC owns the single PaymentsPlugin slot)
- *   - DEPOSIT_METHOD != 'ota' (default is 'wallet')
+ *   - resolved deposit method != 'ota' (omnibus defaults to 'ota'; segregated defaults
+ *     to 'wallet'; explicit DEPOSIT_METHOD env wins in either case)
  *   - custody provider lacks createCustodyAccount / createWalletForCustodyId
  *   - segregated mode without walletResolver, or omnibus mode without an omnibus wallet
  */
 export function registerOtaDeposit(ctx: IntegrationContext): void {
   if (process.env.DTCC_PLUGIN_ENABLED === 'true') return;
-  if (process.env.DEPOSIT_METHOD !== 'ota') return;
+  if (resolveDepositMethod(ctx.accountModel) !== 'ota') return;
 
   const { pluginManager, logger, custodyProvider, assetStore, walletResolver, accountModel, finP2PClient, inboundTransferHook } = ctx;
   if (!custodyProvider || !assetStore) {

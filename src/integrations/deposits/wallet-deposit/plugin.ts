@@ -14,6 +14,7 @@ import {
 } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import { AssetStore, WalletResolver } from "../../../services/direct";
 import { IntegrationContext } from "../../registry";
+import { resolveDepositMethod } from "../types";
 
 /**
  * Wallet-deposit method: returns the investor's own on-chain wallet address
@@ -31,8 +32,7 @@ export function registerWalletDeposit(ctx: IntegrationContext): void {
   const dtccEnabled = process.env.DTCC_PLUGIN_ENABLED === 'true';
   if (dtccEnabled) return;
   if (ctx.accountModel === 'omnibus') return;
-  const depositMethod = process.env.DEPOSIT_METHOD ?? 'wallet';
-  if (depositMethod !== 'wallet') return;
+  if (resolveDepositMethod(ctx.accountModel) !== 'wallet') return;
 
   const { pluginManager, logger, assetStore, walletResolver } = ctx;
   if (!assetStore || !walletResolver) {

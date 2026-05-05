@@ -1,5 +1,5 @@
 import { IntegrationContext } from "../../registry";
-import { DepositTargetResolver } from "../types";
+import { DepositTargetResolver, resolveDepositMethod } from "../types";
 import { PullDepositPlugin } from "./plugin";
 
 /**
@@ -24,12 +24,13 @@ import { PullDepositPlugin } from "./plugin";
  *
  * Not registered when:
  *   - DTCC_PLUGIN_ENABLED=true (DTCC owns the single PaymentsPlugin slot)
- *   - DEPOSIT_METHOD != 'pull' (default is 'wallet', handled by wallet-deposit)
+ *   - resolved deposit method != 'pull' (defaults: omnibus → 'ota', segregated →
+ *     'wallet'; explicit DEPOSIT_METHOD env wins in either case)
  *   - segregated mode without walletResolver, or omnibus mode without an omnibus wallet
  */
 export function registerPullDeposit(ctx: IntegrationContext): void {
   if (process.env.DTCC_PLUGIN_ENABLED === 'true') return;
-  if (process.env.DEPOSIT_METHOD !== 'pull') return;
+  if (resolveDepositMethod(ctx.accountModel) !== 'pull') return;
 
   const { pluginManager, logger, custodyProvider, assetStore, walletResolver, accountModel, finP2PClient, inboundTransferHook } = ctx;
   if (!custodyProvider || !assetStore) {
