@@ -216,7 +216,7 @@ async function createApp(
     // schema even when migrations placed those tables in `ethereum_adapter`. Build the storage
     // + service ourselves to pin the schema. (LedgerStorage + VanillaServiceImpl are public.)
     const ledgerStorage = new LedgerStorage(dbPool, ledgerSchema);
-    const vanillaService = new VanillaServiceImpl(ledgerStorage, delegate, delegate, delegate, delegate);
+    const vanillaService = new VanillaServiceImpl(ledgerStorage, delegate, delegate, delegate, delegate, finP2PClient);
     omnibusCtx = {
       delegate,
       vanilla: {
