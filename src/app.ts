@@ -55,49 +55,59 @@ function wrapWithWorkflowProxy<T extends object>(
   return workflows.createServiceProxy(() => Promise.resolve(), workflowStorage, finP2PClient, service, ...methods);
 }
 
+/**
+ * Pre-built omnibus services. Created in createApp BEFORE registerIntegrations so the
+ * inboundTransferHook can be threaded into the deposit plugins at construction time —
+ * otherwise the plugins capture undefined and successful omnibus deposits silently fall
+ * back to importTransactions only, never crediting the adapter's own omnibus ledger.
+ */
+interface OmnibusContext {
+  delegate: OmnibusDelegate;
+  vanilla: {
+    tokenService: VanillaServiceImpl;
+    escrowService: VanillaServiceImpl;
+    commonService: VanillaServiceImpl;
+    mappingService: VanillaServiceImpl;
+    distributionService: VanillaServiceImpl;
+    inboundTransferHook: VanillaServiceImpl;
+  };
+}
+
 function registerDirectServices(
   app: express.Application, logger: winston.Logger, custodyProvider: CustodyProvider, appConfig: AppConfig,
   paymentsService: PaymentsServiceImpl, pluginManager: PluginManager,
   dbPool: any, finP2PClient: FinP2PClient | undefined,
   accountMappingStore: AccountMappingStore | undefined,
+  accountMappingService: AccountMappingServiceImpl | undefined,
   assetStore: AssetStore | undefined,
+  accountMapping: AccountMappingService,
+  omnibusCtx: OmnibusContext | undefined,
   ledgerSchema: string | undefined,
 ) {
   const healthService = new DirectHealthServiceImpl(custodyProvider.rpcProvider);
   const mappingConfig = buildMappingConfig(custodyProvider);
-  // Skeleton 0.28.11+: caseSensitive=false makes the service lowercase
-  // FIELD_LEDGER_ACCOUNT_ID values on save and lookup, so EIP-55 checksummed
-  // and lowercase EVM addresses resolve to the same record.
-  const accountMappingService = accountMappingStore
-    ? new AccountMappingServiceImpl(accountMappingStore, { caseSensitive: false })
-    : undefined;
-  const accountMapping: AccountMappingService = appConfig.accountMappingType === 'database' && accountMappingService
-    ? new DbAccountMapping(accountMappingService)
-    : new DerivationAccountMapping();
   const workflowStorage = dbPool ? new workflows.WorkflowStorage(dbPool, ledgerSchema) : undefined;
 
   if (appConfig.accountModel === 'omnibus') {
-    if (!dbPool || !assetStore) throw new Error('DB connection is required for omnibus account model');
-    const delegate = new OmnibusDelegate(logger, custodyProvider, accountMapping, assetStore);
-    // vanilla 0.28.2's createVanillaServices doesn't forward schemaName to its
-    // LedgerStorage, so its account_mappings/accounts/transactions queries hit
-    // the default `ledger_adapter` schema even when migrations placed those
-    // tables in `ethereum_adapter`. Build the storage + service ourselves to
-    // pin the schema. (LedgerStorage + VanillaServiceImpl are public exports.)
-    const ledgerStorage = new LedgerStorage(dbPool, ledgerSchema);
-    const vanillaService = new VanillaServiceImpl(ledgerStorage, delegate, delegate, delegate, delegate, finP2PClient);
-    const tokenService = vanillaService;
-    const escrowService = vanillaService;
-    const commonService = vanillaService;
-    const mappingService = vanillaService;
-    const distributionService = vanillaService;
-    const inboundTransferHook = vanillaService;
+    if (!omnibusCtx) throw new Error('Omnibus context not built — createVanillaServices must run before registerDirectServices');
+    const { delegate, vanilla } = omnibusCtx;
+    const { tokenService, escrowService, commonService, mappingService, distributionService, inboundTransferHook } = vanilla;
     const planApprovalService = new PlanApprovalServiceImpl(appConfig.orgId, pluginManager, finP2PClient, inboundTransferHook);
     const proxiedPlanService = wrapWithWorkflowProxy(planApprovalService, workflowStorage, finP2PClient, 'approvePlan', 'proposeCancelPlan', 'proposeResetPlan', 'proposeInstructionApproval');
     const proxiedTokenService = wrapWithWorkflowProxy(tokenService, workflowStorage, finP2PClient, 'createAsset', 'issue', 'transfer', 'redeem');
     const proxiedEscrowService = wrapWithWorkflowProxy(escrowService, workflowStorage, finP2PClient, 'hold', 'release', 'rollback');
-    const proxiedPaymentService = wrapWithWorkflowProxy(delegate, workflowStorage, finP2PClient, 'getDepositInstruction', 'payout');
-    register(app, proxiedTokenService, proxiedEscrowService, commonService, commonService, proxiedPaymentService, proxiedPlanService, mappingConfig, mappingService);
+    // When a PaymentsPlugin is registered (e.g. ota-deposit / pull-deposit), route deposits
+    // through it so per-deposit ephemeral addresses, approval-watchers, and FinAPI receipt
+    // export run. Otherwise fall back to the omnibus delegate's barebones "deposit to omnibus"
+    // instruction, which has no plugin awareness.
+    const paymentImpl = pluginManager.getPaymentsPlugin() !== null ? paymentsService : delegate;
+    const proxiedPaymentService = wrapWithWorkflowProxy(paymentImpl, workflowStorage, finP2PClient, 'getDepositInstruction', 'payout');
+    // vanilla-service's commonService.operationStatus unconditionally throws — async ops
+    // persisted by the workflow proxy would be unreachable via /operations/status. Use the
+    // workflow-storage-backed DirectCommonServiceImpl for that route, keep vanilla
+    // commonService for liveness/readiness.
+    const directCommonService = workflowStorage ? new DirectCommonServiceImpl(workflowStorage) : commonService;
+    register(app, proxiedTokenService, proxiedEscrowService, directCommonService, commonService, proxiedPaymentService, proxiedPlanService, mappingConfig, mappingService);
     if (distributionService) {
       registerDistributionRoutes(app, distributionService);
     }
@@ -181,6 +191,45 @@ async function createApp(
     custodyProvider = await custodyRegistry.create(appConfig.type, appConfig);
   }
 
+  // Pre-build accountMapping + (in omnibus mode) the OmnibusDelegate and vanilla services
+  // BEFORE plugin registration. Deposit plugins capture inboundTransferHook in their
+  // constructors; if it's undefined at registration time they fall back to
+  // finP2PClient.importTransactions only, skipping the vanilla hook's storage.credit(...)
+  // and leaving the adapter's omnibus balance state stale.
+  //
+  // Skeleton 0.28.11+: caseSensitive=false makes the account-mapping service lowercase
+  // FIELD_LEDGER_ACCOUNT_ID values on save and lookup, so EIP-55 checksummed and lowercase
+  // EVM addresses resolve to the same record.
+  const accountMappingService = accountMappingStore
+    ? new AccountMappingServiceImpl(accountMappingStore, { caseSensitive: false })
+    : undefined;
+  const accountMapping: AccountMappingService = appConfig.accountMappingType === 'database' && accountMappingService
+    ? new DbAccountMapping(accountMappingService)
+    : new DerivationAccountMapping();
+
+  let omnibusCtx: OmnibusContext | undefined;
+  if (appConfig.accountModel === 'omnibus' && custodyProvider) {
+    if (!dbPool || !assetStore) throw new Error('DB connection is required for omnibus account model');
+    const delegate = new OmnibusDelegate(logger, custodyProvider, accountMapping, assetStore);
+    // vanilla 0.28.2's createVanillaServices doesn't forward schemaName to its LedgerStorage,
+    // so its account_mappings/accounts/transactions queries hit the default `ledger_adapter`
+    // schema even when migrations placed those tables in `ethereum_adapter`. Build the storage
+    // + service ourselves to pin the schema. (LedgerStorage + VanillaServiceImpl are public.)
+    const ledgerStorage = new LedgerStorage(dbPool, ledgerSchema);
+    const vanillaService = new VanillaServiceImpl(ledgerStorage, delegate, delegate, delegate, delegate, finP2PClient);
+    omnibusCtx = {
+      delegate,
+      vanilla: {
+        tokenService: vanillaService,
+        escrowService: vanillaService,
+        commonService: vanillaService,
+        mappingService: vanillaService,
+        distributionService: vanillaService,
+        inboundTransferHook: vanillaService,
+      },
+    };
+  }
+
   registerIntegrations({
     orgId: appConfig.orgId,
     logger,
@@ -188,12 +237,16 @@ async function createApp(
     finP2PClient: finP2PClient!,
     walletResolver: custodyProvider && accountMappingStore ? createWalletResolver(accountMappingStore, custodyProvider) : undefined,
     rpcUrl: process.env.NETWORK_HOST ? getNetworkRpcUrl() : undefined,
+    assetStore,
+    accountModel: appConfig.accountModel,
+    custodyProvider,
+    inboundTransferHook: omnibusCtx?.vanilla.inboundTransferHook,
   });
 
   const paymentsService = new PaymentsServiceImpl(pluginManager);
 
   if (custodyProvider) {
-    registerDirectServices(app, logger, custodyProvider, appConfig, paymentsService, pluginManager, dbPool, finP2PClient, accountMappingStore, assetStore, ledgerSchema);
+    registerDirectServices(app, logger, custodyProvider, appConfig, paymentsService, pluginManager, dbPool, finP2PClient, accountMappingStore, accountMappingService, assetStore, accountMapping, omnibusCtx, ledgerSchema);
   } else if (appConfig.type === 'finp2p-contract') {
     registerFinP2PContractServices(app, appConfig as FinP2PContractAppConfig, paymentsService, pluginManager, dbPool, finP2PClient, ledgerSchema);
   } else {

@@ -3,7 +3,8 @@ import {
   LedgerAssetIdentifier,
   Destination, ExecutionContext, Source,
   PaymentService, DepositAsset, DepositOperation, ReceiptOperation, Signature,
-  successfulDepositOperation, failedReceiptOperation,
+  successfulDepositOperation, failedDepositOperation, failedReceiptOperation,
+  workflows,
 } from '@owneraio/finp2p-nodejs-skeleton-adapter';
 import { TransferDelegate, AssetDelegate, EscrowDelegate, OmnibusDelegate as OmnibusDelegateInterface, DelegateResult, InboundTransferVerificationError } from '@owneraio/finp2p-vanilla-service';
 import { parseUnits, id as keccak256 } from 'ethers';
@@ -246,6 +247,11 @@ export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowD
     _nonce: string | undefined,
     _signature: Signature | undefined,
   ): Promise<DepositOperation> {
+    if (_asset.assetType !== 'finp2p' || !('assetId' in _asset)) {
+      return failedDepositOperation(1, 'Omnibus deposit only supports finp2p asset type');
+    }
+    const dbAsset = await getAssetFromDb(this.assetStore, _asset.assetId);
+
     const omnibusAddress = await this.omnibusWallet.signer.getAddress();
     const network = await this.custodyProvider.rpcProvider.getNetwork();
     const chainId = Number(network.chainId);
@@ -253,7 +259,13 @@ export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowD
     return successfulDepositOperation({
       asset: _asset,
       account: {
-        finId: '',
+        // Skeleton's depositPayoutAccountToAPI reads `finId` here and emits it
+        // both as the top-level finId AND as the inner discriminator's finId.
+        // An empty value violates the router's minimum-length check.
+        finId: _owner.finId,
+        // Skeleton overwrites this inner shape unconditionally with
+        // { type: 'finId', finId }; the depositor learns the on-chain address
+        // from paymentOptions[].methodInstruction.walletAddress instead.
         account: {
           type: 'crypto',
           address: omnibusAddress,
@@ -266,11 +278,11 @@ export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowD
         methodInstruction: {
           type: 'cryptoTransfer',
           network: `eip155:${chainId}`,
-          contractAddress: '',
+          contractAddress: dbAsset.contractAddress,
           walletAddress: omnibusAddress,
         },
       }],
-      operationId: undefined,
+      operationId: workflows.generateCid(),
       details: undefined,
     });
   }
