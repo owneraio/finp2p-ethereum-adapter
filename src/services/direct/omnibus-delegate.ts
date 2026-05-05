@@ -3,7 +3,7 @@ import {
   LedgerAssetIdentifier,
   Destination, ExecutionContext, Source,
   PaymentService, DepositAsset, DepositOperation, ReceiptOperation, Signature,
-  successfulDepositOperation, failedReceiptOperation,
+  successfulDepositOperation, failedDepositOperation, failedReceiptOperation,
 } from '@owneraio/finp2p-nodejs-skeleton-adapter';
 import { TransferDelegate, AssetDelegate, EscrowDelegate, OmnibusDelegate as OmnibusDelegateInterface, DelegateResult, InboundTransferVerificationError } from '@owneraio/finp2p-vanilla-service';
 import { parseUnits, id as keccak256 } from 'ethers';
@@ -246,6 +246,11 @@ export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowD
     _nonce: string | undefined,
     _signature: Signature | undefined,
   ): Promise<DepositOperation> {
+    if (_asset.assetType !== 'finp2p' || !('assetId' in _asset)) {
+      return failedDepositOperation(1, 'Omnibus deposit only supports finp2p asset type');
+    }
+    const dbAsset = await getAssetFromDb(this.assetStore, _asset.assetId);
+
     const omnibusAddress = await this.omnibusWallet.signer.getAddress();
     const network = await this.custodyProvider.rpcProvider.getNetwork();
     const chainId = Number(network.chainId);
@@ -272,7 +277,7 @@ export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowD
         methodInstruction: {
           type: 'cryptoTransfer',
           network: `eip155:${chainId}`,
-          contractAddress: '',
+          contractAddress: dbAsset.contractAddress,
           walletAddress: omnibusAddress,
         },
       }],
