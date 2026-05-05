@@ -136,23 +136,34 @@ export class FireblocksCustodyProvider implements CustodyProvider {
   }
 
   /**
-   * Pre-fund only when below threshold; await the funding tx receipt before
-   * returning. Fireblocks' raw signer (and the Fireblocks Web3 provider) both
-   * resolve sendTransaction() once Fireblocks accepts the request and a tx
-   * hash is known — not when the tx is mined. Without the .wait() the next
-   * dependent operation racing through Fireblocks sees on-chain balance still
-   * zero and fails with INSUFFICIENT_FUNDS_FOR_FEE.
+   * Pre-fund only when below threshold; block until the target's on-chain
+   * balance actually reflects the funding before returning. Fireblocks'
+   * sendTransaction may resolve once Fireblocks accepts the request — not
+   * when the tx is broadcast/mined; tx.wait() additionally requires the tx
+   * to be observable through our local RPC. Polling the target balance is
+   * the strongest signal: it covers broadcast, mining, and our RPC seeing
+   * it, in one check. Without this guard the dependent op races and fails
+   * with INSUFFICIENT_FUNDS_FOR_FEE.
    */
   async ensureGas(wallet: CustodyWallet): Promise<void> {
     if (!this.gasStation) return;
     const targetAddress = await wallet.signer.getAddress();
     const threshold = parseEther(this.gasStation.amount);
-    const balance = await wallet.provider.getBalance(targetAddress);
+    let balance = await wallet.provider.getBalance(targetAddress);
     if (balance >= threshold) return;
-    const tx = await this.gasStation.wallet.signer.sendTransaction({
+
+    await this.gasStation.wallet.signer.sendTransaction({
       to: targetAddress,
       value: threshold,
     });
-    await tx.wait();
+
+    const deadline = Date.now() + 60_000;
+    const intervalMs = 1_000;
+    while (Date.now() < deadline) {
+      await new Promise(r => setTimeout(r, intervalMs));
+      balance = await wallet.provider.getBalance(targetAddress);
+      if (balance >= threshold) return;
+    }
+    throw new Error(`Gas top-up to ${targetAddress} did not reflect on-chain after 60s (last balance: ${balance})`);
   }
 }

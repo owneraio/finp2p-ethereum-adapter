@@ -93,20 +93,31 @@ export class DfnsCustodyProvider implements CustodyProvider {
   }
 
   /**
-   * Pre-fund only when below threshold; await the funding tx receipt before
-   * returning so the dependent op sees the new on-chain balance. DFNS'
-   * sendTransaction returns once the broadcast is accepted, not when mined.
+   * Pre-fund only when below threshold; block until the target's on-chain
+   * balance actually reflects the funding before returning. DFNS resolves
+   * sendTransaction once the broadcast is queued, not when mined; polling
+   * the target balance is the strongest signal that the funding is usable
+   * by the next op.
    */
   async ensureGas(wallet: CustodyWallet): Promise<void> {
     if (!this.gasStation) return;
     const targetAddress = await wallet.signer.getAddress();
     const threshold = parseEther(this.gasStation.amount);
-    const balance = await wallet.provider.getBalance(targetAddress);
+    let balance = await wallet.provider.getBalance(targetAddress);
     if (balance >= threshold) return;
-    const tx = await this.gasStation.wallet.signer.sendTransaction({
+
+    await this.gasStation.wallet.signer.sendTransaction({
       to: targetAddress,
       value: threshold,
     });
-    await tx.wait();
+
+    const deadline = Date.now() + 60_000;
+    const intervalMs = 1_000;
+    while (Date.now() < deadline) {
+      await new Promise(r => setTimeout(r, intervalMs));
+      balance = await wallet.provider.getBalance(targetAddress);
+      if (balance >= threshold) return;
+    }
+    throw new Error(`Gas top-up to ${targetAddress} did not reflect on-chain after 60s (last balance: ${balance})`);
   }
 }
