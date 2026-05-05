@@ -13,7 +13,7 @@ import { tokenStandardRegistry } from "./token-standards/registry";
 import { ERC20_TOKEN_STANDARD, DEFAULT_NEW_ERC20_DECIMALS } from "./token-standards/erc20";
 import { ERC20Contract } from "@owneraio/finp2p-contracts";
 import { AccountMappingService, AssetStore } from './account-mapping';
-import { getAssetFromDb } from './helpers';
+import { getAssetFromDb, fundGasIfNeeded } from './helpers';
 
 export interface ReceiptPollingConfig {
   timeoutMs: number;
@@ -46,6 +46,10 @@ export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowD
     this.receiptPolling = { ...defaultReceiptPolling, ...receiptPolling };
   }
 
+  private async fundGas(wallet: CustodyWallet): Promise<void> {
+    return fundGasIfNeeded(this.logger, this.custodyProvider.gasStation, wallet);
+  }
+
   async outboundTransfer(
     idempotencyKey: string, source: Source, destination: Destination,
     asset: Asset, quantity: string, exCtx: ExecutionContext | undefined,
@@ -57,6 +61,7 @@ export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowD
 
     const amount = parseUnits(quantity, dbAsset.decimals);
     const standard = tokenStandardRegistry.resolve(dbAsset.tokenStandard);
+    await this.fundGas(this.omnibusWallet);
     const result = await standard.transfer(this.omnibusWallet, dbAsset, destinationAddress, amount, this.logger);
     if (result.status === 'failure') return { success: false, error: result.reason };
 
@@ -167,6 +172,7 @@ export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowD
     const amount = parseUnits(quantity, dbAsset.decimals);
 
     const standard = tokenStandardRegistry.resolve(dbAsset.tokenStandard);
+    await this.fundGas(this.omnibusWallet);
     const result = await standard.hold(this.omnibusWallet, this.custodyProvider.escrow, dbAsset, amount, this.logger);
     if (result.status === 'failure') return { success: false, error: result.reason };
 
@@ -196,6 +202,7 @@ export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowD
     const onChainTarget = localAddress ? omnibusAddress : externalAddress!;
 
     const standard = tokenStandardRegistry.resolve(dbAsset.tokenStandard);
+    await this.fundGas(escrowWallet);
     const result = await standard.release(escrowWallet, dbAsset, onChainTarget, amount, this.logger);
     if (result.status === 'failure') return { success: false, error: result.reason };
 
@@ -213,6 +220,7 @@ export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowD
     const amount = parseUnits(quantity, dbAsset.decimals);
 
     const standard = tokenStandardRegistry.resolve(dbAsset.tokenStandard);
+    await this.fundGas(escrowWallet);
     const result = await standard.release(escrowWallet, dbAsset, omnibusAddress, amount, this.logger);
     if (result.status === 'failure') return { success: false, error: result.reason };
 
@@ -301,6 +309,7 @@ export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowD
 
     if (assetBind === undefined || assetBind.tokenIdentifier === undefined) {
       const symbol = 'OWNERA';
+      await this.fundGas(this.omnibusWallet);
       const result = await standard.deploy(this.omnibusWallet, assetName ?? 'OWNERACOIN', symbol, DEFAULT_NEW_ERC20_DECIMALS, this.logger);
       await this.assetStore.saveAsset({ contract_address: result.contractAddress, decimals: result.decimals, token_standard: result.tokenStandard, id: assetId });
       await this.custodyProvider.onAssetRegistered?.(result.contractAddress, symbol);
