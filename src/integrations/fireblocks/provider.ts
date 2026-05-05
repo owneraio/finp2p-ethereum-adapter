@@ -66,7 +66,7 @@ export class FireblocksCustodyProvider implements CustodyProvider {
 
     // In standard mode, issuer and escrow are required
     if (!config.localSubmit && (!issuerWallet || !escrowWallet)) {
-      throw new Error('Either FIREBLOCKS_ASSET_ISSUER_VAULT_ID/FIREBLOCKS_ASSET_ESCROW_VAULT_ID or FIREBLOCKS_OMNIBUS_VAULT_ID must be set');
+      throw new Error('Either FIREBLOCKS_ASSET_ISSUER_VAULT_ID/FIREBLOCKS_ASSET_ESCROW_VAULT_ID or OMNIBUS_CUSTODY_ACCOUNT_ID must be set');
     }
 
     let gasStation: GasStation | undefined;
