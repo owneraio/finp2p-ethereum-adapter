@@ -3,7 +3,7 @@ import axios from 'axios';
 import { parseEther } from 'ethers';
 import { createFireblocksEthersProvider, FireblocksAppConfig } from './config';
 import { createVaultManagementFunctions } from '../../vaults';
-import { CustodyProvider, CustodyWallet, GasStation } from '../../services/direct';
+import { CustodyProvider, CustodyWallet, GasStation, GAS_FUNDING_TIMEOUT_MS, GAS_FUNDING_POLL_INTERVAL_MS } from '../../services/direct';
 import { FireblocksRawSigner } from './raw-signer';
 
 export class FireblocksCustodyProvider implements CustodyProvider {
@@ -157,13 +157,12 @@ export class FireblocksCustodyProvider implements CustodyProvider {
       value: threshold,
     });
 
-    const deadline = Date.now() + 60_000;
-    const intervalMs = 1_000;
+    const deadline = Date.now() + GAS_FUNDING_TIMEOUT_MS;
     while (Date.now() < deadline) {
-      await new Promise(r => setTimeout(r, intervalMs));
+      await new Promise(r => setTimeout(r, GAS_FUNDING_POLL_INTERVAL_MS));
       balance = await wallet.provider.getBalance(targetAddress);
       if (balance >= threshold) return;
     }
-    throw new Error(`Gas top-up to ${targetAddress} did not reflect on-chain after 60s (last balance: ${balance})`);
+    throw new Error(`Gas top-up to ${targetAddress} did not reflect on-chain after ${GAS_FUNDING_TIMEOUT_MS}ms (last balance: ${balance})`);
   }
 }

@@ -3,7 +3,7 @@ import { AsymmetricKeySigner } from '@dfns/sdk-keysigner';
 import { DfnsWallet } from '@dfns/lib-ethersjs6';
 import { JsonRpcProvider, parseEther } from 'ethers';
 import { DfnsAppConfig } from './config';
-import { CustodyProvider, CustodyWallet, GasStation } from '../../services/direct';
+import { CustodyProvider, CustodyWallet, GasStation, GAS_FUNDING_TIMEOUT_MS, GAS_FUNDING_POLL_INTERVAL_MS } from '../../services/direct';
 
 export class DfnsCustodyProvider implements CustodyProvider {
   readonly issuer: CustodyWallet;
@@ -111,13 +111,12 @@ export class DfnsCustodyProvider implements CustodyProvider {
       value: threshold,
     });
 
-    const deadline = Date.now() + 60_000;
-    const intervalMs = 1_000;
+    const deadline = Date.now() + GAS_FUNDING_TIMEOUT_MS;
     while (Date.now() < deadline) {
-      await new Promise(r => setTimeout(r, intervalMs));
+      await new Promise(r => setTimeout(r, GAS_FUNDING_POLL_INTERVAL_MS));
       balance = await wallet.provider.getBalance(targetAddress);
       if (balance >= threshold) return;
     }
-    throw new Error(`Gas top-up to ${targetAddress} did not reflect on-chain after 60s (last balance: ${balance})`);
+    throw new Error(`Gas top-up to ${targetAddress} did not reflect on-chain after ${GAS_FUNDING_TIMEOUT_MS}ms (last balance: ${balance})`);
   }
 }

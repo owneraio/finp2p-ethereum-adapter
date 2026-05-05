@@ -10,6 +10,11 @@ export interface GasStation {
   amount: string;
 }
 
+/** How long ensureGas waits for the target wallet's balance to reflect the funding tx. */
+export const GAS_FUNDING_TIMEOUT_MS = 60_000;
+/** Poll interval for target balance during ensureGas. */
+export const GAS_FUNDING_POLL_INTERVAL_MS = 1_000;
+
 export interface CustodyProvider {
   readonly issuer: CustodyWallet;
   readonly escrow: CustodyWallet;
