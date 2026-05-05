@@ -3,7 +3,6 @@ import { logger } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import { FinP2PClient } from "@owneraio/finp2p-client";
 import winston, { format, transports } from "winston";
 import { migrationsDir as vanillaMigrationsDir, migrationsTableName as vanillaMigrationsTable } from "@owneraio/finp2p-vanilla-service";
-import { join } from "path";
 import { envVarsToAppConfig } from "./config";
 import createApp from "./app";
 
@@ -44,7 +43,6 @@ const init = async () => {
       schemaName: ledgerSchema,
       additionalMigrations: [
         { migrationsDir: vanillaMigrationsDir, tableName: vanillaMigrationsTable },
-        { migrationsDir: join(__dirname, '..', 'migrations'), tableName: 'finp2p_ethereum_adapter_extensions' },
       ],
     },
     storage: { connectionString: dbConnectionString },
