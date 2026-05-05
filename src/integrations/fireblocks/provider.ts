@@ -66,7 +66,7 @@ export class FireblocksCustodyProvider implements CustodyProvider {
 
     // In standard mode, issuer and escrow are required
     if (!config.localSubmit && (!issuerWallet || !escrowWallet)) {
-      throw new Error('Either FIREBLOCKS_ASSET_ISSUER_VAULT_ID/FIREBLOCKS_ASSET_ESCROW_VAULT_ID or FIREBLOCKS_OMNIBUS_VAULT_ID must be set');
+      throw new Error('Either ASSET_ISSUER_CUSTODY_ACCOUNT_ID/ASSET_ESCROW_CUSTODY_ACCOUNT_ID or OMNIBUS_CUSTODY_ACCOUNT_ID must be set');
     }
 
     let gasStation: GasStation | undefined;
@@ -122,6 +122,28 @@ export class FireblocksCustodyProvider implements CustodyProvider {
       throw new Error(`No deposit address found for vault ${vaultAccountId} asset ${assetId}`);
     }
     return addresses[0].address;
+  }
+
+  async archiveCustodyAccount(vaultAccountId: string): Promise<void> {
+    await this.fireblocksSdk.hideVaultAccount(vaultAccountId);
+  }
+
+  async createCustodyAccount(label?: string): Promise<{ custodyAccountId: string; address: string }> {
+    const assetId = process.env.FIREBLOCKS_ASSET_ID ?? 'ETH_TEST5';
+    const name = label ?? `ota-${Date.now()}`;
+    const vault = await this.fireblocksSdk.createVaultAccount(name);
+    const vaultAsset = await this.fireblocksSdk.createVaultAsset(vault.id, assetId);
+    let address = vaultAsset.address;
+    if (!address) {
+      // Fallback: address may not be returned synchronously by createVaultAsset on
+      // some Fireblocks tenants. Query getDepositAddresses to fetch it.
+      const addresses = await this.fireblocksSdk.getDepositAddresses(vault.id, assetId);
+      if (addresses.length === 0) {
+        throw new Error(`Vault ${vault.id} created but no deposit address available for asset ${assetId}`);
+      }
+      address = addresses[0].address;
+    }
+    return { custodyAccountId: vault.id, address };
   }
 
   async onAssetRegistered(tokenAddress: string, symbol?: string): Promise<void> {

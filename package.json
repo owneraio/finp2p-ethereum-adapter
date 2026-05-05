@@ -22,6 +22,7 @@
     "test:dfns": "jest --config jest.dfns.config.js",
     "test:account-mapping": "jest --config jest.account-mapping.config.js",
     "test:omnibus": "jest --config jest.omnibus.config.js",
+    "test:deposits-omnibus": "jest --config jest.deposits-omnibus.config.js",
     "test-server": "ts-node ./scripts/test-server.ts",
     "migration": "ts-node ./scripts/migration.ts",
     "sync-balances": "ts-node ./scripts/sync-balances.ts",
