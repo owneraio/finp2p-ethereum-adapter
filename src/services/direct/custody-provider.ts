@@ -1,13 +1,9 @@
 import { Provider, Signer } from "ethers";
+import { GasStation } from "./gas-station";
 
 export interface CustodyWallet {
   provider: Provider;
   signer: Signer;
-}
-
-export interface GasStation {
-  wallet: CustodyWallet;
-  amount: string;
 }
 
 export interface CustodyProvider {

@@ -1,4 +1,5 @@
 export * from './custody-provider'
+export * from './gas-station'
 export * from './custody-registry'
 export * from './account-mapping'
 export * from './token-service'

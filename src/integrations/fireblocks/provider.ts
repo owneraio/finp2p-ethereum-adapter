@@ -72,7 +72,7 @@ export class FireblocksCustodyProvider implements CustodyProvider {
     let gasStation: GasStation | undefined;
     if (config.gasFunding) {
       const gasWallet = await createWallet(config.gasFunding.vaultId);
-      gasStation = { wallet: gasWallet, amount: config.gasFunding.amount };
+      gasStation = new GasStation(gasWallet, config.gasFunding.amount);
     }
 
     let omnibusWallet: CustodyWallet | undefined;

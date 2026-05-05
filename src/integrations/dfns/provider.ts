@@ -63,7 +63,7 @@ export class DfnsCustodyProvider implements CustodyProvider {
     let gasStation: GasStation | undefined;
     if (config.gasFunding) {
       const gasWallet = await DfnsCustodyProvider.createWalletProvider(dfnsClient, config.gasFunding.walletId, config.rpcUrl);
-      gasStation = { wallet: gasWallet, amount: config.gasFunding.amount };
+      gasStation = new GasStation(gasWallet, config.gasFunding.amount);
     }
 
     let omnibusWallet: CustodyWallet | undefined;
@@ -91,4 +91,5 @@ export class DfnsCustodyProvider implements CustodyProvider {
     }
     return wallet.address;
   }
+
 }
