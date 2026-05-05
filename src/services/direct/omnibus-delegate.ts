@@ -253,7 +253,13 @@ export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowD
     return successfulDepositOperation({
       asset: _asset,
       account: {
-        finId: '',
+        // Skeleton's depositPayoutAccountToAPI reads `finId` here and emits it
+        // both as the top-level finId AND as the inner discriminator's finId.
+        // An empty value violates the router's minimum-length check.
+        finId: _owner.finId,
+        // Skeleton overwrites this inner shape unconditionally with
+        // { type: 'finId', finId }; the depositor learns the on-chain address
+        // from paymentOptions[].methodInstruction.walletAddress instead.
         account: {
           type: 'crypto',
           address: omnibusAddress,
