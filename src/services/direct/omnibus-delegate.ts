@@ -61,7 +61,6 @@ export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowD
 
     const amount = parseUnits(quantity, dbAsset.decimals);
     const standard = tokenStandardRegistry.resolve(dbAsset.tokenStandard);
-    await this.fundGas(this.omnibusWallet);
     const result = await standard.transfer(this.omnibusWallet, dbAsset, destinationAddress, amount, this.logger);
     if (result.status === 'failure') return { success: false, error: result.reason };
 
