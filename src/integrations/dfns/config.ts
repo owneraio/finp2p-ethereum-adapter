@@ -82,9 +82,7 @@ export async function createDfnsAppConfig(): Promise<Omit<DfnsAppConfig, 'accoun
   const escrowWalletId = process.env.DFNS_ASSET_ESCROW_WALLET_ID;
   if (!escrowWalletId) throw new Error('DFNS_ASSET_ESCROW_WALLET_ID is not set');
 
-  // Custody-agnostic OMNIBUS_CUSTODY_ACCOUNT_ID is preferred; DFNS_OMNIBUS_WALLET_ID
-  // is kept as a backwards-compat alias for existing deployments.
-  const omnibusWalletId = process.env.OMNIBUS_CUSTODY_ACCOUNT_ID || process.env.DFNS_OMNIBUS_WALLET_ID || undefined;
+  const omnibusWalletId = process.env.OMNIBUS_CUSTODY_ACCOUNT_ID || undefined;
 
   const keySigner = new AsymmetricKeySigner({ credId: dfnsCredId, privateKey: dfnsPrivateKey });
   const dfnsClient = new DfnsApiClient({ baseUrl: dfnsBaseUrl, orgId: dfnsOrgId, authToken: dfnsAuthToken, signer: keySigner });
