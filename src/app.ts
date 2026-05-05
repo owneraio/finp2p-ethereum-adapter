@@ -85,7 +85,7 @@ function registerDirectServices(
     // tables in `ethereum_adapter`. Build the storage + service ourselves to
     // pin the schema. (LedgerStorage + VanillaServiceImpl are public exports.)
     const ledgerStorage = new LedgerStorage(dbPool, ledgerSchema);
-    const vanillaService = new VanillaServiceImpl(ledgerStorage, delegate, delegate, delegate, delegate);
+    const vanillaService = new VanillaServiceImpl(ledgerStorage, delegate, delegate, delegate, delegate, finP2PClient);
     const tokenService = vanillaService;
     const escrowService = vanillaService;
     const commonService = vanillaService;
