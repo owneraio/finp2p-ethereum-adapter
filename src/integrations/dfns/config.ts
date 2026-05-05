@@ -76,11 +76,11 @@ export async function createDfnsAppConfig(): Promise<Omit<DfnsAppConfig, 'accoun
   const rpcUrl = getNetworkRpcUrl();
   const provider = new JsonRpcProvider(rpcUrl);
 
-  const issuerWalletId = process.env.DFNS_ASSET_ISSUER_WALLET_ID;
-  if (!issuerWalletId) throw new Error('DFNS_ASSET_ISSUER_WALLET_ID is not set');
+  const issuerWalletId = process.env.ASSET_ISSUER_CUSTODY_ACCOUNT_ID;
+  if (!issuerWalletId) throw new Error('ASSET_ISSUER_CUSTODY_ACCOUNT_ID is not set');
 
-  const escrowWalletId = process.env.DFNS_ASSET_ESCROW_WALLET_ID;
-  if (!escrowWalletId) throw new Error('DFNS_ASSET_ESCROW_WALLET_ID is not set');
+  const escrowWalletId = process.env.ASSET_ESCROW_CUSTODY_ACCOUNT_ID;
+  if (!escrowWalletId) throw new Error('ASSET_ESCROW_CUSTODY_ACCOUNT_ID is not set');
 
   const omnibusWalletId = process.env.OMNIBUS_CUSTODY_ACCOUNT_ID || undefined;
 
@@ -89,8 +89,8 @@ export async function createDfnsAppConfig(): Promise<Omit<DfnsAppConfig, 'accoun
   const { signer } = await createDfnsEthersProvider({ dfnsClient, walletId: issuerWalletId, rpcUrl });
 
   let gasFunding: DfnsAppConfig['gasFunding'] = undefined
-  const fundingWalletId = process.env.DFNS_GAS_FUNDING_WALLET_ID
-  const fundingAmount = process.env.DFNS_GAS_FUNDING_AMOUNT
+  const fundingWalletId = process.env.GAS_FUNDING_CUSTODY_ACCOUNT_ID
+  const fundingAmount = process.env.GAS_FUNDING_AMOUNT
   if (fundingWalletId !== undefined && fundingAmount !== undefined) {
     gasFunding = { walletId: fundingWalletId, amount: fundingAmount }
   }

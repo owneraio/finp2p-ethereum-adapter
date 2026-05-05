@@ -74,8 +74,8 @@ export async function createFireblocksAppConfig(): Promise<Omit<FireblocksAppCon
   const chainId = (process.env.FIREBLOCKS_CHAIN_ID || ChainId.MAINNET) as ChainId;
   const apiBaseUrl = (process.env.FIREBLOCKS_API_BASE_URL || ApiBaseUrl.Production) as ApiBaseUrl;
 
-  const assetIssuerVaultId = process.env.FIREBLOCKS_ASSET_ISSUER_VAULT_ID || undefined
-  const assetEscrowVaultId = process.env.FIREBLOCKS_ASSET_ESCROW_VAULT_ID || undefined
+  const assetIssuerVaultId = process.env.ASSET_ISSUER_CUSTODY_ACCOUNT_ID || undefined
+  const assetEscrowVaultId = process.env.ASSET_ESCROW_CUSTODY_ACCOUNT_ID || undefined
   const omnibusVaultId = process.env.OMNIBUS_CUSTODY_ACCOUNT_ID || undefined
 
   const localSubmit = process.env.LOCAL_SUBMIT === 'true';
@@ -91,7 +91,7 @@ export async function createFireblocksAppConfig(): Promise<Omit<FireblocksAppCon
   } else {
     const baseVaultId = assetIssuerVaultId ?? omnibusVaultId;
     if (!baseVaultId) {
-      throw new Error('At least one of FIREBLOCKS_ASSET_ISSUER_VAULT_ID or OMNIBUS_CUSTODY_ACCOUNT_ID must be set');
+      throw new Error('At least one of ASSET_ISSUER_CUSTODY_ACCOUNT_ID or OMNIBUS_CUSTODY_ACCOUNT_ID must be set');
     }
     const fb = await createFireblocksEthersProvider({
       apiKey, privateKey: apiPrivateKey, chainId, apiBaseUrl, vaultAccountIds: [baseVaultId]
@@ -101,8 +101,8 @@ export async function createFireblocksAppConfig(): Promise<Omit<FireblocksAppCon
   }
 
   let gasFunding: FireblocksAppConfig['gasFunding'] = undefined
-  const fundingVaultId = process.env.FIREBLOCKS_GAS_FUNDING_VAULT_ID
-  const fundingAssetAmount = process.env.FIREBLOCKS_GAS_FUNDING_AMOUNT
+  const fundingVaultId = process.env.GAS_FUNDING_CUSTODY_ACCOUNT_ID
+  const fundingAssetAmount = process.env.GAS_FUNDING_AMOUNT
   if (fundingVaultId !== undefined && fundingAssetAmount !== undefined) {
     gasFunding = { vaultId: fundingVaultId, amount: fundingAssetAmount }
   }
