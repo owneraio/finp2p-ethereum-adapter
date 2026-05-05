@@ -1,3 +1,4 @@
+import winston from "winston";
 import {
   PaymentsPlugin,
   DepositAsset,
@@ -40,13 +41,14 @@ export function registerWalletDeposit(ctx: IntegrationContext): void {
   }
 
   const network = process.env.NETWORK_NAME ?? 'ethereum';
-  pluginManager.registerPaymentsPlugin(new WalletDepositPlugin(assetStore, walletResolver, network));
+  pluginManager.registerPaymentsPlugin(new WalletDepositPlugin(logger, assetStore, walletResolver, network));
   logger.info(`Wallet-deposit plugin activated (network='${network}')`);
 }
 
 class WalletDepositPlugin implements PaymentsPlugin {
 
   constructor(
+    private readonly logger: winston.Logger,
     private readonly assetStore: AssetStore,
     private readonly walletResolver: WalletResolver,
     private readonly network: string,
@@ -60,20 +62,27 @@ class WalletDepositPlugin implements PaymentsPlugin {
     signature: Signature | undefined,
   ): Promise<DepositOperation> {
     if (asset.assetType !== 'finp2p' || !('assetId' in asset)) {
+      this.logger.warn(`Wallet-deposit: unsupported asset type for finId=${ownerFinId}`);
       return failedDepositOperation(1, 'Wallet deposit only supports finp2p asset type');
     }
 
     const dbAsset = await this.assetStore.getAsset(asset.assetId);
     if (!dbAsset) {
+      this.logger.warn(`Wallet-deposit: asset ${asset.assetId} not registered for finId=${ownerFinId}`);
       return failedDepositOperation(1, `Asset ${asset.assetId} is not registered`);
     }
 
     const resolved = await this.walletResolver(ownerFinId);
     if (!resolved) {
+      this.logger.warn(`Wallet-deposit: no wallet mapping for finId=${ownerFinId}`);
       // TODO: auto-provision a custody account + mapping when missing.
       return failedDepositOperation(1, `No wallet mapping registered for finId ${ownerFinId}`);
     }
 
+    const operationId = workflows.generateCid();
+    this.logger.info(
+      `Wallet-deposit: created deposit ${operationId} for finId=${ownerFinId} assetId=${asset.assetId} target=${resolved.walletAddress}`,
+    );
     return successfulDepositOperation({
       asset,
       account: { finId: ownerFinId, account: { type: 'crypto', address: resolved.walletAddress } },
@@ -88,7 +97,7 @@ class WalletDepositPlugin implements PaymentsPlugin {
           walletAddress: resolved.walletAddress,
         },
       }],
-      operationId: workflows.generateCid(),
+      operationId,
       details: undefined,
     });
   }

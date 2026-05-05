@@ -43,16 +43,19 @@ export class OtaDepositPlugin implements PaymentsPlugin {
     signature: Signature | undefined,
   ): Promise<DepositOperation> {
     if (asset.assetType !== 'finp2p' || !('assetId' in asset)) {
+      this.logger.warn(`OTA-deposit: unsupported asset type for finId=${ownerFinId}`);
       return failedDepositOperation(1, 'OTA deposit only supports finp2p asset type');
     }
 
     const dbAsset = await this.assetStore.getAsset(asset.assetId);
     if (!dbAsset) {
+      this.logger.warn(`OTA-deposit: asset ${asset.assetId} not registered for finId=${ownerFinId}`);
       return failedDepositOperation(1, `Asset ${asset.assetId} is not registered`);
     }
 
     const sweepTarget = await this.resolveSweepTarget(ownerFinId);
     if (!sweepTarget) {
+      this.logger.warn(`OTA-deposit: no sweep target for finId=${ownerFinId}`);
       return failedDepositOperation(1, `No sweep target available for finId ${ownerFinId}`);
     }
 

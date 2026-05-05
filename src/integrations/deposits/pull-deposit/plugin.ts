@@ -44,16 +44,19 @@ export class PullDepositPlugin implements PaymentsPlugin {
     signature: Signature | undefined,
   ): Promise<DepositOperation> {
     if (asset.assetType !== 'finp2p' || !('assetId' in asset)) {
+      this.logger.warn(`Pull-deposit: unsupported asset type for finId=${ownerFinId}`);
       return failedDepositOperation(1, 'Pull deposit only supports finp2p asset type');
     }
 
     const dbAsset = await this.assetStore.getAsset(asset.assetId);
     if (!dbAsset) {
+      this.logger.warn(`Pull-deposit: asset ${asset.assetId} not registered for finId=${ownerFinId}`);
       return failedDepositOperation(1, `Asset ${asset.assetId} is not registered`);
     }
 
     const destinationAddress = await this.resolveDepositTarget(ownerFinId);
     if (!destinationAddress) {
+      this.logger.warn(`Pull-deposit: no deposit target for finId=${ownerFinId}`);
       return failedDepositOperation(1, `No deposit target available for finId ${ownerFinId}`);
     }
 
@@ -73,8 +76,13 @@ export class PullDepositPlugin implements PaymentsPlugin {
         createdAt: Date.now(),
       });
     } catch (e: any) {
+      this.logger.warn(`Pull-deposit: addDeposit failed for finId=${ownerFinId}: ${e?.message ?? e}`);
       return failedDepositOperation(1, e?.message ?? String(e));
     }
+
+    this.logger.info(
+      `Pull-deposit: created deposit ${correlationId} for finId=${ownerFinId} assetId=${asset.assetId} contract=${dbAsset.contract_address} operator=${operatorAddress} destination=${destinationAddress} expectedAmount=${amount ?? 'any'}`,
+    );
 
     return successfulDepositOperation({
       asset,
