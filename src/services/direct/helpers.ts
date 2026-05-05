@@ -15,13 +15,14 @@ export async function getAssetFromDb(assetStore: AssetStore, assetId: string): P
 }
 
 /**
- * Top up `wallet` from the gas station only if its current balance is below the
- * configured top-up amount. Useful for direct mode (per-investor wallets each
- * may need funding once) and equally for omnibus mode (few long-lived signers
- * shared across every operation — without the balance guard we'd send a top-up
- * tx before every hold/release/transfer).
+ * Ensure `wallet` has at least the configured gas-station threshold available
+ * for the next on-chain tx; pre-fund only when the wallet is below threshold.
+ * Useful for direct mode (per-investor wallets each may need a one-off top-up)
+ * and equally for omnibus mode (few long-lived signers shared across every
+ * operation — without the balance guard we'd send a top-up tx before every
+ * hold/release/transfer).
  */
-export async function fundGasIfNeeded(logger: winston.Logger, gasStation: GasStation | undefined, wallet: CustodyWallet): Promise<void> {
+export async function ensureGas(logger: winston.Logger, gasStation: GasStation | undefined, wallet: CustodyWallet): Promise<void> {
   if (!gasStation) return;
   try {
     const targetAddress = await wallet.signer.getAddress();
