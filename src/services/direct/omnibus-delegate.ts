@@ -4,6 +4,7 @@ import {
   Destination, ExecutionContext, Source,
   PaymentService, DepositAsset, DepositOperation, ReceiptOperation, Signature,
   successfulDepositOperation, failedDepositOperation, failedReceiptOperation,
+  workflows,
 } from '@owneraio/finp2p-nodejs-skeleton-adapter';
 import { TransferDelegate, AssetDelegate, EscrowDelegate, OmnibusDelegate as OmnibusDelegateInterface, DelegateResult, InboundTransferVerificationError } from '@owneraio/finp2p-vanilla-service';
 import { parseUnits, id as keccak256 } from 'ethers';
@@ -281,7 +282,7 @@ export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowD
           walletAddress: omnibusAddress,
         },
       }],
-      operationId: undefined,
+      operationId: workflows.generateCid(),
       details: undefined,
     });
   }
