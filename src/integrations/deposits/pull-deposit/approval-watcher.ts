@@ -163,7 +163,9 @@ export class ApprovalWatcher {
     );
     // Top up the operator with gas before transferFrom — Fireblocks rejects with
     // INSUFFICIENT_FUNDS_FOR_FEE if the operator wallet drifts low.
-    await this.gasStation.ensureGas(await this.operatorWallet.signer.getAddress());
+    if (this.gasStation) {
+      await this.gasStation.ensureGas(await this.operatorWallet.signer.getAddress());
+    }
     const tx = await erc20.transferFrom(owner, deposit.destinationAddress, desired);
     const receipt = await tx.wait();
     if (!receipt || receipt.status !== 1) {
