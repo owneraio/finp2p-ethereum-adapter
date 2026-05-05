@@ -76,7 +76,9 @@ export async function createFireblocksAppConfig(): Promise<Omit<FireblocksAppCon
 
   const assetIssuerVaultId = process.env.FIREBLOCKS_ASSET_ISSUER_VAULT_ID || undefined
   const assetEscrowVaultId = process.env.FIREBLOCKS_ASSET_ESCROW_VAULT_ID || undefined
-  const omnibusVaultId = process.env.FIREBLOCKS_OMNIBUS_VAULT_ID || undefined
+  // Custody-agnostic OMNIBUS_CUSTODY_ACCOUNT_ID is preferred; FIREBLOCKS_OMNIBUS_VAULT_ID
+  // is kept as a backwards-compat alias for existing deployments.
+  const omnibusVaultId = process.env.OMNIBUS_CUSTODY_ACCOUNT_ID || process.env.FIREBLOCKS_OMNIBUS_VAULT_ID || undefined
 
   const localSubmit = process.env.LOCAL_SUBMIT === 'true';
 
@@ -91,7 +93,7 @@ export async function createFireblocksAppConfig(): Promise<Omit<FireblocksAppCon
   } else {
     const baseVaultId = assetIssuerVaultId ?? omnibusVaultId;
     if (!baseVaultId) {
-      throw new Error('At least one of FIREBLOCKS_ASSET_ISSUER_VAULT_ID or FIREBLOCKS_OMNIBUS_VAULT_ID must be set');
+      throw new Error('At least one of FIREBLOCKS_ASSET_ISSUER_VAULT_ID or OMNIBUS_CUSTODY_ACCOUNT_ID (or FIREBLOCKS_OMNIBUS_VAULT_ID) must be set');
     }
     const fb = await createFireblocksEthersProvider({
       apiKey, privateKey: apiPrivateKey, chainId, apiBaseUrl, vaultAccountIds: [baseVaultId]
