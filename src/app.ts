@@ -29,8 +29,9 @@ import {
   OmnibusDelegate,
   OmnibusPlanApprovalPlugin,
   registerSpecialAccount,
-  OMNIBUS_FIN_ID,
+  ISSUER_FIN_ID,
   ESCROW_FIN_ID,
+  OMNIBUS_FIN_ID,
   CommonServiceImpl as DirectCommonServiceImpl,
   HealthServiceImpl as DirectHealthServiceImpl,
   tokenStandardRegistry,
@@ -211,16 +212,23 @@ async function createApp(
     ? new DbAccountMapping(accountMappingService)
     : new DerivationAccountMapping();
 
-  // Persist env-derived omnibus / escrow addresses into account_mappings under
-  // reserved finIds, so runtime lookups go through the same AccountMappingService
-  // used for investor finIds. Env stays load-bearing only at boot for signer
-  // construction; reads (e.g. plan-approval validator) come from the DB.
+  // Persist env-derived custody account IDs (issuer / escrow / omnibus) into
+  // account_mappings under reserved finIds, so runtime lookups go through the
+  // same AccountMappingService used for investor finIds. Env is load-bearing
+  // only here at boot for the seed write; reads (delegate / token-service /
+  // deposit plugins / plan-approval validator) come from the DB.
   if (accountMappingStore && custodyProvider) {
-    if (custodyProvider.escrow) {
-      await registerSpecialAccount(accountMappingStore, ESCROW_FIN_ID, custodyProvider.escrow, process.env.ASSET_ESCROW_CUSTODY_ACCOUNT_ID, logger);
+    const issuerCustodyId = process.env.ASSET_ISSUER_CUSTODY_ACCOUNT_ID;
+    if (issuerCustodyId) {
+      await registerSpecialAccount(accountMappingStore, ISSUER_FIN_ID, issuerCustodyId, custodyProvider, logger);
     }
-    if (custodyProvider.omnibus) {
-      await registerSpecialAccount(accountMappingStore, OMNIBUS_FIN_ID, custodyProvider.omnibus, process.env.OMNIBUS_CUSTODY_ACCOUNT_ID, logger);
+    const escrowCustodyId = process.env.ASSET_ESCROW_CUSTODY_ACCOUNT_ID;
+    if (escrowCustodyId) {
+      await registerSpecialAccount(accountMappingStore, ESCROW_FIN_ID, escrowCustodyId, custodyProvider, logger);
+    }
+    const omnibusCustodyId = process.env.OMNIBUS_CUSTODY_ACCOUNT_ID;
+    if (omnibusCustodyId) {
+      await registerSpecialAccount(accountMappingStore, OMNIBUS_FIN_ID, omnibusCustodyId, custodyProvider, logger);
     }
   }
 
@@ -253,7 +261,7 @@ async function createApp(
     );
   }
 
-  registerIntegrations({
+  await registerIntegrations({
     orgId: appConfig.orgId,
     logger,
     pluginManager,

@@ -30,7 +30,7 @@ import { OtaDepositPlugin } from "./plugin";
  *   - custody provider lacks createCustodyAccount / createWalletForCustodyId
  *   - segregated mode without walletResolver, or omnibus mode without an omnibus wallet
  */
-export function registerOtaDeposit(ctx: IntegrationContext): void {
+export async function registerOtaDeposit(ctx: IntegrationContext): Promise<void> {
   if (process.env.DTCC_PLUGIN_ENABLED === 'true') return;
   if (resolveDepositMethod(ctx.accountModel) !== 'ota') return;
 
@@ -39,31 +39,27 @@ export function registerOtaDeposit(ctx: IntegrationContext): void {
     logger.info('OTA-deposit plugin not registered: requires custody provider + asset store');
     return;
   }
-  if (!custodyProvider.createCustodyAccount || !custodyProvider.createWalletForCustodyId) {
+  if (!custodyProvider.createCustodyAccount) {
     logger.info('OTA-deposit plugin not registered: custody provider does not support per-deposit account creation');
-    return;
-  }
-  if (accountModel === 'omnibus' && !custodyProvider.omnibus) {
-    logger.info('OTA-deposit plugin not registered (omnibus mode): custody provider has no omnibus wallet configured');
     return;
   }
   if (accountModel === 'segregated' && !walletResolver) {
     logger.info('OTA-deposit plugin not registered (segregated mode): no wallet resolver available');
     return;
   }
+  if (accountModel === 'omnibus') {
+    const omnibusAddress = await accountMapping?.resolveAccount(OMNIBUS_FIN_ID);
+    if (!omnibusAddress) {
+      logger.info(`OTA-deposit plugin not registered (omnibus mode): no '${OMNIBUS_FIN_ID}' mapping (set OMNIBUS_CUSTODY_ACCOUNT_ID)`);
+      return;
+    }
+  }
 
   const network = process.env.NETWORK_NAME ?? 'ethereum';
 
   let resolveSweepTarget: DepositTargetResolver;
   if (accountModel === 'omnibus') {
-    let omnibusAddress: string | undefined;
-    resolveSweepTarget = async () => {
-      if (!omnibusAddress) {
-        omnibusAddress = (await accountMapping?.resolveAccount(OMNIBUS_FIN_ID))
-          ?? await custodyProvider.omnibus!.signer.getAddress();
-      }
-      return omnibusAddress;
-    };
+    resolveSweepTarget = async () => accountMapping!.resolveAccount(OMNIBUS_FIN_ID);
   } else {
     resolveSweepTarget = async (finId) => (await walletResolver!(finId))?.walletAddress;
   }

@@ -25,7 +25,7 @@ export interface IntegrationContext {
   inboundTransferHook: InboundTransferHook | undefined;
 }
 
-export type IntegrationRegistrar = (ctx: IntegrationContext) => void;
+export type IntegrationRegistrar = (ctx: IntegrationContext) => Promise<void> | void;
 
 /** Register compiled-in custody providers — must run before custodyRegistry.create(). */
 export function registerCustodyIntegrations(): void {
@@ -41,6 +41,6 @@ const integrations: IntegrationRegistrar[] = [
 ];
 
 /** Register runtime integrations (plugins, token standards) — runs after custody provider is created. */
-export function registerIntegrations(ctx: IntegrationContext): void {
-  for (const register of integrations) register(ctx);
+export async function registerIntegrations(ctx: IntegrationContext): Promise<void> {
+  for (const register of integrations) await register(ctx);
 }

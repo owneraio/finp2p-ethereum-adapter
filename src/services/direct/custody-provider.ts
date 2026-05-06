@@ -7,16 +7,19 @@ export interface CustodyWallet {
 }
 
 export interface CustodyProvider {
-  readonly issuer: CustodyWallet;
-  readonly escrow: CustodyWallet;
-  readonly omnibus?: CustodyWallet;
   readonly rpcProvider: Provider;
   readonly gasStation?: GasStation;
 
   resolveWallet(account: string): Promise<CustodyWallet | undefined>;
-  /** Create a wallet directly from custody account ID (vault ID / wallet ID). No reverse scan needed. */
-  createWalletForCustodyId?(custodyAccountId: string): Promise<CustodyWallet>;
-  resolveAddressFromCustodyId?(custodyAccountId: string): Promise<string>;
+  /**
+   * Create a wallet directly from custody account ID (vault ID / wallet ID).
+   * Used by all consumers that need a signer for a specific custody account —
+   * the adapter resolves the relevant ID via the account-mappings DB
+   * (investor finIds → custody ID; reserved keys '__omnibus__' / '__escrow__'
+   * / '__issuer__' for the operator's own settlement accounts).
+   */
+  createWalletForCustodyId(custodyAccountId: string): Promise<CustodyWallet>;
+  resolveAddressFromCustodyId(custodyAccountId: string): Promise<string>;
   onAssetRegistered?(tokenAddress: string, symbol?: string): Promise<void>;
   /**
    * Provision a brand-new custody account (vault / wallet) and return its identifier

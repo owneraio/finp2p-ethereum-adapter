@@ -1,6 +1,6 @@
 import { IntegrationContext } from "../../registry";
 import { DepositTargetResolver, resolveDepositMethod } from "../types";
-import { OMNIBUS_FIN_ID } from "../../../services/direct";
+import { OMNIBUS_FIN_ID, ESCROW_FIN_ID } from "../../../services/direct";
 import { PullDepositPlugin } from "./plugin";
 
 /**
@@ -29,7 +29,7 @@ import { PullDepositPlugin } from "./plugin";
  *     'wallet'; explicit DEPOSIT_METHOD env wins in either case)
  *   - segregated mode without walletResolver, or omnibus mode without an omnibus wallet
  */
-export function registerPullDeposit(ctx: IntegrationContext): void {
+export async function registerPullDeposit(ctx: IntegrationContext): Promise<void> {
   if (process.env.DTCC_PLUGIN_ENABLED === 'true') return;
   if (resolveDepositMethod(ctx.accountModel) !== 'pull') return;
 
@@ -38,8 +38,8 @@ export function registerPullDeposit(ctx: IntegrationContext): void {
     logger.info('Pull-deposit plugin not registered: requires custody provider + asset store');
     return;
   }
-  if (accountModel === 'omnibus' && !custodyProvider.omnibus) {
-    logger.info('Pull-deposit plugin not registered (omnibus mode): custody provider has no omnibus wallet configured');
+  if (!accountMapping) {
+    logger.info('Pull-deposit plugin not registered: requires DB-backed account mapping');
     return;
   }
   if (accountModel === 'segregated' && !walletResolver) {
@@ -47,19 +47,29 @@ export function registerPullDeposit(ctx: IntegrationContext): void {
     return;
   }
 
+  // Resolve the operator wallet (transferFrom signer + ERC20 spender) from the
+  // '__escrow__' mapping. Reuses the escrow account as in v1; a dedicated
+  // PULL_DEPOSIT_OPERATOR_CUSTODY_ID can be added later.
+  const escrowMapping = await accountMapping.resolveFullAccount?.(ESCROW_FIN_ID);
+  if (!escrowMapping?.custodyAccountId) {
+    logger.info(`Pull-deposit plugin not registered: no '${ESCROW_FIN_ID}' mapping (set ASSET_ESCROW_CUSTODY_ACCOUNT_ID)`);
+    return;
+  }
+  const operatorWallet = await custodyProvider.createWalletForCustodyId(escrowMapping.custodyAccountId);
+
+  if (accountModel === 'omnibus') {
+    const omnibusAddress = await accountMapping.resolveAccount(OMNIBUS_FIN_ID);
+    if (!omnibusAddress) {
+      logger.info(`Pull-deposit plugin not registered (omnibus mode): no '${OMNIBUS_FIN_ID}' mapping (set OMNIBUS_CUSTODY_ACCOUNT_ID)`);
+      return;
+    }
+  }
+
   const network = process.env.NETWORK_NAME ?? 'ethereum';
-  const operatorWallet = custodyProvider.escrow;
 
   let resolveDepositTarget: DepositTargetResolver;
   if (accountModel === 'omnibus') {
-    let omnibusAddress: string | undefined;
-    resolveDepositTarget = async () => {
-      if (!omnibusAddress) {
-        omnibusAddress = (await accountMapping?.resolveAccount(OMNIBUS_FIN_ID))
-          ?? await custodyProvider.omnibus!.signer.getAddress();
-      }
-      return omnibusAddress;
-    };
+    resolveDepositTarget = async () => accountMapping.resolveAccount(OMNIBUS_FIN_ID);
   } else {
     resolveDepositTarget = async (finId) => (await walletResolver!(finId))?.walletAddress;
   }

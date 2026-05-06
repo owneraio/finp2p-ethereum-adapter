@@ -6,9 +6,6 @@ import { DfnsAppConfig } from './config';
 import { CustodyProvider, CustodyWallet, GasStation } from '../../services/direct';
 
 export class DfnsCustodyProvider implements CustodyProvider {
-  readonly issuer: CustodyWallet;
-  readonly escrow: CustodyWallet;
-  readonly omnibus?: CustodyWallet;
   readonly rpcProvider;
   readonly gasStation?: GasStation;
 
@@ -16,17 +13,11 @@ export class DfnsCustodyProvider implements CustodyProvider {
   private addressToWalletId: Map<string, string>;
 
   private constructor(
-    issuer: CustodyWallet,
-    escrow: CustodyWallet,
     private readonly config: DfnsAppConfig,
     dfnsClient: DfnsApiClient,
     addressToWalletId: Map<string, string>,
     gasStation?: GasStation,
-    omnibus?: CustodyWallet,
   ) {
-    this.issuer = issuer;
-    this.escrow = escrow;
-    this.omnibus = omnibus;
     this.rpcProvider = config.provider;
     this.dfnsClient = dfnsClient;
     this.addressToWalletId = addressToWalletId;
@@ -48,10 +39,7 @@ export class DfnsCustodyProvider implements CustodyProvider {
   static async create(config: DfnsAppConfig): Promise<DfnsCustodyProvider> {
     const dfnsClient = DfnsCustodyProvider.createDfnsClient(config);
 
-    const issuerWallet = await DfnsCustodyProvider.createWalletProvider(dfnsClient, config.assetIssuerWalletId, config.rpcUrl);
-    const escrowWallet = await DfnsCustodyProvider.createWalletProvider(dfnsClient, config.assetEscrowWalletId, config.rpcUrl);
-
-    // Cache address → walletId mapping
+    // Cache address → walletId mapping for resolveWallet().
     const addressToWalletId = new Map<string, string>();
     const { items } = await dfnsClient.wallets.listWallets({});
     for (const w of items) {
@@ -66,12 +54,7 @@ export class DfnsCustodyProvider implements CustodyProvider {
       gasStation = new GasStation(gasWallet, config.gasFunding.amount);
     }
 
-    let omnibusWallet: CustodyWallet | undefined;
-    if (config.omnibusWalletId) {
-      omnibusWallet = await DfnsCustodyProvider.createWalletProvider(dfnsClient, config.omnibusWalletId, config.rpcUrl);
-    }
-
-    return new DfnsCustodyProvider(issuerWallet, escrowWallet, config, dfnsClient, addressToWalletId, gasStation, omnibusWallet);
+    return new DfnsCustodyProvider(config, dfnsClient, addressToWalletId, gasStation);
   }
 
   async createWalletForCustodyId(walletId: string): Promise<CustodyWallet> {

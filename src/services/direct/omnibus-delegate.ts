@@ -64,38 +64,30 @@ export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowD
 
   /**
    * JIT-resolved omnibus signing wallet. Reads the custodyAccountId from the
-   * '__omnibus__' mapping and constructs the wallet via
-   * `CustodyProvider.createWalletForCustodyId`. Falls back to the provider's
-   * pre-constructed `omnibus` field for paths that don't go through the DB
-   * (tests / mocks / providers without per-id construction).
+   * '__omnibus__' mapping (registered at boot from env) and constructs the
+   * wallet via `CustodyProvider.createWalletForCustodyId`. Throws if the
+   * mapping is absent — operator must set OMNIBUS_CUSTODY_ACCOUNT_ID.
    */
   private async getOmnibusWallet(): Promise<CustodyWallet> {
-    const full = await this.accountMapping.resolveFullAccount?.(OMNIBUS_FIN_ID);
-    const custodyId = full?.custodyAccountId;
-    if (custodyId && this.custodyProvider.createWalletForCustodyId) {
-      return this.custodyProvider.createWalletForCustodyId(custodyId);
-    }
-    if (this.custodyProvider.omnibus) {
-      return this.custodyProvider.omnibus;
-    }
-    throw new Error(
-      `Cannot resolve omnibus wallet: '${OMNIBUS_FIN_ID}' mapping has no custodyAccountId and custodyProvider has no omnibus fallback`,
-    );
+    return this.resolveSpecialWallet(OMNIBUS_FIN_ID);
   }
 
   /**
-   * JIT-resolved escrow signing wallet. Same shape as `getOmnibusWallet` —
-   * prefers the '__escrow__' mapping's custodyAccountId via
-   * `CustodyProvider.createWalletForCustodyId`, otherwise the provider's
-   * pre-constructed `escrow` (always present per the interface).
+   * JIT-resolved escrow signing wallet. Same shape as `getOmnibusWallet`.
+   * Throws if the '__escrow__' mapping is absent — operator must set
+   * ASSET_ESCROW_CUSTODY_ACCOUNT_ID.
    */
   private async getEscrowWallet(): Promise<CustodyWallet> {
-    const full = await this.accountMapping.resolveFullAccount?.(ESCROW_FIN_ID);
+    return this.resolveSpecialWallet(ESCROW_FIN_ID);
+  }
+
+  private async resolveSpecialWallet(reservedFinId: string): Promise<CustodyWallet> {
+    const full = await this.accountMapping.resolveFullAccount?.(reservedFinId);
     const custodyId = full?.custodyAccountId;
-    if (custodyId && this.custodyProvider.createWalletForCustodyId) {
-      return this.custodyProvider.createWalletForCustodyId(custodyId);
+    if (!custodyId) {
+      throw new Error(`Cannot resolve '${reservedFinId}' wallet: no custodyAccountId in account_mappings (registerSpecialAccount must run at boot)`);
     }
-    return this.custodyProvider.escrow;
+    return this.custodyProvider.createWalletForCustodyId(custodyId);
   }
 
   async outboundTransfer(
