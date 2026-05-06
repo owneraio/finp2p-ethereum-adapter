@@ -14,7 +14,7 @@ import { tokenStandardRegistry } from "./token-standards/registry";
 import { ERC20_TOKEN_STANDARD, DEFAULT_NEW_ERC20_DECIMALS } from "./token-standards/erc20";
 import { ERC20Contract } from "@owneraio/finp2p-contracts";
 import { AccountMappingService, AssetStore } from './account-mapping';
-import { OMNIBUS_FIN_ID } from './special-accounts';
+import { OMNIBUS_FIN_ID, ESCROW_FIN_ID } from './special-accounts';
 import { getAssetFromDb } from './helpers';
 
 export interface ReceiptPollingConfig {
@@ -34,9 +34,6 @@ const defaultReceiptPolling: ReceiptPollingConfig = {
 export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowDelegate, OmnibusDelegateInterface, PaymentService {
 
   private readonly receiptPolling: ReceiptPollingConfig;
-  // Memoize the JIT-resolved wallet (and any failure) — first call decides; later
-  // calls reuse. Caching the promise avoids racing concurrent constructions.
-  private omnibusWalletPromise: Promise<CustodyWallet> | undefined;
 
   constructor(
     private readonly logger: winston.Logger,
@@ -72,14 +69,7 @@ export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowD
    * pre-constructed `omnibus` field for paths that don't go through the DB
    * (tests / mocks / providers without per-id construction).
    */
-  private getOmnibusWallet(): Promise<CustodyWallet> {
-    if (!this.omnibusWalletPromise) {
-      this.omnibusWalletPromise = this.resolveOmnibusWallet();
-    }
-    return this.omnibusWalletPromise;
-  }
-
-  private async resolveOmnibusWallet(): Promise<CustodyWallet> {
+  private async getOmnibusWallet(): Promise<CustodyWallet> {
     const full = await this.accountMapping.resolveFullAccount?.(OMNIBUS_FIN_ID);
     const custodyId = full?.custodyAccountId;
     if (custodyId && this.custodyProvider.createWalletForCustodyId) {
@@ -91,6 +81,21 @@ export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowD
     throw new Error(
       `Cannot resolve omnibus wallet: '${OMNIBUS_FIN_ID}' mapping has no custodyAccountId and custodyProvider has no omnibus fallback`,
     );
+  }
+
+  /**
+   * JIT-resolved escrow signing wallet. Same shape as `getOmnibusWallet` —
+   * prefers the '__escrow__' mapping's custodyAccountId via
+   * `CustodyProvider.createWalletForCustodyId`, otherwise the provider's
+   * pre-constructed `escrow` (always present per the interface).
+   */
+  private async getEscrowWallet(): Promise<CustodyWallet> {
+    const full = await this.accountMapping.resolveFullAccount?.(ESCROW_FIN_ID);
+    const custodyId = full?.custodyAccountId;
+    if (custodyId && this.custodyProvider.createWalletForCustodyId) {
+      return this.custodyProvider.createWalletForCustodyId(custodyId);
+    }
+    return this.custodyProvider.escrow;
   }
 
   async outboundTransfer(
@@ -217,8 +222,9 @@ export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowD
 
     const standard = tokenStandardRegistry.resolve(dbAsset.tokenStandard);
     const omnibusWallet = await this.getOmnibusWallet();
+    const escrowWallet = await this.getEscrowWallet();
     await this.ensureGas(omnibusWallet);
-    const result = await standard.hold(omnibusWallet, this.custodyProvider.escrow, dbAsset, amount, this.logger);
+    const result = await standard.hold(omnibusWallet, escrowWallet, dbAsset, amount, this.logger);
     if (result.status === 'failure') return { success: false, error: result.reason };
 
     this.logger.info(`Hold: ${quantity} of ${asset.assetId} from omnibus to escrow, tx: ${result.transactionId}`);
@@ -231,7 +237,7 @@ export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowD
   ): Promise<DelegateResult> {
     const dbAsset = await getAssetFromDb(this.assetStore, asset.assetId);
     const omnibusAddress = await this.getOmnibusAddress();
-    const escrowWallet = this.custodyProvider.escrow;
+    const escrowWallet = await this.getEscrowWallet();
     const amount = parseUnits(quantity, dbAsset.decimals);
 
     // Local destination (mapped in our DB → our investor): funds stay pooled in our
@@ -261,7 +267,7 @@ export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowD
   ): Promise<DelegateResult> {
     const dbAsset = await getAssetFromDb(this.assetStore, asset.assetId);
     const omnibusAddress = await this.getOmnibusAddress();
-    const escrowWallet = this.custodyProvider.escrow;
+    const escrowWallet = await this.getEscrowWallet();
     const amount = parseUnits(quantity, dbAsset.decimals);
 
     const standard = tokenStandardRegistry.resolve(dbAsset.tokenStandard);
