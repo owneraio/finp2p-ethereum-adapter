@@ -33,8 +33,10 @@ const defaultReceiptPolling: ReceiptPollingConfig = {
 
 export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowDelegate, OmnibusDelegateInterface, PaymentService {
 
-  private readonly omnibusWallet: CustodyWallet;
   private readonly receiptPolling: ReceiptPollingConfig;
+  // Memoize the JIT-resolved wallet (and any failure) — first call decides; later
+  // calls reuse. Caching the promise avoids racing concurrent constructions.
+  private omnibusWalletPromise: Promise<CustodyWallet> | undefined;
 
   constructor(
     private readonly logger: winston.Logger,
@@ -43,8 +45,6 @@ export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowD
     private readonly assetStore: AssetStore,
     receiptPolling?: Partial<ReceiptPollingConfig>,
   ) {
-    if (!custodyProvider.omnibus) throw new Error('Omnibus wallet is required for omnibus delegate');
-    this.omnibusWallet = custodyProvider.omnibus;
     this.receiptPolling = { ...defaultReceiptPolling, ...receiptPolling };
   }
 
@@ -54,15 +54,43 @@ export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowD
   }
 
   /**
-   * Read-only omnibus address. Sourced from the account_mappings entry registered
-   * at boot under OMNIBUS_FIN_ID — keeps the runtime read path env-free and lets
-   * operators introspect via the mapping API. Falls back to the wallet's own
-   * getAddress() when the mapping isn't present (tests, or boot-time write skipped).
+   * Read-only omnibus address. Sourced from the account_mappings entry
+   * registered at boot under OMNIBUS_FIN_ID — keeps the runtime read path
+   * env-free. Falls back to the JIT-constructed wallet when the mapping
+   * has no ledger field (tests, or boot-time write skipped).
    */
   private async getOmnibusAddress(): Promise<string> {
     const mapped = await this.accountMapping.resolveAccount(OMNIBUS_FIN_ID);
     if (mapped) return mapped;
-    return this.omnibusWallet.signer.getAddress();
+    return (await this.getOmnibusWallet()).signer.getAddress();
+  }
+
+  /**
+   * JIT-resolved omnibus signing wallet. Reads the custodyAccountId from the
+   * '__omnibus__' mapping and constructs the wallet via
+   * `CustodyProvider.createWalletForCustodyId`. Falls back to the provider's
+   * pre-constructed `omnibus` field for paths that don't go through the DB
+   * (tests / mocks / providers without per-id construction).
+   */
+  private getOmnibusWallet(): Promise<CustodyWallet> {
+    if (!this.omnibusWalletPromise) {
+      this.omnibusWalletPromise = this.resolveOmnibusWallet();
+    }
+    return this.omnibusWalletPromise;
+  }
+
+  private async resolveOmnibusWallet(): Promise<CustodyWallet> {
+    const full = await this.accountMapping.resolveFullAccount?.(OMNIBUS_FIN_ID);
+    const custodyId = full?.custodyAccountId;
+    if (custodyId && this.custodyProvider.createWalletForCustodyId) {
+      return this.custodyProvider.createWalletForCustodyId(custodyId);
+    }
+    if (this.custodyProvider.omnibus) {
+      return this.custodyProvider.omnibus;
+    }
+    throw new Error(
+      `Cannot resolve omnibus wallet: '${OMNIBUS_FIN_ID}' mapping has no custodyAccountId and custodyProvider has no omnibus fallback`,
+    );
   }
 
   async outboundTransfer(
@@ -76,8 +104,9 @@ export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowD
 
     const amount = parseUnits(quantity, dbAsset.decimals);
     const standard = tokenStandardRegistry.resolve(dbAsset.tokenStandard);
-    await this.ensureGas(this.omnibusWallet);
-    const result = await standard.transfer(this.omnibusWallet, dbAsset, destinationAddress, amount, this.logger);
+    const omnibusWallet = await this.getOmnibusWallet();
+    await this.ensureGas(omnibusWallet);
+    const result = await standard.transfer(omnibusWallet, dbAsset, destinationAddress, amount, this.logger);
     if (result.status === 'failure') return { success: false, error: result.reason };
 
     this.logger.info(`Outbound transfer: ${quantity} of ${asset.assetId} to ${destinationAddress}, tx: ${result.transactionId}`);
@@ -187,8 +216,9 @@ export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowD
     const amount = parseUnits(quantity, dbAsset.decimals);
 
     const standard = tokenStandardRegistry.resolve(dbAsset.tokenStandard);
-    await this.ensureGas(this.omnibusWallet);
-    const result = await standard.hold(this.omnibusWallet, this.custodyProvider.escrow, dbAsset, amount, this.logger);
+    const omnibusWallet = await this.getOmnibusWallet();
+    await this.ensureGas(omnibusWallet);
+    const result = await standard.hold(omnibusWallet, this.custodyProvider.escrow, dbAsset, amount, this.logger);
     if (result.status === 'failure') return { success: false, error: result.reason };
 
     this.logger.info(`Hold: ${quantity} of ${asset.assetId} from omnibus to escrow, tx: ${result.transactionId}`);
@@ -246,8 +276,9 @@ export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowD
   async getOmnibusBalance(assetId: string, assetType: AssetType): Promise<string> {
     const dbAsset = await getAssetFromDb(this.assetStore, assetId);
     const omnibusAddress = await this.getOmnibusAddress();
+    const omnibusWallet = await this.getOmnibusWallet();
     const standard = tokenStandardRegistry.resolve(dbAsset.tokenStandard);
-    return standard.balanceOf(this.omnibusWallet.provider, this.omnibusWallet.signer, dbAsset, omnibusAddress, this.logger);
+    return standard.balanceOf(omnibusWallet.provider, omnibusWallet.signer, dbAsset, omnibusAddress, this.logger);
   }
 
   async getDepositInstruction(
@@ -333,10 +364,11 @@ export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowD
       standard: std,
     });
 
+    const omnibusWallet = await this.getOmnibusWallet();
     if (assetBind === undefined || assetBind.tokenIdentifier === undefined) {
       const symbol = 'OWNERA';
-      await this.ensureGas(this.omnibusWallet);
-      const result = await standard.deploy(this.omnibusWallet, assetName ?? 'OWNERACOIN', symbol, DEFAULT_NEW_ERC20_DECIMALS, this.logger);
+      await this.ensureGas(omnibusWallet);
+      const result = await standard.deploy(omnibusWallet, assetName ?? 'OWNERACOIN', symbol, DEFAULT_NEW_ERC20_DECIMALS, this.logger);
       await this.assetStore.saveAsset({ contract_address: result.contractAddress, decimals: result.decimals, token_standard: result.tokenStandard, id: assetId });
       await this.custodyProvider.onAssetRegistered?.(result.contractAddress, symbol);
       return { ledgerIdentifier: makeLedgerIdentifier(result.contractAddress, result.tokenStandard, defaultNetwork), reference: undefined };
@@ -344,7 +376,7 @@ export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowD
 
     const tokenAddress = assetBind.tokenIdentifier.tokenId;
     const network = assetBind.tokenIdentifier.network || defaultNetwork;
-    const erc20 = new ERC20Contract(this.omnibusWallet.provider, this.omnibusWallet.signer, tokenAddress, this.logger);
+    const erc20 = new ERC20Contract(omnibusWallet.provider, omnibusWallet.signer, tokenAddress, this.logger);
     const decimals = Number(await erc20.decimals());
     await this.assetStore.saveAsset({ contract_address: tokenAddress, decimals, token_standard: tokenStandard, id: assetId });
     await this.custodyProvider.onAssetRegistered?.(tokenAddress);

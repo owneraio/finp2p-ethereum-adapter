@@ -1,7 +1,7 @@
 import { OmnibusDelegate } from '../src/services/direct/omnibus-delegate';
 import { CustodyProvider, CustodyWallet } from '../src/services/direct/custody-provider';
 import { AccountMappingService, AssetStore } from '../src/services/direct/account-mapping';
-import { tokenStandardRegistry, ERC20TokenStandard, ERC20_TOKEN_STANDARD } from '../src/services/direct';
+import { tokenStandardRegistry, ERC20TokenStandard, ERC20_TOKEN_STANDARD, OMNIBUS_FIN_ID } from '../src/services/direct';
 import winston from 'winston';
 
 tokenStandardRegistry.register(ERC20_TOKEN_STANDARD, new ERC20TokenStandard());
@@ -86,15 +86,20 @@ describe('OmnibusDelegate', () => {
 
     custodyProvider = createMockCustodyProvider();
     accountMapping = createMockAccountMapping();
+    // Default: '__omnibus__' resolves to the mock omnibus address. Per-test mocks
+    // for investor finIds use mockImplementationOnce or override below.
+    (accountMapping.resolveAccount as jest.Mock).mockImplementation(async (finId: string) =>
+      finId === OMNIBUS_FIN_ID ? '0xOMNIBUS' : undefined);
     const mockAssetStore = { getAsset: mockGetAsset, saveAsset: mockSaveAsset } as unknown as AssetStore;
     delegate = new OmnibusDelegate(logger, custodyProvider, accountMapping, mockAssetStore);
   });
 
-  it('should throw if custody provider has no omnibus wallet', () => {
-    const noOmnibus = createMockCustodyProvider({ omnibus: undefined });
-    const mockAssetStore = { getAsset: jest.fn(), saveAsset: jest.fn() } as unknown as AssetStore;
-    expect(() => new OmnibusDelegate(logger, noOmnibus, accountMapping, mockAssetStore))
-      .toThrow('Omnibus wallet is required');
+  it('should fail at first usage when custody provider has no omnibus and no JIT construction is possible', async () => {
+    const noOmnibus = createMockCustodyProvider({ omnibus: undefined, createWalletForCustodyId: undefined });
+    const mockAssetStore = { getAsset: mockGetAsset, saveAsset: mockSaveAsset } as unknown as AssetStore;
+    const noFallbackDelegate = new OmnibusDelegate(logger, noOmnibus, accountMapping, mockAssetStore);
+    await expect(noFallbackDelegate.getOmnibusBalance(TEST_ASSET.assetId, TEST_ASSET.assetType))
+      .rejects.toThrow(/Cannot resolve omnibus wallet/);
   });
 
   describe('getOmnibusBalance', () => {
@@ -139,7 +144,8 @@ describe('OmnibusDelegate', () => {
     it('should transfer to resolved destination address', async () => {
       const mockReceipt = { hash: '0xTX_HASH', status: 1, getBlock: jest.fn().mockResolvedValue({ timestamp: 1700000000 }) };
       mockTransfer.mockResolvedValue({ wait: jest.fn().mockResolvedValue(mockReceipt) });
-      (accountMapping.resolveAccount as jest.Mock).mockResolvedValue('0xDEST_ADDRESS');
+      (accountMapping.resolveAccount as jest.Mock).mockImplementation(async (finId: string) =>
+        finId === OMNIBUS_FIN_ID ? '0xOMNIBUS' : '0xDEST_ADDRESS');
 
       const result = await delegate.outboundTransfer(
         'idem-1',
@@ -210,7 +216,8 @@ describe('OmnibusDelegate', () => {
     it('should transfer from escrow to omnibus when destination is locally mapped', async () => {
       const mockReceipt = { hash: '0xRELEASE_TX', status: 1, getBlock: jest.fn().mockResolvedValue({ timestamp: 1700000000 }) };
       mockTransfer.mockResolvedValue({ wait: jest.fn().mockResolvedValue(mockReceipt) });
-      (accountMapping.resolveAccount as jest.Mock).mockResolvedValue('0xLOCAL_INVESTOR');
+      (accountMapping.resolveAccount as jest.Mock).mockImplementation(async (finId: string) =>
+        finId === OMNIBUS_FIN_ID ? '0xOMNIBUS' : '0xLOCAL_INVESTOR');
 
       const result = await delegate.release(
         'idem-release',
@@ -226,7 +233,8 @@ describe('OmnibusDelegate', () => {
     it('should transfer from escrow to external counterparty address when destination is unmapped', async () => {
       const mockReceipt = { hash: '0xCROSS_ORG_TX', status: 1, getBlock: jest.fn().mockResolvedValue({ timestamp: 1700000000 }) };
       mockTransfer.mockResolvedValue({ wait: jest.fn().mockResolvedValue(mockReceipt) });
-      (accountMapping.resolveAccount as jest.Mock).mockResolvedValue(undefined);
+      (accountMapping.resolveAccount as jest.Mock).mockImplementation(async (finId: string) =>
+        finId === OMNIBUS_FIN_ID ? '0xOMNIBUS' : undefined);
 
       const result = await delegate.release(
         'idem-release-cross-org',
@@ -240,7 +248,8 @@ describe('OmnibusDelegate', () => {
     });
 
     it('should fail cleanly when neither local mapping nor external address is provided', async () => {
-      (accountMapping.resolveAccount as jest.Mock).mockResolvedValue(undefined);
+      (accountMapping.resolveAccount as jest.Mock).mockImplementation(async (finId: string) =>
+        finId === OMNIBUS_FIN_ID ? '0xOMNIBUS' : undefined);
 
       const result = await delegate.release(
         'idem-release-bad',
