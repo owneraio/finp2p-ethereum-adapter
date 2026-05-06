@@ -263,6 +263,7 @@ async function createApp(
     assetStore,
     accountModel: appConfig.accountModel,
     custodyProvider,
+    accountMapping,
     inboundTransferHook: omnibusCtx?.vanilla.inboundTransferHook,
   });
 

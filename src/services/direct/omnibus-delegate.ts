@@ -14,6 +14,7 @@ import { tokenStandardRegistry } from "./token-standards/registry";
 import { ERC20_TOKEN_STANDARD, DEFAULT_NEW_ERC20_DECIMALS } from "./token-standards/erc20";
 import { ERC20Contract } from "@owneraio/finp2p-contracts";
 import { AccountMappingService, AssetStore } from './account-mapping';
+import { OMNIBUS_FIN_ID } from './special-accounts';
 import { getAssetFromDb } from './helpers';
 
 export interface ReceiptPollingConfig {
@@ -50,6 +51,18 @@ export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowD
   private async ensureGas(wallet: CustodyWallet): Promise<void> {
     if (!this.custodyProvider.gasStation) return;
     await this.custodyProvider.gasStation.ensureGas(await wallet.signer.getAddress());
+  }
+
+  /**
+   * Read-only omnibus address. Sourced from the account_mappings entry registered
+   * at boot under OMNIBUS_FIN_ID — keeps the runtime read path env-free and lets
+   * operators introspect via the mapping API. Falls back to the wallet's own
+   * getAddress() when the mapping isn't present (tests, or boot-time write skipped).
+   */
+  private async getOmnibusAddress(): Promise<string> {
+    const mapped = await this.accountMapping.resolveAccount(OMNIBUS_FIN_ID);
+    if (mapped) return mapped;
+    return this.omnibusWallet.signer.getAddress();
   }
 
   async outboundTransfer(
@@ -125,7 +138,7 @@ export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowD
       );
     }
 
-    const omnibusAddress = (await this.omnibusWallet.signer.getAddress()).toLowerCase();
+    const omnibusAddress = (await this.getOmnibusAddress()).toLowerCase();
     const transferTopic = keccak256('Transfer(address,address,uint256)');
     const matchingLog = receipt.logs.find(log =>
       log.topics[0] === transferTopic &&
@@ -187,7 +200,7 @@ export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowD
     asset: Asset, quantity: string, operationId: string, exCtx: ExecutionContext | undefined,
   ): Promise<DelegateResult> {
     const dbAsset = await getAssetFromDb(this.assetStore, asset.assetId);
-    const omnibusAddress = await this.omnibusWallet.signer.getAddress();
+    const omnibusAddress = await this.getOmnibusAddress();
     const escrowWallet = this.custodyProvider.escrow;
     const amount = parseUnits(quantity, dbAsset.decimals);
 
@@ -217,7 +230,7 @@ export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowD
     asset: Asset, quantity: string, operationId: string, exCtx: ExecutionContext | undefined,
   ): Promise<DelegateResult> {
     const dbAsset = await getAssetFromDb(this.assetStore, asset.assetId);
-    const omnibusAddress = await this.omnibusWallet.signer.getAddress();
+    const omnibusAddress = await this.getOmnibusAddress();
     const escrowWallet = this.custodyProvider.escrow;
     const amount = parseUnits(quantity, dbAsset.decimals);
 
@@ -232,7 +245,7 @@ export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowD
 
   async getOmnibusBalance(assetId: string, assetType: AssetType): Promise<string> {
     const dbAsset = await getAssetFromDb(this.assetStore, assetId);
-    const omnibusAddress = await this.omnibusWallet.signer.getAddress();
+    const omnibusAddress = await this.getOmnibusAddress();
     const standard = tokenStandardRegistry.resolve(dbAsset.tokenStandard);
     return standard.balanceOf(this.omnibusWallet.provider, this.omnibusWallet.signer, dbAsset, omnibusAddress, this.logger);
   }
@@ -252,7 +265,7 @@ export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowD
     }
     const dbAsset = await getAssetFromDb(this.assetStore, _asset.assetId);
 
-    const omnibusAddress = await this.omnibusWallet.signer.getAddress();
+    const omnibusAddress = await this.getOmnibusAddress();
     const network = await this.custodyProvider.rpcProvider.getNetwork();
     const chainId = Number(network.chainId);
 

@@ -1,5 +1,6 @@
 import { IntegrationContext } from "../../registry";
 import { DepositTargetResolver, resolveDepositMethod } from "../types";
+import { OMNIBUS_FIN_ID } from "../../../services/direct";
 import { PullDepositPlugin } from "./plugin";
 
 /**
@@ -32,7 +33,7 @@ export function registerPullDeposit(ctx: IntegrationContext): void {
   if (process.env.DTCC_PLUGIN_ENABLED === 'true') return;
   if (resolveDepositMethod(ctx.accountModel) !== 'pull') return;
 
-  const { pluginManager, logger, custodyProvider, assetStore, walletResolver, accountModel, finP2PClient, inboundTransferHook } = ctx;
+  const { pluginManager, logger, custodyProvider, assetStore, walletResolver, accountModel, finP2PClient, inboundTransferHook, accountMapping } = ctx;
   if (!custodyProvider || !assetStore) {
     logger.info('Pull-deposit plugin not registered: requires custody provider + asset store');
     return;
@@ -53,7 +54,10 @@ export function registerPullDeposit(ctx: IntegrationContext): void {
   if (accountModel === 'omnibus') {
     let omnibusAddress: string | undefined;
     resolveDepositTarget = async () => {
-      if (!omnibusAddress) omnibusAddress = await custodyProvider.omnibus!.signer.getAddress();
+      if (!omnibusAddress) {
+        omnibusAddress = (await accountMapping?.resolveAccount(OMNIBUS_FIN_ID))
+          ?? await custodyProvider.omnibus!.signer.getAddress();
+      }
       return omnibusAddress;
     };
   } else {
