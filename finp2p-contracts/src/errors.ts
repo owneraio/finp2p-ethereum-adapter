@@ -42,13 +42,15 @@ export const detectError = (e: any): DetectedError | Error => {
   }
 
   // "Nonce too high" — local nonce is AHEAD of the chain (queued in mempool).
-  // Match: inner JSON-RPC code -32000 with a "Nonce too high" message in
-  // either v5 (`e.error`) or v6 (`e.info.error`) shape.
-  if (
-    innerCode === -32000 ||
-    (typeof innerMessage === 'string' && innerMessage.startsWith("Nonce too high"))
-  ) {
-    return new NonceTooHighError(innerMessage ?? messageString);
+  // Match the explicit "Nonce too high" message string in the inner error
+  // (v5 `e.error.message` or v6 `e.info.error.message`). We deliberately do
+  // NOT match on bare `code === -32000`: that's a generic JSON-RPC "Server
+  // error" used for many non-nonce failures ("insufficient funds for gas",
+  // "execution reverted", "transaction underpriced", …). Matching it here
+  // would force the wrapper to reset the NonceManager and retry up to 10×
+  // before surfacing a non-nonce error, masking the real cause.
+  if (typeof innerMessage === 'string' && innerMessage.startsWith("Nonce too high")) {
+    return new NonceTooHighError(innerMessage);
   }
 
   // Generic on-chain revert / transaction error.
