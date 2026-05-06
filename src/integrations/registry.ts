@@ -2,7 +2,7 @@ import winston from "winston";
 import { PluginManager } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import { InboundTransferHook } from "@owneraio/finp2p-nodejs-skeleton-adapter/plugin";
 import { FinP2PClient } from "@owneraio/finp2p-client";
-import { AssetStore, CustodyProvider, WalletResolver } from "../services/direct";
+import { AssetStore, CustodyProvider, WalletResolver, AccountMappingService } from "../services/direct";
 import { AccountModel } from "../config";
 import { registerFireblocks } from "./fireblocks";
 import { registerDfns } from "./dfns";
@@ -21,10 +21,11 @@ export interface IntegrationContext {
   assetStore: AssetStore | undefined;
   accountModel: AccountModel;
   custodyProvider: CustodyProvider | undefined;
+  accountMapping: AccountMappingService | undefined;
   inboundTransferHook: InboundTransferHook | undefined;
 }
 
-export type IntegrationRegistrar = (ctx: IntegrationContext) => void;
+export type IntegrationRegistrar = (ctx: IntegrationContext) => Promise<void> | void;
 
 /** Register compiled-in custody providers — must run before custodyRegistry.create(). */
 export function registerCustodyIntegrations(): void {
@@ -40,6 +41,6 @@ const integrations: IntegrationRegistrar[] = [
 ];
 
 /** Register runtime integrations (plugins, token standards) — runs after custody provider is created. */
-export function registerIntegrations(ctx: IntegrationContext): void {
-  for (const register of integrations) register(ctx);
+export async function registerIntegrations(ctx: IntegrationContext): Promise<void> {
+  for (const register of integrations) await register(ctx);
 }

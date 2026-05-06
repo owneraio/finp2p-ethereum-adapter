@@ -27,6 +27,11 @@ import {
   AccountMappingStore,
   AssetStore,
   OmnibusDelegate,
+  OmnibusPlanApprovalPlugin,
+  registerSpecialAccount,
+  ISSUER_FIN_ID,
+  ESCROW_FIN_ID,
+  OMNIBUS_FIN_ID,
   CommonServiceImpl as DirectCommonServiceImpl,
   HealthServiceImpl as DirectHealthServiceImpl,
   tokenStandardRegistry,
@@ -207,6 +212,26 @@ async function createApp(
     ? new DbAccountMapping(accountMappingService)
     : new DerivationAccountMapping();
 
+  // Persist env-derived custody account IDs (issuer / escrow / omnibus) into
+  // account_mappings under reserved finIds, so runtime lookups go through the
+  // same AccountMappingService used for investor finIds. Env is load-bearing
+  // only here at boot for the seed write; reads (delegate / token-service /
+  // deposit plugins / plan-approval validator) come from the DB.
+  if (accountMappingStore && custodyProvider) {
+    const issuerCustodyId = process.env.ASSET_ISSUER_CUSTODY_ACCOUNT_ID;
+    if (issuerCustodyId) {
+      await registerSpecialAccount(accountMappingStore, ISSUER_FIN_ID, issuerCustodyId, custodyProvider, logger);
+    }
+    const escrowCustodyId = process.env.ASSET_ESCROW_CUSTODY_ACCOUNT_ID;
+    if (escrowCustodyId) {
+      await registerSpecialAccount(accountMappingStore, ESCROW_FIN_ID, escrowCustodyId, custodyProvider, logger);
+    }
+    const omnibusCustodyId = process.env.OMNIBUS_CUSTODY_ACCOUNT_ID;
+    if (omnibusCustodyId) {
+      await registerSpecialAccount(accountMappingStore, OMNIBUS_FIN_ID, omnibusCustodyId, custodyProvider, logger);
+    }
+  }
+
   let omnibusCtx: OmnibusContext | undefined;
   if (appConfig.accountModel === 'omnibus' && custodyProvider) {
     if (!dbPool || !assetStore) throw new Error('DB connection is required for omnibus account model');
@@ -228,9 +253,15 @@ async function createApp(
         inboundTransferHook: vanillaService,
       },
     };
+
+    // Register before registerIntegrations so an integration plugin (e.g. DTCC)
+    // can override if both are enabled.
+    pluginManager.registerPlanApprovalPlugin(
+      new OmnibusPlanApprovalPlugin(appConfig.orgId, accountMapping, finP2PClient, logger),
+    );
   }
 
-  registerIntegrations({
+  await registerIntegrations({
     orgId: appConfig.orgId,
     logger,
     pluginManager,
@@ -240,6 +271,7 @@ async function createApp(
     assetStore,
     accountModel: appConfig.accountModel,
     custodyProvider,
+    accountMapping,
     inboundTransferHook: omnibusCtx?.vanilla.inboundTransferHook,
   });
 

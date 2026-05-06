@@ -9,6 +9,7 @@ import { parseUnits } from "ethers";
 import { TokenOperationResult } from '@owneraio/finp2p-ethereum-token-standard';
 import { CustodyProvider, CustodyWallet } from './custody-provider';
 import { AccountMappingService, AssetStore } from './account-mapping';
+import { ISSUER_FIN_ID, ESCROW_FIN_ID } from './special-accounts';
 import { getAssetFromDb } from './helpers';
 import { tokenStandardRegistry } from './token-standards/registry';
 import { ERC20_TOKEN_STANDARD, DEFAULT_NEW_ERC20_DECIMALS } from './token-standards/erc20';
@@ -79,6 +80,35 @@ export class DirectTokenService implements TokenService, EscrowService {
     await this.custodyProvider.gasStation.ensureGas(await wallet.signer.getAddress());
   }
 
+  /**
+   * Read-only escrow address from the '__escrow__' mapping registered at boot.
+   * Throws if absent — operator must set ASSET_ESCROW_CUSTODY_ACCOUNT_ID.
+   */
+  private async getEscrowAddress(): Promise<string> {
+    const mapped = await this.accountMapping.resolveAccount(ESCROW_FIN_ID);
+    if (mapped) return mapped;
+    return (await this.getEscrowWallet()).signer.getAddress();
+  }
+
+  /** JIT-resolved escrow signing wallet via the '__escrow__' mapping. */
+  private async getEscrowWallet(): Promise<CustodyWallet> {
+    return this.resolveSpecialWallet(ESCROW_FIN_ID);
+  }
+
+  /** JIT-resolved issuer signing wallet via the '__issuer__' mapping. */
+  private async getIssuerWallet(): Promise<CustodyWallet> {
+    return this.resolveSpecialWallet(ISSUER_FIN_ID);
+  }
+
+  private async resolveSpecialWallet(reservedFinId: string): Promise<CustodyWallet> {
+    const full = await this.accountMapping.resolveFullAccount?.(reservedFinId);
+    const custodyId = full?.custodyAccountId;
+    if (!custodyId) {
+      throw new Error(`Cannot resolve '${reservedFinId}' wallet: no custodyAccountId in account_mappings (registerSpecialAccount must run at boot)`);
+    }
+    return this.custodyProvider.createWalletForCustodyId(custodyId);
+  }
+
   async createAsset(
     idempotencyKey: string, assetId: string, assetBind: AssetBind | undefined,
     assetMetadata: any, assetName: string | undefined, issuerId: string | undefined,
@@ -91,7 +121,7 @@ export class DirectTokenService implements TokenService, EscrowService {
     const defaultNetwork = `eip155:${chainId}`;
 
     if (assetBind === undefined || assetBind.tokenIdentifier === undefined) {
-      const wallet = this.custodyProvider.issuer;
+      const wallet = await this.getIssuerWallet();
       const symbol = "OWNERA"; // TODO: align with product team which metadata fields to use for token name/symbol/decimals
       const result = await standard.deploy(wallet, assetName ?? "OWNERACOIN", symbol, DEFAULT_NEW_ERC20_DECIMALS, this.logger);
       await this.assetStore.saveAsset({
@@ -109,7 +139,7 @@ export class DirectTokenService implements TokenService, EscrowService {
       };
     } else {
       const tokenAddress = assetBind.tokenIdentifier.tokenId;
-      const wallet = this.custodyProvider.issuer;
+      const wallet = await this.getIssuerWallet();
       const erc20 = new ERC20Contract(wallet.provider, wallet.signer, tokenAddress, this.logger);
       const decimals = Number(await erc20.decimals());
       await this.assetStore.saveAsset({
@@ -134,8 +164,9 @@ export class DirectTokenService implements TokenService, EscrowService {
     if (address === undefined) return "0";
     const asset = await getAssetFromDb(this.assetStore, ast.assetId);
     const standard = tokenStandardRegistry.resolve(asset.tokenStandard);
+    const issuerWallet = await this.getIssuerWallet();
     return standard.balanceOf(
-      this.custodyProvider.issuer.provider, this.custodyProvider.issuer.signer,
+      issuerWallet.provider, issuerWallet.signer,
       asset, address, this.logger,
     );
   }
@@ -152,7 +183,7 @@ export class DirectTokenService implements TokenService, EscrowService {
     try {
       const asset = await getAssetFromDb(this.assetStore, ast.assetId);
       const standard = tokenStandardRegistry.resolve(asset.tokenStandard);
-      const wallet = this.custodyProvider.issuer;
+      const wallet = await this.getIssuerWallet();
       const address = await this.resolveAddress(toFinId);
       const amount = parseUnits(quantity, asset.decimals);
 
@@ -200,8 +231,8 @@ export class DirectTokenService implements TokenService, EscrowService {
     try {
       const asset = await getAssetFromDb(this.assetStore, ast.assetId);
       const standard = tokenStandardRegistry.resolve(asset.tokenStandard);
-      const escrowAddress = await this.custodyProvider.escrow.signer.getAddress();
-      const wallet = this.custodyProvider.issuer;
+      const escrowAddress = await this.getEscrowAddress();
+      const wallet = await this.getIssuerWallet();
       const amount = parseUnits(quantity, asset.decimals);
 
       await this.ensureGas(wallet);
@@ -230,7 +261,8 @@ export class DirectTokenService implements TokenService, EscrowService {
 
       await this.ensureGas(wallet);
       const opCtx = buildOperationContext(ast, signature, exCtx, operationId);
-      const result = await standard.hold(wallet, this.custodyProvider.escrow, asset, amount, this.logger, opCtx);
+      const escrowWallet = await this.getEscrowWallet();
+      const result = await standard.hold(wallet, escrowWallet, asset, amount, this.logger, opCtx);
       return resultToReceipt(result, ast, "hold", quantity, source, destination, exCtx, operationId);
     } catch (e) {
       this.logger.error(`Hold failed: asset=${ast.assetId} source=${source.finId} quantity=${quantity} operationId=${operationId}`, e);
@@ -248,7 +280,7 @@ export class DirectTokenService implements TokenService, EscrowService {
       const destinationAddress = await this.accountMapping.resolveAccount(destination.finId)
         ?? destination.account?.address;
       if (!destinationAddress) throw new Error(`Cannot resolve address for finId: ${destination.finId}`);
-      const escrowWallet = this.custodyProvider.escrow;
+      const escrowWallet = await this.getEscrowWallet();
       const amount = parseUnits(quantity, asset.decimals);
 
       await this.ensureGas(escrowWallet);
@@ -269,7 +301,7 @@ export class DirectTokenService implements TokenService, EscrowService {
       const asset = await getAssetFromDb(this.assetStore, ast.assetId);
       const standard = tokenStandardRegistry.resolve(asset.tokenStandard);
       const sourceAddress = await this.resolveAddress(source.finId);
-      const escrowWallet = this.custodyProvider.escrow;
+      const escrowWallet = await this.getEscrowWallet();
       const amount = parseUnits(quantity, asset.decimals);
 
       await this.ensureGas(escrowWallet);
