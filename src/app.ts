@@ -27,6 +27,10 @@ import {
   AccountMappingStore,
   AssetStore,
   OmnibusDelegate,
+  OmnibusPlanApprovalPlugin,
+  registerSpecialAccount,
+  OMNIBUS_FIN_ID,
+  ESCROW_FIN_ID,
   CommonServiceImpl as DirectCommonServiceImpl,
   HealthServiceImpl as DirectHealthServiceImpl,
   tokenStandardRegistry,
@@ -207,6 +211,19 @@ async function createApp(
     ? new DbAccountMapping(accountMappingService)
     : new DerivationAccountMapping();
 
+  // Persist env-derived omnibus / escrow addresses into account_mappings under
+  // reserved finIds, so runtime lookups go through the same AccountMappingService
+  // used for investor finIds. Env stays load-bearing only at boot for signer
+  // construction; reads (e.g. plan-approval validator) come from the DB.
+  if (accountMappingStore && custodyProvider) {
+    if (custodyProvider.escrow) {
+      await registerSpecialAccount(accountMappingStore, ESCROW_FIN_ID, custodyProvider.escrow, process.env.ASSET_ESCROW_CUSTODY_ACCOUNT_ID, logger);
+    }
+    if (custodyProvider.omnibus) {
+      await registerSpecialAccount(accountMappingStore, OMNIBUS_FIN_ID, custodyProvider.omnibus, process.env.OMNIBUS_CUSTODY_ACCOUNT_ID, logger);
+    }
+  }
+
   let omnibusCtx: OmnibusContext | undefined;
   if (appConfig.accountModel === 'omnibus' && custodyProvider) {
     if (!dbPool || !assetStore) throw new Error('DB connection is required for omnibus account model');
@@ -228,6 +245,12 @@ async function createApp(
         inboundTransferHook: vanillaService,
       },
     };
+
+    // Register before registerIntegrations so an integration plugin (e.g. DTCC)
+    // can override if both are enabled.
+    pluginManager.registerPlanApprovalPlugin(
+      new OmnibusPlanApprovalPlugin(appConfig.orgId, accountMapping, finP2PClient, logger),
+    );
   }
 
   registerIntegrations({
