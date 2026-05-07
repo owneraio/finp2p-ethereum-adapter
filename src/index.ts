@@ -27,22 +27,17 @@ const init = async () => {
   const finP2PUrl = process.env.FINP2P_ADDRESS;
   const ossUrl = process.env.OSS_URL;
   const finP2PClient = finP2PUrl && ossUrl ? new FinP2PClient(finP2PUrl, ossUrl) : undefined;
-
-  // Postgres schema for skeleton tables (operations, assets, account_mappings, …).
-  // Adapter-specific by default so multiple adapter types can share a database
-  // without colliding on `ledger_adapter`. Operators can override via LEDGER_SCHEMA
-  // when running multiple instances of THIS adapter against one database.
   const ledgerSchema = process.env.LEDGER_SCHEMA || 'ethereum_adapter';
 
   const workflowsConfig = {
     migration: {
       connectionString: migrationConnectionString,
       gooseExecutablePath: "/usr/bin/goose",
-      migrationListTableName: "finp2p_ethereum_adapater_migrations",
+      migrationListTableName: `${ledgerSchema}_migrations`,
       storageUser,
       schemaName: ledgerSchema,
       additionalMigrations: [
-        { migrationsDir: vanillaMigrationsDir, tableName: vanillaMigrationsTable },
+        { migrationsDir: vanillaMigrationsDir, tableName: `${ledgerSchema}_${vanillaMigrationsTable}` },
       ],
     },
     storage: { connectionString: dbConnectionString },
