@@ -15,8 +15,8 @@ export class ERC20Contract extends ContractsManager {
 
   tokenAddress: string;
 
-  constructor(provider: Provider, signer: Signer, tokenAddress: string, logger: Logger) {
-    super(provider, signer, logger);
+  constructor(provider: Provider, signer: Signer, tokenAddress: string, logger: Logger, confirmationTimeoutMs?: number) {
+    super(provider, signer, logger, confirmationTimeoutMs);
     this.tokenAddress = tokenAddress;
     const factory = new ContractFactory<any[], ERC20WithOperator>(
       ERC20.abi, ERC20.bytecode, this.signer

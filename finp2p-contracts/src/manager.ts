@@ -18,15 +18,27 @@ import { detectError } from "./errors";
 
 const DefaultDecimalsCurrencies = 2;
 
+/**
+ * Default per-attempt wait for one block confirmation in `safeExecuteTransaction`.
+ * Operators can override via the `confirmationTimeoutMs` constructor option to
+ * give slower / congested networks (Sepolia, Hashio, Hedera testnets) more time
+ * before the wrapper gives up. Hitting this deadline doesn't necessarily mean
+ * the tx failed on-chain — it may still confirm later; see issue #251 for the
+ * follow-up "report PENDING + keep polling" work.
+ */
+export const DEFAULT_CONFIRMATION_TIMEOUT_MS = 60_000;
+
 export class ContractsManager {
   provider: Provider;
   signer: Signer;
   logger: Logger;
+  confirmationTimeoutMs: number;
 
-  constructor(provider: Provider, signer: Signer, logger: Logger) {
+  constructor(provider: Provider, signer: Signer, logger: Logger, confirmationTimeoutMs: number = DEFAULT_CONFIRMATION_TIMEOUT_MS) {
     this.provider = provider;
     this.signer = signer;
     this.logger = logger;
+    this.confirmationTimeoutMs = confirmationTimeoutMs;
     if (this.signer instanceof NonceManager) {
       this.signer.getNonce().then((nonce) => {
         this.logger.info(`Using nonce-manager, current nonce: ${nonce}`);
@@ -172,7 +184,7 @@ export class ContractsManager {
           nonce = await this.getLatestTransactionCount();
         }
         const response = await call(contract, { nonce })
-        const receipt = await response.wait(undefined, 60_000) // wait for 1 confirmation and max 60 s
+        const receipt = await response.wait(undefined, this.confirmationTimeoutMs) // wait for 1 confirmation
         if (receipt !== null) {
           return receipt
         } else {
