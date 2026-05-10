@@ -9,7 +9,7 @@ import {
   Term
 } from "./model";
 import { parseTransactionReceipt } from "./utils";
-import { ContractsManager } from "./manager";
+import { ContractsManager, GasTier } from "./manager";
 import {
   EIP712Domain, EIP712LoanTerms, PrimaryType, ReceiptOperation,
   failedReceiptOperation, pendingReceiptOperation,
@@ -42,10 +42,16 @@ export class FinP2PContract extends ContractsManager {
 
   finP2PContractAddress: string;
 
+  /**
+   * Which on-chain operator variant we're talking to. Set explicitly by the
+   * `create()` factory (which probes via `hasAssetRegistry()`). Callers that
+   * construct via `new` get `'basic'` by default — fine for the common case
+   * but explicit detection is preferred for production code paths.
+   */
   variant: FinP2PVariant;
 
-  constructor(provider: Provider, signer: Signer, finP2PContractAddress: string, logger: Logger, variant: FinP2PVariant = FinP2PVariant.Basic) {
-    super(provider, signer, logger);
+  constructor(provider: Provider, signer: Signer, finP2PContractAddress: string, logger: Logger, confirmationTimeoutMs?: number, gasTier?: GasTier, variant: FinP2PVariant = FinP2PVariant.Basic) {
+    super(provider, signer, logger, confirmationTimeoutMs, gasTier);
     const factory = new ContractFactory<any[], FINP2POperator>(
       FINP2P.abi, FINP2P.bytecode, this.signer
     );
@@ -61,8 +67,8 @@ export class FinP2PContract extends ContractsManager {
    * via `hasAssetRegistry()`. Preferred over `new FinP2PContract(...)` whenever
    * the adapter doesn't know up-front which variant it's talking to.
    */
-  static async create(provider: Provider, signer: Signer, finP2PContractAddress: string, logger: Logger): Promise<FinP2PContract> {
-    const c = new FinP2PContract(provider, signer, finP2PContractAddress, logger);
+  static async create(provider: Provider, signer: Signer, finP2PContractAddress: string, logger: Logger, confirmationTimeoutMs?: number, gasTier?: GasTier): Promise<FinP2PContract> {
+    const c = new FinP2PContract(provider, signer, finP2PContractAddress, logger, confirmationTimeoutMs, gasTier);
     c.variant = (await c.hasAssetRegistry()) ? FinP2PVariant.WithRegistry : FinP2PVariant.Basic;
     logger.info(`FinP2PContract variant detected: ${c.variant} at ${finP2PContractAddress}`);
     return c;
