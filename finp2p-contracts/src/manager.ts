@@ -20,13 +20,17 @@ const DefaultDecimalsCurrencies = 2;
 
 /**
  * Default per-attempt wait for one block confirmation in `safeExecuteTransaction`.
- * Operators can override via the `confirmationTimeoutMs` constructor option to
- * give slower / congested networks (Sepolia, Hashio, Hedera testnets) more time
- * before the wrapper gives up. Hitting this deadline doesn't necessarily mean
- * the tx failed on-chain — it may still confirm later; see issue #251 for the
- * follow-up "report PENDING + keep polling" work.
+ * 10 minutes — chosen to absorb transient slowness on public testnets (Sepolia
+ * under load, Hashio, Hedera testnets) where confirming one block can stretch
+ * well past a minute. Operators can override via the `confirmationTimeoutMs`
+ * constructor option (typically threaded from a `TX_CONFIRMATION_TIMEOUT_MS`
+ * env in the consuming app).
+ *
+ * Hitting this deadline doesn't necessarily mean the tx failed on-chain — it
+ * may still confirm later; see issue #251 for the follow-up "report PENDING +
+ * keep polling" work that turns this into a non-terminal signal.
  */
-export const DEFAULT_CONFIRMATION_TIMEOUT_MS = 60_000;
+export const DEFAULT_CONFIRMATION_TIMEOUT_MS = 600_000;
 
 export class ContractsManager {
   provider: Provider;
