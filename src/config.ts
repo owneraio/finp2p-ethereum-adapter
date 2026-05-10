@@ -143,11 +143,21 @@ export async function envVarsToAppConfig(logger: Logger): Promise<AppConfig> {
 
       const { provider, signer } = createJsonProvider(operatorPrivateKey, ethereumRPCUrl, useNonceManager)
 
+      // Per-attempt confirmation timeout for safeExecuteTransaction's
+      // response.wait(); defaults to 10 min in finp2p-contracts. Operator can
+      // raise/lower for slower / faster networks.
+      const txConfirmationTimeoutMsRaw = process.env.TX_CONFIRMATION_TIMEOUT_MS;
+      const txConfirmationTimeoutMs = txConfirmationTimeoutMsRaw ? Number(txConfirmationTimeoutMsRaw) : undefined;
+      if (txConfirmationTimeoutMsRaw && Number.isNaN(txConfirmationTimeoutMs!)) {
+        throw new Error(`Invalid TX_CONFIRMATION_TIMEOUT_MS: ${txConfirmationTimeoutMsRaw}`);
+      }
+
       const finP2PContract = new FinP2PContract(
         provider,
         signer,
         finP2PContractAddress,
-        logger
+        logger,
+        txConfirmationTimeoutMs,
       );
       const finP2PClient = new FinP2PClient(finP2PUrl, ossUrl);
       const execDetailsStore = new InMemoryExecDetailsStore();
