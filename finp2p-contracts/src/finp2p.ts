@@ -28,8 +28,8 @@ export class FinP2PContract extends ContractsManager {
 
   finP2PContractAddress: string;
 
-  constructor(provider: Provider, signer: Signer, finP2PContractAddress: string, logger: Logger) {
-    super(provider, signer, logger);
+  constructor(provider: Provider, signer: Signer, finP2PContractAddress: string, logger: Logger, confirmationTimeoutMs?: number) {
+    super(provider, signer, logger, confirmationTimeoutMs);
     const factory = new ContractFactory<any[], FINP2POperator>(
       FINP2P.abi, FINP2P.bytecode, this.signer
     );
