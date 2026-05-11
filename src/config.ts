@@ -152,12 +152,24 @@ export async function envVarsToAppConfig(logger: Logger): Promise<AppConfig> {
         throw new Error(`Invalid TX_CONFIRMATION_TIMEOUT_MS: ${txConfirmationTimeoutMsRaw}`);
       }
 
+      // EIP-1559 gas tier — slow|normal|fast — scales the node's feeData
+      // priority/max fees per tx to position in the validator's priority queue.
+      // Defaults to `normal` in finp2p-contracts (no overrides, pre-tier behavior).
+      const txGasTierRaw = process.env.TX_GAS_TIER?.toLowerCase();
+      const validTiers = ['slow', 'normal', 'fast'] as const;
+      type GasTier = (typeof validTiers)[number];
+      if (txGasTierRaw && !(validTiers as readonly string[]).includes(txGasTierRaw)) {
+        throw new Error(`Invalid TX_GAS_TIER: ${process.env.TX_GAS_TIER}. Supported: ${validTiers.join(', ')}`);
+      }
+      const txGasTier = txGasTierRaw as GasTier | undefined;
+
       const finP2PContract = new FinP2PContract(
         provider,
         signer,
         finP2PContractAddress,
         logger,
         txConfirmationTimeoutMs,
+        txGasTier,
       );
       const finP2PClient = new FinP2PClient(finP2PUrl, ossUrl);
       const execDetailsStore = new InMemoryExecDetailsStore();
