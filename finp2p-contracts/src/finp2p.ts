@@ -9,7 +9,7 @@ import {
   Term
 } from "./model";
 import { parseTransactionReceipt } from "./utils";
-import { ContractsManager } from "./manager";
+import { ContractsManager, GasTier } from "./manager";
 import {
   EIP712Domain, EIP712LoanTerms, PrimaryType, ReceiptOperation,
   failedReceiptOperation, pendingReceiptOperation,
@@ -28,8 +28,8 @@ export class FinP2PContract extends ContractsManager {
 
   finP2PContractAddress: string;
 
-  constructor(provider: Provider, signer: Signer, finP2PContractAddress: string, logger: Logger, confirmationTimeoutMs?: number) {
-    super(provider, signer, logger, confirmationTimeoutMs);
+  constructor(provider: Provider, signer: Signer, finP2PContractAddress: string, logger: Logger, confirmationTimeoutMs?: number, gasTier?: GasTier) {
+    super(provider, signer, logger, confirmationTimeoutMs, gasTier);
     const factory = new ContractFactory<any[], FINP2POperator>(
       FINP2P.abi, FINP2P.bytecode, this.signer
     );

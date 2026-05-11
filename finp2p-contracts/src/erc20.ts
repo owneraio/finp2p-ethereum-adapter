@@ -1,4 +1,4 @@
-import { ContractsManager } from "./manager";
+import { ContractsManager, GasTier } from "./manager";
 import { Logger } from "./adapter-types";
 import { BigNumberish, ContractFactory, Interface, keccak256, Provider, Signer, toUtf8Bytes } from "ethers";
 import { ERC20WithOperator } from "../typechain-types";
@@ -15,8 +15,8 @@ export class ERC20Contract extends ContractsManager {
 
   tokenAddress: string;
 
-  constructor(provider: Provider, signer: Signer, tokenAddress: string, logger: Logger, confirmationTimeoutMs?: number) {
-    super(provider, signer, logger, confirmationTimeoutMs);
+  constructor(provider: Provider, signer: Signer, tokenAddress: string, logger: Logger, confirmationTimeoutMs?: number, gasTier?: GasTier) {
+    super(provider, signer, logger, confirmationTimeoutMs, gasTier);
     this.tokenAddress = tokenAddress;
     const factory = new ContractFactory<any[], ERC20WithOperator>(
       ERC20.abi, ERC20.bytecode, this.signer

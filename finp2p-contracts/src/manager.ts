@@ -32,17 +32,55 @@ const DefaultDecimalsCurrencies = 2;
  */
 export const DEFAULT_CONFIRMATION_TIMEOUT_MS = 600_000;
 
+/**
+ * EIP-1559 inclusion-speed tier. Multiplies the node's `getFeeData()`
+ * `maxPriorityFeePerGas` (and `maxFeePerGas` to preserve baseFee headroom)
+ * to position the tx in the validator's priority queue.
+ *
+ *   • slow   — 0.75× node default. Underbid; OK when fees matter more than
+ *              inclusion latency.
+ *   • normal — 1.0× (no overrides applied, ethers' built-in default flows
+ *              through). Backwards-compatible behavior — same as before
+ *              this option existed.
+ *   • fast   — 1.5× node default. Push tx near the front of the mempool
+ *              priority queue when the chain is congested (e.g. Sepolia
+ *              under load).
+ *
+ * The multipliers apply ON TOP of the node estimate, so if the chain is
+ * already busy and the node returns elevated values, "fast" stays elevated
+ * relative to that. Chains without a public mempool (Hashio / Hedera EVM
+ * testnets) get no speedup — the validator orders txs by consensus, not
+ * by tip — so the tier is a no-op there in practice.
+ */
+export type GasTier = 'slow' | 'normal' | 'fast';
+
+const GAS_TIER_MULTIPLIER_BASIS_POINTS: Record<GasTier, number> = {
+  slow: 750,
+  normal: 1000,
+  fast: 1500,
+};
+
+export const DEFAULT_GAS_TIER: GasTier = 'normal';
+
 export class ContractsManager {
   provider: Provider;
   signer: Signer;
   logger: Logger;
   confirmationTimeoutMs: number;
+  gasTier: GasTier;
 
-  constructor(provider: Provider, signer: Signer, logger: Logger, confirmationTimeoutMs: number = DEFAULT_CONFIRMATION_TIMEOUT_MS) {
+  constructor(
+    provider: Provider,
+    signer: Signer,
+    logger: Logger,
+    confirmationTimeoutMs: number = DEFAULT_CONFIRMATION_TIMEOUT_MS,
+    gasTier: GasTier = DEFAULT_GAS_TIER,
+  ) {
     this.provider = provider;
     this.signer = signer;
     this.logger = logger;
     this.confirmationTimeoutMs = confirmationTimeoutMs;
+    this.gasTier = gasTier;
     if (this.signer instanceof NonceManager) {
       this.signer.getNonce().then((nonce) => {
         this.logger.info(`Using nonce-manager, current nonce: ${nonce}`);
@@ -187,7 +225,8 @@ export class ContractsManager {
         } else {
           nonce = await this.getLatestTransactionCount();
         }
-        const response = await call(contract, { nonce })
+        const overrides = await this.buildTxOverrides(nonce);
+        const response = await call(contract, overrides)
         const receipt = await response.wait(undefined, this.confirmationTimeoutMs) // wait for 1 confirmation
         if (receipt !== null) {
           return receipt
@@ -221,5 +260,32 @@ export class ContractsManager {
     if (this.signer instanceof NonceManager) {
       (this.signer as NonceManager).reset();
     }
+  }
+
+  /**
+   * Build the per-attempt tx overrides for `safeExecuteTransaction`.
+   *
+   * Always sets `nonce`. For tiers other than `normal`, also computes
+   * `maxPriorityFeePerGas` and `maxFeePerGas` by scaling the node's
+   * `getFeeData()` estimate. `normal` leaves the gas fields unset so
+   * ethers' default path (which itself queries `getFeeData()`) flows
+   * through — preserves the pre-tier behavior exactly.
+   *
+   * Non-EIP-1559 chains (no `maxPriorityFeePerGas` in feeData) fall back
+   * to the bare `{ nonce }` overrides — same as ethers' default would do.
+   */
+  protected async buildTxOverrides(nonce: number): Promise<PayableOverrides> {
+    if (this.gasTier === 'normal') {
+      return { nonce };
+    }
+    const feeData = await this.provider.getFeeData();
+    if (feeData.maxPriorityFeePerGas == null || feeData.maxFeePerGas == null) {
+      // Pre-EIP-1559 chain (legacy gas only). Tier has no meaning here.
+      return { nonce };
+    }
+    const basisPoints = BigInt(GAS_TIER_MULTIPLIER_BASIS_POINTS[this.gasTier]);
+    const maxPriorityFeePerGas = (feeData.maxPriorityFeePerGas * basisPoints) / 1000n;
+    const maxFeePerGas = (feeData.maxFeePerGas * basisPoints) / 1000n;
+    return { nonce, maxPriorityFeePerGas, maxFeePerGas };
   }
 }
