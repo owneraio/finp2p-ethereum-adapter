@@ -155,6 +155,11 @@ export async function envVarsToAppConfig(logger: Logger): Promise<AppConfig> {
       // EIP-1559 gas tier — slow|normal|fast — scales the node's feeData
       // priority/max fees per tx to position in the validator's priority queue.
       // Defaults to `normal` in finp2p-contracts (no overrides, pre-tier behavior).
+      //
+      // `normal` short-circuits before any RPC call — ethers handles fee data
+      // estimation lazily inside the tx submit. `slow` and `fast` add one
+      // `eth_feeHistory` (provider.getFeeData) call per attempt to read the
+      // current estimate before applying the multiplier.
       const txGasTierRaw = process.env.TX_GAS_TIER?.toLowerCase();
       const validTiers = ['slow', 'normal', 'fast'] as const;
       type GasTier = (typeof validTiers)[number];
