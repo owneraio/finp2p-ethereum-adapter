@@ -40,13 +40,6 @@ export class CommonServiceImpl implements CommonService, HealthService {
 
   protected async ensureCredential(finId: string): Promise<void> {
     if (this.registeredCredentials.has(finId)) return;
-    // Throws when the credential isn't registered on-chain. We deliberately
-    // do NOT fall back to deriving an address from the finId and self-
-    // registering it — derivation gives a key the operator has no signer
-    // for (custody-managed wallets aren't derived from the finId pubkey),
-    // so the resulting credential would point at a wallet nobody can sign
-    // with. Let the absence propagate so the caller's failedReceiptOperation
-    // path surfaces a clear "credential not found" error to the router.
     await this.finP2PContract.getCredentialAddress(finId);
     this.registeredCredentials.add(finId);
   }
