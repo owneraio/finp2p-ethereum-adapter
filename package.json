@@ -59,7 +59,7 @@
     "uuid": "^9.0.0"
   },
   "devDependencies": {
-    "@owneraio/adapter-tests": "^0.28.3",
+    "@owneraio/adapter-tests": "^0.28.4",
     "@testcontainers/postgresql": "^11.8.1",
     "@types/express": "^5.0.3",
     "@types/jest": "^29.2.0",
