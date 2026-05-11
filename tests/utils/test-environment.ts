@@ -51,6 +51,15 @@ class CustomTestEnvironment extends NodeEnvironment {
   }
 
   async setup() {
+    // The `@owneraio/adapter-tests` fixture generates test wallets whose
+    // ethereum addresses are derivable from the finId pubkey via
+    // `finIdToAddress`, but it never calls `/mapping/owners` to register
+    // them on-chain before issuing. Enable the legacy auto-derive credential
+    // path so `ensureCredential` falls back to deriving and registering
+    // during operations. Production must NEVER set this — custody-managed
+    // wallets aren't derived from finIds.
+    process.env.LEGACY_AUTO_DERIVE_CREDENTIAL = 'true';
+
     // Suppress pg pool errors during teardown when postgres container is stopped.
     // Patch pg.Pool to add a no-op error handler on every new pool instance,
     // preventing unhandled 'error' events from crashing the process.

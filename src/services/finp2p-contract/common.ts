@@ -3,7 +3,7 @@ import {
   ProofProvider, PluginManager,
   ReceiptOperation, ExecutionContext,
 } from "@owneraio/finp2p-nodejs-skeleton-adapter";
-import { FinP2PContract } from "@owneraio/finp2p-contracts";
+import { FinP2PContract, finIdToAddress } from "@owneraio/finp2p-contracts";
 import { FinP2PClient } from "@owneraio/finp2p-client";
 import { mapReceiptOperation } from "./mapping";
 
@@ -40,7 +40,19 @@ export class CommonServiceImpl implements CommonService, HealthService {
 
   protected async ensureCredential(finId: string): Promise<void> {
     if (this.registeredCredentials.has(finId)) return;
-    await this.finP2PContract.getCredentialAddress(finId);
+    try {
+      await this.finP2PContract.getCredentialAddress(finId);
+    } catch (e) {
+      // LEGACY_AUTO_DERIVE_CREDENTIAL=true — opt-in compatibility flag for
+      // test frameworks where wallets are derived from finIds (the
+      // `finIdToAddress(finId)` is the operator-controlled wallet by
+      // construction). Off in production: custody-managed wallets aren't
+      // derived from finIds, so auto-registering a derived address would
+      // create a credential pointing at a wallet nobody can sign with.
+      if (process.env.LEGACY_AUTO_DERIVE_CREDENTIAL !== 'true') throw e;
+      const address = finIdToAddress(finId);
+      await this.finP2PContract.addCredential(finId, address);
+    }
     this.registeredCredentials.add(finId);
   }
 
