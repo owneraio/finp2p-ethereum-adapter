@@ -1,7 +1,6 @@
 import { finIdToAddress, privateKeyToFinId } from '@owneraio/finp2p-contracts';
 import {
   AccountMappingService,
-  DerivationAccountMapping,
   DbAccountMapping,
   AccountMappingStore,
 } from '../src/services/direct/account-mapping';
@@ -66,11 +65,6 @@ function runSharedTests(name: string, create: () => Promise<{ service: AccountMa
     });
   });
 }
-
-// --- DerivationAccountMapping ---
-runSharedTests('DerivationAccountMapping', async () => ({
-  service: new DerivationAccountMapping(),
-}));
 
 // --- DbAccountMapping ---
 describe('DbAccountMapping', () => {

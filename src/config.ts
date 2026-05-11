@@ -9,27 +9,13 @@ import { InMemoryExecDetailsStore } from './services/finp2p-contract/exec-detail
 import { FireblocksAppConfig, createFireblocksAppConfig } from './integrations/fireblocks/config'
 import { DfnsAppConfig, createDfnsAppConfig } from './integrations/dfns/config'
 
-export type AccountMappingType = 'derivation' | 'database'
+export type AccountMappingType = 'database'
 
-const ACCOUNT_MAPPING_TYPES: ReadonlyArray<AccountMappingType> = ['derivation', 'database'];
-
-/**
- * @deprecated `derivation` is retained for backward compatibility and will be removed.
- * Switch to `database` (the default); it is DB-backed and supports custody-account mappings.
- */
-const DEPRECATED_ACCOUNT_MAPPING_TYPES: ReadonlyArray<AccountMappingType> = ['derivation'];
-
-function resolveAccountMappingType(rawValue: string | undefined, logger: Logger): AccountMappingType {
-  if (!rawValue) return 'database';
-
-  const normalized = rawValue.trim() as AccountMappingType;
-  if (!ACCOUNT_MAPPING_TYPES.includes(normalized)) {
-    throw new Error(`Invalid ACCOUNT_MAPPING_TYPE: ${rawValue}. Supported values: ${ACCOUNT_MAPPING_TYPES.join(', ')}`);
+function resolveAccountMappingType(rawValue: string | undefined): AccountMappingType {
+  if (rawValue && rawValue.trim() !== 'database') {
+    throw new Error(`Invalid ACCOUNT_MAPPING_TYPE: ${rawValue}. Only 'database' is supported.`);
   }
-  if (DEPRECATED_ACCOUNT_MAPPING_TYPES.includes(normalized)) {
-    logger.warning(`ACCOUNT_MAPPING_TYPE='${normalized}' is deprecated and will be removed; switch to 'database'`);
-  }
-  return normalized;
+  return 'database';
 }
 
 export type AccountModel = 'segregated' | 'omnibus'
@@ -109,7 +95,7 @@ export const createJsonProvider = (
 
 export async function envVarsToAppConfig(logger: Logger): Promise<AppConfig> {
   const configType = (process.env.PROVIDER_TYPE || 'finp2p-contract') as AppConfig['type']
-  const accountMappingType = resolveAccountMappingType(process.env.ACCOUNT_MAPPING_TYPE, logger)
+  const accountMappingType = resolveAccountMappingType(process.env.ACCOUNT_MAPPING_TYPE)
   const accountModel = resolveAccountModel(process.env.ACCOUNT_MODEL)
 
   switch (configType) {
