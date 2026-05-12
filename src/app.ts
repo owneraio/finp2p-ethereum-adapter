@@ -21,7 +21,6 @@ import {
   DirectTokenService,
   CustodyProvider,
   custodyRegistry,
-  DerivationAccountMapping,
   DbAccountMapping,
   AccountMappingService,
   AccountMappingStore,
@@ -203,9 +202,10 @@ async function createApp(
   const accountMappingService = accountMappingStore
     ? new AccountMappingServiceImpl(accountMappingStore, { caseSensitive: false })
     : undefined;
-  const accountMapping: AccountMappingService = appConfig.accountMappingType === 'database' && accountMappingService
-    ? new DbAccountMapping(accountMappingService)
-    : new DerivationAccountMapping();
+  if (!accountMappingService) {
+    throw new Error('DB-backed account mapping is required (DB_CONNECTION_STRING must be set).');
+  }
+  const accountMapping: AccountMappingService = new DbAccountMapping(accountMappingService);
 
   let omnibusCtx: OmnibusContext | undefined;
   if (appConfig.accountModel === 'omnibus' && custodyProvider) {
