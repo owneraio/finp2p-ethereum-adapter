@@ -3,7 +3,7 @@ import {
   ProofProvider, PluginManager,
   ReceiptOperation, ExecutionContext,
 } from "@owneraio/finp2p-nodejs-skeleton-adapter";
-import { FinP2PContract, finIdToAddress } from "@owneraio/finp2p-contracts";
+import { FinP2PContract } from "@owneraio/finp2p-contracts";
 import { FinP2PClient } from "@owneraio/finp2p-client";
 import { mapReceiptOperation } from "./mapping";
 
@@ -40,12 +40,7 @@ export class CommonServiceImpl implements CommonService, HealthService {
 
   protected async ensureCredential(finId: string): Promise<void> {
     if (this.registeredCredentials.has(finId)) return;
-    try {
-      await this.finP2PContract.getCredentialAddress(finId);
-    } catch {
-      const address = finIdToAddress(finId);
-      await this.finP2PContract.addCredential(finId, address);
-    }
+    await this.finP2PContract.getCredentialAddress(finId);
     this.registeredCredentials.add(finId);
   }
 
