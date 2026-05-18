@@ -1,5 +1,5 @@
 import * as process from "process";
-import { logger } from "@owneraio/finp2p-nodejs-skeleton-adapter";
+import { logger, workflows } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import { FinP2PClient } from "@owneraio/finp2p-client";
 import winston, { format, transports } from "winston";
 import { migrationsDir as vanillaMigrationsDir, migrationsTableName as vanillaMigrationsTable } from "@owneraio/finp2p-vanilla-service";
@@ -27,7 +27,7 @@ const init = async () => {
   const finP2PUrl = process.env.FINP2P_ADDRESS;
   const ossUrl = process.env.OSS_URL;
   const finP2PClient = finP2PUrl && ossUrl ? new FinP2PClient(finP2PUrl, ossUrl) : undefined;
-  const ledgerSchema = process.env.LEDGER_SCHEMA || 'ethereum_adapter';
+  const ledgerSchema = process.env.LEDGER_SCHEMA || workflows.toPostgresIdentifier(process.env.ADAPTER_ID || 'ethereum_adapter')
 
   const workflowsConfig = {
     migration: {
