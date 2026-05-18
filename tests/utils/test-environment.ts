@@ -87,11 +87,17 @@ class CustomTestEnvironment extends NodeEnvironment {
         details.rpcUrl,
         operatorAddress
       );
-      this.global.serverAddress = await this.startApp(
+      const baseUrl = await this.startApp(
         operator,
         details.rpcUrl,
         finP2PContractAddress
       );
+      // adapter-tests' LedgerAPIClient takes (host, callbackServer, baseAddress):
+      //   • host        — used by tokens/escrow/payments/plan/common  → /api/...
+      //   • baseAddress — used by mapping                              → bare /mapping/...
+      // Skeleton 0.28.20 mounts mapping at the bare path, everything else under /api.
+      this.global.serverAddress = `${baseUrl}/api`;
+      this.global.serverBaseAddress = baseUrl;
     } catch (err) {
       console.error("Error starting container:", err);
     }
@@ -254,7 +260,7 @@ class CustomTestEnvironment extends NodeEnvironment {
       console.error(await readiness.text())
     }
 
-    return `http://localhost:${port}/api`;
+    return `http://localhost:${port}`;
   }
 
   private async whichGoose() {
