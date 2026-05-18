@@ -3,7 +3,7 @@ import { FinP2PContract, ReceiptOperation as ContractReceiptOperation } from '@o
 import { FIELD_LEDGER_ACCOUNT_ID } from '../direct/mapping-validator';
 
 function mapAccount(acc: { finId: string; account?: string } | undefined) {
-  if (!acc) return undefined;
+  if (!acc || !acc.finId) return undefined;
   return { finId: acc.finId, account: acc.account ? { type: 'ledger', address: acc.account } : undefined };
 }
 
