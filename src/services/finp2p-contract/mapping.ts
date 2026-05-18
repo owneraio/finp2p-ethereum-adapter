@@ -2,11 +2,6 @@ import { AccountMappingService, AccountMapping, ReceiptOperation, Asset } from '
 import { FinP2PContract, ReceiptOperation as ContractReceiptOperation } from '@owneraio/finp2p-contracts';
 import { FIELD_LEDGER_ACCOUNT_ID } from '../direct/mapping-validator';
 
-// Solidity has no null/optional — the FinP2P operator contract emits the empty
-// string in place of an absent finId (notably `releaseBack` emits
-// `Release(... source, "", ...)` because rollback has no destination). Treat an
-// empty finId as absent so we don't surface `{ finId: "" }` to the router, which
-// the FinP2P API contract rejects.
 function mapAccount(acc: { finId: string; account?: string } | undefined) {
   if (!acc) return undefined;
   return { finId: acc.finId, account: acc.account ? { type: 'ledger', address: acc.account } : undefined };
