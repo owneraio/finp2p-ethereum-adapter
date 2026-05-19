@@ -84,8 +84,8 @@ export class DirectTokenService implements TokenService, EscrowService {
     assetMetadata: any, assetName: string | undefined, issuerId: string | undefined,
     assetDenomination: AssetDenomination | undefined,
   ): Promise<AssetCreationStatus> {
-    const tokenStandard = ERC20_TOKEN_STANDARD;
-    const standard = tokenStandardRegistry.resolve(tokenStandard);
+    const requestedStandard = assetBind?.tokenIdentifier?.standard ?? ERC20_TOKEN_STANDARD;
+    const standard = tokenStandardRegistry.resolve(requestedStandard);
 
     const { chainId } = await this.custodyProvider.rpcProvider.getNetwork();
     const defaultNetwork = `eip155:${chainId}`;
@@ -105,17 +105,21 @@ export class DirectTokenService implements TokenService, EscrowService {
       return {
         operation: "createAsset",
         type: "success",
-        result: { ledgerIdentifier: { assetIdentifierType: 'CAIP-19', network: defaultNetwork, tokenId: result.contractAddress, standard: tokenStandard }, reference: undefined }
+        result: { ledgerIdentifier: { assetIdentifierType: 'CAIP-19', network: defaultNetwork, tokenId: result.contractAddress, standard: result.tokenStandard }, reference: undefined }
       };
     } else {
       const tokenAddress = assetBind.tokenIdentifier.tokenId;
       const wallet = this.custodyProvider.issuer;
-      const erc20 = new ERC20Contract(wallet.provider, wallet.signer, tokenAddress, this.logger);
-      const decimals = Number(await erc20.decimals());
+      // Only ERC20-style standards expose decimals(); other standards (e.g. DTCC collateral) are 0/1 virtual balances.
+      let decimals = 0;
+      if (requestedStandard.toUpperCase() === ERC20_TOKEN_STANDARD.toUpperCase()) {
+        const erc20 = new ERC20Contract(wallet.provider, wallet.signer, tokenAddress, this.logger);
+        decimals = Number(await erc20.decimals());
+      }
       await this.assetStore.saveAsset({
         contract_address: tokenAddress,
         decimals,
-        token_standard: tokenStandard,
+        token_standard: requestedStandard,
         id: assetId,
       });
 
@@ -124,7 +128,7 @@ export class DirectTokenService implements TokenService, EscrowService {
       return {
         operation: "createAsset",
         type: "success",
-        result: { ledgerIdentifier: { assetIdentifierType: 'CAIP-19', network: assetBind.tokenIdentifier.network || defaultNetwork, tokenId: tokenAddress, standard: tokenStandard }, reference: undefined }
+        result: { ledgerIdentifier: { assetIdentifierType: 'CAIP-19', network: assetBind.tokenIdentifier.network || defaultNetwork, tokenId: tokenAddress, standard: requestedStandard }, reference: undefined }
       };
     }
   }
