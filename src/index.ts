@@ -27,17 +27,19 @@ const init = async () => {
   const finP2PUrl = process.env.FINP2P_ADDRESS;
   const ossUrl = process.env.OSS_URL;
   const finP2PClient = finP2PUrl && ossUrl ? new FinP2PClient(finP2PUrl, ossUrl) : undefined;
-  const ledgerSchema = process.env.LEDGER_SCHEMA || workflows.toPostgresIdentifier(process.env.ADAPTER_ID || 'ethereum_adapter')
+  const { schemaName, tableNameSanitizer } = process.env.LEDGER_SCHEMA
+    ? { schemaName: process.env.LEDGER_SCHEMA, tableNameSanitizer: (id: string) => id }
+    : { schemaName: workflows.toPostgresIdentifier(process.env.ADAPTER_ID || 'ethereum_adapter'), tableNameSanitizer: workflows.toPostgresIdentifier }
 
   const workflowsConfig = {
     migration: {
       connectionString: migrationConnectionString,
       gooseExecutablePath: "/usr/bin/goose",
-      migrationListTableName: `${ledgerSchema}_migrations`,
+      migrationListTableName: tableNameSanitizer(`${schemaName}_migrations`),
       storageUser,
-      schemaName: ledgerSchema,
+      schemaName,
       additionalMigrations: [
-        { migrationsDir: vanillaMigrationsDir, tableName: `${ledgerSchema}_${vanillaMigrationsTable}` },
+        { migrationsDir: vanillaMigrationsDir, tableName: tableNameSanitizer(`${schemaName}_${vanillaMigrationsTable}`) },
       ],
     },
     storage: { connectionString: dbConnectionString },
