@@ -24,6 +24,7 @@ import { AppConfig, createJsonProvider } from "../src/config";
 import { ExecDetailsStore, InMemoryExecDetailsStore } from "../src/services/finp2p-contract";
 import { HardhatLogExtractor } from "../tests/utils/log-extractors";
 import { NetworkDetails } from "../tests/utils/models";
+import { redactSecrets } from "../src/redact-secrets";
 
 let ethereumNodeContainer: StartedTestContainer | undefined;
 let postgresSqlContainer: StartedPostgreSqlContainer | undefined;
@@ -46,7 +47,8 @@ const logger = winston.createLogger({
       }
       return info;
     })(),
-    format.json()
+    format.json(),
+    redactSecrets()
   ),
 });
 

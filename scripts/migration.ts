@@ -13,11 +13,12 @@ import {
 import { createJsonProvider, parseConfig } from "../src/config";
 import { Provider, Signer } from "ethers";
 import { Logger } from "@owneraio/finp2p-nodejs-skeleton-adapter";
+import { redactSecrets } from "../src/redact-secrets";
 
 const logger = winston.createLogger({
   level: "info",
   transports: [new transports.Console()],
-  format: format.json()
+  format: format.combine(format.json(), redactSecrets())
 });
 
 const getTokenAddress = (ledgerAssetInfo: LedgerAssetInfo): string => {

@@ -4,11 +4,12 @@ import winston, { format, transports } from "winston";
 import { ERC20Contract } from "@owneraio/finp2p-contracts";
 import { FinP2PClient } from "@owneraio/finp2p-client";
 import { createJsonProvider, parseConfig } from "../src/config";
+import { redactSecrets } from "../src/redact-secrets";
 
 const logger = winston.createLogger({
   level: "info",
   transports: [new transports.Console()],
-  format: format.json()
+  format: format.combine(format.json(), redactSecrets())
 });
 
 const massApprove = async (
