@@ -5,12 +5,13 @@ import { FinP2PClient } from "@owneraio/finp2p-client";
 import { FinP2PContract, AssetType, term } from "@owneraio/finp2p-contracts";
 import { emptyOperationParams } from "../src/services/finp2p-contract/helpers";
 import { createJsonProvider, parseConfig } from "../src/config";
+import { redactSecrets } from "../src/redact-secrets";
 
 
 const logger = winston.createLogger({
   level: "info",
   transports: [new transports.Console()],
-  format: format.json()
+  format: format.combine(format.json(), redactSecrets())
 });
 
 const syncBalanceFromOssToEthereum = async (

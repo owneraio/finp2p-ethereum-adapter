@@ -17,11 +17,12 @@ import { extractBusinessDetails } from "../src/services/finp2p-contract/helpers"
 import console from "console";
 import * as fs from "node:fs";
 import { createJsonProvider, parseConfig } from "../src/config";
+import { redactSecrets } from "../src/redact-secrets";
 
 const logger = winston.createLogger({
   level: "info",
   transports: [new transports.Console()],
-  format: format.json()
+  format: format.combine(format.json(), redactSecrets())
 });
 
 

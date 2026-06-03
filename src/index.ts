@@ -5,6 +5,7 @@ import winston, { format, transports } from "winston";
 import { migrationsDir as vanillaMigrationsDir, migrationsTableName as vanillaMigrationsTable } from "@owneraio/finp2p-vanilla-service";
 import { envVarsToAppConfig } from "./config";
 import createApp from "./app";
+import { redactSecrets } from "./redact-secrets";
 
 const init = async () => {
   const port = process.env.PORT || "3000";
@@ -62,7 +63,8 @@ const init = async () => {
         }
         return info;
       })(),
-      format.json()
+      format.json(),
+      redactSecrets()
     ),
   });
 
