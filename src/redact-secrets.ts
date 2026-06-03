@@ -1,15 +1,27 @@
 import { format } from "winston";
 
 const MESSAGE = Symbol.for("message");
-const SECRET_KEY_PATTERN = /^NETWORK_AUTH$|_PRIVATE_KEY(_BASE64)?$/;
+const EXACT_SECRET_KEYS = new Set(["NETWORK_AUTH"]);
+const SECRET_KEY_SUFFIXES = [
+  "_PRIVATE_KEY",
+  "_PRIVATE_KEY_BASE64",
+  "_AUTH_TOKEN",
+  "_API_KEY",
+  "_CONNECTION_STRING",
+  "_SECRET",
+  "_PASSWORD",
+];
 const REDACTED = "[redacted]";
+
+const isSecretKey = (key: string): boolean =>
+  EXACT_SECRET_KEYS.has(key) || SECRET_KEY_SUFFIXES.some((suffix) => key.endsWith(suffix));
 
 let cachedSecrets: string[] | undefined;
 
 const collectSecrets = (env: NodeJS.ProcessEnv): string[] => {
   const values = new Set<string>();
   for (const [key, value] of Object.entries(env)) {
-    if (!value || !SECRET_KEY_PATTERN.test(key)) continue;
+    if (!value || !isSecretKey(key)) continue;
     values.add(value);
     // Also redact the JSON-escaped form (handles values containing quotes, backslashes, newlines).
     const jsonEscaped = JSON.stringify(value).slice(1, -1);
