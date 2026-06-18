@@ -7,9 +7,16 @@ import { AccountModel } from "../config";
 import { registerFireblocks } from "./fireblocks";
 import { registerDfns } from "./dfns";
 import { registerDtccPlugin } from "./dtcc";
+import { registerCollateralPlugin } from "./collateral";
 import { registerWalletDeposit } from "./deposits/wallet-deposit";
 import { registerPullDeposit } from "./deposits/pull-deposit";
 import { registerOtaDeposit } from "./deposits/ota-deposit";
+
+/** True when another integration (DTCC, collateral, …) already owns the single PaymentsPlugin slot. */
+export function paymentsSlotClaimedExternally(): boolean {
+  return process.env.DTCC_PLUGIN_ENABLED === 'true'
+      || !!process.env.COLLATERAL_REGISTRY_ADDRESS;
+}
 
 export interface IntegrationContext {
   orgId: string;
@@ -37,6 +44,7 @@ const integrations: IntegrationRegistrar[] = [
   registerPullDeposit,
   registerOtaDeposit,
   registerDtccPlugin,
+  registerCollateralPlugin,
 ];
 
 /** Register runtime integrations (plugins, token standards) — runs after custody provider is created. */

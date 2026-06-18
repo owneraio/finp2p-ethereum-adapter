@@ -1,4 +1,4 @@
-import { IntegrationContext } from "../../registry";
+import { IntegrationContext, paymentsSlotClaimedExternally } from "../../registry";
 import { DepositTargetResolver, resolveDepositMethod } from "../types";
 import { OtaDepositPlugin } from "./plugin";
 
@@ -23,14 +23,14 @@ import { OtaDepositPlugin } from "./plugin";
  * lost on crash, only the in-memory deposit metadata is.
  *
  * Not registered when:
- *   - DTCC_PLUGIN_ENABLED=true (DTCC owns the single PaymentsPlugin slot)
+ *   - another integration (DTCC, collateral, …) owns the single PaymentsPlugin slot
  *   - resolved deposit method != 'ota' (omnibus defaults to 'ota'; segregated defaults
  *     to 'wallet'; explicit DEPOSIT_METHOD env wins in either case)
  *   - custody provider lacks createCustodyAccount / createWalletForCustodyId
  *   - segregated mode without walletResolver, or omnibus mode without an omnibus wallet
  */
 export function registerOtaDeposit(ctx: IntegrationContext): void {
-  if (process.env.DTCC_PLUGIN_ENABLED === 'true') return;
+  if (paymentsSlotClaimedExternally()) return;
   if (resolveDepositMethod(ctx.accountModel) !== 'ota') return;
 
   const { pluginManager, logger, custodyProvider, assetStore, walletResolver, accountModel, finP2PClient, inboundTransferHook } = ctx;
