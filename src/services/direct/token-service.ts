@@ -85,12 +85,14 @@ export class DirectTokenService implements TokenService, EscrowService {
     assetDenomination: AssetDenomination | undefined,
   ): Promise<AssetCreationStatus> {
     const requestedStandard = assetBind?.tokenIdentifier?.standard ?? ERC20_TOKEN_STANDARD;
+    const isErc20 = requestedStandard.toUpperCase() === ERC20_TOKEN_STANDARD.toUpperCase();
     const standard = tokenStandardRegistry.resolve(requestedStandard);
 
     const { chainId } = await this.custodyProvider.rpcProvider.getNetwork();
     const defaultNetwork = `eip155:${chainId}`;
 
     if (assetBind === undefined || assetBind.tokenIdentifier === undefined) {
+      this.logger.info(`createAsset: deploy path — assetId=${assetId} standard=${requestedStandard} name=${assetName ?? 'OWNERACOIN'}`);
       const wallet = this.custodyProvider.issuer;
       const symbol = "OWNERA"; // TODO: align with product team which metadata fields to use for token name/symbol/decimals
       const result = await standard.deploy(wallet, assetName ?? "OWNERACOIN", symbol, DEFAULT_NEW_ERC20_DECIMALS, this.logger);
@@ -110,11 +112,16 @@ export class DirectTokenService implements TokenService, EscrowService {
     } else {
       const tokenAddress = assetBind.tokenIdentifier.tokenId;
       const wallet = this.custodyProvider.issuer;
-      // Only ERC20-style standards expose decimals(); other standards (e.g. DTCC collateral) are 0/1 virtual balances.
+      this.logger.info(`createAsset: bind path — assetId=${assetId} standard=${requestedStandard} tokenAddress=${tokenAddress} network=${assetBind.tokenIdentifier.network ?? defaultNetwork}`);
+
       let decimals = 0;
-      if (requestedStandard.toUpperCase() === ERC20_TOKEN_STANDARD.toUpperCase()) {
+      if (isErc20) {
+        this.logger.info(`createAsset: reading ERC20 decimals from ${tokenAddress}`);
         const erc20 = new ERC20Contract(wallet.provider, wallet.signer, tokenAddress, this.logger);
         decimals = Number(await erc20.decimals());
+        this.logger.info(`createAsset: ERC20 decimals=${decimals} for ${tokenAddress}`);
+      } else {
+        this.logger.info(`createAsset: skipping ERC20 decimals read for non-ERC20 standard '${requestedStandard}', defaulting decimals=0`);
       }
       await this.assetStore.saveAsset({
         contract_address: tokenAddress,
@@ -123,7 +130,15 @@ export class DirectTokenService implements TokenService, EscrowService {
         id: assetId,
       });
 
-      await this.custodyProvider.onAssetRegistered?.(tokenAddress);
+      // onAssetRegistered is custody-side ERC20 whitelisting (Fireblocks/Dfns introspect IERC20Metadata
+      // — name/symbol/decimals — on the contract). Skip it for non-ERC20 standards whose bound
+      // contracts (e.g. CollateralAgreementRegistry) don't implement IERC20Metadata.
+      if (isErc20) {
+        this.logger.info(`createAsset: registering ERC20 token with custody provider (${tokenAddress})`);
+        await this.custodyProvider.onAssetRegistered?.(tokenAddress);
+      } else {
+        this.logger.info(`createAsset: skipping custody onAssetRegistered for non-ERC20 standard '${requestedStandard}' (${tokenAddress})`);
+      }
 
       return {
         operation: "createAsset",
