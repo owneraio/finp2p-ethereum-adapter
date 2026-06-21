@@ -1,4 +1,4 @@
-import { Pool } from "pg";
+import { Pool, PoolClient } from "pg";
 import winston from "winston";
 import { migrationsTableName as vanillaMigrationsTable } from "@owneraio/finp2p-vanilla-service";
 
@@ -12,9 +12,11 @@ import { migrationsTableName as vanillaMigrationsTable } from "@owneraio/finp2p-
  * Identifiers come from hardcoded literals, validated derivations
  * (workflows.toPostgresIdentifier), or operator-supplied env (LEDGER_SCHEMA) — all trusted.
  *
- * Idempotent: source missing or destination already present → no-op. Race-safe across
- * concurrent boots: ALTER TABLE takes ACCESS EXCLUSIVE; a losing replica re-reads catalog
- * and sees the rename completed.
+ * Atomic: all renames run inside a single transaction so a partial failure (transient
+ * connection error, lock timeout) leaves the DB unchanged rather than half-migrated.
+ * Race-safe across concurrent boots: each rename runs inside its own savepoint, so if
+ * another replica completes it between our check and our ALTER, we ROLLBACK TO SAVEPOINT,
+ * recognise the post-rename state, and continue with the next rename.
  */
 export async function adoptLegacyMigrationTables(
   connectionString: string,
@@ -26,24 +28,33 @@ export async function adoptLegacyMigrationTables(
     { from: vanillaMigrationsTable, to: `${ledgerSchema}_${vanillaMigrationsTable}` },
   ];
   const pool = new Pool({ connectionString });
+  const client = await pool.connect();
   try {
+    await client.query('BEGIN');
+    let savepointIndex = 0;
     for (const { from, to } of renames) {
       if (from === to) continue;
-      await renameLegacyTable(pool, from, to, log);
+      await renameLegacyTableInTransaction(client, from, to, savepointIndex++, log);
     }
+    await client.query('COMMIT');
+  } catch (e) {
+    await client.query('ROLLBACK').catch(() => {});
+    throw e;
   } finally {
+    client.release();
     await pool.end();
   }
 }
 
-async function renameLegacyTable(
-  pool: Pool,
+async function renameLegacyTableInTransaction(
+  client: PoolClient,
   from: string,
   to: string,
+  savepointIndex: number,
   log: winston.Logger,
 ): Promise<void> {
-  const sourceExists = await tableExists(pool, from);
-  const destExists = await tableExists(pool, to);
+  const sourceExists = await tableExists(client, from);
+  const destExists = await tableExists(client, to);
 
   if (!sourceExists || destExists) {
     log.info({
@@ -53,13 +64,19 @@ async function renameLegacyTable(
     return;
   }
 
+  const savepoint = `rename_${savepointIndex}`;
+  await client.query(`SAVEPOINT ${savepoint};`);
   try {
-    await pool.query(`ALTER TABLE public.${from} RENAME TO ${to};`);
+    await client.query(`ALTER TABLE public.${from} RENAME TO ${to};`);
+    await client.query(`RELEASE SAVEPOINT ${savepoint};`);
     log.info({ from, to, renamed: true, msg: 'adoptLegacyMigrationTables: renamed' });
   } catch (e) {
     // Concurrent boots: another replica may have completed the rename between
-    // our check and our ALTER. Re-read catalog; if dest now exists, treat as success.
-    if (!(await tableExists(pool, from)) && await tableExists(pool, to)) {
+    // our check and our ALTER. Roll back this rename's savepoint, re-read catalog;
+    // if the post-rename state is now visible, treat as success-by-other-actor and
+    // continue with the next rename. Otherwise re-raise so the whole transaction aborts.
+    await client.query(`ROLLBACK TO SAVEPOINT ${savepoint};`);
+    if (!(await tableExists(client, from)) && await tableExists(client, to)) {
       log.info({ from, to, renamed: false, msg: 'adoptLegacyMigrationTables: completed by another actor' });
       return;
     }
@@ -67,8 +84,8 @@ async function renameLegacyTable(
   }
 }
 
-async function tableExists(pool: Pool, name: string): Promise<boolean> {
-  const { rows } = await pool.query<{ oid: string | null }>(
+async function tableExists(client: Pool | PoolClient, name: string): Promise<boolean> {
+  const { rows } = await client.query<{ oid: string | null }>(
     `SELECT to_regclass('public.${name}')::text AS oid;`,
   );
   return rows[0]?.oid !== null;
