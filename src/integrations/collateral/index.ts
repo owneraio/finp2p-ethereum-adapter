@@ -1,5 +1,10 @@
 import { JsonRpcProvider, Wallet, NonceManager } from "ethers";
-import { OwneraCollateralPlugin } from "@owneraio/finp2p-ethereum-collateral";
+import {
+  OwneraCollateralPlugin,
+  OwneraCollateralTokenStandard,
+  TokenStandardName as COLLATERAL_TOKEN_STANDARD,
+} from "@owneraio/finp2p-ethereum-collateral";
+import { tokenStandardRegistry } from "../../services/direct";
 import { IntegrationContext } from "../registry";
 
 /**
@@ -27,10 +32,15 @@ export function registerCollateralPlugin(ctx: IntegrationContext): void {
   const provider = new JsonRpcProvider(rpcUrl);
   const agentSigner = new NonceManager(new Wallet(operatorKey, provider));
 
+  tokenStandardRegistry.register(
+    COLLATERAL_TOKEN_STANDARD,
+    new OwneraCollateralTokenStandard(registryAddress, provider, agentSigner) as any,
+  );
+
   const plugin = new OwneraCollateralPlugin(
     orgId, provider, agentSigner, finP2PClient, logger, walletResolver, registryAddress,
   );
   pluginManager.registerPaymentsPlugin(plugin);
 
-  logger.info(`Collateral plugin activated: registry=${registryAddress}`);
+  logger.info(`Collateral plugin activated: token standard '${COLLATERAL_TOKEN_STANDARD}', registry=${registryAddress}`);
 }
