@@ -33,7 +33,6 @@ export async function adoptLegacyMigrationTables(
     await client.query('BEGIN');
     let savepointIndex = 0;
     for (const { from, to } of renames) {
-      if (from === to) continue;
       await renameLegacyTableInTransaction(client, from, to, savepointIndex++, log);
     }
     await client.query('COMMIT');
