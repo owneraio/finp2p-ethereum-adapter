@@ -216,6 +216,11 @@ const compareAssets = (asset: Asset, eipAsset: EIP712Term): boolean => {
     isIn(asset.assetType as string, "fiat", "cryptocurrency", "finp2p") && isIn(asset.assetId, "USD", "USDC")) {
     return true;
   }
+
+  if (asset.ledgerIdentifier.assetIdentifierType === 'CAIP-19') {
+    return eipAsset.assetId === `${asset.ledgerIdentifier.network}/${asset.ledgerIdentifier.standard}:${asset.ledgerIdentifier.tokenId}`
+  }
+
   return (eipAsset.assetId === asset.assetId && eipAssetType === asset.assetType);
 };
 
