@@ -20,10 +20,7 @@ export function registerCollateralPlugin(ctx: IntegrationContext): void {
     throw new Error('COLLATERAL_REGISTRY_ADDRESS and DTCC_PLUGIN_ENABLED are mutually exclusive — both claim the single PaymentsPlugin slot');
   }
 
-  const { orgId, logger, pluginManager, finP2PClient, walletResolver, rpcUrl } = ctx;
-  if (!walletResolver) {
-    throw new Error('Collateral plugin requires a custody provider to resolve investor wallets');
-  }
+  const { orgId, logger, pluginManager, finP2PClient, rpcUrl } = ctx;
   if (!rpcUrl) {
     throw new Error('Collateral plugin requires NETWORK_HOST to be set');
   }
@@ -37,8 +34,10 @@ export function registerCollateralPlugin(ctx: IntegrationContext): void {
     new OwneraCollateralTokenStandard(registryAddress, provider, agentSigner) as any,
   );
 
+  // 0.28.5 dropped walletResolver from the constructor — the plugin is now operator-driven.
+  // Investors pre-approve the registry out-of-band; agentSigner triggers all on-chain calls.
   const plugin = new OwneraCollateralPlugin(
-    orgId, provider, agentSigner, finP2PClient, logger, walletResolver, registryAddress,
+    orgId, provider, agentSigner, finP2PClient, logger, registryAddress,
   );
   pluginManager.registerPaymentsPlugin(plugin);
 
