@@ -28,8 +28,9 @@ export async function adoptLegacyMigrationTables(
     { from: vanillaMigrationsTable, to: `${ledgerSchema}_${vanillaMigrationsTable}` },
   ];
   const pool = new Pool({ connectionString });
-  const client = await pool.connect();
+  let client: PoolClient | undefined;
   try {
+    client = await pool.connect();
     await client.query('BEGIN');
     let savepointIndex = 0;
     for (const { from, to } of renames) {
@@ -37,10 +38,10 @@ export async function adoptLegacyMigrationTables(
     }
     await client.query('COMMIT');
   } catch (e) {
-    await client.query('ROLLBACK').catch(() => {});
+    await client?.query('ROLLBACK').catch(() => {});
     throw e;
   } finally {
-    client.release();
+    client?.release();
     await pool.end();
   }
 }
@@ -76,6 +77,7 @@ async function renameLegacyTableInTransaction(
     // continue with the next rename. Otherwise re-raise so the whole transaction aborts.
     await client.query(`ROLLBACK TO SAVEPOINT ${savepoint};`);
     if (!(await tableExists(client, from)) && await tableExists(client, to)) {
+      await client.query(`RELEASE SAVEPOINT ${savepoint};`);
       log.info({ from, to, renamed: false, msg: 'adoptLegacyMigrationTables: completed by another actor' });
       return;
     }
@@ -85,7 +87,8 @@ async function renameLegacyTableInTransaction(
 
 async function tableExists(client: Pool | PoolClient, name: string): Promise<boolean> {
   const { rows } = await client.query<{ oid: string | null }>(
-    `SELECT to_regclass('public.${name}')::text AS oid;`,
+    `SELECT to_regclass($1)::text AS oid;`,
+    [`public.${name}`],
   );
   return rows[0]?.oid !== null;
 }
