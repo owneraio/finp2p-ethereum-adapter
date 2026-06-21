@@ -5,6 +5,7 @@ on:
     branches:
       - 'master'
       - 'release/**'
+      - 'check-properly-asset'
     tags:
       - 'v0.**'
   pull_request:
