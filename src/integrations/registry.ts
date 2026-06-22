@@ -2,6 +2,7 @@ import winston from "winston";
 import { PluginManager } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import { InboundTransferHook } from "@owneraio/finp2p-nodejs-skeleton-adapter/plugin";
 import { FinP2PClient } from "@owneraio/finp2p-client";
+import { FinP2PContract } from "@owneraio/finp2p-contracts";
 import { AssetStore, CustodyProvider, WalletResolver } from "../services/direct";
 import { AccountModel } from "../config";
 import { registerFireblocks } from "./fireblocks";
@@ -15,7 +16,7 @@ import { registerOtaDeposit } from "./deposits/ota-deposit";
 /** True when another integration (DTCC, collateral, …) already owns the single PaymentsPlugin slot. */
 export function paymentsSlotClaimedExternally(): boolean {
   return process.env.DTCC_PLUGIN_ENABLED === 'true'
-      || !!process.env.COLLATERAL_REGISTRY_ADDRESS;
+      || (!!process.env.COLLATERAL_REGISTRY_ADDRESS && !!process.env.COLLATERAL_AGENT_PRIVATE_KEY);
 }
 
 export interface IntegrationContext {
@@ -29,6 +30,8 @@ export interface IntegrationContext {
   accountModel: AccountModel;
   custodyProvider: CustodyProvider | undefined;
   inboundTransferHook: InboundTransferHook | undefined;
+  /** finp2p-contract mode only — present iff PROVIDER_TYPE=finp2p-contract. */
+  finP2PContract: FinP2PContract | undefined;
 }
 
 export type IntegrationRegistrar = (ctx: IntegrationContext) => void;
