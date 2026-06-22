@@ -1,16 +1,26 @@
-import { JsonRpcProvider, Wallet, NonceManager } from "ethers";
+import { JsonRpcProvider, Wallet, NonceManager, ZeroAddress } from "ethers";
 import {
   OwneraCollateralPlugin,
   OwneraCollateralTokenStandard,
   TokenStandardName as COLLATERAL_TOKEN_STANDARD,
+  WalletResolver as CollateralWalletResolver,
 } from "@owneraio/finp2p-ethereum-collateral";
-import { tokenStandardRegistry } from "../../services/direct";
+import { FinP2PContract } from "@owneraio/finp2p-contracts";
+import { tokenStandardRegistry, WalletResolver as CustodyWalletResolver } from "../../services/direct";
 import { IntegrationContext } from "../registry";
 
 /**
  * Registers the Ownera triparty collateral PaymentsPlugin when
  * COLLATERAL_REGISTRY_ADDRESS is set. Mutually exclusive with
  * DTCC_PLUGIN_ENABLED — both compete for the single PaymentsPlugin slot.
+ *
+ * 0.28.6's WalletResolver is address-only: `(finId) => Promise<string | undefined>`.
+ * We construct it from whichever lookup is available in the current PROVIDER_TYPE:
+ *   - custody modes (fireblocks/dfns): adapt the fat custody resolver, returning
+ *     just `walletAddress`.
+ *   - finp2p-contract mode (no custody): call FINP2POperator.getCredentialAddress(finId)
+ *     directly. The on-chain credentials registry maps finIds to ETH addresses;
+ *     custodyAccountId isn't relevant in this mode.
  */
 export function registerCollateralPlugin(ctx: IntegrationContext): void {
   const registryAddress = process.env.COLLATERAL_REGISTRY_ADDRESS;
@@ -20,7 +30,7 @@ export function registerCollateralPlugin(ctx: IntegrationContext): void {
     throw new Error('COLLATERAL_REGISTRY_ADDRESS and DTCC_PLUGIN_ENABLED are mutually exclusive — both claim the single PaymentsPlugin slot');
   }
 
-  const { orgId, logger, pluginManager, finP2PClient, rpcUrl } = ctx;
+  const { orgId, logger, pluginManager, finP2PClient, rpcUrl, walletResolver, finP2PContract } = ctx;
   if (!rpcUrl) {
     throw new Error('Collateral plugin requires NETWORK_HOST to be set');
   }
@@ -29,17 +39,33 @@ export function registerCollateralPlugin(ctx: IntegrationContext): void {
   const provider = new JsonRpcProvider(rpcUrl);
   const agentSigner = new NonceManager(new Wallet(operatorKey, provider));
 
+  const collateralWalletResolver = buildCollateralWalletResolver(walletResolver, finP2PContract);
+
   tokenStandardRegistry.register(
     COLLATERAL_TOKEN_STANDARD,
     new OwneraCollateralTokenStandard(registryAddress, provider, agentSigner) as any,
   );
 
-  // 0.28.5 dropped walletResolver from the constructor — the plugin is now operator-driven.
-  // Investors pre-approve the registry out-of-band; agentSigner triggers all on-chain calls.
   const plugin = new OwneraCollateralPlugin(
-    orgId, provider, agentSigner, finP2PClient, logger, registryAddress,
+    orgId, provider, agentSigner, finP2PClient, logger, collateralWalletResolver, registryAddress,
   );
   pluginManager.registerPaymentsPlugin(plugin);
 
   logger.info(`Collateral plugin activated: token standard '${COLLATERAL_TOKEN_STANDARD}', registry=${registryAddress}`);
+}
+
+function buildCollateralWalletResolver(
+  custodyResolver: CustodyWalletResolver | undefined,
+  finP2PContract: FinP2PContract | undefined,
+): CollateralWalletResolver {
+  if (custodyResolver) {
+    return async (finId: string) => (await custodyResolver(finId))?.walletAddress;
+  }
+  if (finP2PContract) {
+    return async (finId: string) => {
+      const address = await finP2PContract.getCredentialAddress(finId);
+      return address && address !== ZeroAddress ? address : undefined;
+    };
+  }
+  throw new Error('Collateral plugin requires either a custody provider or a finp2p-contract to resolve finIds to wallet addresses');
 }

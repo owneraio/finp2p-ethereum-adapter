@@ -241,6 +241,7 @@ async function createApp(
     accountModel: appConfig.accountModel,
     custodyProvider,
     inboundTransferHook: omnibusCtx?.vanilla.inboundTransferHook,
+    finP2PContract: appConfig.type === 'finp2p-contract' ? (appConfig as FinP2PContractAppConfig).finP2PContract : undefined,
   });
 
   const paymentsService = new PaymentsServiceImpl(pluginManager);
