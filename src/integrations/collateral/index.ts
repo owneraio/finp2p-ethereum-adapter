@@ -34,10 +34,11 @@ import { IntegrationContext } from "../registry";
  */
 export function registerCollateralPlugin(ctx: IntegrationContext): void {
   const registryAddress = process.env.COLLATERAL_REGISTRY_ADDRESS;
-  if (!registryAddress) return;
+  const agentKey = process.env.COLLATERAL_AGENT_PRIVATE_KEY;
+  if (!registryAddress || !agentKey) return;
 
   if (process.env.DTCC_PLUGIN_ENABLED === 'true') {
-    throw new Error('COLLATERAL_REGISTRY_ADDRESS and DTCC_PLUGIN_ENABLED are mutually exclusive — both claim the single PaymentsPlugin slot');
+    throw new Error('Collateral plugin and DTCC_PLUGIN_ENABLED are mutually exclusive — both claim the single PaymentsPlugin slot');
   }
 
   const { orgId, logger, pluginManager, finP2PClient, rpcUrl, walletResolver, finP2PContract } = ctx;
@@ -45,10 +46,6 @@ export function registerCollateralPlugin(ctx: IntegrationContext): void {
     throw new Error('Collateral plugin requires NETWORK_HOST to be set');
   }
 
-  const agentKey = process.env.COLLATERAL_AGENT_PRIVATE_KEY;
-  if (!agentKey) {
-    throw new Error('Collateral plugin requires COLLATERAL_AGENT_PRIVATE_KEY to be set (distinct from OPERATOR_PRIVATE_KEY)');
-  }
   const provider = new JsonRpcProvider(rpcUrl);
   const agentWallet = new Wallet(agentKey, provider);
   const agentAddress = agentWallet.address;

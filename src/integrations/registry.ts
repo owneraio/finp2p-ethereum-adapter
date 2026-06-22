@@ -16,7 +16,7 @@ import { registerOtaDeposit } from "./deposits/ota-deposit";
 /** True when another integration (DTCC, collateral, …) already owns the single PaymentsPlugin slot. */
 export function paymentsSlotClaimedExternally(): boolean {
   return process.env.DTCC_PLUGIN_ENABLED === 'true'
-      || !!process.env.COLLATERAL_REGISTRY_ADDRESS;
+      || (!!process.env.COLLATERAL_REGISTRY_ADDRESS && !!process.env.COLLATERAL_AGENT_PRIVATE_KEY);
 }
 
 export interface IntegrationContext {
