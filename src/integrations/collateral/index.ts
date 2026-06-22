@@ -14,6 +14,16 @@ import { IntegrationContext } from "../registry";
  * COLLATERAL_REGISTRY_ADDRESS is set. Mutually exclusive with
  * DTCC_PLUGIN_ENABLED — both compete for the single PaymentsPlugin slot.
  *
+ * The collateral agent EOA is its **own** signer, keyed by
+ * COLLATERAL_AGENT_PRIVATE_KEY — deliberately separate from
+ * OPERATOR_PRIVATE_KEY. They sign different things (the operator drives
+ * FINP2POperator / hold-release flows; the collateral agent drives the
+ * triparty registry) and sharing a key would let either path's
+ * out-of-band ops scripts drift the other's in-memory NonceManager.
+ *
+ * The agent's address is derived from the key — there is no
+ * COLLATERAL_AGENT_ADDRESS env var to keep in sync.
+ *
  * 0.28.6's WalletResolver is address-only: `(finId) => Promise<string | undefined>`.
  * We construct it from whichever lookup is available in the current PROVIDER_TYPE:
  *   - custody modes (fireblocks/dfns): adapt the fat custody resolver, returning
@@ -35,9 +45,14 @@ export function registerCollateralPlugin(ctx: IntegrationContext): void {
     throw new Error('Collateral plugin requires NETWORK_HOST to be set');
   }
 
-  const operatorKey = process.env.OPERATOR_PRIVATE_KEY!;
+  const agentKey = process.env.COLLATERAL_AGENT_PRIVATE_KEY;
+  if (!agentKey) {
+    throw new Error('Collateral plugin requires COLLATERAL_AGENT_PRIVATE_KEY to be set (distinct from OPERATOR_PRIVATE_KEY)');
+  }
   const provider = new JsonRpcProvider(rpcUrl);
-  const agentSigner = new NonceManager(new Wallet(operatorKey, provider));
+  const agentWallet = new Wallet(agentKey, provider);
+  const agentAddress = agentWallet.address;
+  const agentSigner = new NonceManager(agentWallet);
 
   const collateralWalletResolver = buildCollateralWalletResolver(walletResolver, finP2PContract);
 
@@ -51,7 +66,7 @@ export function registerCollateralPlugin(ctx: IntegrationContext): void {
   );
   pluginManager.registerPaymentsPlugin(plugin);
 
-  logger.info(`Collateral plugin activated: token standard '${COLLATERAL_TOKEN_STANDARD}', registry=${registryAddress}`);
+  logger.info(`Collateral plugin activated: token standard '${COLLATERAL_TOKEN_STANDARD}', registry=${registryAddress}, agent=${agentAddress}`);
 }
 
 function buildCollateralWalletResolver(
