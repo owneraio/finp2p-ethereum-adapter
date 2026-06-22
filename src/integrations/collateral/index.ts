@@ -1,4 +1,4 @@
-import { JsonRpcProvider, Wallet, NonceManager, ZeroAddress } from "ethers";
+import { JsonRpcProvider, Wallet, NonceManager } from "ethers";
 import {
   OwneraCollateralPlugin,
   OwneraCollateralTokenStandard,
@@ -63,10 +63,16 @@ function buildCollateralWalletResolver(
   }
   if (finP2PContract) {
     // finp2p-contract mode: resolve finId → ETH address from the FINP2POperator
-    // credentials registry. Zero address means no credential registered → undefined.
+    // credentials registry. Unmapped finIds revert with "Credential not found"
+    // (FINP2POperator.sol:127) — translate that one revert into `undefined` so the
+    // plugin's normal "no address" path runs; bubble any other failure up.
     return async (finId: string) => {
-      const address = await finP2PContract.getCredentialAddress(finId);
-      return address && address !== ZeroAddress ? address : undefined;
+      try {
+        return await finP2PContract.getCredentialAddress(finId);
+      } catch (e) {
+        if (e instanceof Error && /Credential not found/.test(e.message)) return undefined;
+        throw e;
+      }
     };
   }
   throw new Error('Collateral plugin requires either a custody provider or a finp2p-contract to resolve finIds to wallet addresses');
