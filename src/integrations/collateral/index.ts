@@ -1,4 +1,4 @@
-import { JsonRpcProvider, Wallet, NonceManager } from "ethers";
+import { JsonRpcProvider, Wallet, NonceManager, ZeroAddress } from "ethers";
 import {
   OwneraCollateralPlugin,
   OwneraCollateralTokenStandard,
@@ -7,7 +7,6 @@ import {
 } from "@owneraio/finp2p-ethereum-collateral";
 import { FinP2PContract } from "@owneraio/finp2p-contracts";
 import { tokenStandardRegistry, WalletResolver as CustodyWalletResolver } from "../../services/direct";
-import { createFinP2PContractWalletResolver } from "../../services/finp2p-contract/wallet-resolver";
 import { IntegrationContext } from "../registry";
 
 /**
@@ -63,7 +62,12 @@ function buildCollateralWalletResolver(
     return async (finId: string) => (await custodyResolver(finId))?.walletAddress;
   }
   if (finP2PContract) {
-    return createFinP2PContractWalletResolver(finP2PContract);
+    // finp2p-contract mode: resolve finId → ETH address from the FINP2POperator
+    // credentials registry. Zero address means no credential registered → undefined.
+    return async (finId: string) => {
+      const address = await finP2PContract.getCredentialAddress(finId);
+      return address && address !== ZeroAddress ? address : undefined;
+    };
   }
   throw new Error('Collateral plugin requires either a custody provider or a finp2p-contract to resolve finIds to wallet addresses');
 }
