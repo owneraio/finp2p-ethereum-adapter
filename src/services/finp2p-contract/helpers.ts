@@ -118,12 +118,13 @@ export const extractBusinessDetails = (asset: Asset,
         seller: { idkey: sellerFinId },
         asset
       } = template.message as EIP712TransferMessage;
+      const releaseType = destination && destination.finId ? ReleaseType.Release : ReleaseType.Redeem;
       return {
         buyerFinId, sellerFinId,
         asset: termFromEIP712(toContractTerm(asset)),
         settlement: emptyTerm(),
         loan: emptyLoanTerms(),
-        params: operationParams(leg, primaryType, Phase.Initiate, operationId, ReleaseType.Release)
+        params: operationParams(leg, primaryType, Phase.Initiate, operationId, releaseType)
       };
     }
     case "Redemption": {
