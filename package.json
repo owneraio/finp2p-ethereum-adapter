@@ -29,7 +29,12 @@
     "migration": "ts-node ./scripts/migration.ts",
     "sync-balances": "ts-node ./scripts/sync-balances.ts",
     "mass-approve": "ts-node ./scripts/mass-approve.ts",
+    "approve-all": "ts-node ./scripts/approve-all.ts",
     "verify-signature": "ts-node ./scripts/verify-signature.ts",
+    "test-hold-timing": "ts-node ./scripts/test-hold-timing.ts",
+    "fireblocks-probe": "ts-node ./scripts/fireblocks-probe.ts",
+    "fireblocks-check-balance": "ts-node ./scripts/fireblocks-check-balance.ts",
+    "fireblocks-create-test-vault": "ts-node ./scripts/fireblocks-create-test-vault.ts",
     "start-debug": "ts-node ./src/index.ts",
     "start": "node ."
   },
