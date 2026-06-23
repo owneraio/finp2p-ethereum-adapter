@@ -93,6 +93,7 @@ contract FINP2POperatorWithRegistry is AccessControl, FinP2PSignatureVerifier {
     address private escrowWalletAddress;
     mapping(string => Asset) private assets;
     mapping(string => Lock) private locks;
+    mapping(string => address) private credentials;
     address private assetRegistry;
 
     constructor(address admin, address _assetRegistry) {
@@ -130,6 +131,39 @@ contract FINP2POperatorWithRegistry is AccessControl, FinP2PSignatureVerifier {
         require(hasRole(DEFAULT_ADMIN_ROLE, _msgSender()), "FINP2POperatorERC20: must have admin role to set escrow wallet address");
         escrowWalletAddress = _escrowWalletAddress;
     }
+
+    // ---- Credential management ----
+
+    /// @notice Add a credential mapping from finId to wallet address
+    /// @param finId The FinP2P identity
+    /// @param addr The wallet address to associate
+    function addCredential(string calldata finId, address addr) external {
+        require(hasRole(ASSET_MANAGER, _msgSender()), "FINP2POperator: must have asset manager role to add credential");
+        require(addr != address(0), "Wallet address cannot be zero");
+        credentials[finId] = addr;
+    }
+
+    /// @notice Remove a credential mapping
+    /// @param finId The FinP2P identity to remove
+    function removeCredential(string calldata finId) external {
+        require(hasRole(ASSET_MANAGER, _msgSender()), "FINP2POperator: must have asset manager role to remove credential");
+        require(_haveCredential(finId), "Credential not found");
+        delete credentials[finId];
+    }
+
+    /// @notice Get the wallet address for a finId
+    /// @param finId The FinP2P identity
+    /// @return The mapped wallet address
+    function getCredentialAddress(string calldata finId) external view returns (address) {
+        require(_haveCredential(finId), "Credential not found");
+        return credentials[finId];
+    }
+
+    function _haveCredential(string memory finId) internal view returns (bool) {
+        return credentials[finId] != address(0);
+    }
+
+    // ---- Asset management ----
 
     /// @notice Associate an asset with a token address
     /// @param assetId The asset id
