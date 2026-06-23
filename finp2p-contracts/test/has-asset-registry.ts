@@ -64,6 +64,20 @@ describe("FinP2PContract.hasAssetRegistry", function () {
       /requires a bytes32 assetStandard/,
     );
   });
+
+  it("with-registry supports addCredential / getCredentialAddress / removeCredential", async () => {
+    const { address, signer } = await loadFixture(deployWithRegistry);
+    const wrapper = await FinP2PContract.create(ethers.provider, signer, address, silentLogger);
+    const finId = "test-fin-id-001";
+    const walletAddress = "0x617644165869a17309c3bfcbd05526ae1870e01d";
+
+    await wrapper.addCredential(finId, walletAddress);
+    const resolved = await wrapper.getCredentialAddress(finId);
+    expect(resolved.toLowerCase()).to.equal(walletAddress.toLowerCase());
+
+    await wrapper.removeCredential(finId);
+    await expect(wrapper.getCredentialAddress(finId)).to.be.rejectedWith(/Credential not found/);
+  });
 });
 
 describe("isFunctionMissingError", function () {
