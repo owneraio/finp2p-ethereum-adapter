@@ -2,7 +2,7 @@ import { loadFixture } from "@nomicfoundation/hardhat-toolbox/network-helpers";
 import { expect } from "chai";
 // @ts-ignore
 import { ethers } from "hardhat";
-import { FinP2PContract, isFunctionMissingError } from "../src/finp2p";
+import { FinP2PContract, FinP2PVariant, isFunctionMissingError } from "../src/finp2p";
 import { Logger } from "../src/adapter-types";
 
 const silentLogger: Logger = {
@@ -48,13 +48,13 @@ describe("FinP2PContract.hasAssetRegistry", function () {
   it("FinP2PContract.create() detects 'basic' variant", async () => {
     const { address, signer } = await loadFixture(deployBasicOperator);
     const wrapper = await FinP2PContract.create(ethers.provider, signer, address, silentLogger);
-    expect(wrapper.variant).to.equal("basic");
+    expect(wrapper.variant).to.equal(FinP2PVariant.Basic);
   });
 
   it("FinP2PContract.create() detects 'with-registry' variant", async () => {
     const { address, signer } = await loadFixture(deployWithRegistry);
     const wrapper = await FinP2PContract.create(ethers.provider, signer, address, silentLogger);
-    expect(wrapper.variant).to.equal("with-registry");
+    expect(wrapper.variant).to.equal(FinP2PVariant.WithRegistry);
   });
 
   it("associateAsset on with-registry requires an assetStandard arg", async () => {
@@ -63,6 +63,20 @@ describe("FinP2PContract.hasAssetRegistry", function () {
     await expect(wrapper.associateAsset("asset-1", "0x0000000000000000000000000000000000000001")).to.be.rejectedWith(
       /requires a bytes32 assetStandard/,
     );
+  });
+
+  it("with-registry supports addCredential / getCredentialAddress / removeCredential", async () => {
+    const { address, signer } = await loadFixture(deployWithRegistry);
+    const wrapper = await FinP2PContract.create(ethers.provider, signer, address, silentLogger);
+    const finId = "test-fin-id-001";
+    const walletAddress = "0x617644165869a17309c3bfcbd05526ae1870e01d";
+
+    await wrapper.addCredential(finId, walletAddress);
+    const resolved = await wrapper.getCredentialAddress(finId);
+    expect(resolved.toLowerCase()).to.equal(walletAddress.toLowerCase());
+
+    await wrapper.removeCredential(finId);
+    await expect(wrapper.getCredentialAddress(finId)).to.be.rejectedWith(/Credential not found/);
   });
 });
 
