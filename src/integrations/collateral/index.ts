@@ -51,7 +51,10 @@ export function registerCollateralPlugin(ctx: IntegrationContext): void {
   const agentAddress = agentWallet.address;
   const agentSigner = new NonceManager(agentWallet);
 
-  const ledgerName = process.env.NETWORK_NAME ?? 'ethereum';
+  // `ledgerName` is the logical name the FinP2P router uses to identify this
+  // adapter — not the chain (use NETWORK_NAME for that). Defaults to 'ethereum'
+  // for back-compat with existing router configurations.
+  const ledgerName = process.env.LEDGER_NAME ?? 'ethereum';
   const collateralWalletResolver = buildCollateralWalletResolver(walletResolver, finP2PContract);
 
   tokenStandardRegistry.register(
