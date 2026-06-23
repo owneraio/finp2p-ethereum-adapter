@@ -1,4 +1,4 @@
-import { ContractFactory, Provider, Signer, TransactionReceipt } from "ethers";
+import { ContractFactory, Interface, Provider, Signer, TransactionReceipt } from "ethers";
 import { Logger } from "./adapter-types";
 import FINP2P from "../artifacts/contracts/finp2p/FINP2POperator.sol/FINP2POperator.json";
 import { FINP2POperator } from "../typechain-types";
@@ -41,6 +41,30 @@ export class FinP2PContract extends ContractsManager {
 
   async getVersion() {
     return this.mapErrors(async () => this.finP2P.getVersion())
+  }
+
+  /**
+   * True iff the deployed contract is `FINP2POperatorWithRegistry` (rather than
+   * the basic `FINP2POperator`). The two variants share the same name and
+   * VERSION constant but the WithRegistry variant exposes a unique
+   * `getAssetRegistry() returns (address)` method — probe for it via a raw
+   * eth_call. Success → WithRegistry; revert/empty data → basic operator.
+   *
+   * Use at startup to gate code paths that differ between the two
+   * (credential management, associateAsset arity).
+   */
+  async hasAssetRegistry(): Promise<boolean> {
+    const probe = new Interface(["function getAssetRegistry() view returns (address)"]);
+    try {
+      const result = await this.provider.call({
+        to: this.finP2PContractAddress,
+        data: probe.encodeFunctionData("getAssetRegistry", []),
+      });
+      probe.decodeFunctionResult("getAssetRegistry", result);
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   async eip712Domain(): Promise<EIP712Domain> {
