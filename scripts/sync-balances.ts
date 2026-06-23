@@ -30,7 +30,11 @@ const syncBalanceFromOssToEthereum = async (
   }
 
   const { provider, signer } = await createJsonProvider(operatorPrivateKey, ethereumRPCUrl);
-  const contract = new FinP2PContract(provider, signer, finp2pContractAddress, logger);
+  const contract = await FinP2PContract.create(provider, signer, finp2pContractAddress, logger);
+  const assetStandard = process.env.DEFAULT_ASSET_STANDARD;
+  if (contract.variant === 'with-registry' && !assetStandard) {
+    throw new Error('FINP2POperatorWithRegistry detected — set DEFAULT_ASSET_STANDARD (0x-prefixed bytes32) before running this script.');
+  }
 
   for (const { id: assetId } of assets) {
     try {
@@ -41,7 +45,7 @@ const syncBalanceFromOssToEthereum = async (
         logger.info(`Deploying new token for asset ${assetId}`);
         const erc20Address = await contract.deployERC20(assetId, assetId, 0, finp2pContractAddress);
         logger.info(`Associating asset ${assetId} with token ${erc20Address}`);
-        await contract.associateAsset(assetId, erc20Address);
+        await contract.associateAsset(assetId, erc20Address, assetStandard);
       } else {
         logger.error(`Error migrating asset ${assetId}: ${e}`);
       }

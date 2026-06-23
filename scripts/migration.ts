@@ -69,7 +69,11 @@ const startMigration = async (
   }
 
   const { provider, signer } = await createJsonProvider(operatorPrivateKey, ethereumRPCUrl);
-  const finP2PContract = new FinP2PContract(provider, signer, finp2pContractAddress, logger);
+  const finP2PContract = await FinP2PContract.create(provider, signer, finp2pContractAddress, logger);
+  const assetStandard = process.env.DEFAULT_ASSET_STANDARD;
+  if (finP2PContract.variant === 'with-registry' && !assetStandard) {
+    throw new Error('FINP2POperatorWithRegistry detected — set DEFAULT_ASSET_STANDARD (0x-prefixed bytes32) before running this script.');
+  }
 
   let migrated = 0;
   let skipped = 0;
@@ -101,7 +105,7 @@ const startMigration = async (
 
     try {
       logger.info(`Migrating asset ${assetId} with token address ${tokenAddress}`);
-      await finP2PContract.associateAsset(assetId, tokenAddress);
+      await finP2PContract.associateAsset(assetId, tokenAddress, assetStandard);
       logger.info("       asset association [done]");
       await whitelistERC20(provider, signer, tokenAddress, logger, finp2pContractAddress);
       migrated++;

@@ -1,4 +1,4 @@
-import { JsonRpcProvider, NonceManager, Provider, Signer, Wallet } from "ethers";
+import { Interface, JsonRpcProvider, NonceManager, Provider, Signer, Wallet, ZeroAddress } from "ethers";
 import process from "process";
 import { FinP2PContract } from '@owneraio/finp2p-contracts'
 import { FinP2PClient } from '@owneraio/finp2p-client'
@@ -176,10 +176,16 @@ export async function envVarsToAppConfig(logger: Logger): Promise<AppConfig> {
       if (defaultAssetStandardRaw && !/^0x[0-9a-fA-F]{64}$/.test(defaultAssetStandardRaw)) {
         throw new Error(`Invalid DEFAULT_ASSET_STANDARD: must be a 0x-prefixed 32-byte hex string (66 chars), got ${defaultAssetStandardRaw}`);
       }
-      if (finP2PContract.variant === 'with-registry' && !defaultAssetStandardRaw) {
-        throw new Error(
-          `FinP2P contract at ${finP2PContractAddress} is FINP2POperatorWithRegistry but DEFAULT_ASSET_STANDARD env is not set. Its associateAsset signature requires a bytes32 assetStandard; supply DEFAULT_ASSET_STANDARD=0x... before boot.`,
-        );
+      if (finP2PContract.variant === 'with-registry') {
+        if (!defaultAssetStandardRaw) {
+          throw new Error(
+            `FinP2P contract at ${finP2PContractAddress} is FINP2POperatorWithRegistry but DEFAULT_ASSET_STANDARD env is not set. Its associateAsset signature requires a bytes32 assetStandard; supply DEFAULT_ASSET_STANDARD=0x... before boot.`,
+          );
+        }
+        // Verify the supplied standard is actually registered on-chain — a typo
+        // in DEFAULT_ASSET_STANDARD would otherwise pass boot and fail later
+        // with the contract's "Asset standard not found" revert.
+        await verifyAssetStandardRegistered(provider, finP2PContractAddress, defaultAssetStandardRaw, logger);
       }
 
       const { name, version, chainId, verifyingContract } =
@@ -321,4 +327,43 @@ export function parseConfig(params: ParamDefinition[]): ParsedConfig {
   }
 
   return config;
+}
+
+/**
+ * Verify the configured assetStandard is registered on the FINP2POperatorWithRegistry's
+ * AssetRegistry. Fails the boot if not — without this check a typo in
+ * DEFAULT_ASSET_STANDARD would pass startup and surface as an `Asset standard
+ * not found` revert at the first createAsset call.
+ *
+ * Inline raw calls (rather than a shim method) so we don't need another
+ * @owneraio/finp2p-contracts release cycle just for this verification.
+ */
+async function verifyAssetStandardRegistered(
+  provider: Provider,
+  operatorAddress: string,
+  assetStandard: string,
+  logger: Logger,
+): Promise<void> {
+  const operatorIface = new Interface(["function getAssetRegistry() view returns (address)"]);
+  const registryIface = new Interface(["function getAssetStandard(bytes32) view returns (address)"]);
+
+  const registryResult = await provider.call({
+    to: operatorAddress,
+    data: operatorIface.encodeFunctionData("getAssetRegistry", []),
+  });
+  const [registryAddress] = operatorIface.decodeFunctionResult("getAssetRegistry", registryResult);
+  if (registryAddress === ZeroAddress) {
+    throw new Error(`FINP2POperatorWithRegistry at ${operatorAddress} returned zero address for its AssetRegistry — contract is misconfigured.`);
+  }
+
+  const standardResult = await provider.call({
+    to: registryAddress,
+    data: registryIface.encodeFunctionData("getAssetStandard", [assetStandard]),
+  });
+  const [standardImpl] = registryIface.decodeFunctionResult("getAssetStandard", standardResult);
+  if (standardImpl === ZeroAddress) {
+    throw new Error(`DEFAULT_ASSET_STANDARD ${assetStandard} is not registered on AssetRegistry ${registryAddress}. Register it on-chain first or set DEFAULT_ASSET_STANDARD to a known standard id.`);
+  }
+
+  logger.info(`DEFAULT_ASSET_STANDARD ${assetStandard} verified on AssetRegistry ${registryAddress} → impl ${standardImpl}`);
 }
