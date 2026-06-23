@@ -51,6 +51,7 @@ export function registerCollateralPlugin(ctx: IntegrationContext): void {
   const agentAddress = agentWallet.address;
   const agentSigner = new NonceManager(agentWallet);
 
+  const ledgerName = process.env.LEDGER_NAME ?? 'ethereum';
   const collateralWalletResolver = buildCollateralWalletResolver(walletResolver, finP2PContract);
 
   tokenStandardRegistry.register(
@@ -59,11 +60,11 @@ export function registerCollateralPlugin(ctx: IntegrationContext): void {
   );
 
   const plugin = new OwneraCollateralPlugin(
-    orgId, provider, agentSigner, finP2PClient, logger, collateralWalletResolver, registryAddress,
+    orgId, provider, agentSigner, finP2PClient, logger, collateralWalletResolver, registryAddress, ledgerName,
   );
   pluginManager.registerPaymentsPlugin(plugin);
 
-  logger.info(`Collateral plugin activated: token standard '${COLLATERAL_TOKEN_STANDARD}', registry=${registryAddress}, agent=${agentAddress}`);
+  logger.info(`Collateral plugin activated: token standard '${COLLATERAL_TOKEN_STANDARD}', registry=${registryAddress}, agent=${agentAddress}, ledger=${ledgerName}`);
 }
 
 function buildCollateralWalletResolver(
