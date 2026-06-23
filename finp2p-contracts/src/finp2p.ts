@@ -1,4 +1,4 @@
-import { ContractFactory, Interface, Provider, Signer, TransactionReceipt } from "ethers";
+import { ContractFactory, ContractTransactionResponse, Interface, Provider, Signer, TransactionReceipt } from "ethers";
 import { Logger } from "./adapter-types";
 import FINP2P from "../artifacts/contracts/finp2p/FINP2POperator.sol/FINP2POperator.json";
 import { FINP2POperator } from "../typechain-types";
@@ -20,6 +20,17 @@ import { assetTypeToService } from "./mappers";
 
 const ETH_COMPLETED_TRANSACTION_STATUS = 1;
 
+export type FinP2PVariant = 'basic' | 'with-registry';
+
+/**
+ * 3-arg `associateAsset` call data for `FINP2POperatorWithRegistry`. The basic
+ * variant only has the 2-arg form (typed via typechain). For the 3-arg form we
+ * encode the call manually so we don't need to drag in a second contract type.
+ */
+const WITH_REGISTRY_IFACE = new Interface([
+  "function associateAsset(string assetId, address tokenAddress, bytes32 assetStandard)",
+]);
+
 export class FinP2PContract extends ContractsManager {
 
   contractInterface: FINP2POperatorInterface;
@@ -28,7 +39,15 @@ export class FinP2PContract extends ContractsManager {
 
   finP2PContractAddress: string;
 
-  constructor(provider: Provider, signer: Signer, finP2PContractAddress: string, logger: Logger, confirmationTimeoutMs?: number, gasTier?: GasTier) {
+  /**
+   * Which on-chain operator variant we're talking to. Set explicitly by the
+   * `create()` factory (which probes via `hasAssetRegistry()`). Callers that
+   * construct via `new` get `'basic'` by default — fine for the common case
+   * but explicit detection is preferred for production code paths.
+   */
+  variant: FinP2PVariant;
+
+  constructor(provider: Provider, signer: Signer, finP2PContractAddress: string, logger: Logger, confirmationTimeoutMs?: number, gasTier?: GasTier, variant: FinP2PVariant = 'basic') {
     super(provider, signer, logger, confirmationTimeoutMs, gasTier);
     const factory = new ContractFactory<any[], FINP2POperator>(
       FINP2P.abi, FINP2P.bytecode, this.signer
@@ -37,6 +56,19 @@ export class FinP2PContract extends ContractsManager {
     this.contractInterface = contract.interface as FINP2POperatorInterface;
     this.finP2P = contract as FINP2POperator;
     this.finP2PContractAddress = finP2PContractAddress;
+    this.variant = variant;
+  }
+
+  /**
+   * Async factory: constructs a FinP2PContract and probes the deployed variant
+   * via `hasAssetRegistry()`. Preferred over `new FinP2PContract(...)` whenever
+   * the adapter doesn't know up-front which variant it's talking to.
+   */
+  static async create(provider: Provider, signer: Signer, finP2PContractAddress: string, logger: Logger, confirmationTimeoutMs?: number, gasTier?: GasTier): Promise<FinP2PContract> {
+    const c = new FinP2PContract(provider, signer, finP2PContractAddress, logger, confirmationTimeoutMs, gasTier);
+    c.variant = (await c.hasAssetRegistry()) ? 'with-registry' : 'basic';
+    logger.info(`FinP2PContract variant detected: ${c.variant} at ${finP2PContractAddress}`);
+    return c;
   }
 
   async getVersion() {
@@ -86,7 +118,21 @@ export class FinP2PContract extends ContractsManager {
     return this.finP2P.getAssetAddress(assetId);
   }
 
-  async associateAsset(assetId: string, tokenAddress: string) {
+  async associateAsset(assetId: string, tokenAddress: string, assetStandard?: string) {
+    if (this.variant === 'with-registry') {
+      if (!assetStandard) {
+        throw new Error(`FINP2POperatorWithRegistry.associateAsset requires a bytes32 assetStandard at ${this.finP2PContractAddress}`);
+      }
+      const data = WITH_REGISTRY_IFACE.encodeFunctionData("associateAsset", [assetId, tokenAddress, assetStandard]);
+      return this.safeExecuteTransaction(this.finP2P, async (_: FINP2POperator, txParams: PayableOverrides) => {
+        // signer.sendTransaction returns TransactionResponse; safeExecuteTransaction wants
+        // ContractTransactionResponse — same wire object, the extra surface is unused here.
+        return this.signer.sendTransaction({ to: this.finP2PContractAddress, data, ...txParams }) as unknown as Promise<ContractTransactionResponse>;
+      });
+    }
+    if (assetStandard) {
+      this.logger.warning(`assetStandard supplied to associateAsset but contract variant is 'basic' — ignored`);
+    }
     return this.safeExecuteTransaction(this.finP2P, async (finP2P: FINP2POperator, txParams: PayableOverrides) => {
       return finP2P.associateAsset(assetId, tokenAddress, txParams);
     });

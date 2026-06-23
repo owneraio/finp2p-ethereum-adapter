@@ -44,4 +44,24 @@ describe("FinP2PContract.hasAssetRegistry", function () {
     const wrapper = new FinP2PContract(ethers.provider, signer, address, silentLogger);
     expect(await wrapper.hasAssetRegistry()).to.equal(true);
   });
+
+  it("FinP2PContract.create() detects 'basic' variant", async () => {
+    const { address, signer } = await loadFixture(deployBasicOperator);
+    const wrapper = await FinP2PContract.create(ethers.provider, signer, address, silentLogger);
+    expect(wrapper.variant).to.equal("basic");
+  });
+
+  it("FinP2PContract.create() detects 'with-registry' variant", async () => {
+    const { address, signer } = await loadFixture(deployWithRegistry);
+    const wrapper = await FinP2PContract.create(ethers.provider, signer, address, silentLogger);
+    expect(wrapper.variant).to.equal("with-registry");
+  });
+
+  it("associateAsset on with-registry requires an assetStandard arg", async () => {
+    const { address, signer } = await loadFixture(deployWithRegistry);
+    const wrapper = await FinP2PContract.create(ethers.provider, signer, address, silentLogger);
+    await expect(wrapper.associateAsset("asset-1", "0x0000000000000000000000000000000000000001")).to.be.rejectedWith(
+      /requires a bytes32 assetStandard/,
+    );
+  });
 });
