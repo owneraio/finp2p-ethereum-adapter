@@ -20,7 +20,10 @@ import { assetTypeToService } from "./mappers";
 
 const ETH_COMPLETED_TRANSACTION_STATUS = 1;
 
-export type FinP2PVariant = 'basic' | 'with-registry';
+export enum FinP2PVariant {
+  Basic = 'basic',
+  WithRegistry = 'with-registry',
+}
 
 /**
  * 3-arg `associateAsset` call data for `FINP2POperatorWithRegistry`. The basic
@@ -47,7 +50,7 @@ export class FinP2PContract extends ContractsManager {
    */
   variant: FinP2PVariant;
 
-  constructor(provider: Provider, signer: Signer, finP2PContractAddress: string, logger: Logger, confirmationTimeoutMs?: number, gasTier?: GasTier, variant: FinP2PVariant = 'basic') {
+  constructor(provider: Provider, signer: Signer, finP2PContractAddress: string, logger: Logger, confirmationTimeoutMs?: number, gasTier?: GasTier, variant: FinP2PVariant = FinP2PVariant.Basic) {
     super(provider, signer, logger, confirmationTimeoutMs, gasTier);
     const factory = new ContractFactory<any[], FINP2POperator>(
       FINP2P.abi, FINP2P.bytecode, this.signer
@@ -66,7 +69,7 @@ export class FinP2PContract extends ContractsManager {
    */
   static async create(provider: Provider, signer: Signer, finP2PContractAddress: string, logger: Logger, confirmationTimeoutMs?: number, gasTier?: GasTier): Promise<FinP2PContract> {
     const c = new FinP2PContract(provider, signer, finP2PContractAddress, logger, confirmationTimeoutMs, gasTier);
-    c.variant = (await c.hasAssetRegistry()) ? 'with-registry' : 'basic';
+    c.variant = (await c.hasAssetRegistry()) ? FinP2PVariant.WithRegistry : FinP2PVariant.Basic;
     logger.info(`FinP2PContract variant detected: ${c.variant} at ${finP2PContractAddress}`);
     return c;
   }
@@ -119,7 +122,7 @@ export class FinP2PContract extends ContractsManager {
   }
 
   async associateAsset(assetId: string, tokenAddress: string, assetStandard?: string) {
-    if (this.variant === 'with-registry') {
+    if (this.variant === FinP2PVariant.WithRegistry) {
       if (!assetStandard) {
         throw new Error(`FINP2POperatorWithRegistry.associateAsset requires a bytes32 assetStandard at ${this.finP2PContractAddress}`);
       }
