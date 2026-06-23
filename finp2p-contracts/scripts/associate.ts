@@ -10,13 +10,19 @@ const associateAsset = async (
   finp2pContractAddress: string,
   assetId: string,
   erc20Address: string,
+  assetStandard: string | undefined,
 ) => {
   logger.info(`Associating asset ${assetId} with token ${erc20Address} on finP2P contract ${finp2pContractAddress}`);
 
   const { provider, signer } = await createJsonProvider(operatorPrivateKey, ethereumRPCUrl);
 
-  const finP2P = new FinP2PContract(provider, signer, finp2pContractAddress, logger);
-  await finP2P.associateAsset(assetId, erc20Address);
+  const finP2P = await FinP2PContract.create(provider, signer, finp2pContractAddress, logger);
+  if (finP2P.variant === "with-registry" && !assetStandard) {
+    throw new Error(
+      "FINP2POperatorWithRegistry deployment detected — pass --asset_standard (bytes32 hex) for this contract variant.",
+    );
+  }
+  await finP2P.associateAsset(assetId, erc20Address, assetStandard);
   logger.info("Asset associated successfully");
 };
 
@@ -50,9 +56,15 @@ const config = parseConfig([
     envVar: "TOKEN_ADDRESS",
     description: "Token address to associate",
     required: true
+  },
+  {
+    name: "asset_standard",
+    envVar: "ASSET_STANDARD",
+    description: "bytes32 assetStandard id (required for FINP2POperatorWithRegistry; ignored on basic FINP2POperator)",
+    required: false,
   }
 ]);
 
-associateAsset(config.operator_pk!, config.rpc_url!, config.finp2p_contract_address!, config.asset_id!, config.token_address!)
+associateAsset(config.operator_pk!, config.rpc_url!, config.finp2p_contract_address!, config.asset_id!, config.token_address!, config.asset_standard)
   .then(() => {
   }).catch(console.error);
