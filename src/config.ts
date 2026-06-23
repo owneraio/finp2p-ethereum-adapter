@@ -1,4 +1,4 @@
-import { Interface, JsonRpcProvider, NonceManager, Provider, Signer, Wallet, ZeroAddress } from "ethers";
+import { Interface, JsonRpcProvider, NonceManager, Provider, Signer, Wallet, ZeroAddress, keccak256, toUtf8Bytes } from "ethers";
 import process from "process";
 import { FinP2PContract } from '@owneraio/finp2p-contracts'
 import { FinP2PClient } from '@owneraio/finp2p-client'
@@ -8,6 +8,11 @@ import { Logger } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import { InMemoryExecDetailsStore } from './services/finp2p-contract/exec-details-store'
 import { FireblocksAppConfig, createFireblocksAppConfig } from './integrations/fireblocks/config'
 import { DfnsAppConfig, createDfnsAppConfig } from './integrations/dfns/config'
+
+/** keccak256("ERC20") — the default bytes32 `assetStandard` passed to associateAsset
+ *  when DEFAULT_ASSET_STANDARD env is unset. Matches the convention used by other
+ *  FinP2P deployments registering ERC20 as the baseline token standard. */
+export const DEFAULT_ASSET_STANDARD_ERC20 = keccak256(toUtf8Bytes("ERC20"));
 
 export type AccountMappingType = 'database'
 
@@ -165,16 +170,14 @@ export async function envVarsToAppConfig(logger: Logger): Promise<AppConfig> {
       const contractVersion = await finP2PContract.getVersion();
       logger.info(`FinP2P contract version: ${contractVersion} (variant: ${finP2PContract.variant})`);
 
-      const defaultAssetStandardRaw = process.env.DEFAULT_ASSET_STANDARD;
-      if (defaultAssetStandardRaw && !/^0x[0-9a-fA-F]{64}$/.test(defaultAssetStandardRaw)) {
+      const defaultAssetStandardRaw = process.env.DEFAULT_ASSET_STANDARD ?? DEFAULT_ASSET_STANDARD_ERC20;
+      if (!/^0x[0-9a-fA-F]{64}$/.test(defaultAssetStandardRaw)) {
         throw new Error(`Invalid DEFAULT_ASSET_STANDARD: must be a 0x-prefixed 32-byte hex string (66 chars), got ${defaultAssetStandardRaw}`);
       }
+      if (!process.env.DEFAULT_ASSET_STANDARD) {
+        logger.info(`DEFAULT_ASSET_STANDARD not set; defaulting to keccak256("ERC20") = ${DEFAULT_ASSET_STANDARD_ERC20}`);
+      }
       if (finP2PContract.variant === 'with-registry') {
-        if (!defaultAssetStandardRaw) {
-          throw new Error(
-            `FinP2P contract at ${finP2PContractAddress} is FINP2POperatorWithRegistry but DEFAULT_ASSET_STANDARD env is not set. Its associateAsset signature requires a bytes32 assetStandard; supply DEFAULT_ASSET_STANDARD=0x... before boot.`,
-          );
-        }
         await verifyAssetStandardRegistered(provider, finP2PContractAddress, defaultAssetStandardRaw, logger);
       }
 
