@@ -2,7 +2,7 @@ import { loadFixture } from "@nomicfoundation/hardhat-toolbox/network-helpers";
 import { expect } from "chai";
 // @ts-ignore
 import { ethers } from "hardhat";
-import { FinP2PContract } from "../src/finp2p";
+import { FinP2PContract, isFunctionMissingError } from "../src/finp2p";
 import { Logger } from "../src/adapter-types";
 
 const silentLogger: Logger = {
@@ -63,5 +63,32 @@ describe("FinP2PContract.hasAssetRegistry", function () {
     await expect(wrapper.associateAsset("asset-1", "0x0000000000000000000000000000000000000001")).to.be.rejectedWith(
       /requires a bytes32 assetStandard/,
     );
+  });
+});
+
+describe("isFunctionMissingError", function () {
+  it("returns true for ethers v6 CALL_EXCEPTION with empty data", () => {
+    expect(isFunctionMissingError({ code: "CALL_EXCEPTION", data: "0x" })).to.equal(true);
+    expect(isFunctionMissingError({ code: "CALL_EXCEPTION" })).to.equal(true);
+  });
+
+  it("returns true for Hardhat-EDR's function-selector message", () => {
+    expect(isFunctionMissingError(new Error("Transaction reverted: function selector was not recognized and there's no fallback function"))).to.equal(true);
+  });
+
+  it("returns false for transport failures (NETWORK_ERROR, TIMEOUT, unauthenticated)", () => {
+    expect(isFunctionMissingError({ code: "NETWORK_ERROR", message: "could not connect" })).to.equal(false);
+    expect(isFunctionMissingError({ code: "TIMEOUT" })).to.equal(false);
+    expect(isFunctionMissingError(new Error("401 Unauthorized"))).to.equal(false);
+  });
+
+  it("returns false for CALL_EXCEPTION with non-empty revert data", () => {
+    expect(isFunctionMissingError({ code: "CALL_EXCEPTION", data: "0x08c379a0..." })).to.equal(false);
+  });
+
+  it("returns false for nullish input", () => {
+    expect(isFunctionMissingError(undefined)).to.equal(false);
+    expect(isFunctionMissingError(null)).to.equal(false);
+    expect(isFunctionMissingError("string error")).to.equal(false);
   });
 });

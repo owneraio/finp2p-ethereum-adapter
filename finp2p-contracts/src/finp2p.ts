@@ -80,10 +80,9 @@ export class FinP2PContract extends ContractsManager {
    * the basic `FINP2POperator`). The two variants share the same name and
    * VERSION constant but the WithRegistry variant exposes a unique
    * `getAssetRegistry() returns (address)` method — probe for it via a raw
-   * eth_call. Success → WithRegistry; revert/empty data → basic operator.
-   *
-   * Use at startup to gate code paths that differ between the two
-   * (credential management, associateAsset arity).
+   * eth_call. Function-missing reverts → basic operator. Transport failures
+   * (RPC down, network timeout, unauthenticated, etc.) re-throw so we don't
+   * silently misclassify a WithRegistry deployment during a startup blip.
    */
   async hasAssetRegistry(): Promise<boolean> {
     const probe = new Interface(["function getAssetRegistry() view returns (address)"]);
@@ -94,8 +93,9 @@ export class FinP2PContract extends ContractsManager {
       });
       probe.decodeFunctionResult("getAssetRegistry", result);
       return true;
-    } catch {
-      return false;
+    } catch (e) {
+      if (isFunctionMissingError(e)) return false;
+      throw e;
     }
   }
 
@@ -288,4 +288,27 @@ export class FinP2PContract extends ContractsManager {
     };
   }
 
+}
+
+/**
+ * Distinguish "function doesn't exist on the deployed contract" (the signal we
+ * want from a probe) from real transport failures (RPC down, timeout, network
+ * unauthenticated, etc.) that should propagate instead of being swallowed as
+ * "function missing → variant is basic".
+ *
+ * Real RPC nodes surface a missing function as ethers v6 CALL_EXCEPTION with
+ * empty (`0x`) return data. Hardhat-EDR (in-process devnode) instead throws
+ * with the literal message "function selector was not recognized". Match both;
+ * everything else (NETWORK_ERROR, TIMEOUT, UNCONFIGURED_NAME, auth, …) re-throws.
+ */
+export function isFunctionMissingError(e: unknown): boolean {
+  if (typeof e !== 'object' || e === null) return false;
+  const err = e as { code?: string; data?: string; message?: string };
+  if (err.code === 'CALL_EXCEPTION' && (err.data === '0x' || err.data === undefined || err.data === null)) {
+    return true;
+  }
+  if (typeof err.message === 'string' && /function selector was not recognized/i.test(err.message)) {
+    return true;
+  }
+  return false;
 }
