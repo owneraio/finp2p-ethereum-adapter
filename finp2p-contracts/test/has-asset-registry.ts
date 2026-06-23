@@ -3,12 +3,14 @@ import { expect } from "chai";
 // @ts-ignore
 import { ethers } from "hardhat";
 import { FinP2PContract } from "../src/finp2p";
-import winston from "winston";
+import { Logger } from "../src/adapter-types";
 
-const silentLogger = winston.createLogger({
-  level: "error",
-  transports: [new winston.transports.Console({ silent: true })],
-});
+const silentLogger: Logger = {
+  info: () => {},
+  warning: () => {},
+  error: () => {},
+  debug: () => {},
+};
 
 describe("FinP2PContract.hasAssetRegistry", function () {
   async function deployBasicOperator() {
