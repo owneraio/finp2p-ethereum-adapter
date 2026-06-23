@@ -28,7 +28,8 @@ export class TokenServiceImpl extends CommonServiceImpl implements TokenService 
   constructor(finP2PContract: FinP2PContract, finP2PClient: FinP2PClient | undefined,
               execDetailsStore: ExecDetailsStore | undefined,
               proofProvider: ProofProvider | undefined,
-              pluginManager: PluginManager | undefined) {
+              pluginManager: PluginManager | undefined,
+              readonly defaultAssetStandard: string | undefined = undefined) {
     super(finP2PContract, finP2PClient, execDetailsStore, proofProvider, pluginManager);
   }
 
@@ -48,7 +49,7 @@ export class TokenServiceImpl extends CommonServiceImpl implements TokenService 
     }
 
     try {
-      const txHash = await this.finP2PContract.associateAsset(assetId, tokenAddress);
+      const txHash = await this.finP2PContract.associateAsset(assetId, tokenAddress, this.defaultAssetStandard);
     } catch (e) {
       logger.error(`Error creating asset: ${e}`);
       if (e instanceof EthereumTransactionError) {

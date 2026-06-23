@@ -45,6 +45,14 @@ export type FinP2PContractAppConfig = BaseAppConfig & {
   type: 'finp2p-contract'
   finP2PContract: FinP2PContract
   execDetailsStore: ExecDetailsStore | undefined
+  /**
+   * Optional bytes32 hex passed to `associateAsset` when the deployed contract
+   * is `FINP2POperatorWithRegistry` (which requires a 3rd `bytes32 assetStandard`
+   * arg selecting a registered token-standard impl). Sourced from
+   * `DEFAULT_ASSET_STANDARD` env. Validated at boot; required when variant is
+   * `'with-registry'`; ignored by the shim when variant is `'basic'`.
+   */
+  defaultAssetStandard: string | undefined
 }
 
 export { FireblocksAppConfig } from './integrations/fireblocks/config'
@@ -149,7 +157,7 @@ export async function envVarsToAppConfig(logger: Logger): Promise<AppConfig> {
       }
       const txGasTier = txGasTierRaw as GasTier | undefined;
 
-      const finP2PContract = new FinP2PContract(
+      const finP2PContract = await FinP2PContract.create(
         provider,
         signer,
         finP2PContractAddress,
@@ -162,7 +170,18 @@ export async function envVarsToAppConfig(logger: Logger): Promise<AppConfig> {
       const proofProvider = new ProofProvider(orgId, finP2PClient, operatorPrivateKey)
 
       const contractVersion = await finP2PContract.getVersion();
-      logger.info(`FinP2P contract version: ${contractVersion}`);
+      logger.info(`FinP2P contract version: ${contractVersion} (variant: ${finP2PContract.variant})`);
+
+      const defaultAssetStandardRaw = process.env.DEFAULT_ASSET_STANDARD;
+      if (defaultAssetStandardRaw && !/^0x[0-9a-fA-F]{64}$/.test(defaultAssetStandardRaw)) {
+        throw new Error(`Invalid DEFAULT_ASSET_STANDARD: must be a 0x-prefixed 32-byte hex string (66 chars), got ${defaultAssetStandardRaw}`);
+      }
+      if (finP2PContract.variant === 'with-registry' && !defaultAssetStandardRaw) {
+        throw new Error(
+          `FinP2P contract at ${finP2PContractAddress} is FINP2POperatorWithRegistry but DEFAULT_ASSET_STANDARD env is not set. Its associateAsset signature requires a bytes32 assetStandard; supply DEFAULT_ASSET_STANDARD=0x... before boot.`,
+        );
+      }
+
       const { name, version, chainId, verifyingContract } =
         await finP2PContract.eip712Domain();
       logger.info(
@@ -180,6 +199,7 @@ export async function envVarsToAppConfig(logger: Logger): Promise<AppConfig> {
         accountModel,
         finP2PContract,
         execDetailsStore,
+        defaultAssetStandard: defaultAssetStandardRaw,
       }
     }
     case 'fireblocks': {
