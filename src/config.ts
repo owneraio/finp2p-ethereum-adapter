@@ -9,9 +9,6 @@ import { InMemoryExecDetailsStore } from './services/finp2p-contract/exec-detail
 import { FireblocksAppConfig, createFireblocksAppConfig } from './integrations/fireblocks/config'
 import { DfnsAppConfig, createDfnsAppConfig } from './integrations/dfns/config'
 
-/** keccak256("ERC20") — the default bytes32 `assetStandard` passed to associateAsset
- *  when DEFAULT_ASSET_STANDARD env is unset. Matches the convention used by other
- *  FinP2P deployments registering ERC20 as the baseline token standard. */
 export const DEFAULT_ASSET_STANDARD_ERC20 = keccak256(toUtf8Bytes("ERC20"));
 
 export type AccountMappingType = 'database'
