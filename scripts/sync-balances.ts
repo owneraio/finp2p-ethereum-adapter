@@ -4,7 +4,7 @@ import winston, { format, transports } from "winston";
 import { FinP2PClient } from "@owneraio/finp2p-client";
 import { FinP2PContract, AssetType, term } from "@owneraio/finp2p-contracts";
 import { emptyOperationParams } from "../src/services/finp2p-contract/helpers";
-import { createJsonProvider, parseConfig } from "../src/config";
+import { createJsonProvider, parseConfig, verifyAssetStandardRegistered } from "../src/config";
 import { redactSecrets } from "../src/redact-secrets";
 
 
@@ -32,8 +32,11 @@ const syncBalanceFromOssToEthereum = async (
   const { provider, signer } = await createJsonProvider(operatorPrivateKey, ethereumRPCUrl);
   const contract = await FinP2PContract.create(provider, signer, finp2pContractAddress, logger);
   const assetStandard = process.env.DEFAULT_ASSET_STANDARD;
-  if (contract.variant === 'with-registry' && !assetStandard) {
-    throw new Error('FINP2POperatorWithRegistry detected — set DEFAULT_ASSET_STANDARD (0x-prefixed bytes32) before running this script.');
+  if (contract.variant === 'with-registry') {
+    if (!assetStandard) {
+      throw new Error('FINP2POperatorWithRegistry detected — set DEFAULT_ASSET_STANDARD (0x-prefixed bytes32) before running this script.');
+    }
+    await verifyAssetStandardRegistered(provider, finp2pContractAddress, assetStandard, logger);
   }
 
   for (const { id: assetId } of assets) {

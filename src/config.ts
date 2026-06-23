@@ -330,20 +330,34 @@ export function parseConfig(params: ParamDefinition[]): ParsedConfig {
 }
 
 /**
- * Verify the configured assetStandard is registered on the FINP2POperatorWithRegistry's
- * AssetRegistry. Fails the boot if not — without this check a typo in
- * DEFAULT_ASSET_STANDARD would pass startup and surface as an `Asset standard
- * not found` revert at the first createAsset call.
+ * Validate the supplied DEFAULT_ASSET_STANDARD value and verify it's actually
+ * registered on the FINP2POperatorWithRegistry's AssetRegistry. Fails fast at
+ * boot if any check trips — without this a typo would pass startup and surface
+ * as a cryptic on-chain revert at the first createAsset.
+ *
+ * Two checks:
+ *   1. Shape: 0x-prefixed 32-byte hex (66 chars).
+ *   2. Registration: lookup via getAssetRegistry → getAssetStandard(bytes32).
+ *      AssetRegistry reverts with "Asset standard not found" for unknown ids
+ *      (NOT zero address), so we catch that specific revert and translate it
+ *      into a clear error.
  *
  * Inline raw calls (rather than a shim method) so we don't need another
  * @owneraio/finp2p-contracts release cycle just for this verification.
+ *
+ * Exported so the operational scripts (migration, sync-balances) can apply
+ * the same validation when they detect a WithRegistry deployment.
  */
-async function verifyAssetStandardRegistered(
+export async function verifyAssetStandardRegistered(
   provider: Provider,
   operatorAddress: string,
   assetStandard: string,
   logger: Logger,
 ): Promise<void> {
+  if (!/^0x[0-9a-fA-F]{64}$/.test(assetStandard)) {
+    throw new Error(`Invalid asset standard: must be a 0x-prefixed 32-byte hex string (66 chars), got ${assetStandard}`);
+  }
+
   const operatorIface = new Interface(["function getAssetRegistry() view returns (address)"]);
   const registryIface = new Interface(["function getAssetStandard(bytes32) view returns (address)"]);
 
@@ -356,14 +370,26 @@ async function verifyAssetStandardRegistered(
     throw new Error(`FINP2POperatorWithRegistry at ${operatorAddress} returned zero address for its AssetRegistry — contract is misconfigured.`);
   }
 
-  const standardResult = await provider.call({
-    to: registryAddress,
-    data: registryIface.encodeFunctionData("getAssetStandard", [assetStandard]),
-  });
-  const [standardImpl] = registryIface.decodeFunctionResult("getAssetStandard", standardResult);
-  if (standardImpl === ZeroAddress) {
-    throw new Error(`DEFAULT_ASSET_STANDARD ${assetStandard} is not registered on AssetRegistry ${registryAddress}. Register it on-chain first or set DEFAULT_ASSET_STANDARD to a known standard id.`);
+  let standardImpl: string;
+  try {
+    const standardResult = await provider.call({
+      to: registryAddress,
+      data: registryIface.encodeFunctionData("getAssetStandard", [assetStandard]),
+    });
+    [standardImpl] = registryIface.decodeFunctionResult("getAssetStandard", standardResult);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    if (/Asset standard not found/.test(msg)) {
+      throw new Error(`Asset standard ${assetStandard} is not registered on AssetRegistry ${registryAddress}. Register it on-chain first or use a known standard id.`);
+    }
+    throw e;
   }
 
-  logger.info(`DEFAULT_ASSET_STANDARD ${assetStandard} verified on AssetRegistry ${registryAddress} → impl ${standardImpl}`);
+  if (standardImpl === ZeroAddress) {
+    // Defensive: shouldn't be reachable given the revert above, but keep the
+    // check in case the registry contract is ever changed to return zero.
+    throw new Error(`Asset standard ${assetStandard} resolves to zero address on AssetRegistry ${registryAddress}.`);
+  }
+
+  logger.info(`Asset standard ${assetStandard} verified on AssetRegistry ${registryAddress} → impl ${standardImpl}`);
 }
