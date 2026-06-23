@@ -163,6 +163,15 @@ export async function envVarsToAppConfig(logger: Logger): Promise<AppConfig> {
 
       const contractVersion = await finP2PContract.getVersion();
       logger.info(`FinP2P contract version: ${contractVersion}`);
+      // FINP2POperatorWithRegistry shares the same name and VERSION constant but
+      // drops credential management and bumps associateAsset to 3 args — the
+      // adapter doesn't support it yet. Fail loudly at boot rather than emit
+      // a cryptic empty-revert at the first mapping/asset call.
+      if (await finP2PContract.hasAssetRegistry()) {
+        throw new Error(
+          `FinP2P contract at ${finP2PContractAddress} is a FINP2POperatorWithRegistry — not supported by this adapter. Deploy the basic FINP2POperator (or a version of the adapter that supports the with-registry variant).`,
+        );
+      }
       const { name, version, chainId, verifyingContract } =
         await finP2PContract.eip712Domain();
       logger.info(
