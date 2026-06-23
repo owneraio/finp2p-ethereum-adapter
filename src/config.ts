@@ -45,7 +45,7 @@ export type FinP2PContractAppConfig = BaseAppConfig & {
   type: 'finp2p-contract'
   finP2PContract: FinP2PContract
   execDetailsStore: ExecDetailsStore | undefined
-  defaultAssetStandard: string | undefined
+  defaultAssetStandard?: string
 }
 
 export { FireblocksAppConfig } from './integrations/fireblocks/config'
