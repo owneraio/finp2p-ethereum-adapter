@@ -45,13 +45,6 @@ export type FinP2PContractAppConfig = BaseAppConfig & {
   type: 'finp2p-contract'
   finP2PContract: FinP2PContract
   execDetailsStore: ExecDetailsStore | undefined
-  /**
-   * Optional bytes32 hex passed to `associateAsset` when the deployed contract
-   * is `FINP2POperatorWithRegistry` (which requires a 3rd `bytes32 assetStandard`
-   * arg selecting a registered token-standard impl). Sourced from
-   * `DEFAULT_ASSET_STANDARD` env. Validated at boot; required when variant is
-   * `'with-registry'`; ignored by the shim when variant is `'basic'`.
-   */
   defaultAssetStandard: string | undefined
 }
 
@@ -182,9 +175,6 @@ export async function envVarsToAppConfig(logger: Logger): Promise<AppConfig> {
             `FinP2P contract at ${finP2PContractAddress} is FINP2POperatorWithRegistry but DEFAULT_ASSET_STANDARD env is not set. Its associateAsset signature requires a bytes32 assetStandard; supply DEFAULT_ASSET_STANDARD=0x... before boot.`,
           );
         }
-        // Verify the supplied standard is actually registered on-chain — a typo
-        // in DEFAULT_ASSET_STANDARD would otherwise pass boot and fail later
-        // with the contract's "Asset standard not found" revert.
         await verifyAssetStandardRegistered(provider, finP2PContractAddress, defaultAssetStandardRaw, logger);
       }
 
@@ -330,23 +320,10 @@ export function parseConfig(params: ParamDefinition[]): ParsedConfig {
 }
 
 /**
- * Validate the supplied DEFAULT_ASSET_STANDARD value and verify it's actually
- * registered on the FINP2POperatorWithRegistry's AssetRegistry. Fails fast at
- * boot if any check trips — without this a typo would pass startup and surface
- * as a cryptic on-chain revert at the first createAsset.
- *
- * Two checks:
- *   1. Shape: 0x-prefixed 32-byte hex (66 chars).
- *   2. Registration: lookup via getAssetRegistry → getAssetStandard(bytes32).
- *      AssetRegistry reverts with "Asset standard not found" for unknown ids
- *      (NOT zero address), so we catch that specific revert and translate it
- *      into a clear error.
- *
- * Inline raw calls (rather than a shim method) so we don't need another
- * @owneraio/finp2p-contracts release cycle just for this verification.
- *
- * Exported so the operational scripts (migration, sync-balances) can apply
- * the same validation when they detect a WithRegistry deployment.
+ * AssetRegistry reverts with "Asset standard not found" for unknown ids
+ * (NOT zero address) — we catch that specific revert and translate to a
+ * clear error so a typo'd DEFAULT_ASSET_STANDARD fails fast at boot
+ * instead of at the first createAsset call.
  */
 export async function verifyAssetStandardRegistered(
   provider: Provider,
