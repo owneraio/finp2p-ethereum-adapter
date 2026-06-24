@@ -10,7 +10,7 @@ import {
   OPERATOR_ROLE,
   isEthereumAddress
 } from "@owneraio/finp2p-contracts";
-import { createJsonProvider, parseConfig } from "../src/config";
+import { createJsonProvider, parseConfig, verifyAssetStandardRegistered } from "../src/config";
 import { Provider, Signer } from "ethers";
 import { Logger } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import { redactSecrets } from "../src/redact-secrets";
@@ -69,7 +69,14 @@ const startMigration = async (
   }
 
   const { provider, signer } = await createJsonProvider(operatorPrivateKey, ethereumRPCUrl);
-  const finP2PContract = new FinP2PContract(provider, signer, finp2pContractAddress, logger);
+  const finP2PContract = await FinP2PContract.create(provider, signer, finp2pContractAddress, logger);
+  const assetStandard = process.env.DEFAULT_ASSET_STANDARD;
+  if (finP2PContract.variant === 'with-registry') {
+    if (!assetStandard) {
+      throw new Error('FINP2POperatorWithRegistry detected — set DEFAULT_ASSET_STANDARD (0x-prefixed bytes32) before running this script.');
+    }
+    await verifyAssetStandardRegistered(provider, finp2pContractAddress, assetStandard, logger);
+  }
 
   let migrated = 0;
   let skipped = 0;
@@ -101,7 +108,7 @@ const startMigration = async (
 
     try {
       logger.info(`Migrating asset ${assetId} with token address ${tokenAddress}`);
-      await finP2PContract.associateAsset(assetId, tokenAddress);
+      await finP2PContract.associateAsset(assetId, tokenAddress, assetStandard);
       logger.info("       asset association [done]");
       await whitelistERC20(provider, signer, tokenAddress, logger, finp2pContractAddress);
       migrated++;

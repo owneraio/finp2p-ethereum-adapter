@@ -137,7 +137,7 @@ function registerFinP2PContractServices(
   const workflowStorage = dbPool ? new workflows.WorkflowStorage(dbPool, ledgerSchema) : undefined;
   let planApprovalService = new PlanApprovalServiceImpl(contractConfig.orgId, pluginManager, contractConfig.finP2PClient);
   const escrowService = new EscrowServiceImpl(contractConfig.finP2PContract, contractConfig.finP2PClient, contractConfig.execDetailsStore, contractConfig.proofProvider, pluginManager);
-  const tokenService = new TokenServiceImpl(contractConfig.finP2PContract, contractConfig.finP2PClient, contractConfig.execDetailsStore, contractConfig.proofProvider, pluginManager);
+  const tokenService = new TokenServiceImpl(contractConfig.finP2PContract, contractConfig.finP2PClient, contractConfig.execDetailsStore, contractConfig.proofProvider, pluginManager, contractConfig.defaultAssetStandard);
   const mappingService = new CredentialsMappingService(contractConfig.finP2PContract);
   const mappingConfig = buildMappingConfig();
 
