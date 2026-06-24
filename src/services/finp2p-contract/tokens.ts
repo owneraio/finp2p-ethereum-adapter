@@ -54,9 +54,12 @@ export class TokenServiceImpl extends CommonServiceImpl implements TokenService 
     if (!responseStandard) {
       return failedAssetCreation(1, 'No asset standard supplied and DEFAULT_ASSET_STANDARD env not set');
     }
-    const assetStandardId = requestedStandard
-      ? keccak256(toUtf8Bytes(requestedStandard))
-      : this.defaultAssetStandard!;
+    // The basic FINP2POperator's associateAsset takes 2 args; the WithRegistry
+    // variant takes 3 (extra bytes32 assetStandard). Only thread the standard
+    // through when the deployed variant needs it.
+    const assetStandardId = this.finP2PContract.variant === 'with-registry'
+      ? (requestedStandard ? keccak256(toUtf8Bytes(requestedStandard)) : this.defaultAssetStandard!)
+      : undefined;
 
     try {
       const txHash = await this.finP2PContract.associateAsset(assetId, tokenAddress, assetStandardId);
