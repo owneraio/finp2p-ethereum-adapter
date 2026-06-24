@@ -5,6 +5,7 @@ import {
   AssetBind, AssetDenomination, AssetCreationResult, Destination, ExecutionContext,
   ReceiptOperation, Source, Signature, logger, ProofProvider, PluginManager,
 } from "@owneraio/finp2p-nodejs-skeleton-adapter";
+import { keccak256, toUtf8Bytes } from "ethers";
 import { ValidationError } from "@owneraio/finp2p-contracts";
 import { FinP2PClient } from "@owneraio/finp2p-client";
 import {
@@ -28,7 +29,8 @@ export class TokenServiceImpl extends CommonServiceImpl implements TokenService 
   constructor(finP2PContract: FinP2PContract, finP2PClient: FinP2PClient | undefined,
               execDetailsStore: ExecDetailsStore | undefined,
               proofProvider: ProofProvider | undefined,
-              pluginManager: PluginManager | undefined) {
+              pluginManager: PluginManager | undefined,
+              readonly defaultAssetStandard: string | undefined = undefined) {
     super(finP2PContract, finP2PClient, execDetailsStore, proofProvider, pluginManager);
   }
 
@@ -47,8 +49,20 @@ export class TokenServiceImpl extends CommonServiceImpl implements TokenService 
       logger.debug(`Deployed new token ${tokenAddress} for asset ${assetId}`);
     }
 
+    const requestedStandard = assetBind?.tokenIdentifier?.standard;
+    const responseStandard = requestedStandard ?? this.defaultAssetStandard;
+    if (!responseStandard) {
+      return failedAssetCreation(1, 'No asset standard supplied and DEFAULT_ASSET_STANDARD env not set');
+    }
+    // The basic FINP2POperator's associateAsset takes 2 args; the WithRegistry
+    // variant takes 3 (extra bytes32 assetStandard). Only thread the standard
+    // through when the deployed variant needs it.
+    const assetStandardId = this.finP2PContract.variant === 'with-registry'
+      ? (requestedStandard ? keccak256(toUtf8Bytes(requestedStandard)) : this.defaultAssetStandard!)
+      : undefined;
+
     try {
-      const txHash = await this.finP2PContract.associateAsset(assetId, tokenAddress);
+      const txHash = await this.finP2PContract.associateAsset(assetId, tokenAddress, assetStandardId);
     } catch (e) {
       logger.error(`Error creating asset: ${e}`);
       if (e instanceof EthereumTransactionError) {
@@ -57,8 +71,6 @@ export class TokenServiceImpl extends CommonServiceImpl implements TokenService 
         return failedAssetCreation(1, `${e}`);
       }
     }
-
-    const responseStandard = assetBind?.tokenIdentifier?.standard ?? 'ERC20';
 
     const { chainId, name } = await this.finP2PContract.provider.getNetwork();
     const network = `name: ${name}, chainId: ${chainId}`;

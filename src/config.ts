@@ -1,4 +1,4 @@
-import { JsonRpcProvider, NonceManager, Provider, Signer, Wallet } from "ethers";
+import { Interface, JsonRpcProvider, NonceManager, Provider, Signer, Wallet, ZeroAddress, keccak256, toUtf8Bytes } from "ethers";
 import process from "process";
 import { FinP2PContract } from '@owneraio/finp2p-contracts'
 import { FinP2PClient } from '@owneraio/finp2p-client'
@@ -8,6 +8,8 @@ import { Logger } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import { InMemoryExecDetailsStore } from './services/finp2p-contract/exec-details-store'
 import { FireblocksAppConfig, createFireblocksAppConfig } from './integrations/fireblocks/config'
 import { DfnsAppConfig, createDfnsAppConfig } from './integrations/dfns/config'
+
+export const DEFAULT_ASSET_STANDARD_ERC20 = keccak256(toUtf8Bytes("ERC20"));
 
 export type AccountMappingType = 'database'
 
@@ -45,6 +47,7 @@ export type FinP2PContractAppConfig = BaseAppConfig & {
   type: 'finp2p-contract'
   finP2PContract: FinP2PContract
   execDetailsStore: ExecDetailsStore | undefined
+  defaultAssetStandard?: string
 }
 
 export { FireblocksAppConfig } from './integrations/fireblocks/config'
@@ -149,7 +152,7 @@ export async function envVarsToAppConfig(logger: Logger): Promise<AppConfig> {
       }
       const txGasTier = txGasTierRaw as GasTier | undefined;
 
-      const finP2PContract = new FinP2PContract(
+      const finP2PContract = await FinP2PContract.create(
         provider,
         signer,
         finP2PContractAddress,
@@ -162,7 +165,19 @@ export async function envVarsToAppConfig(logger: Logger): Promise<AppConfig> {
       const proofProvider = new ProofProvider(orgId, finP2PClient, operatorPrivateKey)
 
       const contractVersion = await finP2PContract.getVersion();
-      logger.info(`FinP2P contract version: ${contractVersion}`);
+      logger.info(`FinP2P contract version: ${contractVersion} (variant: ${finP2PContract.variant})`);
+
+      const defaultAssetStandardRaw = process.env.DEFAULT_ASSET_STANDARD ?? DEFAULT_ASSET_STANDARD_ERC20;
+      if (!/^0x[0-9a-fA-F]{64}$/.test(defaultAssetStandardRaw)) {
+        throw new Error(`Invalid DEFAULT_ASSET_STANDARD: must be a 0x-prefixed 32-byte hex string (66 chars), got ${defaultAssetStandardRaw}`);
+      }
+      if (!process.env.DEFAULT_ASSET_STANDARD) {
+        logger.info(`DEFAULT_ASSET_STANDARD not set; defaulting to keccak256("ERC20") = ${DEFAULT_ASSET_STANDARD_ERC20}`);
+      }
+      if (finP2PContract.variant === 'with-registry') {
+        await verifyAssetStandardRegistered(provider, finP2PContractAddress, defaultAssetStandardRaw, logger);
+      }
+
       const { name, version, chainId, verifyingContract } =
         await finP2PContract.eip712Domain();
       logger.info(
@@ -180,6 +195,7 @@ export async function envVarsToAppConfig(logger: Logger): Promise<AppConfig> {
         accountModel,
         finP2PContract,
         execDetailsStore,
+        defaultAssetStandard: defaultAssetStandardRaw,
       }
     }
     case 'fireblocks': {
@@ -301,4 +317,56 @@ export function parseConfig(params: ParamDefinition[]): ParsedConfig {
   }
 
   return config;
+}
+
+/**
+ * AssetRegistry reverts with "Asset standard not found" for unknown ids
+ * (NOT zero address) — we catch that specific revert and translate to a
+ * clear error so a typo'd DEFAULT_ASSET_STANDARD fails fast at boot
+ * instead of at the first createAsset call.
+ */
+export async function verifyAssetStandardRegistered(
+  provider: Provider,
+  operatorAddress: string,
+  assetStandard: string,
+  logger: Logger,
+): Promise<void> {
+  if (!/^0x[0-9a-fA-F]{64}$/.test(assetStandard)) {
+    throw new Error(`Invalid asset standard: must be a 0x-prefixed 32-byte hex string (66 chars), got ${assetStandard}`);
+  }
+
+  const operatorIface = new Interface(["function getAssetRegistry() view returns (address)"]);
+  const registryIface = new Interface(["function getAssetStandard(bytes32) view returns (address)"]);
+
+  const registryResult = await provider.call({
+    to: operatorAddress,
+    data: operatorIface.encodeFunctionData("getAssetRegistry", []),
+  });
+  const [registryAddress] = operatorIface.decodeFunctionResult("getAssetRegistry", registryResult);
+  if (registryAddress === ZeroAddress) {
+    throw new Error(`FINP2POperatorWithRegistry at ${operatorAddress} returned zero address for its AssetRegistry — contract is misconfigured.`);
+  }
+
+  let standardImpl: string;
+  try {
+    const standardResult = await provider.call({
+      to: registryAddress,
+      data: registryIface.encodeFunctionData("getAssetStandard", [assetStandard]),
+    });
+    [standardImpl] = registryIface.decodeFunctionResult("getAssetStandard", standardResult);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    if (/Asset standard not found/.test(msg)) {
+      throw new Error(`Asset standard ${assetStandard} is not registered on AssetRegistry ${registryAddress}. Register it on-chain first or use a known standard id.`);
+    }
+    throw e;
+  }
+
+  if (standardImpl === ZeroAddress) {
+    // Defensive: shouldn't be reachable given the revert above, but keep the
+    // check in case the registry contract is ever changed to return zero.
+    throw new Error(`Asset standard ${assetStandard} resolves to zero address on AssetRegistry ${registryAddress}.`);
+  }
+
+  logger.info(`Asset standard ${assetStandard} verified on AssetRegistry ${registryAddress} → impl ${standardImpl}`);
 }
