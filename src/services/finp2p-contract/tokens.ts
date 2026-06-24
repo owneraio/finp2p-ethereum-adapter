@@ -58,18 +58,18 @@ export class TokenServiceImpl extends CommonServiceImpl implements TokenService 
       }
     }
 
-    // TODO: parse assetMetadata to determine token standard and other details
+    const responseStandard = assetBind?.tokenIdentifier?.standard ?? 'ERC20';
 
     const { chainId, name } = await this.finP2PContract.provider.getNetwork();
-    const network = `name: ${name}, chainId: ${chainId}`; // public or private network?
+    const network = `name: ${name}, chainId: ${chainId}`;
     const finP2POperatorContractAddress = this.finP2PContract.finP2PContractAddress;
     const result: AssetCreationResult = {
-      ledgerIdentifier: { assetIdentifierType: 'CAIP-19', network, tokenId: tokenAddress, standard: 'ERC20' },
+      ledgerIdentifier: { assetIdentifierType: 'CAIP-19', network, tokenId: tokenAddress, standard: responseStandard },
       reference: {
         type: "ledgerReference",
         network,
         address: tokenAddress,
-        tokenStandard: "ERC20",
+        tokenStandard: responseStandard,
         additionalContractDetails: {
           finP2POperatorContractAddress,
           allowanceRequired
