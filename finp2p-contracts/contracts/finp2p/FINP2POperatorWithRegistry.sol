@@ -163,6 +163,13 @@ contract FINP2POperatorWithRegistry is AccessControl, FinP2PSignatureVerifier {
         return credentials[finId] != address(0);
     }
 
+    /// @notice Resolve finId to wallet address via credentials mapping
+    function _resolveAddress(string memory finId) internal view returns (address) {
+        address addr = credentials[finId];
+        require(addr != address(0), "Credential not found for finId");
+        return addr;
+    }
+
     // ---- Asset management ----
 
     /// @notice Associate an asset with a token address
@@ -205,7 +212,7 @@ contract FINP2POperatorWithRegistry is AccessControl, FinP2PSignatureVerifier {
         string calldata finId
     ) external view returns (string memory) {
         require(_haveAsset(assetId), "Asset not found");
-        address addr = finId.toAddress();
+        address addr = _resolveAddress(finId);
         Asset memory asset = assets[assetId];
         AssetStandard standard = AssetStandard(AssetRegistry(assetRegistry).getAssetStandard(asset.standard));
         return standard.balanceOf(asset.tokenAddress, addr);
@@ -220,7 +227,7 @@ contract FINP2POperatorWithRegistry is AccessControl, FinP2PSignatureVerifier {
         OperationParams memory op
     ) external {
         require(hasRole(TRANSACTION_MANAGER, _msgSender()), "FINP2POperatorERC20: must have transaction manager role to issue asset");
-        _mint(issuerFinId.toAddress(), assetTerm.assetId, assetTerm.amount, op);
+        _mint(_resolveAddress(issuerFinId), assetTerm.assetId, assetTerm.amount, op);
         emit Issue(assetTerm.assetId, assetTerm.assetType, issuerFinId, assetTerm.amount);
     }
 
@@ -260,7 +267,7 @@ contract FINP2POperatorWithRegistry is AccessControl, FinP2PSignatureVerifier {
             source,
             signature
         ), "Signature is not verified");
-        _transfer(source.toAddress(), destination.toAddress(), assetId, amount, op);
+        _transfer(_resolveAddress(source), _resolveAddress(destination), assetId, amount, op);
         emit Transfer(assetId, assetType, source, destination, amount);
     }
 
@@ -273,7 +280,7 @@ contract FINP2POperatorWithRegistry is AccessControl, FinP2PSignatureVerifier {
         OperationParams memory op
     ) external {
         require(hasRole(TRANSACTION_MANAGER, _msgSender()), "FINP2POperatorERC20: must have transaction manager role to release asset");
-        _burn(ownerFinId.toAddress(), term.assetId, term.amount, op);
+        _burn(_resolveAddress(ownerFinId), term.assetId, term.amount, op);
         emit Redeem(term.assetId, term.assetType, ownerFinId, term.amount, '');
     }
 
@@ -313,7 +320,7 @@ contract FINP2POperatorWithRegistry is AccessControl, FinP2PSignatureVerifier {
             signature
         ), "Signature is not verified");
 
-        _hold(source.toAddress(), assetId, amount, op);
+        _hold(_resolveAddress(source), assetId, amount, op);
         if (op.releaseType == ReleaseType.RELEASE) {
             locks[op.operationId] = Lock(assetId, assetType, source, destination, amount);
         } else if (op.releaseType == ReleaseType.REDEEM) {
@@ -342,7 +349,7 @@ contract FINP2POperatorWithRegistry is AccessControl, FinP2PSignatureVerifier {
         require(lock.source.equals(fromFinId), "Trying to release asset with source different from the one who held it");
         require(lock.destination.equals(toFinId), "Trying to release to different destination than the one expected in the lock");
 
-        _release(toFinId.toAddress(), lock.assetId, lock.amount, op);
+        _release(_resolveAddress(toFinId), lock.assetId, lock.amount, op);
         emit Release(lock.assetId, lock.assetType, lock.source, lock.destination, quantity, operationId);
         delete locks[operationId];
     }
@@ -377,7 +384,7 @@ contract FINP2POperatorWithRegistry is AccessControl, FinP2PSignatureVerifier {
         require(hasRole(TRANSACTION_MANAGER, _msgSender()), "FINP2POperatorERC20: must have transaction manager role to rollback asset");
         require(_haveContract(operationId), "contract does not exists");
         Lock storage lock = locks[operationId];
-        _release(lock.source.toAddress(), lock.assetId, lock.amount, op);
+        _release(_resolveAddress(lock.source), lock.assetId, lock.amount, op);
         emit Release(lock.assetId, lock.assetType, lock.source, "", lock.amount, operationId);
         delete locks[operationId];
     }
