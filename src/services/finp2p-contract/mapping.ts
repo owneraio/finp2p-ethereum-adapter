@@ -1,4 +1,4 @@
-import { AccountMappingService, AccountMapping, ReceiptOperation, Asset } from '@owneraio/finp2p-nodejs-skeleton-adapter';
+import { AccountMappingService, AccountMapping, ReceiptOperation, Asset, ExecutionContext } from '@owneraio/finp2p-nodejs-skeleton-adapter';
 import { FinP2PContract, ReceiptOperation as ContractReceiptOperation } from '@owneraio/finp2p-contracts';
 import { FIELD_LEDGER_ACCOUNT_ID } from '../direct/mapping-validator';
 
@@ -7,24 +7,35 @@ function mapAccount(acc: { finId: string; account?: string } | undefined) {
   return { finId: acc.finId, account: acc.account ? { type: 'ledger', address: acc.account } : undefined };
 }
 
+const hasRealPlan = (ctx: { planId?: string } | undefined | null): boolean =>
+  !!ctx && typeof ctx.planId === 'string' && ctx.planId.trim().length > 0;
+
 /**
  * Map a contracts ReceiptOperation to the skeleton's shape.
  * Optionally overrides the receipt's asset with the caller's full asset
  * (which carries ledgerIdentifier the on-chain contract doesn't know about).
  *
- * Strips an empty `tradeDetails.executionContext` — finp2p-contracts
- * seeds it with `{ planId: "", sequence: 0 }` when there's no real plan,
- * and the router rejects empty `executionPlanId` strings.
+ * Reconstructs `tradeDetails.executionContext`: on-chain event logs carry no
+ * FinP2P execution context, so finp2p-contracts seeds the parsed receipt with
+ * `{ planId: "", sequence: 0 }`. The real context is captured at submission
+ * time (passed here as `executionContext`, either the live value or one looked
+ * up from the ExecDetailsStore by tx hash) and reinstated so the receipt can be
+ * correlated back to its execution plan. When no real context is available the
+ * empty placeholder is stripped — the router rejects empty `executionPlanId`.
  */
-export function mapReceiptOperation(op: ContractReceiptOperation, asset?: Asset): ReceiptOperation {
+export function mapReceiptOperation(op: ContractReceiptOperation, asset?: Asset, executionContext?: ExecutionContext): ReceiptOperation {
   if (op.type !== 'success') return op as any;
   const rawTradeDetails = (op.receipt as any).tradeDetails;
-  const exCtx = rawTradeDetails?.executionContext;
-  const hasRealExCtx = exCtx && typeof exCtx.planId === 'string' && exCtx.planId.trim().length > 0;
-  const tradeDetails = hasRealExCtx
-    ? rawTradeDetails
-    : rawTradeDetails
-      ? { ...rawTradeDetails, executionContext: undefined }
+  const rawExCtx = rawTradeDetails?.executionContext;
+  const resolvedExCtx = hasRealPlan(executionContext)
+    ? executionContext
+    : hasRealPlan(rawExCtx)
+      ? rawExCtx
+      : undefined;
+  const tradeDetails = rawTradeDetails
+    ? { ...rawTradeDetails, executionContext: resolvedExCtx }
+    : resolvedExCtx
+      ? { executionContext: resolvedExCtx }
       : undefined;
   return {
     ...op,
