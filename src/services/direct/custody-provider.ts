@@ -12,7 +12,7 @@ export interface CustodyProvider {
   readonly omnibus?: CustodyWallet;
   readonly rpcProvider: Provider;
   readonly gasStation?: GasStation;
-  readonly localSubmit?: boolean;
+  readonly keySigningOnly?: boolean;
 
   resolveWallet(account: string): Promise<CustodyWallet | undefined>;
   /** Create a wallet directly from custody account ID (vault ID / wallet ID). No reverse scan needed. */

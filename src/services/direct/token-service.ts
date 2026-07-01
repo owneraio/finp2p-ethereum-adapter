@@ -102,8 +102,8 @@ export class DirectTokenService implements TokenService, EscrowService {
         token_standard: result.tokenStandard,
         id: assetId,
       });
-      if (this.custodyProvider.localSubmit) {
-        this.logger.info(`createAsset: skipping custody onAssetRegistered in localSubmit mode (${result.contractAddress})`);
+      if (this.custodyProvider.keySigningOnly) {
+        this.logger.info(`createAsset: skipping custody onAssetRegistered in keySigningOnly mode (${result.contractAddress})`);
       } else {
         await this.custodyProvider.onAssetRegistered?.(result.contractAddress, symbol);
       }
@@ -134,8 +134,8 @@ export class DirectTokenService implements TokenService, EscrowService {
         id: assetId,
       });
 
-      if (this.custodyProvider.localSubmit) {
-        this.logger.info(`createAsset: skipping custody onAssetRegistered in localSubmit mode (${tokenAddress})`);
+      if (this.custodyProvider.keySigningOnly) {
+        this.logger.info(`createAsset: skipping custody onAssetRegistered in keySigningOnly mode (${tokenAddress})`);
       } else if (isErc20) {
         this.logger.info(`createAsset: registering ERC20 token with custody provider (${tokenAddress})`);
         await this.custodyProvider.onAssetRegistered?.(tokenAddress);

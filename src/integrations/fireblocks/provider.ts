@@ -11,7 +11,7 @@ export class FireblocksCustodyProvider implements CustodyProvider {
   readonly omnibus?: CustodyWallet;
   readonly rpcProvider;
   readonly gasStation?: GasStation;
-  readonly localSubmit: boolean;
+  readonly keySigningOnly: boolean;
 
   private fireblocksSdk: FireblocksSDK;
   private vaultManagement: ReturnType<typeof createVaultManagementFunctions>;
@@ -32,7 +32,7 @@ export class FireblocksCustodyProvider implements CustodyProvider {
     this.fireblocksSdk = fireblocksSdk;
     this.vaultManagement = vaultManagement;
     this.gasStation = gasStation;
-    this.localSubmit = !!config.localSubmit;
+    this.keySigningOnly = !!config.localSubmit;
   }
 
   static async create(config: FireblocksAppConfig): Promise<FireblocksCustodyProvider> {
