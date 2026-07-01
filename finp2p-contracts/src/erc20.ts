@@ -15,11 +15,11 @@ export class ERC20Contract extends ContractsManager {
 
   tokenAddress: string;
 
-  constructor(provider: Provider, signer: Signer, tokenAddress: string, logger: Logger, confirmationTimeoutMs?: number, gasTier?: GasTier) {
-    super(provider, signer, logger, confirmationTimeoutMs, gasTier);
+  constructor(provider: Provider, signer: Signer | undefined, tokenAddress: string, logger: Logger, confirmationTimeoutMs?: number, gasTier?: GasTier) {
+    super(provider, (signer ?? provider) as unknown as Signer, logger, confirmationTimeoutMs, gasTier);
     this.tokenAddress = tokenAddress;
     const factory = new ContractFactory<any[], ERC20WithOperator>(
-      ERC20.abi, ERC20.bytecode, this.signer
+      ERC20.abi, ERC20.bytecode, signer ?? provider
     );
     const contract = factory.attach(tokenAddress);
     this.contractInterface = contract.interface;
