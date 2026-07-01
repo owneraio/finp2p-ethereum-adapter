@@ -102,11 +102,7 @@ export class DirectTokenService implements TokenService, EscrowService {
         token_standard: result.tokenStandard,
         id: assetId,
       });
-      if (this.custodyProvider.keySigningOnly) {
-        this.logger.info(`createAsset: skipping custody onAssetRegistered in keySigningOnly mode (${result.contractAddress})`);
-      } else {
-        await this.custodyProvider.onAssetRegistered?.(result.contractAddress, symbol);
-      }
+      if (!this.custodyProvider.keySigningOnly) await this.custodyProvider.onAssetRegistered?.(result.contractAddress, symbol);
 
       return {
         operation: "createAsset",
@@ -134,11 +130,9 @@ export class DirectTokenService implements TokenService, EscrowService {
         id: assetId,
       });
 
-      if (this.custodyProvider.keySigningOnly) {
-        this.logger.info(`createAsset: skipping custody onAssetRegistered in keySigningOnly mode (${tokenAddress})`);
-      } else if (isErc20) {
+      if (isErc20) {
         this.logger.info(`createAsset: registering ERC20 token with custody provider (${tokenAddress})`);
-        await this.custodyProvider.onAssetRegistered?.(tokenAddress);
+        if (!this.custodyProvider.keySigningOnly) await this.custodyProvider.onAssetRegistered?.(tokenAddress);
       } else {
         this.logger.info(`createAsset: skipping custody onAssetRegistered for non-ERC20 standard '${requestedStandard}' (${tokenAddress})`);
       }
