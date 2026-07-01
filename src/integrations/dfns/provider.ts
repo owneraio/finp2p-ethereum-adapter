@@ -27,7 +27,7 @@ export class DfnsCustodyProvider implements CustodyProvider {
     this.issuer = issuer;
     this.escrow = escrow;
     this.omnibus = omnibus;
-    this.rpcProvider = config.provider;
+    this.rpcProvider = this.issuer.provider;
     this.dfnsClient = dfnsClient;
     this.addressToWalletId = addressToWalletId;
     this.gasStation = gasStation;
