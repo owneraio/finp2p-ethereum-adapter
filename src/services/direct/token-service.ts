@@ -102,7 +102,11 @@ export class DirectTokenService implements TokenService, EscrowService {
         token_standard: result.tokenStandard,
         id: assetId,
       });
-      await this.custodyProvider.onAssetRegistered?.(result.contractAddress, symbol);
+      if (this.custodyProvider.localSubmit) {
+        this.logger.info(`createAsset: skipping custody onAssetRegistered in localSubmit mode (${result.contractAddress})`);
+      } else {
+        await this.custodyProvider.onAssetRegistered?.(result.contractAddress, symbol);
+      }
 
       return {
         operation: "createAsset",
@@ -130,10 +134,9 @@ export class DirectTokenService implements TokenService, EscrowService {
         id: assetId,
       });
 
-      // onAssetRegistered is custody-side ERC20 whitelisting (Fireblocks/Dfns introspect IERC20Metadata
-      // — name/symbol/decimals — on the contract). Skip it for non-ERC20 standards whose bound
-      // contracts (e.g. CollateralAgreementRegistry) don't implement IERC20Metadata.
-      if (isErc20) {
+      if (this.custodyProvider.localSubmit) {
+        this.logger.info(`createAsset: skipping custody onAssetRegistered in localSubmit mode (${tokenAddress})`);
+      } else if (isErc20) {
         this.logger.info(`createAsset: registering ERC20 token with custody provider (${tokenAddress})`);
         await this.custodyProvider.onAssetRegistered?.(tokenAddress);
       } else {
