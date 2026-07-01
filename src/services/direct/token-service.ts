@@ -5,14 +5,13 @@ import {
   failedReceiptOperation
 } from '@owneraio/finp2p-nodejs-skeleton-adapter';
 import winston from 'winston';
-import { parseUnits } from "ethers";
+import { Contract, parseUnits } from "ethers";
 import { TokenOperationResult } from '@owneraio/finp2p-ethereum-token-standard';
 import { CustodyProvider, CustodyWallet } from './custody-provider';
 import { AccountMappingService, AssetStore } from './account-mapping';
 import { getAssetFromDb } from './helpers';
 import { tokenStandardRegistry } from './token-standards/registry';
 import { ERC20_TOKEN_STANDARD, DEFAULT_NEW_ERC20_DECIMALS } from './token-standards/erc20';
-import { ERC20Contract } from '@owneraio/finp2p-contracts';
 import { buildOperationContext } from './operation-context';
 
 function resultToReceipt(
@@ -111,13 +110,12 @@ export class DirectTokenService implements TokenService, EscrowService {
       };
     } else {
       const tokenAddress = assetBind.tokenIdentifier.tokenId;
-      const wallet = this.custodyProvider.issuer;
       this.logger.info(`createAsset: bind path — assetId=${assetId} standard=${requestedStandard} tokenAddress=${tokenAddress} network=${assetBind.tokenIdentifier.network ?? defaultNetwork}`);
 
       let decimals = 0;
       if (isErc20) {
         this.logger.info(`createAsset: reading ERC20 decimals from ${tokenAddress}`);
-        const erc20 = new ERC20Contract(wallet.provider, wallet.signer, tokenAddress, this.logger);
+        const erc20 = new Contract(tokenAddress, ['function decimals() view returns (uint8)'], this.custodyProvider.rpcProvider);
         decimals = Number(await erc20.decimals());
         this.logger.info(`createAsset: ERC20 decimals=${decimals} for ${tokenAddress}`);
       } else {
