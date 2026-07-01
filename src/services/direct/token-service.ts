@@ -111,13 +111,12 @@ export class DirectTokenService implements TokenService, EscrowService {
       };
     } else {
       const tokenAddress = assetBind.tokenIdentifier.tokenId;
-      const wallet = this.custodyProvider.issuer;
       this.logger.info(`createAsset: bind path — assetId=${assetId} standard=${requestedStandard} tokenAddress=${tokenAddress} network=${assetBind.tokenIdentifier.network ?? defaultNetwork}`);
 
       let decimals = 0;
       if (isErc20) {
         this.logger.info(`createAsset: reading ERC20 decimals from ${tokenAddress}`);
-        const erc20 = new ERC20Contract(wallet.provider, wallet.signer, tokenAddress, this.logger);
+        const erc20 = new ERC20Contract(this.custodyProvider.rpcProvider, undefined, tokenAddress, this.logger);
         decimals = Number(await erc20.decimals());
         this.logger.info(`createAsset: ERC20 decimals=${decimals} for ${tokenAddress}`);
       } else {
