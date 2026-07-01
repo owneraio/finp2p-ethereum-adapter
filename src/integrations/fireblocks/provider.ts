@@ -27,7 +27,7 @@ export class FireblocksCustodyProvider implements CustodyProvider {
     this.issuer = issuer;
     this.escrow = escrow;
     this.omnibus = omnibus;
-    this.rpcProvider = config.provider;
+    this.rpcProvider = this.issuer.provider;
     this.fireblocksSdk = fireblocksSdk;
     this.vaultManagement = vaultManagement;
     this.gasStation = gasStation;
