@@ -53,12 +53,12 @@ export class CommonServiceImpl implements CommonService, HealthService {
   }
 
   public async getReceipt(id: string): Promise<ReceiptOperation> {
-    return mapReceiptOperation(await this.finP2PContract.getReceipt(id));
+    return mapReceiptOperation(await this.finP2PContract.getReceipt(id), undefined, this.execDetailsStore?.getExecutionContext(id));
   }
 
   public async operationStatus(cid: string): Promise<OperationStatus> {
     const op = await this.finP2PContract.getOperationStatus(cid);
-    if (op.operation === 'receipt') return mapReceiptOperation(op);
+    if (op.operation === 'receipt') return mapReceiptOperation(op, undefined, this.execDetailsStore?.getExecutionContext(cid));
     return op as any;
   }
 
