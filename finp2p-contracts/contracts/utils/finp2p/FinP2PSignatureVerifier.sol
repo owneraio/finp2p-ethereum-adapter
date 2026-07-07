@@ -67,6 +67,16 @@ contract FinP2PSignatureVerifier is EIP712 {
         "Loan(string nonce,FinId borrower,FinId lender,Term asset,Term settlement,LoanTerms loanTerms)FinId(string idkey)LoanTerms(string openTime,string closeTime,string borrowedMoneyAmount,string returnedMoneyAmount)Term(string assetId,string assetType,string amount)"
     );
 
+    // Move uses its own Term shape without `assetType` (assetId + amount only),
+    // so it cannot reuse TERM_TYPE_HASH / hashTerm above.
+    bytes32 private constant MOVE_TERM_TYPE_HASH = keccak256(
+        "Term(string assetId,string amount)"
+    );
+
+    bytes32 private constant MOVE_TYPE_HASH = keccak256(
+        "Move(string nonce,FinId investor,FinId source,FinId destination,Term asset)FinId(string idkey)Term(string assetId,string amount)"
+    );
+
     struct Term {
         string assetId;
         AssetType assetType;
@@ -121,6 +131,14 @@ contract FinP2PSignatureVerifier is EIP712 {
             TERM_TYPE_HASH,
             keccak256(bytes(term.assetId)),
             hashAssetType(term.assetType),
+            keccak256(bytes(term.amount))
+        ));
+    }
+
+    function hashMoveTerm(Term memory term) public pure returns (bytes32) {
+        return keccak256(abi.encode(
+            MOVE_TERM_TYPE_HASH,
+            keccak256(bytes(term.assetId)),
             keccak256(bytes(term.amount))
         ));
     }
@@ -212,6 +230,19 @@ contract FinP2PSignatureVerifier is EIP712 {
                 hashTerm(asset),
                 hashTerm(settlement),
                 hashLoanTerms(loan)
+            )));
+
+        } else if (primaryType == PrimaryType.MOVE) {
+            // Move has no settlement and no assetType. `investor` and `source`
+            // are the same finId (the asset owner initiating the move, mapped
+            // here from sellerFinId); `destination` is the recipient (buyerFinId).
+            return _hashTypedDataV4(keccak256(abi.encode(
+                MOVE_TYPE_HASH,
+                keccak256(bytes(nonce)),
+                hashFinId(sellerFinId), // investor (== source)
+                hashFinId(sellerFinId), // source
+                hashFinId(buyerFinId),  // destination
+                hashMoveTerm(asset)
             )));
         } else {
             revert("Invalid eip712 transfer signature type");
