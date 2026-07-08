@@ -10,17 +10,25 @@ tokenStandardRegistry.register(ERC20_TOKEN_STANDARD, new ERC20TokenStandard());
 const mockBalanceOf = jest.fn();
 const mockTransfer = jest.fn();
 const mockDecimals = jest.fn();
-const mockDeployERC20Detached = jest.fn();
 jest.mock('@owneraio/finp2p-contracts', () => ({
   ERC20Contract: jest.fn().mockImplementation(() => ({
     balanceOf: mockBalanceOf,
     transfer: mockTransfer,
     decimals: mockDecimals,
   })),
-  ContractsManager: jest.fn().mockImplementation(() => ({
-    deployERC20: mockDeployERC20Detached,
-  })),
 }));
+
+// Mock ethers ContractFactory so ERC20TokenStandard.deploy doesn't try to hit an RPC.
+const mockContractFactoryDeploy = jest.fn();
+jest.mock('ethers', () => {
+  const actual = jest.requireActual('ethers');
+  return {
+    ...actual,
+    ContractFactory: jest.fn().mockImplementation(() => ({
+      deploy: mockContractFactoryDeploy,
+    })),
+  };
+});
 
 // Mock asset store
 const mockGetAsset = jest.fn();
@@ -273,7 +281,10 @@ describe('OmnibusDelegate', () => {
   describe('createAsset', () => {
     it('should deploy ERC20 when no tokenIdentifier provided', async () => {
       const deployedAddress = '0xNEW_TOKEN';
-      mockDeployERC20Detached.mockResolvedValue(deployedAddress);
+      mockContractFactoryDeploy.mockResolvedValue({
+        waitForDeployment: jest.fn().mockResolvedValue(undefined),
+        getAddress: jest.fn().mockResolvedValue(deployedAddress),
+      });
 
       const result = await delegate.createAsset(
         'idem-create', TEST_ASSET.assetId, undefined,
@@ -300,7 +311,7 @@ describe('OmnibusDelegate', () => {
 
       expect(result.ledgerIdentifier.tokenId).toBe(existingAddress);
       expect(result.ledgerIdentifier.network).toBe('eip155:42161');
-      expect(mockDeployERC20Detached).not.toHaveBeenCalled();
+      expect(mockContractFactoryDeploy).not.toHaveBeenCalled();
       expect(mockSaveAsset).toHaveBeenCalledWith(expect.objectContaining({
         contract_address: existingAddress,
         decimals: 8,
