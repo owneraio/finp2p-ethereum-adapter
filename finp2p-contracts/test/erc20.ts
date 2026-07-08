@@ -130,6 +130,34 @@ describe("ERC20 (pure OpenZeppelin)", function() {
     });
   });
 
+  describe("hasOperatorBypass() variant marker (absent)", function() {
+
+    it("reverts / returns empty when probed via raw eth_call (function not present)", async () => {
+      const { token } = await loadFixture(deployFixture);
+      const iface = new ethers.Interface(["function hasOperatorBypass() pure returns (bool)"]);
+      const data = iface.encodeFunctionData("hasOperatorBypass", []);
+      // Either the RPC surfaces a revert error, or the returned data is empty
+      // and Interface.decodeFunctionResult throws. Both count as "missing" —
+      // that's what the wrapper's `hasOperatorBypass()` isFunctionMissingError
+      // check translates into `false`.
+      let missing = false;
+      try {
+        const result = await token.runner!.provider!.call({
+          to: await token.getAddress(),
+          data,
+        });
+        try {
+          iface.decodeFunctionResult("hasOperatorBypass", result);
+        } catch {
+          missing = true;
+        }
+      } catch {
+        missing = true;
+      }
+      expect(missing).to.equal(true);
+    });
+  });
+
   describe("role administration", function() {
 
     it("deployer holds DEFAULT_ADMIN_ROLE; operator holds MINTER + OPERATOR", async () => {

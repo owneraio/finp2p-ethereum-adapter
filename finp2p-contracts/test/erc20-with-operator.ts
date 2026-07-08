@@ -112,6 +112,14 @@ describe("ERC20WithOperator", function() {
     });
   });
 
+  describe("hasOperatorBypass() variant marker", function() {
+
+    it("returns true on ERC20WithOperator", async () => {
+      const { token } = await loadFixture(deployFixture);
+      expect(await token.hasOperatorBypass()).to.equal(true);
+    });
+  });
+
   describe("transferFrom operator bypass (regression)", function() {
 
     it("bypasses allowance when spender has OPERATOR_ROLE", async () => {

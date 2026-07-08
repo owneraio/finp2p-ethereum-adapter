@@ -3,6 +3,7 @@ import { Logger } from "./adapter-types";
 import { BigNumberish, ContractFactory, Interface, keccak256, Provider, Signer, toUtf8Bytes } from "ethers";
 import { ERC20WithOperator } from "../typechain-types";
 import ERC20 from "../artifacts/contracts/token/ERC20/ERC20WithOperator.sol/ERC20WithOperator.json";
+import { isFunctionMissingError } from "./finp2p";
 
 export const OPERATOR_ROLE = keccak256(toUtf8Bytes('OPERATOR_ROLE'));
 export const MINTER_ROLE = keccak256(toUtf8Bytes('MINTER_ROLE'));
@@ -84,5 +85,20 @@ export class ERC20Contract extends ContractsManager {
 
   async grantMinterTo(address: string) {
     return this.erc20.grantMinterTo(address);
+  }
+
+  async hasOperatorBypass(): Promise<boolean> {
+    const probe = new Interface(["function hasOperatorBypass() pure returns (bool)"]);
+    try {
+      const result = await this.provider.call({
+        to: this.tokenAddress,
+        data: probe.encodeFunctionData("hasOperatorBypass", []),
+      });
+      const [flag] = probe.decodeFunctionResult("hasOperatorBypass", result);
+      return !!flag;
+    } catch (e) {
+      if (isFunctionMissingError(e)) return false;
+      throw e;
+    }
   }
 }

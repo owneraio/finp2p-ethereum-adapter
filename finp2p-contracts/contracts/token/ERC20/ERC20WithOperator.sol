@@ -61,6 +61,17 @@ contract ERC20WithOperator is Context, IERC20, IERC20Metadata, Mintable, Burnabl
     }
 
     /**
+     * @dev Variant marker. Present on `ERC20WithOperator`; absent on the plain
+     * `ERC20` sibling. Callers probe via a raw `eth_call` — success → this
+     * variant; function-missing revert → plain `ERC20` (or something else).
+     * The two variants otherwise share selectors and are indistinguishable
+     * by ABI alone.
+     */
+    function hasOperatorBypass() external pure returns (bool) {
+        return true;
+    }
+
+    /**
      * @dev Returns the name of the token.
      */
     function name() public view virtual override returns (string memory) {
