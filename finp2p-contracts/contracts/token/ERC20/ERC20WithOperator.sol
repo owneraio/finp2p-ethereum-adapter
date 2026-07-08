@@ -3,6 +3,7 @@
 pragma solidity ^0.8.20;
 
 import "../../utils/erc20/Mintable.sol";
+import "../../utils/erc20/Burnable.sol";
 import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
@@ -15,7 +16,7 @@ import "@openzeppelin/contracts/utils/Context.sol";
  * It also includes an operator role that allows operators to bypass the allowance check and act on behalf of the token owner.
  *
  */
-contract ERC20WithOperator is Context, IERC20, IERC20Metadata, Mintable, AccessControl {
+contract ERC20WithOperator is Context, IERC20, IERC20Metadata, Mintable, Burnable, AccessControl {
 
     bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
     bytes32 public constant OPERATOR_ROLE = keccak256("OPERATOR_ROLE");
