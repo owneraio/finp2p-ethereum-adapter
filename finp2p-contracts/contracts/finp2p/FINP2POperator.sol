@@ -371,7 +371,7 @@ contract FINP2POperator is AccessControl, FinP2PSignatureVerifier {
         uint256 tokenAmount = quantity.stringToUint(tokenDecimals);
         uint256 balance = IERC20(asset.tokenAddress).balanceOf(from);
         require(balance >= tokenAmount, "Not sufficient balance to burn");
-        Burnable(asset.tokenAddress).burn(from, tokenAmount);
+        Burnable(asset.tokenAddress).burnFrom(from, tokenAmount);
     }
 
     function _extractDetails(

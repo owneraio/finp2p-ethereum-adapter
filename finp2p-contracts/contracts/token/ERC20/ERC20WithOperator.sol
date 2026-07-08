@@ -61,6 +61,17 @@ contract ERC20WithOperator is Context, IERC20, IERC20Metadata, Mintable, Burnabl
     }
 
     /**
+     * @dev Variant marker. Present on `ERC20WithOperator`; absent on the plain
+     * `ERC20` sibling. Callers probe via a raw `eth_call` — success → this
+     * variant; function-missing revert → plain `ERC20` (or something else).
+     * The two variants otherwise share selectors and are indistinguishable
+     * by ABI alone.
+     */
+    function hasOperatorBypass() external pure returns (bool) {
+        return true;
+    }
+
+    /**
      * @dev Returns the name of the token.
      */
     function name() public view virtual override returns (string memory) {
@@ -404,22 +415,15 @@ contract ERC20WithOperator is Context, IERC20, IERC20Metadata, Mintable, Burnabl
         _mint(to, amount);
     }
 
-    /**
-     * @dev Destroys `amount` tokens from `account`, deducting from the caller's
-     * allowance.
-     *
-     * See {ERC20-_burn} and {ERC20-allowance}.
-     *
-     * Requirements:
-     *
-     * - the caller must have allowance for ``accounts``'s tokens of at least
-     * `amount`.
-     */
-    function burn(address account, uint256 amount) public virtual {
+    function burn(uint256 value) public virtual {
+        _burn(_msgSender(), value);
+    }
+
+    function burnFrom(address account, uint256 value) public virtual {
         if (!hasRole(MINTER_ROLE, _msgSender())) {
-            _spendAllowance(account, _msgSender(), amount);
+            _spendAllowance(account, _msgSender(), value);
         }
-        _burn(account, amount);
+        _burn(account, value);
     }
 
 }
