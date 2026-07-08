@@ -1,5 +1,6 @@
-import { Provider, Signer, formatUnits } from 'ethers';
-import { ContractsManager, ERC20Contract } from '@owneraio/finp2p-contracts';
+import { ContractFactory, Provider, Signer, formatUnits } from 'ethers';
+import { ERC20Contract } from '@owneraio/finp2p-contracts';
+import ERC20Artifact from '@owneraio/finp2p-contracts/dist/artifacts/contracts/token/ERC20/ERC20.sol/ERC20.json';
 import winston from 'winston';
 import {
   TokenStandard, TokenWallet, AssetRecord, DeployResult,
@@ -17,8 +18,11 @@ export const DEFAULT_NEW_ERC20_DECIMALS = 2;
 export class ERC20TokenStandard implements TokenStandard {
 
   async deploy(wallet: TokenWallet, name: string, symbol: string, decimals: number, logger: winston.Logger): Promise<DeployResult> {
-    const cm = new ContractsManager(wallet.provider, wallet.signer, logger);
-    const contractAddress = await cm.deployERC20(name, symbol, decimals, await wallet.signer.getAddress());
+    const factory = new ContractFactory(ERC20Artifact.abi, ERC20Artifact.bytecode, wallet.signer);
+    const operatorAddress = await wallet.signer.getAddress();
+    const contract = await factory.deploy(name, symbol, decimals, operatorAddress);
+    await contract.waitForDeployment();
+    const contractAddress = await contract.getAddress();
     return { contractAddress, decimals, tokenStandard: ERC20_TOKEN_STANDARD };
   }
 
@@ -47,8 +51,12 @@ export class ERC20TokenStandard implements TokenStandard {
   }
 
   async burn(wallet: TokenWallet, asset: AssetRecord, from: string, amount: bigint, logger: winston.Logger): Promise<TokenOperationResult> {
+    const signerAddress = await wallet.signer.getAddress();
+    if (signerAddress.toLowerCase() !== from.toLowerCase()) {
+      return failedTokenOp(`burn requires wallet.signer to be ${from}, got ${signerAddress}`);
+    }
     const c = new ERC20Contract(wallet.provider, wallet.signer, asset.contractAddress, logger);
-    return this.execAndWait(c.burn(from, amount));
+    return this.execAndWait(c.burn(amount));
   }
 
   async hold(sourceWallet: TokenWallet, escrowWallet: TokenWallet, asset: AssetRecord, amount: bigint, logger: winston.Logger): Promise<TokenOperationResult> {
