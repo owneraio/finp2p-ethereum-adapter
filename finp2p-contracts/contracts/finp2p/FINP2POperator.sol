@@ -7,7 +7,7 @@ import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
 import {OperationParams, LegType, PrimaryType, Phase, ReleaseType} from "@owneraio/finp2p-ethereum-token-standard/contracts/OperationParams.sol";
 import {FinIdUtils} from "../utils/finp2p/FinIdUtils.sol";
 import {FinP2PSignatureVerifier} from "../utils/finp2p/FinP2PSignatureVerifier.sol";
-import {Burnable} from "../utils/erc20/Burnable.sol";
+import {ERC20Burnable} from "@openzeppelin/contracts/token/ERC20/extensions/ERC20Burnable.sol";
 import {Mintable} from "../utils/erc20/Mintable.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
@@ -371,7 +371,7 @@ contract FINP2POperator is AccessControl, FinP2PSignatureVerifier {
         uint256 tokenAmount = quantity.stringToUint(tokenDecimals);
         uint256 balance = IERC20(asset.tokenAddress).balanceOf(from);
         require(balance >= tokenAmount, "Not sufficient balance to burn");
-        Burnable(asset.tokenAddress).burnFrom(from, tokenAmount);
+        ERC20Burnable(asset.tokenAddress).burnFrom(from, tokenAmount);
     }
 
     function _extractDetails(

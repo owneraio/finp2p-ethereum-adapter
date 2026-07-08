@@ -7,7 +7,7 @@ import "@owneraio/finp2p-ethereum-token-standard/contracts/AssetStandard.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
-import {Burnable} from "./Burnable.sol";
+import {ERC20Burnable} from "@openzeppelin/contracts/token/ERC20/extensions/ERC20Burnable.sol";
 import {Mintable} from "./Mintable.sol";
 
 contract ERC20Standard is AssetStandard, AccessControl {
@@ -68,7 +68,7 @@ contract ERC20Standard is AssetStandard, AccessControl {
         uint256 tokenAmount = quantity.stringToUint(tokenDecimals);
         uint256 balance = IERC20(tokenAddress).balanceOf(from);
         require(balance >= tokenAmount, "Not sufficient balance to burn");
-        Burnable(tokenAddress).burnFrom(from, tokenAmount);
+        ERC20Burnable(tokenAddress).burnFrom(from, tokenAmount);
     }
 
 }

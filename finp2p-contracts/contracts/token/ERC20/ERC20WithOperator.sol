@@ -3,7 +3,6 @@
 pragma solidity ^0.8.20;
 
 import "../../utils/erc20/Mintable.sol";
-import "../../utils/erc20/Burnable.sol";
 import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
@@ -16,7 +15,7 @@ import "@openzeppelin/contracts/utils/Context.sol";
  * It also includes an operator role that allows operators to bypass the allowance check and act on behalf of the token owner.
  *
  */
-contract ERC20WithOperator is Context, IERC20, IERC20Metadata, Mintable, Burnable, AccessControl {
+contract ERC20WithOperator is Context, IERC20, IERC20Metadata, Mintable, AccessControl {
 
     bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
     bytes32 public constant OPERATOR_ROLE = keccak256("OPERATOR_ROLE");
@@ -404,24 +403,10 @@ contract ERC20WithOperator is Context, IERC20, IERC20Metadata, Mintable, Burnabl
         _mint(to, amount);
     }
 
-    /**
-     * @dev Destroys `value` tokens from the caller.
-     *
-     * See {ERC20-_burn}. Matches OpenZeppelin's ERC20Burnable.burn(uint256).
-     */
     function burn(uint256 value) public virtual {
         _burn(_msgSender(), value);
     }
 
-    /**
-     * @dev Destroys `value` tokens from `account`, deducting from the caller's
-     * allowance. Matches OpenZeppelin's ERC20Burnable.burnFrom(address, uint256),
-     * with one documented extension: callers holding MINTER_ROLE bypass the
-     * allowance check — the FinP2P operator/issuer uses this to burn on
-     * redeem without requiring a per-holder approve.
-     *
-     * See {ERC20-_burn} and {ERC20-allowance}.
-     */
     function burnFrom(address account, uint256 value) public virtual {
         if (!hasRole(MINTER_ROLE, _msgSender())) {
             _spendAllowance(account, _msgSender(), value);
