@@ -66,8 +66,12 @@ export class ERC20Contract extends ContractsManager {
     return this.erc20.transferFrom(fromAddress, toAddress, quantity);
   }
 
-  async burn(fromAddress: string, quantity: BigNumberish) {
-    return this.erc20.burn(fromAddress, quantity);
+  async burn(quantity: BigNumberish) {
+    return this.erc20.burn(quantity);
+  }
+
+  async burnFrom(fromAddress: string, quantity: BigNumberish) {
+    return this.erc20.burnFrom(fromAddress, quantity);
   }
 
   async hasRole(role: string, address: string) {

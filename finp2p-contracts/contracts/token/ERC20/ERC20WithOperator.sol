@@ -405,21 +405,28 @@ contract ERC20WithOperator is Context, IERC20, IERC20Metadata, Mintable, Burnabl
     }
 
     /**
-     * @dev Destroys `amount` tokens from `account`, deducting from the caller's
-     * allowance.
+     * @dev Destroys `value` tokens from the caller.
+     *
+     * See {ERC20-_burn}. Matches OpenZeppelin's ERC20Burnable.burn(uint256).
+     */
+    function burn(uint256 value) public virtual {
+        _burn(_msgSender(), value);
+    }
+
+    /**
+     * @dev Destroys `value` tokens from `account`, deducting from the caller's
+     * allowance. Matches OpenZeppelin's ERC20Burnable.burnFrom(address, uint256),
+     * with one documented extension: callers holding MINTER_ROLE bypass the
+     * allowance check — the FinP2P operator/issuer uses this to burn on
+     * redeem without requiring a per-holder approve.
      *
      * See {ERC20-_burn} and {ERC20-allowance}.
-     *
-     * Requirements:
-     *
-     * - the caller must have allowance for ``accounts``'s tokens of at least
-     * `amount`.
      */
-    function burn(address account, uint256 amount) public virtual {
+    function burnFrom(address account, uint256 value) public virtual {
         if (!hasRole(MINTER_ROLE, _msgSender())) {
-            _spendAllowance(account, _msgSender(), amount);
+            _spendAllowance(account, _msgSender(), value);
         }
-        _burn(account, amount);
+        _burn(account, value);
     }
 
 }
