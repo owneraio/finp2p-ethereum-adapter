@@ -106,8 +106,11 @@ contract FinP2PPlanVerifier is FinP2PReceiptVerifier {
                     "Escrow instruction differs from its hold"
                 );
                 if (t == InstructionType.RELEASE) {
+                    // destinationless (redeem-style) holds are reserved for
+                    // RELEASE_AND_REDEEM / REVERT_HOLD — a RELEASE may only
+                    // pay the destination the hold was pinned to
                     require(
-                        bytes(hold.destination).length == 0 || hold.destination.equals(instr.destination),
+                        bytes(hold.destination).length != 0 && hold.destination.equals(instr.destination),
                         "Escrow instruction differs from its hold"
                     );
                 }

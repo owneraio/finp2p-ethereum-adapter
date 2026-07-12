@@ -167,6 +167,18 @@ describe("direct-mode contract escrow (integration)", () => {
     expect(await token.totalSupply()).toBe(supplyBefore - 2000n);
   });
 
+  test("a destinationless hold cannot be released, only burned or rolled back", async () => {
+    const result = await contractEscrow.hold(investorWallet, investorAddress, undefined, tokenAddress, "op-4", 500n);
+    expect(result.status === "success" ? "success" : (result as any).reason).toBe("success");
+
+    const release = await contractEscrow.release("op-4", buyer.address, { token: tokenAddress, amount: 500n, source: investorAddress });
+    expect(release.status).toBe("failure");
+    expect((release as any).reason).toMatch(/no destination/);
+
+    const rollback = await contractEscrow.rollback("op-4", { token: tokenAddress, amount: 500n, source: investorAddress });
+    expect(rollback.status === "success" ? "success" : (rollback as any).reason).toBe("success");
+  });
+
   test("terminal ops refuse an unknown hold", async () => {
     const result = await contractEscrow.rollback("no-such-op", { token: tokenAddress, amount: 1n });
     expect(result.status).toBe("failure");

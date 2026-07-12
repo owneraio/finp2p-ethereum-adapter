@@ -238,7 +238,9 @@ export const translateExecutionPlan = (plan: RawExecutionPlan, orgId: string): T
             amount: op.amount ?? ""
           };
         }
-        const hold = findHold(assetId, (h) => h.destination === "" || h.destination === destination);
+        // only holds pinned to the same destination qualify: destinationless
+        // (redeem-style) holds can only be burned or rolled back
+        const hold = findHold(assetId, (h) => h.destination !== "" && h.destination === destination);
         if (!hold) {
           throw new ValidationError(`Release instruction ${sequence} of plan ${planId} has no matching hold`);
         }

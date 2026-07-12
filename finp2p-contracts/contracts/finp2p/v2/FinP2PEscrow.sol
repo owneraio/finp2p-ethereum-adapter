@@ -83,14 +83,14 @@ contract FinP2PEscrow is AccessControl {
         emit HoldCreated(operationId, token, source, destination, amount);
     }
 
-    /// @notice Release a hold to `to`. When the hold has a fixed destination, `to` must match it.
+    /// @notice Release a hold to its pinned destination. Destinationless
+    ///         (redeem-style) holds cannot be released — only burned or rolled
+    ///         back — so an unpinned hold can never be redirected to an
+    ///         arbitrary address (same semantics as the v1 operator's releaseTo).
     function release(string calldata operationId, address to) external onlyRole(ESCROW_OPERATOR) {
         Hold storage hold = _activeHold(operationId);
-        require(to != address(0), "FinP2PEscrow: release destination cannot be zero");
-        require(
-            hold.destination == address(0) || hold.destination == to,
-            "FinP2PEscrow: release destination differs from the held one"
-        );
+        require(hold.destination != address(0), "FinP2PEscrow: hold has no destination; burn or roll back instead");
+        require(hold.destination == to, "FinP2PEscrow: release destination differs from the held one");
         hold.status = HoldStatus.RELEASED;
         require(IERC20(hold.token).transfer(to, hold.amount), "FinP2PEscrow: release transfer failed");
         emit HoldReleased(operationId, to, hold.amount);

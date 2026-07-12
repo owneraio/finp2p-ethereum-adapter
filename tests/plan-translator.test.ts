@@ -303,6 +303,31 @@ describe("plan translator", () => {
     expect(() => translateExecutionPlan(raw, ORG)).toThrow(/releases 1 but the matching hold is for 100/);
   });
 
+  test("rejects a release matched against a destinationless hold", () => {
+    // redeem-style holds (no destination) can only be burned or rolled back
+    const raw = plan([
+      {
+        sequence: 1, organizations: [ORG],
+        executionPlanOperation: {
+          type: "hold",
+          source: account(SELLER_FIN_ID, ASSET_ID),
+          amount: "10",
+          signature: redemptionSignature("cc".repeat(65))
+        }
+      },
+      {
+        sequence: 2, organizations: [ORG],
+        executionPlanOperation: {
+          type: "release",
+          source: account(SELLER_FIN_ID, ASSET_ID),
+          destination: account(BUYER_FIN_ID, ASSET_ID),
+          amount: "10"
+        }
+      }
+    ]);
+    expect(() => translateExecutionPlan(raw, ORG)).toThrow(/no matching hold/);
+  });
+
   test("rejects a release without a matching hold", () => {
     const raw = plan([
       {

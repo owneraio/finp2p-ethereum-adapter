@@ -389,6 +389,36 @@ describe("FINP2PPlanOperator", function() {
         .to.be.revertedWith("Escrow instruction differs from its hold");
     });
 
+    it("rejects a release of a destinationless (redeem-style) hold", async () => {
+      const fixture = await loadFixture(deployPlanOperatorFixture);
+      const { admin, operator, operatorAddress, escrowAddress, chainId, verifyingContract } = fixture;
+
+      const issuer = generateInvestor();
+      const investor = generateInvestor();
+      const attacker = generateInvestor();
+      await operator.addCredential(investor.finId, investor.address);
+      await operator.addCredential(attacker.finId, attacker.address);
+
+      const assetTerm = term(generateAssetId(), AssetType.FinP2P, "50");
+      const { token: assetToken } = await deployToken(admin, operatorAddress, escrowAddress, 0);
+      await operator.associateAsset(assetTerm.assetId, assetToken);
+      await assetToken.mint(investor.address, 50);
+
+      // a validly signed redemption intent produces a destinationless hold —
+      // it must not be releasable to an arbitrary destination in the same plan
+      const redemptionIntent = await signIntent(
+        chainId, verifyingContract, PrimaryType.Redemption, issuer, investor,
+        assetTerm, term("USD", AssetType.Fiat, "500"), emptyLoanTerms(), investor.signer);
+
+      const operationId = uuid();
+      await expect(operator.createPlan(generatePlanId(), [
+        instruction(1, InstructionType.Hold, ExecutionVenue.OnLedger, assetTerm,
+          { source: investor.finId, operationId, signatureIndex: 0 }),
+        instruction(2, InstructionType.Release, ExecutionVenue.OnLedger, assetTerm,
+          { source: investor.finId, destination: attacker.finId, operationId })
+      ], [redemptionIntent])).to.be.revertedWith("Escrow instruction differs from its hold");
+    });
+
     it("rejects a release referencing a hold that is not part of the plan", async () => {
       const fixture = await loadFixture(deployPlanOperatorFixture);
       const { operator } = fixture;

@@ -99,12 +99,15 @@ describe("FinP2PEscrow", function() {
         .to.be.revertedWith("FinP2PEscrow: release destination differs from the held one");
     });
 
-    it("allows any destination when the hold has no fixed destination", async () => {
+    it("refuses to release a hold without a fixed destination (burn or roll back instead)", async () => {
       const { admin, investor, stranger, escrow, token, tokenAddress } = await loadFixture(deployEscrowFixture);
       const opId = uuid();
       await escrow.connect(admin).deposit(opId, tokenAddress, investor, ethers.ZeroAddress, 100);
-      await escrow.connect(admin).release(opId, stranger);
-      expect(await token.balanceOf(stranger)).to.equal(100);
+      await expect(escrow.connect(admin).release(opId, stranger))
+        .to.be.revertedWith("FinP2PEscrow: hold has no destination; burn or roll back instead");
+      // ...but it can still be rolled back to the source
+      await escrow.connect(admin).rollback(opId);
+      expect(await token.balanceOf(investor)).to.equal(1000);
     });
 
     it("rejects double release", async () => {
