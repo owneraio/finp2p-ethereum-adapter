@@ -20,8 +20,12 @@ const instruction = (sequence: number, type: string, sourceFinId?: string, organ
 
 function buildService(instructions: any[], opts: { gasStation?: boolean, innerResult?: string } = {}) {
   const funded: string[] = [];
+  const fundedCounts = new Map<string, number>();
   const gasStation = opts.gasStation === false ? undefined : {
-    ensureGas: async (address: string) => { funded.push(address); }
+    ensureGas: async (address: string, txCount: number = 1) => {
+      funded.push(address);
+      fundedCounts.set(address, txCount);
+    }
   };
   const custodyProvider = {
     gasStation,
@@ -43,22 +47,37 @@ function buildService(instructions: any[], opts: { gasStation?: boolean, innerRe
     }
   } as any;
   const service = new GasPrefundingPlanApprovalService(ORG, custodyProvider, accountMapping, finP2PClient, inner);
-  return { service, funded, innerCalls };
+  return { service, funded, fundedCounts, innerCalls };
 }
 
 describe("gas prefunding at plan approval", () => {
 
-  test("funds every wallet the plan's local instructions will sign with, once", async () => {
-    const { service, funded } = buildService([
+  test("funds every wallet once, with the threshold scaled to its instruction count", async () => {
+    const { service, funded, fundedCounts } = buildService([
       instruction(1, "issue"),
       instruction(2, "hold", ALICE_FIN_ID),
       instruction(3, "transfer", BOB_FIN_ID),
-      instruction(4, "transfer", BOB_FIN_ID), // duplicate wallet — funded once
+      instruction(4, "transfer", BOB_FIN_ID), // same wallet twice — one top-up covering 2 txs
       instruction(5, "release")
     ]);
     const result = await service.approvePlan("ik", "plan-1");
     expect(result.type).toBe("approved");
     expect(funded.sort()).toEqual([ISSUER_ADDRESS, ESCROW_ADDRESS, ALICE_ADDRESS, BOB_ADDRESS].sort());
+    expect(fundedCounts.get(BOB_ADDRESS)).toBe(2);
+    expect(fundedCounts.get(ALICE_ADDRESS)).toBe(1);
+  });
+
+  test("a wallet signing many instructions is funded for all of them", async () => {
+    const { service, fundedCounts } = buildService([
+      instruction(1, "hold", ALICE_FIN_ID),
+      instruction(2, "release"),
+      instruction(3, "hold", ALICE_FIN_ID),
+      instruction(4, "release"),
+      instruction(5, "redeem", ALICE_FIN_ID)
+    ]);
+    await service.approvePlan("ik", "plan-1b");
+    expect(fundedCounts.get(ALICE_ADDRESS)).toBe(3);  // 2 holds + self-burn side of redeem
+    expect(fundedCounts.get(ESCROW_ADDRESS)).toBe(3); // 2 releases + escrow side of redeem
   });
 
   test("skips instructions executing on other ledgers", async () => {

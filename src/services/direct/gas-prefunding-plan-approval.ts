@@ -70,7 +70,11 @@ export class GasPrefundingPlanApprovalService implements PlanApprovalService {
       const { data } = await this.finP2PClient.getExecutionPlan(planId) as unknown as { data: any };
       const instructions: RawInstruction[] = data?.plan?.instructions ?? [];
 
-      const addresses = new Set<string>();
+      // the same wallet may sign several instructions of one plan — count
+      // them, so the top-up covers the whole plan rather than a single tx
+      const walletTxCounts = new Map<string, number>();
+      const bump = (address: string) => walletTxCounts.set(address, (walletTxCounts.get(address) ?? 0) + 1);
+
       for (const instruction of instructions) {
         const organizations = instruction.organizations ?? [];
         if (organizations.length > 0 && !organizations.includes(this.orgId)) {
@@ -79,43 +83,43 @@ export class GasPrefundingPlanApprovalService implements PlanApprovalService {
         const operation = instruction.executionPlanOperation;
         switch (operation?.type) {
           case "issue":
-            addresses.add(await this.custodyProvider.issuer.signer.getAddress());
+            bump(await this.custodyProvider.issuer.signer.getAddress());
             break;
           case "transfer":
           case "hold":
-            await this.addInvestorWallet(addresses, sourceFinIdOf(operation), planId, instruction.sequence);
+            await this.bumpInvestorWallet(bump, sourceFinIdOf(operation), planId, instruction.sequence);
             break;
           case "redeem":
             // redeem of escrowed funds burns from the escrow wallet; a
             // standalone redeem self-burns from the investor — fund both
-            addresses.add(await this.custodyProvider.escrow.signer.getAddress());
-            await this.addInvestorWallet(addresses, sourceFinIdOf(operation), planId, instruction.sequence);
+            bump(await this.custodyProvider.escrow.signer.getAddress());
+            await this.bumpInvestorWallet(bump, sourceFinIdOf(operation), planId, instruction.sequence);
             break;
           case "release":
           case "revertHoldInstruction":
-            addresses.add(await this.custodyProvider.escrow.signer.getAddress());
+            bump(await this.custodyProvider.escrow.signer.getAddress());
             break;
         }
       }
 
       // sequential on purpose: the gas station funds from a single wallet, so
       // parallel top-ups would race its nonce
-      for (const address of addresses) {
-        await gasStation.ensureGas(address);
+      for (const [address, txCount] of walletTxCounts) {
+        await gasStation.ensureGas(address, txCount);
       }
-      if (addresses.size > 0) {
-        logger.info(`Pre-funded gas for ${addresses.size} wallet(s) of plan ${planId}`);
+      if (walletTxCounts.size > 0) {
+        logger.info(`Pre-funded gas for ${walletTxCounts.size} wallet(s) of plan ${planId}`);
       }
     } catch (e) {
       logger.warning(`Gas prefunding for plan ${planId} failed (instructions will fund lazily or fail at execution): ${e}`);
     }
   }
 
-  private async addInvestorWallet(addresses: Set<string>, finId: string | undefined, planId: string, sequence?: number): Promise<void> {
+  private async bumpInvestorWallet(bump: (address: string) => void, finId: string | undefined, planId: string, sequence?: number): Promise<void> {
     if (!finId) return;
     const address = await this.accountMapping.resolveAccount(finId);
     if (address) {
-      addresses.add(address);
+      bump(address);
     } else {
       logger.warning(`Gas prefunding: cannot resolve source finId ${finId} of plan ${planId} instruction ${sequence}`);
     }
