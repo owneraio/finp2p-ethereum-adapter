@@ -14,6 +14,7 @@ import { tokenStandardRegistry } from './token-standards/registry';
 import { ERC20_TOKEN_STANDARD, DEFAULT_NEW_ERC20_DECIMALS } from './token-standards/erc20';
 import { ERC20Contract } from '@owneraio/finp2p-contracts';
 import { buildOperationContext } from './operation-context';
+import { ContractEscrow } from './contract-escrow';
 
 function resultToReceipt(
   result: TokenOperationResult, ast: Asset, operationType: OperationType, quantity: string,
@@ -64,6 +65,9 @@ export class DirectTokenService implements TokenService, EscrowService {
     readonly custodyProvider: CustodyProvider,
     readonly accountMapping: AccountMappingService,
     readonly assetStore: AssetStore,
+    // when set (ESCROW_PROVIDER=contract), holds go to the standalone
+    // FinP2PEscrow contract instead of the custody escrow wallet
+    readonly contractEscrow?: ContractEscrow,
   ) {}
 
   private async resolveAddress(finId: string): Promise<string> {
@@ -227,6 +231,11 @@ export class DirectTokenService implements TokenService, EscrowService {
       const asset = await getAssetFromDb(this.assetStore, ast.assetId);
       const standard = tokenStandardRegistry.resolve(asset.tokenStandard);
 
+      if (operationId && this.contractEscrow) {
+        const result = await this.contractEscrow.releaseAndBurn(operationId);
+        return resultToReceipt(result, ast, "redeem", quantity, { finId: sourceFinId }, undefined, exCtx, operationId);
+      }
+
       let wallet: CustodyWallet;
       let burnFromAddress: string;
       if (operationId) {
@@ -263,6 +272,14 @@ export class DirectTokenService implements TokenService, EscrowService {
       const { wallet } = resolved;
       const amount = parseUnits(quantity, asset.decimals);
 
+      if (this.contractEscrow) {
+        const destinationAddress = destination?.finId
+          ? await this.accountMapping.resolveAccount(destination.finId) ?? destination.account?.address
+          : undefined;
+        const result = await this.contractEscrow.hold(
+          wallet, resolved.address, destinationAddress, asset.contractAddress, operationId, amount);
+        return resultToReceipt(result, ast, "hold", quantity, source, destination, exCtx, operationId);
+      }
       const opCtx = buildOperationContext(ast, signature, exCtx, operationId);
       const result = await standard.hold(wallet, this.custodyProvider.escrow, asset, amount, this.logger, opCtx);
       return resultToReceipt(result, ast, "hold", quantity, source, destination, exCtx, operationId);
@@ -285,6 +302,10 @@ export class DirectTokenService implements TokenService, EscrowService {
       const escrowWallet = this.custodyProvider.escrow;
       const amount = parseUnits(quantity, asset.decimals);
 
+      if (this.contractEscrow) {
+        const result = await this.contractEscrow.release(operationId, destinationAddress);
+        return resultToReceipt(result, ast, "release", quantity, source, destination, exCtx, operationId);
+      }
       const opCtx = buildOperationContext(ast, undefined, exCtx, operationId);
       const result = await standard.release(escrowWallet, asset, destinationAddress, amount, this.logger, opCtx);
       return resultToReceipt(result, ast, "release", quantity, source, destination, exCtx, operationId);
@@ -305,6 +326,10 @@ export class DirectTokenService implements TokenService, EscrowService {
       const escrowWallet = this.custodyProvider.escrow;
       const amount = parseUnits(quantity, asset.decimals);
 
+      if (this.contractEscrow) {
+        const result = await this.contractEscrow.rollback(operationId);
+        return resultToReceipt(result, ast, "release", quantity, source, undefined, exCtx, operationId);
+      }
       const opCtx = buildOperationContext(ast, undefined, exCtx, operationId);
       const result = await standard.release(escrowWallet, asset, sourceAddress, amount, this.logger, opCtx);
       return resultToReceipt(result, ast, "release", quantity, source, undefined, exCtx, operationId);

@@ -18,6 +18,13 @@ import {
   TokenServiceImpl,
 } from "./services/finp2p-contract";
 import {
+  PlanBasedApprovalService,
+  PlanEscrowService,
+  PlanTokenService,
+  ProofSyncService,
+} from "./services/finp2p-contract-v2";
+import {
+  ContractEscrow,
   DirectTokenService,
   CustodyProvider,
   GasPrefundingOption,
@@ -37,6 +44,7 @@ import {
 } from "./services/direct";
 import { registerCustodyIntegrations, registerIntegrations } from "./integrations/registry";
 import { ConfigurablePlanApprovalService, PlanApprovalOption } from "./services/plan-approval";
+import { EscrowContract } from "@owneraio/finp2p-contracts";
 import { AppConfig, FinP2PContractAppConfig, getNetworkRpcUrl } from "./config";
 
 // Register compiled-in custody providers and built-in token standards
@@ -116,7 +124,15 @@ function registerDirectServices(
   }
 
   if (!assetStore || !dbPool || !accountMappingStore || !accountMappingService) throw new Error('DB connection is required for direct mode');
-  let tokenService: DirectTokenService = new DirectTokenService(logger, custodyProvider, accountMapping, assetStore);
+  let contractEscrow: ContractEscrow | undefined;
+  if (appConfig.escrowProvider === 'contract') {
+    if (!appConfig.escrowContractAddress) throw new Error('ESCROW_CONTRACT_ADDRESS is required when ESCROW_PROVIDER=contract');
+    const escrowContract = new EscrowContract(
+      custodyProvider.rpcProvider, custodyProvider.escrow.signer, appConfig.escrowContractAddress, logger);
+    contractEscrow = new ContractEscrow(escrowContract, logger);
+    logger.info(`Direct-mode escrow: FinP2PEscrow contract at ${appConfig.escrowContractAddress}`);
+  }
+  let tokenService: DirectTokenService = new DirectTokenService(logger, custodyProvider, accountMapping, assetStore, contractEscrow);
   const commonService = new DirectCommonServiceImpl(workflowStorage!);
   // Plan approval is always on: it delegates the approve/reject decision to the
   // skeleton impl, then runs approval options over the introspected plan. Gas
@@ -146,18 +162,30 @@ function registerFinP2PContractServices(
     throw new Error('Omnibus account model is not supported with finp2p-contract provider');
   }
   const workflowStorage = dbPool ? new workflows.WorkflowStorage(dbPool, ledgerSchema) : undefined;
-  let planApprovalService = new PlanApprovalServiceImpl(contractConfig.orgId, pluginManager, contractConfig.finP2PClient);
-  const escrowService = new EscrowServiceImpl(contractConfig.finP2PContract, contractConfig.finP2PClient, contractConfig.execDetailsStore, contractConfig.proofProvider, pluginManager);
-  const tokenService = new TokenServiceImpl(contractConfig.finP2PContract, contractConfig.finP2PClient, contractConfig.execDetailsStore, contractConfig.proofProvider, pluginManager, contractConfig.defaultAssetStandard);
+  const innerPlanApprovalService = new PlanApprovalServiceImpl(contractConfig.orgId, pluginManager, contractConfig.finP2PClient);
+  const v1EscrowService = new EscrowServiceImpl(contractConfig.finP2PContract, contractConfig.finP2PClient, contractConfig.execDetailsStore, contractConfig.proofProvider, pluginManager);
+  const v1TokenService = new TokenServiceImpl(contractConfig.finP2PContract, contractConfig.finP2PClient, contractConfig.execDetailsStore, contractConfig.proofProvider, pluginManager, contractConfig.defaultAssetStandard);
   const mappingService = new CredentialsMappingService(contractConfig.finP2PContract);
   const mappingConfig = buildMappingConfig();
 
-  const commonService = workflowStorage ? new DirectCommonServiceImpl(workflowStorage) : tokenService as any;
+  // v2 (plan-based) operator: plan-scoped operations execute against the
+  // mirrored on-chain plan; everything else falls back to the v1 services.
+  let tokenService: TokenServiceImpl | PlanTokenService = v1TokenService;
+  let escrowService: EscrowServiceImpl | PlanEscrowService = v1EscrowService;
+  let planApprovalService: PlanApprovalServiceImpl | PlanBasedApprovalService = innerPlanApprovalService;
+  if (contractConfig.planContract) {
+    const proofSync = new ProofSyncService(contractConfig.planContract, contractConfig.finP2PClient);
+    tokenService = new PlanTokenService(contractConfig.planContract, proofSync, contractConfig.execDetailsStore, v1TokenService);
+    escrowService = new PlanEscrowService(contractConfig.planContract, proofSync, contractConfig.execDetailsStore, v1EscrowService);
+    planApprovalService = new PlanBasedApprovalService(contractConfig.orgId, contractConfig.planContract, contractConfig.finP2PClient, innerPlanApprovalService);
+  }
+
+  const commonService = workflowStorage ? new DirectCommonServiceImpl(workflowStorage) : v1TokenService as any;
 
   const proxiedTokenService = wrapWithWorkflowProxy(tokenService, workflowStorage, finP2PClient, 'createAsset', 'issue', 'transfer', 'redeem');
   const proxiedEscrowService = wrapWithWorkflowProxy(escrowService, workflowStorage, finP2PClient, 'hold', 'release', 'rollback');
   const proxiedPlanService = wrapWithWorkflowProxy(planApprovalService, workflowStorage, finP2PClient, 'approvePlan', 'proposeCancelPlan', 'proposeResetPlan', 'proposeInstructionApproval');
-  register(app, proxiedTokenService, proxiedEscrowService, commonService, tokenService, paymentsService, proxiedPlanService, mappingConfig, mappingService);
+  register(app, proxiedTokenService, proxiedEscrowService, commonService, v1TokenService, paymentsService, proxiedPlanService, mappingConfig, mappingService);
 }
 
 async function createApp(
