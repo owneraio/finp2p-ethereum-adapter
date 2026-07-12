@@ -67,7 +67,9 @@ const emptyTradeDetails = (): TradeDetails => {
 
 export const parseTransactionReceipt = (
   receipt: TransactionReceipt,
-  contractInterface: FINP2POperatorInterface,
+  // the v2 plan operator emits the same event shapes, so any operator
+  // interface able to parse these logs is accepted
+  contractInterface: Pick<FINP2POperatorInterface, "parseLog">,
   timestamp: number
 ): Receipt | null => {
   const id = receipt.hash;

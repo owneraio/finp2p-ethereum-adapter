@@ -34,7 +34,9 @@
     "generate-wallet": "ts-node scripts/generate-wallet.ts",
     "erc20-approve": "ts-node scripts/erc20-approve.ts",
     "eip712-domain-params": "ts-node scripts/eip712-domain-params.ts",
-    "finId-to-address": "ts-node scripts/finId-to-address.ts"
+    "finId-to-address": "ts-node scripts/finId-to-address.ts",
+    "deploy-contract-v2": "ts-node scripts/deploy-v2.ts",
+    "register-proof-signer": "ts-node scripts/register-proof-signer.ts"
   },
   "keywords": [],
   "author": "",

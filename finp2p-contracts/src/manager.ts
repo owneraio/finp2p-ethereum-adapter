@@ -9,7 +9,12 @@ import {
 } from "ethers";
 import FINP2P from "../artifacts/contracts/finp2p/FINP2POperator.sol/FINP2POperator.json";
 import ERC20 from "../artifacts/contracts/token/ERC20/ERC20WithOperator.sol/ERC20WithOperator.json";
-import { ERC20WithOperator, FINP2POperator } from "../typechain-types";
+import ESCROW from "../artifacts/contracts/finp2p/v2/FinP2PEscrow.sol/FinP2PEscrow.json";
+import PLAN_VERIFIER from "../artifacts/contracts/finp2p/v2/FinP2PPlanVerifier.sol/FinP2PPlanVerifier.json";
+import PLAN_OPERATOR from "../artifacts/contracts/finp2p/v2/FINP2PPlanOperator.sol/FINP2PPlanOperator.json";
+import {
+  ERC20WithOperator, FINP2POperator, FinP2PEscrow, FinP2PPlanVerifier, FINP2PPlanOperator
+} from "../typechain-types";
 import { Logger } from "./adapter-types";
 import { PayableOverrides } from "../typechain-types/common";
 import { EthereumTransactionError, NonceAlreadyBeenUsedError, NonceTooHighError } from "./model";
@@ -81,8 +86,9 @@ export class ContractsManager {
     this.logger = logger;
     this.confirmationTimeoutMs = confirmationTimeoutMs;
     this.gasTier = gasTier;
-    if (this.signer instanceof NonceManager) {
-      this.signer.getNonce().then((nonce) => {
+    const nonceManager = this.asNonceManager();
+    if (nonceManager) {
+      nonceManager.getNonce().then((nonce) => {
         this.logger.info(`Using nonce-manager, current nonce: ${nonce}`);
       });
     }
@@ -129,6 +135,74 @@ export class ContractsManager {
     }
 
     return address;
+  }
+
+  async deployEscrowContract(adminAddress?: string): Promise<string> {
+    this.logger.info("Deploying FinP2PEscrow contract...");
+    const factory = new ContractFactory<any[], FinP2PEscrow>(
+      ESCROW.abi, ESCROW.bytecode, this.signer
+    );
+    const admin = adminAddress ?? await this.signer.getAddress();
+    const contract = await factory.deploy(admin);
+    await contract.waitForDeployment();
+    const address = await contract.getAddress();
+    this.logger.info(`FinP2PEscrow contract deployed successfully at: ${address}`);
+    return address;
+  }
+
+  async deployPlanVerifier(): Promise<string> {
+    this.logger.info("Deploying FinP2PPlanVerifier contract...");
+    const factory = new ContractFactory<any[], FinP2PPlanVerifier>(
+      PLAN_VERIFIER.abi, PLAN_VERIFIER.bytecode, this.signer
+    );
+    const contract = await factory.deploy();
+    await contract.waitForDeployment();
+    const address = await contract.getAddress();
+    this.logger.info(`FinP2PPlanVerifier contract deployed successfully at: ${address}`);
+    return address;
+  }
+
+  /**
+   * Deploy the v2 plan operator wired to an escrow and a verifier (deploying
+   * those first when addresses aren't given), grant the operator contract the
+   * ESCROW_OPERATOR role on the escrow, and optionally grant the adapter's
+   * operator account the manager roles.
+   */
+  async deployFinP2PPlanContract(
+    operatorAddress?: string,
+    escrowAddress?: string,
+    verifierAddress?: string
+  ): Promise<{ planContractAddress: string, escrowAddress: string, verifierAddress: string }> {
+    const escrow = escrowAddress ?? await this.deployEscrowContract();
+    const verifier = verifierAddress ?? await this.deployPlanVerifier();
+
+    this.logger.info("Deploying FINP2PPlanOperator contract...");
+    const factory = new ContractFactory<any[], FINP2PPlanOperator>(
+      PLAN_OPERATOR.abi, PLAN_OPERATOR.bytecode, this.signer
+    );
+    const deployerAddress = await this.signer.getAddress();
+    const contract = await factory.deploy(deployerAddress, escrow, verifier);
+    await contract.waitForDeployment();
+    const address = await contract.getAddress();
+    this.logger.info(`FINP2PPlanOperator contract deployed successfully at: ${address}`);
+
+    const escrowFactory = new ContractFactory<any[], FinP2PEscrow>(ESCROW.abi, ESCROW.bytecode, this.signer);
+    const escrowContract = escrowFactory.attach(escrow) as FinP2PEscrow;
+    await this.safeExecuteTransaction(escrowContract, async (c, txParams: PayableOverrides) => {
+      return c.grantEscrowOperatorRole(address, txParams);
+    });
+
+    if (operatorAddress) {
+      const planContract = factory.attach(address) as FINP2PPlanOperator;
+      await this.safeExecuteTransaction(planContract, async (c, txParams: PayableOverrides) => {
+        return c.grantAssetManagerRole(operatorAddress, txParams);
+      });
+      await this.safeExecuteTransaction(planContract, async (c, txParams: PayableOverrides) => {
+        return c.grantTransactionManagerRole(operatorAddress, txParams);
+      });
+    }
+
+    return { planContractAddress: address, escrowAddress: escrow, verifierAddress: verifier };
   }
 
   async isFinP2PContractHealthy(finP2PContractAddress: string): Promise<boolean> {
@@ -220,8 +294,9 @@ export class ContractsManager {
     for (let i = 0; i < maxAttempts; i++) {
       try {
         let nonce: number;
-        if (this.signer instanceof NonceManager) {
-          nonce = await (this.signer as NonceManager).getNonce();
+        const nonceManager = this.asNonceManager();
+        if (nonceManager) {
+          nonce = await nonceManager.getNonce();
         } else {
           nonce = await this.getLatestTransactionCount();
         }
@@ -256,10 +331,50 @@ export class ContractsManager {
     throw new Error(`Failed to execute transaction without nonce-too-high error after ${maxAttempts} attempts`);
   }
 
-  private resetNonce() {
-    if (this.signer instanceof NonceManager) {
-      (this.signer as NonceManager).reset();
+  /**
+   * Duck-typed NonceManager detection. `instanceof` breaks whenever a second
+   * copy of ethers is present (nested node_modules, file:-linked packages):
+   * the signer then comes from a different class identity, `resetNonce`
+   * silently no-ops, and the manager's leaked `#delta` makes every retry send
+   * an ever-increasing nonce.
+   */
+  private asNonceManager(): NonceManager | undefined {
+    const signer = this.signer as Partial<NonceManager>;
+    if (typeof signer.reset === "function" && typeof signer.increment === "function") {
+      return this.signer as NonceManager;
     }
+    return undefined;
+  }
+
+  private resetNonce() {
+    this.asNonceManager()?.reset();
+  }
+
+  /**
+   * Build the per-attempt tx overrides for `safeExecuteTransaction`.
+   *
+   * Always sets `nonce`. For tiers other than `normal`, also computes
+   * `maxPriorityFeePerGas` and `maxFeePerGas` by scaling the node's
+   * `getFeeData()` estimate. `normal` leaves the gas fields unset so
+   * ethers' default path (which itself queries `getFeeData()`) flows
+   * through — preserves the pre-tier behavior exactly.
+   *
+   * Non-EIP-1559 chains (no `maxPriorityFeePerGas` in feeData) fall back
+   * to the bare `{ nonce }` overrides — same as ethers' default would do.
+   */
+  protected async buildTxOverrides(nonce: number): Promise<PayableOverrides> {
+    if (this.gasTier === 'normal') {
+      return { nonce };
+    }
+    const feeData = await this.provider.getFeeData();
+    if (feeData.maxPriorityFeePerGas == null || feeData.maxFeePerGas == null) {
+      // Pre-EIP-1559 chain (legacy gas only). Tier has no meaning here.
+      return { nonce };
+    }
+    const basisPoints = BigInt(GAS_TIER_MULTIPLIER_BASIS_POINTS[this.gasTier]);
+    const maxPriorityFeePerGas = (feeData.maxPriorityFeePerGas * basisPoints) / 1000n;
+    const maxFeePerGas = (feeData.maxFeePerGas * basisPoints) / 1000n;
+    return { nonce, maxPriorityFeePerGas, maxFeePerGas };
   }
 
   /**
