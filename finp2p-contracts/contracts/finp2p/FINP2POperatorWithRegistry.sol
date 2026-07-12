@@ -13,6 +13,11 @@ import {FinP2PSignatureVerifier} from "../utils/finp2p/FinP2PSignatureVerifier.s
 /**
  * @dev FINP2POperatorERC20
  *
+ * @custom:deprecated Superseded by FINP2POrchestrator, which dispatches
+ * token operations through the same AssetRegistry/AssetStandard chain
+ * natively. Kept only as the v1 execution path while existing deployments
+ * migrate; no new deployments, no new features.
+ *
  * This contract implements the FINP2P protocol operations for ERC20 tokens.
  * It allows to associate and remove assets, issue, transfer and redeem tokens.
  * It also allows to hold and release tokens in escrow.

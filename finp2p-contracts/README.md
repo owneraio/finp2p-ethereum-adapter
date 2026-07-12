@@ -2,6 +2,16 @@
 ## Overview
 The **FinP2P Contract** is the on-chain execution layer. It holds the business logic, executes state changes, and is the destination for calls made by the Ethereum Adapter.
 
+> **Deprecation notice**: the v1 operators — `FINP2POperator` and
+> `FINP2POperatorWithRegistry` — are deprecated in favor of
+> **`FINP2POrchestrator`**, the plan-based operator that mirrors FinP2P
+> execution plans on-chain (strict cursor, upfront investor-signature
+> verification, EIP-712 receipt proofs for off-ledger legs), backed by the
+> standalone `FinP2PEscrow` and dispatching token operations through the
+> `AssetRegistry`/`AssetStandard` chain. The v1 operators remain only as the
+> execution path for existing deployments (`FINP2P_CONTRACT_VERSION=1`) and
+> receive no new features. Deploy with `npm run deploy-orchestrator`.
+
 ## Core Capabilities
 The contract solves four specific execution challenges:
 

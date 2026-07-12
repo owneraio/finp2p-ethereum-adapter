@@ -10,6 +10,11 @@ import { mapReceiptOperation } from "./mapping";
 import { emptyOperationParams, extractBusinessDetails } from "./helpers";
 import { validateRequest } from "./validator";
 
+/**
+ * @deprecated v1 (FINP2POperator) escrow service. Remains the default when
+ * FINP2P_CONTRACT_VERSION=1 and the fallback for non-plan operations in
+ * orchestrator mode; superseded by the orchestration services.
+ */
 export class EscrowServiceImpl extends CommonServiceImpl implements EscrowService {
 
   public async hold(idempotencyKey: string, nonce: string, source: Source, destination: Destination | undefined, ast: Asset,

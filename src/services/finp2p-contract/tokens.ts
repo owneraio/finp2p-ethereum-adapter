@@ -23,6 +23,11 @@ import { validateRequest } from "./validator";
 
 const DefaultDecimals = 2;
 
+/**
+ * @deprecated v1 (FINP2POperator) token service. Remains the default when
+ * FINP2P_CONTRACT_VERSION=1 and the fallback for non-plan operations in
+ * orchestrator mode; superseded by the orchestration services.
+ */
 export class TokenServiceImpl extends CommonServiceImpl implements TokenService {
 
 

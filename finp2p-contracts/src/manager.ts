@@ -116,6 +116,7 @@ export class ContractsManager {
     return await this.provider.getTransactionCount(this.signer.getAddress(), "latest");
   }
 
+  /** @deprecated v1 operator deployment — use {@link deployFinP2POrchestrator}. */
   async deployFinP2PContract(operatorAddress: string | undefined, paymentAssetCode: string | undefined = undefined) {
     this.logger.info("Deploying FinP2P contract...");
     const factory = new ContractFactory<any[], FINP2POperator>(
@@ -251,6 +252,7 @@ export class ContractsManager {
     };
   }
 
+  /** @deprecated v1 operator probe. */
   async isFinP2PContractHealthy(finP2PContractAddress: string): Promise<boolean> {
     const factory = new ContractFactory<any[], FINP2POperator>(
       FINP2P.abi, FINP2P.bytecode, this.signer

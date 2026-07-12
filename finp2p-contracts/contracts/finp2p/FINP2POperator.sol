@@ -15,6 +15,11 @@ import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IER
 /**
  * @dev FINP2POperator
  *
+ * @custom:deprecated Superseded by FINP2POrchestrator (the plan-based
+ * operator with a standalone FinP2PEscrow and on-chain plan mirroring).
+ * Kept only as the v1 execution path while existing deployments migrate;
+ * no new deployments, no new features.
+ *
  * Simplified FinP2P operator contract that works directly with ERC20 tokens.
  * Manages finId-to-address credential mappings and asset-to-token associations.
  * Signature verification still uses cryptographic derivation from finId (secp256k1),

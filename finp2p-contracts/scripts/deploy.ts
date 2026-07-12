@@ -1,4 +1,6 @@
 #!/usr/bin/env node
+// DEPRECATED: deploys the v1 FINP2POperator. New deployments should use
+// scripts/deploy-orchestrator.ts (FINP2POrchestrator + escrow + verifier + registry).
 import { Logger, ConsoleLogger } from "../src/adapter-types";
 import { ContractsManager, FinP2PContract } from "../src";
 import { createJsonProvider, parseConfig } from "./config";

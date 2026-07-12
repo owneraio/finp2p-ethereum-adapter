@@ -34,6 +34,13 @@ const WITH_REGISTRY_IFACE = new Interface([
   "function associateAsset(string assetId, address tokenAddress, bytes32 assetStandard)",
 ]);
 
+/**
+ * Client for the v1 FINP2POperator / FINP2POperatorWithRegistry contracts.
+ *
+ * @deprecated Superseded by {@link FinP2POrchestratorContract} (plan-based
+ * orchestrator + standalone escrow). Kept as the v1 execution path and the
+ * fallback for non-plan operations while deployments migrate.
+ */
 export class FinP2PContract extends ContractsManager {
 
   contractInterface: FINP2POperatorInterface;
