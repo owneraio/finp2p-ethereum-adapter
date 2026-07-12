@@ -1,7 +1,7 @@
 import { ContractFactory, Provider, Signer, TransactionReceipt } from "ethers";
-import ORCHESTRATOR from "../artifacts/contracts/finp2p/v2/FINP2POrchestrator.sol/FINP2POrchestrator.json";
+import ORCHESTRATOR from "../artifacts/contracts/finp2p/FINP2POrchestrator.sol/FINP2POrchestrator.json";
 import { FINP2POrchestrator } from "../typechain-types";
-import { FINP2POrchestratorInterface } from "../typechain-types/contracts/finp2p/v2/FINP2POrchestrator";
+import { FINP2POrchestratorInterface } from "../typechain-types/contracts/finp2p/FINP2POrchestrator";
 import { PayableOverrides } from "../typechain-types/common";
 import { ContractsManager, GasTier } from "./manager";
 import {

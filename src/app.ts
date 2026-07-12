@@ -22,7 +22,7 @@ import {
   PlanEscrowService,
   PlanTokenService,
   ProofSyncService,
-} from "./services/finp2p-contract-v2";
+} from "./services/orchestration";
 import {
   ContractEscrow,
   DirectTokenService,

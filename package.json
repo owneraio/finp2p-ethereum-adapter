@@ -33,7 +33,7 @@
     "start-debug": "ts-node ./src/index.ts",
     "start": "node .",
     "test:plan-approval": "jest --config jest.plan-approval.config.js",
-    "test:plan-v2": "jest --config jest.plan-v2.config.js"
+    "test:orchestration": "jest --config jest.orchestration.config.js"
   },
   "publishConfig": {
     "registry": "https://npm.pkg.github.com"

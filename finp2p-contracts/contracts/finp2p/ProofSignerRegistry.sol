@@ -3,7 +3,7 @@
 pragma solidity ^0.8.20;
 
 import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
-import {FinIdUtils} from "../../utils/finp2p/FinIdUtils.sol";
+import {FinIdUtils} from "../utils/finp2p/FinIdUtils.sol";
 
 /**
  * @dev Per-organization registry of ledger-proof signers. A receipt proof for

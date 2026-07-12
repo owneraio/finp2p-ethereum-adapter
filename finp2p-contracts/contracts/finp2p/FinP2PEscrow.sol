@@ -4,7 +4,7 @@ pragma solidity ^0.8.20;
 
 import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {Burnable} from "../../utils/erc20/Burnable.sol";
+import {Burnable} from "../utils/erc20/Burnable.sol";
 
 /**
  * @dev Standalone FinP2P escrow.

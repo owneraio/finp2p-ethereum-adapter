@@ -1,7 +1,7 @@
 import { PrimaryType, EIP712LoanTerms, emptyLoanTerms } from "./adapter-types";
 import { Term } from "./model";
 
-// TS mirrors of contracts/finp2p/v2/PlanTypes.sol. Vocabulary aligned with the
+// TS mirrors of contracts/finp2p/PlanTypes.sol. Vocabulary aligned with the
 // FinP2P Canton adapter's OrchestrationPlan (ExecutionVenue, ExecutionState,
 // ApprovalState, OrchestrationPlan).
 

@@ -1,5 +1,5 @@
 import { ContractFactory, Provider, Signer } from "ethers";
-import ESCROW from "../artifacts/contracts/finp2p/v2/FinP2PEscrow.sol/FinP2PEscrow.json";
+import ESCROW from "../artifacts/contracts/finp2p/FinP2PEscrow.sol/FinP2PEscrow.json";
 import { FinP2PEscrow } from "../typechain-types";
 import { PayableOverrides } from "../typechain-types/common";
 import { ContractsManager, GasTier } from "./manager";

@@ -3,10 +3,10 @@
 pragma solidity ^0.8.20;
 
 import {PrimaryType} from "@owneraio/finp2p-ethereum-token-standard/contracts/OperationParams.sol";
-import "../../utils/StringUtils.sol";
-import {FinIdUtils} from "../../utils/finp2p/FinIdUtils.sol";
-import {FinP2PReceiptVerifier} from "../../utils/finp2p/FinP2PReceiptVerifier.sol";
-import {Signature} from "../../utils/finp2p/Signature.sol";
+import "../utils/StringUtils.sol";
+import {FinIdUtils} from "../utils/finp2p/FinIdUtils.sol";
+import {FinP2PReceiptVerifier} from "../utils/finp2p/FinP2PReceiptVerifier.sol";
+import {Signature} from "../utils/finp2p/Signature.sol";
 import "./PlanTypes.sol";
 
 /**

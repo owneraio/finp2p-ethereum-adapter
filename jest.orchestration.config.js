@@ -9,7 +9,7 @@ module.exports = {
   ],
   "testMatch": [
     "<rootDir>/tests/plan-translator.test.+(ts|tsx|js)",
-    "<rootDir>/tests/plan-v2.test.+(ts|tsx|js)",
+    "<rootDir>/tests/orchestration.test.+(ts|tsx|js)",
     "<rootDir>/tests/direct-contract-escrow.test.+(ts|tsx|js)"
   ],
   "maxWorkers": 1,

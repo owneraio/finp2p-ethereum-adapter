@@ -3,7 +3,7 @@
 pragma solidity ^0.8.20;
 
 import {PrimaryType} from "@owneraio/finp2p-ethereum-token-standard/contracts/OperationParams.sol";
-import {FinP2PSignatureVerifier} from "../../utils/finp2p/FinP2PSignatureVerifier.sol";
+import {FinP2PSignatureVerifier} from "../utils/finp2p/FinP2PSignatureVerifier.sol";
 
 // Vocabulary aligned with the FinP2P Canton adapter's OrchestrationPlan
 // (finp2p-canton-adapter/finp2p-contracts/daml/FinP2P/OrchestrationPlan.daml):

@@ -9,9 +9,9 @@ import {
 } from "ethers";
 import FINP2P from "../artifacts/contracts/finp2p/FINP2POperator.sol/FINP2POperator.json";
 import ERC20 from "../artifacts/contracts/token/ERC20/ERC20WithOperator.sol/ERC20WithOperator.json";
-import ESCROW from "../artifacts/contracts/finp2p/v2/FinP2PEscrow.sol/FinP2PEscrow.json";
-import PLAN_VERIFIER from "../artifacts/contracts/finp2p/v2/FinP2PPlanVerifier.sol/FinP2PPlanVerifier.json";
-import ORCHESTRATOR from "../artifacts/contracts/finp2p/v2/FINP2POrchestrator.sol/FINP2POrchestrator.json";
+import ESCROW from "../artifacts/contracts/finp2p/FinP2PEscrow.sol/FinP2PEscrow.json";
+import PLAN_VERIFIER from "../artifacts/contracts/finp2p/FinP2PPlanVerifier.sol/FinP2PPlanVerifier.json";
+import ORCHESTRATOR from "../artifacts/contracts/finp2p/FINP2POrchestrator.sol/FINP2POrchestrator.json";
 import {
   ERC20WithOperator, FINP2POperator, FinP2PEscrow, FinP2PPlanVerifier, FINP2POrchestrator
 } from "../typechain-types";
