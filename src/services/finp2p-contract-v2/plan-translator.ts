@@ -1,9 +1,9 @@
 import { EIP712Template } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import {
-  InstructionExecutor,
+  ExecutionState,
+  ExecutionVenue,
   NO_SIGNATURE,
   PlanInstruction,
-  PlanInstructionStatus,
   PlanInstructionType,
   PlanInvestmentSignature,
   ValidationError
@@ -140,16 +140,16 @@ export const translateExecutionPlan = (plan: RawExecutionPlan, orgId: string): T
   const instructions: PlanInstruction[] = sorted.map((raw) => {
     const { sequence, organizations, executionPlanOperation: op } = raw;
     const local = organizations.length === 0 || organizations.includes(orgId);
-    const executor = local ? InstructionExecutor.ThisContract : InstructionExecutor.OtherLedger;
+    const venue = local ? ExecutionVenue.OnLedger : ExecutionVenue.OffLedger;
     const organizationId = local ? "" : (organizations.find((o) => o !== orgId) ?? organizations[0]);
 
     const base = {
       sequence,
-      executor,
+      venue,
       organizationId,
       operationId: "",
       signatureIndex: NO_SIGNATURE,
-      status: PlanInstructionStatus.Pending
+      state: ExecutionState.Pending
     };
 
     switch (op.type) {

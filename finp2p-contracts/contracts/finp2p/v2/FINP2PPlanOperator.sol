@@ -17,20 +17,24 @@ import "./PlanTypes.sol";
 /**
  * @dev FINP2PPlanOperator
  *
- * Plan-based FinP2P operator (v2). Mirrors a FinP2P execution plan on-chain
- * and enforces conditional progression between instructions:
+ * Plan-based FinP2P operator (v2): the EVM projection of a FinP2P execution
+ * plan, structurally aligned with the Canton adapter's OrchestrationPlan
+ * (on-/off-ledger venues, execution states, per-org approvals) but with
+ * guarantees only an EVM contract can enforce:
  *  - all required investor EIP-712 investment signatures are verified once, at
  *    plan creation; execution calls carry no signatures;
- *  - instructions run strictly in sequence, tracked by an internal cursor;
- *  - instructions executed on this chain advance the cursor atomically with
- *    the token operation;
- *  - instructions executed on other ledgers advance the cursor only via an
- *    EIP-712 receipt proof signed by a registered proof signer of the
- *    executing organization.
+ *  - instructions run strictly in sequence, tracked by an internal cursor
+ *    (total order — not just among off-ledger instructions);
+ *  - on-ledger instructions advance the cursor atomically with the token
+ *    operation;
+ *  - off-ledger instructions advance only via completeOffLedgerInstruction
+ *    with an EIP-712 receipt proof verified against the executing
+ *    organization's registered proof signers — cryptographic attestation, not
+ *    a trusted-provider assertion.
  *
  * Escrow is external (FinP2PEscrow), shared with direct-mode flows. Signature
  * verification (investor intents and receipt proofs) is delegated to an
- * external stateless FinP2PReceiptVerifier: it keeps this contract under the
+ * external stateless FinP2PPlanVerifier: it keeps this contract under the
  * EIP-170 bytecode limit and lets several operators share one verifier.
  */
 contract FINP2PPlanOperator is ProofSignerRegistry {
@@ -49,10 +53,11 @@ contract FINP2PPlanOperator is ProofSignerRegistry {
 
     event PlanCreated(string planId, uint8 instructionCount);
     event InstructionExecuted(string planId, uint8 sequence, InstructionType instructionType);
-    event InstructionProven(string planId, uint8 sequence, address proofSigner);
+    event OffLedgerInstructionCompleted(string planId, uint8 sequence, address proofSigner, string transactionId);
     event PlanCompleted(string planId);
-    event PlanFailed(string planId, string reason);
+    event PlanRejected(string planId, string reason);
     event PlanReverted(string planId);
+    event PlanApprovalRecorded(string planId, string orgId, ApprovalState state);
 
     /// @notice Domain events, same shapes as the v1 operator (receipt parsing)
     event Issue(string assetId, FinP2PSignatureVerifier.AssetType assetType, string issuerFinId, string quantity);
@@ -67,15 +72,17 @@ contract FINP2PPlanOperator is ProofSignerRegistry {
     mapping(string => Asset) private assets;
     mapping(string => address) private credentials;
 
-    mapping(bytes32 => ExecutionPlan) private plans;
+    mapping(bytes32 => OrchestrationPlan) private plans;
     mapping(bytes32 => mapping(uint8 => Instruction)) private planInstructions;
+    // per-org plan approvals (Canton: OrgApproval); keyed by planKey => keccak(orgId)
+    mapping(bytes32 => mapping(bytes32 => ApprovalState)) private planApprovals;
     // investor signatures are chain- and contract-agnostic (fixed FinP2P domain),
     // so replay across plans is blocked explicitly; keyed by keccak(digest, signer)
     mapping(bytes32 => bool) private usedInvestorIntents;
 
     constructor(address admin, address escrowAddress, address verifierAddress) {
-        require(escrowAddress != address(0), "FINP2PPlanOperator: escrow cannot be zero");
-        require(verifierAddress != address(0), "FINP2PPlanOperator: verifier cannot be zero");
+        require(escrowAddress != address(0), "Escrow cannot be zero");
+        require(verifierAddress != address(0), "Verifier cannot be zero");
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
         _grantRole(ASSET_MANAGER, admin);
         _grantRole(TRANSACTION_MANAGER, admin);
@@ -161,78 +168,98 @@ contract FINP2PPlanOperator is ProofSignerRegistry {
 
         for (uint256 i = 0; i < instructions.length; i++) {
             Instruction calldata instruction = instructions[i];
-            require(instruction.sequence == i + 1, "Instruction sequences must be contiguous starting at 1");
+            require(instruction.sequence == i + 1, "Non-contiguous sequences");
             _validateInstruction(instruction, signatures);
             planInstructions[planKey][instruction.sequence] = instruction;
-            planInstructions[planKey][instruction.sequence].status = InstructionStatus.PENDING;
+            planInstructions[planKey][instruction.sequence].state = ExecutionState.PENDING;
         }
 
-        plans[planKey] = ExecutionPlan(PlanStatus.CREATED, uint8(instructions.length), 1);
+        plans[planKey] = OrchestrationPlan(PlanStatus.PENDING, uint8(instructions.length), 1);
         emit PlanCreated(planId, uint8(instructions.length));
     }
 
-    /// @notice Execute the current local instruction of a plan. No signatures:
+    /// @notice Record an organization's stance on a plan (Canton: ApprovePlan).
+    ///         Informational/audit record: plan progression is enforced by the
+    ///         cursor and proofs, not by approval quorum (the router owns that).
+    function recordPlanApproval(
+        string calldata planId,
+        string calldata orgId,
+        ApprovalState state
+    ) external onlyRole(TRANSACTION_MANAGER) {
+        bytes32 planKey = _planKey(planId);
+        require(plans[planKey].status != PlanStatus.NONE, "Plan not found");
+        planApprovals[planKey][keccak256(bytes(orgId))] = state;
+        emit PlanApprovalRecorded(planId, orgId, state);
+    }
+
+    function getPlanApproval(string calldata planId, string calldata orgId) external view returns (ApprovalState) {
+        return planApprovals[_planKey(planId)][keccak256(bytes(orgId))];
+    }
+
+    /// @notice Execute the current on-ledger instruction of a plan. No signatures:
     ///         investor consent was verified at plan creation, ordering is
-    ///         enforced by the cursor.
+    ///         enforced by the cursor. The token operation and the plan-state
+    ///         update are atomic (Canton: Orchestrator choices + updatePlanInstruction).
     function executeInstruction(string calldata planId, uint8 sequence) external onlyRole(TRANSACTION_MANAGER) {
-        (ExecutionPlan storage plan, Instruction storage instruction) = _currentInstruction(planId, sequence);
-        require(instruction.executor == InstructionExecutor.THIS_CONTRACT, "Instruction is not executable on this ledger");
+        (OrchestrationPlan storage plan, Instruction storage instruction) = _currentInstruction(planId, sequence);
+        require(instruction.venue == ExecutionVenue.ON_LEDGER, "Instruction is off-ledger");
 
         _performInstruction(instruction);
 
-        instruction.status = InstructionStatus.EXECUTED;
+        instruction.state = ExecutionState.COMPLETED;
         emit InstructionExecuted(planId, sequence, instruction.instructionType);
         _advanceCursor(planId, plan, sequence);
     }
 
-    /// @notice Prove completion of an other-ledger instruction with an EIP-712
-    ///         receipt proof signed by a registered proof signer of the executing
-    ///         organization. Permissionless: the proof is self-authenticating.
-    function proveInstruction(
+    /// @notice Complete an off-ledger instruction (Canton: UpdateOffLedgerInstruction) —
+    ///         but with cryptographic attestation instead of a trusted-provider
+    ///         assertion: an EIP-712 receipt proof signed by a registered proof
+    ///         signer of the executing organization, bound to this plan,
+    ///         sequence, asset and amount. Permissionless: the proof is
+    ///         self-authenticating.
+    function completeOffLedgerInstruction(
         string calldata planId,
         uint8 sequence,
         FinP2PReceiptVerifier.ReceiptProof calldata receipt,
         bytes calldata signature
     ) external {
-        (ExecutionPlan storage plan, Instruction storage instruction) = _currentInstruction(planId, sequence);
-        require(instruction.executor == InstructionExecutor.OTHER_LEDGER, "Instruction is executable on this ledger, not provable");
+        (OrchestrationPlan storage plan, Instruction storage instruction) = _currentInstruction(planId, sequence);
+        require(instruction.venue == ExecutionVenue.OFF_LEDGER, "Instruction is on-ledger");
 
         address signer = verifier.verifyReceiptProof(receipt, instruction, planId, sequence, signature);
-        require(isProofSigner(instruction.organizationId, signer), "Proof signer is not registered for the executing organization");
+        require(isProofSigner(instruction.organizationId, signer), "Unregistered proof signer");
 
-        instruction.status = InstructionStatus.PROVEN;
-        emit InstructionProven(planId, sequence, signer);
+        instruction.state = ExecutionState.COMPLETED;
+        emit OffLedgerInstructionCompleted(planId, sequence, signer, receipt.transactionId);
         _advanceCursor(planId, plan, sequence);
     }
 
-    /// @notice Freeze a plan that cannot proceed. Cursor stops; only revertPlan may follow.
-    function failPlan(string calldata planId, string calldata reason) external onlyRole(TRANSACTION_MANAGER) {
-        ExecutionPlan storage plan = plans[_planKey(planId)];
-        require(
-            plan.status == PlanStatus.CREATED || plan.status == PlanStatus.EXECUTING,
-            "Plan is not active"
-        );
-        plan.status = PlanStatus.FAILED;
-        emit PlanFailed(planId, reason);
+    /// @notice Reject a plan that cannot proceed. Cursor stops; only revertPlan may follow.
+    function rejectPlan(string calldata planId, string calldata reason) external onlyRole(TRANSACTION_MANAGER) {
+        OrchestrationPlan storage plan = plans[_planKey(planId)];
+        require(plan.status == PlanStatus.PENDING, "Plan is not active");
+        plan.status = PlanStatus.REJECTED;
+        emit PlanRejected(planId, reason);
     }
 
-    /// @notice Compensate a failed plan: roll back escrow holds this contract executed.
-    ///         Completed transfers/issues/redeems and remote instructions are not
+    /// @notice Compensate a rejected plan: roll back escrow holds this contract executed.
+    ///         Completed transfers/issues/redeems and off-ledger instructions are not
     ///         auto-reversed; in FinP2P those reversals are new plans.
     function revertPlan(string calldata planId) external onlyRole(TRANSACTION_MANAGER) {
         bytes32 planKey = _planKey(planId);
-        ExecutionPlan storage plan = plans[planKey];
-        require(plan.status == PlanStatus.FAILED, "Plan is not failed");
+        OrchestrationPlan storage plan = plans[planKey];
+        require(plan.status == PlanStatus.REJECTED, "Plan is not rejected");
 
         for (uint8 seq = plan.instructionCount; seq >= 1; seq--) {
             Instruction storage instruction = planInstructions[planKey][seq];
             if (
-                instruction.status == InstructionStatus.EXECUTED &&
+                instruction.state == ExecutionState.COMPLETED &&
+                instruction.venue == ExecutionVenue.ON_LEDGER &&
                 instruction.instructionType == InstructionType.HOLD &&
                 escrow.hasHold(instruction.operationId)
             ) {
                 escrow.rollback(instruction.operationId);
-                instruction.status = InstructionStatus.ROLLED_BACK;
+                instruction.state = ExecutionState.REJECTED;
                 emit Release(instruction.assetId, instruction.assetType, instruction.source, "", instruction.amount, instruction.operationId);
             }
             if (seq == 1) break;
@@ -242,8 +269,8 @@ contract FINP2PPlanOperator is ProofSignerRegistry {
         emit PlanReverted(planId);
     }
 
-    function getPlan(string calldata planId) external view returns (ExecutionPlan memory) {
-        ExecutionPlan memory plan = plans[_planKey(planId)];
+    function getPlan(string calldata planId) external view returns (OrchestrationPlan memory) {
+        OrchestrationPlan memory plan = plans[_planKey(planId)];
         require(plan.status != PlanStatus.NONE, "Plan not found");
         return plan;
     }
@@ -264,27 +291,26 @@ contract FINP2PPlanOperator is ProofSignerRegistry {
     function _currentInstruction(
         string calldata planId,
         uint8 sequence
-    ) private view returns (ExecutionPlan storage plan, Instruction storage instruction) {
+    ) private view returns (OrchestrationPlan storage plan, Instruction storage instruction) {
         bytes32 planKey = _planKey(planId);
         plan = plans[planKey];
-        require(plan.status == PlanStatus.CREATED || plan.status == PlanStatus.EXECUTING, "Plan is not active");
-        require(sequence == plan.currentSequence, "Instruction is not the current one in the plan");
+        require(plan.status == PlanStatus.PENDING, "Plan is not active");
+        require(sequence == plan.currentSequence, "Not the current instruction");
         instruction = planInstructions[planKey][sequence];
     }
 
-    function _advanceCursor(string calldata planId, ExecutionPlan storage plan, uint8 sequence) private {
+    function _advanceCursor(string calldata planId, OrchestrationPlan storage plan, uint8 sequence) private {
         if (sequence == plan.instructionCount) {
             plan.status = PlanStatus.COMPLETED;
             emit PlanCompleted(planId);
         } else {
             plan.currentSequence = sequence + 1;
-            plan.status = PlanStatus.EXECUTING;
         }
     }
 
     function _verifyInvestorSignature(SignaturePayload calldata payload) private {
         (bool valid, bytes32 digest) = verifier.verifySignaturePayload(payload);
-        require(valid, "Investor signature is not verified");
+        require(valid, "Invalid investor signature");
         // keyed by signed digest + signer, not signature bytes: the same
         // signature has several valid encodings (64/65 bytes)
         bytes32 intentKey = keccak256(abi.encode(digest, keccak256(bytes(payload.signerFinId))));
@@ -293,9 +319,9 @@ contract FINP2PPlanOperator is ProofSignerRegistry {
     }
 
     function _validateInstruction(Instruction calldata instruction, SignaturePayload[] calldata signatures) private view {
-        if (instruction.executor == InstructionExecutor.OTHER_LEDGER) {
-            require(bytes(instruction.organizationId).length > 0, "Remote instruction must name the executing organization");
-            require(hasProofSigners(instruction.organizationId), "No proof signers registered for the executing organization");
+        if (instruction.venue == ExecutionVenue.OFF_LEDGER) {
+            require(bytes(instruction.organizationId).length > 0, "Missing executing organization");
+            require(hasProofSigners(instruction.organizationId), "No proof signers registered");
             return;
         }
         verifier.validateInstruction(instruction, signatures);
@@ -351,7 +377,7 @@ contract FINP2PPlanOperator is ProofSignerRegistry {
         FinP2PEscrow.Hold memory hold = escrow.getHold(instruction.operationId);
         require(
             hold.amount == _toTokenAmount(hold.token, instruction.amount),
-            "Escrow hold amount differs from the instruction amount"
+            "Hold amount mismatch"
         );
     }
 

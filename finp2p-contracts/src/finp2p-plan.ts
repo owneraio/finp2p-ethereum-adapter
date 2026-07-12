@@ -8,7 +8,7 @@ import {
   Logger, ReceiptOperation, failedReceiptOperation, pendingReceiptOperation, successfulReceiptOperation
 } from "./adapter-types";
 import {
-  ExecutionPlanState, LedgerProof, PlanInstruction, PlanInvestmentSignature
+  ApprovalState, LedgerProof, OrchestrationPlanInfo, PlanInstruction, PlanInvestmentSignature
 } from "./plan-model";
 import { parseTransactionReceipt } from "./utils";
 
@@ -19,8 +19,9 @@ const ETH_COMPLETED_TRANSACTION_STATUS = 1;
  *
  * A FinP2P execution plan is mirrored on-chain with `createPlan` (which also
  * verifies all investor signatures), then advanced strictly in sequence with
- * `executeInstruction` (local instructions, no signatures) and
- * `proveInstruction` (other-ledger instructions, EIP-712 receipt proof).
+ * `executeInstruction` (on-ledger instructions, no signatures) and
+ * `completeOffLedgerInstruction` (off-ledger instructions, verified EIP-712
+ * receipt proof).
  */
 export class FinP2PPlanContract extends ContractsManager {
 
@@ -120,17 +121,27 @@ export class FinP2PPlanContract extends ContractsManager {
     });
   }
 
-  async proveInstruction(planId: string, sequence: number, proof: LedgerProof, signature: string) {
+  async completeOffLedgerInstruction(planId: string, sequence: number, proof: LedgerProof, signature: string) {
     const sig = signature.startsWith("0x") ? signature : `0x${signature}`;
     return this.safeExecuteTransaction(this.planOperator, async (contract, txParams: PayableOverrides) => {
-      return contract.proveInstruction(planId, sequence, proof, sig, txParams);
+      return contract.completeOffLedgerInstruction(planId, sequence, proof, sig, txParams);
     });
   }
 
-  async failPlan(planId: string, reason: string) {
+  async rejectPlan(planId: string, reason: string) {
     return this.safeExecuteTransaction(this.planOperator, async (contract, txParams: PayableOverrides) => {
-      return contract.failPlan(planId, reason, txParams);
+      return contract.rejectPlan(planId, reason, txParams);
     });
+  }
+
+  async recordPlanApproval(planId: string, orgId: string, state: ApprovalState = ApprovalState.Approved) {
+    return this.safeExecuteTransaction(this.planOperator, async (contract, txParams: PayableOverrides) => {
+      return contract.recordPlanApproval(planId, orgId, state, txParams);
+    });
+  }
+
+  async getPlanApproval(planId: string, orgId: string): Promise<ApprovalState> {
+    return Number(await this.planOperator.getPlanApproval(planId, orgId));
   }
 
   async revertPlan(planId: string) {
@@ -143,7 +154,7 @@ export class FinP2PPlanContract extends ContractsManager {
     return this.planOperator.hasPlan(planId);
   }
 
-  async getPlan(planId: string): Promise<ExecutionPlanState> {
+  async getPlan(planId: string): Promise<OrchestrationPlanInfo> {
     const plan = await this.planOperator.getPlan(planId);
     return {
       status: Number(plan.status),
@@ -157,7 +168,7 @@ export class FinP2PPlanContract extends ContractsManager {
     return {
       sequence: Number(i.sequence),
       instructionType: Number(i.instructionType),
-      executor: Number(i.executor),
+      venue: Number(i.venue),
       organizationId: i.organizationId,
       assetId: i.assetId,
       assetType: Number(i.assetType),
@@ -166,7 +177,7 @@ export class FinP2PPlanContract extends ContractsManager {
       amount: i.amount,
       operationId: i.operationId,
       signatureIndex: Number(i.signatureIndex),
-      status: Number(i.status)
+      state: Number(i.state)
     };
   }
 

@@ -1,7 +1,9 @@
 import { PrimaryType, EIP712LoanTerms, emptyLoanTerms } from "./adapter-types";
 import { Term } from "./model";
 
-// TS mirrors of contracts/finp2p/v2/PlanTypes.sol
+// TS mirrors of contracts/finp2p/v2/PlanTypes.sol. Vocabulary aligned with the
+// FinP2P Canton adapter's OrchestrationPlan (ExecutionVenue, ExecutionState,
+// ApprovalState, OrchestrationPlan).
 
 export enum PlanInstructionType {
   Issue = 0,
@@ -14,25 +16,32 @@ export enum PlanInstructionType {
   RevertHold = 7
 }
 
-export enum InstructionExecutor {
-  ThisContract = 0,
-  OtherLedger = 1
+/** Where an instruction executes: this ledger or another one. */
+export enum ExecutionVenue {
+  OnLedger = 0,
+  OffLedger = 1
 }
 
-export enum PlanInstructionStatus {
+/** State of a single instruction; Rejected marks compensated (reverted) holds. */
+export enum ExecutionState {
   Pending = 0,
-  Executed = 1,
-  Proven = 2,
-  RolledBack = 3
+  Completed = 1,
+  Rejected = 2
 }
 
 export enum ExecutionPlanStatus {
   None = 0,
-  Created = 1,
-  Executing = 2,
-  Completed = 3,
-  Failed = 4,
-  Reverted = 5
+  Pending = 1,
+  Completed = 2,
+  Rejected = 3,
+  Reverted = 4
+}
+
+/** Per-organization stance on a plan (Canton: OrgApproval/ApprovalState). */
+export enum ApprovalState {
+  PendingApproval = 0,
+  Approved = 1,
+  ApprovalRejected = 2
 }
 
 export const NO_SIGNATURE = 255;
@@ -40,7 +49,7 @@ export const NO_SIGNATURE = 255;
 export type PlanInstruction = {
   sequence: number;
   instructionType: PlanInstructionType;
-  executor: InstructionExecutor;
+  venue: ExecutionVenue;
   organizationId: string;
   assetId: string;
   assetType: number; // model.AssetType (const enum)
@@ -49,7 +58,7 @@ export type PlanInstruction = {
   amount: string;
   operationId: string;
   signatureIndex: number;
-  status: PlanInstructionStatus;
+  state: ExecutionState;
 };
 
 export type PlanInvestmentSignature = {
@@ -64,7 +73,8 @@ export type PlanInvestmentSignature = {
   signature: string; // hex, 0x-prefixed
 };
 
-export type ExecutionPlanState = {
+/** The on-chain projection of a FinP2P execution plan (Canton: OrchestrationPlanInfo). */
+export type OrchestrationPlanInfo = {
   status: ExecutionPlanStatus;
   instructionCount: number;
   currentSequence: number;
@@ -92,7 +102,7 @@ export const planInstruction = (
   instructionType: PlanInstructionType,
   term: Term,
   opts: {
-    executor?: InstructionExecutor,
+    venue?: ExecutionVenue,
     organizationId?: string,
     source?: string,
     destination?: string,
@@ -102,7 +112,7 @@ export const planInstruction = (
 ): PlanInstruction => ({
   sequence,
   instructionType,
-  executor: opts.executor ?? InstructionExecutor.ThisContract,
+  venue: opts.venue ?? ExecutionVenue.OnLedger,
   organizationId: opts.organizationId ?? "",
   assetId: term.assetId,
   assetType: term.assetType,
@@ -111,7 +121,7 @@ export const planInstruction = (
   amount: term.amount,
   operationId: opts.operationId ?? "",
   signatureIndex: opts.signatureIndex ?? NO_SIGNATURE,
-  status: PlanInstructionStatus.Pending
+  state: ExecutionState.Pending
 });
 
 export const planInvestmentSignature = (

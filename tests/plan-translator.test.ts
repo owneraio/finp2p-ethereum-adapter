@@ -1,5 +1,5 @@
 import {
-  InstructionExecutor,
+  ExecutionVenue,
   NO_SIGNATURE,
   PlanInstructionType,
   ValidationError
@@ -116,7 +116,7 @@ describe("plan translator", () => {
 
     const [hold, transfer, release] = instructions;
     expect(hold.instructionType).toBe(PlanInstructionType.Hold);
-    expect(hold.executor).toBe(InstructionExecutor.ThisContract);
+    expect(hold.venue).toBe(ExecutionVenue.OnLedger);
     expect(hold.assetId).toBe(SETTLEMENT_ID);
     expect(hold.assetType).toBe(1); // fiat, resolved from the settlement term
     expect(hold.source).toBe(BUYER_FIN_ID);
@@ -164,7 +164,7 @@ describe("plan translator", () => {
     ]);
 
     const { instructions, signatures } = translateExecutionPlan(raw, ORG);
-    expect(instructions[1].executor).toBe(InstructionExecutor.OtherLedger);
+    expect(instructions[1].venue).toBe(ExecutionVenue.OffLedger);
     expect(instructions[1].organizationId).toBe(OTHER_ORG);
     expect(instructions[1].signatureIndex).toBe(NO_SIGNATURE);
     expect(signatures).toHaveLength(1); // only the local hold's signature

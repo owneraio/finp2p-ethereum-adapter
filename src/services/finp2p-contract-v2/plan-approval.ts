@@ -7,7 +7,7 @@ import {
   logger
 } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import { FinP2PClient } from "@owneraio/finp2p-client";
-import { FinP2PPlanContract } from "@owneraio/finp2p-contracts";
+import { ExecutionPlanStatus, FinP2PPlanContract } from "@owneraio/finp2p-contracts";
 import { RawExecutionPlan, translateExecutionPlan } from "./plan-translator";
 
 /**
@@ -38,7 +38,11 @@ export class PlanBasedApprovalService implements PlanApprovalService {
       return innerResult;
     }
     if (await this.planContract.hasPlan(planId)) {
-      logger.info(`Plan ${planId} already mirrored on-chain`);
+      // create-or-approve (Canton plan-setup parity): the creating org's
+      // approval is implicit in createPlan; a later approval of an existing
+      // mirror is recorded per-org for auditability
+      logger.info(`Plan ${planId} already mirrored on-chain; recording approval for ${this.orgId}`);
+      await this.planContract.recordPlanApproval(planId, this.orgId);
       return approvedPlan();
     }
     try {
@@ -60,14 +64,14 @@ export class PlanBasedApprovalService implements PlanApprovalService {
     try {
       if (await this.planContract.hasPlan(planId)) {
         const plan = await this.planContract.getPlan(planId);
-        // 1=CREATED, 2=EXECUTING — freeze the on-chain cursor before approving the cancellation
-        if (plan.status === 1 || plan.status === 2) {
-          await this.planContract.failPlan(planId, "Plan canceled");
+        // freeze the on-chain cursor before approving the cancellation
+        if (plan.status === ExecutionPlanStatus.Pending) {
+          await this.planContract.rejectPlan(planId, "Plan canceled");
           await this.planContract.revertPlan(planId);
         }
       }
     } catch (e) {
-      logger.error(`Failed to fail/revert plan ${planId} on-chain: ${e}`);
+      logger.error(`Failed to reject/revert plan ${planId} on-chain: ${e}`);
       return rejectedPlan(1, `${e instanceof Error ? e.message : e}`);
     }
     return this.inner.proposeCancelPlan(idempotencyKey, planId);

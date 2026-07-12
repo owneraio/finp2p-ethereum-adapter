@@ -25,8 +25,8 @@ import { ERC20WithOperator, FINP2PPlanOperator, FinP2PEscrow } from "../typechai
 const enum InstructionType {
   Issue = 0, Transfer = 1, Hold = 2, Release = 3, ReleaseAndRedeem = 4, Redeem = 5, Await = 6, RevertHold = 7
 }
-const enum InstructionExecutor { ThisContract = 0, OtherLedger = 1 }
-const enum PlanStatus { None = 0, Created = 1, Executing = 2, Completed = 3, Failed = 4, Reverted = 5 }
+const enum ExecutionVenue { OnLedger = 0, OffLedger = 1 }
+const enum PlanStatus { None = 0, Pending = 1, Completed = 2, Rejected = 3, Reverted = 4 }
 const NO_SIGNATURE = 255;
 
 type Investor = { signer: Wallet, finId: string, address: string };
@@ -82,13 +82,13 @@ describe("FINP2PPlanOperator", function() {
   const instruction = (
     sequence: number,
     instructionType: InstructionType,
-    executor: InstructionExecutor,
+    venue: ExecutionVenue,
     assetTerm: Term,
     overrides: InstructionOverrides = {}
   ) => ({
     sequence,
     instructionType,
-    executor,
+    venue,
     organizationId: overrides.org ?? "",
     assetId: assetTerm.assetId,
     assetType: assetTerm.assetType,
@@ -97,7 +97,7 @@ describe("FINP2PPlanOperator", function() {
     amount: assetTerm.amount,
     operationId: overrides.operationId ?? "",
     signatureIndex: overrides.signatureIndex ?? NO_SIGNATURE,
-    status: 0
+    state: 0
   });
 
   async function signIntent(
@@ -199,24 +199,24 @@ describe("FINP2PPlanOperator", function() {
       const planId = generatePlanId();
       const operationId = uuid();
       const instructions = [
-        instruction(1, InstructionType.Hold, InstructionExecutor.ThisContract, settlementTerm,
+        instruction(1, InstructionType.Hold, ExecutionVenue.OnLedger, settlementTerm,
           { source: buyer.finId, destination: seller.finId, operationId, signatureIndex: 0 }),
-        instruction(2, InstructionType.Transfer, InstructionExecutor.ThisContract, assetTerm,
+        instruction(2, InstructionType.Transfer, ExecutionVenue.OnLedger, assetTerm,
           { source: seller.finId, destination: buyer.finId, signatureIndex: 1 }),
-        instruction(3, InstructionType.Release, InstructionExecutor.ThisContract, settlementTerm,
+        instruction(3, InstructionType.Release, ExecutionVenue.OnLedger, settlementTerm,
           { source: buyer.finId, destination: seller.finId, operationId })
       ];
 
       await expect(operator.createPlan(planId, instructions, [buyerIntent, sellerIntent]))
         .to.emit(operator, "PlanCreated").withArgs(planId, 3);
 
-      expect((await operator.getPlan(planId)).status).to.equal(PlanStatus.Created);
+      expect((await operator.getPlan(planId)).status).to.equal(PlanStatus.Pending);
 
       await expect(operator.executeInstruction(planId, 1))
         .to.emit(operator, "InstructionExecuted").withArgs(planId, 1, InstructionType.Hold);
       expect(await settlementToken.balanceOf(escrowAddress)).to.equal(10000);
       expect((await operator.getPlan(planId)).currentSequence).to.equal(2);
-      expect((await operator.getPlan(planId)).status).to.equal(PlanStatus.Executing);
+      expect((await operator.getPlan(planId)).status).to.equal(PlanStatus.Pending);
 
       await operator.executeInstruction(planId, 2);
       expect(await assetToken.balanceOf(buyer.address)).to.equal(10);
@@ -237,18 +237,18 @@ describe("FINP2PPlanOperator", function() {
       const planId = generatePlanId();
       const operationId = uuid();
       await operator.createPlan(planId, [
-        instruction(1, InstructionType.Hold, InstructionExecutor.ThisContract, settlementTerm,
+        instruction(1, InstructionType.Hold, ExecutionVenue.OnLedger, settlementTerm,
           { source: buyer.finId, destination: seller.finId, operationId, signatureIndex: 0 }),
-        instruction(2, InstructionType.Transfer, InstructionExecutor.ThisContract, assetTerm,
+        instruction(2, InstructionType.Transfer, ExecutionVenue.OnLedger, assetTerm,
           { source: seller.finId, destination: buyer.finId, signatureIndex: 1 })
       ], [buyerIntent, sellerIntent]);
 
       await expect(operator.executeInstruction(planId, 2))
-        .to.be.revertedWith("Instruction is not the current one in the plan");
+        .to.be.revertedWith("Not the current instruction");
 
       await operator.executeInstruction(planId, 1);
       await expect(operator.executeInstruction(planId, 1))
-        .to.be.revertedWith("Instruction is not the current one in the plan");
+        .to.be.revertedWith("Not the current instruction");
     });
 
     it("rejects execution by a non transaction manager", async () => {
@@ -258,7 +258,7 @@ describe("FINP2PPlanOperator", function() {
 
       const planId = generatePlanId();
       const instructions = [
-        instruction(1, InstructionType.Hold, InstructionExecutor.ThisContract, settlementTerm,
+        instruction(1, InstructionType.Hold, ExecutionVenue.OnLedger, settlementTerm,
           { source: buyer.finId, destination: seller.finId, operationId: uuid(), signatureIndex: 0 })
       ];
       await expect(operator.connect(stranger).createPlan(planId, instructions, [buyerIntent])).to.be.reverted;
@@ -276,7 +276,7 @@ describe("FINP2PPlanOperator", function() {
       const { buyer, seller, settlementTerm } = await setupDvP(fixture);
 
       await expect(operator.createPlan(generatePlanId(), [
-        instruction(1, InstructionType.Hold, InstructionExecutor.ThisContract, settlementTerm,
+        instruction(1, InstructionType.Hold, ExecutionVenue.OnLedger, settlementTerm,
           { source: buyer.finId, destination: seller.finId, operationId: uuid() })
       ], [])).to.be.revertedWith("Asset movement requires an investor signature");
     });
@@ -288,9 +288,9 @@ describe("FINP2PPlanOperator", function() {
 
       const forged = { ...buyerIntent, signature: buyerIntent.signature.slice(0, -4) + "beef" };
       await expect(operator.createPlan(generatePlanId(), [
-        instruction(1, InstructionType.Hold, InstructionExecutor.ThisContract, settlementTerm,
+        instruction(1, InstructionType.Hold, ExecutionVenue.OnLedger, settlementTerm,
           { source: buyer.finId, destination: seller.finId, operationId: uuid(), signatureIndex: 0 })
-      ], [forged])).to.be.revertedWith("Investor signature is not verified");
+      ], [forged])).to.be.revertedWith("Invalid investor signature");
     });
 
     it("rejects a signature whose signer differs from the instruction source", async () => {
@@ -300,7 +300,7 @@ describe("FINP2PPlanOperator", function() {
 
       // seller-signed intent attached to a buyer-sourced settlement hold
       await expect(operator.createPlan(generatePlanId(), [
-        instruction(1, InstructionType.Hold, InstructionExecutor.ThisContract, settlementTerm,
+        instruction(1, InstructionType.Hold, ExecutionVenue.OnLedger, settlementTerm,
           { source: buyer.finId, destination: seller.finId, operationId: uuid(), signatureIndex: 0 })
       ], [sellerIntent])).to.be.revertedWith("Signature signer differs from the instruction source");
     });
@@ -312,7 +312,7 @@ describe("FINP2PPlanOperator", function() {
 
       const inflated = term(settlementTerm.assetId, settlementTerm.assetType, "200");
       await expect(operator.createPlan(generatePlanId(), [
-        instruction(1, InstructionType.Hold, InstructionExecutor.ThisContract, inflated,
+        instruction(1, InstructionType.Hold, ExecutionVenue.OnLedger, inflated,
           { source: buyer.finId, destination: seller.finId, operationId: uuid(), signatureIndex: 0 })
       ], [buyerIntent])).to.be.revertedWith("Instruction does not match the signed intent");
     });
@@ -323,7 +323,7 @@ describe("FINP2PPlanOperator", function() {
       const { buyer, seller, settlementTerm, buyerIntent } = await setupDvP(fixture);
 
       const instructions = (operationId: string) => [
-        instruction(1, InstructionType.Hold, InstructionExecutor.ThisContract, settlementTerm,
+        instruction(1, InstructionType.Hold, ExecutionVenue.OnLedger, settlementTerm,
           { source: buyer.finId, destination: seller.finId, operationId, signatureIndex: 0 })
       ];
       await operator.createPlan(generatePlanId(), instructions(uuid()), [buyerIntent]);
@@ -337,6 +337,28 @@ describe("FINP2PPlanOperator", function() {
         .to.be.revertedWith("Investor signature already used");
     });
 
+    it("records per-organization plan approvals", async () => {
+      const fixture = await loadFixture(deployPlanOperatorFixture);
+      const { operator, stranger } = fixture;
+      const { buyer, seller, settlementTerm, buyerIntent } = await setupDvP(fixture);
+
+      const planId = generatePlanId();
+      await operator.createPlan(planId, [
+        instruction(1, InstructionType.Hold, ExecutionVenue.OnLedger, settlementTerm,
+          { source: buyer.finId, destination: seller.finId, operationId: uuid(), signatureIndex: 0 })
+      ], [buyerIntent]);
+
+      // 0 = PENDING_APPROVAL (default), 1 = APPROVED, 2 = APPROVAL_REJECTED
+      expect(await operator.getPlanApproval(planId, "bank-uk")).to.equal(0);
+      await expect(operator.recordPlanApproval(planId, "bank-uk", 1))
+        .to.emit(operator, "PlanApprovalRecorded").withArgs(planId, "bank-uk", 1);
+      expect(await operator.getPlanApproval(planId, "bank-uk")).to.equal(1);
+
+      await expect(operator.recordPlanApproval(generatePlanId(), "bank-uk", 1))
+        .to.be.revertedWith("Plan not found");
+      await expect(operator.connect(stranger).recordPlanApproval(planId, "bank-uk", 1)).to.be.reverted;
+    });
+
     it("rejects execution of a release whose amount differs from the escrowed hold", async () => {
       const fixture = await loadFixture(deployPlanOperatorFixture);
       const { operator } = fixture;
@@ -347,15 +369,15 @@ describe("FINP2PPlanOperator", function() {
       const operationId = uuid();
       const partialRelease = term(settlementTerm.assetId, settlementTerm.assetType, "1");
       await operator.createPlan(planId, [
-        instruction(1, InstructionType.Hold, InstructionExecutor.ThisContract, settlementTerm,
+        instruction(1, InstructionType.Hold, ExecutionVenue.OnLedger, settlementTerm,
           { source: buyer.finId, destination: seller.finId, operationId, signatureIndex: 0 }),
-        instruction(2, InstructionType.Release, InstructionExecutor.ThisContract, partialRelease,
+        instruction(2, InstructionType.Release, ExecutionVenue.OnLedger, partialRelease,
           { source: buyer.finId, destination: seller.finId, operationId })
       ], [buyerIntent]);
 
       await operator.executeInstruction(planId, 1);
       await expect(operator.executeInstruction(planId, 2))
-        .to.be.revertedWith("Escrow hold amount differs from the instruction amount");
+        .to.be.revertedWith("Hold amount mismatch");
     });
 
     it("rejects non-contiguous instruction sequences", async () => {
@@ -364,9 +386,9 @@ describe("FINP2PPlanOperator", function() {
       const { buyer, seller, settlementTerm, buyerIntent } = await setupDvP(fixture);
 
       await expect(operator.createPlan(generatePlanId(), [
-        instruction(2, InstructionType.Hold, InstructionExecutor.ThisContract, settlementTerm,
+        instruction(2, InstructionType.Hold, ExecutionVenue.OnLedger, settlementTerm,
           { source: buyer.finId, destination: seller.finId, operationId: uuid(), signatureIndex: 0 })
-      ], [buyerIntent])).to.be.revertedWith("Instruction sequences must be contiguous starting at 1");
+      ], [buyerIntent])).to.be.revertedWith("Non-contiguous sequences");
     });
 
     it("rejects a duplicate plan", async () => {
@@ -376,11 +398,11 @@ describe("FINP2PPlanOperator", function() {
 
       const planId = generatePlanId();
       await operator.createPlan(planId, [
-        instruction(1, InstructionType.Hold, InstructionExecutor.ThisContract, settlementTerm,
+        instruction(1, InstructionType.Hold, ExecutionVenue.OnLedger, settlementTerm,
           { source: buyer.finId, destination: seller.finId, operationId: uuid(), signatureIndex: 0 })
       ], [buyerIntent]);
       await expect(operator.createPlan(planId, [
-        instruction(1, InstructionType.Hold, InstructionExecutor.ThisContract, settlementTerm,
+        instruction(1, InstructionType.Hold, ExecutionVenue.OnLedger, settlementTerm,
           { source: buyer.finId, destination: seller.finId, operationId: uuid(), signatureIndex: 0 })
       ], [sellerIntent])).to.be.revertedWith("Plan already exists");
     });
@@ -391,9 +413,9 @@ describe("FINP2PPlanOperator", function() {
       const { buyer, seller, assetTerm } = await setupDvP(fixture);
 
       await expect(operator.createPlan(generatePlanId(), [
-        instruction(1, InstructionType.Transfer, InstructionExecutor.OtherLedger, assetTerm,
+        instruction(1, InstructionType.Transfer, ExecutionVenue.OffLedger, assetTerm,
           { org: "bank-uk", source: seller.finId, destination: buyer.finId })
-      ], [])).to.be.revertedWith("No proof signers registered for the executing organization");
+      ], [])).to.be.revertedWith("No proof signers registered");
     });
   });
 
@@ -410,11 +432,11 @@ describe("FINP2PPlanOperator", function() {
       const planId = generatePlanId();
       const operationId = uuid();
       await operator.createPlan(planId, [
-        instruction(1, InstructionType.Hold, InstructionExecutor.ThisContract, settlementTerm,
+        instruction(1, InstructionType.Hold, ExecutionVenue.OnLedger, settlementTerm,
           { source: buyer.finId, destination: seller.finId, operationId, signatureIndex: 0 }),
-        instruction(2, InstructionType.Transfer, InstructionExecutor.OtherLedger, assetTerm,
+        instruction(2, InstructionType.Transfer, ExecutionVenue.OffLedger, assetTerm,
           { org: "bank-uk", source: seller.finId, destination: buyer.finId }),
-        instruction(3, InstructionType.Release, InstructionExecutor.ThisContract, settlementTerm,
+        instruction(3, InstructionType.Release, ExecutionVenue.OnLedger, settlementTerm,
           { source: buyer.finId, destination: seller.finId, operationId })
       ], [buyerIntent]);
 
@@ -431,7 +453,7 @@ describe("FINP2PPlanOperator", function() {
 
       // the remote instruction cannot be executed locally...
       await expect(operator.executeInstruction(planId, 2))
-        .to.be.revertedWith("Instruction is not executable on this ledger");
+        .to.be.revertedWith("Instruction is off-ledger");
 
       // ...and cannot be proven by an unregistered signer
       const impostor = Wallet.createRandom();
@@ -439,22 +461,22 @@ describe("FINP2PPlanOperator", function() {
         planId, sequence: 2, assetId: assetTerm.assetId, assetType: "finp2p",
         sourceFinId: seller.finId, destinationFinId: buyer.finId, quantity: assetTerm.amount
       });
-      await expect(operator.proveInstruction(planId, 2, badProof.receipt, badProof.signature))
-        .to.be.revertedWith("Proof signer is not registered for the executing organization");
+      await expect(operator.completeOffLedgerInstruction(planId, 2, badProof.receipt, badProof.signature))
+        .to.be.revertedWith("Unregistered proof signer");
 
       // ...nor with tampered bindings
       const wrongQuantity = await signReceiptProof(chainId, verifyingContract, proofSigner, {
         planId, sequence: 2, assetId: assetTerm.assetId, assetType: "finp2p",
         sourceFinId: seller.finId, destinationFinId: buyer.finId, quantity: "999"
       });
-      await expect(operator.proveInstruction(planId, 2, wrongQuantity.receipt, wrongQuantity.signature))
+      await expect(operator.completeOffLedgerInstruction(planId, 2, wrongQuantity.receipt, wrongQuantity.signature))
         .to.be.revertedWith("Receipt quantity differs from the planned one");
 
       const wrongPlan = await signReceiptProof(chainId, verifyingContract, proofSigner, {
         planId: generatePlanId(), sequence: 2, assetId: assetTerm.assetId, assetType: "finp2p",
         sourceFinId: seller.finId, destinationFinId: buyer.finId, quantity: assetTerm.amount
       });
-      await expect(operator.proveInstruction(planId, 2, wrongPlan.receipt, wrongPlan.signature))
+      await expect(operator.completeOffLedgerInstruction(planId, 2, wrongPlan.receipt, wrongPlan.signature))
         .to.be.revertedWith("Receipt proof is for a different plan");
 
       // a valid proof from the registered signer advances the cursor (permissionless call)
@@ -463,8 +485,9 @@ describe("FINP2PPlanOperator", function() {
         planId, sequence: 2, assetId: assetTerm.assetId, assetType: "finp2p",
         sourceFinId: seller.finId, destinationFinId: buyer.finId, quantity: assetTerm.amount
       });
-      await expect(operator.connect(stranger).proveInstruction(planId, 2, proof.receipt, proof.signature))
-        .to.emit(operator, "InstructionProven").withArgs(planId, 2, proofSigner.address);
+      await expect(operator.connect(stranger).completeOffLedgerInstruction(planId, 2, proof.receipt, proof.signature))
+        .to.emit(operator, "OffLedgerInstructionCompleted")
+        .withArgs(planId, 2, proofSigner.address, proof.receipt.transactionId);
 
       // now the release is unblocked
       await operator.executeInstruction(planId, 3);
@@ -482,8 +505,8 @@ describe("FINP2PPlanOperator", function() {
         planId, sequence: 2, assetId: assetTerm.assetId, assetType: "finp2p",
         sourceFinId: seller.finId, destinationFinId: buyer.finId, quantity: assetTerm.amount
       });
-      await expect(operator.proveInstruction(planId, 2, proof.receipt, proof.signature))
-        .to.be.revertedWith("Instruction is not the current one in the plan");
+      await expect(operator.completeOffLedgerInstruction(planId, 2, proof.receipt, proof.signature))
+        .to.be.revertedWith("Not the current instruction");
     });
   });
 
@@ -498,19 +521,19 @@ describe("FINP2PPlanOperator", function() {
       const planId = generatePlanId();
       const operationId = uuid();
       await operator.createPlan(planId, [
-        instruction(1, InstructionType.Hold, InstructionExecutor.ThisContract, settlementTerm,
+        instruction(1, InstructionType.Hold, ExecutionVenue.OnLedger, settlementTerm,
           { source: buyer.finId, destination: seller.finId, operationId, signatureIndex: 0 }),
-        instruction(2, InstructionType.Transfer, InstructionExecutor.ThisContract, assetTerm,
+        instruction(2, InstructionType.Transfer, ExecutionVenue.OnLedger, assetTerm,
           { source: seller.finId, destination: buyer.finId, signatureIndex: 1 }),
-        instruction(3, InstructionType.Release, InstructionExecutor.ThisContract, settlementTerm,
+        instruction(3, InstructionType.Release, ExecutionVenue.OnLedger, settlementTerm,
           { source: buyer.finId, destination: seller.finId, operationId })
       ], [buyerIntent, sellerIntent]);
 
       await operator.executeInstruction(planId, 1);
       expect(await settlementToken.balanceOf(escrowAddress)).to.equal(10000);
 
-      await expect(operator.failPlan(planId, "counterparty timeout"))
-        .to.emit(operator, "PlanFailed").withArgs(planId, "counterparty timeout");
+      await expect(operator.rejectPlan(planId, "counterparty timeout"))
+        .to.emit(operator, "PlanRejected").withArgs(planId, "counterparty timeout");
 
       await expect(operator.executeInstruction(planId, 2))
         .to.be.revertedWith("Plan is not active");
@@ -530,11 +553,11 @@ describe("FINP2PPlanOperator", function() {
 
       const planId = generatePlanId();
       await operator.createPlan(planId, [
-        instruction(1, InstructionType.Hold, InstructionExecutor.ThisContract, settlementTerm,
+        instruction(1, InstructionType.Hold, ExecutionVenue.OnLedger, settlementTerm,
           { source: buyer.finId, destination: seller.finId, operationId: uuid(), signatureIndex: 0 })
       ], [buyerIntent]);
 
-      await expect(operator.revertPlan(planId)).to.be.revertedWith("Plan is not failed");
+      await expect(operator.revertPlan(planId)).to.be.revertedWith("Plan is not rejected");
     });
   });
 
@@ -556,7 +579,7 @@ describe("FINP2PPlanOperator", function() {
       // issuance: mint to the issuer
       const issuePlanId = generatePlanId();
       await operator.createPlan(issuePlanId, [
-        instruction(1, InstructionType.Issue, InstructionExecutor.ThisContract, assetTerm,
+        instruction(1, InstructionType.Issue, ExecutionVenue.OnLedger, assetTerm,
           { destination: investor.finId })
       ], []);
       await operator.executeInstruction(issuePlanId, 1);
@@ -571,9 +594,9 @@ describe("FINP2PPlanOperator", function() {
       const redeemPlanId = generatePlanId();
       const operationId = uuid();
       await operator.createPlan(redeemPlanId, [
-        instruction(1, InstructionType.Hold, InstructionExecutor.ThisContract, assetTerm,
+        instruction(1, InstructionType.Hold, ExecutionVenue.OnLedger, assetTerm,
           { source: investor.finId, operationId, signatureIndex: 0 }),
-        instruction(2, InstructionType.ReleaseAndRedeem, InstructionExecutor.ThisContract, assetTerm,
+        instruction(2, InstructionType.ReleaseAndRedeem, ExecutionVenue.OnLedger, assetTerm,
           { source: investor.finId, operationId })
       ], [redemptionIntent]);
 

@@ -222,7 +222,7 @@ describe("v2 plan-based services (integration)", () => {
     const approval = await approvalService.approvePlan("ik-1", planId);
     expect(approval.type).toBe("approved");
     expect(await planContract.hasPlan(planId)).toBe(true);
-    expect((await planContract.getPlan(planId)).status).toBe(ExecutionPlanStatus.Created);
+    expect((await planContract.getPlan(planId)).status).toBe(ExecutionPlanStatus.Pending);
 
     // --- instruction 1: hold settlement into the escrow contract (no signature used)
     const dummySignature = { signature: "", template: { type: "EIP712", primaryType: "Buying", message: {}, types: {} }, hashFunc: "keccak_256" } as any;
@@ -256,9 +256,11 @@ describe("v2 plan-based services (integration)", () => {
     const finalPlan = await planContract.getPlan(planId);
     expect(finalPlan.status).toBe(ExecutionPlanStatus.Completed);
 
-    // approval is idempotent
+    // approval is idempotent; re-approving an existing mirror records the
+    // org's approval on-chain (create-or-approve, Canton plan-setup parity)
     const again = await approvalService.approvePlan("ik-5", planId);
     expect(again.type).toBe("approved");
+    expect(await planContract.getPlanApproval(planId, ORG)).toBe(1); // APPROVED
 
     // sanity: the token service delegates non-plan calls to the fallback (which throws here)
     await expect(tokenService.issue("ik-6", { assetId, assetType: "finp2p" } as any, buyerFinId, "1", undefined as any))

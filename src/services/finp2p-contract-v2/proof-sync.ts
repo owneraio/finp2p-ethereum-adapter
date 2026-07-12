@@ -1,8 +1,8 @@
 import { logger } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import { FinP2PClient } from "@owneraio/finp2p-client";
 import {
+  ExecutionVenue,
   FinP2PPlanContract,
-  InstructionExecutor,
   LedgerProof,
   PlanInstructionType
 } from "@owneraio/finp2p-contracts";
@@ -42,7 +42,7 @@ export class ProofSyncService {
       const sequence = plan.currentSequence;
       const instruction = await this.planContract.getInstruction(planId, sequence);
 
-      if (instruction.executor === InstructionExecutor.ThisContract) {
+      if (instruction.venue === ExecutionVenue.OnLedger) {
         if (instruction.instructionType !== PlanInstructionType.Await) {
           // a regular local instruction the orchestrator hasn't dispatched yet —
           // nothing to sync; the caller's own execution will fail cursor checks
@@ -54,8 +54,8 @@ export class ProofSyncService {
         await this.planContract.executeInstruction(planId, sequence);
       } else {
         const { proof, signature } = await this.fetchRemoteProof(planId, sequence);
-        logger.info(`Plan ${planId}: proving remote instruction ${sequence} on-chain`);
-        await this.planContract.proveInstruction(planId, sequence, proof, signature);
+        logger.info(`Plan ${planId}: completing off-ledger instruction ${sequence} on-chain`);
+        await this.planContract.completeOffLedgerInstruction(planId, sequence, proof, signature);
       }
 
       plan = await this.planContract.getPlan(planId);
