@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { Logger, ConsoleLogger } from "../src/adapter-types";
-import { FinP2PPlanContract } from "../src";
+import { FinP2POrchestratorContract } from "../src";
 import { createJsonProvider, parseConfig } from "./config";
 
 const logger: Logger = new ConsoleLogger("info");
@@ -8,7 +8,7 @@ const logger: Logger = new ConsoleLogger("info");
 const register = async (
   privateKey: string,
   ethereumRPCUrl: string,
-  planContractAddress: string,
+  orchestratorAddress: string,
   orgId: string,
   signerAddress: string | undefined,
   signerFinId: string | undefined
@@ -17,13 +17,13 @@ const register = async (
     throw new Error("Either SIGNER_ADDRESS or SIGNER_FIN_ID is required");
   }
   const { provider, signer } = await createJsonProvider(privateKey, ethereumRPCUrl);
-  const planContract = new FinP2PPlanContract(provider, signer, planContractAddress, logger);
+  const orchestrator = new FinP2POrchestratorContract(provider, signer, orchestratorAddress, logger);
   if (signerAddress) {
     logger.info(`Registering proof signer ${signerAddress} for org ${orgId}...`);
-    await planContract.addProofSigner(orgId, signerAddress);
+    await orchestrator.addProofSigner(orgId, signerAddress);
   } else {
     logger.info(`Registering proof signer finId ${signerFinId} for org ${orgId}...`);
-    await planContract.addProofSignerFinId(orgId, signerFinId!);
+    await orchestrator.addProofSignerFinId(orgId, signerFinId!);
   }
   logger.info("Proof signer registered");
 };
@@ -42,10 +42,10 @@ const config = parseConfig([
     description: "Ethereum RPC URL"
   },
   {
-    name: "plan_contract_address",
-    envVar: "FINP2P_PLAN_CONTRACT_ADDRESS",
+    name: "orchestrator_address",
+    envVar: "FINP2P_ORCHESTRATOR_ADDRESS",
     required: true,
-    description: "FINP2PPlanOperator contract address"
+    description: "FINP2POrchestrator contract address"
   },
   {
     name: "org_id",
@@ -66,7 +66,7 @@ const config = parseConfig([
 ]);
 
 register(
-  config.asset_manager_pk!, config.rpc_url!, config.plan_contract_address!,
+  config.asset_manager_pk!, config.rpc_url!, config.orchestrator_address!,
   config.org_id!, config.signer_address, config.signer_fin_id
 ).then(() => {
 }).catch(console.error);

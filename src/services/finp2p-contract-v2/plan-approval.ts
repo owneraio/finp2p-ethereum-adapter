@@ -7,7 +7,7 @@ import {
   logger
 } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import { FinP2PClient } from "@owneraio/finp2p-client";
-import { ExecutionPlanStatus, FinP2PPlanContract } from "@owneraio/finp2p-contracts";
+import { ExecutionPlanStatus, FinP2POrchestratorContract } from "@owneraio/finp2p-contracts";
 import { RawExecutionPlan, translateExecutionPlan } from "./plan-translator";
 
 /**
@@ -23,7 +23,7 @@ export class PlanBasedApprovalService implements PlanApprovalService {
 
   constructor(
     private readonly orgId: string,
-    private readonly planContract: FinP2PPlanContract,
+    private readonly orchestrator: FinP2POrchestratorContract,
     private readonly finP2PClient: FinP2PClient | undefined,
     private readonly inner: PlanApprovalService
   ) {}
@@ -37,12 +37,12 @@ export class PlanBasedApprovalService implements PlanApprovalService {
       logger.warning(`No FinP2P client configured; approving plan ${planId} without on-chain mirroring`);
       return innerResult;
     }
-    if (await this.planContract.hasPlan(planId)) {
+    if (await this.orchestrator.hasPlan(planId)) {
       // create-or-approve (Canton plan-setup parity): the creating org's
       // approval is implicit in createPlan; a later approval of an existing
       // mirror is recorded per-org for auditability
       logger.info(`Plan ${planId} already mirrored on-chain; recording approval for ${this.orgId}`);
-      await this.planContract.recordPlanApproval(planId, this.orgId);
+      await this.orchestrator.recordPlanApproval(planId, this.orgId);
       return approvedPlan();
     }
     try {
@@ -52,7 +52,7 @@ export class PlanBasedApprovalService implements PlanApprovalService {
       }
       const { instructions, signatures } = translateExecutionPlan(execution.plan as RawExecutionPlan, this.orgId);
       logger.info(`Mirroring plan ${planId} on-chain: ${instructions.length} instructions, ${signatures.length} investor signatures`);
-      await this.planContract.createPlan(planId, instructions, signatures);
+      await this.orchestrator.createPlan(planId, instructions, signatures);
       return approvedPlan();
     } catch (e) {
       logger.error(`Failed to mirror plan ${planId} on-chain: ${e}`);
@@ -62,12 +62,12 @@ export class PlanBasedApprovalService implements PlanApprovalService {
 
   async proposeCancelPlan(idempotencyKey: string, planId: string): Promise<PlanApprovalStatus> {
     try {
-      if (await this.planContract.hasPlan(planId)) {
-        const plan = await this.planContract.getPlan(planId);
+      if (await this.orchestrator.hasPlan(planId)) {
+        const plan = await this.orchestrator.getPlan(planId);
         // freeze the on-chain cursor before approving the cancellation
         if (plan.status === ExecutionPlanStatus.Pending) {
-          await this.planContract.rejectPlan(planId, "Plan canceled");
-          await this.planContract.revertPlan(planId);
+          await this.orchestrator.rejectPlan(planId, "Plan canceled");
+          await this.orchestrator.revertPlan(planId);
         }
       }
     } catch (e) {
@@ -81,8 +81,8 @@ export class PlanBasedApprovalService implements PlanApprovalService {
     // the on-chain cursor only moves forward; a reset to an earlier sequence
     // cannot be mirrored and must be rejected rather than silently diverge
     try {
-      if (await this.planContract.hasPlan(planId)) {
-        const plan = await this.planContract.getPlan(planId);
+      if (await this.orchestrator.hasPlan(planId)) {
+        const plan = await this.orchestrator.getPlan(planId);
         if (proposedSequence < plan.currentSequence) {
           return rejectedPlan(1, `Plan ${planId} is mirrored on-chain at sequence ${plan.currentSequence}; cannot reset back to ${proposedSequence}`);
         }

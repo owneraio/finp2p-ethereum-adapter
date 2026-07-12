@@ -15,7 +15,7 @@ import {ProofSignerRegistry} from "./ProofSignerRegistry.sol";
 import "./PlanTypes.sol";
 
 /**
- * @dev FINP2PPlanOperator
+ * @dev FINP2POrchestrator
  *
  * Plan-based FinP2P operator (v2): the EVM projection of a FinP2P execution
  * plan, structurally aligned with the Canton adapter's OrchestrationPlan
@@ -37,7 +37,7 @@ import "./PlanTypes.sol";
  * external stateless FinP2PPlanVerifier: it keeps this contract under the
  * EIP-170 bytecode limit and lets several operators share one verifier.
  */
-contract FINP2PPlanOperator is ProofSignerRegistry {
+contract FINP2POrchestrator is ProofSignerRegistry {
     using StringUtils for string;
     using StringUtils for uint256;
 
@@ -295,12 +295,26 @@ contract FINP2PPlanOperator is ProofSignerRegistry {
         instruction = planInstructions[planKey][sequence];
     }
 
+    /// @dev Advance past the completed instruction, auto-completing any
+    ///      consecutive AWAITs on the way (an idea carried over from the
+    ///      earlier orchestration attempt, PR #46): awaits are pure sequencing
+    ///      no-ops, so completing them inline saves a transaction per await.
     function _advanceCursor(string calldata planId, OrchestrationPlan storage plan, uint8 sequence) private {
-        if (sequence == plan.instructionCount) {
+        bytes32 planKey = _planKey(planId);
+        uint8 next = sequence + 1;
+        while (
+            next <= plan.instructionCount &&
+            planInstructions[planKey][next].instructionType == InstructionType.AWAIT
+        ) {
+            planInstructions[planKey][next].state = ExecutionState.COMPLETED;
+            emit InstructionExecuted(planId, next, InstructionType.AWAIT);
+            next++;
+        }
+        if (next > plan.instructionCount) {
             plan.status = PlanStatus.COMPLETED;
             emit PlanCompleted(planId);
         } else {
-            plan.currentSequence = sequence + 1;
+            plan.currentSequence = next;
         }
     }
 

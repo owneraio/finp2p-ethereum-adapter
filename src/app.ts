@@ -173,11 +173,11 @@ function registerFinP2PContractServices(
   let tokenService: TokenServiceImpl | PlanTokenService = v1TokenService;
   let escrowService: EscrowServiceImpl | PlanEscrowService = v1EscrowService;
   let planApprovalService: PlanApprovalServiceImpl | PlanBasedApprovalService = innerPlanApprovalService;
-  if (contractConfig.planContract) {
-    const proofSync = new ProofSyncService(contractConfig.planContract, contractConfig.finP2PClient);
-    tokenService = new PlanTokenService(contractConfig.planContract, proofSync, contractConfig.execDetailsStore, v1TokenService);
-    escrowService = new PlanEscrowService(contractConfig.planContract, proofSync, contractConfig.execDetailsStore, v1EscrowService);
-    planApprovalService = new PlanBasedApprovalService(contractConfig.orgId, contractConfig.planContract, contractConfig.finP2PClient, innerPlanApprovalService);
+  if (contractConfig.orchestrator) {
+    const proofSync = new ProofSyncService(contractConfig.orchestrator, contractConfig.finP2PClient);
+    tokenService = new PlanTokenService(contractConfig.orchestrator, proofSync, contractConfig.execDetailsStore, v1TokenService);
+    escrowService = new PlanEscrowService(contractConfig.orchestrator, proofSync, contractConfig.execDetailsStore, v1EscrowService);
+    planApprovalService = new PlanBasedApprovalService(contractConfig.orgId, contractConfig.orchestrator, contractConfig.finP2PClient, innerPlanApprovalService);
   }
 
   const commonService = workflowStorage ? new DirectCommonServiceImpl(workflowStorage) : v1TokenService as any;

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { Logger, ConsoleLogger } from "../src/adapter-types";
-import { ContractsManager, FinP2PPlanContract } from "../src";
+import { ContractsManager, FinP2POrchestratorContract } from "../src";
 import { createJsonProvider, parseConfig } from "./config";
 
 const logger: Logger = new ConsoleLogger("info");
@@ -15,16 +15,16 @@ const deploy = async (
   const { provider, signer } = await createJsonProvider(deployerPrivateKey, ethereumRPCUrl);
   const contractManager = new ContractsManager(provider, signer, logger);
   logger.info("Deploying v2 (plan-based) contract set...");
-  const { planContractAddress, escrowAddress: escrow, verifierAddress: verifier } =
-    await contractManager.deployFinP2PPlanContract(operatorAddress, escrowAddress, verifierAddress);
-  logger.info(`FINP2PPlanOperator deployed at: ${planContractAddress}`);
+  const { orchestratorAddress, escrowAddress: escrow, verifierAddress: verifier } =
+    await contractManager.deployFinP2POrchestrator(operatorAddress, escrowAddress, verifierAddress);
+  logger.info(`FINP2POrchestrator deployed at: ${orchestratorAddress}`);
   logger.info(`FinP2PEscrow at: ${escrow}`);
   logger.info(`FinP2PPlanVerifier at: ${verifier}`);
 
   logger.info("Testing deployed contract...");
-  const planContract = new FinP2PPlanContract(provider, signer, planContractAddress, logger);
-  const version = await planContract.getVersion();
-  logger.info(`Deployed FINP2PPlanOperator version: ${version}`);
+  const orchestrator = new FinP2POrchestratorContract(provider, signer, orchestratorAddress, logger);
+  const version = await orchestrator.getVersion();
+  logger.info(`Deployed FINP2POrchestrator version: ${version}`);
 };
 
 const config = parseConfig([

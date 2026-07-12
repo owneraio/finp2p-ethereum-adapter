@@ -19,7 +19,7 @@ import {
   newReceiptMessage,
   RECEIPT_PROOF_TYPES
 } from "../src/adapter-types";
-import { ERC20WithOperator, FINP2PPlanOperator, FinP2PEscrow } from "../typechain-types";
+import { ERC20WithOperator, FINP2POrchestrator, FinP2PEscrow } from "../typechain-types";
 
 // PlanTypes.sol enums
 const enum InstructionType {
@@ -31,7 +31,7 @@ const NO_SIGNATURE = 255;
 
 type Investor = { signer: Wallet, finId: string, address: string };
 
-describe("FINP2PPlanOperator", function() {
+describe("FINP2POrchestrator", function() {
 
   async function deployPlanOperatorFixture() {
     const [admin, stranger] = await ethers.getSigners();
@@ -44,8 +44,8 @@ describe("FINP2PPlanOperator", function() {
     const verifier = await verifierDeployer.deploy();
     const verifierAddress = await verifier.getAddress();
 
-    const operatorDeployer = await ethers.getContractFactory("FINP2PPlanOperator");
-    const operator: FINP2PPlanOperator = await operatorDeployer.deploy(admin, escrowAddress, verifierAddress);
+    const operatorDeployer = await ethers.getContractFactory("FINP2POrchestrator");
+    const operator: FINP2POrchestrator = await operatorDeployer.deploy(admin, escrowAddress, verifierAddress);
     const operatorAddress = await operator.getAddress();
 
     await escrow.grantEscrowOperatorRole(operatorAddress);
@@ -665,6 +665,56 @@ describe("FINP2PPlanOperator", function() {
       ], [buyerIntent]);
 
       await expect(operator.revertPlan(planId)).to.be.revertedWith("Plan is not rejected");
+    });
+  });
+
+  describe("await auto-skip", () => {
+
+    it("auto-completes consecutive awaits when the cursor advances past them", async () => {
+      const fixture = await loadFixture(deployPlanOperatorFixture);
+      const { operator } = fixture;
+      const { buyer, seller, assetTerm, settlementTerm, buyerIntent, sellerIntent } = await setupDvP(fixture);
+
+      const awaitTerm = term("", 0, "");
+      const planId = generatePlanId();
+      const operationId = uuid();
+      await operator.createPlan(planId, [
+        instruction(1, InstructionType.Hold, ExecutionVenue.OnLedger, settlementTerm,
+          { source: buyer.finId, destination: seller.finId, operationId, signatureIndex: 0 }),
+        instruction(2, InstructionType.Await, ExecutionVenue.OnLedger, awaitTerm),
+        instruction(3, InstructionType.Await, ExecutionVenue.OnLedger, awaitTerm),
+        instruction(4, InstructionType.Transfer, ExecutionVenue.OnLedger, assetTerm,
+          { source: seller.finId, destination: buyer.finId, signatureIndex: 1 }),
+        instruction(5, InstructionType.Release, ExecutionVenue.OnLedger, settlementTerm,
+          { source: buyer.finId, destination: seller.finId, operationId })
+      ], [buyerIntent, sellerIntent]);
+
+      // executing the hold skips both awaits — no extra transactions needed
+      await expect(operator.executeInstruction(planId, 1))
+        .to.emit(operator, "InstructionExecuted").withArgs(planId, 2, InstructionType.Await)
+        .and.to.emit(operator, "InstructionExecuted").withArgs(planId, 3, InstructionType.Await);
+      expect((await operator.getPlan(planId)).currentSequence).to.equal(4);
+
+      await operator.executeInstruction(planId, 4);
+      await expect(operator.executeInstruction(planId, 5))
+        .to.emit(operator, "PlanCompleted").withArgs(planId);
+    });
+
+    it("completes the plan when trailing instructions are awaits", async () => {
+      const fixture = await loadFixture(deployPlanOperatorFixture);
+      const { operator } = fixture;
+      const { buyer, seller, settlementTerm, buyerIntent } = await setupDvP(fixture);
+
+      const planId = generatePlanId();
+      await operator.createPlan(planId, [
+        instruction(1, InstructionType.Hold, ExecutionVenue.OnLedger, settlementTerm,
+          { source: buyer.finId, destination: seller.finId, operationId: uuid(), signatureIndex: 0 }),
+        instruction(2, InstructionType.Await, ExecutionVenue.OnLedger, term("", 0, ""))
+      ], [buyerIntent]);
+
+      await expect(operator.executeInstruction(planId, 1))
+        .to.emit(operator, "PlanCompleted").withArgs(planId);
+      expect((await operator.getPlan(planId)).status).to.equal(PlanStatus.Completed);
     });
   });
 

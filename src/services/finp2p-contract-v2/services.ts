@@ -6,7 +6,7 @@ import {
 import {
   ERC20Contract,
   EthereumTransactionError,
-  FinP2PPlanContract,
+  FinP2POrchestratorContract,
   PlanInstruction,
   PlanInstructionType
 } from "@owneraio/finp2p-contracts";
@@ -28,14 +28,14 @@ import { ProofSyncService } from "./proof-sync";
 class PlanExecutor {
 
   constructor(
-    readonly planContract: FinP2PPlanContract,
+    readonly orchestrator: FinP2POrchestratorContract,
     readonly proofSync: ProofSyncService,
     readonly execDetailsStore: ExecDetailsStore | undefined
   ) {}
 
   async isPlanBased(exCtx: ExecutionContext | undefined): Promise<boolean> {
     if (!exCtx || !exCtx.planId || exCtx.planId.trim().length === 0) return false;
-    return await this.planContract.hasPlan(exCtx.planId);
+    return await this.orchestrator.hasPlan(exCtx.planId);
   }
 
   async execute(
@@ -48,7 +48,7 @@ class PlanExecutor {
     try {
       await this.proofSync.ensureCursorAt(planId, sequence);
 
-      const instruction = await this.planContract.getInstruction(planId, sequence);
+      const instruction = await this.orchestrator.getInstruction(planId, sequence);
       if (!expectedTypes.includes(instruction.instructionType)) {
         return failedReceiptOperation(1,
           `Plan ${planId} instruction ${sequence} is of type ${PlanInstructionType[instruction.instructionType]}, not one of [${expectedTypes.map(t => PlanInstructionType[t]).join(", ")}]`);
@@ -62,9 +62,9 @@ class PlanExecutor {
         return failedReceiptOperation(1, `Plan ${planId} instruction ${sequence}: ${mismatch}`);
       }
 
-      const txReceipt = await this.planContract.executeInstruction(planId, sequence);
+      const txReceipt = await this.orchestrator.executeInstruction(planId, sequence);
       this.execDetailsStore?.addExecutionContext(txReceipt.hash, planId, sequence);
-      return mapReceiptOperation(await this.planContract.getReceiptFromTransactionReceipt(txReceipt), asset, exCtx);
+      return mapReceiptOperation(await this.orchestrator.getReceiptFromTransactionReceipt(txReceipt), asset, exCtx);
     } catch (e) {
       logger.error(`Error executing plan instruction ${planId}/${sequence}: ${e}`);
       if (e instanceof EthereumTransactionError) {
@@ -83,12 +83,12 @@ export class PlanTokenService implements TokenService {
   private readonly executor: PlanExecutor;
 
   constructor(
-    planContract: FinP2PPlanContract,
+    orchestrator: FinP2POrchestratorContract,
     proofSync: ProofSyncService,
     execDetailsStore: ExecDetailsStore | undefined,
     private readonly fallback: TokenServiceImpl
   ) {
-    this.executor = new PlanExecutor(planContract, proofSync, execDetailsStore);
+    this.executor = new PlanExecutor(orchestrator, proofSync, execDetailsStore);
   }
 
   async createAsset(idempotencyKey: string, assetId: string, assetBind: AssetBind | undefined,
@@ -114,20 +114,20 @@ export class PlanTokenService implements TokenService {
   }
 
   private async registerAssetWithPlanOperator(assetId: string, tokenAddress: string): Promise<void> {
-    const planContract = this.executor.planContract;
+    const orchestrator = this.executor.orchestrator;
     try {
-      await planContract.associateAsset(assetId, tokenAddress);
+      await orchestrator.associateAsset(assetId, tokenAddress);
     } catch (e) {
       if (!`${e}`.includes("Asset already exists")) throw e; // idempotent retry
     }
     // ERC20WithOperator roles: the plan operator transfers/mints/burns, the
     // escrow pulls deposits. Grants only work when the adapter's account is
     // the token admin (the deploy path); bound external tokens may refuse.
-    const escrowAddress = await planContract.getEscrowAddress();
-    const erc20 = new ERC20Contract(planContract.provider, planContract.signer, tokenAddress, logger as any);
+    const escrowAddress = await orchestrator.getEscrowAddress();
+    const erc20 = new ERC20Contract(orchestrator.provider, orchestrator.signer, tokenAddress, logger as any);
     try {
-      await (await erc20.grantOperatorTo(planContract.planContractAddress)).wait();
-      await (await erc20.grantMinterTo(planContract.planContractAddress)).wait();
+      await (await erc20.grantOperatorTo(orchestrator.orchestratorAddress)).wait();
+      await (await erc20.grantMinterTo(orchestrator.orchestratorAddress)).wait();
       await (await erc20.grantOperatorTo(escrowAddress)).wait();
     } catch (e) {
       logger.warning(`Could not grant token roles on ${tokenAddress} to the plan operator/escrow (bound token?): ${e}`);
@@ -185,12 +185,12 @@ export class PlanEscrowService implements EscrowService {
   private readonly executor: PlanExecutor;
 
   constructor(
-    planContract: FinP2PPlanContract,
+    orchestrator: FinP2POrchestratorContract,
     proofSync: ProofSyncService,
     execDetailsStore: ExecDetailsStore | undefined,
     private readonly fallback: EscrowServiceImpl
   ) {
-    this.executor = new PlanExecutor(planContract, proofSync, execDetailsStore);
+    this.executor = new PlanExecutor(orchestrator, proofSync, execDetailsStore);
   }
 
   async hold(idempotencyKey: string, nonce: string, source: Source, destination: Destination | undefined, asset: Asset,

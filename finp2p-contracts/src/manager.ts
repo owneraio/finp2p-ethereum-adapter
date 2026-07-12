@@ -11,9 +11,9 @@ import FINP2P from "../artifacts/contracts/finp2p/FINP2POperator.sol/FINP2POpera
 import ERC20 from "../artifacts/contracts/token/ERC20/ERC20WithOperator.sol/ERC20WithOperator.json";
 import ESCROW from "../artifacts/contracts/finp2p/v2/FinP2PEscrow.sol/FinP2PEscrow.json";
 import PLAN_VERIFIER from "../artifacts/contracts/finp2p/v2/FinP2PPlanVerifier.sol/FinP2PPlanVerifier.json";
-import PLAN_OPERATOR from "../artifacts/contracts/finp2p/v2/FINP2PPlanOperator.sol/FINP2PPlanOperator.json";
+import ORCHESTRATOR from "../artifacts/contracts/finp2p/v2/FINP2POrchestrator.sol/FINP2POrchestrator.json";
 import {
-  ERC20WithOperator, FINP2POperator, FinP2PEscrow, FinP2PPlanVerifier, FINP2PPlanOperator
+  ERC20WithOperator, FINP2POperator, FinP2PEscrow, FinP2PPlanVerifier, FINP2POrchestrator
 } from "../typechain-types";
 import { Logger } from "./adapter-types";
 import { PayableOverrides } from "../typechain-types/common";
@@ -168,23 +168,23 @@ export class ContractsManager {
    * ESCROW_OPERATOR role on the escrow, and optionally grant the adapter's
    * operator account the manager roles.
    */
-  async deployFinP2PPlanContract(
+  async deployFinP2POrchestrator(
     operatorAddress?: string,
     escrowAddress?: string,
     verifierAddress?: string
-  ): Promise<{ planContractAddress: string, escrowAddress: string, verifierAddress: string }> {
+  ): Promise<{ orchestratorAddress: string, escrowAddress: string, verifierAddress: string }> {
     const escrow = escrowAddress ?? await this.deployEscrowContract();
     const verifier = verifierAddress ?? await this.deployPlanVerifier();
 
-    this.logger.info("Deploying FINP2PPlanOperator contract...");
-    const factory = new ContractFactory<any[], FINP2PPlanOperator>(
-      PLAN_OPERATOR.abi, PLAN_OPERATOR.bytecode, this.signer
+    this.logger.info("Deploying FINP2POrchestrator contract...");
+    const factory = new ContractFactory<any[], FINP2POrchestrator>(
+      ORCHESTRATOR.abi, ORCHESTRATOR.bytecode, this.signer
     );
     const deployerAddress = await this.signer.getAddress();
     const contract = await factory.deploy(deployerAddress, escrow, verifier);
     await contract.waitForDeployment();
     const address = await contract.getAddress();
-    this.logger.info(`FINP2PPlanOperator contract deployed successfully at: ${address}`);
+    this.logger.info(`FINP2POrchestrator contract deployed successfully at: ${address}`);
 
     const escrowFactory = new ContractFactory<any[], FinP2PEscrow>(ESCROW.abi, ESCROW.bytecode, this.signer);
     const escrowContract = escrowFactory.attach(escrow) as FinP2PEscrow;
@@ -193,16 +193,16 @@ export class ContractsManager {
     });
 
     if (operatorAddress) {
-      const planContract = factory.attach(address) as FINP2PPlanOperator;
-      await this.safeExecuteTransaction(planContract, async (c, txParams: PayableOverrides) => {
+      const orchestrator = factory.attach(address) as FINP2POrchestrator;
+      await this.safeExecuteTransaction(orchestrator, async (c, txParams: PayableOverrides) => {
         return c.grantAssetManagerRole(operatorAddress, txParams);
       });
-      await this.safeExecuteTransaction(planContract, async (c, txParams: PayableOverrides) => {
+      await this.safeExecuteTransaction(orchestrator, async (c, txParams: PayableOverrides) => {
         return c.grantTransactionManagerRole(operatorAddress, txParams);
       });
     }
 
-    return { planContractAddress: address, escrowAddress: escrow, verifierAddress: verifier };
+    return { orchestratorAddress: address, escrowAddress: escrow, verifierAddress: verifier };
   }
 
   async isFinP2PContractHealthy(finP2PContractAddress: string): Promise<boolean> {

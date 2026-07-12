@@ -5,7 +5,7 @@ import winston, { format, transports } from "winston";
 import {
   ContractsManager,
   ExecutionPlanStatus,
-  FinP2PPlanContract,
+  FinP2POrchestratorContract,
   MINTER_ROLE,
   OPERATOR_ROLE,
   RECEIPT_PROOF_TYPES,
@@ -59,7 +59,7 @@ jest.setTimeout(180_000);
 describe("v2 plan-based services (integration)", () => {
 
   let node: ChildProcess;
-  let planContract: FinP2PPlanContract;
+  let orchestrator: FinP2POrchestratorContract;
   let escrowAddress: string;
   let provider: ReturnType<typeof createJsonProvider>["provider"];
   let signer: ReturnType<typeof createJsonProvider>["signer"];
@@ -94,26 +94,26 @@ describe("v2 plan-based services (integration)", () => {
     ({ provider, signer } = createJsonProvider(DEPLOYER_PK, RPC_URL));
     const manager = new ContractsManager(provider, signer, logger);
     const operatorAddress = await signer.getAddress();
-    const deployed = await manager.deployFinP2PPlanContract(operatorAddress);
+    const deployed = await manager.deployFinP2POrchestrator(operatorAddress);
     escrowAddress = deployed.escrowAddress;
-    planContract = new FinP2PPlanContract(provider, signer, deployed.planContractAddress, logger);
+    orchestrator = new FinP2POrchestratorContract(provider, signer, deployed.orchestratorAddress, logger);
 
     const deployToken = async (): Promise<Contract> => {
       const tokenAddress = await manager.deployERC20("Test", "TST", 2, operatorAddress);
       const token = new Contract(tokenAddress, ERC20_ADMIN_ABI, signer);
-      await (await token.grantOperatorTo(deployed.planContractAddress)).wait();
+      await (await token.grantOperatorTo(deployed.orchestratorAddress)).wait();
       await (await token.grantOperatorTo(escrowAddress)).wait();
-      await (await token.grantMinterTo(deployed.planContractAddress)).wait();
+      await (await token.grantMinterTo(deployed.orchestratorAddress)).wait();
       return token;
     };
     assetToken = await deployToken();
     settlementToken = await deployToken();
 
-    await planContract.associateAsset(assetId, await assetToken.getAddress());
-    await planContract.associateAsset(settlementId, await settlementToken.getAddress());
-    await planContract.addCredential(buyerFinId, finIdToAddress(buyerFinId));
-    await planContract.addCredential(sellerFinId, finIdToAddress(sellerFinId));
-    await planContract.addProofSigner(REMOTE_ORG, proofSigner.address);
+    await orchestrator.associateAsset(assetId, await assetToken.getAddress());
+    await orchestrator.associateAsset(settlementId, await settlementToken.getAddress());
+    await orchestrator.addCredential(buyerFinId, finIdToAddress(buyerFinId));
+    await orchestrator.addCredential(sellerFinId, finIdToAddress(sellerFinId));
+    await orchestrator.addProofSigner(REMOTE_ORG, proofSigner.address);
 
     await (await settlementToken.mint(finIdToAddress(buyerFinId), 10000)).wait(); // "100.00"
   });
@@ -213,16 +213,16 @@ describe("v2 plan-based services (integration)", () => {
     }) as any;
 
     const execDetailsStore = new InMemoryExecDetailsStore();
-    const proofSync = new ProofSyncService(planContract, finP2PClientStub);
-    const approvalService = new PlanBasedApprovalService(ORG, planContract, finP2PClientStub, innerApprovalStub);
-    const tokenService = new PlanTokenService(planContract, proofSync, execDetailsStore, failingFallback);
-    const escrowService = new PlanEscrowService(planContract, proofSync, execDetailsStore, failingFallback);
+    const proofSync = new ProofSyncService(orchestrator, finP2PClientStub);
+    const approvalService = new PlanBasedApprovalService(ORG, orchestrator, finP2PClientStub, innerApprovalStub);
+    const tokenService = new PlanTokenService(orchestrator, proofSync, execDetailsStore, failingFallback);
+    const escrowService = new PlanEscrowService(orchestrator, proofSync, execDetailsStore, failingFallback);
 
     // --- approval mirrors the plan on-chain, investor signature verified in createPlan
     const approval = await approvalService.approvePlan("ik-1", planId);
     expect(approval.type).toBe("approved");
-    expect(await planContract.hasPlan(planId)).toBe(true);
-    expect((await planContract.getPlan(planId)).status).toBe(ExecutionPlanStatus.Pending);
+    expect(await orchestrator.hasPlan(planId)).toBe(true);
+    expect((await orchestrator.getPlan(planId)).status).toBe(ExecutionPlanStatus.Pending);
 
     // --- instruction 1: hold settlement into the escrow contract (no signature used)
     const dummySignature = { signature: "", template: { type: "EIP712", primaryType: "Buying", message: {}, types: {} }, hashFunc: "keccak_256" } as any;
@@ -253,14 +253,14 @@ describe("v2 plan-based services (integration)", () => {
     expect(await settlementToken.balanceOf(escrowAddress)).toBe(0n);
     expect(await settlementToken.balanceOf(finIdToAddress(sellerFinId))).toBe(10000n);
 
-    const finalPlan = await planContract.getPlan(planId);
+    const finalPlan = await orchestrator.getPlan(planId);
     expect(finalPlan.status).toBe(ExecutionPlanStatus.Completed);
 
     // approval is idempotent; re-approving an existing mirror records the
     // org's approval on-chain (create-or-approve, Canton plan-setup parity)
     const again = await approvalService.approvePlan("ik-5", planId);
     expect(again.type).toBe("approved");
-    expect(await planContract.getPlanApproval(planId, ORG)).toBe(1); // APPROVED
+    expect(await orchestrator.getPlanApproval(planId, ORG)).toBe(1); // APPROVED
 
     // sanity: the token service delegates non-plan calls to the fallback (which throws here)
     await expect(tokenService.issue("ik-6", { assetId, assetType: "finp2p" } as any, buyerFinId, "1", undefined as any))
@@ -279,15 +279,15 @@ describe("v2 plan-based services (integration)", () => {
       })
     } as any;
 
-    const tokenService = new PlanTokenService(planContract, new ProofSyncService(planContract, undefined),
+    const tokenService = new PlanTokenService(orchestrator, new ProofSyncService(orchestrator, undefined),
       new InMemoryExecDetailsStore(), fallbackStub);
     const result = await tokenService.createAsset("ik-ca", newAssetId, undefined, undefined, undefined, undefined, undefined);
     expect(result.type).toBe("success");
 
-    expect(await planContract.getAssetAddress(newAssetId)).toBe(newTokenAddress);
+    expect(await orchestrator.getAssetAddress(newAssetId)).toBe(newTokenAddress);
     const token = new Contract(newTokenAddress, ["function hasRole(bytes32,address) view returns (bool)"], provider);
-    expect(await token.hasRole(OPERATOR_ROLE, planContract.planContractAddress)).toBe(true);
-    expect(await token.hasRole(MINTER_ROLE, planContract.planContractAddress)).toBe(true);
+    expect(await token.hasRole(OPERATOR_ROLE, orchestrator.orchestratorAddress)).toBe(true);
+    expect(await token.hasRole(MINTER_ROLE, orchestrator.orchestratorAddress)).toBe(true);
     expect(await token.hasRole(OPERATOR_ROLE, escrowAddress)).toBe(true);
 
     // idempotent retry: association already exists, still succeeds

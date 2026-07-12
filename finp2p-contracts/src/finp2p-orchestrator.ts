@@ -1,7 +1,7 @@
 import { ContractFactory, Provider, Signer, TransactionReceipt } from "ethers";
-import PLAN_OPERATOR from "../artifacts/contracts/finp2p/v2/FINP2PPlanOperator.sol/FINP2PPlanOperator.json";
-import { FINP2PPlanOperator } from "../typechain-types";
-import { FINP2PPlanOperatorInterface } from "../typechain-types/contracts/finp2p/v2/FINP2PPlanOperator";
+import ORCHESTRATOR from "../artifacts/contracts/finp2p/v2/FINP2POrchestrator.sol/FINP2POrchestrator.json";
+import { FINP2POrchestrator } from "../typechain-types";
+import { FINP2POrchestratorInterface } from "../typechain-types/contracts/finp2p/v2/FINP2POrchestrator";
 import { PayableOverrides } from "../typechain-types/common";
 import { ContractsManager, GasTier } from "./manager";
 import {
@@ -15,7 +15,7 @@ import { parseTransactionReceipt } from "./utils";
 const ETH_COMPLETED_TRANSACTION_STATUS = 1;
 
 /**
- * Client for the v2 plan-based operator (FINP2PPlanOperator).
+ * Client for the v2 plan-based operator (FINP2POrchestrator).
  *
  * A FinP2P execution plan is mirrored on-chain with `createPlan` (which also
  * verifies all investor signatures), then advanced strictly in sequence with
@@ -23,139 +23,139 @@ const ETH_COMPLETED_TRANSACTION_STATUS = 1;
  * `completeOffLedgerInstruction` (off-ledger instructions, verified EIP-712
  * receipt proof).
  */
-export class FinP2PPlanContract extends ContractsManager {
+export class FinP2POrchestratorContract extends ContractsManager {
 
-  contractInterface: FINP2PPlanOperatorInterface;
+  contractInterface: FINP2POrchestratorInterface;
 
-  planOperator: FINP2PPlanOperator;
+  orchestrator: FINP2POrchestrator;
 
-  planContractAddress: string;
+  orchestratorAddress: string;
 
-  constructor(provider: Provider, signer: Signer, planContractAddress: string, logger: Logger,
+  constructor(provider: Provider, signer: Signer, orchestratorAddress: string, logger: Logger,
               confirmationTimeoutMs?: number, gasTier?: GasTier) {
     super(provider, signer, logger, confirmationTimeoutMs, gasTier);
-    const factory = new ContractFactory<any[], FINP2PPlanOperator>(
-      PLAN_OPERATOR.abi, PLAN_OPERATOR.bytecode, this.signer
+    const factory = new ContractFactory<any[], FINP2POrchestrator>(
+      ORCHESTRATOR.abi, ORCHESTRATOR.bytecode, this.signer
     );
-    const contract = factory.attach(planContractAddress);
-    this.contractInterface = contract.interface as FINP2PPlanOperatorInterface;
-    this.planOperator = contract as FINP2PPlanOperator;
-    this.planContractAddress = planContractAddress;
+    const contract = factory.attach(orchestratorAddress);
+    this.contractInterface = contract.interface as FINP2POrchestratorInterface;
+    this.orchestrator = contract as FINP2POrchestrator;
+    this.orchestratorAddress = orchestratorAddress;
   }
 
   async getVersion() {
-    return this.mapErrors(async () => this.planOperator.getVersion());
+    return this.mapErrors(async () => this.orchestrator.getVersion());
   }
 
   async getEscrowAddress() {
-    return this.mapErrors(async () => this.planOperator.getEscrowAddress());
+    return this.mapErrors(async () => this.orchestrator.getEscrowAddress());
   }
 
   async getVerifierAddress() {
-    return this.mapErrors(async () => this.planOperator.getVerifierAddress());
+    return this.mapErrors(async () => this.orchestrator.getVerifierAddress());
   }
 
   // ---- Credentials / assets (same semantics as v1) ----
 
   async addCredential(finId: string, address: string) {
-    return this.safeExecuteTransaction(this.planOperator, async (contract, txParams: PayableOverrides) => {
+    return this.safeExecuteTransaction(this.orchestrator, async (contract, txParams: PayableOverrides) => {
       return contract.addCredential(finId, address, txParams);
     });
   }
 
   async removeCredential(finId: string) {
-    return this.safeExecuteTransaction(this.planOperator, async (contract, txParams: PayableOverrides) => {
+    return this.safeExecuteTransaction(this.orchestrator, async (contract, txParams: PayableOverrides) => {
       return contract.removeCredential(finId, txParams);
     });
   }
 
   async getCredentialAddress(finId: string) {
-    return this.planOperator.getCredentialAddress(finId);
+    return this.orchestrator.getCredentialAddress(finId);
   }
 
   async associateAsset(assetId: string, tokenAddress: string) {
-    return this.safeExecuteTransaction(this.planOperator, async (contract, txParams: PayableOverrides) => {
+    return this.safeExecuteTransaction(this.orchestrator, async (contract, txParams: PayableOverrides) => {
       return contract.associateAsset(assetId, tokenAddress, txParams);
     });
   }
 
   async getAssetAddress(assetId: string) {
-    return this.planOperator.getAssetAddress(assetId);
+    return this.orchestrator.getAssetAddress(assetId);
   }
 
   // ---- Proof signer registry ----
 
   async addProofSigner(orgId: string, signerAddress: string) {
-    return this.safeExecuteTransaction(this.planOperator, async (contract, txParams: PayableOverrides) => {
+    return this.safeExecuteTransaction(this.orchestrator, async (contract, txParams: PayableOverrides) => {
       return contract.addProofSigner(orgId, signerAddress, txParams);
     });
   }
 
   async addProofSignerFinId(orgId: string, finId: string) {
-    return this.safeExecuteTransaction(this.planOperator, async (contract, txParams: PayableOverrides) => {
+    return this.safeExecuteTransaction(this.orchestrator, async (contract, txParams: PayableOverrides) => {
       return contract.addProofSignerFinId(orgId, finId, txParams);
     });
   }
 
   async removeProofSigner(orgId: string, signerAddress: string) {
-    return this.safeExecuteTransaction(this.planOperator, async (contract, txParams: PayableOverrides) => {
+    return this.safeExecuteTransaction(this.orchestrator, async (contract, txParams: PayableOverrides) => {
       return contract.removeProofSigner(orgId, signerAddress, txParams);
     });
   }
 
   async isProofSigner(orgId: string, signerAddress: string): Promise<boolean> {
-    return this.planOperator.isProofSigner(orgId, signerAddress);
+    return this.orchestrator.isProofSigner(orgId, signerAddress);
   }
 
   // ---- Plan lifecycle ----
 
   async createPlan(planId: string, instructions: PlanInstruction[], signatures: PlanInvestmentSignature[]) {
-    return this.safeExecuteTransaction(this.planOperator, async (contract, txParams: PayableOverrides) => {
+    return this.safeExecuteTransaction(this.orchestrator, async (contract, txParams: PayableOverrides) => {
       return contract.createPlan(planId, instructions, signatures, txParams);
     });
   }
 
   async executeInstruction(planId: string, sequence: number) {
-    return this.safeExecuteTransaction(this.planOperator, async (contract, txParams: PayableOverrides) => {
+    return this.safeExecuteTransaction(this.orchestrator, async (contract, txParams: PayableOverrides) => {
       return contract.executeInstruction(planId, sequence, txParams);
     });
   }
 
   async completeOffLedgerInstruction(planId: string, sequence: number, proof: LedgerProof, signature: string) {
     const sig = signature.startsWith("0x") ? signature : `0x${signature}`;
-    return this.safeExecuteTransaction(this.planOperator, async (contract, txParams: PayableOverrides) => {
+    return this.safeExecuteTransaction(this.orchestrator, async (contract, txParams: PayableOverrides) => {
       return contract.completeOffLedgerInstruction(planId, sequence, proof, sig, txParams);
     });
   }
 
   async rejectPlan(planId: string, reason: string) {
-    return this.safeExecuteTransaction(this.planOperator, async (contract, txParams: PayableOverrides) => {
+    return this.safeExecuteTransaction(this.orchestrator, async (contract, txParams: PayableOverrides) => {
       return contract.rejectPlan(planId, reason, txParams);
     });
   }
 
   async recordPlanApproval(planId: string, orgId: string, state: ApprovalState = ApprovalState.Approved) {
-    return this.safeExecuteTransaction(this.planOperator, async (contract, txParams: PayableOverrides) => {
+    return this.safeExecuteTransaction(this.orchestrator, async (contract, txParams: PayableOverrides) => {
       return contract.recordPlanApproval(planId, orgId, state, txParams);
     });
   }
 
   async getPlanApproval(planId: string, orgId: string): Promise<ApprovalState> {
-    return Number(await this.planOperator.getPlanApproval(planId, orgId));
+    return Number(await this.orchestrator.getPlanApproval(planId, orgId));
   }
 
   async revertPlan(planId: string) {
-    return this.safeExecuteTransaction(this.planOperator, async (contract, txParams: PayableOverrides) => {
+    return this.safeExecuteTransaction(this.orchestrator, async (contract, txParams: PayableOverrides) => {
       return contract.revertPlan(planId, txParams);
     });
   }
 
   async hasPlan(planId: string): Promise<boolean> {
-    return this.planOperator.hasPlan(planId);
+    return this.orchestrator.hasPlan(planId);
   }
 
   async getPlan(planId: string): Promise<OrchestrationPlanInfo> {
-    const plan = await this.planOperator.getPlan(planId);
+    const plan = await this.orchestrator.getPlan(planId);
     return {
       status: Number(plan.status),
       instructionCount: Number(plan.instructionCount),
@@ -164,7 +164,7 @@ export class FinP2PPlanContract extends ContractsManager {
   }
 
   async getInstruction(planId: string, sequence: number): Promise<PlanInstruction> {
-    const i = await this.planOperator.getInstruction(planId, sequence);
+    const i = await this.orchestrator.getInstruction(planId, sequence);
     return {
       sequence: Number(i.sequence),
       instructionType: Number(i.instructionType),

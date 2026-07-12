@@ -2,7 +2,7 @@ import { logger } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import { FinP2PClient } from "@owneraio/finp2p-client";
 import {
   ExecutionVenue,
-  FinP2PPlanContract,
+  FinP2POrchestratorContract,
   LedgerProof,
   PlanInstructionType
 } from "@owneraio/finp2p-contracts";
@@ -32,15 +32,15 @@ type RawReceiptProofMessage = {
 export class ProofSyncService {
 
   constructor(
-    private readonly planContract: FinP2PPlanContract,
+    private readonly orchestrator: FinP2POrchestratorContract,
     private readonly finP2PClient: FinP2PClient | undefined
   ) {}
 
   async ensureCursorAt(planId: string, targetSequence: number): Promise<void> {
-    let plan = await this.planContract.getPlan(planId);
+    let plan = await this.orchestrator.getPlan(planId);
     while (plan.currentSequence < targetSequence) {
       const sequence = plan.currentSequence;
-      const instruction = await this.planContract.getInstruction(planId, sequence);
+      const instruction = await this.orchestrator.getInstruction(planId, sequence);
 
       if (instruction.venue === ExecutionVenue.OnLedger) {
         if (instruction.instructionType !== PlanInstructionType.Await) {
@@ -51,14 +51,14 @@ export class ProofSyncService {
           return;
         }
         logger.info(`Plan ${planId}: executing await instruction ${sequence}`);
-        await this.planContract.executeInstruction(planId, sequence);
+        await this.orchestrator.executeInstruction(planId, sequence);
       } else {
         const { proof, signature } = await this.fetchRemoteProof(planId, sequence);
         logger.info(`Plan ${planId}: completing off-ledger instruction ${sequence} on-chain`);
-        await this.planContract.completeOffLedgerInstruction(planId, sequence, proof, signature);
+        await this.orchestrator.completeOffLedgerInstruction(planId, sequence, proof, signature);
       }
 
-      plan = await this.planContract.getPlan(planId);
+      plan = await this.orchestrator.getPlan(planId);
       if (plan.currentSequence <= sequence) {
         throw new Error(`Plan ${planId}: cursor did not advance past instruction ${sequence}`);
       }

@@ -1,6 +1,6 @@
 import { Interface, JsonRpcProvider, NonceManager, Provider, Signer, Wallet, ZeroAddress, keccak256, toUtf8Bytes } from "ethers";
 import process from "process";
-import { FinP2PContract, FinP2PPlanContract } from '@owneraio/finp2p-contracts'
+import { FinP2PContract, FinP2POrchestratorContract } from '@owneraio/finp2p-contracts'
 import { FinP2PClient } from '@owneraio/finp2p-client'
 import { ExecDetailsStore } from './services/finp2p-contract/common'
 import { ProofProvider } from '@owneraio/finp2p-nodejs-skeleton-adapter'
@@ -64,7 +64,7 @@ export type FinP2PContractAppConfig = BaseAppConfig & {
   execDetailsStore: ExecDetailsStore | undefined
   defaultAssetStandard?: string
   // v2 (plan-based) operator; set when FINP2P_CONTRACT_VERSION=2
-  planContract?: FinP2PPlanContract
+  orchestrator?: FinP2POrchestratorContract
 }
 
 export { FireblocksAppConfig } from './integrations/fireblocks/config'
@@ -213,23 +213,23 @@ export async function envVarsToAppConfig(logger: Logger): Promise<AppConfig> {
       if (finP2PContractVersionRaw !== '1' && finP2PContractVersionRaw !== '2') {
         throw new Error(`Invalid FINP2P_CONTRACT_VERSION: ${finP2PContractVersionRaw}. Supported values: 1, 2`);
       }
-      let planContract: FinP2PPlanContract | undefined;
+      let orchestrator: FinP2POrchestratorContract | undefined;
       if (finP2PContractVersionRaw === '2') {
-        const planContractAddress = process.env.FINP2P_PLAN_CONTRACT_ADDRESS;
-        if (!planContractAddress) {
-          throw new Error("FINP2P_PLAN_CONTRACT_ADDRESS is not set (required when FINP2P_CONTRACT_VERSION=2)");
+        const orchestratorAddress = process.env.FINP2P_ORCHESTRATOR_ADDRESS;
+        if (!orchestratorAddress) {
+          throw new Error("FINP2P_ORCHESTRATOR_ADDRESS is not set (required when FINP2P_CONTRACT_VERSION=2)");
         }
-        planContract = new FinP2PPlanContract(
+        orchestrator = new FinP2POrchestratorContract(
           provider,
           signer,
-          planContractAddress,
+          orchestratorAddress,
           logger,
           txConfirmationTimeoutMs,
           txGasTier,
         );
-        const planVersion = await planContract.getVersion();
-        const escrowAddress = await planContract.getEscrowAddress();
-        logger.info(`FinP2P plan contract version: ${planVersion} at ${planContractAddress}, escrow at ${escrowAddress}`);
+        const planVersion = await orchestrator.getVersion();
+        const escrowAddress = await orchestrator.getEscrowAddress();
+        logger.info(`FinP2P plan contract version: ${planVersion} at ${orchestratorAddress}, escrow at ${escrowAddress}`);
       }
 
       return {
@@ -244,7 +244,7 @@ export async function envVarsToAppConfig(logger: Logger): Promise<AppConfig> {
         finP2PContract,
         execDetailsStore,
         defaultAssetStandard: defaultAssetStandardRaw,
-        planContract,
+        orchestrator,
       }
     }
     case 'fireblocks': {
