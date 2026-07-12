@@ -277,9 +277,15 @@ export class DirectTokenService implements TokenService, EscrowService {
       const amount = parseUnits(quantity, asset.decimals);
 
       if (this.contractEscrow) {
-        const destinationAddress = destination?.finId
-          ? await this.accountMapping.resolveAccount(destination.finId) ?? destination.account?.address
-          : undefined;
+        // a requested destination that cannot be resolved must fail loudly:
+        // silently falling back to an unpinned (destinationless) hold would
+        // drop the destination-pinning guarantee the caller asked for
+        let destinationAddress: string | undefined;
+        if (destination?.finId) {
+          destinationAddress = await this.accountMapping.resolveAccount(destination.finId)
+            ?? destination.account?.address;
+          if (!destinationAddress) throw new Error(`Cannot resolve address for destination finId: ${destination.finId}`);
+        }
         const result = await this.contractEscrow.hold(
           wallet, resolved.address, destinationAddress, asset.contractAddress, operationId, amount);
         return resultToReceipt(result, ast, "hold", quantity, source, destination, exCtx, operationId);
