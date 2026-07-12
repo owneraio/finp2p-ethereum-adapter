@@ -20,6 +20,7 @@ import {
 import {
   DirectTokenService,
   CustodyProvider,
+  GasPrefundingPlanApprovalService,
   custodyRegistry,
   DbAccountMapping,
   AccountMappingService,
@@ -116,7 +117,10 @@ function registerDirectServices(
   if (!assetStore || !dbPool || !accountMappingStore || !accountMappingService) throw new Error('DB connection is required for direct mode');
   let tokenService: DirectTokenService = new DirectTokenService(logger, custodyProvider, accountMapping, assetStore);
   const commonService = new DirectCommonServiceImpl(workflowStorage!);
-  let planApprovalService = new PlanApprovalServiceImpl(appConfig.orgId, pluginManager, finP2PClient);
+  // gas funding happens once per plan at approval, off the instruction hot path
+  const planApprovalService = new GasPrefundingPlanApprovalService(
+    appConfig.orgId, custodyProvider, accountMapping, finP2PClient,
+    new PlanApprovalServiceImpl(appConfig.orgId, pluginManager, finP2PClient));
 
   const proxiedTokenService = wrapWithWorkflowProxy(tokenService, workflowStorage, finP2PClient, 'createAsset', 'issue', 'transfer', 'redeem');
   const proxiedEscrowService = wrapWithWorkflowProxy(tokenService, workflowStorage, finP2PClient, 'hold', 'release', 'rollback');
