@@ -334,8 +334,10 @@ contract FINP2POrchestrator is ProofSignerRegistry {
             require(instruction.instructionType != InstructionType.AWAIT, "Await must be on-ledger");
             require(bytes(instruction.organizationId).length > 0, "Missing executing organization");
             require(hasProofSigners(instruction.organizationId), "No proof signers registered");
-            return;
         }
+        // per-type field requirements apply to BOTH venues — an off-ledger
+        // instruction with empty planned fields would weaken the receipt-proof
+        // binding into a source/destination wildcard
         verifier.validateInstruction(instruction, signatures);
     }
 

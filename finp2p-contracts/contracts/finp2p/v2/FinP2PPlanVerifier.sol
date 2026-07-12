@@ -40,33 +40,63 @@ contract FinP2PPlanVerifier is FinP2PReceiptVerifier {
         valid = Signature.verify(payload.signerFinId.toAddress(), digest, payload.signature);
     }
 
-    /// @notice Validate a local (this-ledger) instruction at plan creation:
-    ///         required fields and, for asset movements, an attached investor
-    ///         intent that authorizes exactly this movement.
+    /// @notice Validate an instruction at plan creation. Field requirements
+    ///         apply to BOTH venues — an off-ledger instruction with an empty
+    ///         source/destination would turn the receipt-proof comparison into
+    ///         a wildcard (it only compares non-empty planned fields). Empties
+    ///         are allowed only where the operation model truly has none:
+    ///         ISSUE has no source; HOLD may be destinationless (redeem-style);
+    ///         REDEEM/RELEASE_AND_REDEEM/REVERT_HOLD have no destination.
+    ///         Investor-signature and escrow-operationId checks apply to
+    ///         on-ledger instructions only.
     function validateInstruction(
         Instruction calldata instruction,
         SignaturePayload[] calldata signatures
     ) external pure {
         InstructionType instructionType = instruction.instructionType;
+        bool onLedger = instruction.venue == ExecutionVenue.ON_LEDGER;
+
         if (instructionType == InstructionType.ISSUE) {
             require(bytes(instruction.destination).length > 0, "Issue instruction must have a destination");
         } else if (instructionType == InstructionType.TRANSFER || instructionType == InstructionType.HOLD) {
             require(bytes(instruction.source).length > 0, "Instruction must have a source");
-            require(instruction.signatureIndex != NO_SIGNATURE, "Asset movement requires an investor signature");
-            require(instruction.signatureIndex < signatures.length, "Signature index out of bounds");
-            SignaturePayload calldata payload = signatures[instruction.signatureIndex];
-            require(payload.signerFinId.equals(instruction.source), "Signature signer differs from the instruction source");
-            require(intentMatchesInstruction(instruction, payload), "Instruction does not match the signed intent");
-        } else if (instructionType == InstructionType.REDEEM) {
-            require(bytes(instruction.source).length > 0, "Redeem instruction must have a source");
+            if (instructionType == InstructionType.TRANSFER) {
+                require(bytes(instruction.destination).length > 0, "Transfer instruction must have a destination");
+            }
+            if (onLedger) {
+                require(instruction.signatureIndex != NO_SIGNATURE, "Asset movement requires an investor signature");
+                require(instruction.signatureIndex < signatures.length, "Signature index out of bounds");
+                SignaturePayload calldata payload = signatures[instruction.signatureIndex];
+                require(payload.signerFinId.equals(instruction.source), "Signature signer differs from the instruction source");
+                require(intentMatchesInstruction(instruction, payload), "Instruction does not match the signed intent");
+            }
+        } else if (
+            instructionType == InstructionType.REDEEM ||
+            instructionType == InstructionType.RELEASE_AND_REDEEM
+        ) {
+            require(bytes(instruction.source).length > 0, "Instruction must have a source");
+        } else if (instructionType == InstructionType.REVERT_HOLD) {
+            // on-ledger: the source identifies the hold being returned; the
+            // receipt of an off-ledger revert instead binds who gets refunded
+            // (FinAPI's revertHoldInstruction has an optional source but a
+            // required destination)
+            if (onLedger) {
+                require(bytes(instruction.source).length > 0, "Instruction must have a source");
+            } else {
+                require(bytes(instruction.destination).length > 0, "Revert instruction must have a destination");
+            }
         } else if (instructionType == InstructionType.RELEASE) {
+            require(bytes(instruction.source).length > 0, "Instruction must have a source");
             require(bytes(instruction.destination).length > 0, "Release instruction must have a destination");
         }
+
         if (
-            instructionType == InstructionType.HOLD ||
-            instructionType == InstructionType.RELEASE ||
-            instructionType == InstructionType.RELEASE_AND_REDEEM ||
-            instructionType == InstructionType.REVERT_HOLD
+            onLedger && (
+                instructionType == InstructionType.HOLD ||
+                instructionType == InstructionType.RELEASE ||
+                instructionType == InstructionType.RELEASE_AND_REDEEM ||
+                instructionType == InstructionType.REVERT_HOLD
+            )
         ) {
             require(bytes(instruction.operationId).length > 0, "Escrow instruction must have an operationId");
         }

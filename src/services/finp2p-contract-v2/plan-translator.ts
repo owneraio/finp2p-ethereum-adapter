@@ -67,6 +67,18 @@ type HoldRecord = {
 };
 
 const finIdOf = (account: RawLedgerAccountAsset | undefined): string => account?.finp2pAccount?.account?.finId ?? "";
+
+/**
+ * Malformed instructions with missing accounts must never reach the chain:
+ * an empty planned source/destination would weaken the on-chain receipt-proof
+ * binding into a wildcard (the contract rejects them too; this is the early,
+ * readable error).
+ */
+const requireField = (value: string, field: string, opType: string, sequence: number, planId: string): void => {
+  if (!value) {
+    throw new ValidationError(`${opType} instruction ${sequence} of plan ${planId} has no ${field}`);
+  }
+};
 const assetIdOf = (account: RawLedgerAccountAsset | undefined): string => account?.finp2pAccount?.asset?.id ?? "";
 
 /**
@@ -155,6 +167,7 @@ export const translateExecutionPlan = (plan: RawExecutionPlan, orgId: string): T
     switch (op.type) {
       case "issue": {
         const assetId = assetIdOf(op.destination);
+        requireField(finIdOf(op.destination), "destination", "issue", sequence, planId);
         let details: TemplateBusinessDetails | undefined;
         if (op.signature?.template?.type === "EIP712") {
           details = businessDetailsFromTemplate(op.signature.template as unknown as EIP712Template);
@@ -172,6 +185,8 @@ export const translateExecutionPlan = (plan: RawExecutionPlan, orgId: string): T
       case "transfer": {
         const assetId = assetIdOf(op.source);
         const source = finIdOf(op.source);
+        requireField(source, "source", "transfer", sequence, planId);
+        requireField(finIdOf(op.destination), "destination", "transfer", sequence, planId);
         let signatureIndex = NO_SIGNATURE;
         let details: TemplateBusinessDetails | undefined;
         if (local) {
@@ -196,6 +211,7 @@ export const translateExecutionPlan = (plan: RawExecutionPlan, orgId: string): T
       case "hold": {
         const assetId = assetIdOf(op.source);
         const source = finIdOf(op.source);
+        requireField(source, "source", "hold", sequence, planId);
         const destination = finIdOf(op.destination);
         const operationId = holdOperationId(planId, sequence);
         let signatureIndex = NO_SIGNATURE;
@@ -227,6 +243,8 @@ export const translateExecutionPlan = (plan: RawExecutionPlan, orgId: string): T
       case "release": {
         const assetId = assetIdOf(op.source);
         const destination = finIdOf(op.destination);
+        requireField(finIdOf(op.source), "source", "release", sequence, planId);
+        requireField(destination, "destination", "release", sequence, planId);
         if (!local) {
           return {
             ...base,
@@ -265,6 +283,7 @@ export const translateExecutionPlan = (plan: RawExecutionPlan, orgId: string): T
       case "redeem": {
         const assetId = assetIdOf(op.source);
         const source = finIdOf(op.source);
+        requireField(source, "source", "redeem", sequence, planId);
         if (local) {
           const hold = findHold(assetId, (h) => h.source === source);
           if (hold) {
@@ -304,6 +323,7 @@ export const translateExecutionPlan = (plan: RawExecutionPlan, orgId: string): T
       case "revertHoldInstruction": {
         const assetId = assetIdOf(op.destination) || assetIdOf(op.source);
         if (!local) {
+          requireField(finIdOf(op.destination), "destination", "revertHold", sequence, planId);
           return {
             ...base,
             instructionType: PlanInstructionType.RevertHold,

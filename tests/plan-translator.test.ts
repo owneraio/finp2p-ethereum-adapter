@@ -343,6 +343,20 @@ describe("plan translator", () => {
     expect(() => translateExecutionPlan(raw, ORG)).toThrow(/matching hold/);
   });
 
+  test("rejects a remote transfer with a missing destination account", () => {
+    const raw = plan([
+      {
+        sequence: 1, organizations: [OTHER_ORG],
+        executionPlanOperation: {
+          type: "transfer",
+          source: account(SELLER_FIN_ID, ASSET_ID),
+          amount: "10"
+        }
+      }
+    ]);
+    expect(() => translateExecutionPlan(raw, ORG)).toThrow(/transfer instruction 1 .* has no destination/);
+  });
+
   test("forces await instructions on-ledger even when assigned to another org", () => {
     const raw = plan([
       {

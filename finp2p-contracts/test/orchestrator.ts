@@ -505,6 +505,32 @@ describe("FINP2POrchestrator", function() {
       ], [])).to.be.revertedWith("Await must be on-ledger");
     });
 
+    it("rejects off-ledger instructions with missing accounts (receipt wildcard guard)", async () => {
+      const fixture = await loadFixture(deployPlanOperatorFixture);
+      const { operator } = fixture;
+      const { buyer, seller, assetTerm } = await setupDvP(fixture);
+
+      const proofSigner = Wallet.createRandom();
+      await operator.addProofSigner("bank-uk", proofSigner.address);
+
+      // an off-ledger transfer with an empty source would let ANY signed
+      // receipt with matching type/plan/sequence/asset/amount complete it
+      await expect(operator.createPlan(generatePlanId(), [
+        instruction(1, InstructionType.Transfer, ExecutionVenue.OffLedger, assetTerm,
+          { org: "bank-uk", destination: buyer.finId })
+      ], [])).to.be.revertedWith("Instruction must have a source");
+
+      await expect(operator.createPlan(generatePlanId(), [
+        instruction(1, InstructionType.Transfer, ExecutionVenue.OffLedger, assetTerm,
+          { org: "bank-uk", source: seller.finId })
+      ], [])).to.be.revertedWith("Transfer instruction must have a destination");
+
+      await expect(operator.createPlan(generatePlanId(), [
+        instruction(1, InstructionType.Release, ExecutionVenue.OffLedger, assetTerm,
+          { org: "bank-uk", destination: buyer.finId })
+      ], [])).to.be.revertedWith("Instruction must have a source");
+    });
+
     it("rejects a remote instruction without a registered proof signer", async () => {
       const fixture = await loadFixture(deployPlanOperatorFixture);
       const { operator } = fixture;
