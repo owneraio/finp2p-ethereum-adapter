@@ -5,15 +5,18 @@ import {
   ContractTransactionResponse,
   NonceManager,
   Provider,
-  Signer, TypedDataField
+  Signer, TypedDataField,
+  keccak256, toUtf8Bytes
 } from "ethers";
 import FINP2P from "../artifacts/contracts/finp2p/FINP2POperator.sol/FINP2POperator.json";
 import ERC20 from "../artifacts/contracts/token/ERC20/ERC20WithOperator.sol/ERC20WithOperator.json";
 import ESCROW from "../artifacts/contracts/finp2p/FinP2PEscrow.sol/FinP2PEscrow.json";
+import ASSET_REGISTRY from "../artifacts/contracts/utils/finp2p/AssetRegistry.sol/AssetRegistry.json";
+import ERC20_STANDARD from "../artifacts/contracts/utils/erc20/ERC20Standard.sol/ERC20Standard.json";
 import PLAN_VERIFIER from "../artifacts/contracts/finp2p/FinP2PPlanVerifier.sol/FinP2PPlanVerifier.json";
 import ORCHESTRATOR from "../artifacts/contracts/finp2p/FINP2POrchestrator.sol/FINP2POrchestrator.json";
 import {
-  ERC20WithOperator, FINP2POperator, FinP2PEscrow, FinP2PPlanVerifier, FINP2POrchestrator
+  AssetRegistry, ERC20Standard, ERC20WithOperator, FINP2POperator, FinP2PEscrow, FinP2PPlanVerifier, FINP2POrchestrator
 } from "../typechain-types";
 import { Logger } from "./adapter-types";
 import { PayableOverrides } from "../typechain-types/common";
@@ -171,20 +174,59 @@ export class ContractsManager {
   async deployFinP2POrchestrator(
     operatorAddress?: string,
     escrowAddress?: string,
-    verifierAddress?: string
-  ): Promise<{ orchestratorAddress: string, escrowAddress: string, verifierAddress: string }> {
+    verifierAddress?: string,
+    assetRegistryAddress?: string
+  ): Promise<{
+    orchestratorAddress: string, escrowAddress: string, verifierAddress: string,
+    assetRegistryAddress: string, erc20StandardAddress: string
+  }> {
     const escrow = escrowAddress ?? await this.deployEscrowContract();
     const verifier = verifierAddress ?? await this.deployPlanVerifier();
+
+    let registry = assetRegistryAddress;
+    if (!registry) {
+      this.logger.info("Deploying AssetRegistry contract...");
+      const registryFactory = new ContractFactory<any[], AssetRegistry>(
+        ASSET_REGISTRY.abi, ASSET_REGISTRY.bytecode, this.signer
+      );
+      const registryContract = await registryFactory.deploy();
+      await registryContract.waitForDeployment();
+      registry = await registryContract.getAddress();
+      this.logger.info(`AssetRegistry contract deployed successfully at: ${registry}`);
+    }
 
     this.logger.info("Deploying FINP2POrchestrator contract...");
     const factory = new ContractFactory<any[], FINP2POrchestrator>(
       ORCHESTRATOR.abi, ORCHESTRATOR.bytecode, this.signer
     );
     const deployerAddress = await this.signer.getAddress();
-    const contract = await factory.deploy(deployerAddress, escrow, verifier);
+    const contract = await factory.deploy(deployerAddress, escrow, verifier, registry);
     await contract.waitForDeployment();
     const address = await contract.getAddress();
     this.logger.info(`FINP2POrchestrator contract deployed successfully at: ${address}`);
+
+    // ERC20Standard executes token ops on the orchestrator's behalf; register
+    // it under both the adapter's default id keccak("ERC20") and the
+    // package-level ERC20_STANDARD_ID keccak("ERC20_WITH_OPERATOR")
+    this.logger.info("Deploying ERC20Standard contract...");
+    const standardFactory = new ContractFactory<any[], ERC20Standard>(
+      ERC20_STANDARD.abi, ERC20_STANDARD.bytecode, this.signer
+    );
+    const standardContract = await standardFactory.deploy(address);
+    await standardContract.waitForDeployment();
+    const erc20Standard = await standardContract.getAddress();
+    this.logger.info(`ERC20Standard contract deployed successfully at: ${erc20Standard}`);
+
+    const registryFactory = new ContractFactory<any[], AssetRegistry>(
+      ASSET_REGISTRY.abi, ASSET_REGISTRY.bytecode, this.signer
+    );
+    const registryContract = registryFactory.attach(registry) as AssetRegistry;
+    for (const standardName of ["ERC20", "ERC20_WITH_OPERATOR"]) {
+      const standardId = keccak256(toUtf8Bytes(standardName));
+      await this.safeExecuteTransaction(registryContract, async (c, txParams: PayableOverrides) => {
+        return c.registerAssetStandard(standardId, erc20Standard, txParams);
+      });
+    }
 
     const escrowFactory = new ContractFactory<any[], FinP2PEscrow>(ESCROW.abi, ESCROW.bytecode, this.signer);
     const escrowContract = escrowFactory.attach(escrow) as FinP2PEscrow;
@@ -193,16 +235,20 @@ export class ContractsManager {
     });
 
     if (operatorAddress) {
+      // no bespoke grant wrappers on the orchestrator — use AccessControl.grantRole
       const orchestrator = factory.attach(address) as FINP2POrchestrator;
-      await this.safeExecuteTransaction(orchestrator, async (c, txParams: PayableOverrides) => {
-        return c.grantAssetManagerRole(operatorAddress, txParams);
-      });
-      await this.safeExecuteTransaction(orchestrator, async (c, txParams: PayableOverrides) => {
-        return c.grantTransactionManagerRole(operatorAddress, txParams);
-      });
+      for (const role of ["ASSET_MANAGER", "TRANSACTION_MANAGER"]) {
+        const roleHash = keccak256(toUtf8Bytes(role));
+        await this.safeExecuteTransaction(orchestrator, async (c, txParams: PayableOverrides) => {
+          return c.grantRole(roleHash, operatorAddress, txParams);
+        });
+      }
     }
 
-    return { orchestratorAddress: address, escrowAddress: escrow, verifierAddress: verifier };
+    return {
+      orchestratorAddress: address, escrowAddress: escrow, verifierAddress: verifier,
+      assetRegistryAddress: registry, erc20StandardAddress: erc20Standard
+    };
   }
 
   async isFinP2PContractHealthy(finP2PContractAddress: string): Promise<boolean> {

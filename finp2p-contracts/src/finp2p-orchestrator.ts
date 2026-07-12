@@ -1,4 +1,4 @@
-import { ContractFactory, Provider, Signer, TransactionReceipt } from "ethers";
+import { ContractFactory, Interface, Provider, Signer, TransactionReceipt } from "ethers";
 import ORCHESTRATOR from "../artifacts/contracts/finp2p/FINP2POrchestrator.sol/FINP2POrchestrator.json";
 import { FINP2POrchestrator } from "../typechain-types";
 import { FINP2POrchestratorInterface } from "../typechain-types/contracts/finp2p/FINP2POrchestrator";
@@ -10,6 +10,7 @@ import {
 import {
   ApprovalState, LedgerProof, OrchestrationPlanInfo, PlanInstruction, PlanInvestmentSignature
 } from "./plan-model";
+import { ERC20_STANDARD_ID } from "./model";
 import { parseTransactionReceipt } from "./utils";
 
 const ETH_COMPLETED_TRANSACTION_STATUS = 1;
@@ -44,7 +45,7 @@ export class FinP2POrchestratorContract extends ContractsManager {
   }
 
   async getVersion() {
-    return this.mapErrors(async () => this.orchestrator.getVersion());
+    return this.mapErrors(async () => this.orchestrator.VERSION());
   }
 
   async getEscrowAddress() {
@@ -73,10 +74,25 @@ export class FinP2POrchestratorContract extends ContractsManager {
     return this.orchestrator.getCredentialAddress(finId);
   }
 
-  async associateAsset(assetId: string, tokenAddress: string) {
+  async associateAsset(assetId: string, tokenAddress: string, assetStandard: string = ERC20_STANDARD_ID) {
     return this.safeExecuteTransaction(this.orchestrator, async (contract, txParams: PayableOverrides) => {
-      return contract.associateAsset(assetId, tokenAddress, txParams);
+      return contract.associateAsset(assetId, tokenAddress, assetStandard, txParams);
     });
+  }
+
+  async getAssetRegistry() {
+    return this.mapErrors(async () => this.orchestrator.getAssetRegistry());
+  }
+
+  /** Resolve the implementation contract registered for an asset-standard id. */
+  async getRegisteredAssetStandard(assetStandard: string): Promise<string> {
+    const registryAddress = await this.orchestrator.getAssetRegistry();
+    const registry = new Interface(["function getAssetStandard(bytes32) view returns (address)"]);
+    const result = await this.provider.call({
+      to: registryAddress,
+      data: registry.encodeFunctionData("getAssetStandard", [assetStandard])
+    });
+    return registry.decodeFunctionResult("getAssetStandard", result)[0] as string;
   }
 
   async getAssetAddress(assetId: string) {

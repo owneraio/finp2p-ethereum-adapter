@@ -5,7 +5,7 @@ import { ethers } from "hardhat";
 import { v4 as uuid } from "uuid";
 import { Signer, Wallet } from "ethers";
 import { PrimaryType } from "./utils";
-import { AssetType, finIdToAddress, getFinId, signEIP712, Term, term, termToEIP712 } from "../src";
+import { AssetType, ERC20_STANDARD_ID, finIdToAddress, getFinId, signEIP712, Term, term, termToEIP712 } from "../src";
 import {
   EIP712LoanTerms,
   emptyLoanTerms,
@@ -44,15 +44,25 @@ describe("FINP2POrchestrator", function() {
     const verifier = await verifierDeployer.deploy();
     const verifierAddress = await verifier.getAddress();
 
+    const registryDeployer = await ethers.getContractFactory("AssetRegistry");
+    const registry = await registryDeployer.deploy();
+    const registryAddress = await registry.getAddress();
+
     const operatorDeployer = await ethers.getContractFactory("FINP2POrchestrator");
-    const operator: FINP2POrchestrator = await operatorDeployer.deploy(admin, escrowAddress, verifierAddress);
+    const operator: FINP2POrchestrator = await operatorDeployer.deploy(admin, escrowAddress, verifierAddress, registryAddress);
     const operatorAddress = await operator.getAddress();
+
+    // token operations dispatch through the registered ERC20Standard
+    const standardDeployer = await ethers.getContractFactory("ERC20Standard");
+    const erc20Standard = await standardDeployer.deploy(operatorAddress);
+    const standardAddress = await erc20Standard.getAddress();
+    await registry.registerAssetStandard(ERC20_STANDARD_ID, standardAddress);
 
     await escrow.grantEscrowOperatorRole(operatorAddress);
 
     const { chainId, verifyingContract } = await verifier.eip712Domain();
 
-    return { admin, stranger, escrow, escrowAddress, operator, operatorAddress, chainId, verifyingContract };
+    return { admin, stranger, escrow, escrowAddress, operator, operatorAddress, standardAddress, chainId, verifyingContract };
   }
 
   const generateInvestor = (): Investor => {
@@ -65,13 +75,13 @@ describe("FINP2POrchestrator", function() {
   const generatePlanId = (): string => `bank-us:106:${uuid()}`;
 
   async function deployToken(
-    admin: Signer, operatorAddress: string, escrowAddress: string, decimals: number
+    admin: Signer, standardAddress: string, escrowAddress: string, decimals: number
   ): Promise<{ token: ERC20WithOperator, tokenAddress: string }> {
     const deployer = await ethers.getContractFactory("ERC20WithOperator");
     const token: ERC20WithOperator = await deployer.deploy("Test token", "TST", decimals, admin);
-    await token.grantOperatorTo(operatorAddress);
+    await token.grantOperatorTo(standardAddress);
     await token.grantOperatorTo(escrowAddress);
-    await token.grantMinterTo(operatorAddress);
+    await token.grantMinterTo(standardAddress);
     return { token, tokenAddress: await token.getAddress() };
   }
 
@@ -161,7 +171,7 @@ describe("FINP2POrchestrator", function() {
   // A standard DvP setup: buyer pays 100 settlement units into escrow, seller
   // transfers 10 asset units, escrow releases to seller.
   async function setupDvP(fixture: Awaited<ReturnType<typeof deployPlanOperatorFixture>>) {
-    const { admin, operator, operatorAddress, escrowAddress, chainId, verifyingContract } = fixture;
+    const { admin, operator, standardAddress, escrowAddress, chainId, verifyingContract } = fixture;
 
     const buyer = generateInvestor();
     const seller = generateInvestor();
@@ -171,10 +181,10 @@ describe("FINP2POrchestrator", function() {
     const assetTerm = term(generateAssetId(), AssetType.FinP2P, "10");
     const settlementTerm = term("USD", AssetType.Fiat, "100");
 
-    const { token: assetToken } = await deployToken(admin, operatorAddress, escrowAddress, 0);
-    const { token: settlementToken } = await deployToken(admin, operatorAddress, escrowAddress, 2);
-    await operator.associateAsset(assetTerm.assetId, assetToken);
-    await operator.associateAsset(settlementTerm.assetId, settlementToken);
+    const { token: assetToken } = await deployToken(admin, standardAddress, escrowAddress, 0);
+    const { token: settlementToken } = await deployToken(admin, standardAddress, escrowAddress, 2);
+    await operator.associateAsset(assetTerm.assetId, assetToken, ERC20_STANDARD_ID);
+    await operator.associateAsset(settlementTerm.assetId, settlementToken, ERC20_STANDARD_ID);
 
     await assetToken.mint(seller.address, 10);
     await settlementToken.mint(buyer.address, 10000); // "100" at 2 decimals
@@ -391,7 +401,7 @@ describe("FINP2POrchestrator", function() {
 
     it("rejects a release of a destinationless (redeem-style) hold", async () => {
       const fixture = await loadFixture(deployPlanOperatorFixture);
-      const { admin, operator, operatorAddress, escrowAddress, chainId, verifyingContract } = fixture;
+      const { admin, operator, standardAddress, escrowAddress, chainId, verifyingContract } = fixture;
 
       const issuer = generateInvestor();
       const investor = generateInvestor();
@@ -400,8 +410,8 @@ describe("FINP2POrchestrator", function() {
       await operator.addCredential(attacker.finId, attacker.address);
 
       const assetTerm = term(generateAssetId(), AssetType.FinP2P, "50");
-      const { token: assetToken } = await deployToken(admin, operatorAddress, escrowAddress, 0);
-      await operator.associateAsset(assetTerm.assetId, assetToken);
+      const { token: assetToken } = await deployToken(admin, standardAddress, escrowAddress, 0);
+      await operator.associateAsset(assetTerm.assetId, assetToken, ERC20_STANDARD_ID);
       await assetToken.mint(investor.address, 50);
 
       // a validly signed redemption intent produces a destinationless hold —
@@ -442,7 +452,7 @@ describe("FINP2POrchestrator", function() {
 
     it("rejects execution against a hold whose token no longer matches the asset", async () => {
       const fixture = await loadFixture(deployPlanOperatorFixture);
-      const { admin, operator, operatorAddress, escrowAddress } = fixture;
+      const { admin, operator, standardAddress, escrowAddress } = fixture;
       const { buyer, seller, settlementTerm, buyerIntent } = await setupDvP(fixture);
 
       const planId = generatePlanId();
@@ -456,9 +466,9 @@ describe("FINP2POrchestrator", function() {
       await operator.executeInstruction(planId, 1);
 
       // the asset is re-associated to a different token between hold and release
-      const { tokenAddress: otherToken } = await deployToken(admin, operatorAddress, escrowAddress, 2);
+      const { tokenAddress: otherToken } = await deployToken(admin, standardAddress, escrowAddress, 2);
       await operator.removeAsset(settlementTerm.assetId);
-      await operator.associateAsset(settlementTerm.assetId, otherToken);
+      await operator.associateAsset(settlementTerm.assetId, otherToken, ERC20_STANDARD_ID);
 
       await expect(operator.executeInstruction(planId, 2))
         .to.be.revertedWith("Hold mismatch");
@@ -748,7 +758,7 @@ describe("FINP2POrchestrator", function() {
 
     it("executes issue, hold and release-and-redeem without signatures where not required", async () => {
       const fixture = await loadFixture(deployPlanOperatorFixture);
-      const { admin, operator, operatorAddress, escrowAddress, chainId, verifyingContract } = fixture;
+      const { admin, operator, standardAddress, escrowAddress, chainId, verifyingContract } = fixture;
 
       const issuer = generateInvestor();
       const investor = generateInvestor();
@@ -756,8 +766,8 @@ describe("FINP2POrchestrator", function() {
       await operator.addCredential(investor.finId, investor.address);
 
       const assetTerm = term(generateAssetId(), AssetType.FinP2P, "50");
-      const { token: assetToken } = await deployToken(admin, operatorAddress, escrowAddress, 0);
-      await operator.associateAsset(assetTerm.assetId, assetToken);
+      const { token: assetToken } = await deployToken(admin, standardAddress, escrowAddress, 0);
+      await operator.associateAsset(assetTerm.assetId, assetToken, ERC20_STANDARD_ID);
 
       // issuance: mint to the issuer
       const issuePlanId = generatePlanId();

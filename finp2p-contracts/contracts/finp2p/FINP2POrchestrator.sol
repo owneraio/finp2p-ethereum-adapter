@@ -2,11 +2,11 @@
 
 pragma solidity ^0.8.20;
 
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
+import {AssetStandard} from "@owneraio/finp2p-ethereum-token-standard/contracts/AssetStandard.sol";
+import {OperationParams, LegType, Phase, ReleaseType} from "@owneraio/finp2p-ethereum-token-standard/contracts/OperationParams.sol";
 import "../utils/StringUtils.sol";
-import {Burnable} from "../utils/erc20/Burnable.sol";
-import {Mintable} from "../utils/erc20/Mintable.sol";
+import {AssetRegistry} from "../utils/finp2p/AssetRegistry.sol";
 import {FinP2PReceiptVerifier} from "../utils/finp2p/FinP2PReceiptVerifier.sol";
 import {FinP2PSignatureVerifier} from "../utils/finp2p/FinP2PSignatureVerifier.sol";
 import {FinP2PEscrow} from "./FinP2PEscrow.sol";
@@ -36,6 +36,12 @@ import "./PlanTypes.sol";
  * verification (investor intents and receipt proofs) is delegated to an
  * external stateless FinP2PPlanVerifier: it keeps this contract under the
  * EIP-170 bytecode limit and lets several operators share one verifier.
+ *
+ * Token operations are dispatched through an AssetRegistry: every asset is
+ * associated with an AssetStandard implementation (plain ERC20s via the
+ * registered ERC20Standard), absorbing FINP2POperatorWithRegistry's
+ * capability. Escrow deposits stay ERC20-native (uint amounts), independent
+ * of the standard used for mint/burn/transfer dispatch.
  */
 contract FINP2POrchestrator is ProofSignerRegistry {
     using StringUtils for string;
@@ -63,8 +69,10 @@ contract FINP2POrchestrator is ProofSignerRegistry {
 
     FinP2PEscrow private immutable escrow;
     FinP2PPlanVerifier private immutable verifier;
+    AssetRegistry private immutable assetRegistry;
 
     mapping(string => address) private assetTokens;
+    mapping(string => bytes32) private assetStandards;
     mapping(string => address) private credentials;
 
     mapping(bytes32 => OrchestrationPlan) private plans;
@@ -75,18 +83,16 @@ contract FINP2POrchestrator is ProofSignerRegistry {
     // so replay across plans is blocked explicitly; keyed by keccak(digest, signer)
     mapping(bytes32 => bool) private usedInvestorIntents;
 
-    constructor(address admin, address escrowAddress, address verifierAddress) {
+    constructor(address admin, address escrowAddress, address verifierAddress, address assetRegistryAddress) {
         require(escrowAddress != address(0), "Escrow cannot be zero");
         require(verifierAddress != address(0), "Verifier cannot be zero");
+        require(assetRegistryAddress != address(0), "Registry cannot be zero");
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
         _grantRole(ASSET_MANAGER, admin);
         _grantRole(TRANSACTION_MANAGER, admin);
         escrow = FinP2PEscrow(escrowAddress);
         verifier = FinP2PPlanVerifier(verifierAddress);
-    }
-
-    function getVersion() external pure returns (string memory) {
-        return VERSION;
+        assetRegistry = AssetRegistry(assetRegistryAddress);
     }
 
     function getEscrowAddress() external view returns (address) {
@@ -97,15 +103,12 @@ contract FINP2POrchestrator is ProofSignerRegistry {
         return address(verifier);
     }
 
-    // ---- Role management ----
-
-    function grantAssetManagerRole(address account) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        grantRole(ASSET_MANAGER, account);
+    function getAssetRegistry() external view returns (address) {
+        return address(assetRegistry);
     }
 
-    function grantTransactionManagerRole(address account) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        grantRole(TRANSACTION_MANAGER, account);
-    }
+    // role management: AccessControl.grantRole with ASSET_MANAGER /
+    // TRANSACTION_MANAGER hashes (no bespoke wrappers, unlike v1)
 
     // ---- Credential management ----
 
@@ -126,15 +129,18 @@ contract FINP2POrchestrator is ProofSignerRegistry {
 
     // ---- Asset management ----
 
-    function associateAsset(string calldata assetId, address tokenAddress) external onlyRole(ASSET_MANAGER) {
+    function associateAsset(string calldata assetId, address tokenAddress, bytes32 assetStandard) external onlyRole(ASSET_MANAGER) {
         require(assetTokens[assetId] == address(0), "Asset already exists");
         require(tokenAddress != address(0), "Token address cannot be zero");
+        assetRegistry.getAssetStandard(assetStandard); // reverts for unknown standards
         assetTokens[assetId] = tokenAddress;
+        assetStandards[assetId] = assetStandard;
     }
 
     function removeAsset(string calldata assetId) external onlyRole(ASSET_MANAGER) {
         require(assetTokens[assetId] != address(0), "Asset not found");
         delete assetTokens[assetId];
+        delete assetStandards[assetId];
     }
 
     function getAssetAddress(string calldata assetId) external view returns (address) {
@@ -418,23 +424,28 @@ contract FINP2POrchestrator is ProofSignerRegistry {
         return quantity.stringToUint(tokenDecimals);
     }
 
+    function _assetStandard(string memory assetId) private view returns (AssetStandard standard, address tokenAddress) {
+        tokenAddress = _assetToken(assetId);
+        standard = AssetStandard(assetRegistry.getAssetStandard(assetStandards[assetId]));
+    }
+
+    function _emptyOp(string memory operationId) private pure returns (OperationParams memory) {
+        return OperationParams(LegType.ASSET, Phase.INITIATE, PrimaryType.PRIMARY_SALE, operationId, ReleaseType.RELEASE);
+    }
+
     function _mint(address to, string memory assetId, string memory quantity) private {
-        address tokenAddress = _assetToken(assetId);
-        Mintable(tokenAddress).mint(to, _toTokenAmount(tokenAddress, quantity));
+        (AssetStandard standard, address tokenAddress) = _assetStandard(assetId);
+        standard.mint(tokenAddress, to, quantity, _emptyOp(""));
     }
 
     function _transfer(address from, address to, string memory assetId, string memory quantity) private {
-        address tokenAddress = _assetToken(assetId);
-        uint256 tokenAmount = _toTokenAmount(tokenAddress, quantity);
-        require(IERC20(tokenAddress).balanceOf(from) >= tokenAmount, "Insufficient balance");
-        IERC20(tokenAddress).transferFrom(from, to, tokenAmount);
+        (AssetStandard standard, address tokenAddress) = _assetStandard(assetId);
+        standard.transferFrom(tokenAddress, from, to, quantity, _emptyOp(""));
     }
 
     function _burn(address from, string memory assetId, string memory quantity) private {
-        address tokenAddress = _assetToken(assetId);
-        uint256 tokenAmount = _toTokenAmount(tokenAddress, quantity);
-        require(IERC20(tokenAddress).balanceOf(from) >= tokenAmount, "Insufficient balance");
-        Burnable(tokenAddress).burnFrom(from, tokenAmount);
+        (AssetStandard standard, address tokenAddress) = _assetStandard(assetId);
+        standard.burn(tokenAddress, from, quantity, _emptyOp(""));
     }
 
     function _planKey(string calldata planId) private pure returns (bytes32) {

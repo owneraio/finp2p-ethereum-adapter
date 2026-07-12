@@ -5,6 +5,7 @@ import {
 } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import {
   ERC20Contract,
+  ERC20_STANDARD_ID,
   EthereumTransactionError,
   FinP2POrchestratorContract,
   PlanInstruction,
@@ -86,7 +87,10 @@ export class PlanTokenService implements TokenService {
     orchestrator: FinP2POrchestratorContract,
     proofSync: ProofSyncService,
     execDetailsStore: ExecDetailsStore | undefined,
-    private readonly fallback: TokenServiceImpl
+    private readonly fallback: TokenServiceImpl,
+    // bytes32 asset-standard id used when mirroring associations (defaults to
+    // the package-level ERC20 standard id)
+    private readonly defaultAssetStandard?: string
   ) {
     this.executor = new PlanExecutor(orchestrator, proofSync, execDetailsStore);
   }
@@ -115,22 +119,25 @@ export class PlanTokenService implements TokenService {
 
   private async registerAssetWithPlanOperator(assetId: string, tokenAddress: string): Promise<void> {
     const orchestrator = this.executor.orchestrator;
+    const standardId = this.defaultAssetStandard ?? ERC20_STANDARD_ID;
     try {
-      await orchestrator.associateAsset(assetId, tokenAddress);
+      await orchestrator.associateAsset(assetId, tokenAddress, standardId);
     } catch (e) {
       if (!`${e}`.includes("Asset already exists")) throw e; // idempotent retry
     }
-    // ERC20WithOperator roles: the plan operator transfers/mints/burns, the
-    // escrow pulls deposits. Grants only work when the adapter's account is
-    // the token admin (the deploy path); bound external tokens may refuse.
+    // ERC20WithOperator roles: the registered AssetStandard executes the
+    // orchestrator's mint/burn/transfer, the escrow pulls deposits. Grants
+    // only work when the adapter's account is the token admin (the deploy
+    // path); bound external tokens may refuse.
     const escrowAddress = await orchestrator.getEscrowAddress();
+    const standardAddress = await orchestrator.getRegisteredAssetStandard(standardId);
     const erc20 = new ERC20Contract(orchestrator.provider, orchestrator.signer, tokenAddress, logger as any);
     try {
-      await (await erc20.grantOperatorTo(orchestrator.orchestratorAddress)).wait();
-      await (await erc20.grantMinterTo(orchestrator.orchestratorAddress)).wait();
+      await (await erc20.grantOperatorTo(standardAddress)).wait();
+      await (await erc20.grantMinterTo(standardAddress)).wait();
       await (await erc20.grantOperatorTo(escrowAddress)).wait();
     } catch (e) {
-      logger.warning(`Could not grant token roles on ${tokenAddress} to the plan operator/escrow (bound token?): ${e}`);
+      logger.warning(`Could not grant token roles on ${tokenAddress} to the asset standard/escrow (bound token?): ${e}`);
     }
   }
 

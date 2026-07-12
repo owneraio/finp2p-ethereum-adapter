@@ -4,6 +4,7 @@ import { Contract, Wallet, ZeroAddress } from "ethers";
 import winston, { format, transports } from "winston";
 import {
   ContractsManager,
+  ERC20_STANDARD_ID,
   ExecutionPlanStatus,
   FinP2POrchestratorContract,
   MINTER_ROLE,
@@ -101,9 +102,10 @@ describe("v2 plan-based services (integration)", () => {
     const deployToken = async (): Promise<Contract> => {
       const tokenAddress = await manager.deployERC20("Test", "TST", 2, operatorAddress);
       const token = new Contract(tokenAddress, ERC20_ADMIN_ABI, signer);
-      await (await token.grantOperatorTo(deployed.orchestratorAddress)).wait();
+      // token ops dispatch through the registered ERC20Standard
+      await (await token.grantOperatorTo(deployed.erc20StandardAddress)).wait();
       await (await token.grantOperatorTo(escrowAddress)).wait();
-      await (await token.grantMinterTo(deployed.orchestratorAddress)).wait();
+      await (await token.grantMinterTo(deployed.erc20StandardAddress)).wait();
       return token;
     };
     assetToken = await deployToken();
@@ -285,9 +287,10 @@ describe("v2 plan-based services (integration)", () => {
     expect(result.type).toBe("success");
 
     expect(await orchestrator.getAssetAddress(newAssetId)).toBe(newTokenAddress);
+    const standardAddress = await orchestrator.getRegisteredAssetStandard(ERC20_STANDARD_ID);
     const token = new Contract(newTokenAddress, ["function hasRole(bytes32,address) view returns (bool)"], provider);
-    expect(await token.hasRole(OPERATOR_ROLE, orchestrator.orchestratorAddress)).toBe(true);
-    expect(await token.hasRole(MINTER_ROLE, orchestrator.orchestratorAddress)).toBe(true);
+    expect(await token.hasRole(OPERATOR_ROLE, standardAddress)).toBe(true);
+    expect(await token.hasRole(MINTER_ROLE, standardAddress)).toBe(true);
     expect(await token.hasRole(OPERATOR_ROLE, escrowAddress)).toBe(true);
 
     // idempotent retry: association already exists, still succeeds

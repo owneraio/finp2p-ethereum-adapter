@@ -175,7 +175,7 @@ function registerFinP2PContractServices(
   let planApprovalService: PlanApprovalServiceImpl | PlanBasedApprovalService = innerPlanApprovalService;
   if (contractConfig.orchestrator) {
     const proofSync = new ProofSyncService(contractConfig.orchestrator, contractConfig.finP2PClient);
-    tokenService = new PlanTokenService(contractConfig.orchestrator, proofSync, contractConfig.execDetailsStore, v1TokenService);
+    tokenService = new PlanTokenService(contractConfig.orchestrator, proofSync, contractConfig.execDetailsStore, v1TokenService, contractConfig.defaultAssetStandard);
     escrowService = new PlanEscrowService(contractConfig.orchestrator, proofSync, contractConfig.execDetailsStore, v1EscrowService);
     planApprovalService = new PlanBasedApprovalService(contractConfig.orgId, contractConfig.orchestrator, contractConfig.finP2PClient, innerPlanApprovalService);
   }

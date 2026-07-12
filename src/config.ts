@@ -229,7 +229,10 @@ export async function envVarsToAppConfig(logger: Logger): Promise<AppConfig> {
         );
         const planVersion = await orchestrator.getVersion();
         const escrowAddress = await orchestrator.getEscrowAddress();
-        logger.info(`FinP2P plan contract version: ${planVersion} at ${orchestratorAddress}, escrow at ${escrowAddress}`);
+        logger.info(`FinP2P orchestrator version: ${planVersion} at ${orchestratorAddress}, escrow at ${escrowAddress}`);
+        // the orchestrator dispatches token ops through its AssetRegistry —
+        // fail fast when the default standard isn't registered there
+        await verifyAssetStandardRegistered(provider, orchestratorAddress, defaultAssetStandardRaw, logger);
       }
 
       return {
