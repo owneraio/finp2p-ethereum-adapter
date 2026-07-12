@@ -233,8 +233,9 @@ export class DirectTokenService implements TokenService, EscrowService {
 
       if (operationId && this.contractEscrow) {
         const expectedAmount = parseUnits(quantity, asset.decimals);
+        const holdSourceAddress = await this.resolveAddress(sourceFinId);
         const result = await this.contractEscrow.releaseAndBurn(operationId, {
-          token: asset.contractAddress, amount: expectedAmount
+          token: asset.contractAddress, amount: expectedAmount, source: holdSourceAddress
         });
         return resultToReceipt(result, ast, "redeem", quantity, { finId: sourceFinId }, undefined, exCtx, operationId);
       }
@@ -306,8 +307,9 @@ export class DirectTokenService implements TokenService, EscrowService {
       const amount = parseUnits(quantity, asset.decimals);
 
       if (this.contractEscrow) {
+        const holdSourceAddress = await this.resolveAddress(source.finId);
         const result = await this.contractEscrow.release(operationId, destinationAddress, {
-          token: asset.contractAddress, amount
+          token: asset.contractAddress, amount, source: holdSourceAddress
         });
         return resultToReceipt(result, ast, "release", quantity, source, destination, exCtx, operationId);
       }

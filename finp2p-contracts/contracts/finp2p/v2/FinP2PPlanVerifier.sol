@@ -72,6 +72,52 @@ contract FinP2PPlanVerifier is FinP2PReceiptVerifier {
         }
     }
 
+    /// @notice Validate the escrow linkage of a whole plan at creation time:
+    ///         every on-ledger RELEASE / RELEASE_AND_REDEEM / REVERT_HOLD must
+    ///         reference a PRECEDING on-ledger HOLD of the same plan with the
+    ///         same operationId and consistent asset/amount/source (and, for
+    ///         RELEASE, destination). Combined with the escrow's rejection of
+    ///         duplicate operationIds this proves hold ownership: a plan can
+    ///         only terminate holds its own HOLD instruction created — it
+    ///         cannot be crafted to release or burn another plan's hold.
+    function validatePlanStructure(Instruction[] calldata instructions) external pure {
+        for (uint256 i = 0; i < instructions.length; i++) {
+            Instruction calldata instr = instructions[i];
+            if (instr.venue != ExecutionVenue.ON_LEDGER) continue;
+            InstructionType t = instr.instructionType;
+            if (
+                t != InstructionType.RELEASE &&
+                t != InstructionType.RELEASE_AND_REDEEM &&
+                t != InstructionType.REVERT_HOLD
+            ) continue;
+
+            bool found = false;
+            for (uint256 j = 0; j < i; j++) {
+                Instruction calldata hold = instructions[j];
+                if (
+                    hold.instructionType != InstructionType.HOLD ||
+                    hold.venue != ExecutionVenue.ON_LEDGER ||
+                    !hold.operationId.equals(instr.operationId)
+                ) continue;
+                require(
+                    hold.assetId.equals(instr.assetId) &&
+                    hold.amount.equals(instr.amount) &&
+                    hold.source.equals(instr.source),
+                    "Escrow instruction differs from its hold"
+                );
+                if (t == InstructionType.RELEASE) {
+                    require(
+                        bytes(hold.destination).length == 0 || hold.destination.equals(instr.destination),
+                        "Escrow instruction differs from its hold"
+                    );
+                }
+                found = true;
+                break;
+            }
+            require(found, "Escrow instruction has no matching hold in the plan");
+        }
+    }
+
     /// @notice Check a receipt proof's binding to a plan instruction and recover
     ///         its signer. Reverts on any mismatch; registry membership of the
     ///         returned signer is checked by the operator.

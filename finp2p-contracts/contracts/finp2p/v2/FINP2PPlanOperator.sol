@@ -46,11 +46,6 @@ contract FINP2PPlanOperator is ProofSignerRegistry {
     bytes32 private constant TRANSACTION_MANAGER = keccak256("TRANSACTION_MANAGER");
     uint8 private constant MAX_INSTRUCTIONS = 50;
 
-    struct Asset {
-        string id;
-        address tokenAddress;
-    }
-
     event PlanCreated(string planId, uint8 instructionCount);
     event InstructionExecuted(string planId, uint8 sequence, InstructionType instructionType);
     event OffLedgerInstructionCompleted(string planId, uint8 sequence, address proofSigner, string transactionId);
@@ -69,7 +64,7 @@ contract FINP2PPlanOperator is ProofSignerRegistry {
     FinP2PEscrow private immutable escrow;
     FinP2PPlanVerifier private immutable verifier;
 
-    mapping(string => Asset) private assets;
+    mapping(string => address) private assetTokens;
     mapping(string => address) private credentials;
 
     mapping(bytes32 => OrchestrationPlan) private plans;
@@ -132,19 +127,18 @@ contract FINP2PPlanOperator is ProofSignerRegistry {
     // ---- Asset management ----
 
     function associateAsset(string calldata assetId, address tokenAddress) external onlyRole(ASSET_MANAGER) {
-        require(!_haveAsset(assetId), "Asset already exists");
+        require(assetTokens[assetId] == address(0), "Asset already exists");
         require(tokenAddress != address(0), "Token address cannot be zero");
-        assets[assetId] = Asset(assetId, tokenAddress);
+        assetTokens[assetId] = tokenAddress;
     }
 
     function removeAsset(string calldata assetId) external onlyRole(ASSET_MANAGER) {
-        require(_haveAsset(assetId), "Asset not found");
-        delete assets[assetId];
+        require(assetTokens[assetId] != address(0), "Asset not found");
+        delete assetTokens[assetId];
     }
 
     function getAssetAddress(string calldata assetId) external view returns (address) {
-        require(_haveAsset(assetId), "Asset not found");
-        return assets[assetId].tokenAddress;
+        return _assetToken(assetId);
     }
 
     // ---- Plan lifecycle ----
@@ -173,6 +167,8 @@ contract FINP2PPlanOperator is ProofSignerRegistry {
             planInstructions[planKey][instruction.sequence] = instruction;
             planInstructions[planKey][instruction.sequence].state = ExecutionState.PENDING;
         }
+        // terminal escrow instructions must be linked to this plan's own holds
+        verifier.validatePlanStructure(instructions);
 
         plans[planKey] = OrchestrationPlan(PlanStatus.PENDING, uint8(instructions.length), 1);
         emit PlanCreated(planId, uint8(instructions.length));
@@ -336,31 +332,31 @@ contract FINP2PPlanOperator is ProofSignerRegistry {
             _transfer(_resolveAddress(instruction.source), _resolveAddress(instruction.destination), instruction.assetId, instruction.amount);
             emit Transfer(instruction.assetId, instruction.assetType, instruction.source, instruction.destination, instruction.amount);
         } else if (instructionType == InstructionType.HOLD) {
-            Asset memory asset = _getAsset(instruction.assetId);
+            address tokenAddress = _assetToken(instruction.assetId);
             address destination = bytes(instruction.destination).length > 0
                 ? _resolveAddress(instruction.destination)
                 : address(0);
             escrow.deposit(
                 instruction.operationId,
-                asset.tokenAddress,
+                tokenAddress,
                 _resolveAddress(instruction.source),
                 destination,
-                _toTokenAmount(asset.tokenAddress, instruction.amount)
+                _toTokenAmount(tokenAddress, instruction.amount)
             );
             emit Hold(instruction.assetId, instruction.assetType, instruction.source, instruction.amount, instruction.operationId);
         } else if (instructionType == InstructionType.RELEASE) {
-            _requireHoldAmountMatches(instruction);
+            _requireHoldMatches(instruction);
             escrow.release(instruction.operationId, _resolveAddress(instruction.destination));
             emit Release(instruction.assetId, instruction.assetType, instruction.source, instruction.destination, instruction.amount, instruction.operationId);
         } else if (instructionType == InstructionType.RELEASE_AND_REDEEM) {
-            _requireHoldAmountMatches(instruction);
+            _requireHoldMatches(instruction);
             escrow.releaseAndBurn(instruction.operationId);
             emit Redeem(instruction.assetId, instruction.assetType, instruction.source, instruction.amount, instruction.operationId);
         } else if (instructionType == InstructionType.REDEEM) {
             _burn(_resolveAddress(instruction.source), instruction.assetId, instruction.amount);
             emit Redeem(instruction.assetId, instruction.assetType, instruction.source, instruction.amount, "");
         } else if (instructionType == InstructionType.REVERT_HOLD) {
-            _requireHoldAmountMatches(instruction);
+            _requireHoldMatches(instruction);
             escrow.rollback(instruction.operationId);
             emit Release(instruction.assetId, instruction.assetType, instruction.source, "", instruction.amount, instruction.operationId);
         } else if (instructionType == InstructionType.AWAIT) {
@@ -370,26 +366,27 @@ contract FINP2PPlanOperator is ProofSignerRegistry {
         }
     }
 
-    /// @dev The escrow releases/burns/rolls back the STORED hold amount, while
-    ///      events report the instruction amount. Bind the two so a crafted
-    ///      plan cannot claim one amount while the escrow moves another.
-    function _requireHoldAmountMatches(Instruction storage instruction) private view {
+    /// @dev The escrow releases/burns/rolls back the STORED hold, while events
+    ///      report the instruction's fields. Bind token, amount and source so a
+    ///      terminal instruction can never move a hold its receipt does not
+    ///      describe (destination pinning is enforced by the escrow itself).
+    ///      Plan ownership of the hold is established at creation time by
+    ///      validatePlanStructure + the escrow's duplicate-operationId rejection.
+    function _requireHoldMatches(Instruction storage instruction) private view {
         FinP2PEscrow.Hold memory hold = escrow.getHold(instruction.operationId);
         require(
-            hold.amount == _toTokenAmount(hold.token, instruction.amount),
-            "Hold amount mismatch"
+            hold.token == _assetToken(instruction.assetId) &&
+            hold.amount == _toTokenAmount(hold.token, instruction.amount) &&
+            hold.source == _resolveAddress(instruction.source),
+            "Hold mismatch"
         );
     }
 
     // ---- Token internals ----
 
-    function _haveAsset(string memory assetId) private view returns (bool) {
-        return assets[assetId].tokenAddress != address(0);
-    }
-
-    function _getAsset(string memory assetId) private view returns (Asset memory) {
-        require(_haveAsset(assetId), "Asset not found");
-        return assets[assetId];
+    function _assetToken(string memory assetId) private view returns (address tokenAddress) {
+        tokenAddress = assetTokens[assetId];
+        require(tokenAddress != address(0), "Asset not found");
     }
 
     function _resolveAddress(string memory finId) private view returns (address) {
@@ -404,22 +401,22 @@ contract FINP2PPlanOperator is ProofSignerRegistry {
     }
 
     function _mint(address to, string memory assetId, string memory quantity) private {
-        Asset memory asset = _getAsset(assetId);
-        Mintable(asset.tokenAddress).mint(to, _toTokenAmount(asset.tokenAddress, quantity));
+        address tokenAddress = _assetToken(assetId);
+        Mintable(tokenAddress).mint(to, _toTokenAmount(tokenAddress, quantity));
     }
 
     function _transfer(address from, address to, string memory assetId, string memory quantity) private {
-        Asset memory asset = _getAsset(assetId);
-        uint256 tokenAmount = _toTokenAmount(asset.tokenAddress, quantity);
-        require(IERC20(asset.tokenAddress).balanceOf(from) >= tokenAmount, "Not sufficient balance to transfer");
-        IERC20(asset.tokenAddress).transferFrom(from, to, tokenAmount);
+        address tokenAddress = _assetToken(assetId);
+        uint256 tokenAmount = _toTokenAmount(tokenAddress, quantity);
+        require(IERC20(tokenAddress).balanceOf(from) >= tokenAmount, "Insufficient balance");
+        IERC20(tokenAddress).transferFrom(from, to, tokenAmount);
     }
 
     function _burn(address from, string memory assetId, string memory quantity) private {
-        Asset memory asset = _getAsset(assetId);
-        uint256 tokenAmount = _toTokenAmount(asset.tokenAddress, quantity);
-        require(IERC20(asset.tokenAddress).balanceOf(from) >= tokenAmount, "Not sufficient balance to burn");
-        Burnable(asset.tokenAddress).burnFrom(from, tokenAmount);
+        address tokenAddress = _assetToken(assetId);
+        uint256 tokenAmount = _toTokenAmount(tokenAddress, quantity);
+        require(IERC20(tokenAddress).balanceOf(from) >= tokenAmount, "Insufficient balance");
+        Burnable(tokenAddress).burnFrom(from, tokenAmount);
     }
 
     function _planKey(string calldata planId) private pure returns (bytes32) {

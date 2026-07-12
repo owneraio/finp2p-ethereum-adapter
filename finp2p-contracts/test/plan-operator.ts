@@ -359,25 +359,79 @@ describe("FINP2PPlanOperator", function() {
       await expect(operator.connect(stranger).recordPlanApproval(planId, "bank-uk", 1)).to.be.reverted;
     });
 
-    it("rejects execution of a release whose amount differs from the escrowed hold", async () => {
+    it("rejects a crafted release whose fields differ from its in-plan hold", async () => {
       const fixture = await loadFixture(deployPlanOperatorFixture);
       const { operator } = fixture;
+      const { buyer, seller, assetTerm, settlementTerm, buyerIntent } = await setupDvP(fixture);
+
+      const craftedPlan = (releaseTerm: Term, overrides: { source?: string, destination?: string } = {}) => {
+        const operationId = uuid();
+        return [
+          instruction(1, InstructionType.Hold, ExecutionVenue.OnLedger, settlementTerm,
+            { source: buyer.finId, destination: seller.finId, operationId, signatureIndex: 0 }),
+          instruction(2, InstructionType.Release, ExecutionVenue.OnLedger, releaseTerm,
+            { source: overrides.source ?? buyer.finId, destination: overrides.destination ?? seller.finId, operationId })
+        ];
+      };
+
+      // partial amount
+      const partialRelease = term(settlementTerm.assetId, settlementTerm.assetType, "1");
+      await expect(operator.createPlan(generatePlanId(), craftedPlan(partialRelease), [buyerIntent]))
+        .to.be.revertedWith("Escrow instruction differs from its hold");
+      // different asset
+      await expect(operator.createPlan(generatePlanId(), craftedPlan(term(assetTerm.assetId, assetTerm.assetType, settlementTerm.amount)), [buyerIntent]))
+        .to.be.revertedWith("Escrow instruction differs from its hold");
+      // different source
+      await expect(operator.createPlan(generatePlanId(), craftedPlan(settlementTerm, { source: seller.finId }), [buyerIntent]))
+        .to.be.revertedWith("Escrow instruction differs from its hold");
+      // different destination than the pinned one
+      await expect(operator.createPlan(generatePlanId(), craftedPlan(settlementTerm, { destination: buyer.finId }), [buyerIntent]))
+        .to.be.revertedWith("Escrow instruction differs from its hold");
+    });
+
+    it("rejects a release referencing a hold that is not part of the plan", async () => {
+      const fixture = await loadFixture(deployPlanOperatorFixture);
+      const { operator } = fixture;
+      const { buyer, seller, settlementTerm, buyerIntent, sellerIntent } = await setupDvP(fixture);
+
+      // plan A creates a real hold
+      const planA = generatePlanId();
+      const operationId = uuid();
+      await operator.createPlan(planA, [
+        instruction(1, InstructionType.Hold, ExecutionVenue.OnLedger, settlementTerm,
+          { source: buyer.finId, destination: seller.finId, operationId, signatureIndex: 0 })
+      ], [buyerIntent]);
+      await operator.executeInstruction(planA, 1);
+
+      // plan B tries to release plan A's hold — no matching in-plan HOLD
+      await expect(operator.createPlan(generatePlanId(), [
+        instruction(1, InstructionType.Release, ExecutionVenue.OnLedger, settlementTerm,
+          { source: buyer.finId, destination: seller.finId, operationId })
+      ], [sellerIntent])).to.be.revertedWith("Escrow instruction has no matching hold in the plan");
+    });
+
+    it("rejects execution against a hold whose token no longer matches the asset", async () => {
+      const fixture = await loadFixture(deployPlanOperatorFixture);
+      const { admin, operator, operatorAddress, escrowAddress } = fixture;
       const { buyer, seller, settlementTerm, buyerIntent } = await setupDvP(fixture);
 
-      // a crafted plan (bypassing the adapter translator) claiming a partial release
       const planId = generatePlanId();
       const operationId = uuid();
-      const partialRelease = term(settlementTerm.assetId, settlementTerm.assetType, "1");
       await operator.createPlan(planId, [
         instruction(1, InstructionType.Hold, ExecutionVenue.OnLedger, settlementTerm,
           { source: buyer.finId, destination: seller.finId, operationId, signatureIndex: 0 }),
-        instruction(2, InstructionType.Release, ExecutionVenue.OnLedger, partialRelease,
+        instruction(2, InstructionType.Release, ExecutionVenue.OnLedger, settlementTerm,
           { source: buyer.finId, destination: seller.finId, operationId })
       ], [buyerIntent]);
-
       await operator.executeInstruction(planId, 1);
+
+      // the asset is re-associated to a different token between hold and release
+      const { tokenAddress: otherToken } = await deployToken(admin, operatorAddress, escrowAddress, 2);
+      await operator.removeAsset(settlementTerm.assetId);
+      await operator.associateAsset(settlementTerm.assetId, otherToken);
+
       await expect(operator.executeInstruction(planId, 2))
-        .to.be.revertedWith("Hold amount mismatch");
+        .to.be.revertedWith("Hold mismatch");
     });
 
     it("rejects non-contiguous instruction sequences", async () => {
