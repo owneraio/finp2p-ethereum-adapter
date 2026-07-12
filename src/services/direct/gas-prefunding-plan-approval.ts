@@ -11,6 +11,9 @@ type RawAccount = { finp2pAccount?: { account?: { finId?: string } } };
 type RawOperation = { type?: string; source?: RawAccount };
 type RawInstruction = { sequence?: number; organizations?: string[]; executionPlanOperation?: RawOperation };
 
+const sourceFinIdOf = (operation: RawOperation): string | undefined =>
+  operation.source?.finp2pAccount?.account?.finId;
+
 /**
  * PlanApprovalService decorator that moves gas funding out of the instruction
  * execution hot path: when a plan is approved, every wallet that will sign one
@@ -80,13 +83,13 @@ export class GasPrefundingPlanApprovalService implements PlanApprovalService {
             break;
           case "transfer":
           case "hold":
-            await this.addSourceWallet(addresses, operation, planId, instruction.sequence);
+            await this.addInvestorWallet(addresses, sourceFinIdOf(operation), planId, instruction.sequence);
             break;
           case "redeem":
             // redeem of escrowed funds burns from the escrow wallet; a
             // standalone redeem self-burns from the investor — fund both
             addresses.add(await this.custodyProvider.escrow.signer.getAddress());
-            await this.addSourceWallet(addresses, operation, planId, instruction.sequence);
+            await this.addInvestorWallet(addresses, sourceFinIdOf(operation), planId, instruction.sequence);
             break;
           case "release":
           case "revertHoldInstruction":
@@ -108,8 +111,7 @@ export class GasPrefundingPlanApprovalService implements PlanApprovalService {
     }
   }
 
-  private async addSourceWallet(addresses: Set<string>, operation: RawOperation, planId: string, sequence?: number): Promise<void> {
-    const finId = operation.source?.finp2pAccount?.account?.finId;
+  private async addInvestorWallet(addresses: Set<string>, finId: string | undefined, planId: string, sequence?: number): Promise<void> {
     if (!finId) return;
     const address = await this.accountMapping.resolveAccount(finId);
     if (address) {
