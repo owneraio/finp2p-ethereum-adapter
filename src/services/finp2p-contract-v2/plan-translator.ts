@@ -333,8 +333,13 @@ export const translateExecutionPlan = (plan: RawExecutionPlan, orgId: string): T
         };
       }
       case "await": {
+        // an await is a pure sequencing no-op with no receipt to prove — it is
+        // always mirrored on-ledger regardless of which org the plan assigns
+        // it to, otherwise the cursor would wait for a proof that never comes
         return {
           ...base,
+          venue: ExecutionVenue.OnLedger,
+          organizationId: "",
           instructionType: PlanInstructionType.Await,
           assetId: "",
           assetType: 0,

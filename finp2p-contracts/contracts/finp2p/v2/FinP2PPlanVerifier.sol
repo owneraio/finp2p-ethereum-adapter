@@ -133,6 +133,7 @@ contract FinP2PPlanVerifier is FinP2PReceiptVerifier {
     ) external view returns (address) {
         require(receipt.executionPlanId.equals(planId), "Receipt proof is for a different plan");
         require(receipt.instructionSequenceNumber.equals(uint256(sequence).uintToString(0)), "Receipt proof is for a different instruction");
+        require(receipt.operationType.equals(_expectedOperationType(instruction.instructionType)), "Receipt operation differs from the planned one");
         require(receipt.assetId.equals(instruction.assetId), "Receipt asset differs from the planned one");
         require(keccak256(bytes(receipt.assetType)) == hashAssetType(instruction.assetType), "Receipt asset type differs from the planned one");
         require(receipt.quantity.equals(instruction.amount), "Receipt quantity differs from the planned one");
@@ -143,6 +144,18 @@ contract FinP2PPlanVerifier is FinP2PReceiptVerifier {
             require(receipt.destinationFinId.equals(instruction.destination), "Receipt destination differs from the planned one");
         }
         return recoverReceiptProofSigner(receipt, signature);
+    }
+
+    /// @dev FinP2P receipt operationType a completed instruction must carry —
+    ///      a proof signed for one operation (e.g. a hold) must not complete a
+    ///      planned instruction of another kind (e.g. a transfer).
+    function _expectedOperationType(InstructionType instructionType) private pure returns (string memory) {
+        if (instructionType == InstructionType.ISSUE) return "issue";
+        if (instructionType == InstructionType.TRANSFER) return "transfer";
+        if (instructionType == InstructionType.HOLD) return "hold";
+        if (instructionType == InstructionType.RELEASE || instructionType == InstructionType.REVERT_HOLD) return "release";
+        if (instructionType == InstructionType.REDEEM || instructionType == InstructionType.RELEASE_AND_REDEEM) return "redeem";
+        revert("No receipt operation for instruction type");
     }
 
     /// @dev The signed intent must cover the instruction's movement: matching

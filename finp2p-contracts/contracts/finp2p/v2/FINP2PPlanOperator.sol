@@ -316,6 +316,8 @@ contract FINP2PPlanOperator is ProofSignerRegistry {
 
     function _validateInstruction(Instruction calldata instruction, SignaturePayload[] calldata signatures) private view {
         if (instruction.venue == ExecutionVenue.OFF_LEDGER) {
+            // an await has no receipt to prove; off-ledger it would deadlock the cursor
+            require(instruction.instructionType != InstructionType.AWAIT, "Await must be on-ledger");
             require(bytes(instruction.organizationId).length > 0, "Missing executing organization");
             require(hasProofSigners(instruction.organizationId), "No proof signers registered");
             return;

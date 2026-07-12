@@ -126,11 +126,11 @@ describe("FINP2PPlanOperator", function() {
     chainId: bigint, verifyingContract: string, signer: Wallet,
     fields: {
       planId: string, sequence: number, assetId: string, assetType: string,
-      sourceFinId: string, destinationFinId: string, quantity: string
+      sourceFinId: string, destinationFinId: string, quantity: string, operationType?: string
     }
   ) {
     const message = newReceiptMessage(
-      uuid(), "transfer",
+      uuid(), fields.operationType ?? "transfer",
       eip712Source("finId", fields.sourceFinId),
       eip712Destination("finId", fields.destinationFinId),
       eip712Asset(fields.assetId, fields.assetType),
@@ -491,6 +491,20 @@ describe("FINP2PPlanOperator", function() {
       ], [sellerIntent])).to.be.revertedWith("Plan already exists");
     });
 
+    it("rejects an off-ledger await", async () => {
+      const fixture = await loadFixture(deployPlanOperatorFixture);
+      const { operator } = fixture;
+      const { assetTerm } = await setupDvP(fixture);
+
+      const proofSigner = Wallet.createRandom();
+      await operator.addProofSigner("bank-uk", proofSigner.address);
+
+      // an off-ledger await has no receipt to prove and would deadlock the cursor
+      await expect(operator.createPlan(generatePlanId(), [
+        instruction(1, InstructionType.Await, ExecutionVenue.OffLedger, term("", 0, ""), { org: "bank-uk" })
+      ], [])).to.be.revertedWith("Await must be on-ledger");
+    });
+
     it("rejects a remote instruction without a registered proof signer", async () => {
       const fixture = await loadFixture(deployPlanOperatorFixture);
       const { operator } = fixture;
@@ -562,6 +576,15 @@ describe("FINP2PPlanOperator", function() {
       });
       await expect(operator.completeOffLedgerInstruction(planId, 2, wrongPlan.receipt, wrongPlan.signature))
         .to.be.revertedWith("Receipt proof is for a different plan");
+
+      // a validly signed receipt for a DIFFERENT operation must not complete the instruction
+      const wrongOperation = await signReceiptProof(chainId, verifyingContract, proofSigner, {
+        planId, sequence: 2, assetId: assetTerm.assetId, assetType: "finp2p",
+        sourceFinId: seller.finId, destinationFinId: buyer.finId, quantity: assetTerm.amount,
+        operationType: "hold"
+      });
+      await expect(operator.completeOffLedgerInstruction(planId, 2, wrongOperation.receipt, wrongOperation.signature))
+        .to.be.revertedWith("Receipt operation differs from the planned one");
 
       // a valid proof from the registered signer advances the cursor (permissionless call)
       const { stranger } = fixture;

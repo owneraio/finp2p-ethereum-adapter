@@ -343,6 +343,19 @@ describe("plan translator", () => {
     expect(() => translateExecutionPlan(raw, ORG)).toThrow(/matching hold/);
   });
 
+  test("forces await instructions on-ledger even when assigned to another org", () => {
+    const raw = plan([
+      {
+        sequence: 1, organizations: [OTHER_ORG],
+        executionPlanOperation: { type: "await", waitUntil: 0 }
+      }
+    ]);
+    const { instructions } = translateExecutionPlan(raw, ORG);
+    expect(instructions[0].instructionType).toBe(PlanInstructionType.Await);
+    expect(instructions[0].venue).toBe(ExecutionVenue.OnLedger);
+    expect(instructions[0].organizationId).toBe("");
+  });
+
   test("rejects non-contiguous sequences", () => {
     const raw = plan([
       {
