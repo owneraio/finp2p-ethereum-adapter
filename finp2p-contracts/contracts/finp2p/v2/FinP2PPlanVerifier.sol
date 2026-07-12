@@ -4,7 +4,9 @@ pragma solidity ^0.8.20;
 
 import {PrimaryType} from "@owneraio/finp2p-ethereum-token-standard/contracts/OperationParams.sol";
 import "../../utils/StringUtils.sol";
+import {FinIdUtils} from "../../utils/finp2p/FinIdUtils.sol";
 import {FinP2PReceiptVerifier} from "../../utils/finp2p/FinP2PReceiptVerifier.sol";
+import {Signature} from "../../utils/finp2p/Signature.sol";
 import "./PlanTypes.sol";
 
 /**
@@ -16,20 +18,26 @@ import "./PlanTypes.sol";
 contract FinP2PPlanVerifier is FinP2PReceiptVerifier {
     using StringUtils for string;
     using StringUtils for uint256;
+    using FinIdUtils for string;
 
     /// @notice Verify a bundled investor intent (see PlanTypes.SignaturePayload).
-    function verifySignaturePayload(SignaturePayload calldata payload) external view returns (bool) {
-        return verifyInvestmentSignature(
+    /// @return valid  whether the signature matches the signer's finId
+    /// @return digest the EIP-712 digest of the signed intent. Replay guards
+    ///         must key on this digest (plus signer), never on the signature
+    ///         bytes: the same signature is valid in several encodings
+    ///         (64-byte r||s and 65-byte r||s||v), so byte-keyed guards can
+    ///         be bypassed by re-encoding.
+    function verifySignaturePayload(SignaturePayload calldata payload) external view returns (bool valid, bytes32 digest) {
+        digest = hashInvestment(
             payload.eip712PrimaryType,
             payload.nonce,
             payload.buyerFinId,
             payload.sellerFinId,
             payload.asset,
             payload.settlement,
-            payload.loan,
-            payload.signerFinId,
-            payload.signature
+            payload.loan
         );
+        valid = Signature.verify(payload.signerFinId.toAddress(), digest, payload.signature);
     }
 
     /// @notice Validate a local (this-ledger) instruction at plan creation:

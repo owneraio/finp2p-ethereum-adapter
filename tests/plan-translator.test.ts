@@ -278,6 +278,31 @@ describe("plan translator", () => {
     expect(() => translateExecutionPlan(raw, ORG)).toThrow(/EIP712/);
   });
 
+  test("rejects a release whose amount differs from the matched hold", () => {
+    const raw = plan([
+      {
+        sequence: 1, organizations: [ORG],
+        executionPlanOperation: {
+          type: "hold",
+          source: account(BUYER_FIN_ID, SETTLEMENT_ID),
+          destination: account(SELLER_FIN_ID, SETTLEMENT_ID),
+          amount: "100",
+          signature: buyingSignature("aa".repeat(65))
+        }
+      },
+      {
+        sequence: 2, organizations: [ORG],
+        executionPlanOperation: {
+          type: "release",
+          source: account(BUYER_FIN_ID, SETTLEMENT_ID),
+          destination: account(SELLER_FIN_ID, SETTLEMENT_ID),
+          amount: "1"
+        }
+      }
+    ]);
+    expect(() => translateExecutionPlan(raw, ORG)).toThrow(/releases 1 but the matching hold is for 100/);
+  });
+
   test("rejects a release without a matching hold", () => {
     const raw = plan([
       {

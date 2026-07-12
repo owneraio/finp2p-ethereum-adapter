@@ -1,8 +1,15 @@
 import winston from "winston";
 import { ZeroAddress } from "ethers";
 import { TokenOperationResult } from "@owneraio/finp2p-ethereum-token-standard";
-import { ERC20Contract, EscrowContract } from "@owneraio/finp2p-contracts";
+import { ERC20Contract, EscrowContract, EscrowHoldStatus } from "@owneraio/finp2p-contracts";
 import { CustodyWallet } from "./custody-provider";
+
+/** What the caller believes the hold is; checked against on-chain state before terminal ops. */
+export type ExpectedHold = {
+  token: string;
+  amount: bigint;
+  source?: string;
+};
 
 /**
  * Direct-mode escrow backed by the standalone FinP2PEscrow contract instead of
@@ -45,8 +52,10 @@ export class ContractEscrow {
     }
   }
 
-  async release(operationId: string, toAddress: string): Promise<TokenOperationResult> {
+  async release(operationId: string, toAddress: string, expected: ExpectedHold): Promise<TokenOperationResult> {
     try {
+      const mismatch = await this.holdMismatch(operationId, expected);
+      if (mismatch) return { status: "failure", reason: mismatch };
       const receipt = await this.escrowContract.release(operationId, toAddress);
       return await this.toResult(receipt.hash, receipt.blockNumber);
     } catch (e) {
@@ -54,8 +63,10 @@ export class ContractEscrow {
     }
   }
 
-  async rollback(operationId: string): Promise<TokenOperationResult> {
+  async rollback(operationId: string, expected: ExpectedHold): Promise<TokenOperationResult> {
     try {
+      const mismatch = await this.holdMismatch(operationId, expected);
+      if (mismatch) return { status: "failure", reason: mismatch };
       const receipt = await this.escrowContract.rollback(operationId);
       return await this.toResult(receipt.hash, receipt.blockNumber);
     } catch (e) {
@@ -63,13 +74,43 @@ export class ContractEscrow {
     }
   }
 
-  async releaseAndBurn(operationId: string): Promise<TokenOperationResult> {
+  async releaseAndBurn(operationId: string, expected: ExpectedHold): Promise<TokenOperationResult> {
     try {
+      const mismatch = await this.holdMismatch(operationId, expected);
+      if (mismatch) return { status: "failure", reason: mismatch };
       const receipt = await this.escrowContract.releaseAndBurn(operationId);
       return await this.toResult(receipt.hash, receipt.blockNumber);
     } catch (e) {
       return { status: "failure", reason: `${e}` };
     }
+  }
+
+  /**
+   * The escrow contract moves the STORED hold (token + full amount), while the
+   * adapter's receipt reports the request's asset/quantity. Refuse to execute
+   * when the two disagree, so receipts can never claim a different movement
+   * than what happened on-chain.
+   */
+  private async holdMismatch(operationId: string, expected: ExpectedHold): Promise<string | undefined> {
+    let hold;
+    try {
+      hold = await this.escrowContract.getHold(operationId);
+    } catch (e) {
+      return `Hold ${operationId} not found: ${e}`;
+    }
+    if (hold.status !== EscrowHoldStatus.Held) {
+      return `Hold ${operationId} is not active (status ${hold.status})`;
+    }
+    if (hold.token.toLowerCase() !== expected.token.toLowerCase()) {
+      return `Hold ${operationId} is for token ${hold.token}, not ${expected.token}`;
+    }
+    if (hold.amount !== expected.amount) {
+      return `Hold ${operationId} is for ${hold.amount} token units, not ${expected.amount}`;
+    }
+    if (expected.source && hold.source.toLowerCase() !== expected.source.toLowerCase()) {
+      return `Hold ${operationId} source is ${hold.source}, not ${expected.source}`;
+    }
+    return undefined;
   }
 
   private async toResult(transactionId: string, blockNumber: number): Promise<TokenOperationResult> {

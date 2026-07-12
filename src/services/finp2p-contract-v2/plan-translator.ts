@@ -242,6 +242,12 @@ export const translateExecutionPlan = (plan: RawExecutionPlan, orgId: string): T
         if (!hold) {
           throw new ValidationError(`Release instruction ${sequence} of plan ${planId} has no matching hold`);
         }
+        // the escrow always releases the full held amount; a differing release
+        // amount would make receipts lie about what moved
+        if (op.amount !== undefined && op.amount !== hold.amount) {
+          throw new ValidationError(
+            `Release instruction ${sequence} of plan ${planId} releases ${op.amount} but the matching hold is for ${hold.amount}`);
+        }
         hold.consumed = true;
         return {
           ...base,
@@ -250,7 +256,7 @@ export const translateExecutionPlan = (plan: RawExecutionPlan, orgId: string): T
           assetType: hold.assetType,
           source: hold.source,
           destination,
-          amount: op.amount ?? hold.amount,
+          amount: hold.amount,
           operationId: hold.operationId
         };
       }
@@ -260,7 +266,12 @@ export const translateExecutionPlan = (plan: RawExecutionPlan, orgId: string): T
         if (local) {
           const hold = findHold(assetId, (h) => h.source === source);
           if (hold) {
-            // redeem of previously escrowed funds → burn from escrow
+            // redeem of previously escrowed funds → burn from escrow; the
+            // escrow always burns the full held amount
+            if (op.amount !== undefined && op.amount !== hold.amount) {
+              throw new ValidationError(
+                `Redeem instruction ${sequence} of plan ${planId} redeems ${op.amount} but the matching hold is for ${hold.amount}`);
+            }
             hold.consumed = true;
             return {
               ...base,
@@ -269,7 +280,7 @@ export const translateExecutionPlan = (plan: RawExecutionPlan, orgId: string): T
               assetType: hold.assetType,
               source,
               destination: "",
-              amount: op.amount ?? hold.amount,
+              amount: hold.amount,
               operationId: hold.operationId
             };
           }

@@ -70,8 +70,8 @@ contract FINP2PPlanOperator is ProofSignerRegistry {
     mapping(bytes32 => ExecutionPlan) private plans;
     mapping(bytes32 => mapping(uint8 => Instruction)) private planInstructions;
     // investor signatures are chain- and contract-agnostic (fixed FinP2P domain),
-    // so replay across plans is blocked explicitly
-    mapping(bytes32 => bool) private usedInvestorSignatures;
+    // so replay across plans is blocked explicitly; keyed by keccak(digest, signer)
+    mapping(bytes32 => bool) private usedInvestorIntents;
 
     constructor(address admin, address escrowAddress, address verifierAddress) {
         require(escrowAddress != address(0), "FINP2PPlanOperator: escrow cannot be zero");
@@ -283,10 +283,13 @@ contract FINP2PPlanOperator is ProofSignerRegistry {
     }
 
     function _verifyInvestorSignature(SignaturePayload calldata payload) private {
-        require(verifier.verifySignaturePayload(payload), "Investor signature is not verified");
-        bytes32 signatureKey = keccak256(payload.signature);
-        require(!usedInvestorSignatures[signatureKey], "Investor signature already used");
-        usedInvestorSignatures[signatureKey] = true;
+        (bool valid, bytes32 digest) = verifier.verifySignaturePayload(payload);
+        require(valid, "Investor signature is not verified");
+        // keyed by signed digest + signer, not signature bytes: the same
+        // signature has several valid encodings (64/65 bytes)
+        bytes32 intentKey = keccak256(abi.encode(digest, keccak256(bytes(payload.signerFinId))));
+        require(!usedInvestorIntents[intentKey], "Investor signature already used");
+        usedInvestorIntents[intentKey] = true;
     }
 
     function _validateInstruction(Instruction calldata instruction, SignaturePayload[] calldata signatures) private view {
@@ -320,15 +323,18 @@ contract FINP2PPlanOperator is ProofSignerRegistry {
             );
             emit Hold(instruction.assetId, instruction.assetType, instruction.source, instruction.amount, instruction.operationId);
         } else if (instructionType == InstructionType.RELEASE) {
+            _requireHoldAmountMatches(instruction);
             escrow.release(instruction.operationId, _resolveAddress(instruction.destination));
             emit Release(instruction.assetId, instruction.assetType, instruction.source, instruction.destination, instruction.amount, instruction.operationId);
         } else if (instructionType == InstructionType.RELEASE_AND_REDEEM) {
+            _requireHoldAmountMatches(instruction);
             escrow.releaseAndBurn(instruction.operationId);
             emit Redeem(instruction.assetId, instruction.assetType, instruction.source, instruction.amount, instruction.operationId);
         } else if (instructionType == InstructionType.REDEEM) {
             _burn(_resolveAddress(instruction.source), instruction.assetId, instruction.amount);
             emit Redeem(instruction.assetId, instruction.assetType, instruction.source, instruction.amount, "");
         } else if (instructionType == InstructionType.REVERT_HOLD) {
+            _requireHoldAmountMatches(instruction);
             escrow.rollback(instruction.operationId);
             emit Release(instruction.assetId, instruction.assetType, instruction.source, "", instruction.amount, instruction.operationId);
         } else if (instructionType == InstructionType.AWAIT) {
@@ -336,6 +342,17 @@ contract FINP2PPlanOperator is ProofSignerRegistry {
         } else {
             revert("Unsupported instruction type");
         }
+    }
+
+    /// @dev The escrow releases/burns/rolls back the STORED hold amount, while
+    ///      events report the instruction amount. Bind the two so a crafted
+    ///      plan cannot claim one amount while the escrow moves another.
+    function _requireHoldAmountMatches(Instruction storage instruction) private view {
+        FinP2PEscrow.Hold memory hold = escrow.getHold(instruction.operationId);
+        require(
+            hold.amount == _toTokenAmount(hold.token, instruction.amount),
+            "Escrow hold amount differs from the instruction amount"
+        );
     }
 
     // ---- Token internals ----

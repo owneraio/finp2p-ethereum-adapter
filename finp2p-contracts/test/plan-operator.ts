@@ -329,6 +329,33 @@ describe("FINP2PPlanOperator", function() {
       await operator.createPlan(generatePlanId(), instructions(uuid()), [buyerIntent]);
       await expect(operator.createPlan(generatePlanId(), instructions(uuid()), [buyerIntent]))
         .to.be.revertedWith("Investor signature already used");
+
+      // re-encoding the same signature (65-byte r||s||v -> 64-byte r||s) must
+      // not bypass the replay guard: it is keyed by signed digest, not bytes
+      const reEncoded = { ...buyerIntent, signature: buyerIntent.signature.slice(0, 2 + 64 * 2) };
+      await expect(operator.createPlan(generatePlanId(), instructions(uuid()), [reEncoded]))
+        .to.be.revertedWith("Investor signature already used");
+    });
+
+    it("rejects execution of a release whose amount differs from the escrowed hold", async () => {
+      const fixture = await loadFixture(deployPlanOperatorFixture);
+      const { operator } = fixture;
+      const { buyer, seller, settlementTerm, buyerIntent } = await setupDvP(fixture);
+
+      // a crafted plan (bypassing the adapter translator) claiming a partial release
+      const planId = generatePlanId();
+      const operationId = uuid();
+      const partialRelease = term(settlementTerm.assetId, settlementTerm.assetType, "1");
+      await operator.createPlan(planId, [
+        instruction(1, InstructionType.Hold, InstructionExecutor.ThisContract, settlementTerm,
+          { source: buyer.finId, destination: seller.finId, operationId, signatureIndex: 0 }),
+        instruction(2, InstructionType.Release, InstructionExecutor.ThisContract, partialRelease,
+          { source: buyer.finId, destination: seller.finId, operationId })
+      ], [buyerIntent]);
+
+      await operator.executeInstruction(planId, 1);
+      await expect(operator.executeInstruction(planId, 2))
+        .to.be.revertedWith("Escrow hold amount differs from the instruction amount");
     });
 
     it("rejects non-contiguous instruction sequences", async () => {

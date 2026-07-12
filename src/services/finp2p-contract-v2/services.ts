@@ -1,9 +1,10 @@
 import {
   Asset, AssetBind, AssetCreationStatus, AssetDenomination, AssetCreationResult, Balance,
   Destination, EscrowService, ExecutionContext, ReceiptOperation, Signature, Source, TokenService,
-  failedReceiptOperation, logger
+  failedAssetCreation, failedReceiptOperation, logger
 } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import {
+  ERC20Contract,
   EthereumTransactionError,
   FinP2PPlanContract,
   PlanInstruction,
@@ -93,7 +94,44 @@ export class PlanTokenService implements TokenService {
   async createAsset(idempotencyKey: string, assetId: string, assetBind: AssetBind | undefined,
                     assetMetadata: any | undefined, assetName: string | undefined, issuerId: string | undefined,
                     assetDenomination: AssetDenomination | undefined): Promise<AssetCreationStatus> {
-    return this.fallback.createAsset(idempotencyKey, assetId, assetBind, assetMetadata, assetName, issuerId, assetDenomination);
+    const result = await this.fallback.createAsset(idempotencyKey, assetId, assetBind, assetMetadata, assetName, issuerId, assetDenomination);
+    if (result.type !== "success") {
+      return result;
+    }
+    // the plan operator keeps its own asset registry and executes token
+    // operations itself — mirror the association and token roles, otherwise
+    // every plan instruction on this asset reverts with "Asset not found"
+    const tokenAddress = result.result?.ledgerIdentifier?.tokenId;
+    if (tokenAddress) {
+      try {
+        await this.registerAssetWithPlanOperator(assetId, tokenAddress);
+      } catch (e) {
+        logger.error(`Failed to register asset ${assetId} with the plan operator: ${e}`);
+        return failedAssetCreation(1, `Failed to register asset with the plan operator: ${e instanceof Error ? e.message : e}`);
+      }
+    }
+    return result;
+  }
+
+  private async registerAssetWithPlanOperator(assetId: string, tokenAddress: string): Promise<void> {
+    const planContract = this.executor.planContract;
+    try {
+      await planContract.associateAsset(assetId, tokenAddress);
+    } catch (e) {
+      if (!`${e}`.includes("Asset already exists")) throw e; // idempotent retry
+    }
+    // ERC20WithOperator roles: the plan operator transfers/mints/burns, the
+    // escrow pulls deposits. Grants only work when the adapter's account is
+    // the token admin (the deploy path); bound external tokens may refuse.
+    const escrowAddress = await planContract.getEscrowAddress();
+    const erc20 = new ERC20Contract(planContract.provider, planContract.signer, tokenAddress, logger as any);
+    try {
+      await (await erc20.grantOperatorTo(planContract.planContractAddress)).wait();
+      await (await erc20.grantMinterTo(planContract.planContractAddress)).wait();
+      await (await erc20.grantOperatorTo(escrowAddress)).wait();
+    } catch (e) {
+      logger.warning(`Could not grant token roles on ${tokenAddress} to the plan operator/escrow (bound token?): ${e}`);
+    }
   }
 
   async issue(idempotencyKey: string, asset: Asset, destinationFinId: string, quantity: string,
@@ -163,7 +201,9 @@ export class PlanEscrowService implements EscrowService {
     return this.executor.execute(exCtx, asset, [PlanInstructionType.Hold], (instruction) =>
       instruction.source !== source.finId
         ? `source ${instruction.source} differs from requested ${source.finId}`
-        : quantityMismatch(instruction, quantity));
+        : instruction.destination !== "" && instruction.destination !== destination?.finId
+          ? `destination ${instruction.destination} differs from requested ${destination?.finId}`
+          : quantityMismatch(instruction, quantity));
   }
 
   async release(idempotencyKey: string, source: Source, destination: Destination, asset: Asset, quantity: string,
@@ -171,9 +211,11 @@ export class PlanEscrowService implements EscrowService {
     if (!(await this.executor.isPlanBased(exCtx))) {
       return this.fallback.release(idempotencyKey, source, destination, asset, quantity, operationId, exCtx);
     }
-    return this.executor.execute(exCtx!, asset,
-      [PlanInstructionType.Release, PlanInstructionType.ReleaseAndRedeem], (instruction) =>
-        instruction.instructionType === PlanInstructionType.Release && instruction.destination !== destination.finId
+    // redemption of escrowed funds (ReleaseAndRedeem) only goes through redeem()
+    return this.executor.execute(exCtx!, asset, [PlanInstructionType.Release], (instruction) =>
+      instruction.source !== source.finId
+        ? `source ${instruction.source} differs from requested ${source.finId}`
+        : instruction.destination !== destination.finId
           ? `destination ${instruction.destination} differs from requested ${destination.finId}`
           : quantityMismatch(instruction, quantity));
   }
@@ -183,6 +225,9 @@ export class PlanEscrowService implements EscrowService {
     if (!(await this.executor.isPlanBased(exCtx))) {
       return this.fallback.rollback(idempotencyKey, source, asset, quantity, operationId, exCtx);
     }
-    return this.executor.execute(exCtx!, asset, [PlanInstructionType.RevertHold], () => undefined);
+    return this.executor.execute(exCtx!, asset, [PlanInstructionType.RevertHold], (instruction) =>
+      instruction.source !== "" && instruction.source !== source.finId
+        ? `source ${instruction.source} differs from requested ${source.finId}`
+        : quantityMismatch(instruction, quantity));
   }
 }

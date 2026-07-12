@@ -6,6 +6,8 @@ import {
   ContractsManager,
   ExecutionPlanStatus,
   FinP2PPlanContract,
+  MINTER_ROLE,
+  OPERATOR_ROLE,
   RECEIPT_PROOF_TYPES,
   eip712Asset,
   eip712Destination,
@@ -261,5 +263,33 @@ describe("v2 plan-based services (integration)", () => {
     // sanity: the token service delegates non-plan calls to the fallback (which throws here)
     await expect(tokenService.issue("ik-6", { assetId, assetType: "finp2p" } as any, buyerFinId, "1", undefined as any))
       .rejects.toThrow(/unexpected fallback call/);
+  });
+
+  test("createAsset mirrors the association and token roles onto the plan operator + escrow", async () => {
+    const manager = new ContractsManager(provider, signer, logger);
+    const newAssetId = `${ORG}:102:asset-created`;
+    // token deployed by the (v1) fallback path: adapter's account is the admin
+    const newTokenAddress = await manager.deployERC20("Created", "CRD", 2, await signer.getAddress());
+    const fallbackStub = {
+      createAsset: async () => ({
+        operation: "createAsset", type: "success",
+        result: { ledgerIdentifier: { assetIdentifierType: "CAIP-19", network: "test", tokenId: newTokenAddress, standard: "ERC20" } }
+      })
+    } as any;
+
+    const tokenService = new PlanTokenService(planContract, new ProofSyncService(planContract, undefined),
+      new InMemoryExecDetailsStore(), fallbackStub);
+    const result = await tokenService.createAsset("ik-ca", newAssetId, undefined, undefined, undefined, undefined, undefined);
+    expect(result.type).toBe("success");
+
+    expect(await planContract.getAssetAddress(newAssetId)).toBe(newTokenAddress);
+    const token = new Contract(newTokenAddress, ["function hasRole(bytes32,address) view returns (bool)"], provider);
+    expect(await token.hasRole(OPERATOR_ROLE, planContract.planContractAddress)).toBe(true);
+    expect(await token.hasRole(MINTER_ROLE, planContract.planContractAddress)).toBe(true);
+    expect(await token.hasRole(OPERATOR_ROLE, escrowAddress)).toBe(true);
+
+    // idempotent retry: association already exists, still succeeds
+    const retry = await tokenService.createAsset("ik-ca-2", newAssetId, undefined, undefined, undefined, undefined, undefined);
+    expect(retry.type).toBe("success");
   });
 });

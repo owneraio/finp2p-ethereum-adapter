@@ -232,7 +232,10 @@ export class DirectTokenService implements TokenService, EscrowService {
       const standard = tokenStandardRegistry.resolve(asset.tokenStandard);
 
       if (operationId && this.contractEscrow) {
-        const result = await this.contractEscrow.releaseAndBurn(operationId);
+        const expectedAmount = parseUnits(quantity, asset.decimals);
+        const result = await this.contractEscrow.releaseAndBurn(operationId, {
+          token: asset.contractAddress, amount: expectedAmount
+        });
         return resultToReceipt(result, ast, "redeem", quantity, { finId: sourceFinId }, undefined, exCtx, operationId);
       }
 
@@ -303,7 +306,9 @@ export class DirectTokenService implements TokenService, EscrowService {
       const amount = parseUnits(quantity, asset.decimals);
 
       if (this.contractEscrow) {
-        const result = await this.contractEscrow.release(operationId, destinationAddress);
+        const result = await this.contractEscrow.release(operationId, destinationAddress, {
+          token: asset.contractAddress, amount
+        });
         return resultToReceipt(result, ast, "release", quantity, source, destination, exCtx, operationId);
       }
       const opCtx = buildOperationContext(ast, undefined, exCtx, operationId);
@@ -327,7 +332,9 @@ export class DirectTokenService implements TokenService, EscrowService {
       const amount = parseUnits(quantity, asset.decimals);
 
       if (this.contractEscrow) {
-        const result = await this.contractEscrow.rollback(operationId);
+        const result = await this.contractEscrow.rollback(operationId, {
+          token: asset.contractAddress, amount, source: sourceAddress
+        });
         return resultToReceipt(result, ast, "release", quantity, source, undefined, exCtx, operationId);
       }
       const opCtx = buildOperationContext(ast, undefined, exCtx, operationId);

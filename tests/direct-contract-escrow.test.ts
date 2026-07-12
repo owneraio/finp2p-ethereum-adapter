@@ -92,8 +92,21 @@ describe("direct-mode contract escrow (integration)", () => {
     expect(result.status).toBe("failure");
   });
 
+  test("release refuses a request whose amount differs from the hold", async () => {
+    const result = await contractEscrow.release("op-1", buyer.address, { token: tokenAddress, amount: 1n });
+    expect(result.status).toBe("failure");
+    expect((result as any).reason).toMatch(/is for 3000 token units, not 1/);
+    expect(await token.balanceOf(escrowAddress)).toBe(3000n);
+  });
+
+  test("release refuses a request for a different token", async () => {
+    const result = await contractEscrow.release("op-1", buyer.address, { token: buyer.address, amount: 3000n });
+    expect(result.status).toBe("failure");
+    expect((result as any).reason).toMatch(/is for token/);
+  });
+
   test("release pays the pinned destination", async () => {
-    const result = await contractEscrow.release("op-1", buyer.address);
+    const result = await contractEscrow.release("op-1", buyer.address, { token: tokenAddress, amount: 3000n });
     expect(result.status === "success" ? "success" : (result as any).reason).toBe("success");
     expect(await token.balanceOf(buyer.address)).toBe(3000n);
     expect(await token.balanceOf(escrowAddress)).toBe(0n);
@@ -102,12 +115,19 @@ describe("direct-mode contract escrow (integration)", () => {
   test("release to a different destination fails", async () => {
     await contractEscrow.hold(investorWallet, investorAddress, buyer.address, tokenAddress, "op-2", 1000n);
     const stranger = Wallet.createRandom();
-    const wrong = await contractEscrow.release("op-2", stranger.address);
+    const wrong = await contractEscrow.release("op-2", stranger.address, { token: tokenAddress, amount: 1000n });
     expect(wrong.status).toBe("failure");
   });
 
+  test("rollback refuses a request from a different source", async () => {
+    const stranger = Wallet.createRandom();
+    const result = await contractEscrow.rollback("op-2", { token: tokenAddress, amount: 1000n, source: stranger.address });
+    expect(result.status).toBe("failure");
+    expect((result as any).reason).toMatch(/source is/);
+  });
+
   test("rollback returns funds to the source", async () => {
-    const result = await contractEscrow.rollback("op-2");
+    const result = await contractEscrow.rollback("op-2", { token: tokenAddress, amount: 1000n, source: investorAddress });
     expect(result.status === "success" ? "success" : (result as any).reason).toBe("success");
     expect(await token.balanceOf(investorAddress)).toBe(7000n);
   });
@@ -121,10 +141,21 @@ describe("direct-mode contract escrow (integration)", () => {
     expect(await token.allowance(investorAddress, escrowAddress)).toBe(3000n);
   });
 
+  test("releaseAndBurn refuses a mismatched amount", async () => {
+    const result = await contractEscrow.releaseAndBurn("op-3", { token: tokenAddress, amount: 5n });
+    expect(result.status).toBe("failure");
+  });
+
   test("releaseAndBurn burns the held amount", async () => {
     const supplyBefore = await token.totalSupply();
-    const result = await contractEscrow.releaseAndBurn("op-3");
+    const result = await contractEscrow.releaseAndBurn("op-3", { token: tokenAddress, amount: 2000n });
     expect(result.status === "success" ? "success" : (result as any).reason).toBe("success");
     expect(await token.totalSupply()).toBe(supplyBefore - 2000n);
+  });
+
+  test("terminal ops refuse an unknown hold", async () => {
+    const result = await contractEscrow.rollback("no-such-op", { token: tokenAddress, amount: 1n });
+    expect(result.status).toBe("failure");
+    expect((result as any).reason).toMatch(/not found|not active/);
   });
 });
