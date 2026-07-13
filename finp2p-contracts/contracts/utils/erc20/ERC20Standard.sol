@@ -68,7 +68,7 @@ contract ERC20Standard is AssetStandard, AccessControl {
         uint256 tokenAmount = quantity.stringToUint(tokenDecimals);
         uint256 balance = IERC20(tokenAddress).balanceOf(from);
         require(balance >= tokenAmount, "Not sufficient balance to burn");
-        Burnable(tokenAddress).burn(from, tokenAmount);
+        Burnable(tokenAddress).burnFrom(from, tokenAmount);
     }
 
 }

@@ -218,12 +218,18 @@ export class DirectTokenService implements TokenService, EscrowService {
     try {
       const asset = await getAssetFromDb(this.assetStore, ast.assetId);
       const standard = tokenStandardRegistry.resolve(asset.tokenStandard);
-      // When operationId is set the tokens were previously moved to escrow via `hold`,
-      // so burn from the escrow address; otherwise burn directly from the source's address.
-      const burnFromAddress = operationId
-        ? await this.custodyProvider.escrow.signer.getAddress()
-        : await this.resolveAddress(sourceFinId);
-      const wallet = this.custodyProvider.issuer;
+
+      let wallet: CustodyWallet;
+      let burnFromAddress: string;
+      if (operationId) {
+        wallet = this.custodyProvider.escrow;
+        burnFromAddress = await wallet.signer.getAddress();
+      } else {
+        const resolved = await this.resolveSourceWallet(sourceFinId);
+        if (!resolved) return failedReceiptOperation(1, 'Source address cannot be resolved to a custody wallet');
+        wallet = resolved.wallet;
+        burnFromAddress = resolved.address;
+      }
       const amount = parseUnits(quantity, asset.decimals);
 
       await this.ensureGas(wallet);
