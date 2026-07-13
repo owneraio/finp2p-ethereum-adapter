@@ -1,9 +1,9 @@
 import {
-  PlanApprovalService, PlanApprovalStatus, PlanProposal, logger
+  PlanApprovalService, PlanApprovalStatus, PlanProposal, rejectedPlan, logger
 } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import { FinP2PClient } from "@owneraio/finp2p-client";
 import { PlanApprovalOption } from "./option";
-import { introspectPlan } from "./plan-introspection";
+import { introspectPlan, IntrospectedPlan } from "./plan-introspection";
 
 /**
  * The adapter's plan approval service: always on, delegating the authoritative
@@ -31,15 +31,21 @@ export class ConfigurablePlanApprovalService implements PlanApprovalService {
       return result;
     }
 
-    let plan;
+    let plan: IntrospectedPlan;
     try {
       const { data } = await this.finP2PClient.getExecutionPlan(planId) as unknown as { data: any };
-      if (!data?.plan) return result;
+      if (!data?.plan) throw new Error("execution plan not found");
       plan = introspectPlan(planId, this.orgId, data.plan);
     } catch (e) {
-      // introspection failure must not block an already-approved plan; options
-      // that depend on it (e.g. gas prefunding) degrade to their own fallbacks
-      logger.warning(`Plan ${planId}: introspection for approval options failed, skipping them: ${e}`);
+      // A gating option (e.g. whitelisting) must run to clear the plan — if we
+      // can't introspect it, fail closed rather than approving unchecked.
+      // Non-gating options (gas prefunding) are safe to skip.
+      const gating = this.options.filter(o => o.gating).map(o => o.name);
+      if (gating.length > 0) {
+        logger.warning(`Plan ${planId}: introspection failed; rejecting because gating option(s) [${gating.join(", ")}] could not run: ${e}`);
+        return rejectedPlan(1, `Plan introspection failed; cannot evaluate approval option(s): ${gating.join(", ")}`);
+      }
+      logger.warning(`Plan ${planId}: introspection failed; skipping non-gating approval options: ${e}`);
       return result;
     }
 

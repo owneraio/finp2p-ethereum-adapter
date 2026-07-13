@@ -18,5 +18,15 @@ import { IntrospectedPlan } from "./plan-introspection";
  */
 export interface PlanApprovalOption {
   readonly name: string;
+
+  /**
+   * Whether this option gates approval. A gating option (e.g. token-based
+   * whitelisting) MUST run to clear the plan, so when the plan cannot be
+   * introspected the service rejects rather than approving unchecked. A
+   * non-gating option (e.g. gas prefunding) is a side effect that may be
+   * skipped on introspection failure without affecting the verdict.
+   */
+  readonly gating: boolean;
+
   apply(plan: IntrospectedPlan): Promise<PlanApprovalStatus | void>;
 }

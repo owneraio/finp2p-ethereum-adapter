@@ -19,6 +19,9 @@ import { AccountMappingService } from "./account-mapping";
 export class GasPrefundingOption implements PlanApprovalOption {
 
   readonly name = "gas-prefunding";
+  // side effect, not a gate: if the plan can't be introspected, skip funding
+  // (approval is unaffected) rather than rejecting the plan
+  readonly gating = false;
 
   constructor(
     private readonly custodyProvider: CustodyProvider,

@@ -29,8 +29,9 @@ function planClient(instructions: any[], planPresent = true) {
 
 describe("ConfigurablePlanApprovalService", () => {
 
-  const recordingOption = (log: string[], veto = false): PlanApprovalOption => ({
+  const recordingOption = (log: string[], veto = false, gating = false): PlanApprovalOption => ({
     name: veto ? "vetoer" : "recorder",
+    gating,
     apply: async (plan: IntrospectedPlan) => {
       log.push(`${plan.planId}:${plan.instructions.length}`);
       return veto ? rejected("vetoed by option") : undefined;
@@ -78,12 +79,32 @@ describe("ConfigurablePlanApprovalService", () => {
     const base = { approvePlan: async () => approved() } as any;
     const client = { getExecutionPlan: async () => { throw new Error("fetch failed"); } } as any;
     const ran: string[] = [];
-    const option: PlanApprovalOption = { name: "x", apply: async () => { ran.push("ran"); } };
+    const option: PlanApprovalOption = { name: "x", gating: false, apply: async () => { ran.push("ran"); } };
     const service = new ConfigurablePlanApprovalService(ORG, client, base, [option]);
 
     const result = await service.approvePlan("ik", "plan-4");
     expect(result.type).toBe("approved");
-    expect(ran).toEqual([]); // options skipped when introspection fails
+    expect(ran).toEqual([]); // non-gating options skipped when introspection fails
+  });
+
+  test("introspection failure REJECTS when a gating option cannot run", async () => {
+    const base = { approvePlan: async () => approved() } as any;
+    const client = { getExecutionPlan: async () => { throw new Error("fetch failed"); } } as any;
+    const ran: string[] = [];
+    const gatingOption: PlanApprovalOption = { name: "whitelist", gating: true, apply: async () => { ran.push("ran"); } };
+    const service = new ConfigurablePlanApprovalService(ORG, client, base, [gatingOption]);
+
+    const result = await service.approvePlan("ik", "plan-4b");
+    expect(result.type).toBe("rejected");
+    expect(ran).toEqual([]); // never got to run — plan couldn't be introspected
+  });
+
+  test("missing plan (no data.plan) also rejects for a gating option", async () => {
+    const base = { approvePlan: async () => approved() } as any;
+    const service = new ConfigurablePlanApprovalService(
+      ORG, planClient([], false), base,
+      [{ name: "whitelist", gating: true, apply: async () => undefined }]);
+    expect((await service.approvePlan("ik", "plan-4c")).type).toBe("rejected");
   });
 
   test("with no options, it is a thin pass-through to the base", async () => {

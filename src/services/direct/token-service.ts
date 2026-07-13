@@ -42,6 +42,21 @@ function resultToReceipt(
   };
 }
 
+/**
+ * Direct-mode token & escrow operations.
+ *
+ * Gas model — funding is plan-scoped, not per-operation: the signing wallets
+ * of a plan's instructions are topped up once at plan approval by
+ * GasPrefundingOption (see ConfigurablePlanApprovalService), so these methods
+ * assume the wallet they sign with already holds gas and do not self-fund.
+ *
+ * Consequence: an operation reaching these methods WITHOUT a preceding
+ * approvePlan for its plan — a standalone/non-plan call, or a wallet drained
+ * between approval and execution — will fail with an insufficient-funds error
+ * rather than lazily topping up. If a deployment needs standalone direct
+ * operations with self-funding, wallets must be funded out of band (or a
+ * gas-check step reintroduced explicitly for that path).
+ */
 export class DirectTokenService implements TokenService, EscrowService {
 
   constructor(
