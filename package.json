@@ -31,7 +31,8 @@
     "mass-approve": "ts-node ./scripts/mass-approve.ts",
     "verify-signature": "ts-node ./scripts/verify-signature.ts",
     "start-debug": "ts-node ./src/index.ts",
-    "start": "node ."
+    "start": "node .",
+    "test:plan-approval": "jest --config jest.plan-approval.config.js"
   },
   "publishConfig": {
     "registry": "https://npm.pkg.github.com"
