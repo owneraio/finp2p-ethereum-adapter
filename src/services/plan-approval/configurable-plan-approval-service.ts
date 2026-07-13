@@ -27,25 +27,22 @@ export class ConfigurablePlanApprovalService implements PlanApprovalService {
 
   async approvePlan(idempotencyKey: string, planId: string): Promise<PlanApprovalStatus> {
     const result = await this.base.approvePlan(idempotencyKey, planId);
-    if (result.type === "rejected" || this.options.length === 0 || !this.finP2PClient) {
+    if (result.type === "rejected" || this.options.length === 0) {
       return result;
     }
 
-    let plan: IntrospectedPlan;
-    try {
-      const { data } = await this.finP2PClient.getExecutionPlan(planId) as unknown as { data: any };
-      if (!data?.plan) throw new Error("execution plan not found");
-      plan = introspectPlan(planId, this.orgId, data.plan);
-    } catch (e) {
-      // A gating option (e.g. whitelisting) must run to clear the plan — if we
-      // can't introspect it, fail closed rather than approving unchecked.
-      // Non-gating options (gas prefunding) are safe to skip.
+    const plan = await this.introspect(planId);
+    if (!plan) {
+      // Couldn't introspect (no FinP2P client, fetch error, or missing plan).
+      // A gating option (e.g. whitelisting) must run to clear the plan, so fail
+      // closed rather than approving unchecked; non-gating options (gas
+      // prefunding) are safe to skip.
       const gating = this.options.filter(o => o.gating).map(o => o.name);
       if (gating.length > 0) {
-        logger.warning(`Plan ${planId}: introspection failed; rejecting because gating option(s) [${gating.join(", ")}] could not run: ${e}`);
-        return rejectedPlan(1, `Plan introspection failed; cannot evaluate approval option(s): ${gating.join(", ")}`);
+        logger.warning(`Plan ${planId}: cannot introspect; rejecting because gating option(s) [${gating.join(", ")}] could not run`);
+        return rejectedPlan(1, `Plan introspection unavailable; cannot evaluate approval option(s): ${gating.join(", ")}`);
       }
-      logger.warning(`Plan ${planId}: introspection failed; skipping non-gating approval options: ${e}`);
+      logger.warning(`Plan ${planId}: cannot introspect; skipping non-gating approval options`);
       return result;
     }
 
@@ -57,6 +54,18 @@ export class ConfigurablePlanApprovalService implements PlanApprovalService {
       }
     }
     return result;
+  }
+
+  private async introspect(planId: string): Promise<IntrospectedPlan | undefined> {
+    if (!this.finP2PClient) return undefined;
+    try {
+      const { data } = await this.finP2PClient.getExecutionPlan(planId) as unknown as { data: any };
+      if (!data?.plan) return undefined;
+      return introspectPlan(planId, this.orgId, data.plan);
+    } catch (e) {
+      logger.warning(`Plan ${planId}: execution plan fetch for introspection failed: ${e}`);
+      return undefined;
+    }
   }
 
   async proposeCancelPlan(idempotencyKey: string, planId: string): Promise<PlanApprovalStatus> {

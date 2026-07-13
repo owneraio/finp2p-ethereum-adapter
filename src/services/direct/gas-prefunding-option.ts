@@ -32,6 +32,11 @@ export class GasPrefundingOption implements PlanApprovalOption {
     const gasStation = this.custodyProvider.gasStation;
     if (!gasStation) return;
 
+    // the issuer/escrow addresses are fixed for the whole plan — resolve once
+    // rather than re-querying the signer per instruction
+    const issuerAddress = await this.custodyProvider.issuer.signer.getAddress();
+    const escrowAddress = await this.custodyProvider.escrow.signer.getAddress();
+
     // the same wallet may sign several instructions of one plan — count them so
     // the top-up covers the whole plan rather than a single tx
     const walletTxCounts = new Map<string, number>();
@@ -41,7 +46,7 @@ export class GasPrefundingOption implements PlanApprovalOption {
       if (!instruction.local) continue; // executes on another ledger — not our wallets
       switch (instruction.type) {
         case "issue":
-          bump(await this.custodyProvider.issuer.signer.getAddress());
+          bump(issuerAddress);
           break;
         case "transfer":
         case "hold":
@@ -50,12 +55,12 @@ export class GasPrefundingOption implements PlanApprovalOption {
         case "redeem":
           // redeem of escrowed funds burns from the escrow wallet; a standalone
           // redeem self-burns from the investor — fund both
-          bump(await this.custodyProvider.escrow.signer.getAddress());
+          bump(escrowAddress);
           await this.bumpInvestorWallet(bump, instruction.sourceFinId, plan.planId, instruction.sequence);
           break;
         case "release":
         case "revertHoldInstruction":
-          bump(await this.custodyProvider.escrow.signer.getAddress());
+          bump(escrowAddress);
           break;
       }
     }

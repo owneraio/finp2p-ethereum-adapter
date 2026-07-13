@@ -107,6 +107,18 @@ describe("ConfigurablePlanApprovalService", () => {
     expect((await service.approvePlan("ik", "plan-4c")).type).toBe("rejected");
   });
 
+  test("no FinP2P client rejects for a gating option, but passes through for non-gating", async () => {
+    const base = { approvePlan: async () => approved() } as any;
+    const gating = new ConfigurablePlanApprovalService(
+      ORG, undefined, base, [{ name: "whitelist", gating: true, apply: async () => undefined }]);
+    expect((await gating.approvePlan("ik", "plan-4d")).type).toBe("rejected");
+
+    const log: string[] = [];
+    const nonGating = new ConfigurablePlanApprovalService(ORG, undefined, base, [recordingOption(log)]);
+    expect((await nonGating.approvePlan("ik", "plan-4e")).type).toBe("approved");
+    expect(log).toEqual([]); // option skipped — nothing to introspect
+  });
+
   test("with no options, it is a thin pass-through to the base", async () => {
     let fetches = 0;
     const client = { getExecutionPlan: async () => { fetches++; return { data: { plan: { instructions: [] } } }; } } as any;
