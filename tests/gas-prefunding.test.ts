@@ -123,6 +123,22 @@ describe("gas prefunding at plan approval", () => {
     expect(result.type).toBe("approved");
   });
 
+  test("one wallet's funding failure does not skip the others (best-effort per wallet)", async () => {
+    const { service, funded } = buildService([
+      instruction(1, "hold", ALICE_FIN_ID),
+      instruction(2, "release"),
+      instruction(3, "issue")
+    ]);
+    (service as any).custodyProvider.gasStation.ensureGas = async (address: string) => {
+      if (address === ALICE_ADDRESS) throw new Error("funding tx failed");
+      funded.push(address);
+    };
+    const result = await service.approvePlan("ik", "plan-6b");
+    expect(result.type).toBe("approved");
+    // Alice failed, but escrow and issuer are still topped up
+    expect(funded.sort()).toEqual([ESCROW_ADDRESS, ISSUER_ADDRESS].sort());
+  });
+
   test("unresolvable source finIds are skipped with a warning, not fatal", async () => {
     const { service, funded } = buildService([
       instruction(1, "hold", "02" + "ff".repeat(32)), // unmapped investor

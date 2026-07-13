@@ -103,15 +103,23 @@ export class GasPrefundingPlanApprovalService implements PlanApprovalService {
       }
 
       // sequential on purpose: the gas station funds from a single wallet, so
-      // parallel top-ups would race its nonce
+      // parallel top-ups would race its nonce. Best-effort per wallet — one
+      // failure must not skip the others; each is caught so the rest still
+      // get topped up, and any gap is covered by the execution-time check.
+      let funded = 0;
       for (const [address, txCount] of walletTxCounts) {
-        await gasStation.ensureGas(address, txCount);
+        try {
+          await gasStation.ensureGas(address, txCount);
+          funded++;
+        } catch (e) {
+          logger.warning(`Gas prefunding: top-up of ${address} for plan ${planId} failed (execution will retry): ${e}`);
+        }
       }
-      if (walletTxCounts.size > 0) {
-        logger.info(`Pre-funded gas for ${walletTxCounts.size} wallet(s) of plan ${planId}`);
+      if (funded > 0) {
+        logger.info(`Pre-funded gas for ${funded}/${walletTxCounts.size} wallet(s) of plan ${planId}`);
       }
     } catch (e) {
-      logger.warning(`Gas prefunding for plan ${planId} failed (instructions will fund lazily or fail at execution): ${e}`);
+      logger.warning(`Gas prefunding for plan ${planId} skipped (execution-time funding still applies): ${e}`);
     }
   }
 
