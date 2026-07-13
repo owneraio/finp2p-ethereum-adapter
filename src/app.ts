@@ -20,7 +20,7 @@ import {
 import {
   DirectTokenService,
   CustodyProvider,
-  GasPrefundingPlanApprovalService,
+  GasPrefundingOption,
   custodyRegistry,
   DbAccountMapping,
   AccountMappingService,
@@ -36,6 +36,7 @@ import {
   createWalletResolver,
 } from "./services/direct";
 import { registerCustodyIntegrations, registerIntegrations } from "./integrations/registry";
+import { ConfigurablePlanApprovalService, PlanApprovalOption } from "./services/plan-approval";
 import { AppConfig, FinP2PContractAppConfig, getNetworkRpcUrl } from "./config";
 
 // Register compiled-in custody providers and built-in token standards
@@ -117,10 +118,16 @@ function registerDirectServices(
   if (!assetStore || !dbPool || !accountMappingStore || !accountMappingService) throw new Error('DB connection is required for direct mode');
   let tokenService: DirectTokenService = new DirectTokenService(logger, custodyProvider, accountMapping, assetStore);
   const commonService = new DirectCommonServiceImpl(workflowStorage!);
-  // gas funding happens once per plan at approval, off the instruction hot path
-  const planApprovalService = new GasPrefundingPlanApprovalService(
-    appConfig.orgId, custodyProvider, accountMapping, finP2PClient,
-    new PlanApprovalServiceImpl(appConfig.orgId, pluginManager, finP2PClient));
+  // Plan approval is always on: it delegates the approve/reject decision to the
+  // skeleton impl, then runs approval options over the introspected plan. Gas
+  // prefunding is one option (token-based whitelisting etc. can be added here).
+  const planApprovalOptions: PlanApprovalOption[] = [
+    new GasPrefundingOption(custodyProvider, accountMapping),
+  ];
+  const planApprovalService = new ConfigurablePlanApprovalService(
+    appConfig.orgId, finP2PClient,
+    new PlanApprovalServiceImpl(appConfig.orgId, pluginManager, finP2PClient),
+    planApprovalOptions);
 
   const proxiedTokenService = wrapWithWorkflowProxy(tokenService, workflowStorage, finP2PClient, 'createAsset', 'issue', 'transfer', 'redeem');
   const proxiedEscrowService = wrapWithWorkflowProxy(tokenService, workflowStorage, finP2PClient, 'hold', 'release', 'rollback');

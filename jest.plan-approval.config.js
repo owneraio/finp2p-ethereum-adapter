@@ -8,7 +8,7 @@ module.exports = {
     "<rootDir>/tests"
   ],
   "testMatch": [
-    "<rootDir>/tests/gas-prefunding.test.+(ts|tsx|js)"
+    "<rootDir>/tests/plan-approval.test.+(ts|tsx|js)"
   ],
   "moduleNameMapper": {
     "\\.graphql$": "<rootDir>/tests/utils/graphql-stub.js"
