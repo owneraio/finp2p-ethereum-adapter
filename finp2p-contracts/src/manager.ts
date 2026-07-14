@@ -424,31 +424,4 @@ export class ContractsManager {
     const maxFeePerGas = (feeData.maxFeePerGas * basisPoints) / 1000n;
     return { nonce, maxPriorityFeePerGas, maxFeePerGas };
   }
-
-  /**
-   * Build the per-attempt tx overrides for `safeExecuteTransaction`.
-   *
-   * Always sets `nonce`. For tiers other than `normal`, also computes
-   * `maxPriorityFeePerGas` and `maxFeePerGas` by scaling the node's
-   * `getFeeData()` estimate. `normal` leaves the gas fields unset so
-   * ethers' default path (which itself queries `getFeeData()`) flows
-   * through — preserves the pre-tier behavior exactly.
-   *
-   * Non-EIP-1559 chains (no `maxPriorityFeePerGas` in feeData) fall back
-   * to the bare `{ nonce }` overrides — same as ethers' default would do.
-   */
-  protected async buildTxOverrides(nonce: number): Promise<PayableOverrides> {
-    if (this.gasTier === 'normal') {
-      return { nonce };
-    }
-    const feeData = await this.provider.getFeeData();
-    if (feeData.maxPriorityFeePerGas == null || feeData.maxFeePerGas == null) {
-      // Pre-EIP-1559 chain (legacy gas only). Tier has no meaning here.
-      return { nonce };
-    }
-    const basisPoints = BigInt(GAS_TIER_MULTIPLIER_BASIS_POINTS[this.gasTier]);
-    const maxPriorityFeePerGas = (feeData.maxPriorityFeePerGas * basisPoints) / 1000n;
-    const maxFeePerGas = (feeData.maxFeePerGas * basisPoints) / 1000n;
-    return { nonce, maxPriorityFeePerGas, maxFeePerGas };
-  }
 }
