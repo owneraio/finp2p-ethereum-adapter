@@ -42,6 +42,21 @@ function resultToReceipt(
   };
 }
 
+/**
+ * Direct-mode token & escrow operations.
+ *
+ * Gas model — funding is plan-scoped, not per-operation: the signing wallets
+ * of a plan's instructions are topped up once at plan approval by
+ * GasPrefundingOption (see ConfigurablePlanApprovalService), so these methods
+ * assume the wallet they sign with already holds gas and do not self-fund.
+ *
+ * Consequence: an operation reaching these methods WITHOUT a preceding
+ * approvePlan for its plan — a standalone/non-plan call, or a wallet drained
+ * between approval and execution — will fail with an insufficient-funds error
+ * rather than lazily topping up. If a deployment needs standalone direct
+ * operations with self-funding, wallets must be funded out of band (or a
+ * gas-check step reintroduced explicitly for that path).
+ */
 export class DirectTokenService implements TokenService, EscrowService {
 
   constructor(
@@ -72,11 +87,6 @@ export class DirectTokenService implements TokenService, EscrowService {
     const wallet = await this.custodyProvider.resolveWallet(address);
     if (!wallet) return undefined;
     return { address, wallet };
-  }
-
-  private async ensureGas(wallet: CustodyWallet): Promise<void> {
-    if (!this.custodyProvider.gasStation) return;
-    await this.custodyProvider.gasStation.ensureGas(await wallet.signer.getAddress());
   }
 
   async createAsset(
@@ -174,7 +184,6 @@ export class DirectTokenService implements TokenService, EscrowService {
       const address = await this.resolveAddress(toFinId);
       const amount = parseUnits(quantity, asset.decimals);
 
-      await this.ensureGas(wallet);
       const result = await standard.mint(wallet, asset, address, amount, this.logger);
       const dest: Destination = { finId: toFinId };
       return resultToReceipt(result, ast, "issue", quantity, dest, dest, exCtx, undefined);
@@ -197,7 +206,6 @@ export class DirectTokenService implements TokenService, EscrowService {
       const { wallet } = resolved;
       const amount = parseUnits(quantity, asset.decimals);
 
-      await this.ensureGas(wallet);
       const destinationAddress = await this.accountMapping.resolveAccount(destination.finId)
         ?? destination.account?.address;
       if (!destinationAddress) throw new Error(`Cannot resolve address for finId: ${destination.finId}`);
@@ -232,7 +240,6 @@ export class DirectTokenService implements TokenService, EscrowService {
       }
       const amount = parseUnits(quantity, asset.decimals);
 
-      await this.ensureGas(wallet);
       const opCtx = buildOperationContext(ast, signature, exCtx, operationId);
       const result = await standard.burn(wallet, asset, burnFromAddress, amount, this.logger, opCtx);
       const source: Source = { finId: sourceFinId };
@@ -256,7 +263,6 @@ export class DirectTokenService implements TokenService, EscrowService {
       const { wallet } = resolved;
       const amount = parseUnits(quantity, asset.decimals);
 
-      await this.ensureGas(wallet);
       const opCtx = buildOperationContext(ast, signature, exCtx, operationId);
       const result = await standard.hold(wallet, this.custodyProvider.escrow, asset, amount, this.logger, opCtx);
       return resultToReceipt(result, ast, "hold", quantity, source, destination, exCtx, operationId);
@@ -279,7 +285,6 @@ export class DirectTokenService implements TokenService, EscrowService {
       const escrowWallet = this.custodyProvider.escrow;
       const amount = parseUnits(quantity, asset.decimals);
 
-      await this.ensureGas(escrowWallet);
       const opCtx = buildOperationContext(ast, undefined, exCtx, operationId);
       const result = await standard.release(escrowWallet, asset, destinationAddress, amount, this.logger, opCtx);
       return resultToReceipt(result, ast, "release", quantity, source, destination, exCtx, operationId);
@@ -300,7 +305,6 @@ export class DirectTokenService implements TokenService, EscrowService {
       const escrowWallet = this.custodyProvider.escrow;
       const amount = parseUnits(quantity, asset.decimals);
 
-      await this.ensureGas(escrowWallet);
       const opCtx = buildOperationContext(ast, undefined, exCtx, operationId);
       const result = await standard.release(escrowWallet, asset, sourceAddress, amount, this.logger, opCtx);
       return resultToReceipt(result, ast, "release", quantity, source, undefined, exCtx, operationId);

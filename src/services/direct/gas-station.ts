@@ -21,8 +21,13 @@ export class GasStation {
     public readonly amount: string,
   ) {}
 
-  async ensureGas(walletAddress: string): Promise<void> {
-    const threshold = parseEther(this.amount);
+  /**
+   * Top up `walletAddress` so it holds at least `txCount` × the configured
+   * amount — a wallet signing several instructions of one plan needs more
+   * than the single-transaction threshold.
+   */
+  async ensureGas(walletAddress: string, txCount: number = 1): Promise<void> {
+    const threshold = parseEther(this.amount) * BigInt(Math.max(1, txCount));
     let balance = await this.wallet.provider.getBalance(walletAddress);
     if (balance >= threshold) return;
 
