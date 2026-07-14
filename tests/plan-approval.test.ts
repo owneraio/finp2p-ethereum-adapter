@@ -131,20 +131,27 @@ describe("ConfigurablePlanApprovalService", () => {
 
 describe("GasPrefundingOption", () => {
 
-  function buildOption(opts: { gasStation?: boolean } = {}) {
+  function buildOption(opts: { gasStation?: boolean, placeholderFixed?: boolean, mappingThrows?: boolean } = {}) {
     const funded: string[] = [];
     const fundedCounts = new Map<string, number>();
     const gasStation = opts.gasStation === false ? undefined : {
       ensureGas: async (address: string, txCount: number = 1) => { funded.push(address); fundedCounts.set(address, txCount); }
     };
+    // placeholderFixed mimics Fireblocks local-submit: issuer/escrow are a
+    // JsonRpcProvider placeholder whose signer has no getAddress()
+    const fixedWallet = opts.placeholderFixed
+      ? { signer: {} }
+      : undefined;
     const custodyProvider = {
       gasStation,
-      issuer: { signer: { getAddress: async () => ISSUER_ADDRESS } },
-      escrow: { signer: { getAddress: async () => ESCROW_ADDRESS } }
+      issuer: fixedWallet ?? { signer: { getAddress: async () => ISSUER_ADDRESS } },
+      escrow: fixedWallet ?? { signer: { getAddress: async () => ESCROW_ADDRESS } }
     } as any;
     const accountMapping = {
-      resolveAccount: async (finId: string) =>
-        finId === ALICE_FIN_ID ? ALICE_ADDRESS : finId === BOB_FIN_ID ? BOB_ADDRESS : undefined
+      resolveAccount: async (finId: string) => {
+        if (opts.mappingThrows) throw new Error("transient DB error");
+        return finId === ALICE_FIN_ID ? ALICE_ADDRESS : finId === BOB_FIN_ID ? BOB_ADDRESS : undefined;
+      }
     } as any;
     return { option: new GasPrefundingOption(custodyProvider, accountMapping), custodyProvider, funded, fundedCounts };
   }
@@ -218,5 +225,33 @@ describe("GasPrefundingOption", () => {
       instruction(2, "release")
     ]));
     expect(funded).toEqual([ESCROW_ADDRESS]);
+  });
+
+  test("placeholder issuer/escrow wallet (Fireblocks local-submit) does not abort — investor still funded", async () => {
+    const { option, funded } = buildOption({ placeholderFixed: true });
+    // a transfer-only plan must not touch the (unavailable) fixed wallets
+    await expect(option.apply(introspect([
+      instruction(1, "transfer", ALICE_FIN_ID)
+    ]))).resolves.toBeUndefined();
+    expect(funded).toEqual([ALICE_ADDRESS]);
+
+    // a plan that would use the escrow wallet skips it (unresolvable) instead of throwing
+    const b = buildOption({ placeholderFixed: true });
+    await expect(b.option.apply(introspect([
+      instruction(1, "hold", ALICE_FIN_ID),
+      instruction(2, "release")
+    ]))).resolves.toBeUndefined();
+    expect(b.funded).toEqual([ALICE_ADDRESS]); // escrow skipped, investor funded
+  });
+
+  test("account-mapping failure is swallowed (best-effort), does not throw", async () => {
+    const { option, funded } = buildOption({ mappingThrows: true });
+    await expect(option.apply(introspect([
+      instruction(1, "issue"),
+      instruction(2, "hold", ALICE_FIN_ID),
+      instruction(3, "release")
+    ]))).resolves.toBeUndefined();
+    // investor skipped (mapping threw); fixed issuer/escrow still funded
+    expect(funded.sort()).toEqual([ISSUER_ADDRESS, ESCROW_ADDRESS].sort());
   });
 });
