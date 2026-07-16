@@ -205,7 +205,7 @@ jobs:
               exit 1
               ;;
           esac
-          export IMAGE_TAG=$(echo $IMAGE_TAG | sed 's/\//-/g' | sed 's/^v//')
+          export IMAGE_TAG=$(echo "$IMAGE_TAG" | sed 's/\//-/g' | sed 's/^v//')
           echo "IMAGE_TAG=$IMAGE_TAG" >> "$GITHUB_ENV"
 
       - name: Create adapter manifest lists and push
