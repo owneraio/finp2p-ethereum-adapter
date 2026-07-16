@@ -60,7 +60,11 @@
     "pg": "^8.22.0",
     "ts-node": "^10.9.2",
     "typescript": "^5.2.0",
-    "uuid": "^9.0.0"
+    "uuid": "^9.0.0",
+    "@owneraio/finp2p-ethereum-trex-plugin": "^0.28.1",
+    "@owneraio/finp2p-ethereum-cmtat-plugin": "^0.28.1",
+    "@owneraio/finp2p-ethereum-benji-plugin": "^0.28.1",
+    "@owneraio/finp2p-ethereum-hedera-plugin": "^0.28.1"
   },
   "devDependencies": {
     "@owneraio/adapter-tests": "^0.28.8",
