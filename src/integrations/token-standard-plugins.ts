@@ -28,19 +28,32 @@ const PLUGINS: PluginEntry[] = [
  * OPERATOR_PRIVATE_KEY — plugin role signers manage their own nonces.
  */
 export function registerTokenStandardPlugins(ctx: IntegrationContext): void {
-  for (const plugin of PLUGINS) {
-    const issuerKey = process.env[`${plugin.envPrefix}_ISSUER_PRIVATE_KEY`];
-    if (!issuerKey) continue;
+  const enabled = PLUGINS.filter((plugin) => process.env[`${plugin.envPrefix}_ISSUER_PRIVATE_KEY`]);
+  if (enabled.length === 0) return;
 
-    if (!ctx.rpcUrl) {
-      throw new Error(`${plugin.name} token standard plugin requires NETWORK_HOST to be set`);
+  if (!ctx.rpcUrl) {
+    throw new Error(`Token standard plugin(s) [${enabled.map(p => p.name).join(", ")}] require NETWORK_HOST to be set`);
+  }
+  const provider = new JsonRpcProvider(ctx.rpcUrl);
+
+  // one NonceManager per distinct key, shared across roles and plugins: two
+  // managers over the same address would cache nonces independently and
+  // produce stale/duplicate transactions
+  const signers = new Map<string, Signer>();
+  const signerFor = (key: string): Signer => {
+    const normalized = key.toLowerCase().replace(/^0x/, "");
+    let signer = signers.get(normalized);
+    if (!signer) {
+      signer = new NonceManager(new Wallet(key, provider));
+      signers.set(normalized, signer);
     }
-    const provider = new JsonRpcProvider(ctx.rpcUrl);
-    const issuer = new NonceManager(new Wallet(issuerKey, provider));
-    const controllerKey = process.env[`${plugin.envPrefix}_CONTROLLER_PRIVATE_KEY`];
-    const controller = controllerKey ? new NonceManager(new Wallet(controllerKey, provider)) : issuer;
+    return signer;
+  };
 
-    tokenStandardRegistry.register(plugin.name, plugin.create(provider, issuer, controller));
+  for (const plugin of enabled) {
+    const issuerKey = process.env[`${plugin.envPrefix}_ISSUER_PRIVATE_KEY`]!;
+    const controllerKey = process.env[`${plugin.envPrefix}_CONTROLLER_PRIVATE_KEY`] ?? issuerKey;
+    tokenStandardRegistry.register(plugin.name, plugin.create(provider, signerFor(issuerKey), signerFor(controllerKey)));
     ctx.logger.info(`Registered token standard plugin: ${plugin.name}`);
   }
 }
