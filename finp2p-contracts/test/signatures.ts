@@ -108,6 +108,17 @@ describe("Signing test", function() {
     settlement: term("USD", AssetType.Fiat, `${getRandomNumber(1, 100)}`),
     loan: loanTerms("2025-01-01", "2025-01-02", "1000000.00", "1000123.71"),
     signer: seller
+  }, {
+    // Move: signer is the source (== investor), mapped from sellerFinId;
+    // destination is buyerFinId. Settlement/loan are ignored for Move.
+    primaryType: PrimaryType.Move,
+    nonce: `${generateNonce().toString("hex")}`,
+    buyerFinId: getFinId(buyer),
+    sellerFinId: getFinId(seller),
+    asset: term(`bank-us:102:${uuidv4()}`, AssetType.FinP2P, `${getRandomNumber(1, 100)}`),
+    settlement: term("USD", AssetType.Fiat, `${getRandomNumber(1, 100)}`),
+    loan: emptyLoanTerms(),
+    signer: seller
   }];
   testCases.forEach(({ primaryType, nonce, buyerFinId, sellerFinId, asset, settlement, loan, signer }) => {
     it(`Investor signatures (primary type: ${primaryType})`, async function() {

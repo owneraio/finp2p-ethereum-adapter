@@ -43,7 +43,8 @@ export enum PrimaryType {
   Redemption = 3,
   Transfer = 4,
   PrivateOffer = 5,
-  Loan = 6
+  Loan = 6,
+  Move = 7
 }
 
 // Asset types
@@ -286,6 +287,24 @@ export const LOAN_TYPES: EIP712Types = {
   ],
 };
 
+export const MOVE_TERM_TYPE: EIP712Types = {
+  Term: [
+    { name: 'assetId', type: 'string' },
+    { name: 'amount', type: 'string' },
+  ],
+};
+
+export const MOVE_TYPES: EIP712Types = {
+  ...FINID_TYPE, ...MOVE_TERM_TYPE,
+  Move: [
+    { name: 'nonce', type: 'string' },
+    { name: 'investor', type: 'FinId' },
+    { name: 'source', type: 'FinId' },
+    { name: 'destination', type: 'FinId' },
+    { name: 'asset', type: 'Term' },
+  ],
+};
+
 export const SOURCE_TYPE: EIP712Types = {
   Source: [
     { name: 'accountType', type: 'string' },
@@ -383,6 +402,10 @@ export const newRedemptionMessage = (nonce: string, issuer: EIP712FinId, seller:
 export const newTransferMessage = (nonce: string, buyer: EIP712FinId, seller: EIP712FinId, asset: EIP712Term) => ({ nonce, buyer, seller, asset });
 export const newPrivateOfferMessage = (nonce: string, buyer: EIP712FinId, seller: EIP712FinId, asset: EIP712Term, settlement: EIP712Term) => ({ nonce, buyer, seller, asset, settlement });
 export const newLoanMessage = (nonce: string, borrower: EIP712FinId, lender: EIP712FinId, asset: EIP712Term, settlement: EIP712Term, loanTerms: EIP712LoanTerms) => ({ nonce, borrower, lender, asset, settlement, loanTerms });
+
+export type EIP712MoveTerm = { assetId: string; amount: string };
+export const eip712MoveTerm = (assetId: string, amount: string): EIP712MoveTerm => ({ assetId, amount });
+export const newMoveMessage = (nonce: string, investor: EIP712FinId, source: EIP712FinId, destination: EIP712FinId, asset: EIP712MoveTerm) => ({ nonce, investor, source, destination, asset });
 export const newReceiptMessage = (id: string, operationType: string, source: EIP712Source, destination: EIP712Destination, asset: EIP712Asset, quantity: string, tradeDetails: EIP712TradeDetails, transactionDetails: EIP712TransactionDetails): EIP712ReceiptMessage => ({ id, operationType, source, destination, asset, quantity, tradeDetails, transactionDetails });
 
 export class ValidationError extends Error {
@@ -421,6 +444,10 @@ export const newInvestmentMessage = (primaryType: PrimaryType, nonce: string, bu
       types = LOAN_TYPES;
       if (!loan) throw new ValidationError('Loan terms are required for loan intent');
       message = newLoanMessage(nonce, finId(sellerFinId), finId(buyerFinId), asset, settlement, loan);
+      break;
+    case PrimaryType.Move:
+      types = MOVE_TYPES;
+      message = newMoveMessage(nonce, finId(sellerFinId), finId(sellerFinId), finId(buyerFinId), eip712MoveTerm(asset.assetId, asset.amount));
       break;
     default:
       throw new ValidationError(`Unknown primary type: ${primaryType}`);

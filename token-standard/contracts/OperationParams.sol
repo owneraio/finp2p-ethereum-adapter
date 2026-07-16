@@ -13,7 +13,8 @@ enum PrimaryType {
     REDEMPTION,
     TRANSFER,
     PRIVATE_OFFER,
-    LOAN
+    LOAN,
+    MOVE
 }
 
 enum Phase {

@@ -181,6 +181,25 @@ export const extractBusinessDetails = (asset: Asset,
         params: operationParams(leg, primaryType, Phase.Initiate, operationId, ReleaseType.Release)
       };
     }
+    case "Move": {
+      const {
+        source: { idkey: sellerFinId },
+        destination: { idkey: buyerFinId },
+        asset,
+      } = template.message as unknown as {
+        source: { idkey: string };
+        destination: { idkey: string };
+        asset: { assetId: string; amount: string; assetType?: string };
+      };
+      const releaseType = destination && destination.finId ? ReleaseType.Release : ReleaseType.Redeem;
+      return {
+        buyerFinId, sellerFinId,
+        asset: termFromEIP712(toContractTerm(asset)),
+        settlement: emptyTerm(),
+        loan: emptyLoanTerms(),
+        params: operationParams(leg, primaryType, Phase.Initiate, operationId, releaseType)
+      };
+    }
     default:
       throw new ValidationError(`Unsupported signature template primary type: ${template.primaryType}`);
   }
@@ -202,6 +221,8 @@ export const eip712PrimaryTypeFromTemplate = (template: EIP712Template): Primary
       return PrimaryType.Loan;
     case "Transfer":
       return PrimaryType.Transfer;
+    case "Move":
+      return PrimaryType.Move;
     default:
       throw new ValidationError(`Unsupported EIP712 primary type: ${template.primaryType}`);
   }
