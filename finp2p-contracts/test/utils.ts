@@ -17,7 +17,8 @@ export const enum PrimaryType {
   Redemption = 3,
   Transfer = 4,
   PrivateOffer = 5,
-  Loan = 6
+  Loan = 6,
+  Move = 7
 }
 
 export const toFixedDecimals = (value: string, decimals: number): string => {

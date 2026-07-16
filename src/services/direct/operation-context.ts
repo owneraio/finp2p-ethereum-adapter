@@ -51,6 +51,7 @@ function mapPrimaryType(templateType: string | undefined): PrimaryType {
     case 'Transfer': return PrimaryType.Transfer;
     case 'PrivateOffer': return PrimaryType.PrivateOffer;
     case 'Loan': return PrimaryType.Loan;
+    case 'Move': return PrimaryType.Move;
     default: return PrimaryType.Transfer;
   }
 }
