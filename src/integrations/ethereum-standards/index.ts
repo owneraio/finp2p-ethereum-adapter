@@ -1,4 +1,3 @@
-import { JsonRpcProvider, Wallet, NonceManager } from "ethers";
 import { TokenStandard } from "@owneraio/finp2p-ethereum-ownera";
 import { TrexTokenStandard, TokenStandardName as TREX_STANDARD } from "@owneraio/finp2p-ethereum-trex-plugin";
 import { CmtatTokenStandard, TokenStandardName as CMTAT_STANDARD } from "@owneraio/finp2p-ethereum-cmtat-plugin";
@@ -6,6 +5,7 @@ import { BenjiTokenStandard, TokenStandardName as BENJI_STANDARD } from "@ownera
 import { AtsTokenStandard, TokenStandardName as HEDERA_ATS_STANDARD } from "@owneraio/finp2p-ethereum-hedera-plugin";
 import { tokenStandardRegistry } from "../../services/direct";
 import { IntegrationContext } from "../registry";
+import { pooledProvider, pooledSigner } from "../signer-pool";
 
 /**
  * Registers the provisioned Ethereum token standards (TREX, CMTAT, BENJI,
@@ -32,14 +32,9 @@ export function registerEthereumTokenStandards(ctx: IntegrationContext): void {
     return;
   }
 
-  const provider = new JsonRpcProvider(rpcUrl);
-  // compare keys normalized: one NonceManager per address, or the two
-  // managers would cache the same account's nonce independently
-  const normalize = (key: string) => key.toLowerCase().replace(/^0x/, "");
-  const issuer = new NonceManager(new Wallet(issuerKey, provider));
-  const controller = normalize(controllerKey) === normalize(issuerKey)
-    ? issuer
-    : new NonceManager(new Wallet(controllerKey, provider));
+  const provider = pooledProvider(rpcUrl);
+  const issuer = pooledSigner(rpcUrl, issuerKey);
+  const controller = pooledSigner(rpcUrl, controllerKey);
 
   const standards: Array<[string, TokenStandard]> = [
     [TREX_STANDARD, new TrexTokenStandard(provider, issuer, controller)],
@@ -51,7 +46,7 @@ export function registerEthereumTokenStandards(ctx: IntegrationContext): void {
   const registered: string[] = [];
   for (const [name, impl] of standards) {
     if (tokenStandardRegistry.has(name)) continue;
-    tokenStandardRegistry.register(name, impl);
+    tokenStandardRegistry.register(name, impl, { erc20Compatible: true });
     registered.push(name);
   }
   logger.info(`Ethereum token standards registered: ${registered.join(", ")}`);

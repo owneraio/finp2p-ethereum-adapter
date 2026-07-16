@@ -41,7 +41,7 @@ import { AppConfig, FinP2PContractAppConfig, getNetworkRpcUrl } from "./config";
 
 // Register compiled-in custody providers and built-in token standards
 registerCustodyIntegrations();
-tokenStandardRegistry.register(ERC20_TOKEN_STANDARD, new ERC20TokenStandard());
+tokenStandardRegistry.register(ERC20_TOKEN_STANDARD, new ERC20TokenStandard(), { erc20Compatible: true });
 
 export interface WorkflowsConfig {
   migration: workflows.MigrationConfig;

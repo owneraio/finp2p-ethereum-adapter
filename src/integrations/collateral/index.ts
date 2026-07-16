@@ -1,4 +1,4 @@
-import { JsonRpcProvider, Wallet, NonceManager } from "ethers";
+import { Wallet } from "ethers";
 import {
   OwneraCollateralPlugin,
   OwneraCollateralTokenStandard,
@@ -8,6 +8,7 @@ import {
 import { FinP2PContract } from "@owneraio/finp2p-contracts";
 import { tokenStandardRegistry, WalletResolver as CustodyWalletResolver } from "../../services/direct";
 import { IntegrationContext } from "../registry";
+import { pooledProvider, pooledSigner } from "../signer-pool";
 
 /**
  * Registers the Ownera triparty collateral PaymentsPlugin when
@@ -46,10 +47,9 @@ export function registerCollateralPlugin(ctx: IntegrationContext): void {
     throw new Error('Collateral plugin requires NETWORK_HOST to be set');
   }
 
-  const provider = new JsonRpcProvider(rpcUrl);
-  const agentWallet = new Wallet(agentKey, provider);
-  const agentAddress = agentWallet.address;
-  const agentSigner = new NonceManager(agentWallet);
+  const provider = pooledProvider(rpcUrl);
+  const agentAddress = new Wallet(agentKey).address;
+  const agentSigner = pooledSigner(rpcUrl, agentKey);
 
   const ledgerName = process.env.LEDGER_NAME ?? 'ethereum';
   const collateralWalletResolver = buildCollateralWalletResolver(walletResolver, finP2PContract);
