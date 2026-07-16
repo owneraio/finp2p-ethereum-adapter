@@ -5,7 +5,7 @@ import { ethers } from "hardhat";
 import { v4 as uuid } from "uuid";
 import { Signer, Wallet } from "ethers";
 import { PrimaryType } from "./utils";
-import { AssetType, ERC20_STANDARD_ID, finIdToAddress, getFinId, signEIP712, Term, term, termToEIP712 } from "../src";
+import { AssetType, ERC20_STANDARD_ID, emptyTerm, finIdToAddress, getFinId, signEIP712, Term, term, termToEIP712 } from "../src";
 import {
   EIP712LoanTerms,
   emptyLoanTerms,
@@ -196,6 +196,63 @@ describe("FINP2POrchestrator", function() {
 
     return { buyer, seller, assetTerm, settlementTerm, assetToken, settlementToken, buyerIntent, sellerIntent };
   }
+
+  describe("Move signature", () => {
+
+    it("creates and executes a Move-signed transfer", async () => {
+      const fixture = await loadFixture(deployPlanOperatorFixture);
+      const { admin, operator, standardAddress, escrowAddress, chainId, verifyingContract } = fixture;
+
+      const mover = generateInvestor();
+      const recipient = generateInvestor();
+      await operator.addCredential(mover.finId, mover.address);
+      await operator.addCredential(recipient.finId, recipient.address);
+
+      const assetTerm = term(generateAssetId(), AssetType.FinP2P, "10");
+      const { token } = await deployToken(admin, standardAddress, escrowAddress, 0);
+      await operator.associateAsset(assetTerm.assetId, token, ERC20_STANDARD_ID);
+      await token.mint(mover.address, 10);
+
+      // Move is signed by the asset owner (source == mover); recipient is the destination
+      const moveIntent = await signIntent(
+        chainId, verifyingContract, PrimaryType.Move, recipient, mover, assetTerm, emptyTerm(), emptyLoanTerms(), mover.signer);
+
+      const planId = generatePlanId();
+      await operator.createPlan(planId, [
+        instruction(1, InstructionType.Transfer, ExecutionVenue.OnLedger, assetTerm,
+          { source: mover.finId, destination: recipient.finId, signatureIndex: 0 })
+      ], [moveIntent]);
+
+      await expect(operator.executeInstruction(planId, 1))
+        .to.emit(operator, "InstructionExecuted").withArgs(planId, 1, InstructionType.Transfer);
+      expect(await token.balanceOf(recipient.address)).to.equal(10);
+      expect(await token.balanceOf(mover.address)).to.equal(0);
+      expect((await operator.getPlan(planId)).status).to.equal(PlanStatus.Completed);
+    });
+
+    it("rejects a Move intent whose signer is not the source", async () => {
+      const fixture = await loadFixture(deployPlanOperatorFixture);
+      const { admin, operator, standardAddress, escrowAddress, chainId, verifyingContract } = fixture;
+
+      const mover = generateInvestor();
+      const recipient = generateInvestor();
+      await operator.addCredential(mover.finId, mover.address);
+      await operator.addCredential(recipient.finId, recipient.address);
+
+      const assetTerm = term(generateAssetId(), AssetType.FinP2P, "10");
+      const { token } = await deployToken(admin, standardAddress, escrowAddress, 0);
+      await operator.associateAsset(assetTerm.assetId, token, ERC20_STANDARD_ID);
+
+      // signed by the recipient, not the source — must not authorize the move
+      const badIntent = await signIntent(
+        chainId, verifyingContract, PrimaryType.Move, recipient, mover, assetTerm, emptyTerm(), emptyLoanTerms(), recipient.signer);
+
+      await expect(operator.createPlan(generatePlanId(), [
+        instruction(1, InstructionType.Transfer, ExecutionVenue.OnLedger, assetTerm,
+          { source: mover.finId, destination: recipient.finId, signatureIndex: 0 })
+      ], [badIntent])).to.be.reverted;
+    });
+  });
 
   describe("createPlan + executeInstruction (local DvP)", () => {
 
