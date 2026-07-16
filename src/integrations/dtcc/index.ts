@@ -1,4 +1,3 @@
-import { JsonRpcProvider, Wallet, NonceManager } from "ethers";
 import {
   CollateralDepositPlugin,
   CollateralPlanApprovalPlugin,
@@ -7,6 +6,7 @@ import {
 } from "@owneraio/finp2p-ethereum-dtcc-plugin";
 import { tokenStandardRegistry } from "../../services/direct";
 import { IntegrationContext } from "../registry";
+import { pooledProvider, pooledSigner } from "../signer-pool";
 
 /**
  * Registers the DTCC collateral token standard and its deposit + plan approval
@@ -23,13 +23,13 @@ export function registerDtccPlugin(ctx: IntegrationContext): void {
     throw new Error('DTCC plugin requires NETWORK_HOST to be set');
   }
 
-  const provider = new JsonRpcProvider(rpcUrl);
+  const provider = pooledProvider(rpcUrl);
   const operatorKey = process.env.OPERATOR_PRIVATE_KEY!;
   const providerKey = process.env.PROVIDER_PRIVATE_KEY!;
   const factoryAddress = process.env.FACTORY_ADDRESS ?? '';
   const subgraphBaseUrl = process.env.SUBGRAPH_BASE_URL;
-  const agentSigner = new NonceManager(new Wallet(operatorKey, provider));
-  const providerSigner = new NonceManager(new Wallet(providerKey, provider));
+  const agentSigner = pooledSigner(rpcUrl, operatorKey);
+  const providerSigner = pooledSigner(rpcUrl, providerKey);
 
   tokenStandardRegistry.register(DTCC_TOKEN_STANDARD, new CollateralTokenStandard(factoryAddress, provider, agentSigner) as any);
 
