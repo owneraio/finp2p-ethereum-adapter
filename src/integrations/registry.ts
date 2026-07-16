@@ -12,6 +12,7 @@ import { registerCollateralPlugin } from "./collateral";
 import { registerWalletDeposit } from "./deposits/wallet-deposit";
 import { registerPullDeposit } from "./deposits/pull-deposit";
 import { registerOtaDeposit } from "./deposits/ota-deposit";
+import { registerTokenStandardPlugins } from "./token-standard-plugins";
 
 /** True when another integration (DTCC, collateral, …) already owns the single PaymentsPlugin slot. */
 export function paymentsSlotClaimedExternally(): boolean {
@@ -48,6 +49,7 @@ const integrations: IntegrationRegistrar[] = [
   registerOtaDeposit,
   registerDtccPlugin,
   registerCollateralPlugin,
+  registerTokenStandardPlugins,
 ];
 
 /** Register runtime integrations (plugins, token standards) — runs after custody provider is created. */

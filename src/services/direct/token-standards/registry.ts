@@ -1,4 +1,4 @@
-import { TokenStandard } from '@owneraio/finp2p-ethereum-token-standard';
+import { TokenStandard } from '@owneraio/finp2p-ethereum-ownera';
 
 /**
  * Registry for token standard implementations in direct mode.

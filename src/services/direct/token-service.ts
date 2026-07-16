@@ -6,7 +6,7 @@ import {
 } from '@owneraio/finp2p-nodejs-skeleton-adapter';
 import winston from 'winston';
 import { parseUnits } from "ethers";
-import { TokenOperationResult } from '@owneraio/finp2p-ethereum-token-standard';
+import { TokenOperationResult } from '@owneraio/finp2p-ethereum-ownera';
 import { CustodyProvider, CustodyWallet } from './custody-provider';
 import { AccountMappingService, AssetStore } from './account-mapping';
 import { getAssetFromDb } from './helpers';
