@@ -6,7 +6,7 @@ import {
 } from '@owneraio/finp2p-nodejs-skeleton-adapter';
 import winston from 'winston';
 import { parseUnits } from "ethers";
-import { TokenOperationResult } from '@owneraio/finp2p-ethereum-token-standard';
+import { TokenOperationResult } from '@owneraio/finp2p-ethereum-ownera';
 import { CustodyProvider, CustodyWallet } from './custody-provider';
 import { AccountMappingService, AssetStore } from './account-mapping';
 import { getAssetFromDb } from './helpers';
@@ -95,8 +95,11 @@ export class DirectTokenService implements TokenService, EscrowService {
     assetDenomination: AssetDenomination | undefined,
   ): Promise<AssetCreationStatus> {
     const requestedStandard = assetBind?.tokenIdentifier?.standard ?? ERC20_TOKEN_STANDARD;
-    const isErc20 = requestedStandard.toUpperCase() === ERC20_TOKEN_STANDARD.toUpperCase();
     const standard = tokenStandardRegistry.resolve(requestedStandard);
+    // ERC20-compatible standards (ERC20, TREX, CMTAT, BENJI, HEDERA_ATS, ...)
+    // expose IERC20Metadata: read decimals on bind and register with custody.
+    // Non-compatible ones (collateral registries) keep decimals=0 and skip both.
+    const isErc20 = tokenStandardRegistry.isErc20Compatible(requestedStandard);
 
     const { chainId } = await this.custodyProvider.rpcProvider.getNetwork();
     const defaultNetwork = `eip155:${chainId}`;

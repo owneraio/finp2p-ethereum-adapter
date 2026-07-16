@@ -5,7 +5,7 @@ import winston from 'winston';
 import {
   TokenStandard, TokenWallet, AssetRecord, DeployResult,
   TokenOperationResult, successfulTokenOp, failedTokenOp,
-} from '@owneraio/finp2p-ethereum-token-standard';
+} from '@owneraio/finp2p-ethereum-ownera';
 
 export const ERC20_TOKEN_STANDARD = 'ERC20';
 

@@ -1,4 +1,4 @@
-import { TokenStandard } from '@owneraio/finp2p-ethereum-token-standard';
+import { TokenStandard } from '@owneraio/finp2p-ethereum-ownera';
 
 /**
  * Registry for token standard implementations in direct mode.
@@ -10,25 +10,41 @@ import { TokenStandard } from '@owneraio/finp2p-ethereum-token-standard';
  * Registration is explicit at bootstrap — the adapter registers built-in
  * ERC20 and plugin packages may register additional standards.
  */
-class TokenStandardRegistry {
-  private standards = new Map<string, TokenStandard>();
+export interface TokenStandardOptions {
+  /**
+   * The standard's tokens expose IERC20Metadata (decimals/name/symbol): bound
+   * assets read decimals() on-chain and get registered with custody providers.
+   * Non-compatible standards (collateral registries) keep decimals = 0 and
+   * skip custody registration.
+   */
+  erc20Compatible?: boolean;
+}
 
-  register(tokenStandard: string, impl: TokenStandard): void {
+type Registration = { impl: TokenStandard, erc20Compatible: boolean };
+
+class TokenStandardRegistry {
+  private standards = new Map<string, Registration>();
+
+  register(tokenStandard: string, impl: TokenStandard, options: TokenStandardOptions = {}): void {
     const key = tokenStandard.toUpperCase();
     if (this.standards.has(key)) {
       throw new Error(`Token standard '${tokenStandard}' is already registered`);
     }
-    this.standards.set(key, impl);
+    this.standards.set(key, { impl, erc20Compatible: options.erc20Compatible ?? false });
   }
 
   resolve(tokenStandard: string): TokenStandard {
     const key = tokenStandard.toUpperCase();
-    const impl = this.standards.get(key);
-    if (!impl) {
+    const registration = this.standards.get(key);
+    if (!registration) {
       const available = Array.from(this.standards.keys()).join(', ');
       throw new Error(`Unknown token standard: '${tokenStandard}'. Available: ${available}`);
     }
-    return impl;
+    return registration.impl;
+  }
+
+  isErc20Compatible(tokenStandard: string): boolean {
+    return this.standards.get(tokenStandard.toUpperCase())?.erc20Compatible ?? false;
   }
 
   has(tokenStandard: string): boolean {
