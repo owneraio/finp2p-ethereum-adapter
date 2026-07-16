@@ -77,6 +77,7 @@ export enum PrimaryType {
   Transfer = 4,
   PrivateOffer = 5,
   Loan = 6,
+  Move = 7,
 }
 
 export enum Phase {

@@ -287,8 +287,6 @@ export const LOAN_TYPES: EIP712Types = {
   ],
 };
 
-// Move uses a Term without `assetType` (assetId + amount only), distinct from
-// the standard TERM_TYPE above.
 export const MOVE_TERM_TYPE: EIP712Types = {
   Term: [
     { name: 'assetId', type: 'string' },
@@ -448,8 +446,6 @@ export const newInvestmentMessage = (primaryType: PrimaryType, nonce: string, bu
       message = newLoanMessage(nonce, finId(sellerFinId), finId(buyerFinId), asset, settlement, loan);
       break;
     case PrimaryType.Move:
-      // investor == source == sellerFinId (asset owner initiating the move);
-      // destination == buyerFinId. Term carries no assetType.
       types = MOVE_TYPES;
       message = newMoveMessage(nonce, finId(sellerFinId), finId(sellerFinId), finId(buyerFinId), eip712MoveTerm(asset.assetId, asset.amount));
       break;

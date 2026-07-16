@@ -182,8 +182,6 @@ export const extractBusinessDetails = (asset: Asset,
       };
     }
     case "Move": {
-      // Move: investor == source (asset owner) maps to sellerFinId; destination is
-      // the recipient (buyerFinId). No settlement leg; asset Term carries no assetType.
       const {
         source: { idkey: sellerFinId },
         destination: { idkey: buyerFinId },
