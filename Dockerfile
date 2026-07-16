@@ -1,8 +1,8 @@
 # ---- Compile goose (migration tool) ----
-FROM golang:1.24.5-alpine AS migrator
+FROM golang:1.26.5-alpine AS migrator
 
 RUN apk update && apk add make gcc git build-base
-RUN go install github.com/pressly/goose/v3/cmd/goose@v3.26.0
+RUN go install github.com/pressly/goose/v3/cmd/goose@v3.27.2
 
 # ---- Build finp2p-contracts (local dependency) ----
 FROM node:20-slim AS contracts-builder
