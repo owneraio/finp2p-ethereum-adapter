@@ -76,7 +76,7 @@ jobs:
           curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
 
           ## trivy scan on local images
-          trivy image "finp2p-ethereum-adapter:scan"
+          trivy image --exit-code 1 --severity HIGH,CRITICAL "finp2p-ethereum-adapter:scan"
 
   docker:
     needs: build
