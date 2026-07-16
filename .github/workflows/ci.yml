@@ -72,11 +72,12 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Trivy scan
-        run: |
-          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
-
-          ## trivy scan on local images
-          trivy image --exit-code 1 --severity HIGH,CRITICAL "finp2p-ethereum-adapter:scan"
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: "finp2p-ethereum-adapter:scan"
+          scan-type: "image"
+          exit-code: "1"
+          severity: "HIGH,CRITICAL"
 
   docker:
     needs: build
