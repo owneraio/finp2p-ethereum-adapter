@@ -124,7 +124,7 @@ function registerDirectServices(
   // prefunding is one option (token-based whitelisting etc. can be added here).
   const planApprovalOptions: PlanApprovalOption[] = [
     // gating: runs (and can veto) before gas is spent on prefunding
-    new TokenWhitelistingOption(assetStore, accountMapping),
+    new TokenWhitelistingOption(assetStore, accountMapping, custodyProvider),
     new GasPrefundingOption(custodyProvider, accountMapping),
   ];
   const planApprovalService = new ConfigurablePlanApprovalService(

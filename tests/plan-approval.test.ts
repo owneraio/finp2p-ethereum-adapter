@@ -1,4 +1,4 @@
-import { ConfigurablePlanApprovalService, PlanApprovalOption, IntrospectedPlan } from "../src/services/plan-approval";
+import { ConfigurablePlanApprovalService, PlanApprovalOption, IntrospectedPlan, introspectPlan } from "../src/services/plan-approval";
 import { GasPrefundingOption } from "../src/services/direct/gas-prefunding-option";
 
 const ORG = "bank-us";
@@ -253,5 +253,31 @@ describe("GasPrefundingOption", () => {
     ]))).resolves.toBeUndefined();
     // investor skipped (mapping threw); fixed issuer/escrow still funded
     expect(funded.sort()).toEqual([ISSUER_ADDRESS, ESCROW_ADDRESS].sort());
+  });
+});
+
+describe("introspectPlan", () => {
+
+  test("surfaces explicit networkAccount ledger addresses alongside finIds", () => {
+    const raw = {
+      instructions: [{
+        sequence: 1,
+        organizations: [ORG],
+        executionPlanOperation: {
+          type: "transfer",
+          source: { finp2pAccount: { account: { finId: ALICE_FIN_ID }, asset: { id: `${ORG}:102:asset-1` } } },
+          destination: {
+            finp2pAccount: { account: { finId: BOB_FIN_ID } },
+            networkAccount: { type: "walletAccount", address: BOB_ADDRESS }
+          },
+          amount: "10"
+        }
+      }]
+    };
+    const plan = introspectPlan("plan-1", ORG, raw);
+    expect(plan.instructions[0].sourceFinId).toBe(ALICE_FIN_ID);
+    expect(plan.instructions[0].sourceAddress).toBeUndefined();
+    expect(plan.instructions[0].destinationFinId).toBe(BOB_FIN_ID);
+    expect(plan.instructions[0].destinationAddress).toBe(BOB_ADDRESS);
   });
 });

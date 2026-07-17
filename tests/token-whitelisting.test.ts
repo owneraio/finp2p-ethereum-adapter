@@ -14,6 +14,8 @@ const ADDR: Record<string, string> = {
   [ALICE]: "0x1111111111111111111111111111111111111111",
   [BOB]: "0x2222222222222222222222222222222222222222"
 };
+const ESCROW_ADDR = "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee";
+const EXPLICIT_ADDR = "0x3333333333333333333333333333333333333333";
 
 type Call = { assetId: string; parties: WhitelistParty[] };
 
@@ -28,21 +30,33 @@ function whitelistingStandard(calls: Call[], failWith?: string) {
 
 const plainStandard = {} as any;
 
-function buildOption(assets: Record<string, string>, mapped: Record<string, string> = ADDR) {
+const escrowProvider = (address?: string) => ({
+  escrow: { signer: address ? { getAddress: async () => address } : {} }
+}) as any;
+
+function buildOption(
+  assets: Record<string, string>, mapped: Record<string, string> = ADDR,
+  custodyProvider = escrowProvider(ESCROW_ADDR)
+) {
   const assetStore = {
     getAsset: async (id: string) => assets[id]
       ? { contract_address: `0xtoken-${id}`, decimals: 2, token_standard: assets[id], id }
       : undefined
   } as any;
   const accountMapping = { resolveAccount: async (finId: string) => mapped[finId] } as any;
-  return new TokenWhitelistingOption(assetStore, accountMapping);
+  return new TokenWhitelistingOption(assetStore, accountMapping, custodyProvider);
 }
 
-const instruction = (assetId: string, source?: string, destination?: string, local = true, type = "transfer") => ({
-  type, organizations: [ORG], local, sourceFinId: source, destinationFinId: destination, assetId
+const instruction = (
+  assetId: string, source?: string, destination?: string, local = true, type = "transfer",
+  addresses: { sourceAddress?: string; destinationAddress?: string } = {}
+) => ({
+  type, organizations: [ORG], local, sourceFinId: source, destinationFinId: destination, assetId, ...addresses
 });
 
 const plan = (instructions: any[]): IntrospectedPlan => ({ planId: "plan-1", orgId: ORG, instructions, raw: {} });
+
+const partyKeys = (parties: WhitelistParty[]) => parties.map(p => `${p.finId ?? p.address}:${p.role}`).sort();
 
 describe("TokenWhitelistingOption", () => {
 
@@ -54,7 +68,7 @@ describe("TokenWhitelistingOption", () => {
   });
   beforeEach(() => { calls.length = 0; });
 
-  test("whitelists parties for both assets when both are kept in this adapter", async () => {
+  test("whitelists the transfer endpoints of both assets when both are kept in this adapter", async () => {
     const option = buildOption({ [ASSET_ID]: "WL_TEST", [SETTLEMENT_ID]: "WL_TEST" });
     const veto = await option.apply(plan([
       instruction(SETTLEMENT_ID, ALICE, BOB, true, "hold"),
@@ -64,9 +78,10 @@ describe("TokenWhitelistingOption", () => {
     expect(veto).toBeUndefined();
     expect(calls).toHaveLength(2);
     const byAsset = Object.fromEntries(calls.map(c => [c.assetId, c.parties]));
-    expect(byAsset[`0xtoken-${SETTLEMENT_ID}`].map(p => `${p.finId}:${p.role}`).sort())
-      .toEqual([`${ALICE}:source`, `${BOB}:destination`].sort());
-    expect(byAsset[`0xtoken-${ASSET_ID}`].map(p => `${p.finId}:${p.role}`).sort())
+    // hold moves ALICE → escrow, release moves escrow → BOB
+    expect(partyKeys(byAsset[`0xtoken-${SETTLEMENT_ID}`]))
+      .toEqual([`${ALICE}:source`, `${BOB}:destination`, `${ESCROW_ADDR}:escrow`].sort());
+    expect(partyKeys(byAsset[`0xtoken-${ASSET_ID}`]))
       .toEqual([`${BOB}:source`, `${ALICE}:destination`].sort());
   });
 
@@ -81,6 +96,14 @@ describe("TokenWhitelistingOption", () => {
     expect(calls[0].assetId).toBe(`0xtoken-${ASSET_ID}`);
   });
 
+  test("a hold's business destination is not a transfer endpoint — no veto when it is unmapped", async () => {
+    const option = buildOption({ [ASSET_ID]: "WL_TEST" }, { [ALICE]: ADDR[ALICE] }); // BOB unmapped
+    const veto = await option.apply(plan([instruction(ASSET_ID, ALICE, BOB, true, "hold")]));
+    expect(veto).toBeUndefined();
+    expect(calls).toHaveLength(1);
+    expect(partyKeys(calls[0].parties)).toEqual([`${ALICE}:source`, `${ESCROW_ADDR}:escrow`].sort());
+  });
+
   test("parties are deduplicated across instructions of the same asset", async () => {
     const option = buildOption({ [ASSET_ID]: "WL_TEST" });
     await option.apply(plan([
@@ -91,12 +114,32 @@ describe("TokenWhitelistingOption", () => {
     expect(calls[0].parties).toHaveLength(2);
   });
 
-  test("standards without the whitelisting capability are skipped", async () => {
+  test("standards without the whitelisting capability are skipped before any party resolution", async () => {
     expect(supportsWhitelisting(plainStandard)).toBe(false);
-    const option = buildOption({ [ASSET_ID]: "WL_PLAIN" });
-    const veto = await option.apply(plan([instruction(ASSET_ID, ALICE, BOB)]));
+    const option = buildOption({ [ASSET_ID]: "WL_PLAIN" }, {}); // nothing mapped at all
+    const veto = await option.apply(plan([instruction(ASSET_ID, ALICE, BOB, true, "hold")]));
     expect(veto).toBeUndefined();
     expect(calls).toHaveLength(0);
+  });
+
+  test("an explicit ledger address is used when the finId is unmapped, like execution", async () => {
+    const option = buildOption({ [ASSET_ID]: "WL_TEST" }, { [ALICE]: ADDR[ALICE] }); // BOB unmapped
+    const veto = await option.apply(plan([
+      instruction(ASSET_ID, ALICE, BOB, true, "transfer", { destinationAddress: EXPLICIT_ADDR })
+    ]));
+    expect(veto).toBeUndefined();
+    expect(calls).toHaveLength(1);
+    const destination = calls[0].parties.find(p => p.role === "destination");
+    expect(destination?.address).toBe(EXPLICIT_ADDR);
+    expect(destination?.finId).toBe(BOB);
+  });
+
+  test("an escrow wallet without a resolvable address is skipped, not vetoed", async () => {
+    const option = buildOption({ [ASSET_ID]: "WL_TEST" }, ADDR, escrowProvider(undefined));
+    const veto = await option.apply(plan([instruction(ASSET_ID, ALICE, BOB, true, "hold")]));
+    expect(veto).toBeUndefined();
+    expect(calls).toHaveLength(1);
+    expect(partyKeys(calls[0].parties)).toEqual([`${ALICE}:source`]);
   });
 
   test("whitelisting failure vetoes the plan", async () => {

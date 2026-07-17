@@ -1,9 +1,10 @@
 import { AssetRecord, Logger, TokenOperationResult, TokenStandard } from "@owneraio/finp2p-ethereum-ownera";
 
-export type WhitelistPartyRole = "source" | "destination";
+export type WhitelistPartyRole = "source" | "destination" | "escrow";
 
 export interface WhitelistParty {
-  finId: string;
+  /** absent for the escrow custody wallet, which has no finId */
+  finId?: string;
   address: string;
   role: WhitelistPartyRole;
 }
