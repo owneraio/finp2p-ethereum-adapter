@@ -119,6 +119,33 @@ describe("ConfigurablePlanApprovalService", () => {
     expect(log).toEqual([]); // option skipped — nothing to introspect
   });
 
+  test("a gating option that throws rejects the plan instead of escaping as an error", async () => {
+    const base = { approvePlan: async () => approved() } as any;
+    const throwing: PlanApprovalOption = {
+      name: "whitelist", gating: true, apply: async () => { throw new Error("mapping DB down"); }
+    };
+    const service = new ConfigurablePlanApprovalService(
+      ORG, planClient([instruction(1, "hold", ALICE_FIN_ID)]), base, [throwing]);
+
+    const result = await service.approvePlan("ik", "plan-6");
+    expect(result.type).toBe("rejected");
+    expect((result as any).error.message).toMatch(/whitelist.*failed.*mapping DB down/);
+  });
+
+  test("a non-gating option that throws is skipped; later options still run", async () => {
+    const log: string[] = [];
+    const base = { approvePlan: async () => approved() } as any;
+    const throwing: PlanApprovalOption = {
+      name: "gas", gating: false, apply: async () => { throw new Error("gas station down"); }
+    };
+    const service = new ConfigurablePlanApprovalService(
+      ORG, planClient([instruction(1, "hold", ALICE_FIN_ID)]), base, [throwing, recordingOption(log)]);
+
+    const result = await service.approvePlan("ik", "plan-7");
+    expect(result.type).toBe("approved");
+    expect(log).toEqual(["plan-7:1"]);
+  });
+
   test("with no options, it is a thin pass-through to the base", async () => {
     let fetches = 0;
     const client = { getExecutionPlan: async () => { fetches++; return { data: { plan: { instructions: [] } } }; } } as any;

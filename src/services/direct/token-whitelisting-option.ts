@@ -44,10 +44,11 @@ type AssetWork = {
  * parties collected, so plain ERC20 plans are never vetoed over an account
  * that whitelisting alone would need. Parties are the actual transfer
  * endpoints of each instruction type (including the escrow custody wallet for
- * hold/release paths), resolved via account mapping with the instruction's
- * explicit ledger address as fallback — the same rule execution uses — and
- * handed to ensureWhitelisted sequentially, since standards sign with pooled
- * agent keys.
+ * hold/release paths), resolved with execution's exact rules: account mapping
+ * everywhere, with the instruction's explicit ledger address as fallback only
+ * where execution accepts one — transfer/release destinations. Resolved
+ * parties are handed to ensureWhitelisted sequentially, since standards sign
+ * with pooled agent keys.
  *
  * Gating: a party that cannot be whitelisted (or resolved) means the plan
  * will fail at execution — reject at approval instead.
@@ -101,9 +102,12 @@ export class TokenWhitelistingOption implements PlanApprovalOption {
             escrowAddress = await this.tryResolveEscrowAddress(plan.planId);
             escrowResolved = true;
           }
-          if (escrowAddress) {
-            entry.parties.set(`escrow|${escrowAddress}`, { address: escrowAddress, role: "escrow" });
+          if (!escrowAddress) {
+            // hold/release execution needs this wallet — approving without
+            // whitelisting the actual endpoint would just defer the failure
+            return rejectedPlan(1, `Plan ${plan.planId}: escrow wallet address is unavailable; cannot whitelist the escrow endpoint of asset ${entry.assetId}`);
           }
+          entry.parties.set(`escrow|${escrowAddress}`, { address: escrowAddress, role: "escrow" });
           continue;
         }
         const veto = await this.addParty(entry, instruction, role, plan.planId);
@@ -129,14 +133,16 @@ export class TokenWhitelistingOption implements PlanApprovalOption {
     entry: AssetWork, instruction: IntrospectedInstruction, role: "source" | "destination", planId: string
   ): Promise<ReturnType<typeof rejectedPlan> | undefined> {
     const finId = role === "source" ? instruction.sourceFinId : instruction.destinationFinId;
-    const explicitAddress = role === "source" ? instruction.sourceAddress : instruction.destinationAddress;
+    // execution accepts an explicit ledger address only for transfer/release
+    // destinations; sources always require a mapped custody wallet
+    const explicitAddress = role === "destination" && (instruction.type === "transfer" || instruction.type === "release")
+      ? instruction.destinationAddress
+      : undefined;
     if (!finId && !explicitAddress) return undefined;
 
     const key = `${finId ?? explicitAddress}|${role}`;
     if (entry.parties.has(key)) return undefined;
 
-    // same resolution rule as execution: account mapping, then the explicit
-    // ledger address the instruction carries
     const address = (finId ? await this.accountMapping.resolveAccount(finId) : undefined) ?? explicitAddress;
     if (!address) {
       // execution would fail on the unresolvable account anyway — fail early
@@ -148,20 +154,20 @@ export class TokenWhitelistingOption implements PlanApprovalOption {
 
   /**
    * The escrow custody wallet is a transfer endpoint of hold/release paths and
-   * may need whitelisting itself. In Fireblocks local-submit mode an
-   * unconfigured escrow vault is a placeholder with no getAddress() — skip its
-   * party rather than veto, matching how execution treats that configuration.
+   * may need whitelisting itself. An unresolvable address (e.g. an
+   * unconfigured Fireblocks placeholder vault with no getAddress()) makes the
+   * caller veto: hold/release execution needs that wallet anyway.
    */
   private async tryResolveEscrowAddress(planId: string): Promise<string | undefined> {
     try {
       const signer = this.custodyProvider.escrow?.signer as { getAddress?: () => Promise<string> } | undefined;
       if (!signer || typeof signer.getAddress !== "function") {
-        logger.warning(`Token whitelisting: escrow wallet has no resolvable address (placeholder?), skipping its whitelisting for plan ${planId}`);
+        logger.warning(`Token whitelisting: escrow wallet has no resolvable address (placeholder?) for plan ${planId}`);
         return undefined;
       }
       return await signer.getAddress();
     } catch (e) {
-      logger.warning(`Token whitelisting: resolving escrow wallet address for plan ${planId} failed, skipping: ${e}`);
+      logger.warning(`Token whitelisting: resolving escrow wallet address for plan ${planId} failed: ${e}`);
       return undefined;
     }
   }

@@ -134,12 +134,38 @@ describe("TokenWhitelistingOption", () => {
     expect(destination?.finId).toBe(BOB);
   });
 
-  test("an escrow wallet without a resolvable address is skipped, not vetoed", async () => {
+  test("an escrow wallet without a resolvable address vetoes a plan that needs the escrow endpoint", async () => {
     const option = buildOption({ [ASSET_ID]: "WL_TEST" }, ADDR, escrowProvider(undefined));
     const veto = await option.apply(plan([instruction(ASSET_ID, ALICE, BOB, true, "hold")]));
+    expect(veto?.type).toBe("rejected");
+    expect((veto as any).error.message).toMatch(/escrow wallet address is unavailable/);
+    expect(calls).toHaveLength(0);
+  });
+
+  test("a plan without escrow endpoints is unaffected by an unresolvable escrow wallet", async () => {
+    const option = buildOption({ [ASSET_ID]: "WL_TEST" }, ADDR, escrowProvider(undefined));
+    const veto = await option.apply(plan([instruction(ASSET_ID, ALICE, BOB)]));
     expect(veto).toBeUndefined();
     expect(calls).toHaveLength(1);
-    expect(partyKeys(calls[0].parties)).toEqual([`${ALICE}:source`]);
+  });
+
+  test("an explicit address is not accepted for a source — execution needs a mapped custody wallet", async () => {
+    const option = buildOption({ [ASSET_ID]: "WL_TEST" }, { [BOB]: ADDR[BOB] }); // ALICE unmapped
+    const veto = await option.apply(plan([
+      instruction(ASSET_ID, ALICE, BOB, true, "transfer", { sourceAddress: EXPLICIT_ADDR })
+    ]));
+    expect(veto?.type).toBe("rejected");
+    expect((veto as any).error.message).toMatch(/cannot resolve address for source/);
+    expect(calls).toHaveLength(0);
+  });
+
+  test("an explicit address is not accepted for an issue destination — execution resolves it via mapping only", async () => {
+    const option = buildOption({ [ASSET_ID]: "WL_TEST" }, {}); // BOB unmapped
+    const veto = await option.apply(plan([
+      instruction(ASSET_ID, undefined, BOB, true, "issue", { destinationAddress: EXPLICIT_ADDR })
+    ]));
+    expect(veto?.type).toBe("rejected");
+    expect((veto as any).error.message).toMatch(/cannot resolve address for destination/);
   });
 
   test("whitelisting failure vetoes the plan", async () => {

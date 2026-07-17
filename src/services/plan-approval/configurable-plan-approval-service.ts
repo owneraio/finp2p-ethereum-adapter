@@ -47,7 +47,20 @@ export class ConfigurablePlanApprovalService implements PlanApprovalService {
     }
 
     for (const option of this.options) {
-      const veto = await option.apply(plan);
+      let veto;
+      try {
+        veto = await option.apply(plan);
+      } catch (e) {
+        // an option must never escape as an HTTP error: a gating option that
+        // blew up could not clear the plan — fail closed; a non-gating one is
+        // best-effort by contract — skip it
+        if (option.gating) {
+          logger.warning(`Plan ${planId}: gating approval option '${option.name}' failed, rejecting: ${e}`);
+          return rejectedPlan(1, `Approval option '${option.name}' failed for plan ${planId}: ${e}`);
+        }
+        logger.warning(`Plan ${planId}: approval option '${option.name}' failed, skipping: ${e}`);
+        continue;
+      }
       if (veto && veto.type === "rejected") {
         logger.info(`Plan ${planId} rejected by approval option '${option.name}'`);
         return veto;
