@@ -21,6 +21,7 @@ import {
   DirectTokenService,
   CustodyProvider,
   GasPrefundingOption,
+  TokenWhitelistingOption,
   custodyRegistry,
   DbAccountMapping,
   AccountMappingService,
@@ -122,6 +123,8 @@ function registerDirectServices(
   // skeleton impl, then runs approval options over the introspected plan. Gas
   // prefunding is one option (token-based whitelisting etc. can be added here).
   const planApprovalOptions: PlanApprovalOption[] = [
+    // gating: runs (and can veto) before gas is spent on prefunding
+    new TokenWhitelistingOption(assetStore, accountMapping, custodyProvider),
     new GasPrefundingOption(custodyProvider, accountMapping),
   ];
   const planApprovalService = new ConfigurablePlanApprovalService(
