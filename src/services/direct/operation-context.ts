@@ -1,6 +1,6 @@
 import {
   OperationContext, LegType, PrimaryType, Phase, ReleaseType,
-} from '@owneraio/finp2p-ethereum-ownera';
+} from '@owneraio/finp2p-ethereum-adapter-contract';
 import { Asset, ExecutionContext, Signature } from '@owneraio/finp2p-nodejs-skeleton-adapter';
 
 /**
