@@ -11,6 +11,56 @@ on:
   workflow_dispatch:
 
 jobs:
+  # The root build installs the PUBLISHED SPI from the registry, so it cannot
+  # catch breakage in adapter-contract/ sources. This job tests the in-repo
+  # SPI and compiles the adapter against the locally packed artifact.
+  spi:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout application repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: https://npm.pkg.github.com/
+          scope: '@owneraio'
+
+      - name: SPI clean-install
+        working-directory: ./adapter-contract
+        run: npm ci
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: SPI test
+        working-directory: ./adapter-contract
+        run: npm test
+
+      - name: SPI pack verification
+        working-directory: ./adapter-contract
+        run: |
+          npm pack --json > /tmp/pack.json
+          node -e "
+            const files = require('/tmp/pack.json')[0].files.map(f => f.path);
+            const stray = files.filter(f => !/^(dist\/|src\/|package\.json$|README\.md$)/.test(f));
+            if (stray.length) { console.error('unexpected files in pack:', stray); process.exit(1); }
+            console.log('pack contents OK:', files.length, 'files');
+          "
+
+      - name: Adapter clean-install
+        run: npm ci
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Compile adapter against the locally packed SPI
+        run: |
+          npm install --no-save ./adapter-contract/owneraio-finp2p-ethereum-adapter-contract-*.tgz
+          npx tsc --noEmit
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 15
