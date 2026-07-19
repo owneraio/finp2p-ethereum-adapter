@@ -133,17 +133,27 @@ describe("ConfigurablePlanApprovalService", () => {
   });
 
   test("a non-gating option that throws is skipped; later options still run", async () => {
-    const log: string[] = [];
-    const base = { approvePlan: async () => approved() } as any;
-    const throwing: PlanApprovalOption = {
-      name: "gas", gating: false, apply: async () => { throw new Error("gas station down"); }
-    };
-    const service = new ConfigurablePlanApprovalService(
-      ORG, planClient([instruction(1, "hold", ALICE_FIN_ID)]), base, [throwing, recordingOption(log)]);
+    const { logger } = require("@owneraio/finp2p-nodejs-skeleton-adapter");
+    const infoSpy = jest.spyOn(logger, "info");
+    try {
+      const log: string[] = [];
+      const base = { approvePlan: async () => approved() } as any;
+      const throwing: PlanApprovalOption = {
+        name: "gas", gating: false, apply: async () => { throw new Error("gas station down"); }
+      };
+      const service = new ConfigurablePlanApprovalService(
+        ORG, planClient([instruction(1, "hold", ALICE_FIN_ID)]), base, [throwing, recordingOption(log)]);
 
-    const result = await service.approvePlan("ik", "plan-7");
-    expect(result.type).toBe("approved");
-    expect(log).toEqual(["plan-7:1"]);
+      const result = await service.approvePlan("ik", "plan-7");
+      expect(result.type).toBe("approved");
+      expect(log).toEqual(["plan-7:1"]);
+      // the completion line must not claim the skipped option passed
+      const infoLines = infoSpy.mock.calls.map(c => String(c[0]));
+      expect(infoLines).toContainEqual(expect.stringContaining("completed without a gating rejection (skipped after failure: gas)"));
+      expect(infoLines).not.toContainEqual(expect.stringContaining("all approval options passed"));
+    } finally {
+      infoSpy.mockRestore();
+    }
   });
 
   test("with no options, it is a thin pass-through to the base", async () => {
