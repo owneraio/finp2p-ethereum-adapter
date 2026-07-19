@@ -19,7 +19,7 @@ The base `TokenStandard` interface is defined by [`@owneraio/finp2p-ethereum-own
 | `OWNERA_COLLATERAL_REGISTRY` | `@owneraio/finp2p-ethereum-collateral` | `COLLATERAL_REGISTRY_ADDRESS` + `COLLATERAL_AGENT_PRIVATE_KEY` |
 | `DTCC_COLLATERAL_ACCOUNT` | `@owneraio/finp2p-ethereum-dtcc-plugin` | `DTCC_PLUGIN_ENABLED=true` |
 
-¹ Signers default to `OPERATOR_PRIVATE_KEY`; override per role with `TOKEN_STANDARD_ISSUER_PRIVATE_KEY` / `TOKEN_STANDARD_CONTROLLER_PRIVATE_KEY`. Skipped with a warning when no key or `NETWORK_HOST` is configured.
+¹ Signers default to `OPERATOR_PRIVATE_KEY`; override per role with `TOKEN_STANDARD_ISSUER_PRIVATE_KEY` / `TOKEN_STANDARD_CONTROLLER_PRIVATE_KEY`. Standards whose constructors accept a whitelisting signer receive `TOKEN_STANDARD_ALLOWLISTER_PRIVATE_KEY`; TREX accepts an investor qualifier built from `TOKENY_API_URL` + `TOKENY_EMAIL` + `TOKENY_PASSWORD`. Optional-argument semantics are each plugin's contract. Without keys the standards register in validate-only mode — reads and whitelist checks work, agent writes fail per operation. Skipped entirely only when `NETWORK_HOST` is unset.
 
 ## Documentation
 
