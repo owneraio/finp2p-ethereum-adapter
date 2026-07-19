@@ -55,14 +55,18 @@ export class WalletActivationOption implements PlanApprovalOption {
       // sequential on purpose: activation sends from the single funding
       // wallet, so parallel touches would race its nonce
       try {
-        await activator.ensureActivated(address);
-        activated++;
+        if (await activator.ensureActivated(address)) {
+          activated++;
+          logger.info(`Wallet activation: sent ${this.activationAmount} to ${address} (plan ${plan.planId})`);
+        } else {
+          logger.debug(`Wallet activation: ${address} is already active (plan ${plan.planId})`);
+        }
       } catch (e) {
         logger.warning(`Wallet activation: touch of ${address} for plan ${plan.planId} failed: ${e}`);
       }
     }
-    if (activated > 0) {
-      logger.info(`Wallet activation: ensured ${activated}/${seen.size} destination wallet(s) of plan ${plan.planId}`);
+    if (seen.size > 0) {
+      logger.info(`Wallet activation: ${seen.size} destination wallet(s) checked, ${activated} activated for plan ${plan.planId}`);
     }
   }
 

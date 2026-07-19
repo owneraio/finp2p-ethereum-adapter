@@ -1,4 +1,4 @@
-import { TokenStandard } from '@owneraio/finp2p-ethereum-ownera';
+import { TokenStandard } from '@owneraio/finp2p-ethereum-adapter-contract';
 
 /**
  * Registry for token standard implementations in direct mode.
@@ -53,6 +53,11 @@ class TokenStandardRegistry {
 
   get availableStandards(): string[] {
     return Array.from(this.standards.keys());
+  }
+
+  /** Test hook: drop all registrations so a suite can exercise both registration modes. */
+  reset(): void {
+    this.standards.clear();
   }
 }
 

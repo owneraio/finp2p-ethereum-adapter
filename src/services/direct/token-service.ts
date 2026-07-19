@@ -6,7 +6,7 @@ import {
 } from '@owneraio/finp2p-nodejs-skeleton-adapter';
 import winston from 'winston';
 import { parseUnits } from "ethers";
-import { TokenOperationResult } from '@owneraio/finp2p-ethereum-ownera';
+import { TokenOperationResult } from '@owneraio/finp2p-ethereum-adapter-contract';
 import { CustodyProvider, CustodyWallet } from './custody-provider';
 import { AccountMappingService, AssetStore } from './account-mapping';
 import { getAssetFromDb } from './helpers';
@@ -94,12 +94,17 @@ export class DirectTokenService implements TokenService, EscrowService {
     assetMetadata: any, assetName: string | undefined, issuerId: string | undefined,
     assetDenomination: AssetDenomination | undefined,
   ): Promise<AssetCreationStatus> {
-    const requestedStandard = assetBind?.tokenIdentifier?.standard ?? ERC20_TOKEN_STANDARD;
+    const explicitStandard = assetBind?.tokenIdentifier?.standard;
+    const requestedStandard = explicitStandard ?? ERC20_TOKEN_STANDARD;
+    if (!tokenStandardRegistry.has(requestedStandard)) {
+      this.logger.error(`createAsset: assetId=${assetId} requested token standard '${requestedStandard}' is not registered; available: ${tokenStandardRegistry.availableStandards.join(', ')}`);
+    }
     const standard = tokenStandardRegistry.resolve(requestedStandard);
     // ERC20-compatible standards (ERC20, TREX, CMTAT, BENJI, HEDERA_ATS, ...)
     // expose IERC20Metadata: read decimals on bind and register with custody.
     // Non-compatible ones (collateral registries) keep decimals=0 and skip both.
     const isErc20 = tokenStandardRegistry.isErc20Compatible(requestedStandard);
+    this.logger.info(`createAsset: assetId=${assetId} token standard '${requestedStandard}'${explicitStandard === undefined ? ' (defaulted, none requested)' : ''} resolved to ${standard.constructor.name} (erc20Compatible=${isErc20})`);
 
     const { chainId } = await this.custodyProvider.rpcProvider.getNetwork();
     const defaultNetwork = `eip155:${chainId}`;

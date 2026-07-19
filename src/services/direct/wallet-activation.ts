@@ -62,9 +62,10 @@ export class WalletActivator {
     private readonly amount: string,
   ) {}
 
-  async ensureActivated(address: string): Promise<void> {
+  /** @returns true when an activation transfer was sent, false when the address was already active */
+  async ensureActivated(address: string): Promise<boolean> {
     let balance = await this.fundingWallet.provider.getBalance(address);
-    if (balance > 0n) return;
+    if (balance > 0n) return false;
 
     await this.fundingWallet.signer.sendTransaction({
       to: address,
@@ -75,7 +76,7 @@ export class WalletActivator {
     while (Date.now() < deadline) {
       await new Promise(r => setTimeout(r, GAS_FUNDING_POLL_INTERVAL_MS));
       balance = await this.fundingWallet.provider.getBalance(address);
-      if (balance > 0n) return;
+      if (balance > 0n) return true;
     }
     throw new Error(`Activation transfer to ${address} did not reflect on-chain after ${GAS_FUNDING_TIMEOUT_MS}ms`);
   }

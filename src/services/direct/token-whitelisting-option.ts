@@ -1,5 +1,5 @@
 import { logger, rejectedPlan } from "@owneraio/finp2p-nodejs-skeleton-adapter";
-import { AssetRecord, Logger as TokenLogger } from "@owneraio/finp2p-ethereum-ownera";
+import { AssetRecord, Logger as TokenLogger } from "@owneraio/finp2p-ethereum-adapter-contract";
 import { PlanApprovalOption, IntrospectedPlan, IntrospectedInstruction } from "../plan-approval";
 import { AccountMappingService, AssetStore } from "./account-mapping";
 import { CustodyProvider } from "./custody-provider";
@@ -66,22 +66,33 @@ export class TokenWhitelistingOption implements PlanApprovalOption {
 
   async apply(plan: IntrospectedPlan): Promise<ReturnType<typeof rejectedPlan> | void> {
     const work = new Map<string, AssetWork>();
+    const foreignAssets = new Set<string>();
     let escrowAddress: string | undefined;
     let escrowResolved = false;
 
     for (const instruction of plan.instructions) {
       if (!instruction.local || !instruction.assetId) continue;
       if (instruction.type === "await") continue;
+      if (foreignAssets.has(instruction.assetId)) continue;
 
       let entry = work.get(instruction.assetId);
       if (!entry) {
         const dbAsset = await this.assetStore.getAsset(instruction.assetId);
-        if (dbAsset === undefined) continue; // not kept in this adapter
+        if (dbAsset === undefined) {
+          foreignAssets.add(instruction.assetId);
+          logger.debug(`Plan ${plan.planId}: asset ${instruction.assetId} is not kept in this adapter — skipping whitelisting`);
+          continue;
+        }
         const standardName = dbAsset.token_standard;
         if (!tokenStandardRegistry.has(standardName)) {
+          logger.warning(`Plan ${plan.planId}: token standard '${standardName}' of asset ${instruction.assetId} is not registered (available: ${tokenStandardRegistry.availableStandards.join(", ")}) — rejecting`);
           return rejectedPlan(1, `Plan ${plan.planId}: token standard '${standardName}' of asset ${instruction.assetId} is not registered`);
         }
         const standard = tokenStandardRegistry.resolve(standardName);
+        const whitelisting = supportsWhitelisting(standard) ? standard : undefined;
+        if (!whitelisting) {
+          logger.info(`Plan ${plan.planId}: asset ${instruction.assetId} standard '${standardName}' has no whitelisting capability — skipping`);
+        }
         entry = {
           assetId: instruction.assetId,
           asset: {
@@ -89,7 +100,7 @@ export class TokenWhitelistingOption implements PlanApprovalOption {
             decimals: dbAsset.decimals,
             tokenStandard: standardName
           },
-          whitelisting: supportsWhitelisting(standard) ? standard : undefined,
+          whitelisting,
           parties: new Map()
         };
         work.set(instruction.assetId, entry);
@@ -105,6 +116,7 @@ export class TokenWhitelistingOption implements PlanApprovalOption {
           if (!escrowAddress) {
             // hold/release execution needs this wallet — approving without
             // whitelisting the actual endpoint would just defer the failure
+            logger.warning(`Plan ${plan.planId}: escrow wallet address is unavailable but asset ${entry.assetId} needs its escrow endpoint whitelisted — rejecting`);
             return rejectedPlan(1, `Plan ${plan.planId}: escrow wallet address is unavailable; cannot whitelist the escrow endpoint of asset ${entry.assetId}`);
           }
           entry.parties.set(`escrow|${escrowAddress}`, { address: escrowAddress, role: "escrow" });
@@ -146,6 +158,7 @@ export class TokenWhitelistingOption implements PlanApprovalOption {
     const address = (finId ? await this.accountMapping.resolveAccount(finId) : undefined) ?? explicitAddress;
     if (!address) {
       // execution would fail on the unresolvable account anyway — fail early
+      logger.warning(`Plan ${planId}: cannot resolve address for ${role} ${finId} of asset ${entry.assetId} — rejecting`);
       return rejectedPlan(1, `Plan ${planId}: cannot resolve address for ${role} ${finId} of asset ${entry.assetId}`);
     }
     entry.parties.set(key, { finId, address, role });
