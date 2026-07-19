@@ -22,12 +22,14 @@ import { pooledProvider, pooledSigner } from "../signer-pool";
  * TOKEN_STANDARD_ISSUER_PRIVATE_KEY / TOKEN_STANDARD_CONTROLLER_PRIVATE_KEY.
  * Role keys are valueless operator wallets configured via env (KMS backed),
  * never custody wallets.
- * Whitelisting writes (the HEDERA_ATS ExternalAllowlist controller and the
- * CMTAT RuleWhitelist owner) are signed by the allowlister
- * (TOKEN_STANDARD_ALLOWLISTER_PRIVATE_KEY, defaults to the controller).
- * TREX whitelisting onboards through the Tokeny qualifier when
- * TOKENY_API_URL + TOKENY_EMAIL + TOKENY_PASSWORD are set; absent, its
- * ensureWhitelisted fails closed for unverified investors.
+ *
+ * The standards are black boxes behind the TokenStandard/InvestorWhitelisting
+ * interfaces: this module only maps env config onto each plugin's public
+ * constructor arguments — an optional whitelisting signer
+ * (TOKEN_STANDARD_ALLOWLISTER_PRIVATE_KEY) where the constructor accepts one
+ * (CMTAT, HEDERA_ATS), and an optional TREX investor qualifier built from
+ * TOKENY_API_URL + TOKENY_EMAIL + TOKENY_PASSWORD. What each argument
+ * authorizes, and the behavior when it is absent, is the plugin's contract.
  *
  * Missing agent keys degrade to validate-only, not to unregistered:
  * provider-backed reads (balanceOf, whitelist checks — ensureWhitelisted
