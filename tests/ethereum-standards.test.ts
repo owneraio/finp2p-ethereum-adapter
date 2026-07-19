@@ -19,22 +19,44 @@ describe("registerEthereumTokenStandards (real plugin standards)", () => {
   const savedEnv = { ...process.env };
   afterAll(() => { process.env = savedEnv; resetSignerPool(); });
 
-  test("without rpc/key: warns and registers nothing, does not throw", () => {
+  test("without rpc: warns and registers nothing, does not throw", () => {
     delete process.env.OPERATOR_PRIVATE_KEY;
     delete process.env.TOKEN_STANDARD_ISSUER_PRIVATE_KEY;
     delete process.env.TOKEN_STANDARD_CONTROLLER_PRIVATE_KEY;
+    delete process.env.TOKENY_API_URL;
+    delete process.env.TOKENY_EMAIL;
+    delete process.env.TOKENY_PASSWORD;
 
     registerEthereumTokenStandards({ logger: warningLogger, rpcUrl: undefined } as any);
     expect(warnings.length).toBe(1);
+    expect(warnings[0]).toContain("NETWORK_HOST");
     for (const name of ["TREX", "CMTAT", "BENJI", "HEDERA_ATS"]) {
       expect(tokenStandardRegistry.has(name)).toBe(false);
     }
   });
 
+  test("without agent keys: registers all four in validate-only mode instead of skipping", () => {
+    warnings.length = 0;
+    registerEthereumTokenStandards({ logger: warningLogger, rpcUrl: RPC } as any);
+
+    expect(warnings.some(w => w.includes("validate-only"))).toBe(true);
+    for (const name of ["TREX", "CMTAT", "BENJI", "HEDERA_ATS"]) {
+      expect(tokenStandardRegistry.has(name)).toBe(true);
+    }
+    // whitelist validation stays available: the capability probe still works
+    expect(supportsWhitelisting(tokenStandardRegistry.resolve("TREX"))).toBe(true);
+  });
+
   test("with operator key: registers all four, erc20-compatible, resolving to the plugin classes", () => {
+    tokenStandardRegistry.reset();
+    warnings.length = 0;
     process.env.OPERATOR_PRIVATE_KEY = OPERATOR_KEY;
 
-    registerEthereumTokenStandards({ logger, rpcUrl: RPC } as any);
+    registerEthereumTokenStandards({ logger: warningLogger, rpcUrl: RPC } as any);
+    // fully keyed — no degraded-mode warning; the TREX qualifier warn is
+    // expected while the TOKENY_* envs are absent
+    expect(warnings.some(w => w.includes("validate-only"))).toBe(false);
+    expect(warnings.some(w => w.includes("TREX investor qualifier disabled"))).toBe(true);
 
     const expected: Array<[string, any]> = [
       ["TREX", TrexTokenStandard],
