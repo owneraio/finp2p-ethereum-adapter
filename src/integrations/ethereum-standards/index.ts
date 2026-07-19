@@ -1,5 +1,5 @@
 import { VoidSigner, ZeroAddress } from "ethers";
-import { TokenStandard } from "@owneraio/finp2p-ethereum-ownera";
+import { TokenStandard } from "@owneraio/finp2p-ethereum-adapter-contract";
 import { TrexTokenStandard, TokenStandardName as TREX_STANDARD, TokenyClient, createTokenyQualifier, TrexInvestorQualifier } from "@owneraio/finp2p-ethereum-trex-plugin";
 import { CmtatTokenStandard, TokenStandardName as CMTAT_STANDARD } from "@owneraio/finp2p-ethereum-cmtat-plugin";
 import { BenjiTokenStandard, TokenStandardName as BENJI_STANDARD } from "@owneraio/finp2p-ethereum-benji-plugin";

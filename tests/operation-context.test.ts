@@ -1,4 +1,4 @@
-import { PrimaryType, LegType } from "@owneraio/finp2p-ethereum-ownera";
+import { PrimaryType, LegType } from "@owneraio/finp2p-ethereum-adapter-contract";
 import { buildOperationContext } from "../src/services/direct/operation-context";
 
 const ASSET = { assetId: "bank-us:102:asset-1", assetType: "finp2p" } as any;
