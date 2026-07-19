@@ -46,6 +46,8 @@ export class ConfigurablePlanApprovalService implements PlanApprovalService {
       return result;
     }
 
+    logger.info(`Plan ${planId}: running approval option(s) [${this.options.map(o => o.name).join(", ")}] over ${plan.instructions.length} instruction(s)`);
+    const skippedAfterFailure: string[] = [];
     for (const option of this.options) {
       let veto;
       try {
@@ -59,13 +61,18 @@ export class ConfigurablePlanApprovalService implements PlanApprovalService {
           return rejectedPlan(1, `Approval option '${option.name}' failed for plan ${planId}: ${e}`);
         }
         logger.warning(`Plan ${planId}: approval option '${option.name}' failed, skipping: ${e}`);
+        skippedAfterFailure.push(option.name);
         continue;
       }
       if (veto && veto.type === "rejected") {
-        logger.info(`Plan ${planId} rejected by approval option '${option.name}'`);
+        const reason = (veto as { error?: { message?: string } }).error?.message;
+        logger.info(`Plan ${planId} rejected by approval option '${option.name}'${reason ? `: ${reason}` : ""}`);
         return veto;
       }
     }
+    logger.info(skippedAfterFailure.length > 0
+      ? `Plan ${planId}: approval options completed without a gating rejection (skipped after failure: ${skippedAfterFailure.join(", ")})`
+      : `Plan ${planId}: all approval options passed`);
     return result;
   }
 
