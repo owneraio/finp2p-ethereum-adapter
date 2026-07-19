@@ -23,6 +23,9 @@ describe("registerEthereumTokenStandards (real plugin standards)", () => {
     delete process.env.OPERATOR_PRIVATE_KEY;
     delete process.env.TOKEN_STANDARD_ISSUER_PRIVATE_KEY;
     delete process.env.TOKEN_STANDARD_CONTROLLER_PRIVATE_KEY;
+    delete process.env.TOKENY_API_URL;
+    delete process.env.TOKENY_EMAIL;
+    delete process.env.TOKENY_PASSWORD;
 
     registerEthereumTokenStandards({ logger: warningLogger, rpcUrl: undefined } as any);
     expect(warnings.length).toBe(1);
@@ -36,8 +39,7 @@ describe("registerEthereumTokenStandards (real plugin standards)", () => {
     warnings.length = 0;
     registerEthereumTokenStandards({ logger: warningLogger, rpcUrl: RPC } as any);
 
-    expect(warnings.length).toBe(1);
-    expect(warnings[0]).toContain("validate-only");
+    expect(warnings.some(w => w.includes("validate-only"))).toBe(true);
     for (const name of ["TREX", "CMTAT", "BENJI", "HEDERA_ATS"]) {
       expect(tokenStandardRegistry.has(name)).toBe(true);
     }
@@ -51,7 +53,10 @@ describe("registerEthereumTokenStandards (real plugin standards)", () => {
     process.env.OPERATOR_PRIVATE_KEY = OPERATOR_KEY;
 
     registerEthereumTokenStandards({ logger: warningLogger, rpcUrl: RPC } as any);
-    expect(warnings).toEqual([]); // fully keyed — no degraded-mode warning
+    // fully keyed — no degraded-mode warning; the TREX qualifier warn is
+    // expected while the TOKENY_* envs are absent
+    expect(warnings.some(w => w.includes("validate-only"))).toBe(false);
+    expect(warnings.some(w => w.includes("TREX investor qualifier disabled"))).toBe(true);
 
     const expected: Array<[string, any]> = [
       ["TREX", TrexTokenStandard],
