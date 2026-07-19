@@ -15,7 +15,11 @@ export const DEFAULT_ACTIVATION_AMOUNT = "0.001";
  *   web3_clientVersion, which also catches private networks (e.g. HashSphere)
  *   running the relay under a custom chain id.
  */
-const METHOD_UNSUPPORTED = /method not found|not supported|does not exist|not available|unsupported/i;
+// JSON-RPC -32601 is authoritative; the message fallback must reference the
+// method itself (e.g. geth's "the method web3_clientVersion does not exist/is
+// not available") so generic outage messages ("service is not available")
+// stay transient and are retried
+const METHOD_UNSUPPORTED = /method\s+(?:\S+\s+)?(?:not found|not supported|not available|does not exist)|unsupported method/i;
 
 const isMethodUnsupported = (e: unknown): boolean => {
   const err = e as { code?: unknown; message?: string; error?: { code?: unknown } };

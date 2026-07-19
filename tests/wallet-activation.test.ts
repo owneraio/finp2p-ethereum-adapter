@@ -45,11 +45,18 @@ describe("isHederaNetwork", () => {
   test("a node not implementing the probe is definitively not the relay", async () => {
     expect(await isHederaNetwork(mockProvider(1337n, new Error("method not found")))).toBe(false);
     expect(await isHederaNetwork(mockProvider(1337n, Object.assign(new Error("nope"), { code: -32601 })))).toBe(false);
+    expect(await isHederaNetwork(mockProvider(1337n,
+      new Error("the method web3_clientVersion does not exist/is not available")))).toBe(false);
   });
 
   test("transient probe failures propagate instead of reading as not-Hedera", async () => {
     await expect(isHederaNetwork(mockProvider(1337n, new Error("connection refused"))))
       .rejects.toThrow("connection refused");
+    // generic outage phrasings must not be mistaken for method-not-found
+    await expect(isHederaNetwork(mockProvider(1337n, new Error("service is not available"))))
+      .rejects.toThrow("service is not available");
+    await expect(isHederaNetwork(mockProvider(1337n, new Error("upstream does not exist"))))
+      .rejects.toThrow("upstream does not exist");
   });
 });
 
@@ -154,10 +161,13 @@ describe("WalletActivationOption", () => {
     expect(noStation.touches).toHaveLength(0);
   });
 
-  test("a transient probe failure is retried on the next plan, not cached as not-Hedera", async () => {
+  test.each([
+    "connection refused",
+    "service is not available",
+  ])("a transient probe failure (%s) is retried on the next plan, not cached as not-Hedera", async (message) => {
     const { option, touches, callCounts } = build({
       chainId: 1337n,
-      clientVersions: [new Error("connection refused"), "relay/0.32.0"]
+      clientVersions: [new Error(message), "relay/0.32.0"]
     });
     // first plan: probe fails transiently — skip activation, leave undetected
     await expect(option.apply(plan([instruction("issue", undefined, ALICE)]))).resolves.toBeUndefined();
