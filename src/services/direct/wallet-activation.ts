@@ -15,6 +15,13 @@ export const DEFAULT_ACTIVATION_AMOUNT = "0.001";
  *   web3_clientVersion, which also catches private networks (e.g. HashSphere)
  *   running the relay under a custom chain id.
  */
+const METHOD_UNSUPPORTED = /method not found|not supported|does not exist|not available|unsupported/i;
+
+const isMethodUnsupported = (e: unknown): boolean => {
+  const err = e as { code?: unknown; message?: string; error?: { code?: unknown } };
+  return err?.code === -32601 || err?.error?.code === -32601 || METHOD_UNSUPPORTED.test(err?.message ?? "");
+};
+
 export async function isHederaNetwork(provider: Provider): Promise<boolean> {
   const { chainId } = await provider.getNetwork();
   if (HEDERA_CHAIN_IDS.has(chainId)) return true;
@@ -24,8 +31,12 @@ export async function isHederaNetwork(provider: Provider): Promise<boolean> {
   try {
     const clientVersion = await send.call(provider, "web3_clientVersion", []);
     return typeof clientVersion === "string" && /^relay\//i.test(clientVersion);
-  } catch {
-    return false;
+  } catch (e) {
+    // a node that doesn't implement the probe is definitively not the relay;
+    // anything else is transient — propagate so callers retry instead of
+    // caching a false negative
+    if (isMethodUnsupported(e)) return false;
+    throw e;
   }
 }
 

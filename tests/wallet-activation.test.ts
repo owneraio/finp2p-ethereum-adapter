@@ -40,7 +40,16 @@ describe("isHederaNetwork", () => {
   test("plain EVM networks are not detected", async () => {
     expect(await isHederaNetwork(mockProvider(1n))).toBe(false);
     expect(await isHederaNetwork(mockProvider(1337n, "Geth/v1.13.0"))).toBe(false);
+  });
+
+  test("a node not implementing the probe is definitively not the relay", async () => {
     expect(await isHederaNetwork(mockProvider(1337n, new Error("method not found")))).toBe(false);
+    expect(await isHederaNetwork(mockProvider(1337n, Object.assign(new Error("nope"), { code: -32601 })))).toBe(false);
+  });
+
+  test("transient probe failures propagate instead of reading as not-Hedera", async () => {
+    await expect(isHederaNetwork(mockProvider(1337n, new Error("connection refused"))))
+      .rejects.toThrow("connection refused");
   });
 });
 
@@ -55,14 +64,24 @@ describe("WalletActivationOption", () => {
     mapped?: Record<string, string>;
     amount?: string;
     failFor?: string;
+    /** consumed one per detection probe; string = client version, Error = probe failure */
+    clientVersions?: Array<string | Error>;
   } = {}) {
     const touches: Touch[] = [];
     const balances: Record<string, bigint> = { ...(opts.balances ?? {}) };
+    const clientVersions = [...(opts.clientVersions ?? [])];
     let networkCalls = 0;
 
     const provider = {
       getNetwork: async () => { networkCalls++; return { chainId: opts.chainId ?? 296n }; },
-      getBalance: async (address: string) => balances[address] ?? 0n
+      getBalance: async (address: string) => balances[address] ?? 0n,
+      send: opts.clientVersions === undefined ? undefined : async (method: string) => {
+        if (method !== "web3_clientVersion") throw new Error(`unexpected ${method}`);
+        const next = clientVersions.shift();
+        if (next === undefined) throw new Error("no more probe responses");
+        if (next instanceof Error) throw next;
+        return next;
+      }
     };
     const signer = {
       sendTransaction: async (tx: { to: string; value: bigint }) => {
@@ -133,6 +152,20 @@ describe("WalletActivationOption", () => {
     const noStation = build({ gasStation: false });
     await noStation.option.apply(plan([instruction("issue", undefined, ALICE)]));
     expect(noStation.touches).toHaveLength(0);
+  });
+
+  test("a transient probe failure is retried on the next plan, not cached as not-Hedera", async () => {
+    const { option, touches, callCounts } = build({
+      chainId: 1337n,
+      clientVersions: [new Error("connection refused"), "relay/0.32.0"]
+    });
+    // first plan: probe fails transiently — skip activation, leave undetected
+    await expect(option.apply(plan([instruction("issue", undefined, ALICE)]))).resolves.toBeUndefined();
+    expect(touches).toHaveLength(0);
+    // second plan: probe succeeds — network detected, destination activated
+    await option.apply(plan([instruction("issue", undefined, ALICE)]));
+    expect(touches.map(t => t.to)).toEqual([ADDR[ALICE]]);
+    expect(callCounts().networkCalls).toBe(2);
   });
 
   test("detection result is cached across plans", async () => {
