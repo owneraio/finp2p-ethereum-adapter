@@ -97,3 +97,10 @@ export interface OperationContext {
   operationId?: string;
   releaseType: ReleaseType;
 }
+
+/**
+ * Host-supplied asset lookup, injected into plugin constructors that need to
+ * resolve assets themselves (e.g. plan-approval flows). The host adapts its
+ * storage into this shape; undefined means the asset is not kept by this host.
+ */
+export type AssetResolver = (assetId: string) => Promise<AssetRecord | undefined>;
