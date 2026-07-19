@@ -11,6 +11,9 @@ export type IntrospectedInstruction = {
   local: boolean;
   sourceFinId?: string;
   destinationFinId?: string;
+  /** explicit ledger address (FinAPI networkAccount), execution's fallback when the finId is unmapped */
+  sourceAddress?: string;
+  destinationAddress?: string;
   assetId?: string;
   amount?: string;
 };
@@ -23,9 +26,13 @@ export type IntrospectedPlan = {
   raw: any;
 };
 
-type RawAccount = { finp2pAccount?: { account?: { finId?: string }; asset?: { id?: string } } };
+type RawAccount = {
+  finp2pAccount?: { account?: { finId?: string }; asset?: { id?: string } };
+  networkAccount?: { address?: string };
+};
 const finIdOf = (account: RawAccount | undefined): string | undefined => account?.finp2pAccount?.account?.finId;
 const assetIdOf = (account: RawAccount | undefined): string | undefined => account?.finp2pAccount?.asset?.id;
+const addressOf = (account: RawAccount | undefined): string | undefined => account?.networkAccount?.address;
 
 /**
  * Normalize the raw FinAPI execution plan into an IntrospectedPlan. An
@@ -44,6 +51,8 @@ export const introspectPlan = (planId: string, orgId: string, rawPlan: any): Int
       local: organizations.length === 0 || organizations.includes(orgId),
       sourceFinId: finIdOf(op.source),
       destinationFinId: finIdOf(op.destination),
+      sourceAddress: addressOf(op.source),
+      destinationAddress: addressOf(op.destination),
       assetId: assetIdOf(op.source) ?? assetIdOf(op.destination),
       amount: op.amount
     };

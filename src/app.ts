@@ -21,6 +21,8 @@ import {
   DirectTokenService,
   CustodyProvider,
   GasPrefundingOption,
+  TokenWhitelistingOption,
+  WalletActivationOption,
   custodyRegistry,
   DbAccountMapping,
   AccountMappingService,
@@ -121,7 +123,12 @@ function registerDirectServices(
   // Plan approval is always on: it delegates the approve/reject decision to the
   // skeleton impl, then runs approval options over the introspected plan. Gas
   // prefunding is one option (token-based whitelisting etc. can be added here).
+  const walletActivationAmount = process.env.WALLET_ACTIVATION_AMOUNT;
   const planApprovalOptions: PlanApprovalOption[] = [
+    // recipients must exist (Hedera auto-create) before whitelisting can
+    // reference them; whitelisting gates (and can veto) before gas is spent
+    new WalletActivationOption(custodyProvider, accountMapping, walletActivationAmount),
+    new TokenWhitelistingOption(assetStore, accountMapping, custodyProvider),
     new GasPrefundingOption(custodyProvider, accountMapping),
   ];
   const planApprovalService = new ConfigurablePlanApprovalService(
