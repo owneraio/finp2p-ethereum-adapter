@@ -46,6 +46,7 @@ export class ConfigurablePlanApprovalService implements PlanApprovalService {
       return result;
     }
 
+    logger.info(`Plan ${planId}: running approval option(s) [${this.options.map(o => o.name).join(", ")}] over ${plan.instructions.length} instruction(s)`);
     for (const option of this.options) {
       let veto;
       try {
@@ -62,10 +63,12 @@ export class ConfigurablePlanApprovalService implements PlanApprovalService {
         continue;
       }
       if (veto && veto.type === "rejected") {
-        logger.info(`Plan ${planId} rejected by approval option '${option.name}'`);
+        const reason = (veto as { error?: { message?: string } }).error?.message;
+        logger.info(`Plan ${planId} rejected by approval option '${option.name}'${reason ? `: ${reason}` : ""}`);
         return veto;
       }
     }
+    logger.info(`Plan ${planId}: all approval options passed`);
     return result;
   }
 
