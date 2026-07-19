@@ -21,9 +21,19 @@ jobs:
           registry-url: https://npm.pkg.github.com/
           scope: '@owneraio'
 
+      - name: Verify tag matches package version
+        working-directory: ./adapter-contract
+        run: |
+          TAG_VERSION="${GITHUB_REF_NAME#adapter-contract-v}"
+          PKG_VERSION=$(node -p "require('./package.json').version")
+          if [ "$TAG_VERSION" != "$PKG_VERSION" ]; then
+            echo "tag version ($TAG_VERSION) does not match package.json ($PKG_VERSION)"
+            exit 1
+          fi
+
       - name: Install
         working-directory: ./adapter-contract
-        run: npm install
+        run: npm ci
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 

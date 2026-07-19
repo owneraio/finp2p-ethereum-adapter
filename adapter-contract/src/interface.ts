@@ -1,5 +1,5 @@
-import { Provider, Signer } from 'ethers';
-import { TokenWallet, AssetRecord, DeployResult, Logger, OperationContext, TokenOperationResult } from './types';
+import type { Provider, Signer } from 'ethers';
+import type { TokenWallet, AssetRecord, DeployResult, Logger, OperationContext, TokenOperationResult } from './types';
 
 /**
  * Token standard implementation for direct-mode operations.

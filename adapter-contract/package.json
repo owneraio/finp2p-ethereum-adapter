@@ -1,7 +1,7 @@
 {
   "name": "@owneraio/finp2p-ethereum-adapter-contract",
-  "version": "0.28.8",
-  "description": "The FinP2P Ethereum adapter's plugin SPI: the interfaces and runtime values token-standard plugins implement. Owned and released in lockstep with the adapter.",
+  "version": "0.28.9",
+  "description": "The FinP2P Ethereum adapter's plugin SPI: the interfaces and runtime values token-standard plugins implement. Owned and released from the adapter repository; shares the platform's major.minor line with an independent patch version.",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "exports": {

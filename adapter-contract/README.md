@@ -6,10 +6,13 @@ token-standard plugin implements: the `TokenStandard` interface, the optional
 (`successfulTokenOp` / `failedTokenOp`, the `LegType` / `PrimaryType` / `Phase` /
 `ReleaseType` enums).
 
-Owned and released from the adapter repository in lockstep with the adapter
-(same tag pipeline, like `finp2p-contracts/`). The adapter consumes it via a
-registry pin; plugins declare it as a peerDependency (plus devDependency for
-local builds). Nobody depends on the adapter package itself.
+Owned and released from the adapter repository by its own tag pipeline
+(`adapter-contract-v*`), like `finp2p-contracts/`. Versioning: the
+major.minor line is shared with the platform (`0.28.x`); the patch version is
+independent of the adapter's — the same policy every package in this
+ecosystem follows. The adapter consumes it via a registry pin; plugins
+declare it as a peerDependency (plus devDependency for local builds). Nobody
+depends on the adapter package itself.
 
 The peer expresses which contract a plugin implements — it cannot constrain the
 adapter version. Runtime compatibility across versions rests on structural

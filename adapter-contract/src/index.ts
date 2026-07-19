@@ -1,10 +1,12 @@
 /**
- * The adapter's plugin integration contract — the single source of truth for
- * what a token-standard plugin implements.
+ * The adapter's plugin SPI — the single source of truth for what a
+ * token-standard plugin implements. A standalone runtime package: besides the
+ * interfaces it carries the values plugins use at runtime (token-op helpers
+ * and the LegType/PrimaryType/Phase/ReleaseType enums), so plugins declare it
+ * as a peerDependency (plus devDependency for local builds).
  *
- * This module MUST stay free of adapter runtime imports: plugins consume it
- * type-only (import type) via the package subpath export, so nothing of the
- * adapter's runtime graph ever loads inside a plugin build.
+ * This package must stay tiny and free of adapter runtime imports — its only
+ * dependency is ethers, used for types alone.
  */
 export * from './interface';
 export * from './types';

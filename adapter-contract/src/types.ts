@@ -1,4 +1,4 @@
-import { Provider, Signer } from 'ethers';
+import type { Provider, Signer } from 'ethers';
 
 /**
  * Minimal logger interface. Structurally compatible with winston, console, or any logger.

@@ -1,5 +1,5 @@
-import { TokenStandard } from './interface';
-import { AssetRecord, Logger, TokenOperationResult } from './types';
+import type { TokenStandard } from './interface';
+import type { AssetRecord, Logger, TokenOperationResult } from './types';
 
 export type WhitelistPartyRole = 'source' | 'destination' | 'escrow';
 
