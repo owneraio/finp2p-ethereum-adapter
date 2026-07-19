@@ -19,7 +19,7 @@ The base `TokenStandard` interface is defined by [`@owneraio/finp2p-ethereum-own
 | `OWNERA_COLLATERAL_REGISTRY` | `@owneraio/finp2p-ethereum-collateral` | `COLLATERAL_REGISTRY_ADDRESS` + `COLLATERAL_AGENT_PRIVATE_KEY` |
 | `DTCC_COLLATERAL_ACCOUNT` | `@owneraio/finp2p-ethereum-dtcc-plugin` | `DTCC_PLUGIN_ENABLED=true` |
 
-¹ Signers default to `OPERATOR_PRIVATE_KEY`; override per role with `TOKEN_STANDARD_ISSUER_PRIVATE_KEY` / `TOKEN_STANDARD_CONTROLLER_PRIVATE_KEY`. Skipped with a warning when no key or `NETWORK_HOST` is configured.
+¹ Signers default to `OPERATOR_PRIVATE_KEY`; override per role with `TOKEN_STANDARD_ISSUER_PRIVATE_KEY` / `TOKEN_STANDARD_CONTROLLER_PRIVATE_KEY` (Hedera whitelist writes: `TOKEN_STANDARD_ALLOWLISTER_PRIVATE_KEY`, defaults to the controller). Without keys the standards register in validate-only mode — reads and whitelist checks work, agent writes (deploy/mint/whitelist additions) fail per operation. Skipped entirely only when `NETWORK_HOST` is unset.
 
 ## Documentation
 

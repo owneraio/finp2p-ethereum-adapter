@@ -1,3 +1,4 @@
+import { VoidSigner, ZeroAddress } from "ethers";
 import { TokenStandard } from "@owneraio/finp2p-ethereum-ownera";
 import { TrexTokenStandard, TokenStandardName as TREX_STANDARD } from "@owneraio/finp2p-ethereum-trex-plugin";
 import { CmtatTokenStandard, TokenStandardName as CMTAT_STANDARD } from "@owneraio/finp2p-ethereum-cmtat-plugin";
@@ -16,7 +17,7 @@ import { pooledProvider, pooledSigner } from "../signer-pool";
  * feature-flagged) and never contend for the single PaymentsPlugin slot.
  * Onboarding / plan-approval, where a standard needs it, is a separate concern.
  *
- * Needs NETWORK_HOST (rpc) + an agent key. issuer/controller default to
+ * Needs NETWORK_HOST (rpc). issuer/controller default to
  * OPERATOR_PRIVATE_KEY; override per role with
  * TOKEN_STANDARD_ISSUER_PRIVATE_KEY / TOKEN_STANDARD_CONTROLLER_PRIVATE_KEY.
  * HEDERA_ATS whitelisting writes are signed by the allowlister
@@ -24,6 +25,11 @@ import { pooledProvider, pooledSigner } from "../signer-pool";
  * TREX whitelisting requires a deployment-specific Tokeny qualifier the
  * adapter does not provide — its ensureWhitelisted fails closed for
  * unverified investors until one is injected.
+ *
+ * Missing agent keys degrade to validate-only, not to unregistered:
+ * provider-backed reads (balanceOf, whitelist checks — ensureWhitelisted
+ * succeeds for already-whitelisted investors) keep working, and only the
+ * agent writes (deploy/mint/whitelist additions) fail per-operation.
  */
 export function registerEthereumTokenStandards(ctx: IntegrationContext): void {
   const { logger, rpcUrl } = ctx;
@@ -33,14 +39,18 @@ export function registerEthereumTokenStandards(ctx: IntegrationContext): void {
   const allowlisterKey = process.env.TOKEN_STANDARD_ALLOWLISTER_PRIVATE_KEY;
 
   const names = [TREX_STANDARD, CMTAT_STANDARD, BENJI_STANDARD, HEDERA_ATS_STANDARD];
-  if (!rpcUrl || !issuerKey || !controllerKey) {
-    logger.warn(`Ethereum token standards (${names.join(", ")}) not registered: set NETWORK_HOST + OPERATOR_PRIVATE_KEY (or TOKEN_STANDARD_ISSUER/CONTROLLER_PRIVATE_KEY)`);
+  if (!rpcUrl) {
+    logger.warn(`Ethereum token standards (${names.join(", ")}) not registered: NETWORK_HOST is not set`);
     return;
   }
 
   const provider = pooledProvider(rpcUrl);
-  const issuer = pooledSigner(rpcUrl, issuerKey);
-  const controller = pooledSigner(rpcUrl, controllerKey);
+  const readOnlySigner = new VoidSigner(ZeroAddress, provider);
+  if (!issuerKey || !controllerKey) {
+    logger.warn(`Ethereum token standards (${names.join(", ")}) registered in validate-only mode: reads and whitelist checks work, agent writes (deploy/mint/whitelist additions) fail until OPERATOR_PRIVATE_KEY or TOKEN_STANDARD_ISSUER/CONTROLLER_PRIVATE_KEY is configured`);
+  }
+  const issuer = issuerKey ? pooledSigner(rpcUrl, issuerKey) : readOnlySigner;
+  const controller = controllerKey ? pooledSigner(rpcUrl, controllerKey) : readOnlySigner;
   const allowlister = allowlisterKey ? pooledSigner(rpcUrl, allowlisterKey) : undefined;
 
   const standards: Array<[string, TokenStandard]> = [

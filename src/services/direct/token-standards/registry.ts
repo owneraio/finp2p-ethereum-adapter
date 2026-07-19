@@ -54,6 +54,11 @@ class TokenStandardRegistry {
   get availableStandards(): string[] {
     return Array.from(this.standards.keys());
   }
+
+  /** Test hook: drop all registrations so a suite can exercise both registration modes. */
+  reset(): void {
+    this.standards.clear();
+  }
 }
 
 export const tokenStandardRegistry = new TokenStandardRegistry();
