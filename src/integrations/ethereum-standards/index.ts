@@ -19,12 +19,18 @@ import { pooledProvider, pooledSigner } from "../signer-pool";
  * Needs NETWORK_HOST (rpc) + an agent key. issuer/controller default to
  * OPERATOR_PRIVATE_KEY; override per role with
  * TOKEN_STANDARD_ISSUER_PRIVATE_KEY / TOKEN_STANDARD_CONTROLLER_PRIVATE_KEY.
+ * HEDERA_ATS whitelisting writes are signed by the allowlister
+ * (TOKEN_STANDARD_ALLOWLISTER_PRIVATE_KEY, defaults to the controller).
+ * TREX whitelisting requires a deployment-specific Tokeny qualifier the
+ * adapter does not provide — its ensureWhitelisted fails closed for
+ * unverified investors until one is injected.
  */
 export function registerEthereumTokenStandards(ctx: IntegrationContext): void {
   const { logger, rpcUrl } = ctx;
   const operatorKey = process.env.OPERATOR_PRIVATE_KEY;
   const issuerKey = process.env.TOKEN_STANDARD_ISSUER_PRIVATE_KEY ?? operatorKey;
   const controllerKey = process.env.TOKEN_STANDARD_CONTROLLER_PRIVATE_KEY ?? operatorKey;
+  const allowlisterKey = process.env.TOKEN_STANDARD_ALLOWLISTER_PRIVATE_KEY;
 
   const names = [TREX_STANDARD, CMTAT_STANDARD, BENJI_STANDARD, HEDERA_ATS_STANDARD];
   if (!rpcUrl || !issuerKey || !controllerKey) {
@@ -35,12 +41,13 @@ export function registerEthereumTokenStandards(ctx: IntegrationContext): void {
   const provider = pooledProvider(rpcUrl);
   const issuer = pooledSigner(rpcUrl, issuerKey);
   const controller = pooledSigner(rpcUrl, controllerKey);
+  const allowlister = allowlisterKey ? pooledSigner(rpcUrl, allowlisterKey) : undefined;
 
   const standards: Array<[string, TokenStandard]> = [
     [TREX_STANDARD, new TrexTokenStandard(provider, issuer, controller)],
     [CMTAT_STANDARD, new CmtatTokenStandard(provider, issuer, controller)],
     [BENJI_STANDARD, new BenjiTokenStandard(provider, issuer, controller)],
-    [HEDERA_ATS_STANDARD, new AtsTokenStandard(provider, issuer, controller)],
+    [HEDERA_ATS_STANDARD, new AtsTokenStandard(provider, issuer, controller, allowlister)],
   ];
 
   const registered: string[] = [];
