@@ -1,5 +1,5 @@
 import { logger, rejectedPlan } from "@owneraio/finp2p-nodejs-skeleton-adapter";
-import { AssetRecord, Logger as TokenLogger } from "@owneraio/finp2p-ethereum-adapter-contract";
+import { AssetRecord, Logger as TokenLogger } from "@owneraio/finp2p-ethereum-ownera";
 import { PlanApprovalOption, IntrospectedPlan, IntrospectedInstruction } from "../plan-approval";
 import { AccountMappingService, AssetStore } from "./account-mapping";
 import { CustodyProvider } from "./custody-provider";

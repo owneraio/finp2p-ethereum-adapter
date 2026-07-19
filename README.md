@@ -7,7 +7,7 @@ The Adapter communicated with a FinP2P proxy contract on Ethereum network which 
 
 ## Supported token standards
 
-The base `TokenStandard` interface is defined by [`@owneraio/finp2p-ethereum-adapter-contract`](./adapter-contract) — the adapter-owned plugin SPI, released in lockstep with the adapter (#325); each standard below implements it and is resolved by name from the asset's `token_standard`:
+The base `TokenStandard` interface is owned by the adapter and published as [`@owneraio/finp2p-ethereum-adapter-contract`](./adapter-contract) (#325; internal imports migrate there in a follow-up — currently still consumed via `@owneraio/finp2p-ethereum-ownera`); each standard below implements it and is resolved by name from the asset's `token_standard`:
 
 | Standard | Package | Registration |
 | :--- | :--- | :--- |
