@@ -4,6 +4,7 @@ import { BenjiTokenStandard } from "@owneraio/finp2p-ethereum-benji-plugin";
 import { AtsTokenStandard } from "@owneraio/finp2p-ethereum-hedera-plugin";
 import { registerEthereumTokenStandards } from "../src/integrations/ethereum-standards";
 import { tokenStandardRegistry } from "../src/services/direct/token-standards/registry";
+import { supportsWhitelisting } from "../src/services/direct/token-standards/whitelisting";
 import { resetSignerPool } from "../src/integrations/signer-pool";
 
 const OPERATOR_KEY = "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80";
@@ -50,5 +51,13 @@ describe("registerEthereumTokenStandards (real plugin standards)", () => {
 
   test("re-registration is a no-op (has() guard), not a crash", () => {
     expect(() => registerEthereumTokenStandards({ logger, rpcUrl: RPC } as any)).not.toThrow();
+  });
+
+  test("the plan-approval whitelisting probe picks up the plugin capability", () => {
+    // TREX, CMTAT and HEDERA_ATS implement InvestorWhitelisting since 0.28.2;
+    // BENJI has no investor gating, so the capability is correctly absent
+    for (const [name, capable] of [["TREX", true], ["CMTAT", true], ["HEDERA_ATS", true], ["BENJI", false]] as const) {
+      expect(supportsWhitelisting(tokenStandardRegistry.resolve(name))).toBe(capable);
+    }
   });
 });
