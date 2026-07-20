@@ -11,21 +11,9 @@ import { IntegrationContext } from "../registry";
 import { pooledProvider, pooledSigner } from "../signer-pool";
 
 /**
- * Registers every direct-mode token standard the adapter supports:
- *
- * - The provisioned Ethereum plugin standards (TREX, CMTAT, BENJI, HEDERA_ATS)
- *   — value-op only, wired unconditionally (support-all), never contending for
- *   the single PaymentsPlugin slot.
- * - The env-gated collateral (OWNERA_COLLATERAL_REGISTRY) and DTCC
- *   (DTCC_COLLATERAL_ACCOUNT) standards.
- *
- * Only token-standard registration lives here. Deposit / plan-approval plugins
- * for the collateral and DTCC standards are wired separately
- * (integrations/deposits/collateral, integrations/deposits/dtcc).
- *
- * The standards are black boxes behind the TokenStandard/InvestorWhitelisting
- * interfaces: this module only maps env config onto each plugin's public
- * on-chain constructor arguments.
+ * Registers every direct-mode token standard: the always-on Ethereum plugin
+ * standards and the env-gated collateral and DTCC standards. Deposit /
+ * plan-approval plugins are wired separately (integrations/deposits).
  */
 export function registerTokenStandards(ctx: IntegrationContext): void {
   registerEthereumTokenStandards(ctx);
@@ -35,17 +23,10 @@ export function registerTokenStandards(ctx: IntegrationContext): void {
 
 /**
  * TREX/CMTAT/BENJI/HEDERA_ATS. issuer/controller default to
- * OPERATOR_PRIVATE_KEY; override per role with
- * TOKEN_STANDARD_ISSUER_PRIVATE_KEY / TOKEN_STANDARD_CONTROLLER_PRIVATE_KEY.
- * Whitelisting writes use TOKEN_STANDARD_ALLOWLISTER_PRIVATE_KEY where the
- * constructor accepts one (TREX, CMTAT, HEDERA_ATS). Role keys are valueless
- * operator wallets (KMS backed), never custody wallets.
- *
- * A missing issuer/controller key is not a real secret for deployments that
- * don't use these standards for agent writes (plain ERC20 signs via custody
- * wallets): an ephemeral signer stands in, so provider-backed reads and
- * whitelist checks work with a valid address. Unauthorized/unfunded writes
- * still fail on-chain — deployments that DO issue set the explicit keys.
+ * OPERATOR_PRIVATE_KEY (override per role via TOKEN_STANDARD_ISSUER/CONTROLLER
+ * _PRIVATE_KEY); whitelisting writes use TOKEN_STANDARD_ALLOWLISTER_PRIVATE_KEY.
+ * Absent an issuer/controller key an ephemeral signer stands in — reads and
+ * whitelist checks work; on-chain writes need a configured, authorized key.
  */
 export function registerEthereumTokenStandards(ctx: IntegrationContext): void {
   const { logger, rpcUrl } = ctx;
@@ -61,9 +42,6 @@ export function registerEthereumTokenStandards(ctx: IntegrationContext): void {
   }
 
   const provider = pooledProvider(rpcUrl);
-  // Absent role keys get one shared ephemeral signer (valid address, can sign
-  // locally; on-chain writes fail unless the address is actually authorized).
-  // Deployments issuing through these standards set the explicit keys.
   const ephemeral = !issuerKey || !controllerKey ? Wallet.createRandom().connect(provider) : undefined;
   if (ephemeral) {
     logger.info(`Ethereum token standards (${names.join(", ")}): no issuer/controller key configured — using an ephemeral signer (reads and whitelist checks work; set TOKEN_STANDARD_ISSUER_PRIVATE_KEY to issue)`);
@@ -90,9 +68,7 @@ export function registerEthereumTokenStandards(ctx: IntegrationContext): void {
 
 /**
  * OWNERA_COLLATERAL_REGISTRY — gated on COLLATERAL_REGISTRY_ADDRESS +
- * COLLATERAL_AGENT_PRIVATE_KEY. The collateral agent EOA is its own signer,
- * deliberately separate from OPERATOR_PRIVATE_KEY. The PaymentsPlugin for this
- * standard is registered separately (integrations/deposits/collateral).
+ * COLLATERAL_AGENT_PRIVATE_KEY (its own signer, separate from the operator).
  */
 export function registerCollateralTokenStandard(ctx: IntegrationContext): void {
   const registryAddress = process.env.COLLATERAL_REGISTRY_ADDRESS;
@@ -114,11 +90,7 @@ export function registerCollateralTokenStandard(ctx: IntegrationContext): void {
   logger.info(`Collateral token standard '${COLLATERAL_TOKEN_STANDARD}' registered: registry=${registryAddress}`);
 }
 
-/**
- * DTCC_COLLATERAL_ACCOUNT — gated on DTCC_PLUGIN_ENABLED. The deposit +
- * plan-approval plugins for this standard are registered separately
- * (integrations/deposits/dtcc).
- */
+/** DTCC_COLLATERAL_ACCOUNT — gated on DTCC_PLUGIN_ENABLED. */
 export function registerDtccTokenStandard(ctx: IntegrationContext): void {
   if (process.env.DTCC_PLUGIN_ENABLED !== 'true') return;
 
