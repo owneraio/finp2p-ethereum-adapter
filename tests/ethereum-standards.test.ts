@@ -35,11 +35,11 @@ describe("registerEthereumTokenStandards (real plugin standards)", () => {
     }
   });
 
-  test("without agent keys: registers all four in validate-only mode instead of skipping", () => {
+  test("without agent keys: registers all four with an ephemeral signer, no warning", () => {
     warnings.length = 0;
     registerEthereumTokenStandards({ logger: warningLogger, rpcUrl: RPC } as any);
 
-    expect(warnings.some(w => w.includes("validate-only"))).toBe(true);
+    expect(warnings).toEqual([]); // ephemeral signer is a normal state, not a warning
     for (const name of ["TREX", "CMTAT", "BENJI", "HEDERA_ATS"]) {
       expect(tokenStandardRegistry.has(name)).toBe(true);
     }

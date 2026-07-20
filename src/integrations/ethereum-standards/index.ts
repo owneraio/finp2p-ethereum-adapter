@@ -1,4 +1,4 @@
-import { VoidSigner, ZeroAddress } from "ethers";
+import { Wallet } from "ethers";
 import { TokenStandard } from "@owneraio/finp2p-ethereum-adapter-contract";
 import { TrexTokenStandard, TokenStandardName as TREX_STANDARD, TokenyClient, createTokenyQualifier, TrexInvestorQualifier } from "@owneraio/finp2p-ethereum-trex-plugin";
 import { CmtatTokenStandard, TokenStandardName as CMTAT_STANDARD } from "@owneraio/finp2p-ethereum-cmtat-plugin";
@@ -32,10 +32,12 @@ import { pooledProvider, pooledSigner } from "../signer-pool";
  * each argument authorizes, and the behavior when it is absent, is the
  * plugin's contract.
  *
- * Missing agent keys degrade to validate-only, not to unregistered:
- * provider-backed reads (balanceOf, whitelist checks — ensureWhitelisted
- * succeeds for already-whitelisted investors) keep working, and only the
- * agent writes (deploy/mint/whitelist additions) fail per-operation.
+ * A missing issuer/controller key is not a real secret for deployments that
+ * don't use these standards for agent writes (plain ERC20 signs via custody
+ * wallets): an ephemeral signer stands in, so provider-backed reads and
+ * whitelist checks work with a valid address. Unauthorized/unfunded writes
+ * still fail on-chain per operation — nothing is lost versus a configured key
+ * for such deployments, and deployments that DO issue set the explicit keys.
  */
 export function registerEthereumTokenStandards(ctx: IntegrationContext): void {
   const { logger, rpcUrl, finP2PClient } = ctx;
@@ -51,12 +53,15 @@ export function registerEthereumTokenStandards(ctx: IntegrationContext): void {
   }
 
   const provider = pooledProvider(rpcUrl);
-  const readOnlySigner = new VoidSigner(ZeroAddress, provider);
-  if (!issuerKey || !controllerKey) {
-    logger.warn(`Ethereum token standards (${names.join(", ")}) registered in validate-only mode: reads and whitelist checks work, agent writes (deploy/mint/whitelist additions) fail until OPERATOR_PRIVATE_KEY or TOKEN_STANDARD_ISSUER/CONTROLLER_PRIVATE_KEY is configured`);
+  // Absent role keys get one shared ephemeral signer (valid address, can sign
+  // locally; on-chain writes fail unless the address is actually authorized).
+  // Deployments issuing through these standards set the explicit keys.
+  const ephemeral = !issuerKey || !controllerKey ? Wallet.createRandom().connect(provider) : undefined;
+  if (ephemeral) {
+    logger.info(`Ethereum token standards (${names.join(", ")}): no issuer/controller key configured — using an ephemeral signer (reads and whitelist checks work; set TOKEN_STANDARD_ISSUER_PRIVATE_KEY to issue)`);
   }
-  const issuer = issuerKey ? pooledSigner(rpcUrl, issuerKey) : readOnlySigner;
-  const controller = controllerKey ? pooledSigner(rpcUrl, controllerKey) : readOnlySigner;
+  const issuer = issuerKey ? pooledSigner(rpcUrl, issuerKey) : ephemeral!;
+  const controller = controllerKey ? pooledSigner(rpcUrl, controllerKey) : ephemeral!;
   const allowlister = allowlisterKey ? pooledSigner(rpcUrl, allowlisterKey) : undefined;
 
   const tokenyUrl = process.env.TOKENY_API_URL;
