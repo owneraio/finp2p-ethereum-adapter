@@ -53,10 +53,9 @@ describe("registerEthereumTokenStandards (real plugin standards)", () => {
     process.env.OPERATOR_PRIVATE_KEY = OPERATOR_KEY;
 
     registerEthereumTokenStandards({ logger: warningLogger, rpcUrl: RPC } as any);
-    // fully keyed — no degraded-mode warning; the TREX qualifier warn is
-    // expected while the TOKENY_* envs are absent
-    expect(warnings.some(w => w.includes("validate-only"))).toBe(false);
-    expect(warnings.some(w => w.includes("TREX investor qualifier disabled"))).toBe(true);
+    // fully keyed — no warnings at all; absent TOKENY_* envs are silent
+    // (TREX qualifier stays off without noise)
+    expect(warnings).toEqual([]);
 
     const expected: Array<[string, any]> = [
       ["TREX", TrexTokenStandard],
