@@ -21,7 +21,7 @@ import { pooledProvider, pooledSigner } from "../signer-pool";
  *
  * Only token-standard registration lives here. Deposit / plan-approval plugins
  * for the collateral and DTCC standards are wired separately
- * (integrations/collateral, integrations/dtcc).
+ * (integrations/deposits/collateral, integrations/deposits/dtcc).
  *
  * The standards are black boxes behind the TokenStandard/InvestorWhitelisting
  * interfaces: this module only maps env config onto each plugin's public
@@ -92,7 +92,7 @@ export function registerEthereumTokenStandards(ctx: IntegrationContext): void {
  * OWNERA_COLLATERAL_REGISTRY — gated on COLLATERAL_REGISTRY_ADDRESS +
  * COLLATERAL_AGENT_PRIVATE_KEY. The collateral agent EOA is its own signer,
  * deliberately separate from OPERATOR_PRIVATE_KEY. The PaymentsPlugin for this
- * standard is registered separately (integrations/collateral).
+ * standard is registered separately (integrations/deposits/collateral).
  */
 export function registerCollateralTokenStandard(ctx: IntegrationContext): void {
   const registryAddress = process.env.COLLATERAL_REGISTRY_ADDRESS;
@@ -117,7 +117,7 @@ export function registerCollateralTokenStandard(ctx: IntegrationContext): void {
 /**
  * DTCC_COLLATERAL_ACCOUNT — gated on DTCC_PLUGIN_ENABLED. The deposit +
  * plan-approval plugins for this standard are registered separately
- * (integrations/dtcc).
+ * (integrations/deposits/dtcc).
  */
 export function registerDtccTokenStandard(ctx: IntegrationContext): void {
   if (process.env.DTCC_PLUGIN_ENABLED !== 'true') return;

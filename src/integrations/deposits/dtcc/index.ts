@@ -2,8 +2,8 @@ import {
   CollateralDepositPlugin,
   CollateralPlanApprovalPlugin,
 } from "@owneraio/finp2p-ethereum-dtcc-plugin";
-import { IntegrationContext } from "../registry";
-import { pooledProvider, pooledSigner } from "../signer-pool";
+import { IntegrationContext } from "../../registry";
+import { pooledProvider, pooledSigner } from "../../signer-pool";
 
 /**
  * Registers the DTCC deposit + plan-approval plugins when

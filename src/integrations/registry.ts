@@ -7,11 +7,7 @@ import { AssetStore, CustodyProvider, WalletResolver } from "../services/direct"
 import { AccountModel } from "../config";
 import { registerFireblocks } from "./fireblocks";
 import { registerDfns } from "./dfns";
-import { registerDtccPlugin } from "./dtcc";
-import { registerCollateralPlugin } from "./collateral";
-import { registerWalletDeposit } from "./deposits/wallet-deposit";
-import { registerPullDeposit } from "./deposits/pull-deposit";
-import { registerOtaDeposit } from "./deposits/ota-deposit";
+import { registerDeposits } from "./deposits";
 import { registerTokenStandards } from "./token-standards";
 
 /** True when another integration (DTCC, collateral, …) already owns the single PaymentsPlugin slot. */
@@ -45,11 +41,7 @@ export function registerCustodyIntegrations(): void {
 
 const integrations: IntegrationRegistrar[] = [
   registerTokenStandards,
-  registerWalletDeposit,
-  registerPullDeposit,
-  registerOtaDeposit,
-  registerDtccPlugin,
-  registerCollateralPlugin,
+  registerDeposits,
 ];
 
 /** Register runtime integrations (plugins, token standards) — runs after custody provider is created. */
