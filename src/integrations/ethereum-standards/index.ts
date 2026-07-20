@@ -1,6 +1,6 @@
-import { VoidSigner, ZeroAddress } from "ethers";
+import { Wallet } from "ethers";
 import { TokenStandard } from "@owneraio/finp2p-ethereum-adapter-contract";
-import { TrexTokenStandard, TokenStandardName as TREX_STANDARD, TokenyClient, createTokenyQualifier, TrexInvestorQualifier } from "@owneraio/finp2p-ethereum-trex-plugin";
+import { TrexTokenStandard, TokenStandardName as TREX_STANDARD } from "@owneraio/finp2p-ethereum-trex-plugin";
 import { CmtatTokenStandard, TokenStandardName as CMTAT_STANDARD } from "@owneraio/finp2p-ethereum-cmtat-plugin";
 import { BenjiTokenStandard, TokenStandardName as BENJI_STANDARD } from "@owneraio/finp2p-ethereum-benji-plugin";
 import { AtsTokenStandard, TokenStandardName as HEDERA_ATS_STANDARD } from "@owneraio/finp2p-ethereum-hedera-plugin";
@@ -25,20 +25,20 @@ import { pooledProvider, pooledSigner } from "../signer-pool";
  *
  * The standards are black boxes behind the TokenStandard/InvestorWhitelisting
  * interfaces: this module only maps env config onto each plugin's public
- * constructor arguments — an optional whitelisting signer
+ * on-chain constructor arguments — an optional whitelisting signer
  * (TOKEN_STANDARD_ALLOWLISTER_PRIVATE_KEY) where the constructor accepts one
- * (CMTAT, HEDERA_ATS), and an optional TREX investor qualifier built from
- * TOKENY_API_URL + TOKENY_EMAIL + TOKENY_PASSWORD when those are set. What
- * each argument authorizes, and the behavior when it is absent, is the
- * plugin's contract.
+ * (TREX, CMTAT, HEDERA_ATS). What each argument authorizes, and the behavior
+ * when it is absent, is the plugin's contract.
  *
- * Missing agent keys degrade to validate-only, not to unregistered:
- * provider-backed reads (balanceOf, whitelist checks — ensureWhitelisted
- * succeeds for already-whitelisted investors) keep working, and only the
- * agent writes (deploy/mint/whitelist additions) fail per-operation.
+ * A missing issuer/controller key is not a real secret for deployments that
+ * don't use these standards for agent writes (plain ERC20 signs via custody
+ * wallets): an ephemeral signer stands in, so provider-backed reads and
+ * whitelist checks work with a valid address. Unauthorized/unfunded writes
+ * still fail on-chain per operation — nothing is lost versus a configured key
+ * for such deployments, and deployments that DO issue set the explicit keys.
  */
 export function registerEthereumTokenStandards(ctx: IntegrationContext): void {
-  const { logger, rpcUrl, finP2PClient } = ctx;
+  const { logger, rpcUrl } = ctx;
   const operatorKey = process.env.OPERATOR_PRIVATE_KEY;
   const issuerKey = process.env.TOKEN_STANDARD_ISSUER_PRIVATE_KEY ?? operatorKey;
   const controllerKey = process.env.TOKEN_STANDARD_CONTROLLER_PRIVATE_KEY ?? operatorKey;
@@ -51,25 +51,19 @@ export function registerEthereumTokenStandards(ctx: IntegrationContext): void {
   }
 
   const provider = pooledProvider(rpcUrl);
-  const readOnlySigner = new VoidSigner(ZeroAddress, provider);
-  if (!issuerKey || !controllerKey) {
-    logger.warn(`Ethereum token standards (${names.join(", ")}) registered in validate-only mode: reads and whitelist checks work, agent writes (deploy/mint/whitelist additions) fail until OPERATOR_PRIVATE_KEY or TOKEN_STANDARD_ISSUER/CONTROLLER_PRIVATE_KEY is configured`);
+  // Absent role keys get one shared ephemeral signer (valid address, can sign
+  // locally; on-chain writes fail unless the address is actually authorized).
+  // Deployments issuing through these standards set the explicit keys.
+  const ephemeral = !issuerKey || !controllerKey ? Wallet.createRandom().connect(provider) : undefined;
+  if (ephemeral) {
+    logger.info(`Ethereum token standards (${names.join(", ")}): no issuer/controller key configured — using an ephemeral signer (reads and whitelist checks work; set TOKEN_STANDARD_ISSUER_PRIVATE_KEY to issue)`);
   }
-  const issuer = issuerKey ? pooledSigner(rpcUrl, issuerKey) : readOnlySigner;
-  const controller = controllerKey ? pooledSigner(rpcUrl, controllerKey) : readOnlySigner;
+  const issuer = issuerKey ? pooledSigner(rpcUrl, issuerKey) : ephemeral!;
+  const controller = controllerKey ? pooledSigner(rpcUrl, controllerKey) : ephemeral!;
   const allowlister = allowlisterKey ? pooledSigner(rpcUrl, allowlisterKey) : undefined;
 
-  const tokenyUrl = process.env.TOKENY_API_URL;
-  const tokenyEmail = process.env.TOKENY_EMAIL;
-  const tokenyPassword = process.env.TOKENY_PASSWORD;
-  let trexQualifier: TrexInvestorQualifier | undefined;
-  if (tokenyUrl && tokenyEmail && tokenyPassword) {
-    trexQualifier = createTokenyQualifier(new TokenyClient(tokenyUrl, tokenyEmail, tokenyPassword), finP2PClient as any, provider, controller);
-    logger.info("TREX investor qualifier enabled via the Tokeny API");
-  }
-
   const standards: Array<[string, TokenStandard]> = [
-    [TREX_STANDARD, new TrexTokenStandard(provider, issuer, controller, trexQualifier)],
+    [TREX_STANDARD, new TrexTokenStandard(provider, issuer, controller, allowlister)],
     [CMTAT_STANDARD, new CmtatTokenStandard(provider, issuer, controller, allowlister)],
     [BENJI_STANDARD, new BenjiTokenStandard(provider, issuer, controller)],
     [HEDERA_ATS_STANDARD, new AtsTokenStandard(provider, issuer, controller, allowlister)],
