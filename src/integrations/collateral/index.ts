@@ -1,19 +1,19 @@
 import { Wallet } from "ethers";
 import {
   OwneraCollateralPlugin,
-  OwneraCollateralTokenStandard,
-  TokenStandardName as COLLATERAL_TOKEN_STANDARD,
   WalletResolver as CollateralWalletResolver,
 } from "@owneraio/finp2p-ethereum-collateral";
 import { FinP2PContract } from "@owneraio/finp2p-contracts";
-import { tokenStandardRegistry, WalletResolver as CustodyWalletResolver } from "../../services/direct";
+import { WalletResolver as CustodyWalletResolver } from "../../services/direct";
 import { IntegrationContext } from "../registry";
 import { pooledProvider, pooledSigner } from "../signer-pool";
 
 /**
  * Registers the Ownera triparty collateral PaymentsPlugin when
- * COLLATERAL_REGISTRY_ADDRESS is set. Mutually exclusive with
- * DTCC_PLUGIN_ENABLED — both compete for the single PaymentsPlugin slot.
+ * COLLATERAL_REGISTRY_ADDRESS is set. The collateral token standard itself is
+ * registered separately (see integrations/token-standards/collateral).
+ * Mutually exclusive with DTCC_PLUGIN_ENABLED — both compete for the single
+ * PaymentsPlugin slot.
  *
  * The collateral agent EOA is its **own** signer, keyed by
  * COLLATERAL_AGENT_PRIVATE_KEY — deliberately separate from
@@ -54,17 +54,12 @@ export function registerCollateralPlugin(ctx: IntegrationContext): void {
   const ledgerName = process.env.LEDGER_NAME ?? 'ethereum';
   const collateralWalletResolver = buildCollateralWalletResolver(walletResolver, finP2PContract);
 
-  tokenStandardRegistry.register(
-    COLLATERAL_TOKEN_STANDARD,
-    new OwneraCollateralTokenStandard(registryAddress, provider, agentSigner) as any,
-  );
-
   const plugin = new OwneraCollateralPlugin(
     orgId, provider, agentSigner, finP2PClient, logger, collateralWalletResolver, registryAddress, ledgerName,
   );
   pluginManager.registerPaymentsPlugin(plugin);
 
-  logger.info(`Collateral plugin activated: token standard '${COLLATERAL_TOKEN_STANDARD}', registry=${registryAddress}, agent=${agentAddress}, ledger=${ledgerName}`);
+  logger.info(`Collateral plugin activated: registry=${registryAddress}, agent=${agentAddress}, ledger=${ledgerName}`);
 }
 
 function buildCollateralWalletResolver(

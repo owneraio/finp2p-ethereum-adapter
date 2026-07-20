@@ -2,7 +2,7 @@ import { TrexTokenStandard } from "@owneraio/finp2p-ethereum-trex-plugin";
 import { CmtatTokenStandard } from "@owneraio/finp2p-ethereum-cmtat-plugin";
 import { BenjiTokenStandard } from "@owneraio/finp2p-ethereum-benji-plugin";
 import { AtsTokenStandard } from "@owneraio/finp2p-ethereum-hedera-plugin";
-import { registerEthereumTokenStandards } from "../src/integrations/ethereum-standards";
+import { registerEthereumTokenStandards } from "../src/integrations/token-standards";
 import { tokenStandardRegistry } from "../src/services/direct/token-standards/registry";
 import { supportsWhitelisting } from "../src/services/direct/token-standards/whitelisting";
 import { resetSignerPool } from "../src/integrations/signer-pool";

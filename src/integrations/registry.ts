@@ -12,7 +12,7 @@ import { registerCollateralPlugin } from "./collateral";
 import { registerWalletDeposit } from "./deposits/wallet-deposit";
 import { registerPullDeposit } from "./deposits/pull-deposit";
 import { registerOtaDeposit } from "./deposits/ota-deposit";
-import { registerEthereumTokenStandards } from "./ethereum-standards";
+import { registerTokenStandards } from "./token-standards";
 
 /** True when another integration (DTCC, collateral, …) already owns the single PaymentsPlugin slot. */
 export function paymentsSlotClaimedExternally(): boolean {
@@ -44,7 +44,7 @@ export function registerCustodyIntegrations(): void {
 }
 
 const integrations: IntegrationRegistrar[] = [
-  registerEthereumTokenStandards,
+  registerTokenStandards,
   registerWalletDeposit,
   registerPullDeposit,
   registerOtaDeposit,
