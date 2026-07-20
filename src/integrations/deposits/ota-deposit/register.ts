@@ -1,4 +1,5 @@
-import { IntegrationContext, paymentsSlotClaimedExternally } from "../../registry";
+import { IntegrationContext } from "../../registry";
+import { paymentsSlotClaimedExternally } from "../payments-slot";
 import { DepositTargetResolver, resolveDepositMethod } from "../types";
 import { OtaDepositPlugin } from "./plugin";
 

@@ -13,7 +13,7 @@ import {
   failedDepositOperation,
 } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import { AssetStore, WalletResolver } from "../../../services/direct";
-import { paymentsSlotClaimedExternally } from "../../registry";
+import { paymentsSlotClaimedExternally } from "../payments-slot";
 import { IntegrationContext } from "../../registry";
 import { resolveDepositMethod } from "../types";
 
