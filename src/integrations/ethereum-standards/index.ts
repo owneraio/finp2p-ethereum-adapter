@@ -28,8 +28,9 @@ import { pooledProvider, pooledSigner } from "../signer-pool";
  * constructor arguments — an optional whitelisting signer
  * (TOKEN_STANDARD_ALLOWLISTER_PRIVATE_KEY) where the constructor accepts one
  * (CMTAT, HEDERA_ATS), and an optional TREX investor qualifier built from
- * TOKENY_API_URL + TOKENY_EMAIL + TOKENY_PASSWORD. What each argument
- * authorizes, and the behavior when it is absent, is the plugin's contract.
+ * TOKENY_API_URL + TOKENY_EMAIL + TOKENY_PASSWORD when those are set. What
+ * each argument authorizes, and the behavior when it is absent, is the
+ * plugin's contract.
  *
  * Missing agent keys degrade to validate-only, not to unregistered:
  * provider-backed reads (balanceOf, whitelist checks — ensureWhitelisted
@@ -65,8 +66,6 @@ export function registerEthereumTokenStandards(ctx: IntegrationContext): void {
   if (tokenyUrl && tokenyEmail && tokenyPassword) {
     trexQualifier = createTokenyQualifier(new TokenyClient(tokenyUrl, tokenyEmail, tokenyPassword), finP2PClient as any, provider, controller);
     logger.info("TREX investor qualifier enabled via the Tokeny API");
-  } else {
-    logger.warn("TREX investor qualifier disabled (set TOKENY_API_URL + TOKENY_EMAIL + TOKENY_PASSWORD to enable Tokeny onboarding); ensureWhitelisted fails closed for unverified investors");
   }
 
   const standards: Array<[string, TokenStandard]> = [
