@@ -23,17 +23,17 @@ export function registerTokenStandards(ctx: IntegrationContext): void {
 
 /**
  * TREX/CMTAT/BENJI/HEDERA_ATS. issuer/controller default to
- * OPERATOR_PRIVATE_KEY (override per role via TOKEN_STANDARD_ISSUER/CONTROLLER
- * _PRIVATE_KEY); whitelisting writes use TOKEN_STANDARD_ALLOWLISTER_PRIVATE_KEY.
+ * OPERATOR_PRIVATE_KEY (override per role via ASSET_ISSUER_PRIVATE_KEY /
+ * ASSET_CONTROLLER_PRIVATE_KEY); whitelisting writes use ASSET_WHITELIST_PRIVATE_KEY.
  * Absent an issuer/controller key an ephemeral signer stands in — reads and
  * whitelist checks work; on-chain writes need a configured, authorized key.
  */
 export function registerEthereumTokenStandards(ctx: IntegrationContext): void {
   const { logger, rpcUrl } = ctx;
   const operatorKey = process.env.OPERATOR_PRIVATE_KEY;
-  const issuerKey = process.env.TOKEN_STANDARD_ISSUER_PRIVATE_KEY ?? operatorKey;
-  const controllerKey = process.env.TOKEN_STANDARD_CONTROLLER_PRIVATE_KEY ?? operatorKey;
-  const allowlisterKey = process.env.TOKEN_STANDARD_ALLOWLISTER_PRIVATE_KEY;
+  const issuerKey = process.env.ASSET_ISSUER_PRIVATE_KEY ?? operatorKey;
+  const controllerKey = process.env.ASSET_CONTROLLER_PRIVATE_KEY ?? operatorKey;
+  const allowlisterKey = process.env.ASSET_WHITELIST_PRIVATE_KEY;
 
   const names = [TREX_STANDARD, CMTAT_STANDARD, BENJI_STANDARD, HEDERA_ATS_STANDARD];
   if (!rpcUrl) {
@@ -44,7 +44,7 @@ export function registerEthereumTokenStandards(ctx: IntegrationContext): void {
   const provider = pooledProvider(rpcUrl);
   const ephemeral = !issuerKey || !controllerKey ? Wallet.createRandom().connect(provider) : undefined;
   if (ephemeral) {
-    logger.info(`Ethereum token standards (${names.join(", ")}): no issuer/controller key configured — using an ephemeral signer (reads and whitelist checks work; set TOKEN_STANDARD_ISSUER_PRIVATE_KEY to issue)`);
+    logger.info(`Ethereum token standards (${names.join(", ")}): no issuer/controller key configured — using an ephemeral signer (reads and whitelist checks work; set ASSET_ISSUER_PRIVATE_KEY to issue)`);
   }
   const issuer = issuerKey ? pooledSigner(rpcUrl, issuerKey) : ephemeral!;
   const controller = controllerKey ? pooledSigner(rpcUrl, controllerKey) : ephemeral!;

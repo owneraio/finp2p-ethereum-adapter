@@ -21,8 +21,8 @@ describe("registerEthereumTokenStandards (real plugin standards)", () => {
 
   test("without rpc: warns and registers nothing, does not throw", () => {
     delete process.env.OPERATOR_PRIVATE_KEY;
-    delete process.env.TOKEN_STANDARD_ISSUER_PRIVATE_KEY;
-    delete process.env.TOKEN_STANDARD_CONTROLLER_PRIVATE_KEY;
+    delete process.env.ASSET_ISSUER_PRIVATE_KEY;
+    delete process.env.ASSET_CONTROLLER_PRIVATE_KEY;
     delete process.env.TOKENY_API_URL;
     delete process.env.TOKENY_EMAIL;
     delete process.env.TOKENY_PASSWORD;
