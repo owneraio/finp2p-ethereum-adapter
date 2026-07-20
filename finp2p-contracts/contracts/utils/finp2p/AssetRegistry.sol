@@ -2,7 +2,7 @@
 
 pragma solidity ^0.8.20;
 
-import "@owneraio/finp2p-ethereum-ownera/contracts/AssetStandard.sol";
+import "./AssetStandard.sol";
 
 contract AssetRegistry {
 

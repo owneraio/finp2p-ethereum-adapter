@@ -4,9 +4,9 @@ pragma solidity ^0.8.20;
 
 import "../utils/StringUtils.sol";
 import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
-import {OperationParams, LegType, PrimaryType, Phase, ReleaseType} from "@owneraio/finp2p-ethereum-ownera/contracts/OperationParams.sol";
+import {OperationParams, LegType, PrimaryType, Phase, ReleaseType} from "../utils/finp2p/OperationParams.sol";
 import {AssetRegistry} from "../utils/finp2p/AssetRegistry.sol";
-import {AssetStandard} from "@owneraio/finp2p-ethereum-ownera/contracts/AssetStandard.sol";
+import {AssetStandard} from "../utils/finp2p/AssetStandard.sol";
 import {FinIdUtils} from "../utils/finp2p/FinIdUtils.sol";
 import {FinP2PSignatureVerifier} from "../utils/finp2p/FinP2PSignatureVerifier.sol";
 
