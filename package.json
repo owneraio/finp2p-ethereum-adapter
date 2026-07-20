@@ -46,7 +46,7 @@
     "@dfns/sdk-keysigner": "^0.8.11",
     "@fireblocks/fireblocks-web3-provider": "^1.3.12",
     "@owneraio/finp2p-client": "^0.28.22",
-    "@owneraio/finp2p-contracts": "^0.28.20",
+    "@owneraio/finp2p-contracts": "^0.28.21",
     "@owneraio/finp2p-ethereum-adapter-contract": "^0.28.0",
     "@owneraio/finp2p-ethereum-benji-plugin": "^0.28.4",
     "@owneraio/finp2p-ethereum-cmtat-plugin": "^0.28.5",
@@ -85,8 +85,5 @@
     "prettier": "2.5.1",
     "testcontainers": "^11.8.0",
     "ts-jest": "^29.0.3"
-  },
-  "overrides": {
-    "@owneraio/finp2p-ethereum-token-standard": "npm:@owneraio/finp2p-ethereum-adapter-contract@^0.28.0"
   }
 }
