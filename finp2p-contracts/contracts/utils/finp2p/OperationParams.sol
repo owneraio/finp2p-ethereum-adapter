@@ -1,0 +1,37 @@
+// SPDX-License-Identifier: Apache-2.0
+
+pragma solidity ^0.8.20;
+
+enum LegType {
+    ASSET,
+    SETTLEMENT
+}
+
+enum PrimaryType {
+    PRIMARY_SALE,
+    BUYING,
+    SELLING,
+    REDEMPTION,
+    TRANSFER,
+    PRIVATE_OFFER,
+    LOAN,
+    MOVE
+}
+
+enum Phase {
+    INITIATE,
+    CLOSE
+}
+
+enum ReleaseType {
+    RELEASE,
+    REDEEM
+}
+
+struct OperationParams {
+    LegType leg;
+    Phase phase;
+    PrimaryType eip712PrimaryType;
+    string operationId;
+    ReleaseType releaseType;
+}

@@ -2,7 +2,7 @@ import { TrexTokenStandard } from "@owneraio/finp2p-ethereum-trex-plugin";
 import { CmtatTokenStandard } from "@owneraio/finp2p-ethereum-cmtat-plugin";
 import { BenjiTokenStandard } from "@owneraio/finp2p-ethereum-benji-plugin";
 import { AtsTokenStandard } from "@owneraio/finp2p-ethereum-hedera-plugin";
-import { registerEthereumTokenStandards } from "../src/integrations/ethereum-standards";
+import { registerEthereumTokenStandards } from "../src/integrations/token-standards";
 import { tokenStandardRegistry } from "../src/services/direct/token-standards/registry";
 import { supportsWhitelisting } from "../src/services/direct/token-standards/whitelisting";
 import { resetSignerPool } from "../src/integrations/signer-pool";
@@ -21,8 +21,8 @@ describe("registerEthereumTokenStandards (real plugin standards)", () => {
 
   test("without rpc: warns and registers nothing, does not throw", () => {
     delete process.env.OPERATOR_PRIVATE_KEY;
-    delete process.env.TOKEN_STANDARD_ISSUER_PRIVATE_KEY;
-    delete process.env.TOKEN_STANDARD_CONTROLLER_PRIVATE_KEY;
+    delete process.env.ASSET_ISSUER_PRIVATE_KEY;
+    delete process.env.ASSET_CONTROLLER_PRIVATE_KEY;
     delete process.env.TOKENY_API_URL;
     delete process.env.TOKENY_EMAIL;
     delete process.env.TOKENY_PASSWORD;
@@ -35,11 +35,11 @@ describe("registerEthereumTokenStandards (real plugin standards)", () => {
     }
   });
 
-  test("without agent keys: registers all four in validate-only mode instead of skipping", () => {
+  test("without agent keys: registers all four with an ephemeral signer, no warning", () => {
     warnings.length = 0;
     registerEthereumTokenStandards({ logger: warningLogger, rpcUrl: RPC } as any);
 
-    expect(warnings.some(w => w.includes("validate-only"))).toBe(true);
+    expect(warnings).toEqual([]); // ephemeral signer is a normal state, not a warning
     for (const name of ["TREX", "CMTAT", "BENJI", "HEDERA_ATS"]) {
       expect(tokenStandardRegistry.has(name)).toBe(true);
     }
@@ -53,10 +53,9 @@ describe("registerEthereumTokenStandards (real plugin standards)", () => {
     process.env.OPERATOR_PRIVATE_KEY = OPERATOR_KEY;
 
     registerEthereumTokenStandards({ logger: warningLogger, rpcUrl: RPC } as any);
-    // fully keyed — no degraded-mode warning; the TREX qualifier warn is
-    // expected while the TOKENY_* envs are absent
-    expect(warnings.some(w => w.includes("validate-only"))).toBe(false);
-    expect(warnings.some(w => w.includes("TREX investor qualifier disabled"))).toBe(true);
+    // fully keyed — no warnings at all; absent TOKENY_* envs are silent
+    // (TREX qualifier stays off without noise)
+    expect(warnings).toEqual([]);
 
     const expected: Array<[string, any]> = [
       ["TREX", TrexTokenStandard],
