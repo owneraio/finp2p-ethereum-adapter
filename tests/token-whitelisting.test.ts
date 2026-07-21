@@ -127,6 +127,27 @@ describe("TokenWhitelistingOption", () => {
     expect(destination?.finId).toBe(BOB);
   });
 
+  test("an explicit address is not accepted for an issue destination — execution resolves the finId via mapping only", async () => {
+    const option = buildOption({ [ASSET_ID]: "WL_TEST" }, {}); // BOB unmapped
+    const veto = await option.apply(plan([
+      instruction(ASSET_ID, undefined, BOB, true, "issue", { destinationAddress: EXPLICIT_ADDR })
+    ]));
+    expect(veto?.type).toBe("rejected");
+    expect((veto as any).error.message).toMatch(/cannot resolve address for destination/);
+    expect(calls).toHaveLength(0);
+  });
+
+  test("a finId-less destination carrying a network address is not whitelisted (escrow/external excluded)", async () => {
+    const option = buildOption({ [ASSET_ID]: "WL_TEST" });
+    const veto = await option.apply(plan([
+      instruction(ASSET_ID, ALICE, undefined, true, "transfer", { destinationAddress: EXPLICIT_ADDR })
+    ]));
+    expect(veto).toBeUndefined();
+    expect(calls).toHaveLength(1);
+    // only ALICE (source) is whitelisted; the finId-less destination address is ignored
+    expect(partyKeys(calls[0].parties)).toEqual([`${ALICE}:source`]);
+  });
+
   test("an explicit address is not accepted for a source — execution needs a mapped custody wallet", async () => {
     const option = buildOption({ [ASSET_ID]: "WL_TEST" }, { [BOB]: ADDR[BOB] }); // ALICE unmapped
     const veto = await option.apply(plan([

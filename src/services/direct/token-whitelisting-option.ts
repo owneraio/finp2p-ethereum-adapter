@@ -111,15 +111,20 @@ export class TokenWhitelistingOption implements PlanApprovalOption {
     entry: AssetWork, instruction: IntrospectedInstruction, role: "source" | "destination", planId: string
   ): Promise<ReturnType<typeof rejectedPlan> | undefined> {
     const finId = role === "source" ? instruction.sourceFinId : instruction.destinationFinId;
-    // execution accepts an explicit ledger address only for a destination; a
-    // source always resolves through the account mapping
-    const explicitAddress = role === "destination" ? instruction.destinationAddress : undefined;
-    if (!finId && !explicitAddress) return undefined;
+    // only investors (identified by finId) are whitelisted; finId-less
+    // endpoints — escrow, external accounts — are not part of onboarding and
+    // must never be whitelisted, even when they carry a network address
+    if (!finId) return undefined;
 
-    const key = `${finId ?? explicitAddress}|${role}`;
+    const key = `${finId}|${role}`;
     if (entry.parties.has(key)) return undefined;
 
-    const address = (finId ? await this.accountMapping.resolveAccount(finId) : undefined) ?? explicitAddress;
+    // execution accepts an explicit ledger address only for a transfer/release
+    // destination; everywhere else the finId must resolve via account mapping
+    const explicitAddress = role === "destination" && (instruction.type === "transfer" || instruction.type === "release")
+      ? instruction.destinationAddress
+      : undefined;
+    const address = await this.accountMapping.resolveAccount(finId) ?? explicitAddress;
     if (!address) {
       logger.warning(`Plan ${planId}: cannot resolve address for ${role} ${finId} of asset ${entry.assetId} — rejecting`);
       return rejectedPlan(1, `Plan ${planId}: cannot resolve address for ${role} ${finId} of asset ${entry.assetId}`);
