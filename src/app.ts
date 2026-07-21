@@ -128,7 +128,7 @@ function registerDirectServices(
     // recipients must exist (Hedera auto-create) before whitelisting can
     // reference them; whitelisting gates (and can veto) before gas is spent
     new WalletActivationOption(custodyProvider, accountMapping, walletActivationAmount),
-    new TokenWhitelistingOption(assetStore, accountMapping, custodyProvider),
+    new TokenWhitelistingOption(assetStore, accountMapping),
     new GasPrefundingOption(custodyProvider, accountMapping),
   ];
   const planApprovalService = new ConfigurablePlanApprovalService(
