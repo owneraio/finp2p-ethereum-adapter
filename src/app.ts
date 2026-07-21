@@ -1,6 +1,7 @@
 import express from "express";
 import { logger as expressLogger } from "express-winston";
 import winston from "winston";
+import { Wallet } from "ethers";
 import {
   register,
   PluginManager,
@@ -120,12 +121,17 @@ function registerDirectServices(
   // skeleton impl, then runs approval options over the introspected plan. Gas
   // prefunding is one option (token-based whitelisting etc. can be added here).
   const walletActivationAmount = process.env.WALLET_ACTIVATION_AMOUNT;
+  // The token standards mint with the env issuer (ASSET_ISSUER_PRIVATE_KEY),
+  // not the custody issuer wallet — so gas prefunding must top up that signer's
+  // address for issue instructions. Same key the standards register with.
+  const mintSignerKey = process.env.ASSET_ISSUER_PRIVATE_KEY;
+  const mintSignerAddress = mintSignerKey ? new Wallet(mintSignerKey).address : undefined;
   const planApprovalOptions: PlanApprovalOption[] = [
     // recipients must exist (Hedera auto-create) before whitelisting can
     // reference them; whitelisting gates (and can veto) before gas is spent
     new WalletActivationOption(custodyProvider, accountMapping, walletActivationAmount),
     new TokenWhitelistingOption(assetStore, accountMapping),
-    new GasPrefundingOption(custodyProvider, accountMapping),
+    new GasPrefundingOption(custodyProvider, accountMapping, mintSignerAddress),
   ];
   const planApprovalService = new ConfigurablePlanApprovalService(
     appConfig.orgId, finP2PClient,
