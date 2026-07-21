@@ -64,31 +64,16 @@ describe("WalletActivationOption", () => {
   type Touch = { to: string; value: bigint };
 
   function build(opts: {
-    chainId?: bigint;
     balances?: Record<string, bigint>;
     gasStation?: boolean;
     mapped?: Record<string, string>;
     amount?: string;
     failFor?: string;
-    /** consumed one per detection probe; string = client version, Error = probe failure */
-    clientVersions?: Array<string | Error>;
   } = {}) {
     const touches: Touch[] = [];
     const balances: Record<string, bigint> = { ...(opts.balances ?? {}) };
-    const clientVersions = [...(opts.clientVersions ?? [])];
-    let networkCalls = 0;
 
-    const provider = {
-      getNetwork: async () => { networkCalls++; return { chainId: opts.chainId ?? 296n }; },
-      getBalance: async (address: string) => balances[address] ?? 0n,
-      send: opts.clientVersions === undefined ? undefined : async (method: string) => {
-        if (method !== "web3_clientVersion") throw new Error(`unexpected ${method}`);
-        const next = clientVersions.shift();
-        if (next === undefined) throw new Error("no more probe responses");
-        if (next instanceof Error) throw next;
-        return next;
-      }
-    };
+    const provider = { getBalance: async (address: string) => balances[address] ?? 0n };
     const signer = {
       sendTransaction: async (tx: { to: string; value: bigint }) => {
         if (opts.failFor === tx.to) throw new Error("funding wallet out of funds");
@@ -98,15 +83,16 @@ describe("WalletActivationOption", () => {
       }
     };
     const custodyProvider = {
-      rpcProvider: provider,
       gasStation: opts.gasStation === false ? undefined : { wallet: { provider, signer } }
     } as any;
     const accountMapping = {
       resolveAccount: async (finId: string) => (opts.mapped ?? ADDR)[finId]
     } as any;
 
+    // the option no longer probes the network — that decision is made once at
+    // startup (see isHederaNetwork tests above); here it is always enabled
     const option = new WalletActivationOption(custodyProvider, accountMapping, opts.amount);
-    return { option, touches, callCounts: () => ({ networkCalls }) };
+    return { option, touches };
   }
 
   const instruction = (type: string, source?: string, destination?: string, local = true) => ({
@@ -124,11 +110,12 @@ describe("WalletActivationOption", () => {
     expect(touches.map(t => t.to).sort()).toEqual([ADDR[ALICE], ADDR[BOB]].sort());
   });
 
-  test("hold destinations are not touched (they receive only at release)", async () => {
+  test("hold, redeem and revertHold destinations are not touched", async () => {
     const { option, touches } = build();
     await option.apply(plan([
-      instruction("hold", ALICE, BOB),
-      instruction("redeem", ALICE, undefined)
+      instruction("hold", ALICE, BOB),                  // receives only at release
+      instruction("redeem", ALICE, BOB),                // burns; no receiving destination here
+      instruction("revertHoldInstruction", ALICE, BOB)  // returns held funds; not activated here
     ]));
     expect(touches).toHaveLength(0);
   });
@@ -150,39 +137,10 @@ describe("WalletActivationOption", () => {
     expect(touches[0].to).toBe(ADDR[BOB]);
   });
 
-  test("no-op on non-Hedera networks and without a gas station", async () => {
-    const evm = build({ chainId: 1n });
-    await evm.option.apply(plan([instruction("issue", undefined, ALICE)]));
-    expect(evm.touches).toHaveLength(0);
-
-    const noStation = build({ gasStation: false });
-    await noStation.option.apply(plan([instruction("issue", undefined, ALICE)]));
-    expect(noStation.touches).toHaveLength(0);
-  });
-
-  test.each([
-    "connection refused",
-    "service is not available",
-  ])("a transient probe failure (%s) is retried on the next plan, not cached as not-Hedera", async (message) => {
-    const { option, touches, callCounts } = build({
-      chainId: 1337n,
-      clientVersions: [new Error(message), "relay/0.32.0"]
-    });
-    // first plan: probe fails transiently — skip activation, leave undetected
-    await expect(option.apply(plan([instruction("issue", undefined, ALICE)]))).resolves.toBeUndefined();
+  test("is a no-op without a gas station", async () => {
+    const { option, touches } = build({ gasStation: false });
+    await option.apply(plan([instruction("issue", undefined, ALICE)]));
     expect(touches).toHaveLength(0);
-    // second plan: probe succeeds — network detected, destination activated
-    await option.apply(plan([instruction("issue", undefined, ALICE)]));
-    expect(touches.map(t => t.to)).toEqual([ADDR[ALICE]]);
-    expect(callCounts().networkCalls).toBe(2);
-  });
-
-  test("detection result is cached across plans", async () => {
-    const { option, touches, callCounts } = build();
-    await option.apply(plan([instruction("issue", undefined, ALICE)]));
-    await option.apply(plan([instruction("issue", undefined, BOB)]));
-    expect(callCounts().networkCalls).toBe(1);
-    expect(touches).toHaveLength(2);
   });
 
   test("resolution is account-mapping only — an explicit ledger address is not used", async () => {

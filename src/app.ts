@@ -23,6 +23,7 @@ import {
   GasPrefundingOption,
   TokenWhitelistingOption,
   WalletActivationOption,
+  isHederaNetwork,
   custodyRegistry,
   DbAccountMapping,
   AccountMappingService,
@@ -72,7 +73,7 @@ interface OmnibusContext {
   };
 }
 
-function registerDirectServices(
+async function registerDirectServices(
   app: express.Application, logger: winston.Logger, custodyProvider: CustodyProvider, appConfig: AppConfig,
   paymentsService: PaymentsServiceImpl, pluginManager: PluginManager,
   dbPool: any, finP2PClient: FinP2PClient | undefined,
@@ -82,7 +83,7 @@ function registerDirectServices(
   accountMapping: AccountMappingService,
   omnibusCtx: OmnibusContext | undefined,
   ledgerSchema: string | undefined,
-) {
+): Promise<void> {
   const healthService = new DirectHealthServiceImpl(custodyProvider.rpcProvider);
   const mappingConfig = buildMappingConfig(custodyProvider);
   const workflowStorage = dbPool ? new workflows.WorkflowStorage(dbPool, ledgerSchema) : undefined;
@@ -119,14 +120,26 @@ function registerDirectServices(
   // Plan approval is always on: it delegates the approve/reject decision to the
   // skeleton impl, then runs approval options over the introspected plan. Gas
   // prefunding is one option (token-based whitelisting etc. can be added here).
-  const walletActivationAmount = process.env.WALLET_ACTIVATION_AMOUNT;
   const planApprovalOptions: PlanApprovalOption[] = [
-    // recipients must exist (Hedera auto-create) before whitelisting can
-    // reference them; whitelisting gates (and can veto) before gas is spent
-    new WalletActivationOption(custodyProvider, accountMapping, walletActivationAmount),
+    // whitelisting gates (and can veto) before gas is spent
     new TokenWhitelistingOption(assetStore, accountMapping),
     new GasPrefundingOption(custodyProvider, accountMapping),
   ];
+  // Recipient activation is only needed on Hedera-style networks (an account
+  // exists after its first native funding). Detect once here at startup and
+  // prepend the option only when required — recipients must exist before
+  // whitelisting can reference them. Plain EVM networks skip it entirely.
+  let hederaLike = false;
+  try {
+    hederaLike = await isHederaNetwork(custodyProvider.rpcProvider);
+  } catch (e) {
+    logger.warn(`Wallet activation: network detection failed at startup — recipient activation disabled: ${e}`);
+  }
+  if (hederaLike) {
+    logger.info("Wallet activation: network requires recipient activation — enabling the option");
+    const walletActivationAmount = process.env.WALLET_ACTIVATION_AMOUNT;
+    planApprovalOptions.unshift(new WalletActivationOption(custodyProvider, accountMapping, walletActivationAmount));
+  }
   const planApprovalService = new ConfigurablePlanApprovalService(
     appConfig.orgId, finP2PClient,
     new PlanApprovalServiceImpl(appConfig.orgId, pluginManager, finP2PClient),
@@ -261,7 +274,7 @@ async function createApp(
   const paymentsService = new PaymentsServiceImpl(pluginManager);
 
   if (custodyProvider) {
-    registerDirectServices(app, logger, custodyProvider, appConfig, paymentsService, pluginManager, dbPool, finP2PClient, accountMappingStore, accountMappingService, assetStore, accountMapping, omnibusCtx, ledgerSchema);
+    await registerDirectServices(app, logger, custodyProvider, appConfig, paymentsService, pluginManager, dbPool, finP2PClient, accountMappingStore, accountMappingService, assetStore, accountMapping, omnibusCtx, ledgerSchema);
   } else if (appConfig.type === 'finp2p-contract') {
     registerFinP2PContractServices(app, appConfig as FinP2PContractAppConfig, paymentsService, pluginManager, dbPool, finP2PClient, ledgerSchema);
   } else {

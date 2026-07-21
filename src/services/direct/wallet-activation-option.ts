@@ -2,7 +2,7 @@ import { logger } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import { PlanApprovalOption, IntrospectedPlan } from "../plan-approval";
 import { AccountMappingService } from "./account-mapping";
 import { CustodyProvider } from "./custody-provider";
-import { DEFAULT_ACTIVATION_AMOUNT, isHederaNetwork, WalletActivator } from "./wallet-activation";
+import { DEFAULT_ACTIVATION_AMOUNT, WalletActivator } from "./wallet-activation";
 
 /**
  * Plan-approval option that activates recipient wallets on Hedera-style
@@ -11,8 +11,8 @@ import { DEFAULT_ACTIVATION_AMOUNT, isHederaNetwork, WalletActivator } from "./w
  * this covers the complement — the destinations, which receive tokens without
  * ever signing.
  *
- * The network is auto-detected (chain id / JSON-RPC relay probe) and cached,
- * so on plain EVM networks the option is a no-op. One touch per local
+ * Only wired into the approval pipeline when the network needs it (detected
+ * once at startup), so apply() does not re-probe. One touch per local
  * receiving instruction's destination, resolved through account mapping.
  *
  * Non-gating and best-effort, like gas prefunding: a failed touch is logged,
@@ -25,8 +25,6 @@ export class WalletActivationOption implements PlanApprovalOption {
   readonly name = "wallet-activation";
   readonly gating = false;
 
-  private requiresActivation: boolean | undefined;
-
   constructor(
     private readonly custodyProvider: CustodyProvider,
     private readonly accountMapping: AccountMappingService,
@@ -36,7 +34,6 @@ export class WalletActivationOption implements PlanApprovalOption {
   async apply(plan: IntrospectedPlan): Promise<void> {
     const gasStation = this.custodyProvider.gasStation;
     if (!gasStation) return;
-    if (!(await this.detectActivationNetwork(plan.planId))) return;
 
     const activator = new WalletActivator(gasStation.wallet, this.activationAmount);
 
@@ -45,7 +42,7 @@ export class WalletActivationOption implements PlanApprovalOption {
       // only instructions that deliver tokens to a destination on this ledger; a
       // hold's business destination only receives at release, which names it again
       if (instruction.type !== "issue" && instruction.type !== "transfer" &&
-          instruction.type !== "release" && instruction.type !== "revertHoldInstruction") continue;
+          instruction.type !== "release") continue;
       if (!instruction.destinationFinId) continue;
 
       let address: string | undefined;
@@ -65,19 +62,6 @@ export class WalletActivationOption implements PlanApprovalOption {
       } catch (e) {
         logger.warning(`Wallet activation: touch of ${address} for plan ${plan.planId} instruction ${instruction.sequence} failed: ${e}`);
       }
-    }
-  }
-
-  private async detectActivationNetwork(planId: string): Promise<boolean> {
-    if (this.requiresActivation !== undefined) return this.requiresActivation;
-    try {
-      this.requiresActivation = await isHederaNetwork(this.custodyProvider.rpcProvider);
-      logger.info(`Wallet activation: network ${this.requiresActivation ? "requires" : "does not require"} recipient activation`);
-      return this.requiresActivation;
-    } catch (e) {
-      // leave undetected so the next plan retries; skip activation this plan
-      logger.warning(`Wallet activation: network detection failed for plan ${planId}, skipping: ${e}`);
-      return false;
     }
   }
 }
