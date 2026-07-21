@@ -4,24 +4,16 @@ import { CustodyProvider } from "./custody-provider";
 import { AccountMappingService } from "./account-mapping";
 
 /**
- * Plan-approval option that moves gas funding out of the instruction execution
- * hot path: on approval, the source investor's wallet of each local
- * transfer/hold/redeem is topped up.
+ * Plan-approval option that prefunds gas on approval: the source investor's
+ * wallet of each local transfer/hold/redeem is topped up. The mint signer
+ * (issue) and escrow wallet (release/revertHold) are funded out of band.
  *
- * Only investor-signed instructions are prefunded here. The long-lived
- * operational wallets — the mint signer (issue) and the escrow wallet
- * (release/revertHold) — are funded out of band, not per plan.
- *
- * Side-effect only — never vetoes approval. Best-effort: a per-instruction
- * resolution or top-up failure is logged and skipped, not propagated. Top-ups
- * run sequentially: the gas station funds from a single wallet, so overlapping
- * ones would race its nonce.
+ * Non-gating and best-effort; top-ups run sequentially so they don't race the
+ * gas station's nonce.
  */
 export class GasPrefundingOption implements PlanApprovalOption {
 
   readonly name = "gas-prefunding";
-  // side effect, not a gate: if the plan can't be introspected, skip funding
-  // (approval is unaffected) rather than rejecting the plan
   readonly gating = false;
 
   constructor(
@@ -34,9 +26,7 @@ export class GasPrefundingOption implements PlanApprovalOption {
     if (!gasStation) return;
 
     for (const instruction of plan.instructions) {
-      if (!instruction.local) continue; // executes on another ledger — not our wallets
-      // Only investor-signed instructions are prefunded; issue (mint signer) and
-      // release/revertHold (escrow) sign from operational wallets funded out of band.
+      if (!instruction.local) continue;
       if (instruction.type !== "transfer" && instruction.type !== "hold" && instruction.type !== "redeem") continue;
       if (!instruction.sourceFinId) continue;
 
@@ -44,7 +34,6 @@ export class GasPrefundingOption implements PlanApprovalOption {
       try {
         address = await this.accountMapping.resolveAccount(instruction.sourceFinId);
       } catch (e) {
-        // best-effort: a transient mapping failure must not abort an already-approved plan
         logger.warning(`Gas prefunding: resolving source finId ${instruction.sourceFinId} of plan ${plan.planId} instruction ${instruction.sequence} failed, skipping: ${e}`);
         continue;
       }

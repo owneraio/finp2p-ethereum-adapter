@@ -67,23 +67,23 @@ export class WalletActivator {
   async ensureActivated(address: string): Promise<boolean> {
     let balance = await this.fundingWallet.provider.getBalance(address);
     if (balance > 0n) {
-      logger.debug(`Wallet activation: ${address} already active (balance ${balance}), skipping`);
+      logger.info(`Wallet activation: ${address} already active (balance ${balance}), skipping`);
       return false;
     }
 
-    logger.debug(`Wallet activation: ${address} has zero balance, sending ${this.amount} to activate`);
+    logger.info(`Wallet activation: ${address} has zero balance, sending ${this.amount} to activate`);
     const tx = await this.fundingWallet.signer.sendTransaction({
       to: address,
       value: parseEther(this.amount),
     });
-    logger.debug(`Wallet activation: activation tx ${tx.hash} submitted for ${address}, polling for on-chain balance`);
+    logger.info(`Wallet activation: activation tx ${tx.hash} submitted for ${address}, polling for on-chain balance`);
 
     const deadline = Date.now() + GAS_FUNDING_TIMEOUT_MS;
     while (Date.now() < deadline) {
       await new Promise(r => setTimeout(r, GAS_FUNDING_POLL_INTERVAL_MS));
       balance = await this.fundingWallet.provider.getBalance(address);
       if (balance > 0n) {
-        logger.debug(`Wallet activation: ${address} confirmed active on-chain (balance ${balance})`);
+        logger.info(`Wallet activation: ${address} confirmed active on-chain (balance ${balance})`);
         return true;
       }
     }

@@ -6,19 +6,12 @@ import { DEFAULT_ACTIVATION_AMOUNT, WalletActivator } from "./wallet-activation"
 
 /**
  * Plan-approval option that activates recipient wallets on Hedera-style
- * networks, where an account exists only after its first native funding. Gas
- * prefunding already touches every sender (activating it as a side effect);
- * this covers the complement — the destinations, which receive tokens without
- * ever signing.
+ * networks, where an account exists only after its first native funding — the
+ * complement to gas prefunding, which already touches every sender.
  *
- * Only wired into the approval pipeline when the network needs it (detected
- * once at startup), so apply() does not re-probe. One touch per local
- * receiving instruction's destination, resolved through account mapping.
- *
- * Non-gating and best-effort, like gas prefunding: a failed touch is logged,
- * never a veto. Activation runs sequentially from the gas-station funding
- * wallet, so overlapping touches don't race its nonce; ensureActivated is
- * idempotent, so re-touching a repeated destination is a cheap no-op.
+ * Wired in only when the network needs it (detected once at startup), so
+ * apply() does not re-probe. Non-gating and best-effort; touches run
+ * sequentially and ensureActivated is idempotent.
  */
 export class WalletActivationOption implements PlanApprovalOption {
 
@@ -38,9 +31,8 @@ export class WalletActivationOption implements PlanApprovalOption {
     const activator = new WalletActivator(gasStation.wallet, this.activationAmount);
 
     for (const instruction of plan.instructions) {
-      if (!instruction.local) continue; // executes on another ledger — not our wallets
-      // only instructions that deliver tokens to a destination on this ledger; a
-      // hold's business destination only receives at release, which names it again
+      if (!instruction.local) continue;
+      // a hold's destination only receives at release, which names it again
       if (instruction.type !== "issue" && instruction.type !== "transfer" &&
           instruction.type !== "release") continue;
       if (!instruction.destinationFinId) continue;
@@ -49,7 +41,6 @@ export class WalletActivationOption implements PlanApprovalOption {
       try {
         address = await this.accountMapping.resolveAccount(instruction.destinationFinId);
       } catch (e) {
-        // best-effort: a transient mapping failure must not abort an already-approved plan
         logger.warning(`Wallet activation: resolving destination ${instruction.destinationFinId} of plan ${plan.planId} instruction ${instruction.sequence} failed, skipping: ${e}`);
         continue;
       }

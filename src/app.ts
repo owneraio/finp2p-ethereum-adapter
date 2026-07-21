@@ -117,18 +117,12 @@ async function registerDirectServices(
   if (!assetStore || !dbPool || !accountMappingStore || !accountMappingService) throw new Error('DB connection is required for direct mode');
   let tokenService: DirectTokenService = new DirectTokenService(logger, custodyProvider, accountMapping, assetStore);
   const commonService = new DirectCommonServiceImpl(workflowStorage!);
-  // Plan approval is always on: it delegates the approve/reject decision to the
-  // skeleton impl, then runs approval options over the introspected plan. Gas
-  // prefunding is one option (token-based whitelisting etc. can be added here).
   const planApprovalOptions: PlanApprovalOption[] = [
-    // whitelisting gates (and can veto) before gas is spent
     new TokenWhitelistingOption(assetStore, accountMapping),
     new GasPrefundingOption(custodyProvider, accountMapping),
   ];
-  // Recipient activation is only needed on Hedera-style networks (an account
-  // exists after its first native funding). Detect once here at startup and
-  // prepend the option only when required — recipients must exist before
-  // whitelisting can reference them. Plain EVM networks skip it entirely.
+  // recipient activation is only needed on Hedera-style networks; detect once
+  // at startup and prepend it (before whitelisting) only when required
   let hederaLike = false;
   try {
     hederaLike = await isHederaNetwork(custodyProvider.rpcProvider);
