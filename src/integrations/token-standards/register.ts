@@ -32,13 +32,15 @@ function register(name: string, impl: TokenStandard, erc20Compatible = false): s
  */
 export function registerTokenStandards(ctx: IntegrationContext): void {
   const { logger, rpcUrl } = ctx;
+  if (!rpcUrl) {
+    logger.warn(`Token standards not registered: NETWORK_HOST is not set`);
+    return;
+  }
 
   const issuerKey = process.env.ASSET_ISSUER_PRIVATE_KEY;
   const controllerKey = process.env.ASSET_CONTROLLER_PRIVATE_KEY;
   const allowlisterKey = process.env.ASSET_WHITELIST_PRIVATE_KEY;
-  if (!rpcUrl) {
-    logger.warn(`Ethereum token standards not registered: NETWORK_HOST is not set`);
-  } else if (!issuerKey || !controllerKey) {
+  if (!issuerKey || !controllerKey) {
     logger.warn(`Ethereum token standards not registered: set ASSET_ISSUER_PRIVATE_KEY and ASSET_CONTROLLER_PRIVATE_KEY — these standards mint and administer with those keys and cannot run without a persistent signer`);
   } else {
     const provider = pooledProvider(rpcUrl);
@@ -61,7 +63,6 @@ export function registerTokenStandards(ctx: IntegrationContext): void {
   const collateralRegistry = process.env.COLLATERAL_REGISTRY_ADDRESS;
   const collateralAgentKey = process.env.COLLATERAL_AGENT_PRIVATE_KEY;
   if (collateralRegistry && collateralAgentKey) {
-    if (!rpcUrl) throw new Error("Collateral token standard requires NETWORK_HOST to be set");
     const agentSigner = pooledSigner(rpcUrl, collateralAgentKey);
     const impl = new OwneraCollateralTokenStandard(collateralRegistry, pooledProvider(rpcUrl), agentSigner) as any;
     if (register(COLLATERAL_TOKEN_STANDARD, impl)) {
@@ -71,7 +72,6 @@ export function registerTokenStandards(ctx: IntegrationContext): void {
 
   // DTCC_COLLATERAL_ACCOUNT — gated on DTCC_PLUGIN_ENABLED.
   if (process.env.DTCC_PLUGIN_ENABLED === "true") {
-    if (!rpcUrl) throw new Error("DTCC token standard requires NETWORK_HOST to be set");
     const operatorKey = process.env.OPERATOR_PRIVATE_KEY!;
     const factoryAddress = process.env.FACTORY_ADDRESS ?? "";
     const agentSigner = pooledSigner(rpcUrl, operatorKey);
