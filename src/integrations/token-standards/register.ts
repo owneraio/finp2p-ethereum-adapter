@@ -6,6 +6,7 @@ import { BenjiTokenStandard, TokenStandardName as BENJI_STANDARD } from "@ownera
 import { AtsTokenStandard, TokenStandardName as HEDERA_ATS_STANDARD } from "@owneraio/finp2p-ethereum-hedera-plugin";
 import { OwneraCollateralTokenStandard, TokenStandardName as COLLATERAL_TOKEN_STANDARD } from "@owneraio/finp2p-ethereum-collateral";
 import { CollateralTokenStandard as DtccCollateralTokenStandard, TokenStandardName as DTCC_TOKEN_STANDARD } from "@owneraio/finp2p-ethereum-dtcc-plugin";
+import { ERC20TokenStandard, TokenStandardName as ERC20_STANDARD } from "@owneraio/finp2p-ethereum-erc20-plugin";
 import { tokenStandardRegistry } from "./registry";
 import { IntegrationContext } from "../registry";
 import { pooledProvider, pooledSigner } from "../signer-pool";
@@ -22,11 +23,13 @@ export function registerTokenStandards(ctx: IntegrationContext): void {
 }
 
 /**
- * TREX/CMTAT/BENJI/HEDERA_ATS. issuer/controller default to
- * OPERATOR_PRIVATE_KEY (override per role via ASSET_ISSUER_PRIVATE_KEY /
- * ASSET_CONTROLLER_PRIVATE_KEY); whitelisting writes use ASSET_WHITELIST_PRIVATE_KEY.
- * Absent an issuer/controller key an ephemeral signer stands in — reads and
- * whitelist checks work; on-chain writes need a configured, authorized key.
+ * ERC20 (default) + TREX/CMTAT/BENJI/HEDERA_ATS. The issuer is the
+ * env-injected signer (ASSET_ISSUER_PRIVATE_KEY, defaulting to
+ * OPERATOR_PRIVATE_KEY) — never the custody wallet; controller overrides via
+ * ASSET_CONTROLLER_PRIVATE_KEY, whitelisting writes via
+ * ASSET_WHITELIST_PRIVATE_KEY. Absent an issuer/controller key an ephemeral
+ * signer stands in — reads and whitelist checks work; on-chain writes need a
+ * configured, authorized key.
  */
 export function registerEthereumTokenStandards(ctx: IntegrationContext): void {
   const { logger, rpcUrl } = ctx;
@@ -35,7 +38,7 @@ export function registerEthereumTokenStandards(ctx: IntegrationContext): void {
   const controllerKey = process.env.ASSET_CONTROLLER_PRIVATE_KEY ?? operatorKey;
   const allowlisterKey = process.env.ASSET_WHITELIST_PRIVATE_KEY;
 
-  const names = [TREX_STANDARD, CMTAT_STANDARD, BENJI_STANDARD, HEDERA_ATS_STANDARD];
+  const names = [ERC20_STANDARD, TREX_STANDARD, CMTAT_STANDARD, BENJI_STANDARD, HEDERA_ATS_STANDARD];
   if (!rpcUrl) {
     logger.warn(`Ethereum token standards (${names.join(", ")}) not registered: NETWORK_HOST is not set`);
     return;
@@ -51,6 +54,7 @@ export function registerEthereumTokenStandards(ctx: IntegrationContext): void {
   const allowlister = allowlisterKey ? pooledSigner(rpcUrl, allowlisterKey) : undefined;
 
   const standards: Array<[string, TokenStandard]> = [
+    [ERC20_STANDARD, new ERC20TokenStandard(provider, issuer)],
     [TREX_STANDARD, new TrexTokenStandard(provider, issuer, controller, allowlister)],
     [CMTAT_STANDARD, new CmtatTokenStandard(provider, issuer, controller, allowlister)],
     [BENJI_STANDARD, new BenjiTokenStandard(provider, issuer, controller)],

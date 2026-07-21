@@ -52,7 +52,7 @@
     "@owneraio/finp2p-ethereum-cmtat-plugin": "^0.28.5",
     "@owneraio/finp2p-ethereum-collateral": "^0.28.26",
     "@owneraio/finp2p-ethereum-dtcc-plugin": "^0.28.10",
-    "@owneraio/finp2p-ethereum-erc20-plugin": "^0.28.1",
+    "@owneraio/finp2p-ethereum-erc20-plugin": "^0.28.2",
     "@owneraio/finp2p-ethereum-hedera-plugin": "^0.28.6",
     "@owneraio/finp2p-ethereum-trex-plugin": "^0.28.5",
     "@owneraio/finp2p-nodejs-skeleton-adapter": "^0.28.24",

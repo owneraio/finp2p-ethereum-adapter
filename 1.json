@@ -1,0 +1,260 @@
+{
+  "domain": {
+    "name": "FinP2P",
+    "version": "2",
+    "chainId": "<uint256 from config: signature_template_eip712_chain_id>",
+    "verifyingContract": "<address from config: signature_template_eip712_verifying_contract>"
+  },
+  "hash_functions": ["sha3-256", "blake2b", "keccak-256"],
+  "wire_field": "templateVersion=2 on EIP712Template (protorepo/finp2p/signature.proto, field 6, optional uint32)",
+
+  "investor": {
+
+
+
+    "PrimarySale": {
+      "primaryType": "PrimarySale",
+      "types": {
+        "EIP712Domain": [
+          {"name": "name",              "type": "string"},
+          {"name": "version",           "type": "string"},
+          {"name": "chainId",           "type": "uint256"},
+          {"name": "verifyingContract", "type": "address"}
+        ],
+        "FinId": [{"name": "idkey", "type": "string"}],
+        "Term":  [{"name": "assetId", "type": "string"}, {"name": "amount", "type": "string"}],
+        "PrimarySale": {
+          "always":                     [{"name": "nonce", "type": "string"}],
+          "if_settlement":              [{"name": "buyer", "type": "FinId"}, {"name": "issuer", "type": "FinId"}],
+          "always_after":               [{"name": "asset", "type": "Term"}],
+          "if_settlement_after_asset":  [{"name": "settlement", "type": "Term"}]
+        }
+      },
+      "message": {
+        "issuer": "<if settlement: {idkey: hex(primarySale.asset.sourceAccount.finId.pubkey)}>",
+        "asset":  {"assetId": "<CAIP-19 of primarySale.asset.sourceAccount.asset>"}
+      }
+    },
+
+
+
+    "SellingIntent": {
+      "primaryType": "Selling",
+      "types": {
+        "EIP712Domain": "same as PrimarySale",
+        "FinId": [{"name": "idkey", "type": "string"}],
+        "Term":  [{"name": "assetId", "type": "string"}, {"name": "amount", "type": "string"}],
+        "Selling": {
+          "always":                     [{"name": "nonce", "type": "string"}],
+          "if_settlement":              [{"name": "buyer", "type": "FinId"}, {"name": "seller", "type": "FinId"}],
+          "always_after":               [{"name": "asset", "type": "Term"}],
+          "if_settlement_after_asset":  [{"name": "settlement", "type": "Term"}]
+        }
+      },
+      "message": {
+        "seller": "<if settlement: {idkey: hex(sellingIntent.asset.sourceAccount.finId.pubkey)}>",
+        "asset":  {"assetId": "<CAIP-19 of sellingIntent.asset.sourceAccount.asset>"}
+      }
+    },
+
+
+    "BuyingIntent": {
+      "primaryType": "Buying",
+      "types": {
+        "EIP712Domain": "same as PrimarySale",
+        "FinId": [{"name": "idkey", "type": "string"}],
+        "Term":  [{"name": "assetId", "type": "string"}, {"name": "amount", "type": "string"}],
+        "Buying": {
+          "always":                     [{"name": "nonce", "type": "string"}],
+          "if_settlement":              [{"name": "buyer", "type": "FinId"}, {"name": "seller", "type": "FinId"}],
+          "always_after":               [{"name": "asset", "type": "Term"}],
+          "if_settlement_after_asset":  [{"name": "settlement", "type": "Term"}]
+        }
+      },
+      "message": {
+        "seller":     "<if settlement: {idkey: hex(buyingIntent.asset.destinationAccount.finId.pubkey)}>",
+        "asset":      {"assetId": "<CAIP-19 of buyingIntent.asset.destinationAccount.asset>"},
+        "settlement": "<if settlement: {assetId: CAIP-19 of buyingIntent.settlement.sourceAccount.asset}>"
+      }
+    },
+
+    "RedemptionIntent": {
+      "primaryType": "Redemption",
+      "types": {
+        "EIP712Domain": "same as PrimarySale",
+        "FinId": [{"name": "idkey", "type": "string"}],
+        "Term":  [{"name": "assetId", "type": "string"}, {"name": "amount", "type": "string"}],
+        "Redemption": {
+          "always":                     [{"name": "nonce", "type": "string"}],
+          "if_settlement":              [{"name": "seller", "type": "FinId"}, {"name": "issuer", "type": "FinId"}],
+          "always_after":               [{"name": "asset", "type": "Term"}],
+          "if_settlement_after_asset":  [{"name": "settlement", "type": "Term"}]
+        }
+      },
+      "message": {
+        "issuer": "<if settlement: {idkey: hex(redemptionIntent.asset.destinationAccount.finId.pubkey)}>",
+        "asset":  {"assetId": "<CAIP-19 of redemptionIntent.asset.destinationAccount.asset>"}
+      }
+    },
+
+    "PrivateOfferIntent": {
+      "primaryType": "PrivateOffer",
+      "types": {
+        "EIP712Domain": "same as PrimarySale",
+        "FinId": [{"name": "idkey", "type": "string"}],
+        "Term":  [{"name": "assetId", "type": "string"}, {"name": "amount", "type": "string"}],
+        "PrivateOffer": {
+          "always":                       [{"name": "nonce", "type": "string"}, {"name": "buyer", "type": "FinId"}],
+          "if_source_account_present":    [{"name": "seller", "type": "FinId"}],
+          "always_after":                 [{"name": "asset", "type": "Term"}],
+          "if_settlement":                [{"name": "settlement", "type": "Term"}]
+        }
+      },
+      "message": {
+        "asset": {"assetId": "<CAIP-19 of privateOfferIntent.asset.sourceAccount.asset>"}
+      }
+    },
+
+    "RequestForTransferIntent": {
+      "primaryType": "RequestForTransfer",
+      "types": {
+        "EIP712Domain": "same as PrimarySale",
+        "FinId": [{"name": "idkey", "type": "string"}],
+        "Term":  [{"name": "assetId", "type": "string"}, {"name": "amount", "type": "string"}],
+        "RequestForTransfer": [
+          {"name": "nonce",  "type": "string"},
+          {"name": "buyer",  "type": "FinId"},
+          {"name": "seller", "type": "FinId"},
+          {"name": "asset",  "type": "Term"}
+        ]
+      },
+      "message": {
+        "seller": {"idkey": "<hex(requestForTransfer.asset.sourceAccount.finId.pubkey)>"},
+        "asset":  {"assetId": "<CAIP-19 of requestForTransfer.asset.sourceAccount.asset>"}
+      }
+    },
+
+    "LoanIntent": "DELEGATES TO V1 (loan assets lack LedgerIdentifier; @2 falls back to loanIntentEIP712V1)"
+  },
+
+  "deposit": {
+    "$comment": "pkg/signature/deposit/eip712_v2.go. Term={assetId,amount}. assetId is asset.Code — NOT CAIP-19 (unlike investor/receiptproof @2).",
+
+    "Deposit": {
+      "primaryType": "Deposit",
+      "types": {
+        "EIP712Domain": [
+          {"name": "name",              "type": "string"},
+          {"name": "version",           "type": "string"},
+          {"name": "chainId",           "type": "uint256"},
+          {"name": "verifyingContract", "type": "address"}
+        ],
+        "FinId": [{"name": "idkey", "type": "string"}],
+        "Term":  [{"name": "assetId", "type": "string"}, {"name": "amount", "type": "string"}],
+        "Deposit": [
+          {"name": "nonce",          "type": "string"},
+          {"name": "dstAccount",     "type": "FinId"},
+          {"name": "dstAccountType", "type": "string"},
+          {"name": "asset",          "type": "Term"}
+        ]
+      },
+      "message": {
+        "nonce":          "<hex(params.nonce)>",
+        "dstAccount":     {"idkey": "<hex(params.signerPubKey)>"},
+        "dstAccountType": "finId",
+        "asset":          {"assetId": "<params.asset.code>", "amount": "<params.amount decimal string>"}
+      }
+    },
+
+    "Withdraw": {
+      "primaryType": "Withdraw",
+      "types": {
+        "EIP712Domain": "same as Deposit",
+        "FinId": [{"name": "idkey", "type": "string"}],
+        "Term":  [{"name": "assetId", "type": "string"}, {"name": "amount", "type": "string"}],
+        "Withdraw": [
+          {"name": "nonce",          "type": "string"},
+          {"name": "srcAccount",     "type": "FinId"},
+          {"name": "srcAccountType", "type": "string"},
+          {"name": "dstAccount",     "type": "FinId"},
+          {"name": "dstAccountType", "type": "string"},
+          {"name": "asset",          "type": "Term"}
+        ]
+      },
+      "message": {
+        "nonce":          "<hex(params.nonce)>",
+        "srcAccount":     {"idkey": "<params.srcAccountId>"},
+        "srcAccountType": "<params.srcAccountType>",
+        "dstAccount":     {"idkey": "<params.dstAccountId>"},
+        "dstAccountType": "<params.dstAccountType>",
+        "asset":          {"assetId": "<params.asset.code>", "amount": "<params.amount decimal string>"}
+      }
+    }
+  },
+
+  "receiptproof": {
+    "$comment": "pkg/signature/receiptproof/eip712_v2.go. Asset info moves into source.asset / destination.asset. NO top-level 'asset' field on Receipt.",
+
+    "Receipt": {
+      "primaryType": "Receipt",
+      "types": {
+        "EIP712Domain": [
+          {"name": "name",              "type": "string"},
+          {"name": "version",           "type": "string"},
+          {"name": "chainId",           "type": "uint256"},
+          {"name": "verifyingContract", "type": "address"}
+        ],
+        "LedgerIdentifier":   [{"name": "type", "type": "string"}, {"name": "id", "type": "string"}],
+        "Asset":              [{"name": "id", "type": "string"}, {"name": "ledgerInfo", "type": "LedgerIdentifier"}],
+        "Source":             [{"name": "accountId", "type": "string"}, {"name": "accountType", "type": "string"}, {"name": "asset", "type": "Asset"}],
+        "Destination":        [{"name": "accountId", "type": "string"}, {"name": "accountType", "type": "string"}, {"name": "asset", "type": "Asset"}],
+        "TransactionDetails": [{"name": "operationId", "type": "string"}, {"name": "transactionId", "type": "string"}],
+        "ExecutionContext":   [{"name": "executionPlanId", "type": "string"}, {"name": "instructionSequenceNumber", "type": "string"}],
+        "TradeDetails":       [{"name": "executionContext", "type": "ExecutionContext"}],
+        "Receipt": [
+          {"name": "id",                 "type": "string"},
+          {"name": "operationType",      "type": "string"},
+          {"name": "source",             "type": "Source"},
+          {"name": "destination",        "type": "Destination"},
+          {"name": "tradeDetails",       "type": "TradeDetails"},
+          {"name": "transactionDetails", "type": "TransactionDetails"},
+          {"name": "quantity",           "type": "string"}
+        ]
+      },
+      "message": {
+        "id":            "<details.ID>",
+        "operationType": "<details.OperationType>",
+        "source": {
+          "accountId":   "<details.SrcFinId (hex)>",
+          "accountType": "<details.SourceAccountType>",
+          "asset": {
+            "id": "<details.SrcAssetId (resource id)>",
+            "ledgerInfo": {"type": "<details.SrcAssetLedgerInfoType e.g. CAIP-19>", "id": "<details.SrcAssetLedgerInfoId e.g. network:standard:tokenId>"}
+          }
+        },
+        "destination": {
+          "accountId":   "<details.DestFinId (hex)>",
+          "accountType": "<details.DestinationAccountType>",
+          "asset": {
+            "id": "<details.DstAssetId (resource id)>",
+            "ledgerInfo": {"type": "<details.DstAssetLedgerInfoType>", "id": "<details.DstAssetLedgerInfoId>"}
+          }
+        },
+        "tradeDetails": {
+          "executionContext": {
+            "executionPlanId":           "<details.ExecPlanId>",
+            "instructionSequenceNumber": "<details.InstructionSequence (stringified)>"
+          }
+        },
+        "transactionDetails": {
+          "operationId":   "<details.OperationId>",
+          "transactionId": "<details.TransactionId>"
+        },
+        "quantity": "<details.Amount (decimal string)>"
+      },
+      "$note": "Non-CAIP-19 identifiers (ISIN, CUSIP, …) emit ledgerInfo with empty strings rather than a malformed triple — eth-adapter must not choke on empty ledgerInfo.{type,id}."
+    }
+  },
+
+
+}
