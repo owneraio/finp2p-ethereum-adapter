@@ -1,4 +1,5 @@
 import { parseEther, Provider } from "ethers";
+import { logger } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import { CustodyWallet } from "./custody-provider";
 import { GAS_FUNDING_TIMEOUT_MS, GAS_FUNDING_POLL_INTERVAL_MS } from "./gas-station";
 
@@ -65,18 +66,26 @@ export class WalletActivator {
   /** @returns true when an activation transfer was sent, false when the address was already active */
   async ensureActivated(address: string): Promise<boolean> {
     let balance = await this.fundingWallet.provider.getBalance(address);
-    if (balance > 0n) return false;
+    if (balance > 0n) {
+      logger.debug(`Wallet activation: ${address} already active (balance ${balance}), skipping`);
+      return false;
+    }
 
-    await this.fundingWallet.signer.sendTransaction({
+    logger.debug(`Wallet activation: ${address} has zero balance, sending ${this.amount} to activate`);
+    const tx = await this.fundingWallet.signer.sendTransaction({
       to: address,
       value: parseEther(this.amount),
     });
+    logger.debug(`Wallet activation: activation tx ${tx.hash} submitted for ${address}, polling for on-chain balance`);
 
     const deadline = Date.now() + GAS_FUNDING_TIMEOUT_MS;
     while (Date.now() < deadline) {
       await new Promise(r => setTimeout(r, GAS_FUNDING_POLL_INTERVAL_MS));
       balance = await this.fundingWallet.provider.getBalance(address);
-      if (balance > 0n) return true;
+      if (balance > 0n) {
+        logger.debug(`Wallet activation: ${address} confirmed active on-chain (balance ${balance})`);
+        return true;
+      }
     }
     throw new Error(`Activation transfer to ${address} did not reflect on-chain after ${GAS_FUNDING_TIMEOUT_MS}ms`);
   }
