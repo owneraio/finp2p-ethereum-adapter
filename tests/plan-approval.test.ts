@@ -168,29 +168,27 @@ describe("ConfigurablePlanApprovalService", () => {
 
 describe("GasPrefundingOption", () => {
 
-  function buildOption(opts: { gasStation?: boolean, placeholderFixed?: boolean, mappingThrows?: boolean } = {}) {
+  function buildOption(opts: { gasStation?: boolean, placeholderFixed?: boolean, mappingThrows?: boolean, noMintSigner?: boolean } = {}) {
     const funded: string[] = [];
     const fundedCounts = new Map<string, number>();
     const gasStation = opts.gasStation === false ? undefined : {
       ensureGas: async (address: string, txCount: number = 1) => { funded.push(address); fundedCounts.set(address, txCount); }
     };
-    // placeholderFixed mimics Fireblocks local-submit: issuer/escrow are a
+    // placeholderFixed mimics Fireblocks local-submit: the escrow vault is a
     // JsonRpcProvider placeholder whose signer has no getAddress()
-    const fixedWallet = opts.placeholderFixed
+    const escrowWallet = opts.placeholderFixed
       ? { signer: {} }
-      : undefined;
-    const custodyProvider = {
-      gasStation,
-      issuer: fixedWallet ?? { signer: { getAddress: async () => ISSUER_ADDRESS } },
-      escrow: fixedWallet ?? { signer: { getAddress: async () => ESCROW_ADDRESS } }
-    } as any;
+      : { signer: { getAddress: async () => ESCROW_ADDRESS } };
+    const custodyProvider = { gasStation, escrow: escrowWallet } as any;
     const accountMapping = {
       resolveAccount: async (finId: string) => {
         if (opts.mappingThrows) throw new Error("transient DB error");
         return finId === ALICE_FIN_ID ? ALICE_ADDRESS : finId === BOB_FIN_ID ? BOB_ADDRESS : undefined;
       }
     } as any;
-    return { option: new GasPrefundingOption(custodyProvider, accountMapping), custodyProvider, funded, fundedCounts };
+    // the env mint signer (ASSET_ISSUER_PRIVATE_KEY) that signs every issue
+    const mintSignerAddress = opts.noMintSigner ? undefined : ISSUER_ADDRESS;
+    return { option: new GasPrefundingOption(custodyProvider, accountMapping, mintSignerAddress), custodyProvider, funded, fundedCounts };
   }
 
   const introspect = (instructions: any[]): IntrospectedPlan => ({
@@ -235,6 +233,18 @@ describe("GasPrefundingOption", () => {
     expect(funded.sort()).toEqual([ESCROW_ADDRESS, ALICE_ADDRESS].sort());
   });
 
+  test("issue funds the env mint signer, not the custody issuer wallet", async () => {
+    const { option, funded } = buildOption();
+    await option.apply(introspect([instruction(1, "issue")]));
+    expect(funded).toEqual([ISSUER_ADDRESS]);
+  });
+
+  test("without a configured mint signer, issue instructions fund nothing", async () => {
+    const { option, funded } = buildOption({ noMintSigner: true });
+    await option.apply(introspect([instruction(1, "issue"), instruction(2, "hold", ALICE_FIN_ID)]));
+    expect(funded).toEqual([ALICE_ADDRESS]); // issue skipped, investor still funded
+  });
+
   test("is a no-op without a gas station", async () => {
     const { option, funded } = buildOption({ gasStation: false });
     await option.apply(introspect([instruction(1, "hold", ALICE_FIN_ID)]));
@@ -264,9 +274,9 @@ describe("GasPrefundingOption", () => {
     expect(funded).toEqual([ESCROW_ADDRESS]);
   });
 
-  test("placeholder issuer/escrow wallet (Fireblocks local-submit) does not abort — investor still funded", async () => {
+  test("placeholder escrow wallet (Fireblocks local-submit) does not abort — investor still funded", async () => {
     const { option, funded } = buildOption({ placeholderFixed: true });
-    // a transfer-only plan must not touch the (unavailable) fixed wallets
+    // a transfer-only plan must not touch the (unavailable) escrow wallet
     await expect(option.apply(introspect([
       instruction(1, "transfer", ALICE_FIN_ID)
     ]))).resolves.toBeUndefined();
@@ -288,7 +298,7 @@ describe("GasPrefundingOption", () => {
       instruction(2, "hold", ALICE_FIN_ID),
       instruction(3, "release")
     ]))).resolves.toBeUndefined();
-    // investor skipped (mapping threw); fixed issuer/escrow still funded
+    // investor skipped (mapping threw); mint signer (issue) and escrow (release) still funded
     expect(funded.sort()).toEqual([ISSUER_ADDRESS, ESCROW_ADDRESS].sort());
   });
 });
