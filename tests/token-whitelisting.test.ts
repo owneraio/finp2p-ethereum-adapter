@@ -84,7 +84,7 @@ describe("TokenWhitelistingOption", () => {
     expect(partyKeys(calls[0].parties)).toEqual([`${ALICE}:source`]);
   });
 
-  test("collects both roles across an asset's instructions, deduped by finId+role", async () => {
+  test("each investor is whitelisted once across an asset's instructions (deduped by finId)", async () => {
     const option = buildOption({ [ASSET_ID]: "WL_TEST" });
     await option.apply(plan([
       instruction(ASSET_ID, ALICE, BOB, true, "hold"),
@@ -92,8 +92,9 @@ describe("TokenWhitelistingOption", () => {
       instruction(ASSET_ID, BOB, ALICE, true, "transfer"),
     ]));
     expect(calls).toHaveLength(1);
-    expect(partyKeys(calls[0].parties))
-      .toEqual([`${ALICE}:source`, `${ALICE}:destination`, `${BOB}:source`, `${BOB}:destination`].sort());
+    // ALICE and BOB each appear as both source and destination across the
+    // instructions, but each is a single investor → one whitelist entry each
+    expect(calls[0].parties.map(p => p.finId).sort()).toEqual([ALICE, BOB].sort());
   });
 
   test("only the asset kept in this adapter is whitelisted", async () => {

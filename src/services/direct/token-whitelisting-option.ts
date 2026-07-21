@@ -116,8 +116,10 @@ export class TokenWhitelistingOption implements PlanApprovalOption {
     // must never be whitelisted, even when they carry a network address
     if (!finId) return undefined;
 
-    const key = `${finId}|${role}`;
-    if (entry.parties.has(key)) return undefined;
+    // one investor, one whitelist entry — eligibility is role-independent, and
+    // a finId names a single investor (they may be source in one instruction
+    // and destination in another; whitelist them once)
+    if (entry.parties.has(finId)) return undefined;
 
     // execution accepts an explicit ledger address only for a transfer/release
     // destination; everywhere else the finId must resolve via account mapping
@@ -129,7 +131,7 @@ export class TokenWhitelistingOption implements PlanApprovalOption {
       logger.warning(`Plan ${planId}: cannot resolve address for ${role} ${finId} of asset ${entry.assetId} — rejecting`);
       return rejectedPlan(1, `Plan ${planId}: cannot resolve address for ${role} ${finId} of asset ${entry.assetId}`);
     }
-    entry.parties.set(key, { finId, address, role });
+    entry.parties.set(finId, { finId, address, role });
     return undefined;
   }
 }
