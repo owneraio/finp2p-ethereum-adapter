@@ -1,6 +1,6 @@
 import { logger, rejectedPlan } from "@owneraio/finp2p-nodejs-skeleton-adapter";
-import { AssetRecord, Logger as TokenLogger, InvestorWhitelisting, supportsWhitelisting, WhitelistParty } from "@owneraio/finp2p-ethereum-adapter-contract";
-import { PlanApprovalOption, IntrospectedPlan, IntrospectedInstruction } from "../plan-approval";
+import { AssetRecord, Logger as TokenLogger, supportsWhitelisting } from "@owneraio/finp2p-ethereum-adapter-contract";
+import { PlanApprovalOption, IntrospectedPlan } from "../plan-approval";
 import { AccountMappingService, AssetStore } from "./account-mapping";
 import { tokenStandardRegistry } from "../../integrations/token-standards/registry";
 
@@ -11,31 +11,17 @@ const tokenLogger: TokenLogger = {
   debug: (m, ...a) => logger.debug(m, ...a),
 };
 
-type AssetWork = {
-  assetId: string;
-  asset: AssetRecord;
-  /** undefined when the registered standard has no whitelisting capability */
-  whitelisting?: InvestorWhitelisting;
-  parties: Map<string, WhitelistParty>;
-};
-
 /**
- * Plan-approval option that runs token-standard-specific investor
- * whitelisting for every asset of the plan this adapter is responsible for.
+ * Plan-approval option that runs token-standard-specific investor whitelisting.
  *
- * Responsibility test: the instruction executes on this ledger AND the asset
- * is registered in this adapter's asset store. For each such asset the
- * business parties named on its instructions — the source and destination
- * finIds — are resolved to addresses and handed to the standard's
- * ensureWhitelisted, sequentially. How the standard actually moves tokens
- * (escrow accounts, hold/release routing, etc.) is the standard's own concern;
- * the adapter passes the investors involved and lets the standard decide what
- * "whitelisted" requires. ensureWhitelisted is idempotent, so covering every
- * party is safe. Standards without the whitelisting capability (plain ERC20)
- * are skipped.
- *
- * Gating: a party that cannot be whitelisted (or resolved) means the plan
- * will fail at execution — reject at approval instead.
+ * For each instruction that executes on this ledger against an asset kept in
+ * this adapter, the investors it names — the source and destination finIds —
+ * are resolved to addresses and ensured eligible via the standard's
+ * ensureWhitelisted (idempotent). A finId-less endpoint (escrow, external
+ * account) is not an investor and is not whitelisted. How the standard moves
+ * tokens internally is its own concern. Standards without the whitelisting
+ * capability (plain ERC20) are skipped; anything that can't be resolved or
+ * whitelisted vetoes the plan, since it would fail at execution anyway.
  */
 export class TokenWhitelistingOption implements PlanApprovalOption {
 
@@ -48,90 +34,50 @@ export class TokenWhitelistingOption implements PlanApprovalOption {
   ) {}
 
   async apply(plan: IntrospectedPlan): Promise<ReturnType<typeof rejectedPlan> | void> {
-    const work = new Map<string, AssetWork>();
-    const foreignAssets = new Set<string>();
-
     for (const instruction of plan.instructions) {
-      if (!instruction.local || !instruction.assetId) continue;
-      if (instruction.type === "await") continue;
-      if (foreignAssets.has(instruction.assetId)) continue;
+      if (!instruction.local || !instruction.assetId || instruction.type === "await") continue;
 
-      let entry = work.get(instruction.assetId);
-      if (!entry) {
-        const dbAsset = await this.assetStore.getAsset(instruction.assetId);
-        if (dbAsset === undefined) {
-          foreignAssets.add(instruction.assetId);
-          logger.debug(`Plan ${plan.planId}: asset ${instruction.assetId} is not kept in this adapter — skipping whitelisting`);
-          continue;
-        }
-        const standardName = dbAsset.token_standard;
-        if (!tokenStandardRegistry.has(standardName)) {
-          logger.warning(`Plan ${plan.planId}: token standard '${standardName}' of asset ${instruction.assetId} is not registered (available: ${tokenStandardRegistry.availableStandards.join(", ")}) — rejecting`);
-          return rejectedPlan(1, `Plan ${plan.planId}: token standard '${standardName}' of asset ${instruction.assetId} is not registered`);
-        }
-        const standard = tokenStandardRegistry.resolve(standardName);
-        const whitelisting = supportsWhitelisting(standard) ? standard : undefined;
-        if (!whitelisting) {
-          logger.info(`Plan ${plan.planId}: asset ${instruction.assetId} standard '${standardName}' has no whitelisting capability — skipping`);
-        }
-        entry = {
-          assetId: instruction.assetId,
-          asset: {
-            contractAddress: dbAsset.contract_address,
-            decimals: dbAsset.decimals,
-            tokenStandard: standardName
-          },
-          whitelisting,
-          parties: new Map()
-        };
-        work.set(instruction.assetId, entry);
+      const dbAsset = await this.assetStore.getAsset(instruction.assetId);
+      if (!dbAsset) continue; // asset is not kept in this adapter
+
+      if (!tokenStandardRegistry.has(dbAsset.token_standard)) {
+        logger.warning(`Plan ${plan.planId}: token standard '${dbAsset.token_standard}' of asset ${instruction.assetId} is not registered — rejecting`);
+        return rejectedPlan(1, `Plan ${plan.planId}: token standard '${dbAsset.token_standard}' of asset ${instruction.assetId} is not registered`);
       }
-      if (!entry.whitelisting) continue; // e.g. plain ERC20 — nothing to resolve
+      const standard = tokenStandardRegistry.resolve(dbAsset.token_standard);
+      if (!supportsWhitelisting(standard)) continue;
 
-      const veto = await this.addParty(entry, instruction, "source", plan.planId)
-        ?? await this.addParty(entry, instruction, "destination", plan.planId);
-      if (veto) return veto;
-    }
+      const asset: AssetRecord = {
+        contractAddress: dbAsset.contract_address,
+        decimals: dbAsset.decimals,
+        tokenStandard: dbAsset.token_standard,
+      };
 
-    for (const { assetId, asset, whitelisting, parties } of work.values()) {
-      if (!whitelisting) continue;
-      const partyList = Array.from(parties.values());
-      if (partyList.length === 0) continue;
-
-      const result = await whitelisting.ensureWhitelisted(asset, partyList, tokenLogger);
-      if (result.status === "failure") {
-        logger.warning(`Plan ${plan.planId}: whitelisting for asset ${assetId} failed: ${result.reason}`);
-        return rejectedPlan(1, `Whitelisting failed for asset ${assetId}: ${result.reason}`);
+      if (instruction.sourceFinId) {
+        const address = await this.accountMapping.resolveAccount(instruction.sourceFinId);
+        if (!address) {
+          return rejectedPlan(1, `Plan ${plan.planId}: cannot resolve address for source ${instruction.sourceFinId} of asset ${instruction.assetId}`);
+        }
+        const result = await standard.ensureWhitelisted(asset, [{ finId: instruction.sourceFinId, address, role: "source" }], tokenLogger);
+        if (result.status === "failure") {
+          return rejectedPlan(1, `Whitelisting failed for asset ${instruction.assetId}: ${result.reason}`);
+        }
       }
-      logger.info(`Plan ${plan.planId}: whitelisting ensured for ${partyList.length} part(y/ies) of asset ${assetId}`);
+
+      if (instruction.destinationFinId) {
+        let address = await this.accountMapping.resolveAccount(instruction.destinationFinId);
+        // execution accepts an explicit ledger address only for a transfer/release destination
+        if (!address && (instruction.type === "transfer" || instruction.type === "release")) {
+          address = instruction.destinationAddress;
+        }
+        if (!address) {
+          return rejectedPlan(1, `Plan ${plan.planId}: cannot resolve address for destination ${instruction.destinationFinId} of asset ${instruction.assetId}`);
+        }
+        const result = await standard.ensureWhitelisted(asset, [{ finId: instruction.destinationFinId, address, role: "destination" }], tokenLogger);
+        if (result.status === "failure") {
+          return rejectedPlan(1, `Whitelisting failed for asset ${instruction.assetId}: ${result.reason}`);
+        }
+      }
     }
-  }
-
-  private async addParty(
-    entry: AssetWork, instruction: IntrospectedInstruction, role: "source" | "destination", planId: string
-  ): Promise<ReturnType<typeof rejectedPlan> | undefined> {
-    const finId = role === "source" ? instruction.sourceFinId : instruction.destinationFinId;
-    // only investors (identified by finId) are whitelisted; finId-less
-    // endpoints — escrow, external accounts — are not part of onboarding and
-    // must never be whitelisted, even when they carry a network address
-    if (!finId) return undefined;
-
-    // one investor, one whitelist entry — eligibility is role-independent, and
-    // a finId names a single investor (they may be source in one instruction
-    // and destination in another; whitelist them once)
-    if (entry.parties.has(finId)) return undefined;
-
-    // execution accepts an explicit ledger address only for a transfer/release
-    // destination; everywhere else the finId must resolve via account mapping
-    const explicitAddress = role === "destination" && (instruction.type === "transfer" || instruction.type === "release")
-      ? instruction.destinationAddress
-      : undefined;
-    const address = await this.accountMapping.resolveAccount(finId) ?? explicitAddress;
-    if (!address) {
-      logger.warning(`Plan ${planId}: cannot resolve address for ${role} ${finId} of asset ${entry.assetId} — rejecting`);
-      return rejectedPlan(1, `Plan ${planId}: cannot resolve address for ${role} ${finId} of asset ${entry.assetId}`);
-    }
-    entry.parties.set(finId, { finId, address, role });
-    return undefined;
   }
 }
