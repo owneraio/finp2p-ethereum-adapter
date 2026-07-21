@@ -4,7 +4,6 @@ import { GasPrefundingOption } from "../src/services/direct/gas-prefunding-optio
 const ORG = "bank-us";
 const OTHER_ORG = "bank-uk";
 
-const ISSUER_ADDRESS = "0x1111111111111111111111111111111111111111";
 const ALICE_FIN_ID = "02" + "aa".repeat(32);
 const ALICE_ADDRESS = "0x3333333333333333333333333333333333333333";
 const BOB_FIN_ID = "03" + "bb".repeat(32);
@@ -167,7 +166,7 @@ describe("ConfigurablePlanApprovalService", () => {
 
 describe("GasPrefundingOption", () => {
 
-  function buildOption(opts: { gasStation?: boolean, mappingThrows?: boolean, noMintSigner?: boolean } = {}) {
+  function buildOption(opts: { gasStation?: boolean, mappingThrows?: boolean } = {}) {
     const funded: string[] = [];
     const gasStation = opts.gasStation === false ? undefined : {
       ensureGas: async (address: string) => { funded.push(address); }
@@ -179,9 +178,7 @@ describe("GasPrefundingOption", () => {
         return finId === ALICE_FIN_ID ? ALICE_ADDRESS : finId === BOB_FIN_ID ? BOB_ADDRESS : undefined;
       }
     } as any;
-    // the env mint signer (ASSET_ISSUER_PRIVATE_KEY) that signs every issue
-    const mintSignerAddress = opts.noMintSigner ? undefined : ISSUER_ADDRESS;
-    return { option: new GasPrefundingOption(custodyProvider, accountMapping, mintSignerAddress), custodyProvider, funded };
+    return { option: new GasPrefundingOption(custodyProvider, accountMapping), custodyProvider, funded };
   }
 
   const introspect = (instructions: any[]): IntrospectedPlan => ({
@@ -197,17 +194,17 @@ describe("GasPrefundingOption", () => {
     raw: {}
   });
 
-  test("tops up each local instruction's signer (issue → mint signer, transfer/hold → source)", async () => {
+  test("tops up the source investor of each transfer/hold/redeem; skips issue/release/revertHold", async () => {
     const { option, funded } = buildOption();
     await option.apply(introspect([
-      instruction(1, "issue"),
+      instruction(1, "issue"),                  // mint signer — funded out of band
       instruction(2, "hold", ALICE_FIN_ID),
       instruction(3, "transfer", BOB_FIN_ID),
       instruction(4, "transfer", BOB_FIN_ID),
-      instruction(5, "release") // escrow signer, funded out of band → not here
+      instruction(5, "release")                 // escrow — funded out of band
     ]));
-    // one top-up per instruction, in order; repeated signers get repeated top-ups
-    expect(funded).toEqual([ISSUER_ADDRESS, ALICE_ADDRESS, BOB_ADDRESS, BOB_ADDRESS]);
+    // one top-up per investor-signed instruction, in order; repeats get repeated top-ups
+    expect(funded).toEqual([ALICE_ADDRESS, BOB_ADDRESS, BOB_ADDRESS]);
   });
 
   test("skips instructions executing on other ledgers", async () => {
@@ -219,31 +216,20 @@ describe("GasPrefundingOption", () => {
     expect(funded).toEqual([ALICE_ADDRESS]);
   });
 
-  test("redeem funds the source investor (escrow is funded out of band)", async () => {
+  test("redeem funds the source investor", async () => {
     const { option, funded } = buildOption();
     await option.apply(introspect([instruction(1, "redeem", ALICE_FIN_ID)]));
     expect(funded).toEqual([ALICE_ADDRESS]);
   });
 
-  test("release / revertHold fund nothing here (escrow signer funded out of band)", async () => {
+  test("issue / release / revertHold fund nothing here (operational wallets funded out of band)", async () => {
     const { option, funded } = buildOption();
     await option.apply(introspect([
-      instruction(1, "release"),
-      instruction(2, "revertHoldInstruction")
+      instruction(1, "issue"),
+      instruction(2, "release"),
+      instruction(3, "revertHoldInstruction")
     ]));
     expect(funded).toEqual([]);
-  });
-
-  test("issue funds the env mint signer, not the custody issuer wallet", async () => {
-    const { option, funded } = buildOption();
-    await option.apply(introspect([instruction(1, "issue")]));
-    expect(funded).toEqual([ISSUER_ADDRESS]);
-  });
-
-  test("without a configured mint signer, issue instructions fund nothing", async () => {
-    const { option, funded } = buildOption({ noMintSigner: true });
-    await option.apply(introspect([instruction(1, "issue"), instruction(2, "hold", ALICE_FIN_ID)]));
-    expect(funded).toEqual([ALICE_ADDRESS]); // issue skipped, investor still funded
   });
 
   test("is a no-op without a gas station", async () => {
@@ -260,28 +246,27 @@ describe("GasPrefundingOption", () => {
     };
     await expect(option.apply(introspect([
       instruction(1, "hold", ALICE_FIN_ID),
-      instruction(2, "issue")
+      instruction(2, "transfer", BOB_FIN_ID)
     ]))).resolves.toBeUndefined();
-    expect(funded).toEqual([ISSUER_ADDRESS]);
+    expect(funded).toEqual([BOB_ADDRESS]);
   });
 
   test("unresolvable source finIds are skipped, not fatal", async () => {
     const { option, funded } = buildOption();
     await option.apply(introspect([
       instruction(1, "hold", "02" + "ff".repeat(32)),
-      instruction(2, "issue")
+      instruction(2, "transfer", BOB_FIN_ID)
     ]));
-    expect(funded).toEqual([ISSUER_ADDRESS]);
+    expect(funded).toEqual([BOB_ADDRESS]);
   });
 
   test("account-mapping failure is swallowed (best-effort), does not throw", async () => {
     const { option, funded } = buildOption({ mappingThrows: true });
     await expect(option.apply(introspect([
-      instruction(1, "issue"),
-      instruction(2, "hold", ALICE_FIN_ID)
+      instruction(1, "transfer", ALICE_FIN_ID),
+      instruction(2, "hold", BOB_FIN_ID)
     ]))).resolves.toBeUndefined();
-    // investor skipped (mapping threw); mint signer (issue) still funded
-    expect(funded).toEqual([ISSUER_ADDRESS]);
+    expect(funded).toEqual([]); // both resolutions threw and were skipped
   });
 });
 
