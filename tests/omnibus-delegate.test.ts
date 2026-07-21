@@ -5,7 +5,7 @@ import { tokenStandardRegistry } from '../src/integrations/token-standards/regis
 import { ERC20TokenStandard, TokenStandardName as ERC20_TOKEN_STANDARD } from '@owneraio/finp2p-ethereum-erc20-plugin';
 import winston from 'winston';
 
-tokenStandardRegistry.register(ERC20_TOKEN_STANDARD, new ERC20TokenStandard());
+tokenStandardRegistry.register(ERC20_TOKEN_STANDARD, new ERC20TokenStandard({} as any, createMockSigner('0xISSUER')));
 
 // Mock @owneraio/finp2p-contracts
 const mockBalanceOf = jest.fn();
