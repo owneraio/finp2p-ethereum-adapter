@@ -28,13 +28,10 @@ export async function buildCustodyPlanApprovalService(
     new GasPrefundingOption(custodyProvider, accountMapping),
   ];
 
-  let hederaLike = false;
-  try {
-    hederaLike = await isHederaNetwork(custodyProvider.rpcProvider);
-  } catch (e) {
-    logger.warning(`Wallet activation: network detection failed at startup — recipient activation disabled: ${e}`);
-  }
-  if (hederaLike) {
+  // A definitive non-Hedera node returns false; a throw is a transient RPC
+  // failure — let it fail startup (the adapter needs the RPC anyway) so a
+  // restart retries, rather than silently disabling activation until restart.
+  if (await isHederaNetwork(custodyProvider.rpcProvider)) {
     logger.info("Wallet activation: network requires recipient activation — enabling the option");
     options.unshift(new WalletActivationOption(custodyProvider, accountMapping, walletActivationAmount));
   }
