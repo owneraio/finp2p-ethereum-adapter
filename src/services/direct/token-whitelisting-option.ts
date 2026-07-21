@@ -65,11 +65,7 @@ export class TokenWhitelistingOption implements PlanApprovalOption {
       }
 
       if (instruction.destinationFinId) {
-        let address = await this.accountMapping.resolveAccount(instruction.destinationFinId);
-        // execution accepts an explicit ledger address only for a transfer/release destination
-        if (!address && (instruction.type === "transfer" || instruction.type === "release")) {
-          address = instruction.destinationAddress;
-        }
+        const address = await this.accountMapping.resolveAccount(instruction.destinationFinId);
         if (!address) {
           return rejectedPlan(1, `Plan ${plan.planId}: cannot resolve address for destination ${instruction.destinationFinId} of asset ${instruction.assetId}`);
         }

@@ -102,15 +102,16 @@ describe("TokenWhitelistingOption", () => {
     expect(calls).toHaveLength(0);
   });
 
-  test("an explicit ledger address is used for a transfer destination when the finId is unmapped", async () => {
+  test("investors resolve through account mapping only — an explicit ledger address is ignored", async () => {
     const option = buildOption({ [ASSET_ID]: "WL_TEST" }, { [ALICE]: ADDR[ALICE] }); // BOB unmapped
     const veto = await option.apply(plan([
       instruction(ASSET_ID, ALICE, BOB, true, "transfer", { destinationAddress: EXPLICIT_ADDR })
     ]));
-    expect(veto).toBeUndefined();
-    const dest = calls.find(c => c.role === "destination");
-    expect(dest?.address).toBe(EXPLICIT_ADDR);
-    expect(dest?.finId).toBe(BOB);
+    // ALICE (source) is whitelisted via mapping; BOB is unmapped and the
+    // explicit address is not a whitelisting fallback → veto
+    expect(veto?.type).toBe("rejected");
+    expect((veto as any).error.message).toMatch(/cannot resolve address for destination/);
+    expect(keys(calls)).toEqual([`0xtoken-${ASSET_ID}|${ALICE}|source`]);
   });
 
   test("an explicit address is not accepted for a source — execution needs a mapped custody wallet", async () => {
@@ -122,7 +123,7 @@ describe("TokenWhitelistingOption", () => {
     expect((veto as any).error.message).toMatch(/cannot resolve address for source/);
   });
 
-  test("an explicit address is not accepted for an issue destination — execution resolves the finId via mapping only", async () => {
+  test("an unmapped destination vetoes regardless of instruction type", async () => {
     const option = buildOption({ [ASSET_ID]: "WL_TEST" }, {}); // BOB unmapped
     const veto = await option.apply(plan([
       instruction(ASSET_ID, undefined, BOB, true, "issue", { destinationAddress: EXPLICIT_ADDR })
