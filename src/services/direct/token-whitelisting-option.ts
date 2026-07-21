@@ -3,7 +3,7 @@ import { AssetRecord, Logger as TokenLogger } from "@owneraio/finp2p-ethereum-ad
 import { PlanApprovalOption, IntrospectedPlan, IntrospectedInstruction } from "../plan-approval";
 import { AccountMappingService, AssetStore } from "./account-mapping";
 import { CustodyProvider } from "./custody-provider";
-import { tokenStandardRegistry } from "../../integrations/token-standards";
+import { tokenStandardRegistry } from "../../integrations/token-standards/registry";
 import { InvestorWhitelisting, supportsWhitelisting, WhitelistParty, WhitelistPartyRole } from "@owneraio/finp2p-ethereum-adapter-contract";
 
 const tokenLogger: TokenLogger = {

@@ -1,5 +1,5 @@
 import { TokenWhitelistingOption } from "../src/services/direct/token-whitelisting-option";
-import { tokenStandardRegistry } from "../src/integrations/token-standards";
+import { tokenStandardRegistry } from "../src/integrations/token-standards/registry";
 import { supportsWhitelisting, WhitelistParty } from "@owneraio/finp2p-ethereum-adapter-contract";
 import { IntrospectedPlan } from "../src/services/plan-approval";
 

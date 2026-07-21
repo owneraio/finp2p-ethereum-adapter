@@ -1,4 +1,4 @@
-import { tokenStandardRegistry } from "../src/integrations/token-standards";
+import { tokenStandardRegistry } from "../src/integrations/token-standards/registry";
 import { pooledSigner, resetSignerPool } from "../src/integrations/signer-pool";
 
 const impl = {} as any;

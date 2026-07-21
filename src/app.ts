@@ -35,7 +35,7 @@ import {
   createWalletResolver,
 } from "./services/direct";
 import { ERC20TokenStandard, TokenStandardName as ERC20_TOKEN_STANDARD } from "@owneraio/finp2p-ethereum-erc20-plugin";
-import { tokenStandardRegistry } from "./integrations/token-standards";
+import { tokenStandardRegistry } from "./integrations/token-standards/registry";
 import { registerCustodyIntegrations, registerIntegrations } from "./integrations/registry";
 import { ConfigurablePlanApprovalService, PlanApprovalOption } from "./services/plan-approval";
 import { AppConfig, FinP2PContractAppConfig, getNetworkRpcUrl } from "./config";
