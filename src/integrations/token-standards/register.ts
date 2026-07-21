@@ -6,7 +6,7 @@ import { BenjiTokenStandard, TokenStandardName as BENJI_STANDARD } from "@ownera
 import { AtsTokenStandard, TokenStandardName as HEDERA_ATS_STANDARD } from "@owneraio/finp2p-ethereum-hedera-plugin";
 import { OwneraCollateralTokenStandard, TokenStandardName as COLLATERAL_TOKEN_STANDARD } from "@owneraio/finp2p-ethereum-collateral";
 import { CollateralTokenStandard as DtccCollateralTokenStandard, TokenStandardName as DTCC_TOKEN_STANDARD } from "@owneraio/finp2p-ethereum-dtcc-plugin";
-import { tokenStandardRegistry } from "../../services/direct";
+import { tokenStandardRegistry } from "./registry";
 import { IntegrationContext } from "../registry";
 import { pooledProvider, pooledSigner } from "../signer-pool";
 

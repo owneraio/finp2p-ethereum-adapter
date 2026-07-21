@@ -3,7 +3,7 @@ import { CmtatTokenStandard } from "@owneraio/finp2p-ethereum-cmtat-plugin";
 import { BenjiTokenStandard } from "@owneraio/finp2p-ethereum-benji-plugin";
 import { AtsTokenStandard } from "@owneraio/finp2p-ethereum-hedera-plugin";
 import { registerEthereumTokenStandards } from "../src/integrations/token-standards";
-import { tokenStandardRegistry } from "../src/services/direct/token-standards/registry";
+import { tokenStandardRegistry } from "../src/integrations/token-standards";
 import { supportsWhitelisting } from "@owneraio/finp2p-ethereum-adapter-contract";
 import { resetSignerPool } from "../src/integrations/signer-pool";
 

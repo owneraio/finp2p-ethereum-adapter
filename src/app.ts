@@ -31,17 +31,16 @@ import {
   OmnibusDelegate,
   CommonServiceImpl as DirectCommonServiceImpl,
   HealthServiceImpl as DirectHealthServiceImpl,
-  tokenStandardRegistry,
-  ERC20TokenStandard,
-  ERC20_TOKEN_STANDARD,
   buildMappingConfig,
   createWalletResolver,
 } from "./services/direct";
+import { ERC20TokenStandard, TokenStandardName as ERC20_TOKEN_STANDARD } from "@owneraio/finp2p-ethereum-erc20-plugin";
+import { tokenStandardRegistry } from "./integrations/token-standards";
 import { registerCustodyIntegrations, registerIntegrations } from "./integrations/registry";
 import { ConfigurablePlanApprovalService, PlanApprovalOption } from "./services/plan-approval";
 import { AppConfig, FinP2PContractAppConfig, getNetworkRpcUrl } from "./config";
 
-// Register compiled-in custody providers and built-in token standards
+// Register compiled-in custody providers and the always-on ERC20 standard
 registerCustodyIntegrations();
 tokenStandardRegistry.register(ERC20_TOKEN_STANDARD, new ERC20TokenStandard(), { erc20Compatible: true });
 

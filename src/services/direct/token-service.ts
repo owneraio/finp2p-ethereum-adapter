@@ -10,8 +10,8 @@ import { TokenOperationResult } from '@owneraio/finp2p-ethereum-adapter-contract
 import { CustodyProvider, CustodyWallet } from './custody-provider';
 import { AccountMappingService, AssetStore } from './account-mapping';
 import { getAssetFromDb } from './helpers';
-import { tokenStandardRegistry } from './token-standards/registry';
-import { ERC20_TOKEN_STANDARD, DEFAULT_NEW_ERC20_DECIMALS } from './token-standards/erc20';
+import { tokenStandardRegistry } from '../../integrations/token-standards';
+import { TokenStandardName as ERC20_TOKEN_STANDARD, DEFAULT_NEW_ERC20_DECIMALS } from '@owneraio/finp2p-ethereum-erc20-plugin';
 import { ERC20Contract } from '@owneraio/finp2p-contracts';
 import { buildOperationContext } from './operation-context';
 
