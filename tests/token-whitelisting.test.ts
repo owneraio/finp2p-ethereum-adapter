@@ -14,7 +14,6 @@ const ADDR: Record<string, string> = {
   [ALICE]: "0x1111111111111111111111111111111111111111",
   [BOB]: "0x2222222222222222222222222222222222222222"
 };
-const ESCROW_ADDR = "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee";
 const EXPLICIT_ADDR = "0x3333333333333333333333333333333333333333";
 
 type Call = { assetId: string; parties: WhitelistParty[] };
@@ -30,21 +29,14 @@ function whitelistingStandard(calls: Call[], failWith?: string) {
 
 const plainStandard = {} as any;
 
-const escrowProvider = (address?: string) => ({
-  escrow: { signer: address ? { getAddress: async () => address } : {} }
-}) as any;
-
-function buildOption(
-  assets: Record<string, string>, mapped: Record<string, string> = ADDR,
-  custodyProvider = escrowProvider(ESCROW_ADDR)
-) {
+function buildOption(assets: Record<string, string>, mapped: Record<string, string> = ADDR) {
   const assetStore = {
     getAsset: async (id: string) => assets[id]
       ? { contract_address: `0xtoken-${id}`, decimals: 2, token_standard: assets[id], id }
       : undefined
   } as any;
   const accountMapping = { resolveAccount: async (finId: string) => mapped[finId] } as any;
-  return new TokenWhitelistingOption(assetStore, accountMapping, custodyProvider);
+  return new TokenWhitelistingOption(assetStore, accountMapping);
 }
 
 const instruction = (
@@ -68,21 +60,40 @@ describe("TokenWhitelistingOption", () => {
   });
   beforeEach(() => { calls.length = 0; });
 
-  test("whitelists the transfer endpoints of both assets when both are kept in this adapter", async () => {
+  test("whitelists the source+destination parties of each asset kept in this adapter", async () => {
     const option = buildOption({ [ASSET_ID]: "WL_TEST", [SETTLEMENT_ID]: "WL_TEST" });
     const veto = await option.apply(plan([
       instruction(SETTLEMENT_ID, ALICE, BOB, true, "hold"),
       instruction(ASSET_ID, BOB, ALICE),
-      instruction(SETTLEMENT_ID, ALICE, BOB, true, "release")
     ]));
     expect(veto).toBeUndefined();
     expect(calls).toHaveLength(2);
     const byAsset = Object.fromEntries(calls.map(c => [c.assetId, c.parties]));
-    // hold moves ALICE → escrow, release moves escrow → BOB
     expect(partyKeys(byAsset[`0xtoken-${SETTLEMENT_ID}`]))
-      .toEqual([`${ALICE}:source`, `${BOB}:destination`, `${ESCROW_ADDR}:escrow`].sort());
+      .toEqual([`${ALICE}:source`, `${BOB}:destination`].sort());
     expect(partyKeys(byAsset[`0xtoken-${ASSET_ID}`]))
       .toEqual([`${BOB}:source`, `${ALICE}:destination`].sort());
+  });
+
+  test("an escrow party (no finId) is never whitelisted — escrow is preconfigured outside the adapter", async () => {
+    // a hold whose destination is the escrow carries no destinationFinId
+    const option = buildOption({ [ASSET_ID]: "WL_TEST" });
+    const veto = await option.apply(plan([instruction(ASSET_ID, ALICE, undefined, true, "hold")]));
+    expect(veto).toBeUndefined();
+    expect(calls).toHaveLength(1);
+    expect(partyKeys(calls[0].parties)).toEqual([`${ALICE}:source`]);
+  });
+
+  test("collects both roles across an asset's instructions, deduped by finId+role", async () => {
+    const option = buildOption({ [ASSET_ID]: "WL_TEST" });
+    await option.apply(plan([
+      instruction(ASSET_ID, ALICE, BOB, true, "hold"),
+      instruction(ASSET_ID, ALICE, BOB, true, "release"),
+      instruction(ASSET_ID, BOB, ALICE, true, "transfer"),
+    ]));
+    expect(calls).toHaveLength(1);
+    expect(partyKeys(calls[0].parties))
+      .toEqual([`${ALICE}:source`, `${ALICE}:destination`, `${BOB}:source`, `${BOB}:destination`].sort());
   });
 
   test("only the asset kept in this adapter is whitelisted", async () => {
@@ -96,33 +107,15 @@ describe("TokenWhitelistingOption", () => {
     expect(calls[0].assetId).toBe(`0xtoken-${ASSET_ID}`);
   });
 
-  test("a hold's business destination is not a transfer endpoint — no veto when it is unmapped", async () => {
-    const option = buildOption({ [ASSET_ID]: "WL_TEST" }, { [ALICE]: ADDR[ALICE] }); // BOB unmapped
-    const veto = await option.apply(plan([instruction(ASSET_ID, ALICE, BOB, true, "hold")]));
-    expect(veto).toBeUndefined();
-    expect(calls).toHaveLength(1);
-    expect(partyKeys(calls[0].parties)).toEqual([`${ALICE}:source`, `${ESCROW_ADDR}:escrow`].sort());
-  });
-
-  test("parties are deduplicated across instructions of the same asset", async () => {
-    const option = buildOption({ [ASSET_ID]: "WL_TEST" });
-    await option.apply(plan([
-      instruction(ASSET_ID, ALICE, BOB),
-      instruction(ASSET_ID, ALICE, BOB)
-    ]));
-    expect(calls).toHaveLength(1);
-    expect(calls[0].parties).toHaveLength(2);
-  });
-
   test("standards without the whitelisting capability are skipped before any party resolution", async () => {
     expect(supportsWhitelisting(plainStandard)).toBe(false);
     const option = buildOption({ [ASSET_ID]: "WL_PLAIN" }, {}); // nothing mapped at all
-    const veto = await option.apply(plan([instruction(ASSET_ID, ALICE, BOB, true, "hold")]));
+    const veto = await option.apply(plan([instruction(ASSET_ID, ALICE, BOB)]));
     expect(veto).toBeUndefined();
     expect(calls).toHaveLength(0);
   });
 
-  test("an explicit ledger address is used when the finId is unmapped, like execution", async () => {
+  test("an explicit ledger address is used for a destination when the finId is unmapped", async () => {
     const option = buildOption({ [ASSET_ID]: "WL_TEST" }, { [ALICE]: ADDR[ALICE] }); // BOB unmapped
     const veto = await option.apply(plan([
       instruction(ASSET_ID, ALICE, BOB, true, "transfer", { destinationAddress: EXPLICIT_ADDR })
@@ -134,21 +127,6 @@ describe("TokenWhitelistingOption", () => {
     expect(destination?.finId).toBe(BOB);
   });
 
-  test("an escrow wallet without a resolvable address vetoes a plan that needs the escrow endpoint", async () => {
-    const option = buildOption({ [ASSET_ID]: "WL_TEST" }, ADDR, escrowProvider(undefined));
-    const veto = await option.apply(plan([instruction(ASSET_ID, ALICE, BOB, true, "hold")]));
-    expect(veto?.type).toBe("rejected");
-    expect((veto as any).error.message).toMatch(/escrow wallet address is unavailable/);
-    expect(calls).toHaveLength(0);
-  });
-
-  test("a plan without escrow endpoints is unaffected by an unresolvable escrow wallet", async () => {
-    const option = buildOption({ [ASSET_ID]: "WL_TEST" }, ADDR, escrowProvider(undefined));
-    const veto = await option.apply(plan([instruction(ASSET_ID, ALICE, BOB)]));
-    expect(veto).toBeUndefined();
-    expect(calls).toHaveLength(1);
-  });
-
   test("an explicit address is not accepted for a source — execution needs a mapped custody wallet", async () => {
     const option = buildOption({ [ASSET_ID]: "WL_TEST" }, { [BOB]: ADDR[BOB] }); // ALICE unmapped
     const veto = await option.apply(plan([
@@ -157,15 +135,6 @@ describe("TokenWhitelistingOption", () => {
     expect(veto?.type).toBe("rejected");
     expect((veto as any).error.message).toMatch(/cannot resolve address for source/);
     expect(calls).toHaveLength(0);
-  });
-
-  test("an explicit address is not accepted for an issue destination — execution resolves it via mapping only", async () => {
-    const option = buildOption({ [ASSET_ID]: "WL_TEST" }, {}); // BOB unmapped
-    const veto = await option.apply(plan([
-      instruction(ASSET_ID, undefined, BOB, true, "issue", { destinationAddress: EXPLICIT_ADDR })
-    ]));
-    expect(veto?.type).toBe("rejected");
-    expect((veto as any).error.message).toMatch(/cannot resolve address for destination/);
   });
 
   test("whitelisting failure vetoes the plan", async () => {
