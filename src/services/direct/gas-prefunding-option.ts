@@ -25,24 +25,26 @@ export class GasPrefundingOption implements PlanApprovalOption {
     const gasStation = this.custodyProvider.gasStation;
     if (!gasStation) return;
 
+    // gas station funds to amount × txCount (a threshold, not additive), so count
+    // per signer and top up once with the total — per-instruction calls under-fund
+    const txCounts = new Map<string, number>();
     for (const instruction of plan.instructions) {
       if (!instruction.local) continue;
       if (instruction.type !== "transfer" && instruction.type !== "hold" && instruction.type !== "redeem") continue;
       if (!instruction.sourceFinId) continue;
-
-      let address: string | undefined;
       try {
-        address = await this.accountMapping.resolveAccount(instruction.sourceFinId);
+        const address = await this.accountMapping.resolveAccount(instruction.sourceFinId);
+        if (address) txCounts.set(address, (txCounts.get(address) ?? 0) + 1);
       } catch (e) {
         logger.warning(`Gas prefunding: resolving source finId ${instruction.sourceFinId} of plan ${plan.planId} instruction ${instruction.sequence} failed, skipping: ${e}`);
-        continue;
       }
-      if (!address) continue;
+    }
 
+    for (const [address, txCount] of txCounts) {
       try {
-        await gasStation.ensureGas(address, 1);
+        await gasStation.ensureGas(address, txCount);
       } catch (e) {
-        logger.warning(`Gas prefunding: top-up of ${address} for plan ${plan.planId} instruction ${instruction.sequence} failed: ${e}`);
+        logger.warning(`Gas prefunding: top-up of ${address} for plan ${plan.planId} failed: ${e}`);
       }
     }
   }
