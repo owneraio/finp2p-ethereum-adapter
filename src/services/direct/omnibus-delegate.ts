@@ -10,8 +10,8 @@ import { TransferDelegate, AssetDelegate, EscrowDelegate, OmnibusDelegate as Omn
 import { parseUnits, id as keccak256 } from 'ethers';
 import winston from 'winston';
 import { CustodyProvider, CustodyWallet } from './custody-provider';
-import { tokenStandardRegistry } from "./token-standards/registry";
-import { ERC20_TOKEN_STANDARD, DEFAULT_NEW_ERC20_DECIMALS } from "./token-standards/erc20";
+import { tokenStandardRegistry } from "../../integrations/token-standards/registry";
+import { TokenStandardName as ERC20_TOKEN_STANDARD, DEFAULT_NEW_ERC20_DECIMALS } from "@owneraio/finp2p-ethereum-erc20-plugin";
 import { ERC20Contract } from "@owneraio/finp2p-contracts";
 import { AccountMappingService, AssetStore } from './account-mapping';
 import { getAssetFromDb } from './helpers';
