@@ -20,10 +20,6 @@ import {
 import {
   DirectTokenService,
   CustodyProvider,
-  GasPrefundingOption,
-  TokenWhitelistingOption,
-  WalletActivationOption,
-  isHederaNetwork,
   custodyRegistry,
   DbAccountMapping,
   AccountMappingService,
@@ -36,7 +32,7 @@ import {
   createWalletResolver,
 } from "./services/direct";
 import { registerCustodyIntegrations, registerIntegrations } from "./integrations/registry";
-import { ConfigurablePlanApprovalService, PlanApprovalOption } from "./services/plan-approval";
+import { buildCustodyPlanApprovalService } from "./services/plan-approval";
 import { AppConfig, FinP2PContractAppConfig, getNetworkRpcUrl } from "./config";
 
 // Register compiled-in custody providers; token standards are registered per-network in registerIntegrations.
@@ -92,7 +88,11 @@ async function registerDirectServices(
     if (!omnibusCtx) throw new Error('Omnibus context not built — createVanillaServices must run before registerDirectServices');
     const { delegate, vanilla } = omnibusCtx;
     const { tokenService, escrowService, commonService, mappingService, distributionService, inboundTransferHook } = vanilla;
-    const planApprovalService = new PlanApprovalServiceImpl(appConfig.orgId, pluginManager, finP2PClient, inboundTransferHook);
+    const planApprovalService = await buildCustodyPlanApprovalService(
+      appConfig.orgId, finP2PClient,
+      new PlanApprovalServiceImpl(appConfig.orgId, pluginManager, finP2PClient, inboundTransferHook),
+      custodyProvider, accountMapping, assetStore!, process.env.WALLET_ACTIVATION_AMOUNT,
+    );
     const proxiedPlanService = wrapWithWorkflowProxy(planApprovalService, workflowStorage, finP2PClient, 'approvePlan', 'proposeCancelPlan', 'proposeResetPlan', 'proposeInstructionApproval');
     const proxiedTokenService = wrapWithWorkflowProxy(tokenService, workflowStorage, finP2PClient, 'createAsset', 'issue', 'transfer', 'redeem');
     const proxiedEscrowService = wrapWithWorkflowProxy(escrowService, workflowStorage, finP2PClient, 'hold', 'release', 'rollback');
@@ -117,27 +117,11 @@ async function registerDirectServices(
   if (!assetStore || !dbPool || !accountMappingStore || !accountMappingService) throw new Error('DB connection is required for direct mode');
   let tokenService: DirectTokenService = new DirectTokenService(logger, custodyProvider, accountMapping, assetStore);
   const commonService = new DirectCommonServiceImpl(workflowStorage!);
-  const planApprovalOptions: PlanApprovalOption[] = [
-    new TokenWhitelistingOption(assetStore, accountMapping),
-    new GasPrefundingOption(custodyProvider, accountMapping),
-  ];
-  // recipient activation is only needed on Hedera-style networks; detect once
-  // at startup and prepend it (before whitelisting) only when required
-  let hederaLike = false;
-  try {
-    hederaLike = await isHederaNetwork(custodyProvider.rpcProvider);
-  } catch (e) {
-    logger.warn(`Wallet activation: network detection failed at startup — recipient activation disabled: ${e}`);
-  }
-  if (hederaLike) {
-    logger.info("Wallet activation: network requires recipient activation — enabling the option");
-    const walletActivationAmount = process.env.WALLET_ACTIVATION_AMOUNT;
-    planApprovalOptions.unshift(new WalletActivationOption(custodyProvider, accountMapping, walletActivationAmount));
-  }
-  const planApprovalService = new ConfigurablePlanApprovalService(
+  const planApprovalService = await buildCustodyPlanApprovalService(
     appConfig.orgId, finP2PClient,
     new PlanApprovalServiceImpl(appConfig.orgId, pluginManager, finP2PClient),
-    planApprovalOptions);
+    custodyProvider, accountMapping, assetStore, process.env.WALLET_ACTIVATION_AMOUNT,
+  );
 
   const proxiedTokenService = wrapWithWorkflowProxy(tokenService, workflowStorage, finP2PClient, 'createAsset', 'issue', 'transfer', 'redeem');
   const proxiedEscrowService = wrapWithWorkflowProxy(tokenService, workflowStorage, finP2PClient, 'hold', 'release', 'rollback');

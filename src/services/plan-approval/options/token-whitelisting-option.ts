@@ -1,8 +1,8 @@
 import { logger, rejectedPlan } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import { AssetRecord, Logger as TokenLogger, supportsWhitelisting } from "@owneraio/finp2p-ethereum-adapter-contract";
-import { PlanApprovalOption, IntrospectedPlan } from "../plan-approval";
-import { AccountMappingService, AssetStore } from "./account-mapping";
-import { tokenStandardRegistry } from "../../integrations/token-standards/registry";
+import { PlanApprovalOption, IntrospectedPlan } from "..";
+import { AccountMappingService, AssetStore } from "../../direct/account-mapping";
+import { tokenStandardRegistry } from "../../../integrations/token-standards/registry";
 
 const tokenLogger: TokenLogger = {
   info: (m, ...a) => logger.info(m, ...a),

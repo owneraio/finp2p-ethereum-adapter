@@ -1,8 +1,8 @@
 import { logger } from "@owneraio/finp2p-nodejs-skeleton-adapter";
-import { PlanApprovalOption, IntrospectedPlan } from "../plan-approval";
-import { AccountMappingService } from "./account-mapping";
-import { CustodyProvider } from "./custody-provider";
-import { DEFAULT_ACTIVATION_AMOUNT, WalletActivator } from "./wallet-activation";
+import { PlanApprovalOption, IntrospectedPlan } from "..";
+import { AccountMappingService } from "../../direct/account-mapping";
+import { CustodyProvider } from "../../direct/custody-provider";
+import { DEFAULT_ACTIVATION_AMOUNT, WalletActivator } from "../../direct/wallet-activation";
 
 /**
  * Plan-approval option that activates recipient wallets on Hedera-style

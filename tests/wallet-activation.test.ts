@@ -1,5 +1,5 @@
 import { isHederaNetwork } from "../src/services/direct/wallet-activation";
-import { WalletActivationOption } from "../src/services/direct/wallet-activation-option";
+import { WalletActivationOption } from "../src/services/plan-approval/options/wallet-activation-option";
 import { IntrospectedPlan } from "../src/services/plan-approval";
 
 const ORG = "bank-us";

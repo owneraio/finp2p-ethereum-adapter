@@ -1,5 +1,5 @@
 import { ConfigurablePlanApprovalService, PlanApprovalOption, IntrospectedPlan, introspectPlan } from "../src/services/plan-approval";
-import { GasPrefundingOption } from "../src/services/direct/gas-prefunding-option";
+import { GasPrefundingOption } from "../src/services/plan-approval/options/gas-prefunding-option";
 
 const ORG = "bank-us";
 const OTHER_ORG = "bank-uk";
