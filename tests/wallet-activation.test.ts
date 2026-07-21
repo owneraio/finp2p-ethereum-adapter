@@ -11,7 +11,6 @@ const ADDR: Record<string, string> = {
   [ALICE]: "0x1111111111111111111111111111111111111111",
   [BOB]: "0x2222222222222222222222222222222222222222"
 };
-const EXPLICIT_ADDR = "0x3333333333333333333333333333333333333333";
 
 function mockProvider(chainId: bigint, clientVersion?: string | Error) {
   return {
@@ -110,9 +109,8 @@ describe("WalletActivationOption", () => {
     return { option, touches, callCounts: () => ({ networkCalls }) };
   }
 
-  const instruction = (type: string, source?: string, destination?: string, local = true,
-    addresses: { destinationAddress?: string } = {}) => ({
-    type, organizations: [ORG], local, sourceFinId: source, destinationFinId: destination, assetId: ASSET_ID, ...addresses
+  const instruction = (type: string, source?: string, destination?: string, local = true) => ({
+    type, organizations: [ORG], local, sourceFinId: source, destinationFinId: destination, assetId: ASSET_ID
   });
 
   const plan = (instructions: any[]): IntrospectedPlan => ({ planId: "plan-1", orgId: ORG, instructions, raw: {} });
@@ -141,12 +139,13 @@ describe("WalletActivationOption", () => {
     expect(touches).toHaveLength(0);
   });
 
-  test("destinations are deduplicated across instructions", async () => {
+  test("a repeated destination is activated once (idempotent via balance check)", async () => {
     const { option, touches } = build();
     await option.apply(plan([
       instruction("transfer", ALICE, BOB),
       instruction("release", ALICE, BOB)
     ]));
+    // the first touch funds BOB; the second sees a non-zero balance and no-ops
     expect(touches).toHaveLength(1);
     expect(touches[0].to).toBe(ADDR[BOB]);
   });
@@ -186,12 +185,12 @@ describe("WalletActivationOption", () => {
     expect(touches).toHaveLength(2);
   });
 
-  test("explicit ledger address is used for transfer destinations, mirroring execution", async () => {
+  test("resolution is account-mapping only — an explicit ledger address is not used", async () => {
     const { option, touches } = build({ mapped: { [ALICE]: ADDR[ALICE] } }); // BOB unmapped
     await option.apply(plan([
-      instruction("transfer", ALICE, BOB, true, { destinationAddress: EXPLICIT_ADDR })
+      instruction("transfer", ALICE, BOB)
     ]));
-    expect(touches.map(t => t.to)).toEqual([EXPLICIT_ADDR]);
+    expect(touches).toHaveLength(0); // BOB unresolvable via mapping → skipped, no fallback
   });
 
   test("unresolvable destinations and non-local instructions are skipped without failing", async () => {
