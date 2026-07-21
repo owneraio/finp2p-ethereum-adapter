@@ -1,3 +1,4 @@
+import { Wallet } from "ethers";
 import { TokenStandard } from "@owneraio/finp2p-ethereum-adapter-contract";
 import { TrexTokenStandard, TokenStandardName as TREX_STANDARD } from "@owneraio/finp2p-ethereum-trex-plugin";
 import { CmtatTokenStandard, TokenStandardName as CMTAT_STANDARD } from "@owneraio/finp2p-ethereum-cmtat-plugin";
@@ -25,10 +26,8 @@ function register(name: string, impl: TokenStandard, erc20Compatible = false): s
  * issuer is the env-injected signer (ASSET_ISSUER_PRIVATE_KEY) — never the
  * custody wallet; the controller comes from ASSET_CONTROLLER_PRIVATE_KEY and
  * whitelisting writes from ASSET_WHITELIST_PRIVATE_KEY. Each role is its own
- * explicit key with no cross-fallback. These standards mint and administer with
- * those keys, so without a persistent issuer and controller nothing is
- * registered — an ephemeral signer, regenerated on every restart, would strand
- * every asset they deploy. Collateral and DTCC are separately env-gated.
+ * explicit key with no cross-fallback. Collateral and DTCC are separately
+ * env-gated.
  */
 export function registerTokenStandards(ctx: IntegrationContext): void {
   const { logger, rpcUrl } = ctx;
@@ -41,22 +40,27 @@ export function registerTokenStandards(ctx: IntegrationContext): void {
   const controllerKey = process.env.ASSET_CONTROLLER_PRIVATE_KEY;
   const allowlisterKey = process.env.ASSET_WHITELIST_PRIVATE_KEY;
   if (!issuerKey || !controllerKey) {
-    logger.warn(`Ethereum token standards not registered: set ASSET_ISSUER_PRIVATE_KEY and ASSET_CONTROLLER_PRIVATE_KEY — these standards mint and administer with those keys and cannot run without a persistent signer`);
-  } else {
-    const provider = pooledProvider(rpcUrl);
-    const issuer = pooledSigner(rpcUrl, issuerKey);
-    const controller = pooledSigner(rpcUrl, controllerKey);
-    const allowlister = allowlisterKey ? pooledSigner(rpcUrl, allowlisterKey) : undefined;
-
-    const registered = [
-      register(ERC20_STANDARD, new ERC20TokenStandard(provider, issuer), true),
-      register(TREX_STANDARD, new TrexTokenStandard(provider, issuer, controller, allowlister), true),
-      register(CMTAT_STANDARD, new CmtatTokenStandard(provider, issuer, controller, allowlister), true),
-      register(BENJI_STANDARD, new BenjiTokenStandard(provider, issuer, controller), true),
-      register(HEDERA_ATS_STANDARD, new AtsTokenStandard(provider, issuer, controller, allowlister), true),
-    ].filter(Boolean);
-    logger.info(`Ethereum token standards registered: ${registered.join(", ")}`);
+    logger.warn(`Ethereum token standards: no ASSET_ISSUER_PRIVATE_KEY/ASSET_CONTROLLER_PRIVATE_KEY — using an ephemeral signer; reads and whitelist checks work but issuance/administration will not persist (set the keys to enable)`);
   }
+
+  const provider = pooledProvider(rpcUrl);
+  // TODO: pass `undefined` for a missing issuer/controller once the plugins
+  // accept an optional signer (issuer?: Signer). Until then an ephemeral signer
+  // stands in so registration stays unconditional — a required-arg placeholder,
+  // not a working signer (on-chain writes with it do not persist across restart).
+  const ephemeral = Wallet.createRandom().connect(provider);
+  const issuer = issuerKey ? pooledSigner(rpcUrl, issuerKey) : ephemeral;
+  const controller = controllerKey ? pooledSigner(rpcUrl, controllerKey) : ephemeral;
+  const allowlister = allowlisterKey ? pooledSigner(rpcUrl, allowlisterKey) : undefined;
+
+  const registered = [
+    register(ERC20_STANDARD, new ERC20TokenStandard(provider, issuer), true),
+    register(TREX_STANDARD, new TrexTokenStandard(provider, issuer, controller, allowlister), true),
+    register(CMTAT_STANDARD, new CmtatTokenStandard(provider, issuer, controller, allowlister), true),
+    register(BENJI_STANDARD, new BenjiTokenStandard(provider, issuer, controller), true),
+    register(HEDERA_ATS_STANDARD, new AtsTokenStandard(provider, issuer, controller, allowlister), true),
+  ].filter(Boolean);
+  logger.info(`Ethereum token standards registered: ${registered.join(", ")}`);
 
   // OWNERA_COLLATERAL_REGISTRY — gated on COLLATERAL_REGISTRY_ADDRESS +
   // COLLATERAL_AGENT_PRIVATE_KEY (its own signer, separate from the operator).

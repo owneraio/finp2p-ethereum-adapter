@@ -39,13 +39,15 @@ describe("registerTokenStandards (real plugin standards)", () => {
     for (const name of ALL) expect(tokenStandardRegistry.has(name)).toBe(false);
   });
 
-  test("without issuer/controller keys: fails closed — warns and registers nothing", () => {
+  test("without issuer/controller keys: registers all five with an ephemeral signer and warns", () => {
+    // TODO: revert to fail-closed / undefined issuer once the plugins accept an
+    // optional signer; today an ephemeral placeholder keeps registration on.
     warnings.length = 0;
     registerTokenStandards({ logger: warningLogger, rpcUrl: RPC } as any);
 
     expect(warnings.length).toBe(1);
-    expect(warnings[0]).toContain("ASSET_ISSUER_PRIVATE_KEY");
-    for (const name of ALL) expect(tokenStandardRegistry.has(name)).toBe(false);
+    expect(warnings[0]).toContain("ephemeral");
+    for (const name of ALL) expect(tokenStandardRegistry.has(name)).toBe(true);
   });
 
   test("with issuer + controller keys: registers all five, erc20-compatible, resolving to the plugin classes", () => {
