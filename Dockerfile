@@ -68,6 +68,17 @@ FROM base AS release
 LABEL org.opencontainers.image.source=https://github.com/owneraio/finp2p-ethereum-adapter
 ENV NODE_ENV=production
 
+# The runtime invokes `node` directly (see CMD), never `npm`/`npx`. The base
+# image's globally-bundled npm ships its own copy of `tar`, which carries
+# CVE-2026-59873 (node-tar DoS) and is the only CRITICAL the image scan finds.
+# Remove the global npm/npx (and yarn/corepack) so that dead build-time tooling
+# is not in the shipped image or its attack surface.
+RUN rm -rf \
+      /usr/local/lib/node_modules/npm \
+      /usr/local/lib/node_modules/corepack \
+      /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack \
+      /opt/yarn-* /usr/local/bin/yarn /usr/local/bin/yarnpkg
+
 COPY --from=dependencies /usr/app/node_modules ./node_modules
 COPY --from=build /usr/app/dist ./dist
 COPY --from=migrator /go/bin/goose /usr/bin/goose
