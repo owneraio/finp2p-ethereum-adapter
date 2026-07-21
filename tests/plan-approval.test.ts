@@ -167,9 +167,9 @@ describe("ConfigurablePlanApprovalService", () => {
 describe("GasPrefundingOption", () => {
 
   function buildOption(opts: { gasStation?: boolean, mappingThrows?: boolean } = {}) {
-    const funded: string[] = [];
+    const funded: Array<{ address: string; txCount: number }> = [];
     const gasStation = opts.gasStation === false ? undefined : {
-      ensureGas: async (address: string) => { funded.push(address); }
+      ensureGas: async (address: string, txCount: number) => { funded.push({ address, txCount }); }
     };
     const custodyProvider = { gasStation } as any;
     const accountMapping = {
@@ -194,7 +194,7 @@ describe("GasPrefundingOption", () => {
     raw: {}
   });
 
-  test("tops up the source investor of each transfer/hold/redeem; skips issue/release/revertHold", async () => {
+  test("tops up each source investor once, scaled to its instruction count", async () => {
     const { option, funded } = buildOption();
     await option.apply(introspect([
       instruction(1, "issue"),                  // mint signer — funded out of band
@@ -203,8 +203,10 @@ describe("GasPrefundingOption", () => {
       instruction(4, "transfer", BOB_FIN_ID),
       instruction(5, "release")                 // escrow — funded out of band
     ]));
-    // one top-up per investor-signed instruction, in order; repeats get repeated top-ups
-    expect(funded).toEqual([ALICE_ADDRESS, BOB_ADDRESS, BOB_ADDRESS]);
+    expect(funded).toEqual([
+      { address: ALICE_ADDRESS, txCount: 1 },
+      { address: BOB_ADDRESS, txCount: 2 }, // BOB signs two instructions -> single top-up, txCount 2
+    ]);
   });
 
   test("skips instructions executing on other ledgers", async () => {
@@ -213,13 +215,13 @@ describe("GasPrefundingOption", () => {
       instruction(1, "hold", ALICE_FIN_ID),
       instruction(2, "transfer", BOB_FIN_ID, [OTHER_ORG])
     ]));
-    expect(funded).toEqual([ALICE_ADDRESS]);
+    expect(funded).toEqual([{ address: ALICE_ADDRESS, txCount: 1 }]);
   });
 
   test("redeem funds the source investor", async () => {
     const { option, funded } = buildOption();
     await option.apply(introspect([instruction(1, "redeem", ALICE_FIN_ID)]));
-    expect(funded).toEqual([ALICE_ADDRESS]);
+    expect(funded).toEqual([{ address: ALICE_ADDRESS, txCount: 1 }]);
   });
 
   test("issue / release / revertHold fund nothing here (operational wallets funded out of band)", async () => {
@@ -238,17 +240,17 @@ describe("GasPrefundingOption", () => {
     expect(funded).toEqual([]);
   });
 
-  test("one instruction's funding failure does not skip the others", async () => {
+  test("one wallet's funding failure does not skip the others", async () => {
     const { option, custodyProvider, funded } = buildOption();
-    custodyProvider.gasStation.ensureGas = async (address: string) => {
+    custodyProvider.gasStation.ensureGas = async (address: string, txCount: number) => {
       if (address === ALICE_ADDRESS) throw new Error("funding tx failed");
-      funded.push(address);
+      funded.push({ address, txCount });
     };
     await expect(option.apply(introspect([
       instruction(1, "hold", ALICE_FIN_ID),
       instruction(2, "transfer", BOB_FIN_ID)
     ]))).resolves.toBeUndefined();
-    expect(funded).toEqual([BOB_ADDRESS]);
+    expect(funded).toEqual([{ address: BOB_ADDRESS, txCount: 1 }]);
   });
 
   test("unresolvable source finIds are skipped, not fatal", async () => {
@@ -257,7 +259,7 @@ describe("GasPrefundingOption", () => {
       instruction(1, "hold", "02" + "ff".repeat(32)),
       instruction(2, "transfer", BOB_FIN_ID)
     ]));
-    expect(funded).toEqual([BOB_ADDRESS]);
+    expect(funded).toEqual([{ address: BOB_ADDRESS, txCount: 1 }]);
   });
 
   test("account-mapping failure is swallowed (best-effort), does not throw", async () => {
