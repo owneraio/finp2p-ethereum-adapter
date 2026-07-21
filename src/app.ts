@@ -122,14 +122,11 @@ async function registerDirectServices(
     new GasPrefundingOption(custodyProvider, accountMapping),
   ];
   // recipient activation is only needed on Hedera-style networks; detect once
-  // at startup and prepend it (before whitelisting) only when required
-  let hederaLike = false;
-  try {
-    hederaLike = await isHederaNetwork(custodyProvider.rpcProvider);
-  } catch (e) {
-    logger.warn(`Wallet activation: network detection failed at startup — recipient activation disabled: ${e}`);
-  }
-  if (hederaLike) {
+  // at startup and prepend it (before whitelisting) only when required. A
+  // definitive non-Hedera node returns false; a throw is a transient RPC
+  // failure — let it fail startup (the adapter needs the RPC anyway) so a
+  // restart retries, rather than silently disabling activation until restart.
+  if (await isHederaNetwork(custodyProvider.rpcProvider)) {
     logger.info("Wallet activation: network requires recipient activation — enabling the option");
     const walletActivationAmount = process.env.WALLET_ACTIVATION_AMOUNT;
     planApprovalOptions.unshift(new WalletActivationOption(custodyProvider, accountMapping, walletActivationAmount));
