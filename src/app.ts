@@ -94,7 +94,9 @@ async function registerDirectServices(
     const planApprovalService = await buildCustodyPlanApprovalService(
       appConfig.orgId, finP2PClient,
       new PlanApprovalServiceImpl(appConfig.orgId, pluginManager, finP2PClient, inboundTransferHook),
-      custodyProvider, accountMapping, assetStore!, process.env.WALLET_ACTIVATION_AMOUNT,
+      custodyProvider, accountMapping, assetStore!,
+      // omnibus transactions sign from the omnibus wallet — never prefund investors
+      { walletActivationAmount: process.env.WALLET_ACTIVATION_AMOUNT, investorPrefunding: false },
     );
     const proxiedPlanService = wrapWithWorkflowProxy(planApprovalService, workflowStorage, finP2PClient, 'approvePlan', 'proposeCancelPlan', 'proposeResetPlan', 'proposeInstructionApproval');
     const proxiedTokenService = wrapWithWorkflowProxy(tokenService, workflowStorage, finP2PClient, 'createAsset', 'issue', 'transfer', 'redeem');
@@ -118,22 +120,23 @@ async function registerDirectServices(
   }
 
   if (!assetStore || !dbPool || !accountMappingStore || !accountMappingService) throw new Error('DB connection is required for direct mode');
-  // The issuer is the env-injected signer, never a custody wallet.
-  // TODO: fail closed on a missing key once the plugins accept an optional issuer.
+  // The issuer is the env-injected signer, never a custody wallet. Without a
+  // persistent key, deploy/issue fail closed (a throwaway deployer would
+  // strand every asset it creates); reads keep working.
   const assetIssuerKey = process.env.ASSET_ISSUER_PRIVATE_KEY;
   if (!assetIssuerKey) {
-    logger.warn("ASSET_ISSUER_PRIVATE_KEY is not set — using an ephemeral issuer signer; issuance will not persist across restarts");
+    logger.warn("ASSET_ISSUER_PRIVATE_KEY is not set — asset deployment and issuance are disabled");
   }
-  const issuerSigner = assetIssuerKey
-    ? new Wallet(assetIssuerKey, custodyProvider.rpcProvider)
-    : Wallet.createRandom().connect(custodyProvider.rpcProvider);
-  const issuerWallet = { provider: custodyProvider.rpcProvider, signer: issuerSigner };
+  const issuerWallet = assetIssuerKey
+    ? { provider: custodyProvider.rpcProvider, signer: new Wallet(assetIssuerKey, custodyProvider.rpcProvider) }
+    : undefined;
   let tokenService: DirectTokenService = new DirectTokenService(logger, custodyProvider, accountMapping, assetStore, issuerWallet);
   const commonService = new DirectCommonServiceImpl(workflowStorage!);
   const planApprovalService = await buildCustodyPlanApprovalService(
     appConfig.orgId, finP2PClient,
     new PlanApprovalServiceImpl(appConfig.orgId, pluginManager, finP2PClient),
-    custodyProvider, accountMapping, assetStore, process.env.WALLET_ACTIVATION_AMOUNT,
+    custodyProvider, accountMapping, assetStore,
+    { walletActivationAmount: process.env.WALLET_ACTIVATION_AMOUNT, investorPrefunding: true },
   );
 
   const proxiedTokenService = wrapWithWorkflowProxy(tokenService, workflowStorage, finP2PClient, 'createAsset', 'issue', 'transfer', 'redeem');

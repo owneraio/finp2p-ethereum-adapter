@@ -2,10 +2,10 @@ import {
   Asset, AssetBind, AssetCreationStatus, AssetDenomination,
   Balance, Destination, ExecutionContext, OperationType,
   ReceiptOperation, Signature, Source, TokenService, EscrowService,
-  failedReceiptOperation
+  failedReceiptOperation, failedAssetCreation
 } from '@owneraio/finp2p-nodejs-skeleton-adapter';
 import winston from 'winston';
-import { parseUnits } from "ethers";
+import { parseUnits, Signer, Wallet } from "ethers";
 import { TokenOperationResult } from '@owneraio/finp2p-ethereum-adapter-contract';
 import { CustodyProvider, CustodyWallet } from '../custody/custody-provider';
 import { AccountResolver, AssetStore } from '../accounts/account-resolver';
@@ -65,9 +65,20 @@ export class DirectTokenService implements TokenService, EscrowService {
     readonly accountMapping: AccountResolver,
     readonly assetStore: AssetStore,
     // env-injected issuer (ASSET_ISSUER_PRIVATE_KEY) — signs deploys and is the
-    // per-call wallet for mint; never a custody wallet
-    readonly issuerWallet: CustodyWallet,
+    // per-call wallet for mint; never a custody wallet. Absent when the key is
+    // not configured: deploy/issue then fail closed instead of stranding assets
+    // behind a throwaway signer.
+    readonly issuerWallet: CustodyWallet | undefined,
   ) {}
+
+  // read-only paths need a Signer arg for the SPI; an ephemeral one suffices
+  private readSigner?: Signer;
+
+  private issuerSigner(): Signer {
+    if (this.issuerWallet) return this.issuerWallet.signer;
+    this.readSigner ??= Wallet.createRandom().connect(this.custodyProvider.rpcProvider);
+    return this.readSigner;
+  }
 
   private async resolveAddress(finId: string): Promise<string> {
     const address = await this.accountMapping.resolveAccount(finId);
@@ -114,6 +125,9 @@ export class DirectTokenService implements TokenService, EscrowService {
 
     if (assetBind === undefined || assetBind.tokenIdentifier === undefined) {
       this.logger.info(`createAsset: deploy path — assetId=${assetId} standard=${requestedStandard} name=${assetName ?? 'OWNERACOIN'}`);
+      if (!this.issuerWallet) {
+        return failedAssetCreation(1, 'ASSET_ISSUER_PRIVATE_KEY is not set — refusing to deploy an asset a throwaway signer would strand');
+      }
       const wallet = this.issuerWallet;
       const symbol = "OWNERA"; // TODO: align with product team which metadata fields to use for token name/symbol/decimals
       const result = await standard.deploy(wallet, assetName ?? "OWNERACOIN", symbol, DEFAULT_NEW_ERC20_DECIMALS, this.logger);
@@ -174,7 +188,7 @@ export class DirectTokenService implements TokenService, EscrowService {
     const asset = await getAssetFromDb(this.assetStore, ast.assetId);
     const standard = tokenStandardRegistry.resolve(asset.tokenStandard);
     return standard.balanceOf(
-      this.custodyProvider.rpcProvider, this.issuerWallet.signer,
+      this.custodyProvider.rpcProvider, this.issuerSigner(),
       asset, address, this.logger,
     );
   }
@@ -192,6 +206,7 @@ export class DirectTokenService implements TokenService, EscrowService {
       const asset = await getAssetFromDb(this.assetStore, ast.assetId);
       const standard = tokenStandardRegistry.resolve(asset.tokenStandard);
       const wallet = this.issuerWallet;
+      if (!wallet) return failedReceiptOperation(1, 'ASSET_ISSUER_PRIVATE_KEY is not set — issuance is disabled');
       const address = await this.resolveAddress(toFinId);
       const amount = parseUnits(quantity, asset.decimals);
 
