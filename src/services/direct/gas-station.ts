@@ -1,4 +1,5 @@
 import { parseEther } from 'ethers';
+import { logger } from '@owneraio/finp2p-nodejs-skeleton-adapter';
 import { CustodyWallet } from './custody-provider';
 
 /** How long GasStation.ensureGas waits for the target balance to reflect the funding tx. */
@@ -29,18 +30,26 @@ export class GasStation {
   async ensureGas(walletAddress: string, txCount: number = 1): Promise<void> {
     const threshold = parseEther(this.amount) * BigInt(Math.max(1, txCount));
     let balance = await this.wallet.provider.getBalance(walletAddress);
-    if (balance >= threshold) return;
+    if (balance >= threshold) {
+      logger.info(`Gas station: ${walletAddress} already funded (balance ${balance} >= ${threshold}), skipping`);
+      return;
+    }
 
-    await this.wallet.signer.sendTransaction({
+    logger.info(`Gas station: topping up ${walletAddress} to ${threshold} (balance ${balance}, ${txCount} tx)`);
+    const tx = await this.wallet.signer.sendTransaction({
       to: walletAddress,
       value: threshold,
     });
+    logger.info(`Gas station: top-up tx ${tx.hash} submitted for ${walletAddress}, polling for on-chain balance`);
 
     const deadline = Date.now() + GAS_FUNDING_TIMEOUT_MS;
     while (Date.now() < deadline) {
       await new Promise(r => setTimeout(r, GAS_FUNDING_POLL_INTERVAL_MS));
       balance = await this.wallet.provider.getBalance(walletAddress);
-      if (balance >= threshold) return;
+      if (balance >= threshold) {
+        logger.info(`Gas station: ${walletAddress} funded on-chain (balance ${balance})`);
+        return;
+      }
     }
     throw new Error(`Gas top-up to ${walletAddress} did not reflect on-chain after ${GAS_FUNDING_TIMEOUT_MS}ms (last balance: ${balance})`);
   }
