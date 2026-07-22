@@ -3,7 +3,7 @@ import { DfnsApiClient } from "@dfns/sdk";
 import { AsymmetricKeySigner } from "@dfns/sdk-keysigner";
 import { DfnsWallet } from "@dfns/lib-ethersjs6";
 import { JsonRpcProvider, Provider, Signer } from "ethers";
-import { BaseAppConfig } from "../../config";
+import { BaseAppConfig } from "../../../config";
 
 export type DfnsAppConfig = BaseAppConfig & {
   type: 'dfns'

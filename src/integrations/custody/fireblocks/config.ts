@@ -1,6 +1,6 @@
 import { ApiBaseUrl, ChainId, FireblocksWeb3Provider } from "@fireblocks/fireblocks-web3-provider";
 import { BrowserProvider, JsonRpcProvider, Provider, Signer } from "ethers";
-import { BaseAppConfig } from "../../config";
+import { BaseAppConfig } from "../../../config";
 
 export type FireblocksAppConfig = BaseAppConfig & {
   type: 'fireblocks'

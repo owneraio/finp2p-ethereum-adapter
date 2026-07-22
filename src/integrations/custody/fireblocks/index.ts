@@ -1,4 +1,4 @@
-import { custodyRegistry } from "../../services/custody";
+import { custodyRegistry } from "../../../services/custody";
 import { FireblocksAppConfig } from "./config";
 import { FireblocksCustodyProvider } from "./provider";
 

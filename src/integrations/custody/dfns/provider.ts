@@ -3,7 +3,7 @@ import { AsymmetricKeySigner } from '@dfns/sdk-keysigner';
 import { DfnsWallet } from '@dfns/lib-ethersjs6';
 import { JsonRpcProvider } from 'ethers';
 import { DfnsAppConfig } from './config';
-import { CustodyProvider, CustodyWallet } from '../../services/custody';
+import { CustodyProvider, CustodyWallet } from '../../../services/custody';
 
 export class DfnsCustodyProvider implements CustodyProvider {
 

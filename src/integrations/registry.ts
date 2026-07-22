@@ -9,8 +9,8 @@ import { GasStation } from "../services/funding";
 import { WalletResolver } from "./wallet-resolver";
 import { AssetStore } from "../services/accounts";
 import { AccountModel } from "../config";
-import { registerFireblocks } from "./fireblocks";
-import { registerDfns } from "./dfns";
+import { registerFireblocks } from "./custody/fireblocks";
+import { registerDfns } from "./custody/dfns";
 import { registerDeposits } from "./deposits";
 import { registerTokenStandards } from "./token-standards";
 

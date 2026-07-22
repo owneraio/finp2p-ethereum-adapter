@@ -6,8 +6,8 @@ import { ExecDetailsStore } from './services/finp2p-contract/common'
 import { ProofProvider } from '@owneraio/finp2p-nodejs-skeleton-adapter'
 import { Logger } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import { InMemoryExecDetailsStore } from './services/finp2p-contract/exec-details-store'
-import { FireblocksAppConfig, createFireblocksAppConfig } from './integrations/fireblocks/config'
-import { DfnsAppConfig, createDfnsAppConfig } from './integrations/dfns/config'
+import { FireblocksAppConfig, createFireblocksAppConfig } from './integrations/custody/fireblocks/config'
+import { DfnsAppConfig, createDfnsAppConfig } from './integrations/custody/dfns/config'
 
 export const DEFAULT_ASSET_STANDARD_ERC20 = keccak256(toUtf8Bytes("ERC20"));
 
@@ -50,8 +50,8 @@ export type FinP2PContractAppConfig = BaseAppConfig & {
   defaultAssetStandard?: string
 }
 
-export { FireblocksAppConfig } from './integrations/fireblocks/config'
-export { DfnsAppConfig } from './integrations/dfns/config'
+export { FireblocksAppConfig } from './integrations/custody/fireblocks/config'
+export { DfnsAppConfig } from './integrations/custody/dfns/config'
 
 /**
  * Generic config for custody providers activated via the registry.

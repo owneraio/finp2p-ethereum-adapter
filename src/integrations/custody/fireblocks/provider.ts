@@ -1,8 +1,8 @@
 import { FireblocksSDK } from 'fireblocks-sdk';
 import axios from 'axios';
 import { createFireblocksEthersProvider, FireblocksAppConfig } from './config';
-import { createVaultManagementFunctions } from '../../vaults';
-import { CustodyProvider, CustodyWallet } from '../../services/custody';
+import { createVaultManagementFunctions } from '../../../vaults';
+import { CustodyProvider, CustodyWallet } from '../../../services/custody';
 import { FireblocksRawSigner } from './raw-signer';
 
 export class FireblocksCustodyProvider implements CustodyProvider {

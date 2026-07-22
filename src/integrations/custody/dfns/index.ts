@@ -1,4 +1,4 @@
-import { custodyRegistry } from "../../services/custody";
+import { custodyRegistry } from "../../../services/custody";
 import { DfnsAppConfig } from "./config";
 import { DfnsCustodyProvider } from "./provider";
 
