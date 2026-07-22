@@ -20,7 +20,7 @@ import createApp from "../../src/app";
 import {
   createDfnsEthersProvider,
   DfnsAppConfig,
-} from "../../src/integrations/dfns/config";
+} from "../../src/integrations/custody/dfns/config";
 import { randomPort } from "./utils";
 
 dotenv.config({ path: resolve(process.cwd(), ".env.dfns") });
@@ -124,6 +124,10 @@ class DfnsTestEnvironment extends NodeEnvironment {
     console.log(`Destination wallet finId: ${destFinId}`);
     this.global.destFinId = destFinId;
 
+    // Escrow/issuer are no longer config fields — createApp reads them from the
+    // environment. Point the escrow wallet at this DFNS wallet.
+    process.env.ASSET_ESCROW_CUSTODY_ACCOUNT_ID = this.walletId;
+
     const appConfig: DfnsAppConfig = {
       type: "dfns",
       orgId: this.orgId,
@@ -131,14 +135,14 @@ class DfnsTestEnvironment extends NodeEnvironment {
       signer,
       finP2PClient: undefined,
       proofProvider: undefined,
+      accountMappingType: "database",
+      accountModel: "segregated",
       dfnsBaseUrl: baseUrl,
       dfnsOrgId: orgId,
       dfnsAuthToken: authToken,
       dfnsCredId: credId,
       dfnsPrivateKey: privateKey,
       rpcUrl,
-      assetIssuerWalletId: this.walletId,
-      assetEscrowWalletId: this.walletId,
     };
 
     await this.startPostgresContainer();
