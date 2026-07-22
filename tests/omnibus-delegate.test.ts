@@ -1,6 +1,6 @@
-import { OmnibusDelegate } from '../src/services/direct/omnibus-delegate';
-import { CustodyProvider, CustodyWallet } from '../src/services/direct/custody-provider';
-import { AccountMappingService, AssetStore } from '../src/services/direct/account-mapping';
+import { OmnibusDelegate } from '../src/services/omnibus/omnibus-delegate';
+import { CustodyProvider, CustodyWallet } from '../src/services/custody/custody-provider';
+import { AccountMappingService, AssetStore } from '../src/services/accounts/account-mapping';
 import { tokenStandardRegistry } from '../src/integrations/token-standards/registry';
 import { ERC20TokenStandard, TokenStandardName as ERC20_TOKEN_STANDARD } from '@owneraio/finp2p-ethereum-erc20-plugin';
 import winston from 'winston';

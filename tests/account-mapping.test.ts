@@ -3,8 +3,8 @@ import {
   AccountMappingService,
   DbAccountMapping,
   AccountMappingStore,
-} from '../src/services/direct/account-mapping';
-import { FIELD_LEDGER_ACCOUNT_ID } from '../src/services/direct/mapping-validator';
+} from '../src/services/accounts/account-mapping';
+import { FIELD_LEDGER_ACCOUNT_ID } from '../src/services/accounts/mapping-validator';
 import {
   PostgreSqlContainer,
   StartedPostgreSqlContainer,

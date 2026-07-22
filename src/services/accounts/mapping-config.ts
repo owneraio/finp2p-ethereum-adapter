@@ -1,4 +1,4 @@
-import { CustodyProvider } from "./custody-provider";
+import { CustodyProvider } from "../custody/custody-provider";
 import { AccountMappingValidator, CustodyMappingValidator, FIELD_CUSTODY_ACCOUNT_ID, FIELD_LEDGER_ACCOUNT_ID } from "./mapping-validator";
 
 export interface AccountMappingConfig {

@@ -1,5 +1,5 @@
 import { AssetRecord } from '@owneraio/finp2p-ethereum-adapter-contract';
-import { AssetStore } from './account-mapping';
+import { AssetStore } from '../accounts/account-mapping';
 
 export async function getAssetFromDb(assetStore: AssetStore, assetId: string): Promise<AssetRecord> {
   const dbAsset = await assetStore.getAsset(assetId);

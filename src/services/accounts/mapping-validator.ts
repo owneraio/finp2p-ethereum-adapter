@@ -1,6 +1,6 @@
 import { ValidationError } from '@owneraio/finp2p-nodejs-skeleton-adapter';
 import { isAddress } from 'ethers';
-import { CustodyProvider } from './custody-provider';
+import { CustodyProvider } from '../custody/custody-provider';
 
 export const FIELD_CUSTODY_ACCOUNT_ID = 'custodyAccountId';
 export const FIELD_LEDGER_ACCOUNT_ID = 'ledgerAccountId';

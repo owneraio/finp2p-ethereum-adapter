@@ -1,5 +1,5 @@
 import { PrimaryType, LegType } from "@owneraio/finp2p-ethereum-adapter-contract";
-import { buildOperationContext } from "../src/services/direct/operation-context";
+import { buildOperationContext } from "../src/services/operations/operation-context";
 
 const ASSET = { assetId: "bank-us:102:asset-1", assetType: "finp2p" } as any;
 const EXEC_CTX = { planId: "bank-us:106:plan-1", sequence: 1 } as any;

@@ -17,20 +17,22 @@ import {
   EscrowServiceImpl,
   TokenServiceImpl,
 } from "./services/finp2p-contract";
+import { DirectTokenService } from "./services/direct";
 import {
-  DirectTokenService,
   CustodyProvider,
   custodyRegistry,
+  HealthServiceImpl as DirectHealthServiceImpl,
+  createWalletResolver,
+} from "./services/custody";
+import {
   DbAccountMapping,
   AccountMappingService,
   AccountMappingStore,
   AssetStore,
-  OmnibusDelegate,
-  CommonServiceImpl as DirectCommonServiceImpl,
-  HealthServiceImpl as DirectHealthServiceImpl,
   buildMappingConfig,
-  createWalletResolver,
-} from "./services/direct";
+} from "./services/accounts";
+import { OmnibusDelegate } from "./services/omnibus";
+import { CommonServiceImpl as DirectCommonServiceImpl } from "./services/operations";
 import { registerCustodyIntegrations, registerIntegrations } from "./integrations/registry";
 import { buildCustodyPlanApprovalService } from "./services/plan-approval";
 import { AppConfig, FinP2PContractAppConfig, getNetworkRpcUrl } from "./config";

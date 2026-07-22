@@ -2,9 +2,9 @@ import { logger, PlanApprovalService } from "@owneraio/finp2p-nodejs-skeleton-ad
 import { FinP2PClient } from "@owneraio/finp2p-client";
 import { ConfigurablePlanApprovalService } from "../configurable-plan-approval-service";
 import { PlanApprovalOption } from "../option";
-import { CustodyProvider } from "../../direct/custody-provider";
-import { AccountMappingService, AssetStore } from "../../direct/account-mapping";
-import { isHederaNetwork } from "../../direct/wallet-activation";
+import { CustodyProvider } from "../../custody/custody-provider";
+import { AccountMappingService, AssetStore } from "../../accounts/account-mapping";
+import { isHederaNetwork } from "../../custody/wallet-activation";
 import { TokenWhitelistingOption } from "./token-whitelisting-option";
 import { GasPrefundingOption } from "./gas-prefunding-option";
 import { WalletActivationOption } from "./wallet-activation-option";

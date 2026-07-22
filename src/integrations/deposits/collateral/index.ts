@@ -4,7 +4,7 @@ import {
   WalletResolver as CollateralWalletResolver,
 } from "@owneraio/finp2p-ethereum-collateral";
 import { FinP2PContract } from "@owneraio/finp2p-contracts";
-import { WalletResolver as CustodyWalletResolver } from "../../../services/direct";
+import { WalletResolver as CustodyWalletResolver } from "../../../services/custody";
 import { IntegrationContext } from "../../registry";
 import { pooledProvider, pooledSigner } from "../../signer-pool";
 

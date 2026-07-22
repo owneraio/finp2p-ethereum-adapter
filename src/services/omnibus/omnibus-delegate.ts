@@ -9,12 +9,12 @@ import {
 import { TransferDelegate, AssetDelegate, EscrowDelegate, OmnibusDelegate as OmnibusDelegateInterface, DelegateResult, InboundTransferVerificationError } from '@owneraio/finp2p-vanilla-service';
 import { parseUnits, id as keccak256 } from 'ethers';
 import winston from 'winston';
-import { CustodyProvider, CustodyWallet } from './custody-provider';
+import { CustodyProvider, CustodyWallet } from '../custody/custody-provider';
 import { tokenStandardRegistry } from "../../integrations/token-standards/registry";
 import { TokenStandardName as ERC20_TOKEN_STANDARD, DEFAULT_NEW_ERC20_DECIMALS } from "@owneraio/finp2p-ethereum-erc20-plugin";
 import { ERC20Contract } from "@owneraio/finp2p-contracts";
-import { AccountMappingService, AssetStore } from './account-mapping';
-import { getAssetFromDb } from './helpers';
+import { AccountMappingService, AssetStore } from '../accounts/account-mapping';
+import { getAssetFromDb } from '../assets/store';
 
 export interface ReceiptPollingConfig {
   timeoutMs: number;

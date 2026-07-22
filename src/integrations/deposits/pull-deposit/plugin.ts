@@ -14,7 +14,8 @@ import {
   failedDepositOperation,
 } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import { FinP2PClient } from "@owneraio/finp2p-client";
-import { AssetStore, CustodyProvider, CustodyWallet } from "../../../services/direct";
+import { CustodyProvider, CustodyWallet } from "../../../services/custody";
+import { AssetStore } from "../../../services/accounts";
 import { DepositTargetResolver } from "../types";
 import { ApprovalWatcher } from "./approval-watcher";
 import { PullResult } from "./models";
