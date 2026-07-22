@@ -33,6 +33,7 @@ import {
   buildMappingConfig,
 } from "./services/accounts";
 import { OmnibusDelegate } from "./services/omnibus";
+import { GasStation } from "./services/funding";
 import { CommonServiceImpl as DirectCommonServiceImpl } from "./services/operations";
 import { registerCustodyIntegrations, registerIntegrations } from "./integrations/registry";
 import { pooledProvider, pooledSigner } from "./integrations/signer-pool";
@@ -74,7 +75,7 @@ interface OmnibusContext {
 }
 
 async function registerDirectServices(
-  app: express.Application, logger: winston.Logger, custodyProvider: CustodyProvider, readProvider: Provider, appConfig: AppConfig,
+  app: express.Application, logger: winston.Logger, custodyProvider: CustodyProvider, readProvider: Provider, gasStation: GasStation | undefined, appConfig: AppConfig,
   paymentsService: PaymentsServiceImpl, pluginManager: PluginManager,
   dbPool: any, finP2PClient: FinP2PClient | undefined,
   accountMappingStore: AccountMappingStore | undefined,
@@ -95,7 +96,7 @@ async function registerDirectServices(
     const planApprovalService = await buildCustodyPlanApprovalService(
       appConfig.orgId, finP2PClient,
       new PlanApprovalServiceImpl(appConfig.orgId, pluginManager, finP2PClient, inboundTransferHook),
-      custodyProvider, readProvider, accountMapping, assetStore!,
+      gasStation, readProvider, accountMapping, assetStore!,
       // omnibus transactions sign from the omnibus wallet — never prefund investors
       { walletActivationAmount: process.env.WALLET_ACTIVATION_AMOUNT, investorPrefunding: false },
     );
@@ -143,7 +144,7 @@ async function registerDirectServices(
   const planApprovalService = await buildCustodyPlanApprovalService(
     appConfig.orgId, finP2PClient,
     new PlanApprovalServiceImpl(appConfig.orgId, pluginManager, finP2PClient),
-    custodyProvider, readProvider, accountMapping, assetStore,
+    gasStation, readProvider, accountMapping, assetStore,
     { walletActivationAmount: process.env.WALLET_ACTIVATION_AMOUNT, investorPrefunding: true },
   );
 
@@ -226,6 +227,26 @@ async function createApp(
     ? (process.env.NETWORK_HOST ? pooledProvider(getNetworkRpcUrl()) : custodyProvider.escrow.provider)
     : undefined;
 
+  // Gas funding is app-level composition too: the custody provider only
+  // fabricates the wallet for the configured funding account.
+  const gasFundingAccountId = process.env.GAS_FUNDING_CUSTODY_ACCOUNT_ID;
+  const gasFundingAmount = process.env.GAS_FUNDING_AMOUNT;
+  let gasStation: GasStation | undefined;
+  if (custodyProvider && gasFundingAccountId && gasFundingAmount) {
+    if (!custodyProvider.createWalletForCustodyId) {
+      logger.warn('GAS_FUNDING_CUSTODY_ACCOUNT_ID is set but the custody provider cannot create wallets by custody id — gas funding disabled');
+    } else {
+      gasStation = new GasStation(await custodyProvider.createWalletForCustodyId(gasFundingAccountId), gasFundingAmount);
+    }
+  }
+
+  // The omnibus wallet is app-level composition as well — fabricated from
+  // OMNIBUS_CUSTODY_ACCOUNT_ID and handed to the omnibus services explicitly.
+  const omnibusAccountId = process.env.OMNIBUS_CUSTODY_ACCOUNT_ID;
+  const omnibusWallet = custodyProvider && omnibusAccountId && custodyProvider.createWalletForCustodyId
+    ? await custodyProvider.createWalletForCustodyId(omnibusAccountId)
+    : undefined;
+
   // Pre-build accountMapping + (in omnibus mode) the OmnibusDelegate and vanilla services
   // BEFORE plugin registration. Deposit plugins capture inboundTransferHook in their
   // constructors; if it's undefined at registration time they fall back to
@@ -245,8 +266,9 @@ async function createApp(
 
   let omnibusCtx: OmnibusContext | undefined;
   if (appConfig.accountModel === 'omnibus' && custodyProvider) {
+    if (!omnibusWallet) throw new Error('Omnibus account model requires OMNIBUS_CUSTODY_ACCOUNT_ID (and a custody provider able to create wallets by custody id)');
     if (!dbPool || !assetStore) throw new Error('DB connection is required for omnibus account model');
-    const delegate = new OmnibusDelegate(logger, custodyProvider, readProvider!, accountMapping, assetStore);
+    const delegate = new OmnibusDelegate(logger, custodyProvider, omnibusWallet, readProvider!, gasStation, accountMapping, assetStore);
     // vanilla 0.28.2's createVanillaServices doesn't forward schemaName to its LedgerStorage,
     // so its account_mappings/accounts/transactions queries hit the default `ledger_adapter`
     // schema even when migrations placed those tables in `ethereum_adapter`. Build the storage
@@ -274,6 +296,8 @@ async function createApp(
     walletResolver: custodyProvider && accountMappingStore ? createWalletResolver(accountMappingStore, custodyProvider) : undefined,
     rpcUrl: process.env.NETWORK_HOST ? getNetworkRpcUrl() : undefined,
     readProvider,
+    gasStation,
+    omnibusWallet,
     assetStore,
     accountModel: appConfig.accountModel,
     custodyProvider,
@@ -284,7 +308,7 @@ async function createApp(
   const paymentsService = new PaymentsServiceImpl(pluginManager);
 
   if (custodyProvider) {
-    await registerDirectServices(app, logger, custodyProvider, readProvider!, appConfig, paymentsService, pluginManager, dbPool, finP2PClient, accountMappingStore, accountMappingService, assetStore, accountMapping, omnibusCtx, ledgerSchema);
+    await registerDirectServices(app, logger, custodyProvider, readProvider!, gasStation, appConfig, paymentsService, pluginManager, dbPool, finP2PClient, accountMappingStore, accountMappingService, assetStore, accountMapping, omnibusCtx, ledgerSchema);
   } else if (appConfig.type === 'finp2p-contract') {
     registerFinP2PContractServices(app, appConfig as FinP2PContractAppConfig, paymentsService, pluginManager, dbPool, finP2PClient, ledgerSchema);
   } else {

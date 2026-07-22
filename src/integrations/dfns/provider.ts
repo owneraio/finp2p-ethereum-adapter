@@ -4,12 +4,9 @@ import { DfnsWallet } from '@dfns/lib-ethersjs6';
 import { JsonRpcProvider } from 'ethers';
 import { DfnsAppConfig } from './config';
 import { CustodyProvider, CustodyWallet } from '../../services/custody';
-import { GasStation } from '../../services/funding';
 
 export class DfnsCustodyProvider implements CustodyProvider {
   readonly escrow: CustodyWallet;
-  readonly omnibus?: CustodyWallet;
-  readonly gasStation?: GasStation;
 
   private dfnsClient: DfnsApiClient;
   private addressToWalletId: Map<string, string>;
@@ -19,14 +16,10 @@ export class DfnsCustodyProvider implements CustodyProvider {
     private readonly config: DfnsAppConfig,
     dfnsClient: DfnsApiClient,
     addressToWalletId: Map<string, string>,
-    gasStation?: GasStation,
-    omnibus?: CustodyWallet,
   ) {
     this.escrow = escrow;
-    this.omnibus = omnibus;
     this.dfnsClient = dfnsClient;
     this.addressToWalletId = addressToWalletId;
-    this.gasStation = gasStation;
   }
 
   private static createDfnsClient(config: DfnsAppConfig): DfnsApiClient {
@@ -55,18 +48,7 @@ export class DfnsCustodyProvider implements CustodyProvider {
       }
     }
 
-    let gasStation: GasStation | undefined;
-    if (config.gasFunding) {
-      const gasWallet = await DfnsCustodyProvider.createWalletProvider(dfnsClient, config.gasFunding.walletId, config.rpcUrl);
-      gasStation = new GasStation(gasWallet, config.gasFunding.amount);
-    }
-
-    let omnibusWallet: CustodyWallet | undefined;
-    if (config.omnibusWalletId) {
-      omnibusWallet = await DfnsCustodyProvider.createWalletProvider(dfnsClient, config.omnibusWalletId, config.rpcUrl);
-    }
-
-    return new DfnsCustodyProvider(escrowWallet, config, dfnsClient, addressToWalletId, gasStation, omnibusWallet);
+    return new DfnsCustodyProvider(escrowWallet, config, dfnsClient, addressToWalletId);
   }
 
   async createWalletForCustodyId(walletId: string): Promise<CustodyWallet> {

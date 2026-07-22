@@ -168,17 +168,16 @@ describe("GasPrefundingOption", () => {
 
   function buildOption(opts: { gasStation?: boolean, mappingThrows?: boolean } = {}) {
     const funded: Array<{ address: string; txCount: number }> = [];
-    const gasStation = opts.gasStation === false ? undefined : {
+    const gasStation = (opts.gasStation === false ? undefined : {
       ensureGas: async (address: string, txCount: number) => { funded.push({ address, txCount }); }
-    };
-    const custodyProvider = { gasStation } as any;
+    }) as any;
     const accountMapping = {
       resolveAccount: async (finId: string) => {
         if (opts.mappingThrows) throw new Error("transient DB error");
         return finId === ALICE_FIN_ID ? ALICE_ADDRESS : finId === BOB_FIN_ID ? BOB_ADDRESS : undefined;
       }
     } as any;
-    return { option: new GasPrefundingOption(custodyProvider, accountMapping), custodyProvider, funded };
+    return { option: new GasPrefundingOption(gasStation, accountMapping), gasStation, funded };
   }
 
   const introspect = (instructions: any[]): IntrospectedPlan => ({
@@ -241,8 +240,8 @@ describe("GasPrefundingOption", () => {
   });
 
   test("one wallet's funding failure does not skip the others", async () => {
-    const { option, custodyProvider, funded } = buildOption();
-    custodyProvider.gasStation.ensureGas = async (address: string, txCount: number) => {
+    const { option, gasStation, funded } = buildOption();
+    gasStation.ensureGas = async (address: string, txCount: number) => {
       if (address === ALICE_ADDRESS) throw new Error("funding tx failed");
       funded.push({ address, txCount });
     };

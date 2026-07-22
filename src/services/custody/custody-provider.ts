@@ -1,5 +1,4 @@
 import { Provider, Signer } from "ethers";
-import { GasStation } from "../funding/gas-station";
 
 export interface CustodyWallet {
   provider: Provider;
@@ -8,8 +7,6 @@ export interface CustodyWallet {
 
 export interface CustodyProvider {
   readonly escrow: CustodyWallet;
-  readonly omnibus?: CustodyWallet;
-  readonly gasStation?: GasStation;
 
   resolveWallet(account: string): Promise<CustodyWallet | undefined>;
   /** Create a wallet directly from custody account ID (vault ID / wallet ID). No reverse scan needed. */

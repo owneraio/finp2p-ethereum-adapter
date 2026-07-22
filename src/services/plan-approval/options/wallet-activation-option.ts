@@ -1,7 +1,7 @@
 import { logger } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import { PlanApprovalOption, IntrospectedPlan } from "..";
 import { AccountResolver } from "../../accounts/account-resolver";
-import { CustodyProvider } from "../../custody/custody-provider";
+import { GasStation } from "../../funding";
 import { DEFAULT_ACTIVATION_AMOUNT, WalletActivator } from "../../funding/wallet-activation";
 
 /**
@@ -19,13 +19,13 @@ export class WalletActivationOption implements PlanApprovalOption {
   readonly gating = false;
 
   constructor(
-    private readonly custodyProvider: CustodyProvider,
+    private readonly gasStation: GasStation | undefined,
     private readonly accountMapping: AccountResolver,
     private readonly activationAmount: string = DEFAULT_ACTIVATION_AMOUNT,
   ) {}
 
   async apply(plan: IntrospectedPlan): Promise<void> {
-    const gasStation = this.custodyProvider.gasStation;
+    const gasStation = this.gasStation;
     if (!gasStation) return;
 
     const activator = new WalletActivator(gasStation.wallet, this.activationAmount);

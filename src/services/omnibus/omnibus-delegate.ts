@@ -10,6 +10,7 @@ import { TransferDelegate, AssetDelegate, EscrowDelegate, OmnibusDelegate as Omn
 import { parseUnits, Provider, id as keccak256 } from 'ethers';
 import winston from 'winston';
 import { CustodyProvider, CustodyWallet } from '../custody/custody-provider';
+import { GasStation } from '../funding';
 import { tokenStandardRegistry } from "../../integrations/token-standards/registry";
 import { TokenStandardName as ERC20_TOKEN_STANDARD, DEFAULT_NEW_ERC20_DECIMALS } from "@owneraio/finp2p-ethereum-erc20-plugin";
 import { ERC20Contract } from "@owneraio/finp2p-contracts";
@@ -32,25 +33,25 @@ const defaultReceiptPolling: ReceiptPollingConfig = {
 
 export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowDelegate, OmnibusDelegateInterface, PaymentService {
 
-  private readonly omnibusWallet: CustodyWallet;
   private readonly receiptPolling: ReceiptPollingConfig;
 
   constructor(
     private readonly logger: winston.Logger,
     private readonly custodyProvider: CustodyProvider,
+    private readonly omnibusWallet: CustodyWallet,
     private readonly readProvider: Provider,
+    private readonly gasStation: GasStation | undefined,
     private readonly accountMapping: AccountResolver,
     private readonly assetStore: AssetStore,
     receiptPolling?: Partial<ReceiptPollingConfig>,
   ) {
-    if (!custodyProvider.omnibus) throw new Error('Omnibus wallet is required for omnibus delegate');
-    this.omnibusWallet = custodyProvider.omnibus;
+    if (!omnibusWallet) throw new Error('Omnibus wallet is required for omnibus delegate');
     this.receiptPolling = { ...defaultReceiptPolling, ...receiptPolling };
   }
 
   private async ensureGas(wallet: CustodyWallet): Promise<void> {
-    if (!this.custodyProvider.gasStation) return;
-    await this.custodyProvider.gasStation.ensureGas(await wallet.signer.getAddress());
+    if (!this.gasStation) return;
+    await this.gasStation.ensureGas(await wallet.signer.getAddress());
   }
 
   async outboundTransfer(

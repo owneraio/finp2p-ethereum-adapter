@@ -16,6 +16,7 @@ import {
 } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import { FinP2PClient } from "@owneraio/finp2p-client";
 import { CustodyProvider, CustodyWallet } from "../../../services/custody";
+import { GasStation } from "../../../services/funding";
 import { AssetStore } from "../../../services/accounts";
 import { DepositTargetResolver } from "../types";
 import { ApprovalWatcher } from "./approval-watcher";
@@ -33,6 +34,7 @@ export class PullDepositPlugin implements PaymentsPlugin {
     private readonly operatorWallet: CustodyWallet,
     private readonly custodyProvider: CustodyProvider,
     private readonly readProvider: Provider,
+    private readonly gasStation: GasStation | undefined,
     private readonly finP2PClient: FinP2PClient | undefined,
     private readonly inboundTransferHook: InboundTransferHook | undefined,
   ) {}
@@ -128,7 +130,7 @@ export class PullDepositPlugin implements PaymentsPlugin {
       this.operatorWallet,
       this.readProvider,
       this.logger,
-      this.custodyProvider.gasStation,
+      this.gasStation,
       (result) => this.onPullCompleted(result),
     );
     this.logger.info(`Pull-deposit: operator address=${operatorAddress}`);

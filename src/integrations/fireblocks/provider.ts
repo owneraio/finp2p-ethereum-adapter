@@ -3,13 +3,10 @@ import axios from 'axios';
 import { createFireblocksEthersProvider, FireblocksAppConfig } from './config';
 import { createVaultManagementFunctions } from '../../vaults';
 import { CustodyProvider, CustodyWallet } from '../../services/custody';
-import { GasStation } from '../../services/funding';
 import { FireblocksRawSigner } from './raw-signer';
 
 export class FireblocksCustodyProvider implements CustodyProvider {
   readonly escrow: CustodyWallet;
-  readonly omnibus?: CustodyWallet;
-  readonly gasStation?: GasStation;
 
   private fireblocksSdk: FireblocksSDK;
   private vaultManagement: ReturnType<typeof createVaultManagementFunctions>;
@@ -19,14 +16,10 @@ export class FireblocksCustodyProvider implements CustodyProvider {
     private readonly config: FireblocksAppConfig,
     fireblocksSdk: FireblocksSDK,
     vaultManagement: ReturnType<typeof createVaultManagementFunctions>,
-    gasStation?: GasStation,
-    omnibus?: CustodyWallet,
   ) {
     this.escrow = escrow;
-    this.omnibus = omnibus;
     this.fireblocksSdk = fireblocksSdk;
     this.vaultManagement = vaultManagement;
-    this.gasStation = gasStation;
   }
 
   static async create(config: FireblocksAppConfig): Promise<FireblocksCustodyProvider> {
@@ -62,23 +55,12 @@ export class FireblocksCustodyProvider implements CustodyProvider {
       throw new Error('Either ASSET_ESCROW_CUSTODY_ACCOUNT_ID or OMNIBUS_CUSTODY_ACCOUNT_ID must be set');
     }
 
-    let gasStation: GasStation | undefined;
-    if (config.gasFunding) {
-      const gasWallet = await createWallet(config.gasFunding.vaultId);
-      gasStation = new GasStation(gasWallet, config.gasFunding.amount);
-    }
-
-    let omnibusWallet: CustodyWallet | undefined;
-    if (config.omnibusVaultId) {
-      omnibusWallet = await createWallet(config.omnibusVaultId);
-    }
-
     // In local submit mode, use a placeholder for unconfigured wallets.
     // Real wallets are resolved per-operation via createWalletForCustodyId.
     const placeholder: CustodyWallet = { provider: config.provider, signer: config.provider as any };
     return new FireblocksCustodyProvider(
       escrowWallet ?? placeholder,
-      config, fireblocksSdk, vaultManagement, gasStation, omnibusWallet
+      config, fireblocksSdk, vaultManagement
     );
   }
 

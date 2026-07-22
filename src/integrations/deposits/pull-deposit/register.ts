@@ -38,8 +38,8 @@ export function registerPullDeposit(ctx: IntegrationContext): void {
     logger.info('Pull-deposit plugin not registered: requires custody provider + asset store');
     return;
   }
-  if (accountModel === 'omnibus' && !custodyProvider.omnibus) {
-    logger.info('Pull-deposit plugin not registered (omnibus mode): custody provider has no omnibus wallet configured');
+  if (accountModel === 'omnibus' && !ctx.omnibusWallet) {
+    logger.info('Pull-deposit plugin not registered (omnibus mode): no omnibus wallet configured');
     return;
   }
   if (accountModel === 'segregated' && !walletResolver) {
@@ -54,7 +54,7 @@ export function registerPullDeposit(ctx: IntegrationContext): void {
   if (accountModel === 'omnibus') {
     let omnibusAddress: string | undefined;
     resolveDepositTarget = async () => {
-      if (!omnibusAddress) omnibusAddress = await custodyProvider.omnibus!.signer.getAddress();
+      if (!omnibusAddress) omnibusAddress = await ctx.omnibusWallet!.signer.getAddress();
       return omnibusAddress;
     };
   } else {
@@ -62,7 +62,7 @@ export function registerPullDeposit(ctx: IntegrationContext): void {
   }
 
   pluginManager.registerPaymentsPlugin(
-    new PullDepositPlugin(logger, assetStore, resolveDepositTarget, network, operatorWallet, custodyProvider, readProvider, finP2PClient, inboundTransferHook),
+    new PullDepositPlugin(logger, assetStore, resolveDepositTarget, network, operatorWallet, custodyProvider, readProvider, ctx.gasStation, finP2PClient, inboundTransferHook),
   );
   logger.info(`Pull-deposit plugin activated (network='${network}', accountModel='${accountModel}', inboundTransferHook=${inboundTransferHook ? 'present' : 'absent'})`);
 }

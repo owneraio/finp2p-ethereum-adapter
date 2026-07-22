@@ -11,10 +11,6 @@ export type FireblocksAppConfig = BaseAppConfig & {
   assetEscrowVaultId?: string
   omnibusVaultId?: string
   localSubmit?: boolean
-  gasFunding?: {
-    vaultId: string
-    amount: string
-  }
 }
 
 export const createFireblocksEthersProvider = async (config: {
@@ -98,13 +94,6 @@ export async function createFireblocksAppConfig(): Promise<Omit<FireblocksAppCon
     signer = fb.signer;
   }
 
-  let gasFunding: FireblocksAppConfig['gasFunding'] = undefined
-  const fundingVaultId = process.env.GAS_FUNDING_CUSTODY_ACCOUNT_ID
-  const fundingAssetAmount = process.env.GAS_FUNDING_AMOUNT
-  if (fundingVaultId !== undefined && fundingAssetAmount !== undefined) {
-    gasFunding = { vaultId: fundingVaultId, amount: fundingAssetAmount }
-  }
-
   return {
     type: 'fireblocks',
     orgId,
@@ -119,6 +108,5 @@ export async function createFireblocksAppConfig(): Promise<Omit<FireblocksAppCon
     assetEscrowVaultId,
     omnibusVaultId,
     localSubmit,
-    gasFunding,
   };
 }

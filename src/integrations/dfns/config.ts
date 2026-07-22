@@ -15,10 +15,6 @@ export type DfnsAppConfig = BaseAppConfig & {
   rpcUrl: string
   assetEscrowWalletId: string
   omnibusWalletId?: string
-  gasFunding?: {
-    walletId: string
-    amount: string
-  }
 }
 
 export const createDfnsEthersProvider = async (config: {
@@ -84,13 +80,6 @@ export async function createDfnsAppConfig(): Promise<Omit<DfnsAppConfig, 'accoun
   const dfnsClient = new DfnsApiClient({ baseUrl: dfnsBaseUrl, orgId: dfnsOrgId, authToken: dfnsAuthToken, signer: keySigner });
   const { signer } = await createDfnsEthersProvider({ dfnsClient, walletId: escrowWalletId, rpcUrl });
 
-  let gasFunding: DfnsAppConfig['gasFunding'] = undefined
-  const fundingWalletId = process.env.GAS_FUNDING_CUSTODY_ACCOUNT_ID
-  const fundingAmount = process.env.GAS_FUNDING_AMOUNT
-  if (fundingWalletId !== undefined && fundingAmount !== undefined) {
-    gasFunding = { walletId: fundingWalletId, amount: fundingAmount }
-  }
-
   return {
     type: 'dfns',
     orgId,
@@ -106,6 +95,5 @@ export async function createDfnsAppConfig(): Promise<Omit<DfnsAppConfig, 'accoun
     rpcUrl,
     assetEscrowWalletId: escrowWalletId,
     omnibusWalletId,
-    gasFunding,
   };
 }

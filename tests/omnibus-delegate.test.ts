@@ -57,7 +57,6 @@ const mockReadProvider = {
 function createMockCustodyProvider(overrides: Partial<CustodyProvider> = {}): CustodyProvider {
   return {
     escrow: createMockWallet('0xESCROW'),
-    omnibus: createMockWallet('0xOMNIBUS'),
     resolveWallet: jest.fn(),
     ...overrides,
   };
@@ -96,13 +95,12 @@ describe('OmnibusDelegate', () => {
     custodyProvider = createMockCustodyProvider();
     accountMapping = createMockAccountMapping();
     const mockAssetStore = { getAsset: mockGetAsset, saveAsset: mockSaveAsset } as unknown as AssetStore;
-    delegate = new OmnibusDelegate(logger, custodyProvider, mockReadProvider, accountMapping, mockAssetStore);
+    delegate = new OmnibusDelegate(logger, custodyProvider, createMockWallet('0xOMNIBUS'), mockReadProvider, undefined, accountMapping, mockAssetStore);
   });
 
-  it('should throw if custody provider has no omnibus wallet', () => {
-    const noOmnibus = createMockCustodyProvider({ omnibus: undefined });
+  it('should throw when constructed without an omnibus wallet', () => {
     const mockAssetStore = { getAsset: jest.fn(), saveAsset: jest.fn() } as unknown as AssetStore;
-    expect(() => new OmnibusDelegate(logger, noOmnibus, mockReadProvider, accountMapping, mockAssetStore))
+    expect(() => new OmnibusDelegate(logger, custodyProvider, undefined as any, mockReadProvider, undefined, accountMapping, mockAssetStore))
       .toThrow('Omnibus wallet is required');
   });
 

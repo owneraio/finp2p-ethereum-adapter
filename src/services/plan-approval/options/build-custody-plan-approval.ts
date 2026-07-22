@@ -3,7 +3,7 @@ import { logger, PlanApprovalService } from "@owneraio/finp2p-nodejs-skeleton-ad
 import { FinP2PClient } from "@owneraio/finp2p-client";
 import { ConfigurablePlanApprovalService } from "../configurable-plan-approval-service";
 import { PlanApprovalOption } from "../option";
-import { CustodyProvider } from "../../custody/custody-provider";
+import { GasStation } from "../../funding";
 import { AccountResolver, AssetStore } from "../../accounts/account-resolver";
 import { isHederaNetwork } from "../../network/hedera";
 import { TokenWhitelistingOption } from "./token-whitelisting-option";
@@ -30,7 +30,7 @@ export async function buildCustodyPlanApprovalService(
   orgId: string,
   finP2PClient: FinP2PClient | undefined,
   base: PlanApprovalService,
-  custodyProvider: CustodyProvider,
+  gasStation: GasStation | undefined,
   readProvider: Provider,
   accountMapping: AccountResolver,
   assetStore: AssetStore,
@@ -40,7 +40,7 @@ export async function buildCustodyPlanApprovalService(
     new TokenWhitelistingOption(assetStore, accountMapping),
   ];
   if (opts.investorPrefunding) {
-    options.push(new GasPrefundingOption(custodyProvider, accountMapping));
+    options.push(new GasPrefundingOption(gasStation, accountMapping));
   }
 
   // A definitive non-Hedera node returns false; a throw is a transient RPC
@@ -48,7 +48,7 @@ export async function buildCustodyPlanApprovalService(
   // restart retries, rather than silently disabling activation until restart.
   if (await isHederaNetwork(readProvider)) {
     logger.info("Wallet activation: network requires recipient activation — enabling the option");
-    options.unshift(new WalletActivationOption(custodyProvider, accountMapping, opts.walletActivationAmount));
+    options.unshift(new WalletActivationOption(gasStation, accountMapping, opts.walletActivationAmount));
   }
 
   return new ConfigurablePlanApprovalService(orgId, finP2PClient, base, options);

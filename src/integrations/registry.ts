@@ -4,7 +4,8 @@ import { PluginManager } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import { InboundTransferHook } from "@owneraio/finp2p-nodejs-skeleton-adapter/plugin";
 import { FinP2PClient } from "@owneraio/finp2p-client";
 import { FinP2PContract } from "@owneraio/finp2p-contracts";
-import { CustodyProvider } from "../services/custody";
+import { CustodyProvider, CustodyWallet } from "../services/custody";
+import { GasStation } from "../services/funding";
 import { WalletResolver } from "./wallet-resolver";
 import { AssetStore } from "../services/accounts";
 import { AccountModel } from "../config";
@@ -22,6 +23,10 @@ export interface IntegrationContext {
   rpcUrl: string | undefined;
   /** app-level read-only RPC provider (NETWORK_HOST or the custody transport) */
   readProvider: Provider | undefined;
+  /** app-level gas station (GAS_FUNDING_* over a custody-fabricated wallet) */
+  gasStation: GasStation | undefined;
+  /** omnibus wallet fabricated from OMNIBUS_CUSTODY_ACCOUNT_ID (omnibus mode) */
+  omnibusWallet: CustodyWallet | undefined;
   assetStore: AssetStore | undefined;
   accountModel: AccountModel;
   custodyProvider: CustodyProvider | undefined;
