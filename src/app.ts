@@ -132,8 +132,8 @@ async function registerDirectServices(
     logger.warn("NETWORK_HOST is not set — asset deployment and issuance are disabled");
   }
   // Same pooled provider/signer instances the token standards register with:
-  // one NonceManager per key, plain NETWORK_HOST transport (custody rpcProvider
-  // may be a custody web3 provider, the wrong transport for a raw env key).
+  // one NonceManager per key, plain NETWORK_HOST transport (the custody
+  // transport may be a custody web3 provider, the wrong one for a raw env key).
   // Without NETWORK_HOST no standards register either, so there is nothing to issue.
   const issuerWallet = assetIssuerKey && networkHost
     ? { provider: readProvider, signer: pooledSigner(getNetworkRpcUrl(), assetIssuerKey) }
@@ -223,7 +223,7 @@ async function createApp(
   // NETWORK_HOST endpoint when configured, otherwise the custody transport.
   // Everything downstream receives this Provider and stays unaware of the choice.
   const readProvider: Provider | undefined = custodyProvider
-    ? (process.env.NETWORK_HOST ? pooledProvider(getNetworkRpcUrl()) : custodyProvider.rpcProvider)
+    ? (process.env.NETWORK_HOST ? pooledProvider(getNetworkRpcUrl()) : custodyProvider.escrow.provider)
     : undefined;
 
   // Pre-build accountMapping + (in omnibus mode) the OmnibusDelegate and vanilla services

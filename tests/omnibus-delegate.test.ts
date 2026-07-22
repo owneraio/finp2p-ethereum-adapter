@@ -58,7 +58,6 @@ function createMockCustodyProvider(overrides: Partial<CustodyProvider> = {}): Cu
   return {
     escrow: createMockWallet('0xESCROW'),
     omnibus: createMockWallet('0xOMNIBUS'),
-    rpcProvider: mockReadProvider,
     resolveWallet: jest.fn(),
     ...overrides,
   };

@@ -9,7 +9,6 @@ import { GasStation } from '../../services/funding';
 export class DfnsCustodyProvider implements CustodyProvider {
   readonly escrow: CustodyWallet;
   readonly omnibus?: CustodyWallet;
-  readonly rpcProvider;
   readonly gasStation?: GasStation;
 
   private dfnsClient: DfnsApiClient;
@@ -25,7 +24,6 @@ export class DfnsCustodyProvider implements CustodyProvider {
   ) {
     this.escrow = escrow;
     this.omnibus = omnibus;
-    this.rpcProvider = this.escrow.provider;
     this.dfnsClient = dfnsClient;
     this.addressToWalletId = addressToWalletId;
     this.gasStation = gasStation;

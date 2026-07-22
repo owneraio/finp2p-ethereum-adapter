@@ -9,7 +9,6 @@ export interface CustodyWallet {
 export interface CustodyProvider {
   readonly escrow: CustodyWallet;
   readonly omnibus?: CustodyWallet;
-  readonly rpcProvider: Provider;
   readonly gasStation?: GasStation;
 
   resolveWallet(account: string): Promise<CustodyWallet | undefined>;

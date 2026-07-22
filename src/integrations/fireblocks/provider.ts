@@ -9,7 +9,6 @@ import { FireblocksRawSigner } from './raw-signer';
 export class FireblocksCustodyProvider implements CustodyProvider {
   readonly escrow: CustodyWallet;
   readonly omnibus?: CustodyWallet;
-  readonly rpcProvider;
   readonly gasStation?: GasStation;
 
   private fireblocksSdk: FireblocksSDK;
@@ -25,7 +24,6 @@ export class FireblocksCustodyProvider implements CustodyProvider {
   ) {
     this.escrow = escrow;
     this.omnibus = omnibus;
-    this.rpcProvider = this.escrow.provider;
     this.fireblocksSdk = fireblocksSdk;
     this.vaultManagement = vaultManagement;
     this.gasStation = gasStation;
