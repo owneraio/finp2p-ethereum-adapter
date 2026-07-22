@@ -12,9 +12,9 @@ import { IntegrationContext } from "../registry";
 import { pooledProvider, pooledSigner } from "../signer-pool";
 
 /** Register a standard once (idempotent); returns its name if newly added, else undefined. */
-function register(name: string, impl: TokenStandard, erc20Compatible = false): string | undefined {
+function register(name: string, impl: TokenStandard): string | undefined {
   if (tokenStandardRegistry.has(name)) return undefined;
-  tokenStandardRegistry.register(name, impl, { erc20Compatible });
+  tokenStandardRegistry.register(name, impl);
   return name;
 }
 
@@ -54,11 +54,11 @@ export function registerTokenStandards(ctx: IntegrationContext): void {
   const allowlister = allowlisterKey ? pooledSigner(rpcUrl, allowlisterKey) : undefined;
 
   const registered = [
-    register(ERC20_STANDARD, new ERC20TokenStandard(provider, issuer), true),
-    register(TREX_STANDARD, new TrexTokenStandard(provider, issuer, controller, allowlister), true),
-    register(CMTAT_STANDARD, new CmtatTokenStandard(provider, issuer, controller, allowlister), true),
-    register(BENJI_STANDARD, new BenjiTokenStandard(provider, issuer, controller), true),
-    register(HEDERA_ATS_STANDARD, new AtsTokenStandard(provider, issuer, controller, allowlister), true),
+    register(ERC20_STANDARD, new ERC20TokenStandard(provider, issuer)),
+    register(TREX_STANDARD, new TrexTokenStandard(provider, issuer, controller, allowlister)),
+    register(CMTAT_STANDARD, new CmtatTokenStandard(provider, issuer, controller, allowlister)),
+    register(BENJI_STANDARD, new BenjiTokenStandard(provider, issuer, controller)),
+    register(HEDERA_ATS_STANDARD, new AtsTokenStandard(provider, issuer, controller, allowlister)),
   ].filter(Boolean);
   logger.info(`Ethereum token standards registered: ${registered.join(", ")}`);
 

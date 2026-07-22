@@ -3,21 +3,19 @@ import { pooledSigner, resetSignerPool } from "../src/integrations/signer-pool";
 
 const impl = {} as any;
 
-describe("tokenStandardRegistry erc20Compatible trait", () => {
+describe("tokenStandardRegistry", () => {
 
-  test("standards registered with erc20Compatible report it; others default to false", () => {
-    tokenStandardRegistry.register("COMPAT_TEST", impl, { erc20Compatible: true });
+  test("register / resolve / has; unknown throws; case-insensitive", () => {
     tokenStandardRegistry.register("REGISTRY_TEST", impl);
-    expect(tokenStandardRegistry.isErc20Compatible("COMPAT_TEST")).toBe(true);
-    expect(tokenStandardRegistry.isErc20Compatible("compat_test")).toBe(true); // case-insensitive
-    expect(tokenStandardRegistry.isErc20Compatible("REGISTRY_TEST")).toBe(false);
-    expect(tokenStandardRegistry.isErc20Compatible("NEVER_REGISTERED")).toBe(false);
+    expect(tokenStandardRegistry.resolve("REGISTRY_TEST")).toBe(impl);
+    expect(tokenStandardRegistry.resolve("registry_test")).toBe(impl); // case-insensitive
+    expect(tokenStandardRegistry.has("REGISTRY_TEST")).toBe(true);
+    expect(() => tokenStandardRegistry.resolve("NEVER_REGISTERED")).toThrow(/Unknown token standard/);
   });
 
-  test("resolve and has still work through the registration wrapper", () => {
-    expect(tokenStandardRegistry.resolve("COMPAT_TEST")).toBe(impl);
-    expect(tokenStandardRegistry.has("COMPAT_TEST")).toBe(true);
-    expect(() => tokenStandardRegistry.resolve("NEVER_REGISTERED")).toThrow(/Unknown token standard/);
+  test("re-registering the same standard throws", () => {
+    tokenStandardRegistry.register("DUP_TEST", impl);
+    expect(() => tokenStandardRegistry.register("DUP_TEST", impl)).toThrow(/already registered/);
   });
 });
 

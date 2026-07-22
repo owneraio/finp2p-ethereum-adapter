@@ -21,6 +21,7 @@ import type { TokenWallet, AssetRecord, DeployResult, Logger, OperationContext, 
  */
 export interface TokenStandard {
   deploy(wallet: TokenWallet, name: string, symbol: string, decimals: number, logger: Logger): Promise<DeployResult>;
+  decimals(provider: Provider, tokenAddress: string, logger: Logger): Promise<number>;
   balanceOf(provider: Provider, signer: Signer, asset: AssetRecord, address: string, logger: Logger): Promise<string>;
   mint(wallet: TokenWallet, asset: AssetRecord, to: string, amount: bigint, logger: Logger, opCtx?: OperationContext): Promise<TokenOperationResult>;
   transfer(wallet: TokenWallet, asset: AssetRecord, to: string, amount: bigint, logger: Logger, opCtx?: OperationContext): Promise<TokenOperationResult>;

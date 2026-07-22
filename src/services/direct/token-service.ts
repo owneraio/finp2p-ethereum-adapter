@@ -12,7 +12,6 @@ import { AccountResolver, AssetStore } from '../accounts/account-resolver';
 import { getAssetFromDb } from '../assets/store';
 import { tokenStandardRegistry } from '../../integrations/token-standards/registry';
 import { TokenStandardName as ERC20_TOKEN_STANDARD, DEFAULT_NEW_ERC20_DECIMALS } from '@owneraio/finp2p-ethereum-erc20-plugin';
-import { ERC20Contract } from '@owneraio/finp2p-contracts';
 import { buildOperationContext } from '../operations/operation-context';
 
 function resultToReceipt(
@@ -116,11 +115,7 @@ export class DirectTokenService implements TokenService, EscrowService {
       this.logger.error(`createAsset: assetId=${assetId} requested token standard '${requestedStandard}' is not registered; available: ${tokenStandardRegistry.availableStandards.join(', ')}`);
     }
     const standard = tokenStandardRegistry.resolve(requestedStandard);
-    // ERC20-compatible standards (ERC20, TREX, CMTAT, BENJI, HEDERA_ATS, ...)
-    // expose IERC20Metadata: read decimals on bind and register with custody.
-    // Non-compatible ones (collateral registries) keep decimals=0 and skip both.
-    const isErc20 = tokenStandardRegistry.isErc20Compatible(requestedStandard);
-    this.logger.info(`createAsset: assetId=${assetId} token standard '${requestedStandard}'${explicitStandard === undefined ? ' (defaulted, none requested)' : ''} resolved to ${standard.constructor.name} (erc20Compatible=${isErc20})`);
+    this.logger.info(`createAsset: assetId=${assetId} token standard '${requestedStandard}'${explicitStandard === undefined ? ' (defaulted, none requested)' : ''} resolved to ${standard.constructor.name}`);
 
     const { chainId } = await this.readProvider.getNetwork();
     const defaultNetwork = `eip155:${chainId}`;
@@ -150,15 +145,8 @@ export class DirectTokenService implements TokenService, EscrowService {
       const tokenAddress = assetBind.tokenIdentifier.tokenId;
       this.logger.info(`createAsset: bind path — assetId=${assetId} standard=${requestedStandard} tokenAddress=${tokenAddress} network=${assetBind.tokenIdentifier.network ?? defaultNetwork}`);
 
-      let decimals = 0;
-      if (isErc20) {
-        this.logger.info(`createAsset: reading ERC20 decimals from ${tokenAddress}`);
-        const erc20 = new ERC20Contract(this.readProvider, undefined, tokenAddress, this.logger);
-        decimals = Number(await erc20.decimals());
-        this.logger.info(`createAsset: ERC20 decimals=${decimals} for ${tokenAddress}`);
-      } else {
-        this.logger.info(`createAsset: skipping ERC20 decimals read for non-ERC20 standard '${requestedStandard}', defaulting decimals=0`);
-      }
+      const decimals = await standard.decimals(this.readProvider, tokenAddress, this.logger);
+      this.logger.info(`createAsset: standard '${requestedStandard}' reported decimals=${decimals} for ${tokenAddress}`);
       await this.assetStore.saveAsset({
         contract_address: tokenAddress,
         decimals,
@@ -166,15 +154,7 @@ export class DirectTokenService implements TokenService, EscrowService {
         id: assetId,
       });
 
-      // onAssetRegistered is custody-side ERC20 whitelisting (Fireblocks/Dfns introspect IERC20Metadata
-      // — name/symbol/decimals — on the contract). Skip it for non-ERC20 standards whose bound
-      // contracts (e.g. CollateralAgreementRegistry) don't implement IERC20Metadata.
-      if (isErc20) {
-        this.logger.info(`createAsset: registering ERC20 token with custody provider (${tokenAddress})`);
-        await this.custodyProvider.onAssetRegistered?.(tokenAddress);
-      } else {
-        this.logger.info(`createAsset: skipping custody onAssetRegistered for non-ERC20 standard '${requestedStandard}' (${tokenAddress})`);
-      }
+      await this.custodyProvider.onAssetRegistered?.(tokenAddress);
 
       return {
         operation: "createAsset",
