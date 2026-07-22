@@ -124,15 +124,18 @@ async function registerDirectServices(
   // persistent key, deploy/issue fail closed (a throwaway deployer would
   // strand every asset it creates); reads keep working.
   const assetIssuerKey = process.env.ASSET_ISSUER_PRIVATE_KEY;
+  const networkHost = process.env.NETWORK_HOST;
   if (!assetIssuerKey) {
     logger.warn("ASSET_ISSUER_PRIVATE_KEY is not set — asset deployment and issuance are disabled");
+  } else if (!networkHost) {
+    logger.warn("NETWORK_HOST is not set — asset deployment and issuance are disabled");
   }
   // Same pooled provider/signer instances the token standards register with:
   // one NonceManager per key, plain NETWORK_HOST transport (custody rpcProvider
   // may be a custody web3 provider, the wrong transport for a raw env key).
-  const rpcUrl = getNetworkRpcUrl();
-  const issuerWallet = assetIssuerKey
-    ? { provider: pooledProvider(rpcUrl), signer: pooledSigner(rpcUrl, assetIssuerKey) }
+  // Without NETWORK_HOST no standards register either, so there is nothing to issue.
+  const issuerWallet = assetIssuerKey && networkHost
+    ? { provider: pooledProvider(getNetworkRpcUrl()), signer: pooledSigner(getNetworkRpcUrl(), assetIssuerKey) }
     : undefined;
   let tokenService: DirectTokenService = new DirectTokenService(logger, custodyProvider, accountMapping, assetStore, issuerWallet);
   const commonService = new DirectCommonServiceImpl(workflowStorage!);
