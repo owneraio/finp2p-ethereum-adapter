@@ -13,7 +13,7 @@ import { CustodyProvider, CustodyWallet } from '../custody/custody-provider';
 import { tokenStandardRegistry } from "../../integrations/token-standards/registry";
 import { TokenStandardName as ERC20_TOKEN_STANDARD, DEFAULT_NEW_ERC20_DECIMALS } from "@owneraio/finp2p-ethereum-erc20-plugin";
 import { ERC20Contract } from "@owneraio/finp2p-contracts";
-import { AccountResolver, AssetStore } from '../accounts/account-mapping';
+import { AccountResolver, AssetStore } from '../accounts/account-resolver';
 import { getAssetFromDb } from '../assets/store';
 
 export interface ReceiptPollingConfig {

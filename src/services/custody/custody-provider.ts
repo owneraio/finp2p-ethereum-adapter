@@ -7,7 +7,6 @@ export interface CustodyWallet {
 }
 
 export interface CustodyProvider {
-  readonly issuer: CustodyWallet;
   readonly escrow: CustodyWallet;
   readonly omnibus?: CustodyWallet;
   readonly rpcProvider: Provider;

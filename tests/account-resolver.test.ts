@@ -3,7 +3,7 @@ import {
   AccountResolver,
   DbAccountResolver,
   AccountMappingStore,
-} from '../src/services/accounts/account-mapping';
+} from '../src/services/accounts/account-resolver';
 import { FIELD_LEDGER_ACCOUNT_ID } from '../src/services/accounts/mapping-validator';
 import {
   PostgreSqlContainer,

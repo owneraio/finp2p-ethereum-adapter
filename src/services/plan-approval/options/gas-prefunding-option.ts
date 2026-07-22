@@ -1,7 +1,7 @@
 import { logger } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import { PlanApprovalOption, IntrospectedPlan } from "..";
 import { CustodyProvider } from "../../custody/custody-provider";
-import { AccountResolver } from "../../accounts/account-mapping";
+import { AccountResolver } from "../../accounts/account-resolver";
 
 /**
  * Plan-approval option that prefunds gas on approval: the source investor's

@@ -1,6 +1,6 @@
 import { OmnibusDelegate } from '../src/services/omnibus/omnibus-delegate';
 import { CustodyProvider, CustodyWallet } from '../src/services/custody/custody-provider';
-import { AccountResolver, AssetStore } from '../src/services/accounts/account-mapping';
+import { AccountResolver, AssetStore } from '../src/services/accounts/account-resolver';
 import { tokenStandardRegistry } from '../src/integrations/token-standards/registry';
 import { ERC20TokenStandard, TokenStandardName as ERC20_TOKEN_STANDARD } from '@owneraio/finp2p-ethereum-erc20-plugin';
 import winston from 'winston';
@@ -50,7 +50,6 @@ function createMockWallet(address: string): CustodyWallet {
 
 function createMockCustodyProvider(overrides: Partial<CustodyProvider> = {}): CustodyProvider {
   return {
-    issuer: createMockWallet('0xISSUER'),
     escrow: createMockWallet('0xESCROW'),
     omnibus: createMockWallet('0xOMNIBUS'),
     rpcProvider: {

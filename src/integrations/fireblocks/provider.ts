@@ -6,7 +6,6 @@ import { CustodyProvider, CustodyWallet, GasStation } from '../../services/custo
 import { FireblocksRawSigner } from './raw-signer';
 
 export class FireblocksCustodyProvider implements CustodyProvider {
-  readonly issuer: CustodyWallet;
   readonly escrow: CustodyWallet;
   readonly omnibus?: CustodyWallet;
   readonly rpcProvider;
@@ -16,7 +15,6 @@ export class FireblocksCustodyProvider implements CustodyProvider {
   private vaultManagement: ReturnType<typeof createVaultManagementFunctions>;
 
   private constructor(
-    issuer: CustodyWallet,
     escrow: CustodyWallet,
     private readonly config: FireblocksAppConfig,
     fireblocksSdk: FireblocksSDK,
@@ -24,10 +22,9 @@ export class FireblocksCustodyProvider implements CustodyProvider {
     gasStation?: GasStation,
     omnibus?: CustodyWallet,
   ) {
-    this.issuer = issuer;
     this.escrow = escrow;
     this.omnibus = omnibus;
-    this.rpcProvider = this.issuer.provider;
+    this.rpcProvider = this.escrow.provider;
     this.fireblocksSdk = fireblocksSdk;
     this.vaultManagement = vaultManagement;
     this.gasStation = gasStation;
@@ -55,18 +52,15 @@ export class FireblocksCustodyProvider implements CustodyProvider {
           });
         };
 
-    // Create wallets for configured vaults, falling back to omnibus
-    const issuerVault = config.assetIssuerVaultId ?? config.omnibusVaultId;
+    // Create the escrow wallet for the configured vault, falling back to omnibus
     const escrowVault = config.assetEscrowVaultId ?? config.omnibusVaultId;
 
-    let issuerWallet: CustodyWallet | undefined;
     let escrowWallet: CustodyWallet | undefined;
-    if (issuerVault) issuerWallet = await createWallet(issuerVault);
     if (escrowVault) escrowWallet = await createWallet(escrowVault);
 
-    // In standard mode, issuer and escrow are required
-    if (!config.localSubmit && (!issuerWallet || !escrowWallet)) {
-      throw new Error('Either ASSET_ISSUER_CUSTODY_ACCOUNT_ID/ASSET_ESCROW_CUSTODY_ACCOUNT_ID or OMNIBUS_CUSTODY_ACCOUNT_ID must be set');
+    // In standard mode, escrow is required
+    if (!config.localSubmit && !escrowWallet) {
+      throw new Error('Either ASSET_ESCROW_CUSTODY_ACCOUNT_ID or OMNIBUS_CUSTODY_ACCOUNT_ID must be set');
     }
 
     let gasStation: GasStation | undefined;
@@ -84,7 +78,7 @@ export class FireblocksCustodyProvider implements CustodyProvider {
     // Real wallets are resolved per-operation via createWalletForCustodyId.
     const placeholder: CustodyWallet = { provider: config.provider, signer: config.provider as any };
     return new FireblocksCustodyProvider(
-      issuerWallet ?? placeholder, escrowWallet ?? placeholder,
+      escrowWallet ?? placeholder,
       config, fireblocksSdk, vaultManagement, gasStation, omnibusWallet
     );
   }

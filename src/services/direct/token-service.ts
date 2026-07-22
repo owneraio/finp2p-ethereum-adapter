@@ -8,7 +8,7 @@ import winston from 'winston';
 import { parseUnits } from "ethers";
 import { TokenOperationResult } from '@owneraio/finp2p-ethereum-adapter-contract';
 import { CustodyProvider, CustodyWallet } from '../custody/custody-provider';
-import { AccountResolver, AssetStore } from '../accounts/account-mapping';
+import { AccountResolver, AssetStore } from '../accounts/account-resolver';
 import { getAssetFromDb } from '../assets/store';
 import { tokenStandardRegistry } from '../../integrations/token-standards/registry';
 import { TokenStandardName as ERC20_TOKEN_STANDARD, DEFAULT_NEW_ERC20_DECIMALS } from '@owneraio/finp2p-ethereum-erc20-plugin';
@@ -64,6 +64,9 @@ export class DirectTokenService implements TokenService, EscrowService {
     readonly custodyProvider: CustodyProvider,
     readonly accountMapping: AccountResolver,
     readonly assetStore: AssetStore,
+    // env-injected issuer (ASSET_ISSUER_PRIVATE_KEY) — signs deploys and is the
+    // per-call wallet for mint; never a custody wallet
+    readonly issuerWallet: CustodyWallet,
   ) {}
 
   private async resolveAddress(finId: string): Promise<string> {
@@ -111,7 +114,7 @@ export class DirectTokenService implements TokenService, EscrowService {
 
     if (assetBind === undefined || assetBind.tokenIdentifier === undefined) {
       this.logger.info(`createAsset: deploy path — assetId=${assetId} standard=${requestedStandard} name=${assetName ?? 'OWNERACOIN'}`);
-      const wallet = this.custodyProvider.issuer;
+      const wallet = this.issuerWallet;
       const symbol = "OWNERA"; // TODO: align with product team which metadata fields to use for token name/symbol/decimals
       const result = await standard.deploy(wallet, assetName ?? "OWNERACOIN", symbol, DEFAULT_NEW_ERC20_DECIMALS, this.logger);
       await this.assetStore.saveAsset({
@@ -171,7 +174,7 @@ export class DirectTokenService implements TokenService, EscrowService {
     const asset = await getAssetFromDb(this.assetStore, ast.assetId);
     const standard = tokenStandardRegistry.resolve(asset.tokenStandard);
     return standard.balanceOf(
-      this.custodyProvider.issuer.provider, this.custodyProvider.issuer.signer,
+      this.custodyProvider.rpcProvider, this.issuerWallet.signer,
       asset, address, this.logger,
     );
   }
@@ -188,7 +191,7 @@ export class DirectTokenService implements TokenService, EscrowService {
     try {
       const asset = await getAssetFromDb(this.assetStore, ast.assetId);
       const standard = tokenStandardRegistry.resolve(asset.tokenStandard);
-      const wallet = this.custodyProvider.issuer;
+      const wallet = this.issuerWallet;
       const address = await this.resolveAddress(toFinId);
       const amount = parseUnits(quantity, asset.decimals);
 

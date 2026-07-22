@@ -8,7 +8,7 @@ module.exports = {
     "<rootDir>/tests"
   ],
   "testMatch": [
-    "<rootDir>/tests/account-mapping.test.+(ts|tsx|js)"
+    "<rootDir>/tests/account-resolver.test.+(ts|tsx|js)"
   ],
   "transform": {
     "^.+\\.(ts|tsx)$": "ts-jest"

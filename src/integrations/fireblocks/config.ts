@@ -8,7 +8,6 @@ export type FireblocksAppConfig = BaseAppConfig & {
   apiPrivateKey: string
   chainId?: ChainId
   apiBaseUrl?: ApiBaseUrl | string
-  assetIssuerVaultId?: string
   assetEscrowVaultId?: string
   omnibusVaultId?: string
   localSubmit?: boolean
@@ -74,7 +73,6 @@ export async function createFireblocksAppConfig(): Promise<Omit<FireblocksAppCon
   const chainId = (process.env.FIREBLOCKS_CHAIN_ID || ChainId.MAINNET) as ChainId;
   const apiBaseUrl = (process.env.FIREBLOCKS_API_BASE_URL || ApiBaseUrl.Production) as ApiBaseUrl;
 
-  const assetIssuerVaultId = process.env.ASSET_ISSUER_CUSTODY_ACCOUNT_ID || undefined
   const assetEscrowVaultId = process.env.ASSET_ESCROW_CUSTODY_ACCOUNT_ID || undefined
   const omnibusVaultId = process.env.OMNIBUS_CUSTODY_ACCOUNT_ID || undefined
 
@@ -89,9 +87,9 @@ export async function createFireblocksAppConfig(): Promise<Omit<FireblocksAppCon
     provider = rpcProvider;
     signer = rpcProvider as any;
   } else {
-    const baseVaultId = assetIssuerVaultId ?? omnibusVaultId;
+    const baseVaultId = assetEscrowVaultId ?? omnibusVaultId;
     if (!baseVaultId) {
-      throw new Error('At least one of ASSET_ISSUER_CUSTODY_ACCOUNT_ID or OMNIBUS_CUSTODY_ACCOUNT_ID must be set');
+      throw new Error('At least one of ASSET_ESCROW_CUSTODY_ACCOUNT_ID or OMNIBUS_CUSTODY_ACCOUNT_ID must be set');
     }
     const fb = await createFireblocksEthersProvider({
       apiKey, privateKey: apiPrivateKey, chainId, apiBaseUrl, vaultAccountIds: [baseVaultId]
@@ -118,7 +116,6 @@ export async function createFireblocksAppConfig(): Promise<Omit<FireblocksAppCon
     apiPrivateKey,
     chainId,
     apiBaseUrl,
-    assetIssuerVaultId,
     assetEscrowVaultId,
     omnibusVaultId,
     localSubmit,

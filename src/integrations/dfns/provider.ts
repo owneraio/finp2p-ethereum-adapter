@@ -6,7 +6,6 @@ import { DfnsAppConfig } from './config';
 import { CustodyProvider, CustodyWallet, GasStation } from '../../services/custody';
 
 export class DfnsCustodyProvider implements CustodyProvider {
-  readonly issuer: CustodyWallet;
   readonly escrow: CustodyWallet;
   readonly omnibus?: CustodyWallet;
   readonly rpcProvider;
@@ -16,7 +15,6 @@ export class DfnsCustodyProvider implements CustodyProvider {
   private addressToWalletId: Map<string, string>;
 
   private constructor(
-    issuer: CustodyWallet,
     escrow: CustodyWallet,
     private readonly config: DfnsAppConfig,
     dfnsClient: DfnsApiClient,
@@ -24,10 +22,9 @@ export class DfnsCustodyProvider implements CustodyProvider {
     gasStation?: GasStation,
     omnibus?: CustodyWallet,
   ) {
-    this.issuer = issuer;
     this.escrow = escrow;
     this.omnibus = omnibus;
-    this.rpcProvider = this.issuer.provider;
+    this.rpcProvider = this.escrow.provider;
     this.dfnsClient = dfnsClient;
     this.addressToWalletId = addressToWalletId;
     this.gasStation = gasStation;
@@ -48,7 +45,6 @@ export class DfnsCustodyProvider implements CustodyProvider {
   static async create(config: DfnsAppConfig): Promise<DfnsCustodyProvider> {
     const dfnsClient = DfnsCustodyProvider.createDfnsClient(config);
 
-    const issuerWallet = await DfnsCustodyProvider.createWalletProvider(dfnsClient, config.assetIssuerWalletId, config.rpcUrl);
     const escrowWallet = await DfnsCustodyProvider.createWalletProvider(dfnsClient, config.assetEscrowWalletId, config.rpcUrl);
 
     // Cache address → walletId mapping
@@ -71,7 +67,7 @@ export class DfnsCustodyProvider implements CustodyProvider {
       omnibusWallet = await DfnsCustodyProvider.createWalletProvider(dfnsClient, config.omnibusWalletId, config.rpcUrl);
     }
 
-    return new DfnsCustodyProvider(issuerWallet, escrowWallet, config, dfnsClient, addressToWalletId, gasStation, omnibusWallet);
+    return new DfnsCustodyProvider(escrowWallet, config, dfnsClient, addressToWalletId, gasStation, omnibusWallet);
   }
 
   async createWalletForCustodyId(walletId: string): Promise<CustodyWallet> {

@@ -1,6 +1,7 @@
 import express from "express";
 import { logger as expressLogger } from "express-winston";
 import winston from "winston";
+import { Wallet } from "ethers";
 import {
   register,
   PluginManager,
@@ -117,7 +118,17 @@ async function registerDirectServices(
   }
 
   if (!assetStore || !dbPool || !accountMappingStore || !accountMappingService) throw new Error('DB connection is required for direct mode');
-  let tokenService: DirectTokenService = new DirectTokenService(logger, custodyProvider, accountMapping, assetStore);
+  // The issuer is the env-injected signer, never a custody wallet.
+  // TODO: fail closed on a missing key once the plugins accept an optional issuer.
+  const assetIssuerKey = process.env.ASSET_ISSUER_PRIVATE_KEY;
+  if (!assetIssuerKey) {
+    logger.warn("ASSET_ISSUER_PRIVATE_KEY is not set — using an ephemeral issuer signer; issuance will not persist across restarts");
+  }
+  const issuerSigner = assetIssuerKey
+    ? new Wallet(assetIssuerKey, custodyProvider.rpcProvider)
+    : Wallet.createRandom().connect(custodyProvider.rpcProvider);
+  const issuerWallet = { provider: custodyProvider.rpcProvider, signer: issuerSigner };
+  let tokenService: DirectTokenService = new DirectTokenService(logger, custodyProvider, accountMapping, assetStore, issuerWallet);
   const commonService = new DirectCommonServiceImpl(workflowStorage!);
   const planApprovalService = await buildCustodyPlanApprovalService(
     appConfig.orgId, finP2PClient,

@@ -1,6 +1,6 @@
 import { CustodyProvider, CustodyWallet } from './custody-provider';
 import { FIELD_CUSTODY_ACCOUNT_ID, FIELD_LEDGER_ACCOUNT_ID } from '../accounts/mapping-validator';
-import { AccountMappingStore } from '../accounts/account-mapping';
+import { AccountMappingStore } from '../accounts/account-resolver';
 
 /**
  * Resolves a finId to the investor's on-chain address and custody-signed wallet,

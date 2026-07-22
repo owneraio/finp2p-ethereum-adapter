@@ -1,6 +1,6 @@
 import { logger } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import { PlanApprovalOption, IntrospectedPlan } from "..";
-import { AccountResolver } from "../../accounts/account-mapping";
+import { AccountResolver } from "../../accounts/account-resolver";
 import { CustodyProvider } from "../../custody/custody-provider";
 import { DEFAULT_ACTIVATION_AMOUNT, WalletActivator } from "../../custody/wallet-activation";
 
