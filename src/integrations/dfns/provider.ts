@@ -6,18 +6,15 @@ import { DfnsAppConfig } from './config';
 import { CustodyProvider, CustodyWallet } from '../../services/custody';
 
 export class DfnsCustodyProvider implements CustodyProvider {
-  readonly escrow: CustodyWallet;
 
   private dfnsClient: DfnsApiClient;
   private addressToWalletId: Map<string, string>;
 
   private constructor(
-    escrow: CustodyWallet,
     private readonly config: DfnsAppConfig,
     dfnsClient: DfnsApiClient,
     addressToWalletId: Map<string, string>,
   ) {
-    this.escrow = escrow;
     this.dfnsClient = dfnsClient;
     this.addressToWalletId = addressToWalletId;
   }
@@ -37,8 +34,6 @@ export class DfnsCustodyProvider implements CustodyProvider {
   static async create(config: DfnsAppConfig): Promise<DfnsCustodyProvider> {
     const dfnsClient = DfnsCustodyProvider.createDfnsClient(config);
 
-    const escrowWallet = await DfnsCustodyProvider.createWalletProvider(dfnsClient, config.assetEscrowWalletId, config.rpcUrl);
-
     // Cache address → walletId mapping
     const addressToWalletId = new Map<string, string>();
     const { items } = await dfnsClient.wallets.listWallets({});
@@ -48,7 +43,7 @@ export class DfnsCustodyProvider implements CustodyProvider {
       }
     }
 
-    return new DfnsCustodyProvider(escrowWallet, config, dfnsClient, addressToWalletId);
+    return new DfnsCustodyProvider(config, dfnsClient, addressToWalletId);
   }
 
   async createWalletForCustodyId(walletId: string): Promise<CustodyWallet> {

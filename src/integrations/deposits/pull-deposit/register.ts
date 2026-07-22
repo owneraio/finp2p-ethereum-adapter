@@ -18,7 +18,7 @@ import { PullDepositPlugin } from "./plugin";
  * the deposit with FinAPI (segregated).
  *
  * The operator wallet (env / adapter constant) is the ERC20 spender AND the transferFrom
- * signer. For v1 it reuses `custodyProvider.escrow`; a dedicated
+ * signer. For v1 it reuses the escrow wallet (ctx.escrowWallet); a dedicated
  * PULL_DEPOSIT_OPERATOR_CUSTODY_ID can be added later.
  *
  * In-memory deposit store; persistence is a TODO — see ApprovalWatcher.
@@ -47,8 +47,12 @@ export function registerPullDeposit(ctx: IntegrationContext): void {
     return;
   }
 
+  const operatorWallet = ctx.escrowWallet;
+  if (!operatorWallet) {
+    logger.info('Pull-deposit plugin not registered: no escrow wallet configured (set ASSET_ESCROW_CUSTODY_ACCOUNT_ID)');
+    return;
+  }
   const network = process.env.NETWORK_NAME ?? 'ethereum';
-  const operatorWallet = custodyProvider.escrow;
 
   let resolveDepositTarget: DepositTargetResolver;
   if (accountModel === 'omnibus') {

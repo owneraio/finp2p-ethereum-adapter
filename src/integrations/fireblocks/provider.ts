@@ -6,18 +6,15 @@ import { CustodyProvider, CustodyWallet } from '../../services/custody';
 import { FireblocksRawSigner } from './raw-signer';
 
 export class FireblocksCustodyProvider implements CustodyProvider {
-  readonly escrow: CustodyWallet;
 
   private fireblocksSdk: FireblocksSDK;
   private vaultManagement: ReturnType<typeof createVaultManagementFunctions>;
 
   private constructor(
-    escrow: CustodyWallet,
     private readonly config: FireblocksAppConfig,
     fireblocksSdk: FireblocksSDK,
     vaultManagement: ReturnType<typeof createVaultManagementFunctions>,
   ) {
-    this.escrow = escrow;
     this.fireblocksSdk = fireblocksSdk;
     this.vaultManagement = vaultManagement;
   }
@@ -44,22 +41,7 @@ export class FireblocksCustodyProvider implements CustodyProvider {
           });
         };
 
-    // Create the escrow wallet for the configured vault, falling back to omnibus
-    const escrowVault = config.assetEscrowVaultId ?? config.omnibusVaultId;
-
-    let escrowWallet: CustodyWallet | undefined;
-    if (escrowVault) escrowWallet = await createWallet(escrowVault);
-
-    // In standard mode, escrow is required
-    if (!config.localSubmit && !escrowWallet) {
-      throw new Error('Either ASSET_ESCROW_CUSTODY_ACCOUNT_ID or OMNIBUS_CUSTODY_ACCOUNT_ID must be set');
-    }
-
-    // In local submit mode, use a placeholder for unconfigured wallets.
-    // Real wallets are resolved per-operation via createWalletForCustodyId.
-    const placeholder: CustodyWallet = { provider: config.provider, signer: config.provider as any };
     return new FireblocksCustodyProvider(
-      escrowWallet ?? placeholder,
       config, fireblocksSdk, vaultManagement
     );
   }

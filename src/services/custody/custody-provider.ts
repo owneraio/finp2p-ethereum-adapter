@@ -6,8 +6,6 @@ export interface CustodyWallet {
 }
 
 export interface CustodyProvider {
-  readonly escrow: CustodyWallet;
-
   resolveWallet(account: string): Promise<CustodyWallet | undefined>;
   /** Create a wallet directly from custody account ID (vault ID / wallet ID). No reverse scan needed. */
   createWalletForCustodyId?(custodyAccountId: string): Promise<CustodyWallet>;

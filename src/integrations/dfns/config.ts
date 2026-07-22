@@ -13,7 +13,6 @@ export type DfnsAppConfig = BaseAppConfig & {
   dfnsCredId: string
   dfnsPrivateKey: string
   rpcUrl: string
-  assetEscrowWalletId: string
   omnibusWalletId?: string
 }
 
@@ -93,7 +92,6 @@ export async function createDfnsAppConfig(): Promise<Omit<DfnsAppConfig, 'accoun
     dfnsCredId,
     dfnsPrivateKey,
     rpcUrl,
-    assetEscrowWalletId: escrowWalletId,
     omnibusWalletId,
   };
 }

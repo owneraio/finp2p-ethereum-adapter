@@ -8,7 +8,6 @@ export type FireblocksAppConfig = BaseAppConfig & {
   apiPrivateKey: string
   chainId?: ChainId
   apiBaseUrl?: ApiBaseUrl | string
-  assetEscrowVaultId?: string
   omnibusVaultId?: string
   localSubmit?: boolean
 }
@@ -105,7 +104,6 @@ export async function createFireblocksAppConfig(): Promise<Omit<FireblocksAppCon
     apiPrivateKey,
     chainId,
     apiBaseUrl,
-    assetEscrowVaultId,
     omnibusVaultId,
     localSubmit,
   };

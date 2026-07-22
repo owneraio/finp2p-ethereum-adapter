@@ -21,6 +21,7 @@ import {
 import { DirectTokenService } from "./services/direct";
 import {
   CustodyProvider,
+  CustodyWallet,
   custodyRegistry,
 } from "./services/custody";
 import { HealthServiceImpl } from "./services/network";
@@ -75,7 +76,7 @@ interface OmnibusContext {
 }
 
 async function registerDirectServices(
-  app: express.Application, logger: winston.Logger, custodyProvider: CustodyProvider, readProvider: Provider, gasStation: GasStation | undefined, appConfig: AppConfig,
+  app: express.Application, logger: winston.Logger, custodyProvider: CustodyProvider, escrowWallet: CustodyWallet | undefined, readProvider: Provider, gasStation: GasStation | undefined, appConfig: AppConfig,
   paymentsService: PaymentsServiceImpl, pluginManager: PluginManager,
   dbPool: any, finP2PClient: FinP2PClient | undefined,
   accountMappingStore: AccountMappingStore | undefined,
@@ -139,7 +140,8 @@ async function registerDirectServices(
   const issuerWallet = assetIssuerKey && networkHost
     ? { provider: readProvider, signer: pooledSigner(getNetworkRpcUrl(), assetIssuerKey) }
     : undefined;
-  let tokenService: DirectTokenService = new DirectTokenService(logger, custodyProvider, readProvider, accountMapping, assetStore, issuerWallet);
+  if (!escrowWallet) throw new Error('Escrow wallet is required for direct mode (set ASSET_ESCROW_CUSTODY_ACCOUNT_ID or OMNIBUS_CUSTODY_ACCOUNT_ID)');
+  let tokenService: DirectTokenService = new DirectTokenService(logger, custodyProvider, escrowWallet, readProvider, accountMapping, assetStore, issuerWallet);
   const commonService = new DirectCommonServiceImpl(workflowStorage!);
   const planApprovalService = await buildCustodyPlanApprovalService(
     appConfig.orgId, finP2PClient,
@@ -220,11 +222,20 @@ async function createApp(
     custodyProvider = await custodyRegistry.create(appConfig.type, appConfig);
   }
 
+  // Role wallets are app-level composition: the custody provider only
+  // fabricates a wallet for a given custody account id. Escrow signs
+  // hold/release/escrow-redeem (falls back to the omnibus account).
+  const escrowAccountId = process.env.ASSET_ESCROW_CUSTODY_ACCOUNT_ID ?? process.env.OMNIBUS_CUSTODY_ACCOUNT_ID;
+  const escrowWallet = custodyProvider && escrowAccountId && custodyProvider.createWalletForCustodyId
+    ? await custodyProvider.createWalletForCustodyId(escrowAccountId)
+    : undefined;
+
   // The adapter's single read-only RPC provider, decided once here: the plain
-  // NETWORK_HOST endpoint when configured, otherwise the custody transport.
-  // Everything downstream receives this Provider and stays unaware of the choice.
+  // NETWORK_HOST endpoint when configured, otherwise the custody transport
+  // (taken from a fabricated custody wallet). Everything downstream receives
+  // this Provider and stays unaware of the choice.
   const readProvider: Provider | undefined = custodyProvider
-    ? (process.env.NETWORK_HOST ? pooledProvider(getNetworkRpcUrl()) : custodyProvider.escrow.provider)
+    ? (process.env.NETWORK_HOST ? pooledProvider(getNetworkRpcUrl()) : escrowWallet?.provider)
     : undefined;
 
   // Gas funding is app-level composition too: the custody provider only
@@ -268,7 +279,7 @@ async function createApp(
   if (appConfig.accountModel === 'omnibus' && custodyProvider) {
     if (!omnibusWallet) throw new Error('Omnibus account model requires OMNIBUS_CUSTODY_ACCOUNT_ID (and a custody provider able to create wallets by custody id)');
     if (!dbPool || !assetStore) throw new Error('DB connection is required for omnibus account model');
-    const delegate = new OmnibusDelegate(logger, custodyProvider, omnibusWallet, readProvider!, gasStation, accountMapping, assetStore);
+    const delegate = new OmnibusDelegate(logger, custodyProvider, omnibusWallet, escrowWallet!, readProvider!, gasStation, accountMapping, assetStore);
     // vanilla 0.28.2's createVanillaServices doesn't forward schemaName to its LedgerStorage,
     // so its account_mappings/accounts/transactions queries hit the default `ledger_adapter`
     // schema even when migrations placed those tables in `ethereum_adapter`. Build the storage
@@ -298,6 +309,7 @@ async function createApp(
     readProvider,
     gasStation,
     omnibusWallet,
+    escrowWallet,
     assetStore,
     accountModel: appConfig.accountModel,
     custodyProvider,
@@ -308,7 +320,7 @@ async function createApp(
   const paymentsService = new PaymentsServiceImpl(pluginManager);
 
   if (custodyProvider) {
-    await registerDirectServices(app, logger, custodyProvider, readProvider!, gasStation, appConfig, paymentsService, pluginManager, dbPool, finP2PClient, accountMappingStore, accountMappingService, assetStore, accountMapping, omnibusCtx, ledgerSchema);
+    await registerDirectServices(app, logger, custodyProvider, escrowWallet, readProvider!, gasStation, appConfig, paymentsService, pluginManager, dbPool, finP2PClient, accountMappingStore, accountMappingService, assetStore, accountMapping, omnibusCtx, ledgerSchema);
   } else if (appConfig.type === 'finp2p-contract') {
     registerFinP2PContractServices(app, appConfig as FinP2PContractAppConfig, paymentsService, pluginManager, dbPool, finP2PClient, ledgerSchema);
   } else {

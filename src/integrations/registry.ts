@@ -27,6 +27,8 @@ export interface IntegrationContext {
   gasStation: GasStation | undefined;
   /** omnibus wallet fabricated from OMNIBUS_CUSTODY_ACCOUNT_ID (omnibus mode) */
   omnibusWallet: CustodyWallet | undefined;
+  /** escrow wallet fabricated from ASSET_ESCROW_CUSTODY_ACCOUNT_ID (hold/release operator) */
+  escrowWallet: CustodyWallet | undefined;
   assetStore: AssetStore | undefined;
   accountModel: AccountModel;
   custodyProvider: CustodyProvider | undefined;

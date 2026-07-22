@@ -39,6 +39,7 @@ export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowD
     private readonly logger: winston.Logger,
     private readonly custodyProvider: CustodyProvider,
     private readonly omnibusWallet: CustodyWallet,
+    private readonly escrowWallet: CustodyWallet,
     private readonly readProvider: Provider,
     private readonly gasStation: GasStation | undefined,
     private readonly accountMapping: AccountResolver,
@@ -177,7 +178,7 @@ export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowD
 
     const standard = tokenStandardRegistry.resolve(dbAsset.tokenStandard);
     await this.ensureGas(this.omnibusWallet);
-    const result = await standard.hold(this.omnibusWallet, this.custodyProvider.escrow, dbAsset, amount, this.logger);
+    const result = await standard.hold(this.omnibusWallet, this.escrowWallet, dbAsset, amount, this.logger);
     if (result.status === 'failure') return { success: false, error: result.reason };
 
     this.logger.info(`Hold: ${quantity} of ${asset.assetId} from omnibus to escrow, tx: ${result.transactionId}`);
@@ -190,7 +191,7 @@ export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowD
   ): Promise<DelegateResult> {
     const dbAsset = await getAssetFromDb(this.assetStore, asset.assetId);
     const omnibusAddress = await this.omnibusWallet.signer.getAddress();
-    const escrowWallet = this.custodyProvider.escrow;
+    const escrowWallet = this.escrowWallet;
     const amount = parseUnits(quantity, dbAsset.decimals);
 
     // Local destination (mapped in our DB → our investor): funds stay pooled in our
@@ -220,7 +221,7 @@ export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowD
   ): Promise<DelegateResult> {
     const dbAsset = await getAssetFromDb(this.assetStore, asset.assetId);
     const omnibusAddress = await this.omnibusWallet.signer.getAddress();
-    const escrowWallet = this.custodyProvider.escrow;
+    const escrowWallet = this.escrowWallet;
     const amount = parseUnits(quantity, dbAsset.decimals);
 
     const standard = tokenStandardRegistry.resolve(dbAsset.tokenStandard);

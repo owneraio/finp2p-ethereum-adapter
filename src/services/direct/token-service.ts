@@ -62,6 +62,7 @@ export class DirectTokenService implements TokenService, EscrowService {
   constructor(
     readonly logger: winston.Logger,
     readonly custodyProvider: CustodyProvider,
+    readonly escrowWallet: CustodyWallet,
     readonly readProvider: Provider,
     readonly accountMapping: AccountResolver,
     readonly assetStore: AssetStore,
@@ -257,7 +258,7 @@ export class DirectTokenService implements TokenService, EscrowService {
       let wallet: CustodyWallet;
       let burnFromAddress: string;
       if (operationId) {
-        wallet = this.custodyProvider.escrow;
+        wallet = this.escrowWallet;
         burnFromAddress = await wallet.signer.getAddress();
       } else {
         const resolved = await this.resolveSourceWallet(sourceFinId);
@@ -291,7 +292,7 @@ export class DirectTokenService implements TokenService, EscrowService {
       const amount = parseUnits(quantity, asset.decimals);
 
       const opCtx = buildOperationContext(ast, signature, exCtx, operationId);
-      const result = await standard.hold(wallet, this.custodyProvider.escrow, asset, amount, this.logger, opCtx);
+      const result = await standard.hold(wallet, this.escrowWallet, asset, amount, this.logger, opCtx);
       return resultToReceipt(result, ast, "hold", quantity, source, destination, exCtx, operationId);
     } catch (e) {
       this.logger.error(`Hold failed: asset=${ast.assetId} source=${source.finId} quantity=${quantity} operationId=${operationId}`, e);
@@ -309,7 +310,7 @@ export class DirectTokenService implements TokenService, EscrowService {
       const destinationAddress = await this.accountMapping.resolveAccount(destination.finId)
         ?? destination.account?.address;
       if (!destinationAddress) throw new Error(`Cannot resolve address for finId: ${destination.finId}`);
-      const escrowWallet = this.custodyProvider.escrow;
+      const escrowWallet = this.escrowWallet;
       const amount = parseUnits(quantity, asset.decimals);
 
       const opCtx = buildOperationContext(ast, undefined, exCtx, operationId);
@@ -329,7 +330,7 @@ export class DirectTokenService implements TokenService, EscrowService {
       const asset = await getAssetFromDb(this.assetStore, ast.assetId);
       const standard = tokenStandardRegistry.resolve(asset.tokenStandard);
       const sourceAddress = await this.resolveAddress(source.finId);
-      const escrowWallet = this.custodyProvider.escrow;
+      const escrowWallet = this.escrowWallet;
       const amount = parseUnits(quantity, asset.decimals);
 
       const opCtx = buildOperationContext(ast, undefined, exCtx, operationId);
