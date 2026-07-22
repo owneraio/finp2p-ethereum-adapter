@@ -47,8 +47,14 @@ export async function buildCustodyPlanApprovalService(
   // failure — let it fail startup (the adapter needs the RPC anyway) so a
   // restart retries, rather than silently disabling activation until restart.
   if (await isHederaNetwork(readProvider)) {
-    logger.info("Wallet activation: network requires recipient activation — enabling the option");
-    options.unshift(new WalletActivationOption(gasStation, accountMapping, opts.walletActivationAmount));
+    if (gasStation) {
+      logger.info("Wallet activation: network requires recipient activation — enabling the option");
+      options.unshift(new WalletActivationOption(gasStation, accountMapping, opts.walletActivationAmount));
+    } else {
+      // Don't wire a silent no-op: activation needs the gas station to fund
+      // recipients. Surface the misconfiguration instead of logging "enabled".
+      logger.warning("Wallet activation: Hedera-style network detected but no gas station is configured (set GAS_FUNDING_CUSTODY_ACCOUNT_ID and GAS_FUNDING_AMOUNT) — recipient activation is disabled; wallets needing first-funding will fail to receive");
+    }
   }
 
   return new ConfigurablePlanApprovalService(orgId, finP2PClient, base, options);
