@@ -1,7 +1,6 @@
 import express from "express";
 import { logger as expressLogger } from "express-winston";
 import winston from "winston";
-import { Wallet } from "ethers";
 import {
   register,
   PluginManager,
@@ -35,6 +34,7 @@ import {
 import { OmnibusDelegate } from "./services/omnibus";
 import { CommonServiceImpl as DirectCommonServiceImpl } from "./services/operations";
 import { registerCustodyIntegrations, registerIntegrations } from "./integrations/registry";
+import { pooledProvider, pooledSigner } from "./integrations/signer-pool";
 import { buildCustodyPlanApprovalService } from "./services/plan-approval";
 import { AppConfig, FinP2PContractAppConfig, getNetworkRpcUrl } from "./config";
 
@@ -127,8 +127,12 @@ async function registerDirectServices(
   if (!assetIssuerKey) {
     logger.warn("ASSET_ISSUER_PRIVATE_KEY is not set — asset deployment and issuance are disabled");
   }
+  // Same pooled provider/signer instances the token standards register with:
+  // one NonceManager per key, plain NETWORK_HOST transport (custody rpcProvider
+  // may be a custody web3 provider, the wrong transport for a raw env key).
+  const rpcUrl = getNetworkRpcUrl();
   const issuerWallet = assetIssuerKey
-    ? { provider: custodyProvider.rpcProvider, signer: new Wallet(assetIssuerKey, custodyProvider.rpcProvider) }
+    ? { provider: pooledProvider(rpcUrl), signer: pooledSigner(rpcUrl, assetIssuerKey) }
     : undefined;
   let tokenService: DirectTokenService = new DirectTokenService(logger, custodyProvider, accountMapping, assetStore, issuerWallet);
   const commonService = new DirectCommonServiceImpl(workflowStorage!);
