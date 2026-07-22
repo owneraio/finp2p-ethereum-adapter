@@ -25,8 +25,8 @@ import {
   createWalletResolver,
 } from "./services/custody";
 import {
-  DbAccountMapping,
-  AccountMappingService,
+  DbAccountResolver,
+  AccountResolver,
   AccountMappingStore,
   AssetStore,
   buildMappingConfig,
@@ -78,7 +78,7 @@ async function registerDirectServices(
   accountMappingStore: AccountMappingStore | undefined,
   accountMappingService: AccountMappingServiceImpl | undefined,
   assetStore: AssetStore | undefined,
-  accountMapping: AccountMappingService,
+  accountMapping: AccountResolver,
   omnibusCtx: OmnibusContext | undefined,
   ledgerSchema: string | undefined,
 ): Promise<void> {
@@ -212,7 +212,7 @@ async function createApp(
   if (!accountMappingService) {
     throw new Error('DB-backed account mapping is required (DB_CONNECTION_STRING must be set).');
   }
-  const accountMapping: AccountMappingService = new DbAccountMapping(accountMappingService);
+  const accountMapping: AccountResolver = new DbAccountResolver(accountMappingService);
 
   let omnibusCtx: OmnibusContext | undefined;
   if (appConfig.accountModel === 'omnibus' && custodyProvider) {

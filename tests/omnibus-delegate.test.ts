@@ -1,6 +1,6 @@
 import { OmnibusDelegate } from '../src/services/omnibus/omnibus-delegate';
 import { CustodyProvider, CustodyWallet } from '../src/services/custody/custody-provider';
-import { AccountMappingService, AssetStore } from '../src/services/accounts/account-mapping';
+import { AccountResolver, AssetStore } from '../src/services/accounts/account-mapping';
 import { tokenStandardRegistry } from '../src/integrations/token-standards/registry';
 import { ERC20TokenStandard, TokenStandardName as ERC20_TOKEN_STANDARD } from '@owneraio/finp2p-ethereum-erc20-plugin';
 import winston from 'winston';
@@ -63,7 +63,7 @@ function createMockCustodyProvider(overrides: Partial<CustodyProvider> = {}): Cu
   };
 }
 
-function createMockAccountMapping(): AccountMappingService {
+function createMockAccountMapping(): AccountResolver {
   return {
     resolveAccount: jest.fn(),
     resolveFinId: jest.fn(),
@@ -86,7 +86,7 @@ const TEST_DB_ASSET = {
 describe('OmnibusDelegate', () => {
   let delegate: OmnibusDelegate;
   let custodyProvider: CustodyProvider;
-  let accountMapping: AccountMappingService;
+  let accountMapping: AccountResolver;
 
   beforeEach(() => {
     jest.clearAllMocks();

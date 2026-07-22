@@ -1,7 +1,7 @@
 import { logger } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import { PlanApprovalOption, IntrospectedPlan } from "..";
 import { CustodyProvider } from "../../custody/custody-provider";
-import { AccountMappingService } from "../../accounts/account-mapping";
+import { AccountResolver } from "../../accounts/account-mapping";
 
 /**
  * Plan-approval option that prefunds gas on approval: the source investor's
@@ -18,7 +18,7 @@ export class GasPrefundingOption implements PlanApprovalOption {
 
   constructor(
     private readonly custodyProvider: CustodyProvider,
-    private readonly accountMapping: AccountMappingService,
+    private readonly accountMapping: AccountResolver,
   ) {}
 
   async apply(plan: IntrospectedPlan): Promise<void> {

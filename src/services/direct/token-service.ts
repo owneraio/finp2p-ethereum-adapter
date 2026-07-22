@@ -8,7 +8,7 @@ import winston from 'winston';
 import { parseUnits } from "ethers";
 import { TokenOperationResult } from '@owneraio/finp2p-ethereum-adapter-contract';
 import { CustodyProvider, CustodyWallet } from '../custody/custody-provider';
-import { AccountMappingService, AssetStore } from '../accounts/account-mapping';
+import { AccountResolver, AssetStore } from '../accounts/account-mapping';
 import { getAssetFromDb } from '../assets/store';
 import { tokenStandardRegistry } from '../../integrations/token-standards/registry';
 import { TokenStandardName as ERC20_TOKEN_STANDARD, DEFAULT_NEW_ERC20_DECIMALS } from '@owneraio/finp2p-ethereum-erc20-plugin';
@@ -62,7 +62,7 @@ export class DirectTokenService implements TokenService, EscrowService {
   constructor(
     readonly logger: winston.Logger,
     readonly custodyProvider: CustodyProvider,
-    readonly accountMapping: AccountMappingService,
+    readonly accountMapping: AccountResolver,
     readonly assetStore: AssetStore,
   ) {}
 

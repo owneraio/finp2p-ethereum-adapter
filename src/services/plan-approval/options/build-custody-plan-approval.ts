@@ -3,7 +3,7 @@ import { FinP2PClient } from "@owneraio/finp2p-client";
 import { ConfigurablePlanApprovalService } from "../configurable-plan-approval-service";
 import { PlanApprovalOption } from "../option";
 import { CustodyProvider } from "../../custody/custody-provider";
-import { AccountMappingService, AssetStore } from "../../accounts/account-mapping";
+import { AccountResolver, AssetStore } from "../../accounts/account-mapping";
 import { isHederaNetwork } from "../../custody/wallet-activation";
 import { TokenWhitelistingOption } from "./token-whitelisting-option";
 import { GasPrefundingOption } from "./gas-prefunding-option";
@@ -19,7 +19,7 @@ export async function buildCustodyPlanApprovalService(
   finP2PClient: FinP2PClient | undefined,
   base: PlanApprovalService,
   custodyProvider: CustodyProvider,
-  accountMapping: AccountMappingService,
+  accountMapping: AccountResolver,
   assetStore: AssetStore,
   walletActivationAmount?: string,
 ): Promise<ConfigurablePlanApprovalService> {

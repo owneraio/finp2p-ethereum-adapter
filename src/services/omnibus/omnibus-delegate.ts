@@ -13,7 +13,7 @@ import { CustodyProvider, CustodyWallet } from '../custody/custody-provider';
 import { tokenStandardRegistry } from "../../integrations/token-standards/registry";
 import { TokenStandardName as ERC20_TOKEN_STANDARD, DEFAULT_NEW_ERC20_DECIMALS } from "@owneraio/finp2p-ethereum-erc20-plugin";
 import { ERC20Contract } from "@owneraio/finp2p-contracts";
-import { AccountMappingService, AssetStore } from '../accounts/account-mapping';
+import { AccountResolver, AssetStore } from '../accounts/account-mapping';
 import { getAssetFromDb } from '../assets/store';
 
 export interface ReceiptPollingConfig {
@@ -38,7 +38,7 @@ export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowD
   constructor(
     private readonly logger: winston.Logger,
     private readonly custodyProvider: CustodyProvider,
-    private readonly accountMapping: AccountMappingService,
+    private readonly accountMapping: AccountResolver,
     private readonly assetStore: AssetStore,
     receiptPolling?: Partial<ReceiptPollingConfig>,
   ) {
