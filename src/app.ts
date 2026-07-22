@@ -22,8 +22,8 @@ import { DirectTokenService } from "./services/direct";
 import {
   CustodyProvider,
   custodyRegistry,
-  HealthServiceImpl as DirectHealthServiceImpl,
 } from "./services/custody";
+import { HealthServiceImpl } from "./services/network";
 import { createWalletResolver } from "./integrations/wallet-resolver";
 import {
   DbAccountResolver,
@@ -83,7 +83,7 @@ async function registerDirectServices(
   omnibusCtx: OmnibusContext | undefined,
   ledgerSchema: string | undefined,
 ): Promise<void> {
-  const healthService = new DirectHealthServiceImpl(custodyProvider.rpcProvider);
+  const healthService = new HealthServiceImpl(custodyProvider.rpcProvider);
   const mappingConfig = buildMappingConfig(custodyProvider);
   const workflowStorage = dbPool ? new workflows.WorkflowStorage(dbPool, ledgerSchema) : undefined;
 
