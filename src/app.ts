@@ -23,8 +23,8 @@ import {
   CustodyProvider,
   custodyRegistry,
   HealthServiceImpl as DirectHealthServiceImpl,
-  createWalletResolver,
 } from "./services/custody";
+import { createWalletResolver } from "./integrations/wallet-resolver";
 import {
   DbAccountResolver,
   AccountResolver,
