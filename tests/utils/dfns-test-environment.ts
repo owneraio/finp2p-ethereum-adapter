@@ -63,6 +63,10 @@ class DfnsTestEnvironment extends NodeEnvironment {
   async setup() {
     console.log("Setting up Dfns testnet test environment...");
 
+    // The shared adapter suite issues assets: createApp builds the issuer wallet
+    // from ASSET_ISSUER_PRIVATE_KEY, signing against NETWORK_HOST (required below).
+    requireEnv("ASSET_ISSUER_PRIVATE_KEY");
+
     const baseUrl = process.env.DFNS_BASE_URL || "https://api.dfns.io";
     const orgId = requireEnv("DFNS_ORG_ID");
     const authToken = requireEnv("DFNS_AUTH_TOKEN");

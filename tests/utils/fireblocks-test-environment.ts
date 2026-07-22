@@ -63,6 +63,11 @@ class FireblocksTestEnvironment extends NodeEnvironment {
   async setup() {
     console.log("Setting up Fireblocks testnet test environment...");
 
+    // The shared adapter suite issues assets: createApp builds the issuer wallet
+    // from ASSET_ISSUER_PRIVATE_KEY, signing against NETWORK_HOST. Both must be set.
+    requireEnv("ASSET_ISSUER_PRIVATE_KEY");
+    requireEnv("NETWORK_HOST");
+
     const apiKey = requireEnv("FIREBLOCKS_API_KEY");
     const chainId = Number(requireEnv("FIREBLOCKS_CHAIN_ID")) as ChainId;
     const apiBaseUrl = (process.env.FIREBLOCKS_API_BASE_URL || ApiBaseUrl.Production) as ApiBaseUrl;

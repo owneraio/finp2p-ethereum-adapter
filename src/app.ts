@@ -225,7 +225,7 @@ async function createApp(
   // Role wallets are app-level composition: the custody provider only
   // fabricates a wallet for a given custody account id. Escrow signs
   // hold/release/escrow-redeem (falls back to the omnibus account).
-  const escrowAccountId = process.env.ASSET_ESCROW_CUSTODY_ACCOUNT_ID ?? process.env.OMNIBUS_CUSTODY_ACCOUNT_ID;
+  const escrowAccountId = (process.env.ASSET_ESCROW_CUSTODY_ACCOUNT_ID || undefined) ?? (process.env.OMNIBUS_CUSTODY_ACCOUNT_ID || undefined);
   const escrowWallet = custodyProvider && escrowAccountId && custodyProvider.createWalletForCustodyId
     ? await custodyProvider.createWalletForCustodyId(escrowAccountId)
     : undefined;
