@@ -1,3 +1,4 @@
+import { Provider } from "ethers";
 import { logger, PlanApprovalService } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import { FinP2PClient } from "@owneraio/finp2p-client";
 import { ConfigurablePlanApprovalService } from "../configurable-plan-approval-service";
@@ -30,6 +31,7 @@ export async function buildCustodyPlanApprovalService(
   finP2PClient: FinP2PClient | undefined,
   base: PlanApprovalService,
   custodyProvider: CustodyProvider,
+  readProvider: Provider,
   accountMapping: AccountResolver,
   assetStore: AssetStore,
   opts: CustodyPlanApprovalOptions,
@@ -44,7 +46,7 @@ export async function buildCustodyPlanApprovalService(
   // A definitive non-Hedera node returns false; a throw is a transient RPC
   // failure — let it fail startup (the adapter needs the RPC anyway) so a
   // restart retries, rather than silently disabling activation until restart.
-  if (await isHederaNetwork(custodyProvider.rpcProvider)) {
+  if (await isHederaNetwork(readProvider)) {
     logger.info("Wallet activation: network requires recipient activation — enabling the option");
     options.unshift(new WalletActivationOption(custodyProvider, accountMapping, opts.walletActivationAmount));
   }

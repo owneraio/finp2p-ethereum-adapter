@@ -5,7 +5,7 @@ import {
   failedReceiptOperation, failedAssetCreation
 } from '@owneraio/finp2p-nodejs-skeleton-adapter';
 import winston from 'winston';
-import { parseUnits, Signer, Wallet } from "ethers";
+import { parseUnits, Provider, Signer, Wallet } from "ethers";
 import { TokenOperationResult } from '@owneraio/finp2p-ethereum-adapter-contract';
 import { CustodyProvider, CustodyWallet } from '../custody/custody-provider';
 import { AccountResolver, AssetStore } from '../accounts/account-resolver';
@@ -62,6 +62,7 @@ export class DirectTokenService implements TokenService, EscrowService {
   constructor(
     readonly logger: winston.Logger,
     readonly custodyProvider: CustodyProvider,
+    readonly readProvider: Provider,
     readonly accountMapping: AccountResolver,
     readonly assetStore: AssetStore,
     // env-injected issuer (ASSET_ISSUER_PRIVATE_KEY) — signs deploys and is the
@@ -76,7 +77,7 @@ export class DirectTokenService implements TokenService, EscrowService {
 
   private issuerSigner(): Signer {
     if (this.issuerWallet) return this.issuerWallet.signer;
-    this.readSigner ??= Wallet.createRandom().connect(this.custodyProvider.rpcProvider);
+    this.readSigner ??= Wallet.createRandom().connect(this.readProvider);
     return this.readSigner;
   }
 
@@ -120,7 +121,7 @@ export class DirectTokenService implements TokenService, EscrowService {
     const isErc20 = tokenStandardRegistry.isErc20Compatible(requestedStandard);
     this.logger.info(`createAsset: assetId=${assetId} token standard '${requestedStandard}'${explicitStandard === undefined ? ' (defaulted, none requested)' : ''} resolved to ${standard.constructor.name} (erc20Compatible=${isErc20})`);
 
-    const { chainId } = await this.custodyProvider.rpcProvider.getNetwork();
+    const { chainId } = await this.readProvider.getNetwork();
     const defaultNetwork = `eip155:${chainId}`;
 
     if (assetBind === undefined || assetBind.tokenIdentifier === undefined) {
@@ -151,7 +152,7 @@ export class DirectTokenService implements TokenService, EscrowService {
       let decimals = 0;
       if (isErc20) {
         this.logger.info(`createAsset: reading ERC20 decimals from ${tokenAddress}`);
-        const erc20 = new ERC20Contract(this.custodyProvider.rpcProvider, undefined, tokenAddress, this.logger);
+        const erc20 = new ERC20Contract(this.readProvider, undefined, tokenAddress, this.logger);
         decimals = Number(await erc20.decimals());
         this.logger.info(`createAsset: ERC20 decimals=${decimals} for ${tokenAddress}`);
       } else {
@@ -188,7 +189,7 @@ export class DirectTokenService implements TokenService, EscrowService {
     const asset = await getAssetFromDb(this.assetStore, ast.assetId);
     const standard = tokenStandardRegistry.resolve(asset.tokenStandard);
     return standard.balanceOf(
-      this.custodyProvider.rpcProvider, this.issuerSigner(),
+      this.readProvider, this.issuerSigner(),
       asset, address, this.logger,
     );
   }

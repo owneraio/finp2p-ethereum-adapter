@@ -1,4 +1,5 @@
 import winston from "winston";
+import { Provider } from "ethers";
 import { PluginManager } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import { InboundTransferHook } from "@owneraio/finp2p-nodejs-skeleton-adapter/plugin";
 import { FinP2PClient } from "@owneraio/finp2p-client";
@@ -19,6 +20,8 @@ export interface IntegrationContext {
   finP2PClient: FinP2PClient;
   walletResolver: WalletResolver | undefined;
   rpcUrl: string | undefined;
+  /** app-level read-only RPC provider (NETWORK_HOST or the custody transport) */
+  readProvider: Provider | undefined;
   assetStore: AssetStore | undefined;
   accountModel: AccountModel;
   custodyProvider: CustodyProvider | undefined;

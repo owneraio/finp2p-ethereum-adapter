@@ -1,4 +1,5 @@
 import winston from "winston";
+import { Provider } from "ethers";
 import {
   PaymentsPlugin,
   DepositAsset,
@@ -31,6 +32,7 @@ export class PullDepositPlugin implements PaymentsPlugin {
     private readonly network: string,
     private readonly operatorWallet: CustodyWallet,
     private readonly custodyProvider: CustodyProvider,
+    private readonly readProvider: Provider,
     private readonly finP2PClient: FinP2PClient | undefined,
     private readonly inboundTransferHook: InboundTransferHook | undefined,
   ) {}
@@ -124,7 +126,7 @@ export class PullDepositPlugin implements PaymentsPlugin {
     this.watcher = new ApprovalWatcher(
       operatorAddress,
       this.operatorWallet,
-      this.custodyProvider.rpcProvider,
+      this.readProvider,
       this.logger,
       this.custodyProvider.gasStation,
       (result) => this.onPullCompleted(result),

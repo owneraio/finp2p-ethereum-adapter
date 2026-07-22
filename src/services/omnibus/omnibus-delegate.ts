@@ -7,7 +7,7 @@ import {
   workflows,
 } from '@owneraio/finp2p-nodejs-skeleton-adapter';
 import { TransferDelegate, AssetDelegate, EscrowDelegate, OmnibusDelegate as OmnibusDelegateInterface, DelegateResult, InboundTransferVerificationError } from '@owneraio/finp2p-vanilla-service';
-import { parseUnits, id as keccak256 } from 'ethers';
+import { parseUnits, Provider, id as keccak256 } from 'ethers';
 import winston from 'winston';
 import { CustodyProvider, CustodyWallet } from '../custody/custody-provider';
 import { tokenStandardRegistry } from "../../integrations/token-standards/registry";
@@ -38,6 +38,7 @@ export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowD
   constructor(
     private readonly logger: winston.Logger,
     private readonly custodyProvider: CustodyProvider,
+    private readonly readProvider: Provider,
     private readonly accountMapping: AccountResolver,
     private readonly assetStore: AssetStore,
     receiptPolling?: Partial<ReceiptPollingConfig>,
@@ -72,7 +73,7 @@ export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowD
   }
 
   private async pollTransactionReceipt(transactionId: string) {
-    return this.custodyProvider.rpcProvider.waitForTransaction(
+    return this.readProvider.waitForTransaction(
       transactionId,
       this.receiptPolling.minConfirmations,
       this.receiptPolling.timeoutMs,
@@ -85,7 +86,7 @@ export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowD
     while (true) {
       let finalizedBlockNumber: number | undefined;
       try {
-        finalizedBlockNumber = (await this.custodyProvider.rpcProvider.getBlock('finalized'))?.number;
+        finalizedBlockNumber = (await this.readProvider.getBlock('finalized'))?.number;
       } catch (e) {
         throw new InboundTransferVerificationError(
           `Failed to fetch finalized block (RPC may not support finalized tag): ${e}`,
@@ -253,7 +254,7 @@ export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowD
     const dbAsset = await getAssetFromDb(this.assetStore, _asset.assetId);
 
     const omnibusAddress = await this.omnibusWallet.signer.getAddress();
-    const network = await this.custodyProvider.rpcProvider.getNetwork();
+    const network = await this.readProvider.getNetwork();
     const chainId = Number(network.chainId);
 
     return successfulDepositOperation({
@@ -310,7 +311,7 @@ export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowD
       : ERC20_TOKEN_STANDARD;
     const standard = tokenStandardRegistry.resolve(tokenStandard);
 
-    const { chainId } = await this.custodyProvider.rpcProvider.getNetwork();
+    const { chainId } = await this.readProvider.getNetwork();
     const defaultNetwork = `eip155:${chainId}`;
 
     const makeLedgerIdentifier = (tokenId: string, std: string, network: string): LedgerAssetIdentifier => ({

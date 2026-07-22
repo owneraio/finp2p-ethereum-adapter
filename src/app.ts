@@ -1,6 +1,7 @@
 import express from "express";
 import { logger as expressLogger } from "express-winston";
 import winston from "winston";
+import { Provider } from "ethers";
 import {
   register,
   PluginManager,
@@ -73,7 +74,7 @@ interface OmnibusContext {
 }
 
 async function registerDirectServices(
-  app: express.Application, logger: winston.Logger, custodyProvider: CustodyProvider, appConfig: AppConfig,
+  app: express.Application, logger: winston.Logger, custodyProvider: CustodyProvider, readProvider: Provider, appConfig: AppConfig,
   paymentsService: PaymentsServiceImpl, pluginManager: PluginManager,
   dbPool: any, finP2PClient: FinP2PClient | undefined,
   accountMappingStore: AccountMappingStore | undefined,
@@ -83,7 +84,7 @@ async function registerDirectServices(
   omnibusCtx: OmnibusContext | undefined,
   ledgerSchema: string | undefined,
 ): Promise<void> {
-  const healthService = new HealthServiceImpl(custodyProvider.rpcProvider);
+  const healthService = new HealthServiceImpl(readProvider);
   const mappingConfig = buildMappingConfig(custodyProvider);
   const workflowStorage = dbPool ? new workflows.WorkflowStorage(dbPool, ledgerSchema) : undefined;
 
@@ -94,7 +95,7 @@ async function registerDirectServices(
     const planApprovalService = await buildCustodyPlanApprovalService(
       appConfig.orgId, finP2PClient,
       new PlanApprovalServiceImpl(appConfig.orgId, pluginManager, finP2PClient, inboundTransferHook),
-      custodyProvider, accountMapping, assetStore!,
+      custodyProvider, readProvider, accountMapping, assetStore!,
       // omnibus transactions sign from the omnibus wallet — never prefund investors
       { walletActivationAmount: process.env.WALLET_ACTIVATION_AMOUNT, investorPrefunding: false },
     );
@@ -135,14 +136,14 @@ async function registerDirectServices(
   // may be a custody web3 provider, the wrong transport for a raw env key).
   // Without NETWORK_HOST no standards register either, so there is nothing to issue.
   const issuerWallet = assetIssuerKey && networkHost
-    ? { provider: pooledProvider(getNetworkRpcUrl()), signer: pooledSigner(getNetworkRpcUrl(), assetIssuerKey) }
+    ? { provider: readProvider, signer: pooledSigner(getNetworkRpcUrl(), assetIssuerKey) }
     : undefined;
-  let tokenService: DirectTokenService = new DirectTokenService(logger, custodyProvider, accountMapping, assetStore, issuerWallet);
+  let tokenService: DirectTokenService = new DirectTokenService(logger, custodyProvider, readProvider, accountMapping, assetStore, issuerWallet);
   const commonService = new DirectCommonServiceImpl(workflowStorage!);
   const planApprovalService = await buildCustodyPlanApprovalService(
     appConfig.orgId, finP2PClient,
     new PlanApprovalServiceImpl(appConfig.orgId, pluginManager, finP2PClient),
-    custodyProvider, accountMapping, assetStore,
+    custodyProvider, readProvider, accountMapping, assetStore,
     { walletActivationAmount: process.env.WALLET_ACTIVATION_AMOUNT, investorPrefunding: true },
   );
 
@@ -218,6 +219,13 @@ async function createApp(
     custodyProvider = await custodyRegistry.create(appConfig.type, appConfig);
   }
 
+  // The adapter's single read-only RPC provider, decided once here: the plain
+  // NETWORK_HOST endpoint when configured, otherwise the custody transport.
+  // Everything downstream receives this Provider and stays unaware of the choice.
+  const readProvider: Provider | undefined = custodyProvider
+    ? (process.env.NETWORK_HOST ? pooledProvider(getNetworkRpcUrl()) : custodyProvider.rpcProvider)
+    : undefined;
+
   // Pre-build accountMapping + (in omnibus mode) the OmnibusDelegate and vanilla services
   // BEFORE plugin registration. Deposit plugins capture inboundTransferHook in their
   // constructors; if it's undefined at registration time they fall back to
@@ -238,7 +246,7 @@ async function createApp(
   let omnibusCtx: OmnibusContext | undefined;
   if (appConfig.accountModel === 'omnibus' && custodyProvider) {
     if (!dbPool || !assetStore) throw new Error('DB connection is required for omnibus account model');
-    const delegate = new OmnibusDelegate(logger, custodyProvider, accountMapping, assetStore);
+    const delegate = new OmnibusDelegate(logger, custodyProvider, readProvider!, accountMapping, assetStore);
     // vanilla 0.28.2's createVanillaServices doesn't forward schemaName to its LedgerStorage,
     // so its account_mappings/accounts/transactions queries hit the default `ledger_adapter`
     // schema even when migrations placed those tables in `ethereum_adapter`. Build the storage
@@ -265,6 +273,7 @@ async function createApp(
     finP2PClient: finP2PClient!,
     walletResolver: custodyProvider && accountMappingStore ? createWalletResolver(accountMappingStore, custodyProvider) : undefined,
     rpcUrl: process.env.NETWORK_HOST ? getNetworkRpcUrl() : undefined,
+    readProvider,
     assetStore,
     accountModel: appConfig.accountModel,
     custodyProvider,
@@ -275,7 +284,7 @@ async function createApp(
   const paymentsService = new PaymentsServiceImpl(pluginManager);
 
   if (custodyProvider) {
-    await registerDirectServices(app, logger, custodyProvider, appConfig, paymentsService, pluginManager, dbPool, finP2PClient, accountMappingStore, accountMappingService, assetStore, accountMapping, omnibusCtx, ledgerSchema);
+    await registerDirectServices(app, logger, custodyProvider, readProvider!, appConfig, paymentsService, pluginManager, dbPool, finP2PClient, accountMappingStore, accountMappingService, assetStore, accountMapping, omnibusCtx, ledgerSchema);
   } else if (appConfig.type === 'finp2p-contract') {
     registerFinP2PContractServices(app, appConfig as FinP2PContractAppConfig, paymentsService, pluginManager, dbPool, finP2PClient, ledgerSchema);
   } else {

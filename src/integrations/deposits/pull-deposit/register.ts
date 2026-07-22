@@ -33,8 +33,8 @@ export function registerPullDeposit(ctx: IntegrationContext): void {
   if (paymentsSlotClaimedExternally()) return;
   if (resolveDepositMethod(ctx.accountModel) !== 'pull') return;
 
-  const { pluginManager, logger, custodyProvider, assetStore, walletResolver, accountModel, finP2PClient, inboundTransferHook } = ctx;
-  if (!custodyProvider || !assetStore) {
+  const { pluginManager, logger, custodyProvider, readProvider, assetStore, walletResolver, accountModel, finP2PClient, inboundTransferHook } = ctx;
+  if (!custodyProvider || !readProvider || !assetStore) {
     logger.info('Pull-deposit plugin not registered: requires custody provider + asset store');
     return;
   }
@@ -62,7 +62,7 @@ export function registerPullDeposit(ctx: IntegrationContext): void {
   }
 
   pluginManager.registerPaymentsPlugin(
-    new PullDepositPlugin(logger, assetStore, resolveDepositTarget, network, operatorWallet, custodyProvider, finP2PClient, inboundTransferHook),
+    new PullDepositPlugin(logger, assetStore, resolveDepositTarget, network, operatorWallet, custodyProvider, readProvider, finP2PClient, inboundTransferHook),
   );
   logger.info(`Pull-deposit plugin activated (network='${network}', accountModel='${accountModel}', inboundTransferHook=${inboundTransferHook ? 'present' : 'absent'})`);
 }
