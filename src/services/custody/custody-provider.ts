@@ -1,5 +1,5 @@
 import { Provider, Signer } from "ethers";
-import { GasStation } from "./gas-station";
+import { GasStation } from "../funding/gas-station";
 
 export interface CustodyWallet {
   provider: Provider;

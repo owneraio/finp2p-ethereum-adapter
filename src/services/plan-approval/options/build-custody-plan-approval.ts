@@ -4,7 +4,7 @@ import { ConfigurablePlanApprovalService } from "../configurable-plan-approval-s
 import { PlanApprovalOption } from "../option";
 import { CustodyProvider } from "../../custody/custody-provider";
 import { AccountResolver, AssetStore } from "../../accounts/account-resolver";
-import { isHederaNetwork } from "../../custody/wallet-activation";
+import { isHederaNetwork } from "../../network/hedera";
 import { TokenWhitelistingOption } from "./token-whitelisting-option";
 import { GasPrefundingOption } from "./gas-prefunding-option";
 import { WalletActivationOption } from "./wallet-activation-option";
