@@ -9,7 +9,7 @@ import {
 } from "@owneraio/finp2p-ethereum-orchestrator";
 import { ERC20WithOperator__factory } from "@owneraio/finp2p-ethereum-erc20-plugin";
 import { createJsonProvider, parseConfig, verifyAssetStandardRegistered } from "../src/config";
-import { Provider, Signer } from "ethers";
+import { Signer } from "ethers";
 import { Logger } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import { redactSecrets } from "../src/redact-secrets";
 
@@ -27,7 +27,6 @@ const getTokenAddress = (ledgerAssetInfo: LedgerAssetInfo): string => {
 };
 
 const whitelistERC20 = async (
-  provider: Provider,
   signer: Signer,
   tokenAddress: string,
   logger: Logger,
@@ -94,7 +93,7 @@ const startMigration = async (
       const foundAddress = await finP2PContract.getAssetAddress(assetId);
       if (foundAddress === tokenAddress) {
         logger.info(`Asset ${assetId} already associated with token ${tokenAddress}`);
-        await whitelistERC20(provider, signer, tokenAddress, logger, finp2pContractAddress);
+        await whitelistERC20(signer, tokenAddress, logger, finp2pContractAddress);
         skipped++;
         continue;
       }
@@ -108,7 +107,7 @@ const startMigration = async (
       logger.info(`Migrating asset ${assetId} with token address ${tokenAddress}`);
       await finP2PContract.associateAsset(assetId, tokenAddress, assetStandard);
       logger.info("       asset association [done]");
-      await whitelistERC20(provider, signer, tokenAddress, logger, finp2pContractAddress);
+      await whitelistERC20(signer, tokenAddress, logger, finp2pContractAddress);
       migrated++;
     } catch (e) {
       if (`${e}`.includes("Asset not found")) {

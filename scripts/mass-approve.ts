@@ -45,7 +45,12 @@ const massApprove = async (
       if (allowed < amount) {
         logger.info(`Approving ${amount} tokens for ${contractAddress} (${contractAddress})`);
         const tx = await erc20.approve(contractAddress, amount - allowed);
-        await tx.wait();
+        // Timeout-bounded wait: a stuck/nonce-drifted tx must fail into the
+        // per-asset catch (and let the batch continue), not hang the run.
+        const receipt = await provider.waitForTransaction(tx.hash, 1, 120_000);
+        if (!receipt || receipt.status !== 1) {
+          throw new Error(`approve tx ${tx.hash} ${receipt ? `failed on-chain (status=${receipt.status})` : "not confirmed within 120s"}`);
+        }
       } else {
         logger.info(`Already approved ${allowed} tokens for ${contractAddress} (${contractAddress})`);
       }
