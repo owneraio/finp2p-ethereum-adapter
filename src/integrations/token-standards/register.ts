@@ -39,18 +39,22 @@ export function registerTokenStandards(ctx: IntegrationContext): void {
   const issuerKey = process.env.ASSET_ISSUER_PRIVATE_KEY;
   const controllerKey = process.env.ASSET_CONTROLLER_PRIVATE_KEY;
   const allowlisterKey = process.env.ASSET_WHITELIST_PRIVATE_KEY;
-  if (!issuerKey || !controllerKey) {
-    logger.warn(`Ethereum token standards: no ASSET_ISSUER_PRIVATE_KEY/ASSET_CONTROLLER_PRIVATE_KEY — using an ephemeral signer; reads and whitelist checks work but issuance/administration will not persist (set the keys to enable)`);
+  if (!issuerKey) {
+    logger.warn(`Ethereum token standards: ASSET_ISSUER_PRIVATE_KEY is not set — issuance is disabled (reads and whitelist checks still work; set the key to enable)`);
   }
 
   const provider = pooledProvider(rpcUrl);
-  // TODO: pass `undefined` for a missing issuer/controller once the plugins
-  // accept an optional signer (issuer?: Signer). Until then an ephemeral signer
-  // stands in so registration stays unconditional — a required-arg placeholder,
-  // not a working signer (on-chain writes with it do not persist across restart).
-  const ephemeral = Wallet.createRandom().connect(provider);
-  const issuer = issuerKey ? pooledSigner(rpcUrl, issuerKey) : ephemeral;
-  const controller = controllerKey ? pooledSigner(rpcUrl, controllerKey) : ephemeral;
+  // The issuer is optional on every standard now: pass undefined when the key is
+  // absent (issuance stays disabled) rather than a throwaway signer.
+  const issuer = issuerKey ? pooledSigner(rpcUrl, issuerKey) : undefined;
+  // The controller is still a required constructor arg (TREX/CMTAT/BENJI/HEDERA).
+  // Until it too becomes optional, stand in an ephemeral signer when the key is
+  // absent — a required-arg placeholder, not a working signer (on-chain admin
+  // writes with it do not persist across restart).
+  if (!controllerKey) {
+    logger.warn(`Ethereum token standards: ASSET_CONTROLLER_PRIVATE_KEY is not set — using an ephemeral controller; administration will not persist (set the key to enable)`);
+  }
+  const controller = controllerKey ? pooledSigner(rpcUrl, controllerKey) : Wallet.createRandom().connect(provider);
   const allowlister = allowlisterKey ? pooledSigner(rpcUrl, allowlisterKey) : undefined;
 
   const registered = [
