@@ -16,6 +16,10 @@ import { LedgerStorage, VanillaServiceImpl, registerDistributionRoutes } from "@
 import {
   CredentialsMappingService,
   OnChainTokenService,
+  PlanBasedApprovalService,
+  PlanEscrowService,
+  PlanTokenService,
+  ProofSyncService,
 } from "./services/onchain";
 import {
   ContractEscrow,
@@ -24,12 +28,6 @@ import {
   CustodyTokenService,
   custodyRegistry,
 } from "./services/custody";
-import {
-  PlanBasedApprovalService,
-  PlanEscrowService,
-  PlanTokenService,
-  ProofSyncService,
-} from "./services/orchestration";
 import { EscrowContract } from "@owneraio/finp2p-ethereum-orchestrator";
 import { createWalletResolver } from "./integrations/wallet-resolver";
 import {

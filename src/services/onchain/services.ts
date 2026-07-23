@@ -10,10 +10,10 @@ import {
   PlanInstruction,
   PlanInstructionType
 } from "@owneraio/finp2p-ethereum-orchestrator";
-import { OnChainTokenService } from "../onchain";
+import { OnChainTokenService } from "./token-service";
 import { ERC20WithOperator__factory } from "@owneraio/finp2p-ethereum-erc20-plugin";
-import { ExecDetailsStore } from "../onchain";
-import { mapReceiptOperation } from "../onchain";
+import { ExecDetailsStore } from "./exec-details-store";
+import { mapReceiptOperation } from "./mapping";
 import { ProofSyncService } from "./proof-sync";
 
 /**

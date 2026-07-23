@@ -8,7 +8,7 @@ import {
   PlanInvestmentSignature,
   ValidationError
 } from "@owneraio/finp2p-ethereum-orchestrator";
-import { businessDetailsFromTemplate, TemplateBusinessDetails } from "../onchain/helpers";
+import { businessDetailsFromTemplate, TemplateBusinessDetails } from "./helpers";
 
 // Minimal structural types of the RAW FinAPI execution plan payload
 // (finP2PClient.getExecutionPlan(planId).data.plan). We consume the raw shape

@@ -11,7 +11,7 @@ import {
   RawSignature,
   holdOperationId,
   translateExecutionPlan
-} from "../src/services/orchestration/plan-translator";
+} from "../src/services/onchain/plan-translator";
 
 const ORG = "bank-us";
 const OTHER_ORG = "bank-uk";

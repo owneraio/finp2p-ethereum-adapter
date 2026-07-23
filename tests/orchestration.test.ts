@@ -29,8 +29,8 @@ import {
   PlanEscrowService,
   PlanTokenService,
   ProofSyncService
-} from "../src/services/orchestration";
-import { RawExecutionPlan } from "../src/services/orchestration/plan-translator";
+} from "../src/services/onchain";
+import { RawExecutionPlan } from "../src/services/onchain/plan-translator";
 
 const ORG = "bank-us";
 const REMOTE_ORG = "bank-uk";
