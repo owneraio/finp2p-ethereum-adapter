@@ -1,4 +1,5 @@
-import { IntegrationContext, paymentsSlotClaimedExternally } from "../../registry";
+import { IntegrationContext } from "../../registry";
+import { paymentsSlotClaimedExternally } from "../payments-slot";
 import { DepositTargetResolver, resolveDepositMethod } from "../types";
 import { OtaDepositPlugin } from "./plugin";
 
@@ -12,7 +13,7 @@ import { OtaDepositPlugin } from "./plugin";
  *
  * Sweep target depends on account model:
  *   - segregated: the investor's mapped wallet W_I (resolved via walletResolver)
- *   - omnibus:    the operator's omnibus wallet (custodyProvider.omnibus)
+ *   - omnibus:    the operator’s omnibus wallet (ctx.omnibusWallet)
  *
  * Useful when the depositor's source address is not known in advance and 1:1
  * attribution (deposit ↔ address) is required.
@@ -42,8 +43,8 @@ export function registerOtaDeposit(ctx: IntegrationContext): void {
     logger.info('OTA-deposit plugin not registered: custody provider does not support per-deposit account creation');
     return;
   }
-  if (accountModel === 'omnibus' && !custodyProvider.omnibus) {
-    logger.info('OTA-deposit plugin not registered (omnibus mode): custody provider has no omnibus wallet configured');
+  if (accountModel === 'omnibus' && !ctx.omnibusWallet) {
+    logger.info('OTA-deposit plugin not registered (omnibus mode): no omnibus wallet configured');
     return;
   }
   if (accountModel === 'segregated' && !walletResolver) {
@@ -57,7 +58,7 @@ export function registerOtaDeposit(ctx: IntegrationContext): void {
   if (accountModel === 'omnibus') {
     let omnibusAddress: string | undefined;
     resolveSweepTarget = async () => {
-      if (!omnibusAddress) omnibusAddress = await custodyProvider.omnibus!.signer.getAddress();
+      if (!omnibusAddress) omnibusAddress = await ctx.omnibusWallet!.signer.getAddress();
       return omnibusAddress;
     };
   } else {
@@ -65,7 +66,7 @@ export function registerOtaDeposit(ctx: IntegrationContext): void {
   }
 
   pluginManager.registerPaymentsPlugin(
-    new OtaDepositPlugin(logger, assetStore, resolveSweepTarget, network, custodyProvider, finP2PClient, inboundTransferHook),
+    new OtaDepositPlugin(logger, assetStore, resolveSweepTarget, network, custodyProvider, ctx.gasStation, finP2PClient, inboundTransferHook),
   );
   logger.info(`OTA-deposit plugin activated (network='${network}', accountModel='${accountModel}', inboundTransferHook=${inboundTransferHook ? 'present' : 'absent'})`);
 }

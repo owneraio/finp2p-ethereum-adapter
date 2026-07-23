@@ -1,6 +1,6 @@
 /**
  * Real Sepolia diagnostic for the safeExecuteTransaction nonce-recovery wrapper
- * in @owneraio/finp2p-contracts (manager.ts).
+ * in @owneraio/finp2p-ethereum-orchestrator (manager.ts).
  *
  * Two NonceManager instances share one operator key; both prime their internal
  * nonce caches; manager A submits a tx (chain nonce + 1); manager B's cache is
@@ -33,7 +33,7 @@
  */
 
 import { JsonRpcProvider, NonceManager, Wallet, ContractFactory, BaseContract, ContractTransactionReceipt, ContractTransactionResponse } from 'ethers';
-import { ContractsManager } from '@owneraio/finp2p-contracts';
+import { ContractsManager } from '@owneraio/finp2p-ethereum-orchestrator';
 type PayableOverrides = { nonce?: number; gasLimit?: bigint; gasPrice?: bigint; value?: bigint };
 import winston from 'winston';
 

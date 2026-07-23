@@ -1,6 +1,7 @@
 import express from "express";
 import { logger as expressLogger } from "express-winston";
 import winston from "winston";
+import { Provider } from "ethers";
 import {
   register,
   PluginManager,
@@ -14,42 +15,32 @@ import { FinP2PClient } from "@owneraio/finp2p-client";
 import { LedgerStorage, VanillaServiceImpl, registerDistributionRoutes } from "@owneraio/finp2p-vanilla-service";
 import {
   CredentialsMappingService,
-  EscrowServiceImpl,
-  TokenServiceImpl,
-} from "./services/finp2p-contract";
+  OnChainTokenService,
+} from "./services/onchain";
 import {
-  PlanBasedApprovalService,
-  PlanEscrowService,
-  PlanTokenService,
-  ProofSyncService,
-} from "./services/orchestration";
-import {
-  ContractEscrow,
-  DirectTokenService,
   CustodyProvider,
-  GasPrefundingOption,
+  CustodyWallet,
+  CustodyTokenService,
   custodyRegistry,
-  DbAccountMapping,
-  AccountMappingService,
+} from "./services/custody";
+import { createWalletResolver } from "./integrations/wallet-resolver";
+import {
+  DbAccountResolver,
+  AccountResolver,
   AccountMappingStore,
   AssetStore,
-  OmnibusDelegate,
-  CommonServiceImpl as DirectCommonServiceImpl,
-  HealthServiceImpl as DirectHealthServiceImpl,
-  tokenStandardRegistry,
-  ERC20TokenStandard,
-  ERC20_TOKEN_STANDARD,
   buildMappingConfig,
-  createWalletResolver,
-} from "./services/direct";
+} from "./services/accounts";
+import { OmnibusDelegate } from "./services/omnibus";
+import { GasStation } from "./services/gas-station";
+import { CommonServiceImpl as DirectCommonServiceImpl } from "./services/operations";
 import { registerCustodyIntegrations, registerIntegrations } from "./integrations/registry";
-import { ConfigurablePlanApprovalService, PlanApprovalOption } from "./services/plan-approval";
-import { EscrowContract } from "@owneraio/finp2p-contracts";
+import { pooledProvider, pooledSigner } from "./integrations/signer-pool";
+import { buildCustodyPlanApprovalService } from "./services/plan-approval";
 import { AppConfig, FinP2PContractAppConfig, getNetworkRpcUrl } from "./config";
 
-// Register compiled-in custody providers and built-in token standards
+// Register compiled-in custody providers; token standards are registered per-network in registerIntegrations.
 registerCustodyIntegrations();
-tokenStandardRegistry.register(ERC20_TOKEN_STANDARD, new ERC20TokenStandard());
 
 export interface WorkflowsConfig {
   migration: workflows.MigrationConfig;
@@ -82,39 +73,40 @@ interface OmnibusContext {
   };
 }
 
-function registerDirectServices(
-  app: express.Application, logger: winston.Logger, custodyProvider: CustodyProvider, appConfig: AppConfig,
+async function registerCustodyServices(
+  app: express.Application, logger: winston.Logger, custodyProvider: CustodyProvider, escrowWallet: CustodyWallet | undefined, readProvider: Provider | undefined, gasStation: GasStation | undefined, appConfig: AppConfig,
   paymentsService: PaymentsServiceImpl, pluginManager: PluginManager,
   dbPool: any, finP2PClient: FinP2PClient | undefined,
   accountMappingStore: AccountMappingStore | undefined,
   accountMappingService: AccountMappingServiceImpl | undefined,
   assetStore: AssetStore | undefined,
-  accountMapping: AccountMappingService,
+  accountMapping: AccountResolver,
   omnibusCtx: OmnibusContext | undefined,
   ledgerSchema: string | undefined,
-) {
-  const healthService = new DirectHealthServiceImpl(custodyProvider.rpcProvider);
+): Promise<void> {
+  if (!readProvider) throw new Error('Read-only RPC provider is unavailable — set NETWORK_HOST or use a custody provider whose wallet exposes a transport');
+  if (!escrowWallet) throw new Error('Escrow wallet is required for direct mode (set ASSET_ESCROW_CUSTODY_ACCOUNT_ID or OMNIBUS_CUSTODY_ACCOUNT_ID)');
+
   const mappingConfig = buildMappingConfig(custodyProvider);
   const workflowStorage = dbPool ? new workflows.WorkflowStorage(dbPool, ledgerSchema) : undefined;
 
   if (appConfig.accountModel === 'omnibus') {
-    if (!omnibusCtx) throw new Error('Omnibus context not built — createVanillaServices must run before registerDirectServices');
+    if (!omnibusCtx) throw new Error('Omnibus context not built — createVanillaServices must run before registerCustodyServices');
     const { delegate, vanilla } = omnibusCtx;
     const { tokenService, escrowService, commonService, mappingService, distributionService, inboundTransferHook } = vanilla;
-    const planApprovalService = new PlanApprovalServiceImpl(appConfig.orgId, pluginManager, finP2PClient, inboundTransferHook);
+    const planApprovalService = await buildCustodyPlanApprovalService(
+      appConfig.orgId, finP2PClient,
+      new PlanApprovalServiceImpl(appConfig.orgId, pluginManager, finP2PClient, inboundTransferHook),
+      gasStation, readProvider, accountMapping, assetStore!,
+      // omnibus transactions sign from the omnibus wallet — never prefund investors
+      { walletActivationAmount: process.env.WALLET_ACTIVATION_AMOUNT, investorPrefunding: false },
+    );
     const proxiedPlanService = wrapWithWorkflowProxy(planApprovalService, workflowStorage, finP2PClient, 'approvePlan', 'proposeCancelPlan', 'proposeResetPlan', 'proposeInstructionApproval');
     const proxiedTokenService = wrapWithWorkflowProxy(tokenService, workflowStorage, finP2PClient, 'createAsset', 'issue', 'transfer', 'redeem');
     const proxiedEscrowService = wrapWithWorkflowProxy(escrowService, workflowStorage, finP2PClient, 'hold', 'release', 'rollback');
-    // When a PaymentsPlugin is registered (e.g. ota-deposit / pull-deposit), route deposits
-    // through it so per-deposit ephemeral addresses, approval-watchers, and FinAPI receipt
-    // export run. Otherwise fall back to the omnibus delegate's barebones "deposit to omnibus"
-    // instruction, which has no plugin awareness.
     const paymentImpl = pluginManager.getPaymentsPlugin() !== null ? paymentsService : delegate;
     const proxiedPaymentService = wrapWithWorkflowProxy(paymentImpl, workflowStorage, finP2PClient, 'getDepositInstruction', 'payout');
-    // vanilla-service's commonService.operationStatus unconditionally throws — async ops
-    // persisted by the workflow proxy would be unreachable via /operations/status. Use the
-    // workflow-storage-backed DirectCommonServiceImpl for that route, keep vanilla
-    // commonService for liveness/readiness.
+    // vanilla's commonService.operationStatus throws; workflow-stored ops need DirectCommonServiceImpl
     const directCommonService = workflowStorage ? new DirectCommonServiceImpl(workflowStorage) : commonService;
     register(app, proxiedTokenService, proxiedEscrowService, directCommonService, commonService, proxiedPaymentService, proxiedPlanService, mappingConfig, mappingService);
     if (distributionService) {
@@ -124,32 +116,31 @@ function registerDirectServices(
   }
 
   if (!assetStore || !dbPool || !accountMappingStore || !accountMappingService) throw new Error('DB connection is required for direct mode');
-  let contractEscrow: ContractEscrow | undefined;
-  if (appConfig.escrowProvider === 'contract') {
-    if (!appConfig.escrowContractAddress) throw new Error('ESCROW_CONTRACT_ADDRESS is required when ESCROW_PROVIDER=contract');
-    const escrowContract = new EscrowContract(
-      custodyProvider.rpcProvider, custodyProvider.escrow.signer, appConfig.escrowContractAddress, logger);
-    contractEscrow = new ContractEscrow(escrowContract, logger);
-    logger.info(`Direct-mode escrow: FinP2PEscrow contract at ${appConfig.escrowContractAddress}`);
+  const assetIssuerKey = process.env.ASSET_ISSUER_PRIVATE_KEY;
+  const networkHost = process.env.NETWORK_HOST;
+  if (!assetIssuerKey) {
+    logger.warn("ASSET_ISSUER_PRIVATE_KEY is not set — asset deployment and issuance are disabled");
+  } else if (!networkHost) {
+    logger.warn("NETWORK_HOST is not set — asset deployment and issuance are disabled");
   }
-  let tokenService: DirectTokenService = new DirectTokenService(logger, custodyProvider, accountMapping, assetStore, contractEscrow);
+  // pooled signer: same NonceManager per key as the token standards use
+  const issuerWallet = assetIssuerKey && networkHost
+    ? { provider: readProvider, signer: pooledSigner(getNetworkRpcUrl(), assetIssuerKey) }
+    : undefined;
+  let tokenService: CustodyTokenService = new CustodyTokenService(logger, custodyProvider, escrowWallet, readProvider, accountMapping, assetStore, issuerWallet);
   const commonService = new DirectCommonServiceImpl(workflowStorage!);
-  // Plan approval is always on: it delegates the approve/reject decision to the
-  // skeleton impl, then runs approval options over the introspected plan. Gas
-  // prefunding is one option (token-based whitelisting etc. can be added here).
-  const planApprovalOptions: PlanApprovalOption[] = [
-    new GasPrefundingOption(custodyProvider, accountMapping),
-  ];
-  const planApprovalService = new ConfigurablePlanApprovalService(
+  const planApprovalService = await buildCustodyPlanApprovalService(
     appConfig.orgId, finP2PClient,
     new PlanApprovalServiceImpl(appConfig.orgId, pluginManager, finP2PClient),
-    planApprovalOptions);
+    gasStation, readProvider, accountMapping, assetStore,
+    { walletActivationAmount: process.env.WALLET_ACTIVATION_AMOUNT, investorPrefunding: true },
+  );
 
   const proxiedTokenService = wrapWithWorkflowProxy(tokenService, workflowStorage, finP2PClient, 'createAsset', 'issue', 'transfer', 'redeem');
   const proxiedEscrowService = wrapWithWorkflowProxy(tokenService, workflowStorage, finP2PClient, 'hold', 'release', 'rollback');
   const proxiedPlanService = wrapWithWorkflowProxy(planApprovalService, workflowStorage, finP2PClient, 'approvePlan', 'proposeCancelPlan', 'proposeResetPlan', 'proposeInstructionApproval');
   const proxiedPaymentsService = wrapWithWorkflowProxy(paymentsService, workflowStorage, finP2PClient, 'getDepositInstruction', 'payout');
-  register(app, proxiedTokenService, proxiedEscrowService, commonService, healthService, proxiedPaymentsService, proxiedPlanService, mappingConfig, accountMappingService);
+  register(app, proxiedTokenService, proxiedEscrowService, commonService, tokenService, proxiedPaymentsService, proxiedPlanService, mappingConfig, accountMappingService);
 }
 
 function registerFinP2PContractServices(
@@ -162,30 +153,17 @@ function registerFinP2PContractServices(
     throw new Error('Omnibus account model is not supported with finp2p-contract provider');
   }
   const workflowStorage = dbPool ? new workflows.WorkflowStorage(dbPool, ledgerSchema) : undefined;
-  const innerPlanApprovalService = new PlanApprovalServiceImpl(contractConfig.orgId, pluginManager, contractConfig.finP2PClient);
-  const v1EscrowService = new EscrowServiceImpl(contractConfig.finP2PContract, contractConfig.finP2PClient, contractConfig.execDetailsStore, contractConfig.proofProvider, pluginManager);
-  const v1TokenService = new TokenServiceImpl(contractConfig.finP2PContract, contractConfig.finP2PClient, contractConfig.execDetailsStore, contractConfig.proofProvider, pluginManager, contractConfig.defaultAssetStandard);
+  let planApprovalService = new PlanApprovalServiceImpl(contractConfig.orgId, pluginManager, contractConfig.finP2PClient);
+  const tokenService = new OnChainTokenService(contractConfig.finP2PContract, contractConfig.finP2PClient, contractConfig.execDetailsStore, contractConfig.proofProvider, pluginManager, contractConfig.defaultAssetStandard);
   const mappingService = new CredentialsMappingService(contractConfig.finP2PContract);
   const mappingConfig = buildMappingConfig();
 
-  // v2 (plan-based) operator: plan-scoped operations execute against the
-  // mirrored on-chain plan; everything else falls back to the v1 services.
-  let tokenService: TokenServiceImpl | PlanTokenService = v1TokenService;
-  let escrowService: EscrowServiceImpl | PlanEscrowService = v1EscrowService;
-  let planApprovalService: PlanApprovalServiceImpl | PlanBasedApprovalService = innerPlanApprovalService;
-  if (contractConfig.orchestrator) {
-    const proofSync = new ProofSyncService(contractConfig.orchestrator, contractConfig.finP2PClient);
-    tokenService = new PlanTokenService(contractConfig.orchestrator, proofSync, contractConfig.execDetailsStore, v1TokenService, contractConfig.defaultAssetStandard);
-    escrowService = new PlanEscrowService(contractConfig.orchestrator, proofSync, contractConfig.execDetailsStore, v1EscrowService);
-    planApprovalService = new PlanBasedApprovalService(contractConfig.orgId, contractConfig.orchestrator, contractConfig.finP2PClient, innerPlanApprovalService);
-  }
-
-  const commonService = workflowStorage ? new DirectCommonServiceImpl(workflowStorage) : v1TokenService as any;
+  const commonService = workflowStorage ? new DirectCommonServiceImpl(workflowStorage) : tokenService;
 
   const proxiedTokenService = wrapWithWorkflowProxy(tokenService, workflowStorage, finP2PClient, 'createAsset', 'issue', 'transfer', 'redeem');
-  const proxiedEscrowService = wrapWithWorkflowProxy(escrowService, workflowStorage, finP2PClient, 'hold', 'release', 'rollback');
+  const proxiedEscrowService = wrapWithWorkflowProxy(tokenService, workflowStorage, finP2PClient, 'hold', 'release', 'rollback');
   const proxiedPlanService = wrapWithWorkflowProxy(planApprovalService, workflowStorage, finP2PClient, 'approvePlan', 'proposeCancelPlan', 'proposeResetPlan', 'proposeInstructionApproval');
-  register(app, proxiedTokenService, proxiedEscrowService, commonService, v1TokenService, paymentsService, proxiedPlanService, mappingConfig, mappingService);
+  register(app, proxiedTokenService, proxiedEscrowService, commonService, tokenService, paymentsService, proxiedPlanService, mappingConfig, mappingService);
 }
 
 async function createApp(
@@ -229,6 +207,50 @@ async function createApp(
     custodyProvider = await custodyRegistry.create(appConfig.type, appConfig);
   }
 
+  // Migration guard: the issuer moved from a custody vault
+  // (ASSET_ISSUER_CUSTODY_ACCOUNT_ID) to an env private key
+  // (ASSET_ISSUER_PRIVATE_KEY). An operator upgrading with the old shape would
+  // otherwise boot healthy and fail every deploy/issue at runtime — surface it now.
+  if (custodyProvider && process.env.ASSET_ISSUER_CUSTODY_ACCOUNT_ID && !process.env.ASSET_ISSUER_PRIVATE_KEY) {
+    throw new Error('ASSET_ISSUER_CUSTODY_ACCOUNT_ID is set but ASSET_ISSUER_PRIVATE_KEY is not: issuance now uses the env private key (the custody-vault issuer was removed). Set ASSET_ISSUER_PRIVATE_KEY.');
+  }
+
+  // Role wallets are app-level composition: the custody provider only
+  // fabricates a wallet for a given custody account id. Escrow signs
+  // hold/release/escrow-redeem (falls back to the omnibus account).
+  const escrowAccountId = (process.env.ASSET_ESCROW_CUSTODY_ACCOUNT_ID || undefined) ?? (process.env.OMNIBUS_CUSTODY_ACCOUNT_ID || undefined);
+  const escrowWallet = custodyProvider && escrowAccountId && custodyProvider.createWalletForCustodyId
+    ? await custodyProvider.createWalletForCustodyId(escrowAccountId)
+    : undefined;
+
+  // The adapter's single read-only RPC provider, decided once here: the plain
+  // NETWORK_HOST endpoint when configured, otherwise the custody transport
+  // (taken from a fabricated custody wallet). Everything downstream receives
+  // this Provider and stays unaware of the choice.
+  const readProvider: Provider | undefined = custodyProvider
+    ? (process.env.NETWORK_HOST ? pooledProvider(getNetworkRpcUrl()) : escrowWallet?.provider)
+    : undefined;
+
+  // Gas funding is app-level composition too: the custody provider only
+  // fabricates the wallet for the configured funding account.
+  const gasFundingAccountId = process.env.GAS_FUNDING_CUSTODY_ACCOUNT_ID;
+  const gasFundingAmount = process.env.GAS_FUNDING_AMOUNT;
+  let gasStation: GasStation | undefined;
+  if (custodyProvider && gasFundingAccountId && gasFundingAmount) {
+    if (!custodyProvider.createWalletForCustodyId) {
+      logger.warn('GAS_FUNDING_CUSTODY_ACCOUNT_ID is set but the custody provider cannot create wallets by custody id — gas funding disabled');
+    } else {
+      gasStation = new GasStation(await custodyProvider.createWalletForCustodyId(gasFundingAccountId), gasFundingAmount);
+    }
+  }
+
+  // The omnibus wallet is app-level composition as well — fabricated from
+  // OMNIBUS_CUSTODY_ACCOUNT_ID and handed to the omnibus services explicitly.
+  const omnibusAccountId = process.env.OMNIBUS_CUSTODY_ACCOUNT_ID;
+  const omnibusWallet = custodyProvider && omnibusAccountId && custodyProvider.createWalletForCustodyId
+    ? await custodyProvider.createWalletForCustodyId(omnibusAccountId)
+    : undefined;
+
   // Pre-build accountMapping + (in omnibus mode) the OmnibusDelegate and vanilla services
   // BEFORE plugin registration. Deposit plugins capture inboundTransferHook in their
   // constructors; if it's undefined at registration time they fall back to
@@ -244,12 +266,13 @@ async function createApp(
   if (!accountMappingService) {
     throw new Error('DB-backed account mapping is required (DB_CONNECTION_STRING must be set).');
   }
-  const accountMapping: AccountMappingService = new DbAccountMapping(accountMappingService);
+  const accountMapping: AccountResolver = new DbAccountResolver(accountMappingService);
 
   let omnibusCtx: OmnibusContext | undefined;
   if (appConfig.accountModel === 'omnibus' && custodyProvider) {
+    if (!omnibusWallet) throw new Error('Omnibus account model requires OMNIBUS_CUSTODY_ACCOUNT_ID (and a custody provider able to create wallets by custody id)');
     if (!dbPool || !assetStore) throw new Error('DB connection is required for omnibus account model');
-    const delegate = new OmnibusDelegate(logger, custodyProvider, accountMapping, assetStore);
+    const delegate = new OmnibusDelegate(logger, custodyProvider, omnibusWallet, escrowWallet!, readProvider!, gasStation, accountMapping, assetStore);
     // vanilla 0.28.2's createVanillaServices doesn't forward schemaName to its LedgerStorage,
     // so its account_mappings/accounts/transactions queries hit the default `ledger_adapter`
     // schema even when migrations placed those tables in `ethereum_adapter`. Build the storage
@@ -276,6 +299,10 @@ async function createApp(
     finP2PClient: finP2PClient!,
     walletResolver: custodyProvider && accountMappingStore ? createWalletResolver(accountMappingStore, custodyProvider) : undefined,
     rpcUrl: process.env.NETWORK_HOST ? getNetworkRpcUrl() : undefined,
+    readProvider,
+    gasStation,
+    omnibusWallet,
+    escrowWallet,
     assetStore,
     accountModel: appConfig.accountModel,
     custodyProvider,
@@ -286,7 +313,7 @@ async function createApp(
   const paymentsService = new PaymentsServiceImpl(pluginManager);
 
   if (custodyProvider) {
-    registerDirectServices(app, logger, custodyProvider, appConfig, paymentsService, pluginManager, dbPool, finP2PClient, accountMappingStore, accountMappingService, assetStore, accountMapping, omnibusCtx, ledgerSchema);
+    await registerCustodyServices(app, logger, custodyProvider, escrowWallet, readProvider, gasStation, appConfig, paymentsService, pluginManager, dbPool, finP2PClient, accountMappingStore, accountMappingService, assetStore, accountMapping, omnibusCtx, ledgerSchema);
   } else if (appConfig.type === 'finp2p-contract') {
     registerFinP2PContractServices(app, appConfig as FinP2PContractAppConfig, paymentsService, pluginManager, dbPool, finP2PClient, ledgerSchema);
   } else {

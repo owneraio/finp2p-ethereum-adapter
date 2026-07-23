@@ -3,7 +3,7 @@ import {
   ContractsManager,
   FinP2PContract,
   addressFromPrivateKey,
-} from "@owneraio/finp2p-contracts";
+} from "@owneraio/finp2p-ethereum-orchestrator";
 import { ProofProvider, workflows } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import {
   PostgreSqlContainer,
@@ -21,7 +21,7 @@ import { GenericContainer, StartedTestContainer } from "testcontainers";
 import winston, { format, transports } from "winston";
 import createApp from "../src/app";
 import { AppConfig, createJsonProvider } from "../src/config";
-import { ExecDetailsStore, InMemoryExecDetailsStore } from "../src/services/finp2p-contract";
+import { ExecDetailsStore, InMemoryExecDetailsStore } from "../src/services/onchain";
 import { HardhatLogExtractor } from "../tests/utils/log-extractors";
 import { NetworkDetails } from "../tests/utils/models";
 import { redactSecrets } from "../src/redact-secrets";

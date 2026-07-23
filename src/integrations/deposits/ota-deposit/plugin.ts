@@ -14,7 +14,9 @@ import {
   failedDepositOperation,
 } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import { FinP2PClient } from "@owneraio/finp2p-client";
-import { AssetStore, CustodyProvider } from "../../../services/direct";
+import { CustodyProvider } from "../../../services/custody";
+import { GasStation } from "../../../services/gas-station";
+import { AssetStore } from "../../../services/accounts";
 import { DepositTargetResolver } from "../types";
 import { BalanceWatcher } from "./balance-watcher";
 import { OtaResult } from "./models";
@@ -29,6 +31,7 @@ export class OtaDepositPlugin implements PaymentsPlugin {
     private readonly resolveSweepTarget: DepositTargetResolver,
     private readonly network: string,
     private readonly custodyProvider: CustodyProvider,
+    private readonly gasStation: GasStation | undefined,
     private readonly finP2PClient: FinP2PClient | undefined,
     private readonly inboundTransferHook: InboundTransferHook | undefined,
   ) {}
@@ -122,7 +125,7 @@ export class OtaDepositPlugin implements PaymentsPlugin {
     if (this.watcher) return this.watcher;
     this.watcher = new BalanceWatcher(
       this.logger,
-      this.custodyProvider.gasStation,
+      this.gasStation,
       (result: OtaResult) => this.onTransferDetected(result),
     );
     return this.watcher;

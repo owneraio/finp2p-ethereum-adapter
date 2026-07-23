@@ -11,9 +11,9 @@ import {
   finIdToAddress,
   FinP2PContract,
   detectSigner
-} from "@owneraio/finp2p-contracts";
+} from "@owneraio/finp2p-ethereum-orchestrator";
 import winston, { format, transports } from "winston";
-import { extractBusinessDetails } from "../src/services/finp2p-contract/helpers";
+import { extractBusinessDetails } from "../src/services/onchain/helpers";
 import console from "console";
 import * as fs from "node:fs";
 import { createJsonProvider, parseConfig } from "../src/config";

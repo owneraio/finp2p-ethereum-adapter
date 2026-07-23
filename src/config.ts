@@ -1,13 +1,13 @@
 import { Interface, JsonRpcProvider, NonceManager, Provider, Signer, Wallet, ZeroAddress, keccak256, toUtf8Bytes } from "ethers";
 import process from "process";
-import { FinP2PContract, FinP2POrchestratorContract } from '@owneraio/finp2p-contracts'
+import { FinP2PContract } from '@owneraio/finp2p-ethereum-orchestrator'
 import { FinP2PClient } from '@owneraio/finp2p-client'
-import { ExecDetailsStore } from './services/finp2p-contract/common'
+import { ExecDetailsStore } from './services/onchain'
 import { ProofProvider } from '@owneraio/finp2p-nodejs-skeleton-adapter'
 import { Logger } from "@owneraio/finp2p-nodejs-skeleton-adapter";
-import { InMemoryExecDetailsStore } from './services/finp2p-contract/exec-details-store'
-import { FireblocksAppConfig, createFireblocksAppConfig } from './integrations/fireblocks/config'
-import { DfnsAppConfig, createDfnsAppConfig } from './integrations/dfns/config'
+import { InMemoryExecDetailsStore } from './services/onchain'
+import { FireblocksAppConfig, createFireblocksAppConfig } from './integrations/custody/fireblocks/config'
+import { DfnsAppConfig, createDfnsAppConfig } from './integrations/custody/dfns/config'
 
 export const DEFAULT_ASSET_STANDARD_ERC20 = keccak256(toUtf8Bytes("ERC20"));
 
@@ -33,17 +33,6 @@ function resolveAccountModel(rawValue: string | undefined): AccountModel {
   throw new Error(`Invalid ACCOUNT_MODEL: ${rawValue}. Supported values: ${ACCOUNT_MODELS.join(', ')}`);
 }
 
-export type EscrowProviderType = 'wallet' | 'contract'
-
-const ESCROW_PROVIDERS: ReadonlyArray<EscrowProviderType> = ['wallet', 'contract'];
-
-function resolveEscrowProvider(rawValue: string | undefined): EscrowProviderType {
-  if (!rawValue) return 'wallet';
-  const normalized = rawValue.trim() as EscrowProviderType;
-  if (ESCROW_PROVIDERS.includes(normalized)) return normalized;
-  throw new Error(`Invalid ESCROW_PROVIDER: ${rawValue}. Supported values: ${ESCROW_PROVIDERS.join(', ')}`);
-}
-
 export type BaseAppConfig = {
   orgId: string
   provider: Provider
@@ -52,10 +41,6 @@ export type BaseAppConfig = {
   proofProvider: ProofProvider | undefined
   accountMappingType: AccountMappingType
   accountModel: AccountModel
-  // direct mode: 'contract' routes holds through the standalone FinP2PEscrow
-  // contract at escrowContractAddress instead of the custody escrow wallet
-  escrowProvider?: EscrowProviderType
-  escrowContractAddress?: string
 }
 
 export type FinP2PContractAppConfig = BaseAppConfig & {
@@ -63,12 +48,10 @@ export type FinP2PContractAppConfig = BaseAppConfig & {
   finP2PContract: FinP2PContract
   execDetailsStore: ExecDetailsStore | undefined
   defaultAssetStandard?: string
-  // v2 (plan-based) operator; set when FINP2P_CONTRACT_VERSION=2
-  orchestrator?: FinP2POrchestratorContract
 }
 
-export { FireblocksAppConfig } from './integrations/fireblocks/config'
-export { DfnsAppConfig } from './integrations/dfns/config'
+export { FireblocksAppConfig } from './integrations/custody/fireblocks/config'
+export { DfnsAppConfig } from './integrations/custody/dfns/config'
 
 /**
  * Generic config for custody providers activated via the registry.
@@ -117,11 +100,6 @@ export async function envVarsToAppConfig(logger: Logger): Promise<AppConfig> {
   const configType = (process.env.PROVIDER_TYPE || 'finp2p-contract') as AppConfig['type']
   const accountMappingType = resolveAccountMappingType(process.env.ACCOUNT_MAPPING_TYPE)
   const accountModel = resolveAccountModel(process.env.ACCOUNT_MODEL)
-  const escrowProvider = resolveEscrowProvider(process.env.ESCROW_PROVIDER)
-  const escrowContractAddress = process.env.ESCROW_CONTRACT_ADDRESS
-  if (escrowProvider === 'contract' && !escrowContractAddress) {
-    throw new Error("ESCROW_CONTRACT_ADDRESS is not set (required when ESCROW_PROVIDER=contract)");
-  }
 
   switch (configType) {
     case 'finp2p-contract': {
@@ -206,35 +184,6 @@ export async function envVarsToAppConfig(logger: Logger): Promise<AppConfig> {
         `EIP712 domain: name=${name} version=${version} chainId=${chainId} verifyingContract=${verifyingContract}`
       );
 
-      // v2 plan-based operator: FINP2P_CONTRACT_VERSION=2 switches the services
-      // to plan-mirrored execution; the v1 contract stays as fallback for
-      // standalone (non-plan) operations.
-      const finP2PContractVersionRaw = process.env.FINP2P_CONTRACT_VERSION ?? '1';
-      if (finP2PContractVersionRaw !== '1' && finP2PContractVersionRaw !== '2') {
-        throw new Error(`Invalid FINP2P_CONTRACT_VERSION: ${finP2PContractVersionRaw}. Supported values: 1, 2`);
-      }
-      let orchestrator: FinP2POrchestratorContract | undefined;
-      if (finP2PContractVersionRaw === '2') {
-        const orchestratorAddress = process.env.FINP2P_ORCHESTRATOR_ADDRESS;
-        if (!orchestratorAddress) {
-          throw new Error("FINP2P_ORCHESTRATOR_ADDRESS is not set (required when FINP2P_CONTRACT_VERSION=2)");
-        }
-        orchestrator = new FinP2POrchestratorContract(
-          provider,
-          signer,
-          orchestratorAddress,
-          logger,
-          txConfirmationTimeoutMs,
-          txGasTier,
-        );
-        const planVersion = await orchestrator.getVersion();
-        const escrowAddress = await orchestrator.getEscrowAddress();
-        logger.info(`FinP2P orchestrator version: ${planVersion} at ${orchestratorAddress}, escrow at ${escrowAddress}`);
-        // the orchestrator dispatches token ops through its AssetRegistry —
-        // fail fast when the default standard isn't registered there
-        await verifyAssetStandardRegistered(provider, orchestratorAddress, defaultAssetStandardRaw, logger);
-      }
-
       return {
         type: 'finp2p-contract',
         provider,
@@ -247,14 +196,13 @@ export async function envVarsToAppConfig(logger: Logger): Promise<AppConfig> {
         finP2PContract,
         execDetailsStore,
         defaultAssetStandard: defaultAssetStandardRaw,
-        orchestrator,
       }
     }
     case 'fireblocks': {
-      return { ...await createFireblocksAppConfig(), accountMappingType, accountModel, escrowProvider, escrowContractAddress }
+      return { ...await createFireblocksAppConfig(), accountMappingType, accountModel }
     }
     case 'dfns': {
-      return { ...await createDfnsAppConfig(), accountMappingType, accountModel, escrowProvider, escrowContractAddress }
+      return { ...await createDfnsAppConfig(), accountMappingType, accountModel }
     }
     default: {
       // For registry-based providers: return generic config.
@@ -271,8 +219,6 @@ export async function envVarsToAppConfig(logger: Logger): Promise<AppConfig> {
         proofProvider: undefined,
         accountMappingType,
         accountModel,
-        escrowProvider,
-        escrowContractAddress,
       } as CustodyAppConfig;
     }
   }
@@ -424,3 +370,4 @@ export async function verifyAssetStandardRegistered(
 
   logger.info(`Asset standard ${assetStandard} verified on AssetRegistry ${registryAddress} → impl ${standardImpl}`);
 }
+

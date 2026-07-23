@@ -46,13 +46,33 @@ export class ConfigurablePlanApprovalService implements PlanApprovalService {
       return result;
     }
 
+    logger.info(`Plan ${planId}: running approval option(s) [${this.options.map(o => o.name).join(", ")}] over ${plan.instructions.length} instruction(s)`);
+    const skippedAfterFailure: string[] = [];
     for (const option of this.options) {
-      const veto = await option.apply(plan);
+      let veto;
+      try {
+        veto = await option.apply(plan);
+      } catch (e) {
+        // an option must never escape as an HTTP error: a gating option that
+        // blew up could not clear the plan — fail closed; a non-gating one is
+        // best-effort by contract — skip it
+        if (option.gating) {
+          logger.warning(`Plan ${planId}: gating approval option '${option.name}' failed, rejecting: ${e}`);
+          return rejectedPlan(1, `Approval option '${option.name}' failed for plan ${planId}: ${e}`);
+        }
+        logger.warning(`Plan ${planId}: approval option '${option.name}' failed, skipping: ${e}`);
+        skippedAfterFailure.push(option.name);
+        continue;
+      }
       if (veto && veto.type === "rejected") {
-        logger.info(`Plan ${planId} rejected by approval option '${option.name}'`);
+        const reason = (veto as { error?: { message?: string } }).error?.message;
+        logger.info(`Plan ${planId} rejected by approval option '${option.name}'${reason ? `: ${reason}` : ""}`);
         return veto;
       }
     }
+    logger.info(skippedAfterFailure.length > 0
+      ? `Plan ${planId}: approval options completed without a gating rejection (skipped after failure: ${skippedAfterFailure.join(", ")})`
+      : `Plan ${planId}: all approval options passed`);
     return result;
   }
 
