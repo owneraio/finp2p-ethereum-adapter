@@ -23,6 +23,7 @@ import {
   ReleaseType,
   EIP712Term, emptyLoanTerms, termFromEIP712, OperationParams, Term, EIP712LoanTerms,
 } from "@owneraio/finp2p-ethereum-orchestrator";
+
 export type BusinessContract = {
   buyerFinId: string,
   sellerFinId: string,

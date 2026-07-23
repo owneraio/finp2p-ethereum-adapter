@@ -1,4 +1,4 @@
-import { isHederaNetwork } from "../src/config";
+import { isHederaNetwork } from "../src/services/gas-station/wallet-activation";
 import { WalletActivationOption } from "../src/services/plan-approval/options/wallet-activation-option";
 import { IntrospectedPlan } from "../src/services/plan-approval";
 
