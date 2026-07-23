@@ -8,6 +8,12 @@ import { isFunctionMissingError } from "./finp2p";
 export const OPERATOR_ROLE = keccak256(toUtf8Bytes('OPERATOR_ROLE'));
 export const MINTER_ROLE = keccak256(toUtf8Bytes('MINTER_ROLE'));
 
+/**
+ * @deprecated The ERC20 surface moved to the eth-tools erc20 plugin
+ * (@owneraio/finp2p-ethereum-erc20-plugin) — use its Erc20Contract /
+ * ERC20 typechain instead. Kept only because finp2p-ethereum-dtcc-plugin
+ * still peer-imports it; remove once dtcc migrates.
+ */
 export class ERC20Contract extends ContractsManager {
 
   contractInterface: Interface;
