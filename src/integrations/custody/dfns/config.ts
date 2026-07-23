@@ -70,14 +70,14 @@ export async function createDfnsAppConfig(): Promise<Omit<DfnsAppConfig, 'accoun
   const rpcUrl = getNetworkRpcUrl();
   const provider = new JsonRpcProvider(rpcUrl);
 
-  const escrowWalletId = process.env.ASSET_ESCROW_CUSTODY_ACCOUNT_ID;
-  if (!escrowWalletId) throw new Error('ASSET_ESCROW_CUSTODY_ACCOUNT_ID is not set');
-
+  const escrowWalletId = process.env.ASSET_ESCROW_CUSTODY_ACCOUNT_ID || undefined;
   const omnibusWalletId = process.env.OMNIBUS_CUSTODY_ACCOUNT_ID || undefined;
+  const baseWalletId = escrowWalletId ?? omnibusWalletId;
+  if (!baseWalletId) throw new Error('At least one of ASSET_ESCROW_CUSTODY_ACCOUNT_ID or OMNIBUS_CUSTODY_ACCOUNT_ID must be set');
 
   const keySigner = new AsymmetricKeySigner({ credId: dfnsCredId, privateKey: dfnsPrivateKey });
   const dfnsClient = new DfnsApiClient({ baseUrl: dfnsBaseUrl, orgId: dfnsOrgId, authToken: dfnsAuthToken, signer: keySigner });
-  const { signer } = await createDfnsEthersProvider({ dfnsClient, walletId: escrowWalletId, rpcUrl });
+  const { signer } = await createDfnsEthersProvider({ dfnsClient, walletId: baseWalletId, rpcUrl });
 
   return {
     type: 'dfns',

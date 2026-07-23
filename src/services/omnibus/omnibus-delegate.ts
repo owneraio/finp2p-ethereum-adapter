@@ -237,7 +237,7 @@ export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowD
     const dbAsset = await getAssetFromDb(this.assetStore, assetId);
     const omnibusAddress = await this.omnibusWallet.signer.getAddress();
     const standard = tokenStandardRegistry.resolve(dbAsset.tokenStandard);
-    return standard.balanceOf(this.omnibusWallet.provider, this.omnibusWallet.signer, dbAsset, omnibusAddress, this.logger);
+    return standard.balanceOf(this.readProvider, this.omnibusWallet.signer, dbAsset, omnibusAddress, this.logger);
   }
 
   async getDepositInstruction(
@@ -334,7 +334,7 @@ export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowD
 
     const tokenAddress = assetBind.tokenIdentifier.tokenId;
     const network = assetBind.tokenIdentifier.network || defaultNetwork;
-    const erc20 = new ERC20Contract(this.omnibusWallet.provider, this.omnibusWallet.signer, tokenAddress, this.logger);
+    const erc20 = new ERC20Contract(this.readProvider, this.omnibusWallet.signer, tokenAddress, this.logger);
     const decimals = Number(await erc20.decimals());
     await this.assetStore.saveAsset({ contract_address: tokenAddress, decimals, token_standard: tokenStandard, id: assetId });
     await this.custodyProvider.onAssetRegistered?.(tokenAddress);
