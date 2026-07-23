@@ -9,7 +9,7 @@ export interface ResolvedAccount {
   custodyAccountId?: string;
 }
 
-export interface AccountMappingService {
+export interface AccountResolver {
   resolveAccount(finId: string): Promise<string | undefined>;
   resolveFullAccount?(finId: string): Promise<ResolvedAccount | undefined>;
   resolveFinId(account: string): Promise<string | undefined>;
@@ -18,7 +18,7 @@ export interface AccountMappingService {
 /**
  * DB-backed mapping: uses skeleton's account store for address resolution.
  */
-export class DbAccountMapping implements AccountMappingService {
+export class DbAccountResolver implements AccountResolver {
   constructor(private readonly accountStore: AccountMappingStore) {}
 
   async resolveAccount(finId: string): Promise<string | undefined> {

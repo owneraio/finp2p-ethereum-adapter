@@ -20,7 +20,7 @@ import createApp from "../../src/app";
 import {
   createFireblocksEthersProvider,
   FireblocksAppConfig,
-} from "../../src/integrations/fireblocks/config";
+} from "../../src/integrations/custody/fireblocks/config";
 import { randomPort } from "./utils";
 
 dotenv.config({ path: resolve(process.cwd(), ".env.fireblocks") });
@@ -62,6 +62,11 @@ class FireblocksTestEnvironment extends NodeEnvironment {
 
   async setup() {
     console.log("Setting up Fireblocks testnet test environment...");
+
+    // The shared adapter suite issues assets: createApp builds the issuer wallet
+    // from ASSET_ISSUER_PRIVATE_KEY, signing against NETWORK_HOST. Both must be set.
+    requireEnv("ASSET_ISSUER_PRIVATE_KEY");
+    requireEnv("NETWORK_HOST");
 
     const apiKey = requireEnv("FIREBLOCKS_API_KEY");
     const chainId = Number(requireEnv("FIREBLOCKS_CHAIN_ID")) as ChainId;
@@ -136,6 +141,10 @@ class FireblocksTestEnvironment extends NodeEnvironment {
     console.log(`Destination vault finId: ${destFinId}`);
     this.global.destFinId = destFinId;
 
+    // Escrow/issuer are no longer config fields — createApp reads them from the
+    // environment. Point the escrow wallet at this vault.
+    process.env.ASSET_ESCROW_CUSTODY_ACCOUNT_ID = vaultId;
+
     const appConfig: FireblocksAppConfig = {
       type: "fireblocks",
       orgId: this.orgId,
@@ -143,12 +152,12 @@ class FireblocksTestEnvironment extends NodeEnvironment {
       signer,
       finP2PClient: undefined,
       proofProvider: undefined,
+      accountMappingType: "database",
+      accountModel: "segregated",
       apiKey,
       apiPrivateKey,
       chainId,
       apiBaseUrl,
-      assetIssuerVaultId: vaultId,
-      assetEscrowVaultId: vaultId,
     };
 
     await this.startPostgresContainer();

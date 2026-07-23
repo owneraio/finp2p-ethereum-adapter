@@ -1,8 +1,8 @@
 import { logger } from "@owneraio/finp2p-nodejs-skeleton-adapter";
-import { PlanApprovalOption, IntrospectedPlan } from "../plan-approval";
-import { AccountMappingService } from "./account-mapping";
-import { CustodyProvider } from "./custody-provider";
-import { DEFAULT_ACTIVATION_AMOUNT, WalletActivator } from "./wallet-activation";
+import { PlanApprovalOption, IntrospectedPlan } from "..";
+import { AccountResolver } from "../../accounts/account-resolver";
+import { GasStation } from "../../funding";
+import { DEFAULT_ACTIVATION_AMOUNT, WalletActivator } from "../../funding/wallet-activation";
 
 /**
  * Plan-approval option that activates recipient wallets on Hedera-style
@@ -19,13 +19,13 @@ export class WalletActivationOption implements PlanApprovalOption {
   readonly gating = false;
 
   constructor(
-    private readonly custodyProvider: CustodyProvider,
-    private readonly accountMapping: AccountMappingService,
+    private readonly gasStation: GasStation | undefined,
+    private readonly accountMapping: AccountResolver,
     private readonly activationAmount: string = DEFAULT_ACTIVATION_AMOUNT,
   ) {}
 
   async apply(plan: IntrospectedPlan): Promise<void> {
-    const gasStation = this.custodyProvider.gasStation;
+    const gasStation = this.gasStation;
     if (!gasStation) return;
 
     const activator = new WalletActivator(gasStation.wallet, this.activationAmount);

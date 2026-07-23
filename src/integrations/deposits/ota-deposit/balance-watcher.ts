@@ -1,7 +1,7 @@
 import winston from "winston";
 import { formatUnits, parseUnits } from "ethers";
 import { ERC20Contract } from "@owneraio/finp2p-contracts";
-import { GasStation } from "../../../services/direct";
+import { GasStation } from "../../../services/funding";
 import { OtaDeposit, OtaResult } from "./models";
 
 const DEFAULT_POLL_INTERVAL_MS = 60000;

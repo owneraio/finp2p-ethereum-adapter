@@ -12,7 +12,8 @@ import {
   successfulDepositOperation,
   failedDepositOperation,
 } from "@owneraio/finp2p-nodejs-skeleton-adapter";
-import { AssetStore, WalletResolver } from "../../../services/direct";
+import { WalletResolver } from "../../wallet-resolver";
+import { AssetStore } from "../../../services/accounts";
 import { paymentsSlotClaimedExternally } from "../payments-slot";
 import { IntegrationContext } from "../../registry";
 import { resolveDepositMethod } from "../types";

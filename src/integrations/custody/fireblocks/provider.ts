@@ -1,36 +1,22 @@
 import { FireblocksSDK } from 'fireblocks-sdk';
 import axios from 'axios';
 import { createFireblocksEthersProvider, FireblocksAppConfig } from './config';
-import { createVaultManagementFunctions } from '../../vaults';
-import { CustodyProvider, CustodyWallet, GasStation } from '../../services/direct';
+import { createVaultManagementFunctions } from '../../../vaults';
+import { CustodyProvider, CustodyWallet } from '../../../services/custody';
 import { FireblocksRawSigner } from './raw-signer';
 
 export class FireblocksCustodyProvider implements CustodyProvider {
-  readonly issuer: CustodyWallet;
-  readonly escrow: CustodyWallet;
-  readonly omnibus?: CustodyWallet;
-  readonly rpcProvider;
-  readonly gasStation?: GasStation;
 
   private fireblocksSdk: FireblocksSDK;
   private vaultManagement: ReturnType<typeof createVaultManagementFunctions>;
 
   private constructor(
-    issuer: CustodyWallet,
-    escrow: CustodyWallet,
     private readonly config: FireblocksAppConfig,
     fireblocksSdk: FireblocksSDK,
     vaultManagement: ReturnType<typeof createVaultManagementFunctions>,
-    gasStation?: GasStation,
-    omnibus?: CustodyWallet,
   ) {
-    this.issuer = issuer;
-    this.escrow = escrow;
-    this.omnibus = omnibus;
-    this.rpcProvider = this.issuer.provider;
     this.fireblocksSdk = fireblocksSdk;
     this.vaultManagement = vaultManagement;
-    this.gasStation = gasStation;
   }
 
   static async create(config: FireblocksAppConfig): Promise<FireblocksCustodyProvider> {
@@ -55,37 +41,8 @@ export class FireblocksCustodyProvider implements CustodyProvider {
           });
         };
 
-    // Create wallets for configured vaults, falling back to omnibus
-    const issuerVault = config.assetIssuerVaultId ?? config.omnibusVaultId;
-    const escrowVault = config.assetEscrowVaultId ?? config.omnibusVaultId;
-
-    let issuerWallet: CustodyWallet | undefined;
-    let escrowWallet: CustodyWallet | undefined;
-    if (issuerVault) issuerWallet = await createWallet(issuerVault);
-    if (escrowVault) escrowWallet = await createWallet(escrowVault);
-
-    // In standard mode, issuer and escrow are required
-    if (!config.localSubmit && (!issuerWallet || !escrowWallet)) {
-      throw new Error('Either ASSET_ISSUER_CUSTODY_ACCOUNT_ID/ASSET_ESCROW_CUSTODY_ACCOUNT_ID or OMNIBUS_CUSTODY_ACCOUNT_ID must be set');
-    }
-
-    let gasStation: GasStation | undefined;
-    if (config.gasFunding) {
-      const gasWallet = await createWallet(config.gasFunding.vaultId);
-      gasStation = new GasStation(gasWallet, config.gasFunding.amount);
-    }
-
-    let omnibusWallet: CustodyWallet | undefined;
-    if (config.omnibusVaultId) {
-      omnibusWallet = await createWallet(config.omnibusVaultId);
-    }
-
-    // In local submit mode, use a placeholder for unconfigured wallets.
-    // Real wallets are resolved per-operation via createWalletForCustodyId.
-    const placeholder: CustodyWallet = { provider: config.provider, signer: config.provider as any };
     return new FireblocksCustodyProvider(
-      issuerWallet ?? placeholder, escrowWallet ?? placeholder,
-      config, fireblocksSdk, vaultManagement, gasStation, omnibusWallet
+      config, fireblocksSdk, vaultManagement
     );
   }
 

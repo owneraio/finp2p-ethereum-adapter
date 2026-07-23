@@ -3,7 +3,7 @@ import { DfnsApiClient } from "@dfns/sdk";
 import { AsymmetricKeySigner } from "@dfns/sdk-keysigner";
 import { DfnsWallet } from "@dfns/lib-ethersjs6";
 import { JsonRpcProvider, Provider, Signer } from "ethers";
-import { BaseAppConfig } from "../../config";
+import { BaseAppConfig } from "../../../config";
 
 export type DfnsAppConfig = BaseAppConfig & {
   type: 'dfns'
@@ -13,13 +13,7 @@ export type DfnsAppConfig = BaseAppConfig & {
   dfnsCredId: string
   dfnsPrivateKey: string
   rpcUrl: string
-  assetIssuerWalletId: string
-  assetEscrowWalletId: string
   omnibusWalletId?: string
-  gasFunding?: {
-    walletId: string
-    amount: string
-  }
 }
 
 export const createDfnsEthersProvider = async (config: {
@@ -76,24 +70,14 @@ export async function createDfnsAppConfig(): Promise<Omit<DfnsAppConfig, 'accoun
   const rpcUrl = getNetworkRpcUrl();
   const provider = new JsonRpcProvider(rpcUrl);
 
-  const issuerWalletId = process.env.ASSET_ISSUER_CUSTODY_ACCOUNT_ID;
-  if (!issuerWalletId) throw new Error('ASSET_ISSUER_CUSTODY_ACCOUNT_ID is not set');
-
-  const escrowWalletId = process.env.ASSET_ESCROW_CUSTODY_ACCOUNT_ID;
-  if (!escrowWalletId) throw new Error('ASSET_ESCROW_CUSTODY_ACCOUNT_ID is not set');
-
+  const escrowWalletId = process.env.ASSET_ESCROW_CUSTODY_ACCOUNT_ID || undefined;
   const omnibusWalletId = process.env.OMNIBUS_CUSTODY_ACCOUNT_ID || undefined;
+  const baseWalletId = escrowWalletId ?? omnibusWalletId;
+  if (!baseWalletId) throw new Error('At least one of ASSET_ESCROW_CUSTODY_ACCOUNT_ID or OMNIBUS_CUSTODY_ACCOUNT_ID must be set');
 
   const keySigner = new AsymmetricKeySigner({ credId: dfnsCredId, privateKey: dfnsPrivateKey });
   const dfnsClient = new DfnsApiClient({ baseUrl: dfnsBaseUrl, orgId: dfnsOrgId, authToken: dfnsAuthToken, signer: keySigner });
-  const { signer } = await createDfnsEthersProvider({ dfnsClient, walletId: issuerWalletId, rpcUrl });
-
-  let gasFunding: DfnsAppConfig['gasFunding'] = undefined
-  const fundingWalletId = process.env.GAS_FUNDING_CUSTODY_ACCOUNT_ID
-  const fundingAmount = process.env.GAS_FUNDING_AMOUNT
-  if (fundingWalletId !== undefined && fundingAmount !== undefined) {
-    gasFunding = { walletId: fundingWalletId, amount: fundingAmount }
-  }
+  const { signer } = await createDfnsEthersProvider({ dfnsClient, walletId: baseWalletId, rpcUrl });
 
   return {
     type: 'dfns',
@@ -108,9 +92,6 @@ export async function createDfnsAppConfig(): Promise<Omit<DfnsAppConfig, 'accoun
     dfnsCredId,
     dfnsPrivateKey,
     rpcUrl,
-    assetIssuerWalletId: issuerWalletId,
-    assetEscrowWalletId: escrowWalletId,
     omnibusWalletId,
-    gasFunding,
   };
 }

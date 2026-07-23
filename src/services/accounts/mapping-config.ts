@@ -1,5 +1,6 @@
-import { CustodyProvider } from "./custody-provider";
-import { AccountMappingValidator, CustodyMappingValidator, FIELD_CUSTODY_ACCOUNT_ID, FIELD_LEDGER_ACCOUNT_ID } from "./mapping-validator";
+import { AccountMappingValidator } from "@owneraio/finp2p-nodejs-skeleton-adapter";
+import { CustodyProvider } from "../custody/custody-provider";
+import { CustodyMappingValidator, FIELD_CUSTODY_ACCOUNT_ID, FIELD_LEDGER_ACCOUNT_ID } from "./mapping-validator";
 
 export interface AccountMappingConfig {
   fields: { field: string; description: string; exampleValue: string }[];

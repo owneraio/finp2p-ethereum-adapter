@@ -1,4 +1,5 @@
 import winston from "winston";
+import { Provider } from "ethers";
 import {
   PaymentsPlugin,
   DepositAsset,
@@ -14,7 +15,9 @@ import {
   failedDepositOperation,
 } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import { FinP2PClient } from "@owneraio/finp2p-client";
-import { AssetStore, CustodyProvider, CustodyWallet } from "../../../services/direct";
+import { CustodyProvider, CustodyWallet } from "../../../services/custody";
+import { GasStation } from "../../../services/funding";
+import { AssetStore } from "../../../services/accounts";
 import { DepositTargetResolver } from "../types";
 import { ApprovalWatcher } from "./approval-watcher";
 import { PullResult } from "./models";
@@ -30,6 +33,8 @@ export class PullDepositPlugin implements PaymentsPlugin {
     private readonly network: string,
     private readonly operatorWallet: CustodyWallet,
     private readonly custodyProvider: CustodyProvider,
+    private readonly readProvider: Provider,
+    private readonly gasStation: GasStation | undefined,
     private readonly finP2PClient: FinP2PClient | undefined,
     private readonly inboundTransferHook: InboundTransferHook | undefined,
   ) {}
@@ -123,9 +128,9 @@ export class PullDepositPlugin implements PaymentsPlugin {
     this.watcher = new ApprovalWatcher(
       operatorAddress,
       this.operatorWallet,
-      this.custodyProvider.rpcProvider,
+      this.readProvider,
       this.logger,
-      this.custodyProvider.gasStation,
+      this.gasStation,
       (result) => this.onPullCompleted(result),
     );
     this.logger.info(`Pull-deposit: operator address=${operatorAddress}`);

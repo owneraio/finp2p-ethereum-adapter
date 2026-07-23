@@ -1,10 +1,10 @@
 import { finIdToAddress, privateKeyToFinId } from '@owneraio/finp2p-contracts';
 import {
-  AccountMappingService,
-  DbAccountMapping,
+  AccountResolver,
+  DbAccountResolver,
   AccountMappingStore,
-} from '../src/services/direct/account-mapping';
-import { FIELD_LEDGER_ACCOUNT_ID } from '../src/services/direct/mapping-validator';
+} from '../src/services/accounts/account-resolver';
+import { FIELD_LEDGER_ACCOUNT_ID } from '../src/services/accounts/mapping-validator';
 import {
   PostgreSqlContainer,
   StartedPostgreSqlContainer,
@@ -21,9 +21,9 @@ const TEST_PRIVATE_KEY_2 = '0x5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3f
 const TEST_FIN_ID_2 = privateKeyToFinId(TEST_PRIVATE_KEY_2);
 const TEST_ADDRESS_2 = finIdToAddress(TEST_FIN_ID_2);
 
-function runSharedTests(name: string, create: () => Promise<{ service: AccountMappingService; teardown?: () => Promise<void> }>) {
+function runSharedTests(name: string, create: () => Promise<{ service: AccountResolver; teardown?: () => Promise<void> }>) {
   describe(name, () => {
-    let service: AccountMappingService;
+    let service: AccountResolver;
     let teardown: (() => Promise<void>) | undefined;
 
     beforeAll(async () => {
@@ -66,11 +66,11 @@ function runSharedTests(name: string, create: () => Promise<{ service: AccountMa
   });
 }
 
-// --- DbAccountMapping ---
-describe('DbAccountMapping', () => {
+// --- DbAccountResolver ---
+describe('DbAccountResolver', () => {
   let container: StartedPostgreSqlContainer;
   let accountStore: AccountMappingStore;
-  let service: DbAccountMapping;
+  let service: DbAccountResolver;
   let pool: any;
 
   beforeAll(async () => {
@@ -92,7 +92,7 @@ describe('DbAccountMapping', () => {
       { env: { ...process.env, GOOSE_DRIVER: 'postgres', GOOSE_DBSTRING: connectionString } }
     );
 
-    service = new DbAccountMapping(accountStore);
+    service = new DbAccountResolver(accountStore);
   }, 60000);
 
   afterAll(async () => {

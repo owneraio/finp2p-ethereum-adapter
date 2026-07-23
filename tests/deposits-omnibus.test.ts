@@ -24,7 +24,7 @@ import { FireblocksSDK, PeerType, TransactionOperation, TransactionStatus } from
 import { ApiBaseUrl, ChainId } from "@fireblocks/fireblocks-web3-provider";
 import winston, { format, transports } from "winston";
 import createApp, { WorkflowsConfig } from "../src/app";
-import { FireblocksAppConfig, createFireblocksEthersProvider } from "../src/integrations/fireblocks/config";
+import { FireblocksAppConfig, createFireblocksEthersProvider } from "../src/integrations/custody/fireblocks/config";
 import { randomPort } from "./utils/utils";
 
 declare const fireblocksConfig: {
@@ -80,6 +80,13 @@ function makeMockFinP2PClient(captured: CapturedReceipt[]): any {
 async function startAdapter(depositMethod: "pull" | "ota", finP2PClientMock: any): Promise<{ url: string; close: () => Promise<void> }> {
   process.env.DEPOSIT_METHOD = depositMethod;
 
+  // Escrow/issuer/omnibus/gas-funding are no longer config fields — createApp
+  // reads them from the environment.
+  process.env.OMNIBUS_CUSTODY_ACCOUNT_ID = fireblocksConfig.omnibusVaultId;
+  process.env.ASSET_ESCROW_CUSTODY_ACCOUNT_ID = fireblocksConfig.operatorVaultId;
+  process.env.GAS_FUNDING_CUSTODY_ACCOUNT_ID = fireblocksConfig.gasFundingVaultId;
+  process.env.GAS_FUNDING_AMOUNT = fireblocksConfig.gasFundingAmount;
+
   const { provider, signer } = await createFireblocksEthersProvider({
     apiKey: fireblocksConfig.apiKey,
     privateKey: fireblocksConfig.apiPrivateKey,
@@ -101,13 +108,6 @@ async function startAdapter(depositMethod: "pull" | "ota", finP2PClientMock: any
     apiPrivateKey: fireblocksConfig.apiPrivateKey,
     chainId: fireblocksConfig.chainId,
     apiBaseUrl: fireblocksConfig.apiBaseUrl,
-    assetIssuerVaultId: fireblocksConfig.operatorVaultId,
-    assetEscrowVaultId: fireblocksConfig.operatorVaultId,
-    omnibusVaultId: fireblocksConfig.omnibusVaultId,
-    gasFunding: {
-      vaultId: fireblocksConfig.gasFundingVaultId,
-      amount: fireblocksConfig.gasFundingAmount,
-    },
   };
 
   const workflowsConfig: WorkflowsConfig = {

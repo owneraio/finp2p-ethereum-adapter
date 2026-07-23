@@ -2,18 +2,18 @@ import {
   Asset, AssetBind, AssetCreationStatus, AssetDenomination,
   Balance, Destination, ExecutionContext, OperationType,
   ReceiptOperation, Signature, Source, TokenService, EscrowService,
-  failedReceiptOperation
+  failedReceiptOperation, failedAssetCreation
 } from '@owneraio/finp2p-nodejs-skeleton-adapter';
 import winston from 'winston';
-import { parseUnits } from "ethers";
+import { parseUnits, Provider, Signer, Wallet } from "ethers";
 import { TokenOperationResult } from '@owneraio/finp2p-ethereum-adapter-contract';
-import { CustodyProvider, CustodyWallet } from './custody-provider';
-import { AccountMappingService, AssetStore } from './account-mapping';
-import { getAssetFromDb } from './helpers';
+import { CustodyProvider, CustodyWallet } from '../custody/custody-provider';
+import { AccountResolver, AssetStore } from '../accounts/account-resolver';
+import { getAssetFromDb } from '../assets/store';
 import { tokenStandardRegistry } from '../../integrations/token-standards/registry';
 import { TokenStandardName as ERC20_TOKEN_STANDARD, DEFAULT_NEW_ERC20_DECIMALS } from '@owneraio/finp2p-ethereum-erc20-plugin';
 import { ERC20Contract } from '@owneraio/finp2p-contracts';
-import { buildOperationContext } from './operation-context';
+import { buildOperationContext } from '../operations/operation-context';
 
 function resultToReceipt(
   result: TokenOperationResult, ast: Asset, operationType: OperationType, quantity: string,
@@ -62,9 +62,25 @@ export class DirectTokenService implements TokenService, EscrowService {
   constructor(
     readonly logger: winston.Logger,
     readonly custodyProvider: CustodyProvider,
-    readonly accountMapping: AccountMappingService,
+    readonly escrowWallet: CustodyWallet,
+    readonly readProvider: Provider,
+    readonly accountMapping: AccountResolver,
     readonly assetStore: AssetStore,
+    // env-injected issuer (ASSET_ISSUER_PRIVATE_KEY) — signs deploys and is the
+    // per-call wallet for mint; never a custody wallet. Absent when the key is
+    // not configured: deploy/issue then fail closed instead of stranding assets
+    // behind a throwaway signer.
+    readonly issuerWallet: CustodyWallet | undefined,
   ) {}
+
+  // read-only paths need a Signer arg for the SPI; an ephemeral one suffices
+  private readSigner?: Signer;
+
+  private issuerSigner(): Signer {
+    if (this.issuerWallet) return this.issuerWallet.signer;
+    this.readSigner ??= Wallet.createRandom().connect(this.readProvider);
+    return this.readSigner;
+  }
 
   private async resolveAddress(finId: string): Promise<string> {
     const address = await this.accountMapping.resolveAccount(finId);
@@ -106,12 +122,15 @@ export class DirectTokenService implements TokenService, EscrowService {
     const isErc20 = tokenStandardRegistry.isErc20Compatible(requestedStandard);
     this.logger.info(`createAsset: assetId=${assetId} token standard '${requestedStandard}'${explicitStandard === undefined ? ' (defaulted, none requested)' : ''} resolved to ${standard.constructor.name} (erc20Compatible=${isErc20})`);
 
-    const { chainId } = await this.custodyProvider.rpcProvider.getNetwork();
+    const { chainId } = await this.readProvider.getNetwork();
     const defaultNetwork = `eip155:${chainId}`;
 
     if (assetBind === undefined || assetBind.tokenIdentifier === undefined) {
       this.logger.info(`createAsset: deploy path — assetId=${assetId} standard=${requestedStandard} name=${assetName ?? 'OWNERACOIN'}`);
-      const wallet = this.custodyProvider.issuer;
+      if (!this.issuerWallet) {
+        return failedAssetCreation(1, 'ASSET_ISSUER_PRIVATE_KEY is not set — refusing to deploy an asset a throwaway signer would strand');
+      }
+      const wallet = this.issuerWallet;
       const symbol = "OWNERA"; // TODO: align with product team which metadata fields to use for token name/symbol/decimals
       const result = await standard.deploy(wallet, assetName ?? "OWNERACOIN", symbol, DEFAULT_NEW_ERC20_DECIMALS, this.logger);
       await this.assetStore.saveAsset({
@@ -134,7 +153,7 @@ export class DirectTokenService implements TokenService, EscrowService {
       let decimals = 0;
       if (isErc20) {
         this.logger.info(`createAsset: reading ERC20 decimals from ${tokenAddress}`);
-        const erc20 = new ERC20Contract(this.custodyProvider.rpcProvider, undefined, tokenAddress, this.logger);
+        const erc20 = new ERC20Contract(this.readProvider, undefined, tokenAddress, this.logger);
         decimals = Number(await erc20.decimals());
         this.logger.info(`createAsset: ERC20 decimals=${decimals} for ${tokenAddress}`);
       } else {
@@ -171,7 +190,7 @@ export class DirectTokenService implements TokenService, EscrowService {
     const asset = await getAssetFromDb(this.assetStore, ast.assetId);
     const standard = tokenStandardRegistry.resolve(asset.tokenStandard);
     return standard.balanceOf(
-      this.custodyProvider.issuer.provider, this.custodyProvider.issuer.signer,
+      this.readProvider, this.issuerSigner(),
       asset, address, this.logger,
     );
   }
@@ -188,7 +207,8 @@ export class DirectTokenService implements TokenService, EscrowService {
     try {
       const asset = await getAssetFromDb(this.assetStore, ast.assetId);
       const standard = tokenStandardRegistry.resolve(asset.tokenStandard);
-      const wallet = this.custodyProvider.issuer;
+      const wallet = this.issuerWallet;
+      if (!wallet) return failedReceiptOperation(1, 'ASSET_ISSUER_PRIVATE_KEY is not set — issuance is disabled');
       const address = await this.resolveAddress(toFinId);
       const amount = parseUnits(quantity, asset.decimals);
 
@@ -238,7 +258,7 @@ export class DirectTokenService implements TokenService, EscrowService {
       let wallet: CustodyWallet;
       let burnFromAddress: string;
       if (operationId) {
-        wallet = this.custodyProvider.escrow;
+        wallet = this.escrowWallet;
         burnFromAddress = await wallet.signer.getAddress();
       } else {
         const resolved = await this.resolveSourceWallet(sourceFinId);
@@ -272,7 +292,7 @@ export class DirectTokenService implements TokenService, EscrowService {
       const amount = parseUnits(quantity, asset.decimals);
 
       const opCtx = buildOperationContext(ast, signature, exCtx, operationId);
-      const result = await standard.hold(wallet, this.custodyProvider.escrow, asset, amount, this.logger, opCtx);
+      const result = await standard.hold(wallet, this.escrowWallet, asset, amount, this.logger, opCtx);
       return resultToReceipt(result, ast, "hold", quantity, source, destination, exCtx, operationId);
     } catch (e) {
       this.logger.error(`Hold failed: asset=${ast.assetId} source=${source.finId} quantity=${quantity} operationId=${operationId}`, e);
@@ -290,7 +310,7 @@ export class DirectTokenService implements TokenService, EscrowService {
       const destinationAddress = await this.accountMapping.resolveAccount(destination.finId)
         ?? destination.account?.address;
       if (!destinationAddress) throw new Error(`Cannot resolve address for finId: ${destination.finId}`);
-      const escrowWallet = this.custodyProvider.escrow;
+      const escrowWallet = this.escrowWallet;
       const amount = parseUnits(quantity, asset.decimals);
 
       const opCtx = buildOperationContext(ast, undefined, exCtx, operationId);
@@ -310,7 +330,7 @@ export class DirectTokenService implements TokenService, EscrowService {
       const asset = await getAssetFromDb(this.assetStore, ast.assetId);
       const standard = tokenStandardRegistry.resolve(asset.tokenStandard);
       const sourceAddress = await this.resolveAddress(source.finId);
-      const escrowWallet = this.custodyProvider.escrow;
+      const escrowWallet = this.escrowWallet;
       const amount = parseUnits(quantity, asset.decimals);
 
       const opCtx = buildOperationContext(ast, undefined, exCtx, operationId);

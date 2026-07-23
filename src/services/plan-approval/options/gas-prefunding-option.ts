@@ -1,7 +1,7 @@
 import { logger } from "@owneraio/finp2p-nodejs-skeleton-adapter";
-import { PlanApprovalOption, IntrospectedPlan } from "../plan-approval";
-import { CustodyProvider } from "./custody-provider";
-import { AccountMappingService } from "./account-mapping";
+import { PlanApprovalOption, IntrospectedPlan } from "..";
+import { GasStation } from "../../funding";
+import { AccountResolver } from "../../accounts/account-resolver";
 
 /**
  * Plan-approval option that prefunds gas on approval: the source investor's
@@ -17,12 +17,12 @@ export class GasPrefundingOption implements PlanApprovalOption {
   readonly gating = false;
 
   constructor(
-    private readonly custodyProvider: CustodyProvider,
-    private readonly accountMapping: AccountMappingService,
+    private readonly gasStation: GasStation | undefined,
+    private readonly accountMapping: AccountResolver,
   ) {}
 
   async apply(plan: IntrospectedPlan): Promise<void> {
-    const gasStation = this.custodyProvider.gasStation;
+    const gasStation = this.gasStation;
     if (!gasStation) return;
 
     // gas station funds to amount × txCount (a threshold, not additive), so count

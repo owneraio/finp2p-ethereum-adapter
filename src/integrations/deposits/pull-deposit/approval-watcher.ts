@@ -1,7 +1,8 @@
 import winston from "winston";
 import { formatUnits, Interface, Log, Provider, parseUnits, id as keccakStr, zeroPadValue } from "ethers";
 import { ERC20Contract } from "@owneraio/finp2p-contracts";
-import { CustodyWallet, GasStation } from "../../../services/direct";
+import { CustodyWallet } from "../../../services/custody";
+import { GasStation } from "../../../services/funding";
 import { PullDeposit, PullResult } from "./models";
 
 const APPROVAL_IFACE = new Interface([

@@ -1,6 +1,11 @@
-import { parseEther } from 'ethers';
+import { parseEther, Provider, Signer } from 'ethers';
 import { logger } from '@owneraio/finp2p-nodejs-skeleton-adapter';
-import { CustodyWallet } from './custody-provider';
+
+/** Any provider/signer pair able to send native funds; CustodyWallet satisfies it structurally. */
+export interface FundingWallet {
+  provider: Provider;
+  signer: Signer;
+}
 
 /** How long GasStation.ensureGas waits for the target balance to reflect the funding tx. */
 export const GAS_FUNDING_TIMEOUT_MS = 60_000;
@@ -18,7 +23,7 @@ export const GAS_FUNDING_POLL_INTERVAL_MS = 1_000;
  */
 export class GasStation {
   constructor(
-    public readonly wallet: CustodyWallet,
+    public readonly wallet: FundingWallet,
     public readonly amount: string,
   ) {}
 
