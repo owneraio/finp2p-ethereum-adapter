@@ -3,7 +3,7 @@ import { logger, PlanApprovalService } from "@owneraio/finp2p-nodejs-skeleton-ad
 import { FinP2PClient } from "@owneraio/finp2p-client";
 import { ConfigurablePlanApprovalService } from "../configurable-plan-approval-service";
 import { PlanApprovalOption } from "../option";
-import { GasStation } from "../../funding";
+import { GasStation } from "../../gas-station";
 import { AccountResolver, AssetStore } from "../../accounts/account-resolver";
 import { isHederaNetwork } from "../../../config";
 import { TokenWhitelistingOption } from "./token-whitelisting-option";

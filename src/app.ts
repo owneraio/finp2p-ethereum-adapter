@@ -32,7 +32,7 @@ import {
   buildMappingConfig,
 } from "./services/accounts";
 import { OmnibusDelegate } from "./services/omnibus";
-import { GasStation } from "./services/funding";
+import { GasStation } from "./services/gas-station";
 import { CommonServiceImpl as DirectCommonServiceImpl } from "./services/operations";
 import { registerCustodyIntegrations, registerIntegrations } from "./integrations/registry";
 import { pooledProvider, pooledSigner } from "./integrations/signer-pool";
