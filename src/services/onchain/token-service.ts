@@ -1,37 +1,67 @@
 import {
-  Asset, AssetCreationStatus, EIP712Template, Balance, TokenService,
+  Asset, AssetCreationStatus, EIP712Template, Balance, TokenService, EscrowService,
+  CommonService, HealthService, OperationStatus,
   failedAssetCreation, successfulAssetCreation,
-  failedReceiptOperation, successfulReceiptOperation, pendingReceiptOperation,
+  failedReceiptOperation,
   AssetBind, AssetDenomination, AssetCreationResult, Destination, ExecutionContext,
   ReceiptOperation, Source, Signature, logger, ProofProvider, PluginManager,
 } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import { keccak256, toUtf8Bytes } from "ethers";
-import { ValidationError } from "@owneraio/finp2p-ethereum-orchestrator";
-import { FinP2PClient } from "@owneraio/finp2p-client";
 import {
   FinP2PContract,
   assetTypeFromString,
   EthereumTransactionError,
+  ValidationError,
   term, isEthereumAddress
 } from "@owneraio/finp2p-ethereum-orchestrator";
+import { FinP2PClient } from "@owneraio/finp2p-client";
 
-import { CommonServiceImpl, ExecDetailsStore } from "./common";
+import { ExecDetailsStore } from "./exec-details-store";
 import { mapReceiptOperation } from "./mapping";
-import { emptyOperationParams, extractBusinessDetails } from "./helpers";
-import { validateRequest } from "./validator";
-
+import { emptyOperationParams, extractBusinessDetails, validateRequest } from "./helpers";
 
 const DefaultDecimals = 2;
 
-export class TokenServiceImpl extends CommonServiceImpl implements TokenService {
+/**
+ * On-chain (FINP2POperator contract) token, escrow and common operations —
+ * every instruction executes as a transaction against the operator contract,
+ * which verifies investor EIP-712 intents on-chain.
+ */
+export class OnChainTokenService implements TokenService, EscrowService, CommonService, HealthService {
 
+  private readonly registeredCredentials = new Set<string>();
 
-  constructor(finP2PContract: FinP2PContract, finP2PClient: FinP2PClient | undefined,
-              execDetailsStore: ExecDetailsStore | undefined,
-              proofProvider: ProofProvider | undefined,
-              pluginManager: PluginManager | undefined,
-              readonly defaultAssetStandard: string | undefined = undefined) {
-    super(finP2PContract, finP2PClient, execDetailsStore, proofProvider, pluginManager);
+  constructor(
+    readonly finP2PContract: FinP2PContract,
+    readonly finP2PClient: FinP2PClient | undefined,
+    readonly execDetailsStore: ExecDetailsStore | undefined,
+    readonly proofProvider: ProofProvider | undefined,
+    readonly pluginManager: PluginManager | undefined,
+    readonly defaultAssetStandard: string | undefined = undefined,
+  ) {}
+
+  private async ensureCredential(finId: string): Promise<void> {
+    if (this.registeredCredentials.has(finId)) return;
+    await this.finP2PContract.getCredentialAddress(finId);
+    this.registeredCredentials.add(finId);
+  }
+
+  public async readiness() {
+    await this.finP2PContract.provider.getNetwork();
+  }
+
+  public async liveness() {
+    await this.finP2PContract.provider.getBlockNumber();
+  }
+
+  public async getReceipt(id: string): Promise<ReceiptOperation> {
+    return mapReceiptOperation(await this.finP2PContract.getReceipt(id), undefined, this.execDetailsStore?.getExecutionContext(id));
+  }
+
+  public async operationStatus(cid: string): Promise<OperationStatus> {
+    const op = await this.finP2PContract.getOperationStatus(cid);
+    if (op.operation === 'receipt') return mapReceiptOperation(op, undefined, this.execDetailsStore?.getExecutionContext(cid));
+    return op as any;
   }
 
   public async createAsset(idempotencyKey: string, assetId: string,
@@ -184,5 +214,83 @@ export class TokenServiceImpl extends CommonServiceImpl implements TokenService 
     };
   }
 
-}
+  public async hold(idempotencyKey: string, nonce: string, source: Source, destination: Destination | undefined, ast: Asset,
+    quantity: string, sgn: Signature, operationId: string, exCtx: ExecutionContext
+  ): Promise<ReceiptOperation> {
+    const { signature, template } = sgn;
+    if (template.type != "EIP712") {
+      throw new ValidationError(`Unsupported signature template type: ${template.type}`);
+    }
+    const eip712Template = template as EIP712Template;
+    const details = extractBusinessDetails(ast, source, destination, operationId, eip712Template, exCtx);
+    validateRequest(source, destination, quantity, details);
+    const { buyerFinId, sellerFinId, asset, settlement, loan, params } = details;
 
+    try {
+      await this.ensureCredential(sellerFinId);
+      await this.ensureCredential(buyerFinId);
+      const transactionReceipt = await this.finP2PContract.hold(nonce, sellerFinId, buyerFinId, asset, settlement, loan, params, signature);
+
+      if (exCtx) {
+        this.execDetailsStore?.addExecutionContext(transactionReceipt.hash, exCtx.planId, exCtx.sequence);
+      }
+
+      return mapReceiptOperation(await this.finP2PContract.getReceiptFromTransactionReceipt(transactionReceipt), ast, exCtx)
+    } catch (e) {
+      logger.error(`Error asset hold: ${e}`);
+      if (e instanceof EthereumTransactionError) {
+        return failedReceiptOperation(1, e.message);
+
+      } else {
+        return failedReceiptOperation(1, `${e}`);
+      }
+    }
+
+
+  }
+
+  public async release(idempotencyKey: string, source: Source, destination: Destination, asset: Asset, quantity: string, operationId: string, exCtx: ExecutionContext | undefined): Promise<ReceiptOperation> {
+    try {
+      await this.ensureCredential(source.finId);
+      await this.ensureCredential(destination.finId);
+      const transactionReceipt = await this.finP2PContract.releaseTo(operationId, source.finId, destination.finId, quantity, emptyOperationParams());
+
+      if (exCtx) {
+        this.execDetailsStore?.addExecutionContext(transactionReceipt.hash, exCtx.planId, exCtx.sequence);
+      }
+
+      return mapReceiptOperation(await this.finP2PContract.getReceiptFromTransactionReceipt(transactionReceipt), asset, exCtx)
+    } catch (e) {
+      logger.error(`Error releasing asset: ${e}`);
+      if (e instanceof EthereumTransactionError) {
+        return failedReceiptOperation(1, e.message);
+      } else {
+        return failedReceiptOperation(1, `${e}`);
+      }
+    }
+
+  }
+
+  public async rollback(idempotencyKey: string, source: Source, asset: Asset, quantity: string, operationId: string, exCtx: ExecutionContext | undefined
+  ): Promise<ReceiptOperation> {
+    try {
+      await this.ensureCredential(source.finId);
+      const transactionReceipt = await this.finP2PContract.releaseBack(operationId, emptyOperationParams());
+
+      if (exCtx) {
+        this.execDetailsStore?.addExecutionContext(transactionReceipt.hash, exCtx.planId, exCtx.sequence);
+      }
+
+      return mapReceiptOperation(await this.finP2PContract.getReceiptFromTransactionReceipt(transactionReceipt), asset, exCtx)
+    } catch (e) {
+      logger.error(`Error rolling-back asset: ${e}`);
+      if (e instanceof EthereumTransactionError) {
+        return failedReceiptOperation(1, e.message);
+
+      } else {
+        return failedReceiptOperation(1, `${e}`);
+      }
+    }
+
+  }
+}

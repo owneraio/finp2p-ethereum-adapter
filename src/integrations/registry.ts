@@ -5,7 +5,7 @@ import { InboundTransferHook } from "@owneraio/finp2p-nodejs-skeleton-adapter/pl
 import { FinP2PClient } from "@owneraio/finp2p-client";
 import { FinP2PContract } from "@owneraio/finp2p-ethereum-orchestrator";
 import { CustodyProvider, CustodyWallet } from "../services/custody";
-import { GasStation } from "../services/funding";
+import { GasStation } from "../services/gas-station";
 import { WalletResolver } from "./wallet-resolver";
 import { AssetStore } from "../services/accounts";
 import { AccountModel } from "../config";

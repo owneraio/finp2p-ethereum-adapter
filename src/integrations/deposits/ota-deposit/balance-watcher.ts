@@ -1,7 +1,7 @@
 import winston from "winston";
 import { formatUnits, parseUnits } from "ethers";
 import { Erc20Contract } from "@owneraio/finp2p-ethereum-erc20-plugin";
-import { GasStation } from "../../../services/funding";
+import { GasStation } from "../../../services/gas-station";
 import { OtaDeposit, OtaResult } from "./models";
 
 const DEFAULT_POLL_INTERVAL_MS = 60000;

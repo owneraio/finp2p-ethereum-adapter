@@ -1,6 +1,6 @@
 import { logger } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import { PlanApprovalOption, IntrospectedPlan } from "..";
-import { GasStation } from "../../funding";
+import { GasStation } from "../../gas-station";
 import { AccountResolver } from "../../accounts/account-resolver";
 
 /**
