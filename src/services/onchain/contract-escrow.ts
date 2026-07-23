@@ -3,7 +3,7 @@ import { ZeroAddress } from "ethers";
 import { TokenOperationResult } from "@owneraio/finp2p-ethereum-adapter-contract";
 import { EscrowContract, EscrowHoldStatus } from "@owneraio/finp2p-ethereum-orchestrator";
 import { Erc20Contract } from "@owneraio/finp2p-ethereum-erc20-plugin";
-import { CustodyWallet } from "./custody-provider";
+import { CustodyWallet } from "../custody/custody-provider";
 
 /** What the caller believes the hold is; checked against on-chain state before terminal ops. */
 export type ExpectedHold = {

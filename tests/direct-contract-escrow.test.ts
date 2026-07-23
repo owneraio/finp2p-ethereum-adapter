@@ -3,7 +3,7 @@ import { HardhatLogExtractor } from "./utils/log-extractors";
 import { Contract, JsonRpcProvider, NonceManager, Wallet } from "ethers";
 import winston, { format, transports } from "winston";
 import { ContractsManager, EscrowContract } from "@owneraio/finp2p-ethereum-orchestrator";
-import { ContractEscrow } from "../src/services/custody/contract-escrow";
+import { ContractEscrow } from "../src/services/onchain";
 import { CustodyWallet } from "../src/services/custody/custody-provider";
 
 let RPC_URL = "";

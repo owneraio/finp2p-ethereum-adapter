@@ -14,6 +14,7 @@ import {
 import { FinP2PClient } from "@owneraio/finp2p-client";
 import { LedgerStorage, VanillaServiceImpl, registerDistributionRoutes } from "@owneraio/finp2p-vanilla-service";
 import {
+  ContractEscrow,
   CredentialsMappingService,
   OnChainTokenService,
   PlanBasedApprovalService,
@@ -22,7 +23,6 @@ import {
   ProofSyncService,
 } from "./services/onchain";
 import {
-  ContractEscrow,
   CustodyProvider,
   CustodyWallet,
   CustodyTokenService,

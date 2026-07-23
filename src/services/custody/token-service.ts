@@ -12,7 +12,7 @@ import { AccountResolver, AssetStore } from "../accounts";
 import { tokenStandardRegistry } from '../../integrations/token-standards/registry';
 import { TokenStandardName as ERC20_TOKEN_STANDARD, DEFAULT_NEW_ERC20_DECIMALS } from '@owneraio/finp2p-ethereum-erc20-plugin';
 import { buildOperationContext } from "../operations";
-import { ContractEscrow } from './contract-escrow';
+import { ContractEscrow } from '../onchain';
 
 function resultToReceipt(
   result: TokenOperationResult, ast: Asset, operationType: OperationType, quantity: string,
