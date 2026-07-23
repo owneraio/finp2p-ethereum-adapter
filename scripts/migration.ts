@@ -4,14 +4,12 @@ import console from "console";
 import { FinP2PClient, LedgerAssetInfo } from "@owneraio/finp2p-client";
 import {
   FinP2PContract,
-  ERC20Contract,
   EthereumTransactionError,
-  MINTER_ROLE,
-  OPERATOR_ROLE,
   isEthereumAddress
-} from "@owneraio/finp2p-contracts";
+} from "@owneraio/finp2p-ethereum-orchestrator";
+import { ERC20WithOperator__factory } from "@owneraio/finp2p-ethereum-erc20-plugin";
 import { createJsonProvider, parseConfig, verifyAssetStandardRegistered } from "../src/config";
-import { Provider, Signer } from "ethers";
+import { Signer } from "ethers";
 import { Logger } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import { redactSecrets } from "../src/redact-secrets";
 
@@ -29,21 +27,20 @@ const getTokenAddress = (ledgerAssetInfo: LedgerAssetInfo): string => {
 };
 
 const whitelistERC20 = async (
-  provider: Provider,
   signer: Signer,
   tokenAddress: string,
   logger: Logger,
   operator: string
 ) => {
   logger.info(`Token standard is ERC20 with operator, checking roles`);
-  const erc20 = new ERC20Contract(provider, signer, tokenAddress, logger);
-  if (!await erc20.hasRole(OPERATOR_ROLE, operator)) {
+  const erc20 = ERC20WithOperator__factory.connect(tokenAddress, signer);
+  if (!await erc20.hasRole(await erc20.OPERATOR_ROLE(), operator)) {
     await erc20.grantOperatorTo(operator);
     logger.info("       granting new operator [done]");
   } else {
     logger.info(`       operator already granted for ${tokenAddress}`);
   }
-  if (!await erc20.hasRole(MINTER_ROLE, operator)) {
+  if (!await erc20.hasRole(await erc20.MINTER_ROLE(), operator)) {
     await erc20.grantMinterTo(operator);
     logger.info("       granting new minter [done]");
   } else {
@@ -96,7 +93,7 @@ const startMigration = async (
       const foundAddress = await finP2PContract.getAssetAddress(assetId);
       if (foundAddress === tokenAddress) {
         logger.info(`Asset ${assetId} already associated with token ${tokenAddress}`);
-        await whitelistERC20(provider, signer, tokenAddress, logger, finp2pContractAddress);
+        await whitelistERC20(signer, tokenAddress, logger, finp2pContractAddress);
         skipped++;
         continue;
       }
@@ -110,7 +107,7 @@ const startMigration = async (
       logger.info(`Migrating asset ${assetId} with token address ${tokenAddress}`);
       await finP2PContract.associateAsset(assetId, tokenAddress, assetStandard);
       logger.info("       asset association [done]");
-      await whitelistERC20(provider, signer, tokenAddress, logger, finp2pContractAddress);
+      await whitelistERC20(signer, tokenAddress, logger, finp2pContractAddress);
       migrated++;
     } catch (e) {
       if (`${e}`.includes("Asset not found")) {

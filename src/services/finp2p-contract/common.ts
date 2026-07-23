@@ -3,7 +3,7 @@ import {
   ProofProvider, PluginManager,
   ReceiptOperation, ExecutionContext,
 } from "@owneraio/finp2p-nodejs-skeleton-adapter";
-import { FinP2PContract } from "@owneraio/finp2p-contracts";
+import { FinP2PContract } from "@owneraio/finp2p-ethereum-orchestrator";
 import { FinP2PClient } from "@owneraio/finp2p-client";
 import { mapReceiptOperation } from "./mapping";
 

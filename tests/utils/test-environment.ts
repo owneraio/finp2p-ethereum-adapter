@@ -3,7 +3,7 @@ import {
   ContractsManager,
   FinP2PContract,
   addressFromPrivateKey,
-} from "@owneraio/finp2p-contracts";
+} from "@owneraio/finp2p-ethereum-orchestrator";
 import { ProofProvider, workflows } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import {
   PostgreSqlContainer,

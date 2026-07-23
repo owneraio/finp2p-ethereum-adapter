@@ -6,14 +6,14 @@ import {
   ReceiptOperation, Source, Signature, logger, ProofProvider, PluginManager,
 } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import { keccak256, toUtf8Bytes } from "ethers";
-import { ValidationError } from "@owneraio/finp2p-contracts";
+import { ValidationError } from "@owneraio/finp2p-ethereum-orchestrator";
 import { FinP2PClient } from "@owneraio/finp2p-client";
 import {
   FinP2PContract,
   assetTypeFromString,
   EthereumTransactionError,
   term, isEthereumAddress
-} from "@owneraio/finp2p-contracts";
+} from "@owneraio/finp2p-ethereum-orchestrator";
 
 import { CommonServiceImpl, ExecDetailsStore } from "./common";
 import { mapReceiptOperation } from "./mapping";

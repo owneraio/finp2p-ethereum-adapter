@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import console from "console";
 import winston, { format, transports } from "winston";
-import { ERC20Contract } from "@owneraio/finp2p-contracts";
+import { Erc20WithOperatorContract } from "@owneraio/finp2p-ethereum-erc20-plugin";
 import { FinP2PClient } from "@owneraio/finp2p-client";
 import { createJsonProvider, parseConfig } from "../src/config";
 import { redactSecrets } from "../src/redact-secrets";
@@ -37,7 +37,7 @@ const massApprove = async (
       continue;
     }
     try {
-      const erc20 = new ERC20Contract(provider, signer, tokenAddress, logger);
+      const erc20 = new Erc20WithOperatorContract(signer, tokenAddress);
       const decimals = await erc20.decimals();
       const name = await erc20.name();
       logger.info(`asset ${assetId} (${name}) has ${decimals} decimals`);
@@ -45,7 +45,12 @@ const massApprove = async (
       if (allowed < amount) {
         logger.info(`Approving ${amount} tokens for ${contractAddress} (${contractAddress})`);
         const tx = await erc20.approve(contractAddress, amount - allowed);
-        await erc20.waitForCompletion(tx.hash);
+        // Timeout-bounded wait: a stuck/nonce-drifted tx must fail into the
+        // per-asset catch (and let the batch continue), not hang the run.
+        const receipt = await provider.waitForTransaction(tx.hash, 1, 120_000);
+        if (!receipt || receipt.status !== 1) {
+          throw new Error(`approve tx ${tx.hash} ${receipt ? `failed on-chain (status=${receipt.status})` : "not confirmed within 120s"}`);
+        }
       } else {
         logger.info(`Already approved ${allowed} tokens for ${contractAddress} (${contractAddress})`);
       }
