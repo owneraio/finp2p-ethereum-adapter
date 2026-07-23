@@ -1,6 +1,8 @@
 import winston from "winston";
 import { formatUnits, parseUnits } from "ethers";
-import { ERC20Contract } from "@owneraio/finp2p-contracts";
+// The single ERC20 source is the eth-tools erc20 plugin; its package index does
+// not (yet) export the contract wrapper, hence the dist path.
+import { Erc20Contract } from "@owneraio/finp2p-ethereum-erc20-plugin/dist/src/contracts/erc20";
 import { GasStation } from "../../../services/funding";
 import { OtaDeposit, OtaResult } from "./models";
 
@@ -51,12 +53,8 @@ export class BalanceWatcher {
   private async pollOnce(deposit: OtaDeposit): Promise<void> {
     if (this.inFlight.has(deposit.correlationId)) return;
     if (!this.deposits.has(deposit.correlationId)) return;
-    // ERC20Contract requires a signer for read calls; reuse the ephemeral wallet's
-    // (it's already provider-attached and the read still goes through the provider).
-    const erc20 = new ERC20Contract(
-      deposit.ephemeralWallet.provider, deposit.ephemeralWallet.signer,
-      deposit.contractAddress, this.logger,
-    );
+    // Reads bind to the signer's provider (the ephemeral wallet is provider-attached).
+    const erc20 = new Erc20Contract(deposit.ephemeralWallet.signer, deposit.contractAddress);
     const balance: bigint = await erc20.balanceOf(deposit.ephemeralAddress);
     if (balance === 0n) return;
     // expectedAmount is human-readable (caller convention); convert to base units for
@@ -93,7 +91,7 @@ export class BalanceWatcher {
     }
   }
 
-  private async sweep(deposit: OtaDeposit, amount: bigint, erc20: ERC20Contract): Promise<string | undefined> {
+  private async sweep(deposit: OtaDeposit, amount: bigint, erc20: Erc20Contract): Promise<string | undefined> {
     if (!this.gasStation) {
       this.logger.warn(
         `OTA-deposit: no gasStation configured — leaving ${amount} at ephemeral ${deposit.ephemeralAddress} (deposit ${deposit.correlationId}, custodyId ${deposit.custodyAccountId})`,
