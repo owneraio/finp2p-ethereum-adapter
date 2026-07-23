@@ -13,6 +13,7 @@ import {
   newInvestmentMessage,
 } from "../src/adapter-types";
 import { FINP2POperator, FinP2PSignatureVerifier } from "../typechain-types";
+import { ERC20WithOperator__factory } from "@owneraio/finp2p-ethereum-erc20-plugin";
 import {
   AssetType,
   emptyTerm,
@@ -30,8 +31,8 @@ import {
 describe("FinP2P proxy contract test", function() {
 
   async function deployERC20(name: string, symbol: string, decimals: number, operatorAddress: string) {
-    const deployer = await ethers.getContractFactory("ERC20WithOperator");
-    const contract = await deployer.deploy(name, symbol, decimals, operatorAddress);
+    const [defaultSigner] = await ethers.getSigners();
+    const contract = await new ERC20WithOperator__factory(defaultSigner).deploy(name, symbol, decimals, operatorAddress);
     return contract.getAddress();
   }
 
