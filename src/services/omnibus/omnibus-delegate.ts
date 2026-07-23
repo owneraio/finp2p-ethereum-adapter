@@ -13,7 +13,6 @@ import { CustodyProvider, CustodyWallet } from '../custody/custody-provider';
 import { GasStation } from '../funding';
 import { tokenStandardRegistry } from "../../integrations/token-standards/registry";
 import { TokenStandardName as ERC20_TOKEN_STANDARD, DEFAULT_NEW_ERC20_DECIMALS } from "@owneraio/finp2p-ethereum-erc20-plugin";
-import { ERC20Contract } from "@owneraio/finp2p-contracts";
 import { AccountResolver, AssetStore } from '../accounts/account-resolver';
 import { getAssetFromDb } from '../assets/store';
 
@@ -328,16 +327,23 @@ export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowD
       await this.ensureGas(this.omnibusWallet);
       const result = await standard.deploy(this.omnibusWallet, assetName ?? 'OWNERACOIN', symbol, DEFAULT_NEW_ERC20_DECIMALS, this.logger);
       await this.assetStore.saveAsset({ contract_address: result.contractAddress, decimals: result.decimals, token_standard: result.tokenStandard, id: assetId });
-      await this.custodyProvider.onAssetRegistered?.(result.contractAddress, symbol);
+      // TODO(custody-registration): onAssetRegistered forwards to the custody
+      // provider's ERC20 registration (Fireblocks registerNewAsset). It is an
+      // ERC20-custody-only concern — collateral/registry standards are not
+      // custody-held tokens and fail registration — and it lost its gate when
+      // isErc20Compatible was retired. Disabled pending a purpose-specific
+      // capability; reassess whether this feature is needed before re-enabling.
+      // await this.custodyProvider.onAssetRegistered?.(result.contractAddress, symbol);
       return { ledgerIdentifier: makeLedgerIdentifier(result.contractAddress, result.tokenStandard, defaultNetwork), reference: undefined };
     }
 
     const tokenAddress = assetBind.tokenIdentifier.tokenId;
     const network = assetBind.tokenIdentifier.network || defaultNetwork;
-    const erc20 = new ERC20Contract(this.readProvider, this.omnibusWallet.signer, tokenAddress, this.logger);
-    const decimals = Number(await erc20.decimals());
+    const decimals = await standard.decimals(this.readProvider, tokenAddress, this.logger);
     await this.assetStore.saveAsset({ contract_address: tokenAddress, decimals, token_standard: tokenStandard, id: assetId });
-    await this.custodyProvider.onAssetRegistered?.(tokenAddress);
+    // TODO(custody-registration): see the deploy path above — disabled pending
+    // a purpose-specific capability; reassess before re-enabling.
+    // await this.custodyProvider.onAssetRegistered?.(tokenAddress);
     return { ledgerIdentifier: makeLedgerIdentifier(tokenAddress, tokenStandard, network), reference: undefined };
   }
 }

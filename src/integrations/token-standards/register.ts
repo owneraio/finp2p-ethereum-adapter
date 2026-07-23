@@ -68,7 +68,7 @@ export function registerTokenStandards(ctx: IntegrationContext): void {
   const collateralAgentKey = process.env.COLLATERAL_AGENT_PRIVATE_KEY;
   if (collateralRegistry && collateralAgentKey) {
     const agentSigner = pooledSigner(rpcUrl, collateralAgentKey);
-    const impl = new OwneraCollateralTokenStandard(collateralRegistry, pooledProvider(rpcUrl), agentSigner) as any;
+    const impl = new OwneraCollateralTokenStandard(collateralRegistry, pooledProvider(rpcUrl), agentSigner);
     if (register(COLLATERAL_TOKEN_STANDARD, impl)) {
       logger.info(`Collateral token standard '${COLLATERAL_TOKEN_STANDARD}' registered: registry=${collateralRegistry}`);
     }
@@ -79,7 +79,7 @@ export function registerTokenStandards(ctx: IntegrationContext): void {
     const operatorKey = process.env.OPERATOR_PRIVATE_KEY!;
     const factoryAddress = process.env.FACTORY_ADDRESS ?? "";
     const agentSigner = pooledSigner(rpcUrl, operatorKey);
-    const impl = new DtccCollateralTokenStandard(factoryAddress, pooledProvider(rpcUrl), agentSigner) as any;
+    const impl = new DtccCollateralTokenStandard(factoryAddress, pooledProvider(rpcUrl), agentSigner);
     if (register(DTCC_TOKEN_STANDARD, impl)) {
       logger.info(`DTCC token standard '${DTCC_TOKEN_STANDARD}' registered`);
     }

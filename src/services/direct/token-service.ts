@@ -134,7 +134,13 @@ export class DirectTokenService implements TokenService, EscrowService {
         token_standard: result.tokenStandard,
         id: assetId,
       });
-      await this.custodyProvider.onAssetRegistered?.(result.contractAddress, symbol);
+      // TODO(custody-registration): onAssetRegistered forwards to the custody
+      // provider's ERC20 registration (Fireblocks registerNewAsset). It is an
+      // ERC20-custody-only concern — collateral/registry standards are not
+      // custody-held tokens and fail registration — and it lost its gate when
+      // isErc20Compatible was retired. Disabled pending a purpose-specific
+      // capability; reassess whether this feature is needed before re-enabling.
+      // await this.custodyProvider.onAssetRegistered?.(result.contractAddress, symbol);
 
       return {
         operation: "createAsset",
@@ -154,7 +160,9 @@ export class DirectTokenService implements TokenService, EscrowService {
         id: assetId,
       });
 
-      await this.custodyProvider.onAssetRegistered?.(tokenAddress);
+      // TODO(custody-registration): see the deploy path above — disabled pending
+      // a purpose-specific capability; reassess before re-enabling.
+      // await this.custodyProvider.onAssetRegistered?.(tokenAddress);
 
       return {
         operation: "createAsset",
