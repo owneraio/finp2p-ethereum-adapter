@@ -1,6 +1,6 @@
 {
   "name": "@owneraio/finp2p-contracts",
-  "version": "0.28.22",
+  "version": "0.28.23",
   "description": "",
   "homepage": "https://ownera.io/",
   "main": "./dist/index.js",
@@ -45,6 +45,7 @@
     "url": "https://github.com/owneraio/finp2p-ethereum-adapter"
   },
   "dependencies": {
+    "@owneraio/finp2p-ethereum-erc20-plugin": "^0.28.6",
     "ethers": "^6.11.1"
   },
   "peerDependencies": {

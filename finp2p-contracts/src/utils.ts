@@ -16,10 +16,6 @@ import {
   ReleaseEvent,
   TransferEvent
 } from "../typechain-types/contracts/finp2p/FINP2POperator";
-import {
-  ERC20WithOperatorInterface,
-  TransferEvent as ERC20TransferEvent
-} from "../typechain-types/contracts/token/ERC20/ERC20WithOperator";
 import { OperationParams, Phase } from "./model";
 import { assetToService, finIdDestination, finIdSource } from "./mappers";
 
@@ -199,28 +195,6 @@ export const parseTransactionReceipt = (
   return null;
 };
 
-export const parseERC20Transfer = (receipt: TransactionReceipt,
-                                   contractInterface: ERC20WithOperatorInterface): {
-  from: string,
-  to: string,
-  value: bigint
-} | undefined => {
-  for (const log of receipt.logs) {
-    try {
-      const parsedLog = contractInterface.parseLog(log);
-      if (parsedLog === null) {
-        continue;
-      }
-
-      if (parsedLog.signature === "Transfer(address,address,uint256)") {
-        const { from, to, value } = parsedLog.args as unknown as ERC20TransferEvent.OutputObject;
-        return { from, to, value };
-      }
-    } catch (e) {
-      // do nothing
-    }
-  }
-};
 
 export const isEthereumAddress = (address: string): boolean => {
   return isAddress(address);

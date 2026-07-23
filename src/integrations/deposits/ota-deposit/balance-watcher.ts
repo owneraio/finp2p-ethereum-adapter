@@ -1,8 +1,6 @@
 import winston from "winston";
 import { formatUnits, parseUnits } from "ethers";
-// The single ERC20 source is the eth-tools erc20 plugin; its package index does
-// not (yet) export the contract wrapper, hence the dist path.
-import { Erc20Contract } from "@owneraio/finp2p-ethereum-erc20-plugin/dist/src/contracts/erc20";
+import { Erc20Contract } from "@owneraio/finp2p-ethereum-erc20-plugin";
 import { GasStation } from "../../../services/funding";
 import { OtaDeposit, OtaResult } from "./models";
 
