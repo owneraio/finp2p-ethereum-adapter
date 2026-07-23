@@ -1,4 +1,4 @@
-import { finIdToAddress, privateKeyToFinId } from '@owneraio/finp2p-contracts';
+import { finIdToAddress, privateKeyToFinId } from '@owneraio/finp2p-ethereum-orchestrator';
 import {
   AccountResolver,
   DbAccountResolver,

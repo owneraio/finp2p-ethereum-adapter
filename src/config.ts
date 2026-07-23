@@ -1,6 +1,6 @@
 import { Interface, JsonRpcProvider, NonceManager, Provider, Signer, Wallet, ZeroAddress, keccak256, toUtf8Bytes } from "ethers";
 import process from "process";
-import { FinP2PContract } from '@owneraio/finp2p-contracts'
+import { FinP2PContract } from '@owneraio/finp2p-ethereum-orchestrator'
 import { FinP2PClient } from '@owneraio/finp2p-client'
 import { ExecDetailsStore } from './services/finp2p-contract/common'
 import { ProofProvider } from '@owneraio/finp2p-nodejs-skeleton-adapter'

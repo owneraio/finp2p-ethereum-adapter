@@ -1,5 +1,5 @@
 import { Destination, Source } from "@owneraio/finp2p-nodejs-skeleton-adapter";
-import { LegType, PrimaryType, ValidationError, Phase } from "@owneraio/finp2p-contracts";
+import { LegType, PrimaryType, ValidationError, Phase } from "@owneraio/finp2p-ethereum-orchestrator";
 import { BusinessContract } from "./model";
 
 

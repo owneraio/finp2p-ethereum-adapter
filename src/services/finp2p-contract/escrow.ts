@@ -4,7 +4,7 @@ import {
   failedReceiptOperation, pendingReceiptOperation,
   logger
 } from "@owneraio/finp2p-nodejs-skeleton-adapter";
-import { ValidationError, EthereumTransactionError } from "@owneraio/finp2p-contracts";
+import { ValidationError, EthereumTransactionError } from "@owneraio/finp2p-ethereum-orchestrator";
 import { CommonServiceImpl } from "./common";
 import { mapReceiptOperation } from "./mapping";
 import { emptyOperationParams, extractBusinessDetails } from "./helpers";

@@ -1,5 +1,5 @@
 import { AccountMappingService, AccountMapping, ReceiptOperation, Asset, ExecutionContext } from '@owneraio/finp2p-nodejs-skeleton-adapter';
-import { FinP2PContract, ReceiptOperation as ContractReceiptOperation } from '@owneraio/finp2p-contracts';
+import { FinP2PContract, ReceiptOperation as ContractReceiptOperation } from '@owneraio/finp2p-ethereum-orchestrator';
 import { FIELD_LEDGER_ACCOUNT_ID } from '../accounts/mapping-validator';
 
 function mapAccount(acc: { finId: string; account?: string } | undefined) {

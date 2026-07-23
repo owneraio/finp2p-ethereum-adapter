@@ -84,24 +84,6 @@ jobs:
           go install github.com/pressly/goose/v3/cmd/goose@v3.27.2
           echo "$(go env GOPATH)/bin" >> $GITHUB_PATH
 
-      - name: Finp2p-Contracts npm clean-install
-        working-directory: ./finp2p-contracts
-        run: npm clean-install
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Finp2p-Contracts npm run compile
-        working-directory: ./finp2p-contracts
-        run: npm run compile
-
-      - name: Finp2p-Contracts npm run build
-        working-directory: ./finp2p-contracts
-        run: npm run build
-
-      - name: Finp2p-Contracts npm run test
-        working-directory: ./finp2p-contracts
-        run: npm run test
-
       - name: Adapter npm clean-install
         run: npm ci
         env:
@@ -185,26 +167,11 @@ jobs:
             npm_token=${{ secrets.GITHUB_TOKEN }}
           outputs: type=image,"name=ownera/finp2p-ethereum-adapter,ghcr.io/owneraio/finp2p-ethereum-adapter",push-by-digest=true,name-canonical=true,push=true
 
-      - name: Docker-deploy build and push by digest
-        id: build_deploy
-        uses: docker/build-push-action@v5
-        with:
-          context: ./finp2p-contracts
-          file: ./finp2p-contracts/Dockerfile-deploy
-          platforms: ${{ matrix.platform }}
-          sbom: false
-          provenance: false
-          secrets: |
-            npm_token=${{ secrets.GITHUB_TOKEN }}
-          outputs: type=image,name=ghcr.io/owneraio/finp2p-contracts-deploy,push-by-digest=true,name-canonical=true,push=true
-
       - name: Export digests
         run: |
-          mkdir -p "${{ runner.temp }}/digests/adapter" "${{ runner.temp }}/digests/deploy"
+          mkdir -p "${{ runner.temp }}/digests/adapter"
           adapter_digest="${{ steps.build_adapter.outputs.digest }}"
-          deploy_digest="${{ steps.build_deploy.outputs.digest }}"
           touch "${{ runner.temp }}/digests/adapter/${adapter_digest#sha256:}"
-          touch "${{ runner.temp }}/digests/deploy/${deploy_digest#sha256:}"
 
       - name: Upload digests
         uses: actions/upload-artifact@v4
@@ -271,14 +238,7 @@ jobs:
           docker buildx imagetools create -t "ghcr.io/owneraio/finp2p-ethereum-adapter:${IMAGE_TAG}" \
             $(printf 'ghcr.io/owneraio/finp2p-ethereum-adapter@sha256:%s ' *)
 
-      - name: Create docker-deploy manifest list and push
-        working-directory: ${{ runner.temp }}/digests/deploy
-        run: |
-          docker buildx imagetools create -t "ghcr.io/owneraio/finp2p-contracts-deploy:${IMAGE_TAG}" \
-            $(printf 'ghcr.io/owneraio/finp2p-contracts-deploy@sha256:%s ' *)
-
       - name: Inspect manifests
         run: |
           docker buildx imagetools inspect "ownera/finp2p-ethereum-adapter:${IMAGE_TAG}"
           docker buildx imagetools inspect "ghcr.io/owneraio/finp2p-ethereum-adapter:${IMAGE_TAG}"
-          docker buildx imagetools inspect "ghcr.io/owneraio/finp2p-contracts-deploy:${IMAGE_TAG}"

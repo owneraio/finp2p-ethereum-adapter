@@ -22,7 +22,7 @@ import {
   Phase,
   ReleaseType,
   EIP712Term, emptyLoanTerms, termFromEIP712, OperationParams,
-} from "@owneraio/finp2p-contracts";
+} from "@owneraio/finp2p-ethereum-orchestrator";
 import { BusinessContract } from "./model";
 
 /**
