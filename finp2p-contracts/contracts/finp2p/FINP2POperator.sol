@@ -7,8 +7,8 @@ import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
 import {OperationParams, LegType, PrimaryType, Phase, ReleaseType} from "../utils/finp2p/OperationParams.sol";
 import {FinIdUtils} from "../utils/finp2p/FinIdUtils.sol";
 import {FinP2PSignatureVerifier} from "../utils/finp2p/FinP2PSignatureVerifier.sol";
-import {Burnable} from "../utils/erc20/Burnable.sol";
-import {Mintable} from "../utils/erc20/Mintable.sol";
+import {Burnable} from "@owneraio/finp2p-ethereum-erc20-plugin/contracts/utils/erc20/Burnable.sol";
+import {Mintable} from "@owneraio/finp2p-ethereum-erc20-plugin/contracts/utils/erc20/Mintable.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 

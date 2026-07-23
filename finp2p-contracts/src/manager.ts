@@ -8,8 +8,8 @@ import {
   Signer, TypedDataField
 } from "ethers";
 import FINP2P from "../artifacts/contracts/finp2p/FINP2POperator.sol/FINP2POperator.json";
-import ERC20 from "../artifacts/contracts/token/ERC20/ERC20WithOperator.sol/ERC20WithOperator.json";
-import { ERC20WithOperator, FINP2POperator } from "../typechain-types";
+import { ERC20WithOperator__factory } from "@owneraio/finp2p-ethereum-erc20-plugin";
+import { FINP2POperator } from "../typechain-types";
 import { Logger } from "./adapter-types";
 import { PayableOverrides } from "../typechain-types/common";
 import { EthereumTransactionError, NonceAlreadyBeenUsedError, NonceTooHighError } from "./model";
@@ -89,12 +89,7 @@ export class ContractsManager {
   }
 
   async deployERC20(name: string, symbol: string, decimals: number, operatorAddress: string): Promise<string> {
-    const factory = new ContractFactory<any[], ERC20WithOperator>(
-      ERC20.abi,
-      ERC20.bytecode,
-      this.signer
-    );
-    const contract = await factory.deploy(name, symbol, decimals, operatorAddress);
+    const contract = await new ERC20WithOperator__factory(this.signer).deploy(name, symbol, decimals, operatorAddress);
     await contract.waitForDeployment();
     return await contract.getAddress();
   }

@@ -246,8 +246,6 @@ export class FinP2PContract extends ContractsManager {
           this.logger.warning("Failed to parse receipt");
           return pendingReceiptOperation(txHash, undefined)
         }
-        // const erc20Transfer = parseERC20Transfer(txReceipt, );
-        // this.logger.info('ERC20 transfer event', erc20Transfer);
         return successfulReceiptOperation(receipt);
       } else {
         return failedReceiptOperation(1, `Transaction failed with status: ${txReceipt.status}`);
