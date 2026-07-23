@@ -3,7 +3,7 @@ import { Provider } from "ethers";
 import { PluginManager } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import { InboundTransferHook } from "@owneraio/finp2p-nodejs-skeleton-adapter/plugin";
 import { FinP2PClient } from "@owneraio/finp2p-client";
-import { FinP2PContract } from "@owneraio/finp2p-contracts";
+import { FinP2PContract } from "@owneraio/finp2p-ethereum-orchestrator";
 import { CustodyProvider, CustodyWallet } from "../services/custody";
 import { GasStation } from "../services/funding";
 import { WalletResolver } from "./wallet-resolver";

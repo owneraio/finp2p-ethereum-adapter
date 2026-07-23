@@ -1,5 +1,5 @@
 import { ExecDetailsStore } from "./common";
-import { ExecutionContext } from "@owneraio/finp2p-contracts";
+import { ExecutionContext } from "@owneraio/finp2p-ethereum-orchestrator";
 
 export class InMemoryExecDetailsStore implements ExecDetailsStore {
   executionContexts: Record<string, ExecutionContext> = {};

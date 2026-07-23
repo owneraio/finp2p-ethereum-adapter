@@ -2,7 +2,7 @@
 import console from "console";
 import winston, { format, transports } from "winston";
 import { FinP2PClient } from "@owneraio/finp2p-client";
-import { FinP2PContract, AssetType, term } from "@owneraio/finp2p-contracts";
+import { FinP2PContract, AssetType, term } from "@owneraio/finp2p-ethereum-orchestrator";
 import { emptyOperationParams } from "../src/services/finp2p-contract/helpers";
 import { createJsonProvider, parseConfig, verifyAssetStandardRegistered } from "../src/config";
 import { redactSecrets } from "../src/redact-secrets";
