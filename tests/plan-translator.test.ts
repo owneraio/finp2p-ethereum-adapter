@@ -3,7 +3,7 @@ import {
   NO_SIGNATURE,
   PlanInstructionType,
   ValidationError
-} from "@owneraio/finp2p-contracts";
+} from "@owneraio/finp2p-ethereum-orchestrator";
 import {
   RawExecutionPlan,
   RawLedgerAccountAsset,

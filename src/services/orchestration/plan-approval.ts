@@ -7,7 +7,7 @@ import {
   logger
 } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import { FinP2PClient } from "@owneraio/finp2p-client";
-import { ExecutionPlanStatus, FinP2POrchestratorContract } from "@owneraio/finp2p-contracts";
+import { ExecutionPlanStatus, FinP2POrchestratorContract } from "@owneraio/finp2p-ethereum-orchestrator";
 import { RawExecutionPlan, translateExecutionPlan } from "./plan-translator";
 
 /**

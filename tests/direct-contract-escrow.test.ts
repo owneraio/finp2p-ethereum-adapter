@@ -1,13 +1,12 @@
-import { ChildProcess, spawn } from "node:child_process";
-import { join } from "node:path";
+import { GenericContainer, StartedTestContainer } from "testcontainers";
+import { HardhatLogExtractor } from "./utils/log-extractors";
 import { Contract, JsonRpcProvider, NonceManager, Wallet } from "ethers";
 import winston, { format, transports } from "winston";
-import { ContractsManager, EscrowContract } from "@owneraio/finp2p-contracts";
-import { ContractEscrow } from "../src/services/direct/contract-escrow";
-import { CustodyWallet } from "../src/services/direct/custody-provider";
+import { ContractsManager, EscrowContract } from "@owneraio/finp2p-ethereum-orchestrator";
+import { ContractEscrow } from "../src/services/custody/contract-escrow";
+import { CustodyWallet } from "../src/services/custody/custody-provider";
 
-const PORT = 8800 + Math.floor(Math.random() * 200);
-const RPC_URL = `http://127.0.0.1:${PORT}`;
+let RPC_URL = "";
 const DEPLOYER_PK = "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80";
 
 const logger = winston.createLogger({
@@ -28,7 +27,7 @@ jest.setTimeout(180_000);
 
 describe("direct-mode contract escrow (integration)", () => {
 
-  let node: ChildProcess;
+  let node: StartedTestContainer;
   let contractEscrow: ContractEscrow;
   let escrowAddress: string;
   let token: Contract;
@@ -39,18 +38,13 @@ describe("direct-mode contract escrow (integration)", () => {
   const buyer = Wallet.createRandom();
 
   beforeAll(async () => {
-    const contractsDir = join(__dirname, "..", "finp2p-contracts");
-    node = spawn("npx", ["hardhat", "node", "--port", `${PORT}`], { cwd: contractsDir, stdio: ["ignore", "pipe", "pipe"] });
-    await new Promise<void>((resolve, reject) => {
-      const timer = setTimeout(() => reject(new Error("hardhat node did not start")), 60_000);
-      node.stdout?.on("data", (data: Buffer) => {
-        if (data.toString().includes("Started HTTP")) {
-          clearTimeout(timer);
-          resolve();
-        }
-      });
-      node.on("exit", (code) => reject(new Error(`hardhat node exited with ${code}`)));
-    });
+    const logExtractor = new HardhatLogExtractor();
+    node = await new GenericContainer("ghcr.io/owneraio/hardhat:task-fix-docker-build")
+      .withLogConsumer((stream) => logExtractor.consume(stream))
+      .withExposedPorts(8545)
+      .start();
+    await logExtractor.started();
+    RPC_URL = `http://${node.getHost()}:${node.getMappedPort(8545)}`;
 
     // cacheTimeout -1: ethers' 250ms response cache returns stale transaction
     // counts against an instant-mining hardhat node, breaking nonce assignment
@@ -76,8 +70,8 @@ describe("direct-mode contract escrow (integration)", () => {
     contractEscrow = new ContractEscrow(escrowContract, logger);
   });
 
-  afterAll(() => {
-    node?.kill();
+  afterAll(async () => {
+    await node?.stop();
   });
 
   test("hold performs approve + deposit from the investor wallet", async () => {

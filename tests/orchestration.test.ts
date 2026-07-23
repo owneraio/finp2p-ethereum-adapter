@@ -1,14 +1,12 @@
-import { ChildProcess, spawn } from "node:child_process";
-import { join } from "node:path";
-import { Contract, Wallet, ZeroAddress } from "ethers";
+import { Contract, Wallet, ZeroAddress, id as keccakId } from "ethers";
+import { GenericContainer, StartedTestContainer } from "testcontainers";
+import { HardhatLogExtractor } from "./utils/log-extractors";
 import winston, { format, transports } from "winston";
 import {
   ContractsManager,
   ERC20_STANDARD_ID,
   ExecutionPlanStatus,
   FinP2POrchestratorContract,
-  MINTER_ROLE,
-  OPERATOR_ROLE,
   RECEIPT_PROOF_TYPES,
   eip712Asset,
   eip712Destination,
@@ -22,10 +20,10 @@ import {
   newReceiptMessage,
   eip712Term,
   signEIP712
-} from "@owneraio/finp2p-contracts";
+} from "@owneraio/finp2p-ethereum-orchestrator";
 import { approvedPlan } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import { createJsonProvider } from "../src/config";
-import { InMemoryExecDetailsStore } from "../src/services/finp2p-contract";
+import { InMemoryExecDetailsStore } from "../src/services/onchain";
 import {
   PlanBasedApprovalService,
   PlanEscrowService,
@@ -36,8 +34,9 @@ import { RawExecutionPlan } from "../src/services/orchestration/plan-translator"
 
 const ORG = "bank-us";
 const REMOTE_ORG = "bank-uk";
-const PORT = 8600 + Math.floor(Math.random() * 200);
-const RPC_URL = `http://127.0.0.1:${PORT}`;
+let RPC_URL = "";
+const MINTER_ROLE = keccakId("MINTER_ROLE");
+const OPERATOR_ROLE = keccakId("OPERATOR_ROLE");
 // hardhat's first default account
 const DEPLOYER_PK = "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80";
 
@@ -59,7 +58,7 @@ jest.setTimeout(180_000);
 
 describe("v2 plan-based services (integration)", () => {
 
-  let node: ChildProcess;
+  let node: StartedTestContainer;
   let orchestrator: FinP2POrchestratorContract;
   let escrowAddress: string;
   let provider: ReturnType<typeof createJsonProvider>["provider"];
@@ -79,18 +78,13 @@ describe("v2 plan-based services (integration)", () => {
   let settlementToken: Contract;
 
   beforeAll(async () => {
-    const contractsDir = join(__dirname, "..", "finp2p-contracts");
-    node = spawn("npx", ["hardhat", "node", "--port", `${PORT}`], { cwd: contractsDir, stdio: ["ignore", "pipe", "pipe"] });
-    await new Promise<void>((resolve, reject) => {
-      const timer = setTimeout(() => reject(new Error("hardhat node did not start")), 60_000);
-      node.stdout?.on("data", (data: Buffer) => {
-        if (data.toString().includes("Started HTTP")) {
-          clearTimeout(timer);
-          resolve();
-        }
-      });
-      node.on("exit", (code) => reject(new Error(`hardhat node exited with ${code}`)));
-    });
+    const logExtractor = new HardhatLogExtractor();
+    node = await new GenericContainer("ghcr.io/owneraio/hardhat:task-fix-docker-build")
+      .withLogConsumer((stream) => logExtractor.consume(stream))
+      .withExposedPorts(8545)
+      .start();
+    await logExtractor.started();
+    RPC_URL = `http://${node.getHost()}:${node.getMappedPort(8545)}`;
 
     ({ provider, signer } = createJsonProvider(DEPLOYER_PK, RPC_URL));
     const manager = new ContractsManager(provider, signer, logger);
@@ -120,8 +114,8 @@ describe("v2 plan-based services (integration)", () => {
     await (await settlementToken.mint(finIdToAddress(buyerFinId), 10000)).wait(); // "100.00"
   });
 
-  afterAll(() => {
-    node?.kill();
+  afterAll(async () => {
+    await node?.stop();
   });
 
   const buyingTemplateSignature = async () => {

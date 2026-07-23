@@ -1,7 +1,8 @@
 import winston from "winston";
 import { ZeroAddress } from "ethers";
-import { TokenOperationResult } from "@owneraio/finp2p-ethereum-token-standard";
-import { ERC20Contract, EscrowContract, EscrowHoldStatus } from "@owneraio/finp2p-contracts";
+import { TokenOperationResult } from "@owneraio/finp2p-ethereum-adapter-contract";
+import { EscrowContract, EscrowHoldStatus } from "@owneraio/finp2p-ethereum-orchestrator";
+import { Erc20Contract } from "@owneraio/finp2p-ethereum-erc20-plugin";
 import { CustodyWallet } from "./custody-provider";
 
 /** What the caller believes the hold is; checked against on-chain state before terminal ops. */
@@ -36,7 +37,7 @@ export class ContractEscrow {
     tokenAddress: string, operationId: string, amount: bigint
   ): Promise<TokenOperationResult> {
     try {
-      const erc20 = new ERC20Contract(sourceWallet.provider, sourceWallet.signer, tokenAddress, this.logger as any);
+      const erc20 = new Erc20Contract(sourceWallet.signer, tokenAddress);
       const allowance = await erc20.allowance(sourceAddress, this.escrowAddress);
       if (allowance < amount) {
         this.logger.info(`ContractEscrow: approving ${amount} of ${tokenAddress} for escrow ${this.escrowAddress}`);

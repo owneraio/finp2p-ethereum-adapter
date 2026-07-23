@@ -5,7 +5,7 @@ import {
   FinP2POrchestratorContract,
   LedgerProof,
   PlanInstructionType
-} from "@owneraio/finp2p-contracts";
+} from "@owneraio/finp2p-ethereum-orchestrator";
 
 type RawReceiptProofMessage = {
   id: string;

@@ -4,16 +4,16 @@ import {
   failedAssetCreation, failedReceiptOperation, logger
 } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import {
-  ERC20Contract,
   ERC20_STANDARD_ID,
   EthereumTransactionError,
   FinP2POrchestratorContract,
   PlanInstruction,
   PlanInstructionType
-} from "@owneraio/finp2p-contracts";
-import { EscrowServiceImpl, TokenServiceImpl } from "../finp2p-contract";
-import { ExecDetailsStore } from "../finp2p-contract/common";
-import { mapReceiptOperation } from "../finp2p-contract/mapping";
+} from "@owneraio/finp2p-ethereum-orchestrator";
+import { OnChainTokenService } from "../onchain";
+import { ERC20WithOperator__factory } from "@owneraio/finp2p-ethereum-erc20-plugin";
+import { ExecDetailsStore } from "../onchain";
+import { mapReceiptOperation } from "../onchain";
 import { ProofSyncService } from "./proof-sync";
 
 /**
@@ -87,7 +87,7 @@ export class PlanTokenService implements TokenService {
     orchestrator: FinP2POrchestratorContract,
     proofSync: ProofSyncService,
     execDetailsStore: ExecDetailsStore | undefined,
-    private readonly fallback: TokenServiceImpl,
+    private readonly fallback: OnChainTokenService,
     // bytes32 asset-standard id used when mirroring associations (defaults to
     // the package-level ERC20 standard id)
     private readonly defaultAssetStandard?: string
@@ -131,7 +131,7 @@ export class PlanTokenService implements TokenService {
     // path); bound external tokens may refuse.
     const escrowAddress = await orchestrator.getEscrowAddress();
     const standardAddress = await orchestrator.getRegisteredAssetStandard(standardId);
-    const erc20 = new ERC20Contract(orchestrator.provider, orchestrator.signer, tokenAddress, logger as any);
+    const erc20 = ERC20WithOperator__factory.connect(tokenAddress, orchestrator.signer);
     try {
       await (await erc20.grantOperatorTo(standardAddress)).wait();
       await (await erc20.grantMinterTo(standardAddress)).wait();
@@ -195,7 +195,7 @@ export class PlanEscrowService implements EscrowService {
     orchestrator: FinP2POrchestratorContract,
     proofSync: ProofSyncService,
     execDetailsStore: ExecDetailsStore | undefined,
-    private readonly fallback: EscrowServiceImpl
+    private readonly fallback: OnChainTokenService
   ) {
     this.executor = new PlanExecutor(orchestrator, proofSync, execDetailsStore);
   }
