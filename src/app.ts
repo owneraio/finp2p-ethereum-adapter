@@ -18,10 +18,10 @@ import {
   EscrowServiceImpl,
   TokenServiceImpl,
 } from "./services/finp2p-contract";
-import { DirectTokenService } from "./services/direct";
 import {
   CustodyProvider,
   CustodyWallet,
+  CustodyTokenService,
   custodyRegistry,
 } from "./services/custody";
 import { HealthServiceImpl } from "./services/network";
@@ -146,7 +146,7 @@ async function registerDirectServices(
   const issuerWallet = assetIssuerKey && networkHost
     ? { provider: readProvider, signer: pooledSigner(getNetworkRpcUrl(), assetIssuerKey) }
     : undefined;
-  let tokenService: DirectTokenService = new DirectTokenService(logger, custodyProvider, escrowWallet, readProvider, accountMapping, assetStore, issuerWallet);
+  let tokenService: CustodyTokenService = new CustodyTokenService(logger, custodyProvider, escrowWallet, readProvider, accountMapping, assetStore, issuerWallet);
   const commonService = new DirectCommonServiceImpl(workflowStorage!);
   const planApprovalService = await buildCustodyPlanApprovalService(
     appConfig.orgId, finP2PClient,
