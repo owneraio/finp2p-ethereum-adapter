@@ -1,5 +1,5 @@
-import { isHederaNetwork } from "../src/services/direct/wallet-activation";
-import { WalletActivationOption } from "../src/services/direct/wallet-activation-option";
+import { isHederaNetwork } from "../src/services/network/hedera";
+import { WalletActivationOption } from "../src/services/plan-approval/options/wallet-activation-option";
 import { IntrospectedPlan } from "../src/services/plan-approval";
 
 const ORG = "bank-us";
@@ -82,16 +82,14 @@ describe("WalletActivationOption", () => {
         return {};
       }
     };
-    const custodyProvider = {
-      gasStation: opts.gasStation === false ? undefined : { wallet: { provider, signer } }
-    } as any;
+    const gasStation = (opts.gasStation === false ? undefined : { wallet: { provider, signer } }) as any;
     const accountMapping = {
       resolveAccount: async (finId: string) => (opts.mapped ?? ADDR)[finId]
     } as any;
 
     // the option no longer probes the network — that decision is made once at
     // startup (see isHederaNetwork tests above); here it is always enabled
-    const option = new WalletActivationOption(custodyProvider, accountMapping, opts.amount);
+    const option = new WalletActivationOption(gasStation, accountMapping, opts.amount);
     return { option, touches };
   }
 

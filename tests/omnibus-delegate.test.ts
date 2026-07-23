@@ -1,6 +1,6 @@
-import { OmnibusDelegate } from '../src/services/direct/omnibus-delegate';
-import { CustodyProvider, CustodyWallet } from '../src/services/direct/custody-provider';
-import { AccountMappingService, AssetStore } from '../src/services/direct/account-mapping';
+import { OmnibusDelegate } from '../src/services/omnibus/omnibus-delegate';
+import { CustodyProvider, CustodyWallet } from '../src/services/custody/custody-provider';
+import { AccountResolver, AssetStore } from '../src/services/accounts/account-resolver';
 import { tokenStandardRegistry } from '../src/integrations/token-standards/registry';
 import { ERC20TokenStandard, TokenStandardName as ERC20_TOKEN_STANDARD } from '@owneraio/finp2p-ethereum-erc20-plugin';
 import winston from 'winston';
@@ -48,22 +48,20 @@ function createMockWallet(address: string): CustodyWallet {
   };
 }
 
+const mockReadProvider = {
+  waitForTransaction: jest.fn(),
+  getBlock: jest.fn(),
+  getNetwork: jest.fn().mockResolvedValue({ chainId: 11155111n, name: 'sepolia' }),
+} as any;
+
 function createMockCustodyProvider(overrides: Partial<CustodyProvider> = {}): CustodyProvider {
   return {
-    issuer: createMockWallet('0xISSUER'),
-    escrow: createMockWallet('0xESCROW'),
-    omnibus: createMockWallet('0xOMNIBUS'),
-    rpcProvider: {
-      waitForTransaction: jest.fn(),
-      getBlock: jest.fn(),
-      getNetwork: jest.fn().mockResolvedValue({ chainId: 11155111n, name: 'sepolia' }),
-    } as any,
     resolveWallet: jest.fn(),
     ...overrides,
   };
 }
 
-function createMockAccountMapping(): AccountMappingService {
+function createMockAccountMapping(): AccountResolver {
   return {
     resolveAccount: jest.fn(),
     resolveFinId: jest.fn(),
@@ -86,7 +84,7 @@ const TEST_DB_ASSET = {
 describe('OmnibusDelegate', () => {
   let delegate: OmnibusDelegate;
   let custodyProvider: CustodyProvider;
-  let accountMapping: AccountMappingService;
+  let accountMapping: AccountResolver;
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -96,13 +94,12 @@ describe('OmnibusDelegate', () => {
     custodyProvider = createMockCustodyProvider();
     accountMapping = createMockAccountMapping();
     const mockAssetStore = { getAsset: mockGetAsset, saveAsset: mockSaveAsset } as unknown as AssetStore;
-    delegate = new OmnibusDelegate(logger, custodyProvider, accountMapping, mockAssetStore);
+    delegate = new OmnibusDelegate(logger, custodyProvider, createMockWallet('0xOMNIBUS'), createMockWallet('0xESCROW'), mockReadProvider, undefined, accountMapping, mockAssetStore);
   });
 
-  it('should throw if custody provider has no omnibus wallet', () => {
-    const noOmnibus = createMockCustodyProvider({ omnibus: undefined });
+  it('should throw when constructed without an omnibus wallet', () => {
     const mockAssetStore = { getAsset: jest.fn(), saveAsset: jest.fn() } as unknown as AssetStore;
-    expect(() => new OmnibusDelegate(logger, noOmnibus, accountMapping, mockAssetStore))
+    expect(() => new OmnibusDelegate(logger, custodyProvider, undefined as any, createMockWallet('0xESCROW'), mockReadProvider, undefined, accountMapping, mockAssetStore))
       .toThrow('Omnibus wallet is required');
   });
 

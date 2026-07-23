@@ -1,8 +1,8 @@
 import { logger, rejectedPlan } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import { AssetRecord, Logger as TokenLogger, supportsWhitelisting } from "@owneraio/finp2p-ethereum-adapter-contract";
-import { PlanApprovalOption, IntrospectedPlan } from "../plan-approval";
-import { AccountMappingService, AssetStore } from "./account-mapping";
-import { tokenStandardRegistry } from "../../integrations/token-standards/registry";
+import { PlanApprovalOption, IntrospectedPlan } from "..";
+import { AccountResolver, AssetStore } from "../../accounts/account-resolver";
+import { tokenStandardRegistry } from "../../../integrations/token-standards/registry";
 
 const tokenLogger: TokenLogger = {
   info: (m, ...a) => logger.info(m, ...a),
@@ -30,7 +30,7 @@ export class TokenWhitelistingOption implements PlanApprovalOption {
 
   constructor(
     private readonly assetStore: AssetStore,
-    private readonly accountMapping: AccountMappingService,
+    private readonly accountMapping: AccountResolver,
   ) {}
 
   async apply(plan: IntrospectedPlan): Promise<ReturnType<typeof rejectedPlan> | void> {

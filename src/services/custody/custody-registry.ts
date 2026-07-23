@@ -17,7 +17,7 @@ export type CustodyProviderFactory<TConfig = any> = (config: TConfig) => Promise
  * and external packages:
  *
  *   // In-repo provider
- *   import { FireblocksCustodyProvider } from '../../integrations/fireblocks';
+ *   import { FireblocksCustodyProvider } from '../../integrations/custody/fireblocks';
  *   custodyRegistry.register('fireblocks', config => FireblocksCustodyProvider.create(config));
  *
  *   // External package
