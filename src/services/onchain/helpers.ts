@@ -21,9 +21,16 @@ import {
   operationParams,
   Phase,
   ReleaseType,
-  EIP712Term, emptyLoanTerms, termFromEIP712, OperationParams,
+  EIP712Term, emptyLoanTerms, termFromEIP712, OperationParams, Term, EIP712LoanTerms,
 } from "@owneraio/finp2p-ethereum-orchestrator";
-import { BusinessContract } from "./model";
+export type BusinessContract = {
+  buyerFinId: string,
+  sellerFinId: string,
+  asset: Term,
+  settlement: Term,
+  loan: EIP712LoanTerms,
+  params: OperationParams
+};
 
 /**
  * Skeleton 0.28.9 made `EIP712Term.assetType` optional, while finp2p-contracts
@@ -246,3 +253,96 @@ const isIn = (str: string, ...args: string[]): boolean => args.includes(str);
 export const emptyOperationParams = (): OperationParams => {
   return operationParams(LegType.Asset, PrimaryType.PrimarySale, Phase.Initiate);
 }
+
+export const validateRequest = (source: Source, destination: Destination | undefined, quantity: string, businessDetails: BusinessContract): void => {
+  const {
+    buyerFinId,
+    sellerFinId,
+    asset,
+    settlement,
+    loan,
+    params: { eip712PrimaryType, phase, leg }
+  } = businessDetails;
+  if (eip712PrimaryType === PrimaryType.Loan) {
+    switch (phase) {
+      case Phase.Initiate:
+        switch (leg) {
+          case LegType.Asset:
+            if (destination && buyerFinId !== destination.finId) {
+              throw new ValidationError(`Buyer FinId in the signature does not match the destination FinId`);
+            }
+            if (sellerFinId !== source.finId) {
+              throw new ValidationError(`Seller FinId in the signature does not match the source FinId`);
+            }
+            if (quantity !== asset.amount) {
+              throw new ValidationError(`Quantity in the signature does not match the requested quantity`);
+            }
+            break;
+          case LegType.Settlement:
+            if (destination && sellerFinId !== destination.finId) {
+              throw new ValidationError(`Seller FinId in the signature does not match the destination FinId`);
+            }
+            if (buyerFinId !== source.finId) {
+              throw new ValidationError(`Buyer FinId in the signature does not match the source FinId`);
+            }
+            if (quantity !== loan.borrowedMoneyAmount) {
+              throw new ValidationError(`BorrowedMoneyAmount in the signature does not match the requested quantity`);
+            }
+            break;
+        }
+        break;
+      case Phase.Close:
+        switch (leg) {
+          case LegType.Asset:
+            if (destination && sellerFinId !== destination.finId) {
+              throw new ValidationError(`Seller FinId in the signature does not match the destination FinId`);
+            }
+            if (buyerFinId !== source.finId) {
+              throw new ValidationError(`Buyer FinId in the signature does not match the source FinId`);
+            }
+            if (quantity !== asset.amount) {
+              throw new ValidationError(`Quantity in the signature does not match the requested quantity`);
+            }
+            break;
+          case LegType.Settlement:
+            if (destination && buyerFinId !== destination.finId) {
+              throw new ValidationError(`Buyer FinId in the signature does not match the destination FinId`);
+            }
+            if (sellerFinId !== source.finId) {
+              throw new ValidationError(`Seller FinId in the signature does not match the source FinId`);
+            }
+            if (quantity !== loan.returnedMoneyAmount) {
+              throw new ValidationError(`ReturnedMoneyAmount in the signature does not match the requested quantity`);
+            }
+            break;
+        }
+    }
+  } else {
+    switch (leg) {
+      case LegType.Asset:
+        if (destination && buyerFinId !== destination.finId) {
+          throw new ValidationError(`Buyer FinId in the signature does not match the destination FinId`);
+        }
+        if (sellerFinId !== source.finId) {
+          throw new ValidationError(`Seller FinId in the signature does not match the source FinId`);
+        }
+        if (quantity !== asset.amount) {
+          throw new ValidationError(`Quantity in the signature does not match the requested quantity`);
+        }
+        break;
+      case LegType.Settlement:
+        if (destination && sellerFinId !== destination.finId) {
+          throw new ValidationError(`Seller FinId in the signature does not match the destination FinId`);
+        }
+        if (buyerFinId !== source.finId) {
+          throw new ValidationError(`Buyer FinId in the signature does not match the source FinId`);
+        }
+        if (quantity !== settlement.amount) {
+          throw new ValidationError(`Quantity in the signature does not match the requested quantity`);
+        }
+        break;
+    }
+  }
+
+
+};

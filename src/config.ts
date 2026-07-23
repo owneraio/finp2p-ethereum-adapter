@@ -2,10 +2,10 @@ import { Interface, JsonRpcProvider, NonceManager, Provider, Signer, Wallet, Zer
 import process from "process";
 import { FinP2PContract } from '@owneraio/finp2p-ethereum-orchestrator'
 import { FinP2PClient } from '@owneraio/finp2p-client'
-import { ExecDetailsStore } from './services/finp2p-contract/common'
+import { ExecDetailsStore } from './services/onchain'
 import { ProofProvider } from '@owneraio/finp2p-nodejs-skeleton-adapter'
 import { Logger } from "@owneraio/finp2p-nodejs-skeleton-adapter";
-import { InMemoryExecDetailsStore } from './services/finp2p-contract/exec-details-store'
+import { InMemoryExecDetailsStore } from './services/onchain'
 import { FireblocksAppConfig, createFireblocksAppConfig } from './integrations/custody/fireblocks/config'
 import { DfnsAppConfig, createDfnsAppConfig } from './integrations/custody/dfns/config'
 
