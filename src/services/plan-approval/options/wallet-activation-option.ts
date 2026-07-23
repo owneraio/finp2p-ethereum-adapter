@@ -1,8 +1,8 @@
 import { logger } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import { PlanApprovalOption, IntrospectedPlan } from "..";
 import { AccountResolver } from "../../accounts/account-resolver";
-import { GasStation } from "../../funding";
-import { DEFAULT_ACTIVATION_AMOUNT, WalletActivator } from "../../funding/wallet-activation";
+import { GasStation } from "../../gas-station";
+import { DEFAULT_ACTIVATION_AMOUNT, WalletActivator } from "../../gas-station/wallet-activation";
 
 /**
  * Plan-approval option that activates recipient wallets on Hedera-style

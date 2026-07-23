@@ -1,6 +1,6 @@
 import {
   Asset, AssetBind, AssetCreationStatus, AssetDenomination,
-  Balance, Destination, ExecutionContext, OperationType,
+  Balance, Destination, ExecutionContext, HealthService, OperationType,
   ReceiptOperation, Signature, Source, TokenService, EscrowService,
   failedReceiptOperation, failedAssetCreation
 } from '@owneraio/finp2p-nodejs-skeleton-adapter';
@@ -55,7 +55,7 @@ function resultToReceipt(
  * operations with self-funding, wallets must be funded out of band (or a
  * gas-check step reintroduced explicitly for that path).
  */
-export class CustodyTokenService implements TokenService, EscrowService {
+export class CustodyTokenService implements TokenService, EscrowService, HealthService {
 
   constructor(
     readonly logger: winston.Logger,
@@ -78,6 +78,14 @@ export class CustodyTokenService implements TokenService, EscrowService {
     if (this.issuerWallet) return this.issuerWallet.signer;
     this.readSigner ??= Wallet.createRandom().connect(this.readProvider);
     return this.readSigner;
+  }
+
+  async liveness(): Promise<void> {
+    await this.readProvider.getNetwork();
+  }
+
+  async readiness(): Promise<void> {
+    await this.readProvider.getBlockNumber();
   }
 
   private async resolveAddress(finId: string): Promise<string> {

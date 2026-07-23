@@ -15,7 +15,7 @@ import {
 } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import { FinP2PClient } from "@owneraio/finp2p-client";
 import { CustodyProvider } from "../../../services/custody";
-import { GasStation } from "../../../services/funding";
+import { GasStation } from "../../../services/gas-station";
 import { AssetStore } from "../../../services/accounts";
 import { DepositTargetResolver } from "../types";
 import { BalanceWatcher } from "./balance-watcher";

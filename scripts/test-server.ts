@@ -21,7 +21,7 @@ import { GenericContainer, StartedTestContainer } from "testcontainers";
 import winston, { format, transports } from "winston";
 import createApp from "../src/app";
 import { AppConfig, createJsonProvider } from "../src/config";
-import { ExecDetailsStore, InMemoryExecDetailsStore } from "../src/services/finp2p-contract";
+import { ExecDetailsStore, InMemoryExecDetailsStore } from "../src/services/onchain";
 import { HardhatLogExtractor } from "../tests/utils/log-extractors";
 import { NetworkDetails } from "../tests/utils/models";
 import { redactSecrets } from "../src/redact-secrets";
