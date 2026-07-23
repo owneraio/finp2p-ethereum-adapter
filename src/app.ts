@@ -23,7 +23,6 @@ import {
   CustodyTokenService,
   custodyRegistry,
 } from "./services/custody";
-import { HealthServiceImpl } from "./services/network";
 import { createWalletResolver } from "./integrations/wallet-resolver";
 import {
   DbAccountResolver,
@@ -86,12 +85,11 @@ async function registerDirectServices(
   ledgerSchema: string | undefined,
 ): Promise<void> {
   // Guard the shared preconditions up front, before anything touches the RPC
-  // (HealthServiceImpl, the Hedera probe in buildCustodyPlanApprovalService): a
+  // (health checks, the Hedera probe in buildCustodyPlanApprovalService): a
   // clear message beats a null-deref inside the probe.
   if (!readProvider) throw new Error('Read-only RPC provider is unavailable — set NETWORK_HOST or use a custody provider whose wallet exposes a transport');
   if (!escrowWallet) throw new Error('Escrow wallet is required for direct mode (set ASSET_ESCROW_CUSTODY_ACCOUNT_ID or OMNIBUS_CUSTODY_ACCOUNT_ID)');
 
-  const healthService = new HealthServiceImpl(readProvider);
   const mappingConfig = buildMappingConfig(custodyProvider);
   const workflowStorage = dbPool ? new workflows.WorkflowStorage(dbPool, ledgerSchema) : undefined;
 
@@ -158,7 +156,7 @@ async function registerDirectServices(
   const proxiedEscrowService = wrapWithWorkflowProxy(tokenService, workflowStorage, finP2PClient, 'hold', 'release', 'rollback');
   const proxiedPlanService = wrapWithWorkflowProxy(planApprovalService, workflowStorage, finP2PClient, 'approvePlan', 'proposeCancelPlan', 'proposeResetPlan', 'proposeInstructionApproval');
   const proxiedPaymentsService = wrapWithWorkflowProxy(paymentsService, workflowStorage, finP2PClient, 'getDepositInstruction', 'payout');
-  register(app, proxiedTokenService, proxiedEscrowService, commonService, healthService, proxiedPaymentsService, proxiedPlanService, mappingConfig, accountMappingService);
+  register(app, proxiedTokenService, proxiedEscrowService, commonService, tokenService, proxiedPaymentsService, proxiedPlanService, mappingConfig, accountMappingService);
 }
 
 function registerFinP2PContractServices(

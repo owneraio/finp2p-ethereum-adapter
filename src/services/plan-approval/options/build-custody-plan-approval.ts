@@ -5,7 +5,7 @@ import { ConfigurablePlanApprovalService } from "../configurable-plan-approval-s
 import { PlanApprovalOption } from "../option";
 import { GasStation } from "../../funding";
 import { AccountResolver, AssetStore } from "../../accounts/account-resolver";
-import { isHederaNetwork } from "../../network/hedera";
+import { isHederaNetwork } from "../../../config";
 import { TokenWhitelistingOption } from "./token-whitelisting-option";
 import { GasPrefundingOption } from "./gas-prefunding-option";
 import { WalletActivationOption } from "./wallet-activation-option";

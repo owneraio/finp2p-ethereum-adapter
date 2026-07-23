@@ -14,6 +14,9 @@ module.exports = {
     "<rootDir>/tests/token-whitelisting.test.+(ts|tsx|js)",
     "<rootDir>/tests/wallet-activation.test.+(ts|tsx|js)"
   ],
+  "moduleNameMapper": {
+    "\\.graphql$": "<rootDir>/tests/utils/graphql-stub.js"
+  },
   "transform": {
     "^.+\\.(ts|tsx)$": "ts-jest"
   }
