@@ -39,14 +39,16 @@ describe("registerTokenStandards (real plugin standards)", () => {
     for (const name of ALL) expect(tokenStandardRegistry.has(name)).toBe(false);
   });
 
-  test("without issuer/controller keys: registers all five with an ephemeral signer and warns", () => {
-    // TODO: revert to fail-closed / undefined issuer once the plugins accept an
-    // optional signer; today an ephemeral placeholder keeps registration on.
+  test("without issuer/controller keys: registers all five; issuer disabled, controller ephemeral", () => {
+    // Issuer is optional on every standard now → undefined (issuance disabled) when
+    // the key is absent. Controller is still a required constructor arg, so an
+    // ephemeral placeholder stands in. Two distinct warnings, one per key.
     warnings.length = 0;
     registerTokenStandards({ logger: warningLogger, rpcUrl: RPC } as any);
 
-    expect(warnings.length).toBe(1);
-    expect(warnings[0]).toContain("ephemeral");
+    expect(warnings.length).toBe(2);
+    expect(warnings.some(w => /ASSET_ISSUER_PRIVATE_KEY.*issuance is disabled/.test(w))).toBe(true);
+    expect(warnings.some(w => /ASSET_CONTROLLER_PRIVATE_KEY.*ephemeral controller/.test(w))).toBe(true);
     for (const name of ALL) expect(tokenStandardRegistry.has(name)).toBe(true);
   });
 
