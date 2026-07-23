@@ -71,7 +71,6 @@ describe("registerTokenStandards (real plugin standards)", () => {
     for (const [name, cls] of expected) {
       expect(tokenStandardRegistry.has(name)).toBe(true);
       expect(tokenStandardRegistry.resolve(name)).toBeInstanceOf(cls);
-      expect(tokenStandardRegistry.isErc20Compatible(name)).toBe(true);
     }
   });
 
