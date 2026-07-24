@@ -30,6 +30,7 @@
     "sync-balances": "ts-node ./scripts/sync-balances.ts",
     "mass-approve": "ts-node ./scripts/mass-approve.ts",
     "verify-signature": "ts-node ./scripts/verify-signature.ts",
+    "probe-fireblocks": "ts-node ./scripts/probe-fireblocks.ts",
     "start-debug": "ts-node ./src/index.ts",
     "start": "node .",
     "test:plan-approval": "jest --config jest.plan-approval.config.js"
