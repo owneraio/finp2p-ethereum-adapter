@@ -202,17 +202,12 @@ describe("v2 plan-based services (integration)", () => {
       getExecutionPlan: async () => ({ data: { plan: rawPlan, instructionsCompletionEvents: completionEvents } })
     } as any;
     const innerApprovalStub = { approvePlan: async () => approvedPlan() } as any;
-    const failingFallback = new Proxy({}, {
-      get: (_t, prop) => () => {
-        throw new Error(`unexpected fallback call: ${String(prop)}`);
-      }
-    }) as any;
 
     const execDetailsStore = new InMemoryExecDetailsStore();
     const proofSync = new ProofSyncService(orchestrator, finP2PClientStub);
     const approvalService = new PlanBasedApprovalService(ORG, orchestrator, finP2PClientStub, innerApprovalStub);
-    const tokenService = new PlanTokenService(orchestrator, proofSync, execDetailsStore, failingFallback);
-    const escrowService = new PlanEscrowService(orchestrator, proofSync, execDetailsStore, failingFallback);
+    const tokenService = new PlanTokenService(orchestrator, proofSync, execDetailsStore);
+    const escrowService = new PlanEscrowService(orchestrator, proofSync, execDetailsStore);
 
     // --- approval mirrors the plan on-chain, investor signature verified in createPlan
     const approval = await approvalService.approvePlan("ik-1", planId);
@@ -258,29 +253,21 @@ describe("v2 plan-based services (integration)", () => {
     expect(again.type).toBe("approved");
     expect(await orchestrator.getPlanApproval(planId, ORG)).toBe(1); // APPROVED
 
-    // sanity: the token service delegates non-plan calls to the fallback (which throws here)
-    await expect(tokenService.issue("ik-6", { assetId, assetType: "finp2p" } as any, buyerFinId, "1", undefined as any))
-      .rejects.toThrow(/unexpected fallback call/);
+    // sanity: non-plan value operations are rejected — every value move is plan-mirrored
+    const nonPlanIssue = await tokenService.issue("ik-6", { assetId, assetType: "finp2p" } as any, buyerFinId, "1", undefined as any);
+    expect(nonPlanIssue.type).toBe("failure");
   });
 
-  test("createAsset mirrors the association and token roles onto the plan operator + escrow", async () => {
-    const manager = new ContractsManager(provider, signer, logger);
+  test("createAsset deploys, associates and grants token roles onto the plan operator + escrow", async () => {
     const newAssetId = `${ORG}:102:asset-created`;
-    // token deployed by the (v1) fallback path: adapter's account is the admin
-    const newTokenAddress = await manager.deployERC20("Created", "CRD", 2, await signer.getAddress());
-    const fallbackStub = {
-      createAsset: async () => ({
-        operation: "createAsset", type: "success",
-        result: { ledgerIdentifier: { assetIdentifierType: "CAIP-19", network: "test", tokenId: newTokenAddress, standard: "ERC20" } }
-      })
-    } as any;
 
     const tokenService = new PlanTokenService(orchestrator, new ProofSyncService(orchestrator, undefined),
-      new InMemoryExecDetailsStore(), fallbackStub);
+      new InMemoryExecDetailsStore());
     const result = await tokenService.createAsset("ik-ca", newAssetId, undefined, undefined, undefined, undefined, undefined);
     expect(result.type).toBe("success");
 
-    expect(await orchestrator.getAssetAddress(newAssetId)).toBe(newTokenAddress);
+    const newTokenAddress = await orchestrator.getAssetAddress(newAssetId);
+    expect(newTokenAddress).toMatch(/^0x[0-9a-fA-F]{40}$/);
     const standardAddress = await orchestrator.getRegisteredAssetStandard(ERC20_STANDARD_ID);
     const token = new Contract(newTokenAddress, ["function hasRole(bytes32,address) view returns (bool)"], provider);
     expect(await token.hasRole(OPERATOR_ROLE, standardAddress)).toBe(true);

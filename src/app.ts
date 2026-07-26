@@ -167,28 +167,34 @@ function registerFinP2PContractServices(
   }
   const workflowStorage = dbPool ? new workflows.WorkflowStorage(dbPool, ledgerSchema) : undefined;
   const innerPlanApprovalService = new PlanApprovalServiceImpl(contractConfig.orgId, pluginManager, contractConfig.finP2PClient);
-  const v1Service = new OnChainTokenService(contractConfig.finP2PContract, contractConfig.finP2PClient, contractConfig.execDetailsStore, contractConfig.proofProvider, pluginManager, contractConfig.defaultAssetStandard);
   const mappingService = new CredentialsMappingService(contractConfig.finP2PContract);
   const mappingConfig = buildMappingConfig();
 
-  // v2 (plan-based) operator: plan-scoped operations execute against the
-  // mirrored on-chain plan; everything else falls back to the v1 service.
-  let tokenService: OnChainTokenService | PlanTokenService = v1Service;
-  let escrowService: OnChainTokenService | PlanEscrowService = v1Service;
-  let planApprovalService: PlanApprovalServiceImpl | PlanBasedApprovalService = innerPlanApprovalService;
+  // The orchestrator contract set fully replaces the legacy operator: every
+  // value operation executes against the mirrored on-chain plan. Deployments
+  // still on the legacy operator run with FINP2P_CONTRACT_VERSION=1.
+  let tokenService: OnChainTokenService | PlanTokenService;
+  let escrowService: OnChainTokenService | PlanEscrowService;
+  let planApprovalService: PlanApprovalServiceImpl | PlanBasedApprovalService;
   if (contractConfig.orchestrator) {
     const proofSync = new ProofSyncService(contractConfig.orchestrator, contractConfig.finP2PClient);
-    tokenService = new PlanTokenService(contractConfig.orchestrator, proofSync, contractConfig.execDetailsStore, v1Service, contractConfig.defaultAssetStandard);
-    escrowService = new PlanEscrowService(contractConfig.orchestrator, proofSync, contractConfig.execDetailsStore, v1Service);
+    const planTokenService = new PlanTokenService(contractConfig.orchestrator, proofSync, contractConfig.execDetailsStore, contractConfig.defaultAssetStandard);
+    tokenService = planTokenService;
+    escrowService = new PlanEscrowService(contractConfig.orchestrator, proofSync, contractConfig.execDetailsStore);
     planApprovalService = new PlanBasedApprovalService(contractConfig.orgId, contractConfig.orchestrator, contractConfig.finP2PClient, innerPlanApprovalService);
+  } else {
+    const v1Service = new OnChainTokenService(contractConfig.finP2PContract, contractConfig.finP2PClient, contractConfig.execDetailsStore, contractConfig.proofProvider, pluginManager, contractConfig.defaultAssetStandard);
+    tokenService = v1Service;
+    escrowService = v1Service;
+    planApprovalService = innerPlanApprovalService;
   }
 
-  const commonService = workflowStorage ? new DirectCommonServiceImpl(workflowStorage) : v1Service;
+  const commonService = workflowStorage ? new DirectCommonServiceImpl(workflowStorage) : tokenService;
 
   const proxiedTokenService = wrapWithWorkflowProxy(tokenService, workflowStorage, finP2PClient, 'createAsset', 'issue', 'transfer', 'redeem');
   const proxiedEscrowService = wrapWithWorkflowProxy(escrowService, workflowStorage, finP2PClient, 'hold', 'release', 'rollback');
   const proxiedPlanService = wrapWithWorkflowProxy(planApprovalService, workflowStorage, finP2PClient, 'approvePlan', 'proposeCancelPlan', 'proposeResetPlan', 'proposeInstructionApproval');
-  register(app, proxiedTokenService, proxiedEscrowService, commonService, v1Service, paymentsService, proxiedPlanService, mappingConfig, mappingService);
+  register(app, proxiedTokenService, proxiedEscrowService, commonService, tokenService, paymentsService, proxiedPlanService, mappingConfig, mappingService);
 }
 
 async function createApp(
