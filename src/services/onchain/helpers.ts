@@ -7,31 +7,14 @@ import {
   EIP712Template,
   EIP712TransferMessage,
   EIP712RedemptionMessage,
-  SignatureTemplate,
-  Asset,
-  Destination,
-  Source,
 } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import {
-  ExecutionContext,
-  LegType,
   PrimaryType,
   ValidationError,
   emptyTerm,
-  operationParams,
-  Phase,
-  ReleaseType,
-  EIP712Term, EIP712LoanTerms, Term, emptyLoanTerms, termFromEIP712, OperationParams,
+  EIP712Term, EIP712LoanTerms, Term, emptyLoanTerms, termFromEIP712,
 } from "@owneraio/finp2p-ethereum-orchestrator";
 
-export type BusinessContract = {
-  buyerFinId: string,
-  sellerFinId: string,
-  asset: Term,
-  settlement: Term,
-  loan: EIP712LoanTerms,
-  params: OperationParams
-};
 
 /**
  * Skeleton 0.28.9 made `EIP712Term.assetType` optional, while finp2p-contracts
@@ -45,20 +28,6 @@ const toContractTerm = (t: { assetId: string; assetType?: string; amount: string
   amount: t.amount,
 });
 
-
-export const detectLeg = (asset: Asset, template: SignatureTemplate): LegType => {
-  if (template.type != "EIP712") {
-    throw new ValidationError(`Unsupported signature template type: ${template.type}`);
-  }
-  const { message } = template;
-  if ("asset" in message && compareAssets(asset, message.asset as EIP712Term)) {
-    return LegType.Asset;
-  } else if ("settlement" in message && compareAssets(asset, message.settlement as EIP712Term)) {
-    return LegType.Settlement;
-  } else {
-    throw new ValidationError(`Asset not found in EIP712 message`);
-  }
-};
 
 export type TemplateBusinessDetails = {
   primaryType: PrimaryType;
@@ -203,44 +172,6 @@ export const businessDetailsFromTemplate = (template: EIP712Template): TemplateB
   }
 };
 
-export const extractBusinessDetails = (asset: Asset,
-                                       source: Source | undefined,
-                                       destination: Destination | undefined,
-                                       operationId: string | undefined,
-                                       template: SignatureTemplate,
-                                       executionContext: ExecutionContext): BusinessContract => {
-
-  if (template.type != "EIP712") {
-    throw new ValidationError(`Unsupported signature template type: ${template.type}`);
-  }
-
-  const leg = detectLeg(asset, template);
-  const {
-    primaryType, buyerFinId, sellerFinId, asset: assetTerm, settlement, loan
-  } = businessDetailsFromTemplate(template);
-
-  let phase: Phase = Phase.Initiate;
-  if (primaryType === PrimaryType.Loan && executionContext && executionContext.sequence > 3) {
-    phase = Phase.Close;
-  }
-
-  let releaseType: ReleaseType = ReleaseType.Release;
-  if (
-    (primaryType === PrimaryType.Transfer || primaryType === PrimaryType.Redemption || primaryType === PrimaryType.Move) &&
-    !(destination && destination.finId)
-  ) {
-    releaseType = ReleaseType.Redeem;
-  }
-
-  return {
-    buyerFinId, sellerFinId,
-    asset: assetTerm,
-    settlement,
-    loan,
-    params: operationParams(leg, primaryType, phase, operationId, releaseType)
-  };
-};
-
 export const eip712PrimaryTypeFromTemplate = (template: EIP712Template): PrimaryType => {
   switch (template.primaryType) {
     case "PrimarySale":
@@ -262,116 +193,4 @@ export const eip712PrimaryTypeFromTemplate = (template: EIP712Template): Primary
     default:
       throw new ValidationError(`Unsupported EIP712 primary type: ${template.primaryType}`);
   }
-};
-
-const compareAssets = (asset: Asset, eipAsset: EIP712Term): boolean => {
-  // Skeleton 0.28.9 dropped assetType from EIP712 messages; default to 'finp2p' to
-  // match assetFromAPI's convention at the route layer.
-  const eipAssetType = eipAsset.assetType ?? 'finp2p';
-  // Settlement fallback: skeleton's assetFromAPI returns assetType='finp2p' for all assets,
-  // but EIP712 settlement terms use 'fiat'/'cryptocurrency'. Match well-known symbols across types.
-  if (isIn(eipAssetType, "fiat", "cryptocurrency") && isIn(eipAsset.assetId as string, "USD", "USDC") &&
-    isIn(asset.assetType as string, "fiat", "cryptocurrency", "finp2p") && isIn(asset.assetId, "USD", "USDC")) {
-    return true;
-  }
-  return (eipAsset.assetId === asset.assetId && eipAssetType === asset.assetType);
-};
-
-const isIn = (str: string, ...args: string[]): boolean => args.includes(str);
-
-export const emptyOperationParams = (): OperationParams => {
-  return operationParams(LegType.Asset, PrimaryType.PrimarySale, Phase.Initiate);
-}
-
-export const validateRequest = (source: Source, destination: Destination | undefined, quantity: string, businessDetails: BusinessContract): void => {
-  const {
-    buyerFinId,
-    sellerFinId,
-    asset,
-    settlement,
-    loan,
-    params: { eip712PrimaryType, phase, leg }
-  } = businessDetails;
-  if (eip712PrimaryType === PrimaryType.Loan) {
-    switch (phase) {
-      case Phase.Initiate:
-        switch (leg) {
-          case LegType.Asset:
-            if (destination && buyerFinId !== destination.finId) {
-              throw new ValidationError(`Buyer FinId in the signature does not match the destination FinId`);
-            }
-            if (sellerFinId !== source.finId) {
-              throw new ValidationError(`Seller FinId in the signature does not match the source FinId`);
-            }
-            if (quantity !== asset.amount) {
-              throw new ValidationError(`Quantity in the signature does not match the requested quantity`);
-            }
-            break;
-          case LegType.Settlement:
-            if (destination && sellerFinId !== destination.finId) {
-              throw new ValidationError(`Seller FinId in the signature does not match the destination FinId`);
-            }
-            if (buyerFinId !== source.finId) {
-              throw new ValidationError(`Buyer FinId in the signature does not match the source FinId`);
-            }
-            if (quantity !== loan.borrowedMoneyAmount) {
-              throw new ValidationError(`BorrowedMoneyAmount in the signature does not match the requested quantity`);
-            }
-            break;
-        }
-        break;
-      case Phase.Close:
-        switch (leg) {
-          case LegType.Asset:
-            if (destination && sellerFinId !== destination.finId) {
-              throw new ValidationError(`Seller FinId in the signature does not match the destination FinId`);
-            }
-            if (buyerFinId !== source.finId) {
-              throw new ValidationError(`Buyer FinId in the signature does not match the source FinId`);
-            }
-            if (quantity !== asset.amount) {
-              throw new ValidationError(`Quantity in the signature does not match the requested quantity`);
-            }
-            break;
-          case LegType.Settlement:
-            if (destination && buyerFinId !== destination.finId) {
-              throw new ValidationError(`Buyer FinId in the signature does not match the destination FinId`);
-            }
-            if (sellerFinId !== source.finId) {
-              throw new ValidationError(`Seller FinId in the signature does not match the source FinId`);
-            }
-            if (quantity !== loan.returnedMoneyAmount) {
-              throw new ValidationError(`ReturnedMoneyAmount in the signature does not match the requested quantity`);
-            }
-            break;
-        }
-    }
-  } else {
-    switch (leg) {
-      case LegType.Asset:
-        if (destination && buyerFinId !== destination.finId) {
-          throw new ValidationError(`Buyer FinId in the signature does not match the destination FinId`);
-        }
-        if (sellerFinId !== source.finId) {
-          throw new ValidationError(`Seller FinId in the signature does not match the source FinId`);
-        }
-        if (quantity !== asset.amount) {
-          throw new ValidationError(`Quantity in the signature does not match the requested quantity`);
-        }
-        break;
-      case LegType.Settlement:
-        if (destination && sellerFinId !== destination.finId) {
-          throw new ValidationError(`Seller FinId in the signature does not match the destination FinId`);
-        }
-        if (buyerFinId !== source.finId) {
-          throw new ValidationError(`Buyer FinId in the signature does not match the source FinId`);
-        }
-        if (quantity !== settlement.amount) {
-          throw new ValidationError(`Quantity in the signature does not match the requested quantity`);
-        }
-        break;
-    }
-  }
-
-
 };

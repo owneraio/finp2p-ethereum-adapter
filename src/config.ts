@@ -1,6 +1,6 @@
 import { Interface, JsonRpcProvider, NonceManager, Provider, Signer, Wallet, ZeroAddress, keccak256, toUtf8Bytes } from "ethers";
 import process from "process";
-import { FinP2PContract, FinP2POrchestratorContract } from '@owneraio/finp2p-ethereum-orchestrator'
+import { FinP2POrchestratorContract } from '@owneraio/finp2p-ethereum-orchestrator'
 import { FinP2PClient } from '@owneraio/finp2p-client'
 import { ExecDetailsStore } from './services/onchain'
 import { ProofProvider } from '@owneraio/finp2p-nodejs-skeleton-adapter'
@@ -58,13 +58,11 @@ export type BaseAppConfig = {
   escrowContractAddress?: string
 }
 
-export type FinP2PContractAppConfig = BaseAppConfig & {
+export type OnChainAppConfig = BaseAppConfig & {
   type: 'finp2p-contract'
-  finP2PContract: FinP2PContract
+  orchestrator: FinP2POrchestratorContract
   execDetailsStore: ExecDetailsStore | undefined
   defaultAssetStandard?: string
-  // v2 (plan-based) operator; set when FINP2P_CONTRACT_VERSION=2
-  orchestrator?: FinP2POrchestratorContract
 }
 
 export { FireblocksAppConfig } from './integrations/custody/fireblocks/config'
@@ -79,7 +77,7 @@ export type CustodyAppConfig = BaseAppConfig & {
   type: string
 }
 
-export type AppConfig = FinP2PContractAppConfig | FireblocksAppConfig | DfnsAppConfig | CustodyAppConfig
+export type AppConfig = OnChainAppConfig | FireblocksAppConfig | DfnsAppConfig | CustodyAppConfig
 
 export const getNetworkRpcUrl = (): string => {
   let networkHost = process.env.NETWORK_HOST;
@@ -125,9 +123,9 @@ export async function envVarsToAppConfig(logger: Logger): Promise<AppConfig> {
 
   switch (configType) {
     case 'finp2p-contract': {
-      const finP2PContractAddress = process.env.FINP2P_CONTRACT_ADDRESS || process.env.TOKEN_ADDRESS; // TOKEN_ADDRESS for backward compatibility
-      if (!finP2PContractAddress) {
-        throw new Error("FINP2P_CONTRACT_ADDRESS is not set");
+      const orchestratorAddress = process.env.FINP2P_ORCHESTRATOR_ADDRESS;
+      if (!orchestratorAddress) {
+        throw new Error("FINP2P_ORCHESTRATOR_ADDRESS is not set");
       }
 
       const orgId = process.env.ORGANIZATION_ID;
@@ -174,20 +172,9 @@ export async function envVarsToAppConfig(logger: Logger): Promise<AppConfig> {
       }
       const txGasTier = txGasTierRaw as GasTier | undefined;
 
-      const finP2PContract = await FinP2PContract.create(
-        provider,
-        signer,
-        finP2PContractAddress,
-        logger,
-        txConfirmationTimeoutMs,
-        txGasTier,
-      );
       const finP2PClient = new FinP2PClient(finP2PUrl, ossUrl);
       const execDetailsStore = new InMemoryExecDetailsStore();
       const proofProvider = new ProofProvider(orgId, finP2PClient, operatorPrivateKey)
-
-      const contractVersion = await finP2PContract.getVersion();
-      logger.info(`FinP2P contract version: ${contractVersion} (variant: ${finP2PContract.variant})`);
 
       const defaultAssetStandardRaw = process.env.DEFAULT_ASSET_STANDARD ?? DEFAULT_ASSET_STANDARD_ERC20;
       if (!/^0x[0-9a-fA-F]{64}$/.test(defaultAssetStandardRaw)) {
@@ -196,42 +183,21 @@ export async function envVarsToAppConfig(logger: Logger): Promise<AppConfig> {
       if (!process.env.DEFAULT_ASSET_STANDARD) {
         logger.info(`DEFAULT_ASSET_STANDARD not set; defaulting to keccak256("ERC20") = ${DEFAULT_ASSET_STANDARD_ERC20}`);
       }
-      if (finP2PContract.variant === 'with-registry') {
-        await verifyAssetStandardRegistered(provider, finP2PContractAddress, defaultAssetStandardRaw, logger);
-      }
 
-      const { name, version, chainId, verifyingContract } =
-        await finP2PContract.eip712Domain();
-      logger.info(
-        `EIP712 domain: name=${name} version=${version} chainId=${chainId} verifyingContract=${verifyingContract}`
+      const orchestrator = new FinP2POrchestratorContract(
+        provider,
+        signer,
+        orchestratorAddress,
+        logger,
+        txConfirmationTimeoutMs,
+        txGasTier,
       );
-
-      // v2 plan-based operator: FINP2P_CONTRACT_VERSION=2 switches the services
-      // to plan-mirrored execution; the v1 contract stays as fallback for
-      // standalone (non-plan) operations.
-      const finP2PContractVersionRaw = process.env.FINP2P_CONTRACT_VERSION ?? '1';
-      if (finP2PContractVersionRaw !== '1' && finP2PContractVersionRaw !== '2') {
-        throw new Error(`Invalid FINP2P_CONTRACT_VERSION: ${finP2PContractVersionRaw}. Supported values: 1, 2`);
-      }
-      let orchestrator: FinP2POrchestratorContract | undefined;
-      if (finP2PContractVersionRaw === '2') {
-        const orchestratorAddress = process.env.FINP2P_ORCHESTRATOR_ADDRESS;
-        if (!orchestratorAddress) {
-          throw new Error("FINP2P_ORCHESTRATOR_ADDRESS is not set (required when FINP2P_CONTRACT_VERSION=2)");
-        }
-        orchestrator = new FinP2POrchestratorContract(
-          provider,
-          signer,
-          orchestratorAddress,
-          logger,
-          txConfirmationTimeoutMs,
-          txGasTier,
-        );
-        const planVersion = await orchestrator.getVersion();
-        const escrowAddress = await orchestrator.getEscrowAddress();
-        logger.info(`FinP2P orchestrator version: ${planVersion} at ${orchestratorAddress}, escrow at ${escrowAddress}`);
-        await verifyAssetStandardRegistered(provider, orchestratorAddress, defaultAssetStandardRaw, logger);
-      }
+      const planVersion = await orchestrator.getVersion();
+      const escrowAddress = await orchestrator.getEscrowAddress();
+      logger.info(`FinP2P orchestrator version: ${planVersion} at ${orchestratorAddress}, escrow at ${escrowAddress}`);
+      // the orchestrator dispatches token ops through its AssetRegistry —
+      // fail fast when the default standard isn't registered there
+      await verifyAssetStandardRegistered(provider, orchestratorAddress, defaultAssetStandardRaw, logger);
 
       return {
         type: 'finp2p-contract',
@@ -242,10 +208,9 @@ export async function envVarsToAppConfig(logger: Logger): Promise<AppConfig> {
         orgId,
         accountMappingType,
         accountModel,
-        finP2PContract,
+        orchestrator,
         execDetailsStore,
         defaultAssetStandard: defaultAssetStandardRaw,
-        orchestrator,
       }
     }
     case 'fireblocks': {

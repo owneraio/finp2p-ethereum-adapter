@@ -3,7 +3,7 @@ import { Provider } from "ethers";
 import { PluginManager } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import { InboundTransferHook } from "@owneraio/finp2p-nodejs-skeleton-adapter/plugin";
 import { FinP2PClient } from "@owneraio/finp2p-client";
-import { FinP2PContract } from "@owneraio/finp2p-ethereum-orchestrator";
+import { FinP2POrchestratorContract } from "@owneraio/finp2p-ethereum-orchestrator";
 import { CustodyProvider, CustodyWallet } from "../services/custody";
 import { GasStation } from "../services/gas-station";
 import { WalletResolver } from "./wallet-resolver";
@@ -34,7 +34,7 @@ export interface IntegrationContext {
   custodyProvider: CustodyProvider | undefined;
   inboundTransferHook: InboundTransferHook | undefined;
   /** finp2p-contract mode only — present iff PROVIDER_TYPE=finp2p-contract. */
-  finP2PContract: FinP2PContract | undefined;
+  orchestrator: FinP2POrchestratorContract | undefined;
 }
 
 export type IntegrationRegistrar = (ctx: IntegrationContext) => void;
