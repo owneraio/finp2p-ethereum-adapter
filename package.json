@@ -8,8 +8,6 @@
     "node": ">=20"
   },
   "bin": {
-    "migration": "./dist/scripts/migration.js",
-    "sync-balances": "./dist/scripts/sync-balances.js",
     "mass-approve": "./dist/scripts/mass-approve.js"
   },
   "scripts": {
@@ -17,7 +15,7 @@
     "clean": "rm -rf dist",
     "prebuild": "eslint ./src --ext .ts --fix",
     "build": "tsc",
-    "test": "jest && jest --config jest.account-resolver.config.js && jest --config jest.omnibus.config.js && jest --config jest.legacy-migration.config.js && jest --config jest.plan-approval.config.js && jest --config jest.operation-context.config.js",
+    "test": "jest --config jest.account-resolver.config.js && jest --config jest.omnibus.config.js && jest --config jest.legacy-migration.config.js && jest --config jest.plan-approval.config.js && jest --config jest.operation-context.config.js && jest --config jest.orchestration.config.js",
     "test:fireblocks": "jest --config jest.fireblocks.config.js",
     "test:dfns": "jest --config jest.dfns.config.js",
     "test:account-mapping": "jest --config jest.account-resolver.config.js",
@@ -25,14 +23,11 @@
     "test:legacy-migration": "jest --config jest.legacy-migration.config.js",
     "test:deposits-omnibus": "jest --config jest.deposits-omnibus.config.js",
     "test:nonce-recovery": "jest --config jest.nonce-recovery.config.js",
-    "test-server": "ts-node ./scripts/test-server.ts",
-    "migration": "ts-node ./scripts/migration.ts",
-    "sync-balances": "ts-node ./scripts/sync-balances.ts",
     "mass-approve": "ts-node ./scripts/mass-approve.ts",
-    "verify-signature": "ts-node ./scripts/verify-signature.ts",
     "start-debug": "ts-node ./src/index.ts",
     "start": "node .",
-    "test:plan-approval": "jest --config jest.plan-approval.config.js"
+    "test:plan-approval": "jest --config jest.plan-approval.config.js",
+    "test:orchestration": "jest --config jest.orchestration.config.js"
   },
   "publishConfig": {
     "registry": "https://npm.pkg.github.com"
@@ -54,7 +49,7 @@
     "@owneraio/finp2p-ethereum-dtcc-plugin": "^0.28.12",
     "@owneraio/finp2p-ethereum-erc20-plugin": "^0.28.6",
     "@owneraio/finp2p-ethereum-hedera-plugin": "^0.28.8",
-    "@owneraio/finp2p-ethereum-orchestrator": "^0.28.24",
+    "@owneraio/finp2p-ethereum-orchestrator": "0.28.25-rc.0",
     "@owneraio/finp2p-ethereum-trex-plugin": "^0.28.9",
     "@owneraio/finp2p-nodejs-skeleton-adapter": "^0.28.24",
     "@owneraio/finp2p-vanilla-service": "^0.28.6",

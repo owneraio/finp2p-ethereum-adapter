@@ -3,7 +3,7 @@ import {
   OwneraCollateralPlugin,
   WalletResolver as CollateralWalletResolver,
 } from "@owneraio/finp2p-ethereum-collateral";
-import { FinP2PContract } from "@owneraio/finp2p-ethereum-orchestrator";
+import { FinP2POrchestratorContract } from "@owneraio/finp2p-ethereum-orchestrator";
 import { WalletResolver as CustodyWalletResolver } from "../../wallet-resolver";
 import { IntegrationContext } from "../../registry";
 import { pooledProvider, pooledSigner } from "../../signer-pool";
@@ -42,7 +42,7 @@ export function registerCollateralPlugin(ctx: IntegrationContext): void {
     throw new Error('Collateral plugin and DTCC_PLUGIN_ENABLED are mutually exclusive — both claim the single PaymentsPlugin slot');
   }
 
-  const { orgId, logger, pluginManager, finP2PClient, rpcUrl, walletResolver, finP2PContract } = ctx;
+  const { orgId, logger, pluginManager, finP2PClient, rpcUrl, walletResolver, orchestrator } = ctx;
   if (!rpcUrl) {
     throw new Error('Collateral plugin requires NETWORK_HOST to be set');
   }
@@ -52,7 +52,7 @@ export function registerCollateralPlugin(ctx: IntegrationContext): void {
   const agentSigner = pooledSigner(rpcUrl, agentKey);
 
   const ledgerName = process.env.LEDGER_NAME ?? 'ethereum';
-  const collateralWalletResolver = buildCollateralWalletResolver(walletResolver, finP2PContract);
+  const collateralWalletResolver = buildCollateralWalletResolver(walletResolver, orchestrator);
 
   const plugin = new OwneraCollateralPlugin(
     orgId, provider, agentSigner, finP2PClient, logger, collateralWalletResolver, registryAddress, ledgerName,
@@ -64,19 +64,19 @@ export function registerCollateralPlugin(ctx: IntegrationContext): void {
 
 function buildCollateralWalletResolver(
   custodyResolver: CustodyWalletResolver | undefined,
-  finP2PContract: FinP2PContract | undefined,
+  orchestrator: FinP2POrchestratorContract | undefined,
 ): CollateralWalletResolver {
   if (custodyResolver) {
     return async (finId: string) => (await custodyResolver(finId))?.walletAddress;
   }
-  if (finP2PContract) {
+  if (orchestrator) {
     // finp2p-contract mode: resolve finId → ETH address from the FINP2POperator
     // credentials registry. Unmapped finIds revert with "Credential not found"
     // (FINP2POperator.sol:127) — translate that one revert into `undefined` so the
     // plugin's normal "no address" path runs; bubble any other failure up.
     return async (finId: string) => {
       try {
-        return await finP2PContract.getCredentialAddress(finId);
+        return await orchestrator.getCredentialAddress(finId);
       } catch (e) {
         if (e instanceof Error && /Credential not found/.test(e.message)) return undefined;
         throw e;

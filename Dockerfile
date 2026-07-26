@@ -17,7 +17,6 @@ COPY \
     package.json \
     package-lock.json \
     tsconfig.json \
-    jest.config.js \
     ./
 COPY src ./src
 

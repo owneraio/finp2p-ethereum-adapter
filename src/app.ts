@@ -14,8 +14,12 @@ import {
 import { FinP2PClient } from "@owneraio/finp2p-client";
 import { LedgerStorage, VanillaServiceImpl, registerDistributionRoutes } from "@owneraio/finp2p-vanilla-service";
 import {
+  ContractEscrow,
   CredentialsMappingService,
-  OnChainTokenService,
+  PlanBasedApprovalService,
+  PlanEscrowService,
+  PlanTokenService,
+  ProofSyncService,
 } from "./services/onchain";
 import {
   CustodyProvider,
@@ -23,6 +27,7 @@ import {
   CustodyTokenService,
   custodyRegistry,
 } from "./services/custody";
+import { EscrowContract } from "@owneraio/finp2p-ethereum-orchestrator";
 import { createWalletResolver } from "./integrations/wallet-resolver";
 import {
   DbAccountResolver,
@@ -37,7 +42,7 @@ import { CommonServiceImpl as DirectCommonServiceImpl } from "./services/operati
 import { registerCustodyIntegrations, registerIntegrations } from "./integrations/registry";
 import { pooledProvider, pooledSigner } from "./integrations/signer-pool";
 import { buildCustodyPlanApprovalService } from "./services/plan-approval";
-import { AppConfig, FinP2PContractAppConfig, getNetworkRpcUrl } from "./config";
+import { AppConfig, OnChainAppConfig, getNetworkRpcUrl } from "./config";
 
 // Register compiled-in custody providers; token standards are registered per-network in registerIntegrations.
 registerCustodyIntegrations();
@@ -127,7 +132,14 @@ async function registerCustodyServices(
   const issuerWallet = assetIssuerKey && networkHost
     ? { provider: readProvider, signer: pooledSigner(getNetworkRpcUrl(), assetIssuerKey) }
     : undefined;
-  let tokenService: CustodyTokenService = new CustodyTokenService(logger, custodyProvider, escrowWallet, readProvider, accountMapping, assetStore, issuerWallet);
+  let contractEscrow: ContractEscrow | undefined;
+  if (appConfig.escrowProvider === 'contract') {
+    if (!appConfig.escrowContractAddress) throw new Error('ESCROW_CONTRACT_ADDRESS is required when ESCROW_PROVIDER=contract');
+    const escrowContract = new EscrowContract(readProvider, escrowWallet.signer, appConfig.escrowContractAddress, logger);
+    contractEscrow = new ContractEscrow(escrowContract, logger);
+    logger.info(`Direct-mode escrow: FinP2PEscrow contract at ${appConfig.escrowContractAddress}`);
+  }
+  let tokenService: CustodyTokenService = new CustodyTokenService(logger, custodyProvider, escrowWallet, readProvider, accountMapping, assetStore, issuerWallet, contractEscrow);
   const commonService = new DirectCommonServiceImpl(workflowStorage!);
   const planApprovalService = await buildCustodyPlanApprovalService(
     appConfig.orgId, finP2PClient,
@@ -143,8 +155,8 @@ async function registerCustodyServices(
   register(app, proxiedTokenService, proxiedEscrowService, commonService, tokenService, proxiedPaymentsService, proxiedPlanService, mappingConfig, accountMappingService);
 }
 
-function registerFinP2PContractServices(
-  app: express.Application, contractConfig: FinP2PContractAppConfig,
+function registerOnChainServices(
+  app: express.Application, contractConfig: OnChainAppConfig,
   paymentsService: PaymentsServiceImpl, pluginManager: PluginManager,
   dbPool: any, finP2PClient: FinP2PClient | undefined,
   ledgerSchema: string | undefined,
@@ -153,15 +165,19 @@ function registerFinP2PContractServices(
     throw new Error('Omnibus account model is not supported with finp2p-contract provider');
   }
   const workflowStorage = dbPool ? new workflows.WorkflowStorage(dbPool, ledgerSchema) : undefined;
-  let planApprovalService = new PlanApprovalServiceImpl(contractConfig.orgId, pluginManager, contractConfig.finP2PClient);
-  const tokenService = new OnChainTokenService(contractConfig.finP2PContract, contractConfig.finP2PClient, contractConfig.execDetailsStore, contractConfig.proofProvider, pluginManager, contractConfig.defaultAssetStandard);
-  const mappingService = new CredentialsMappingService(contractConfig.finP2PContract);
+  const innerPlanApprovalService = new PlanApprovalServiceImpl(contractConfig.orgId, pluginManager, contractConfig.finP2PClient);
+  const mappingService = new CredentialsMappingService(contractConfig.orchestrator);
   const mappingConfig = buildMappingConfig();
+
+  const proofSync = new ProofSyncService(contractConfig.orchestrator, contractConfig.finP2PClient);
+  const tokenService = new PlanTokenService(contractConfig.orchestrator, proofSync, contractConfig.execDetailsStore, contractConfig.defaultAssetStandard);
+  const escrowService = new PlanEscrowService(contractConfig.orchestrator, proofSync, contractConfig.execDetailsStore);
+  const planApprovalService = new PlanBasedApprovalService(contractConfig.orgId, contractConfig.orchestrator, contractConfig.finP2PClient, innerPlanApprovalService);
 
   const commonService = workflowStorage ? new DirectCommonServiceImpl(workflowStorage) : tokenService;
 
   const proxiedTokenService = wrapWithWorkflowProxy(tokenService, workflowStorage, finP2PClient, 'createAsset', 'issue', 'transfer', 'redeem');
-  const proxiedEscrowService = wrapWithWorkflowProxy(tokenService, workflowStorage, finP2PClient, 'hold', 'release', 'rollback');
+  const proxiedEscrowService = wrapWithWorkflowProxy(escrowService, workflowStorage, finP2PClient, 'hold', 'release', 'rollback');
   const proxiedPlanService = wrapWithWorkflowProxy(planApprovalService, workflowStorage, finP2PClient, 'approvePlan', 'proposeCancelPlan', 'proposeResetPlan', 'proposeInstructionApproval');
   register(app, proxiedTokenService, proxiedEscrowService, commonService, tokenService, paymentsService, proxiedPlanService, mappingConfig, mappingService);
 }
@@ -307,7 +323,7 @@ async function createApp(
     accountModel: appConfig.accountModel,
     custodyProvider,
     inboundTransferHook: omnibusCtx?.vanilla.inboundTransferHook,
-    finP2PContract: appConfig.type === 'finp2p-contract' ? (appConfig as FinP2PContractAppConfig).finP2PContract : undefined,
+    orchestrator: appConfig.type === 'finp2p-contract' ? (appConfig as OnChainAppConfig).orchestrator : undefined,
   });
 
   const paymentsService = new PaymentsServiceImpl(pluginManager);
@@ -315,7 +331,7 @@ async function createApp(
   if (custodyProvider) {
     await registerCustodyServices(app, logger, custodyProvider, escrowWallet, readProvider, gasStation, appConfig, paymentsService, pluginManager, dbPool, finP2PClient, accountMappingStore, accountMappingService, assetStore, accountMapping, omnibusCtx, ledgerSchema);
   } else if (appConfig.type === 'finp2p-contract') {
-    registerFinP2PContractServices(app, appConfig as FinP2PContractAppConfig, paymentsService, pluginManager, dbPool, finP2PClient, ledgerSchema);
+    registerOnChainServices(app, appConfig as OnChainAppConfig, paymentsService, pluginManager, dbPool, finP2PClient, ledgerSchema);
   } else {
     throw new Error(`Unknown provider type: '${appConfig.type}'. Available custody providers: ${custodyRegistry.availableProviders.join(', ')}`);
   }

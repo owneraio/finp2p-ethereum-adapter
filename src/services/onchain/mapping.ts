@@ -1,5 +1,5 @@
 import { AccountMappingService, AccountMapping, ReceiptOperation, Asset, ExecutionContext } from '@owneraio/finp2p-nodejs-skeleton-adapter';
-import { FinP2PContract, ReceiptOperation as ContractReceiptOperation } from '@owneraio/finp2p-ethereum-orchestrator';
+import { FinP2POrchestratorContract, ReceiptOperation as ContractReceiptOperation } from '@owneraio/finp2p-ethereum-orchestrator';
 import { FIELD_LEDGER_ACCOUNT_ID } from '../accounts/mapping-validator';
 
 function mapAccount(acc: { finId: string; account?: string } | undefined) {
@@ -55,14 +55,14 @@ export function mapReceiptOperation(op: ContractReceiptOperation, asset?: Asset,
  */
 export class CredentialsMappingService implements AccountMappingService {
 
-  constructor(private readonly finP2PContract: FinP2PContract) {}
+  constructor(private readonly orchestrator: FinP2POrchestratorContract) {}
 
   async getAccounts(finIds?: string[]): Promise<AccountMapping[]> {
     if (!finIds || finIds.length === 0) return [];
     const results: AccountMapping[] = [];
     for (const finId of finIds) {
       try {
-        const address = await this.finP2PContract.getCredentialAddress(finId);
+        const address = await this.orchestrator.getCredentialAddress(finId);
         results.push({ finId, fields: { [FIELD_LEDGER_ACCOUNT_ID]: address } });
       } catch {
         // credential not found — skip
@@ -79,11 +79,11 @@ export class CredentialsMappingService implements AccountMappingService {
   async saveAccount(finId: string, fields: Record<string, string>): Promise<AccountMapping> {
     const address = fields[FIELD_LEDGER_ACCOUNT_ID];
     if (!address) throw new Error(`Field '${FIELD_LEDGER_ACCOUNT_ID}' is required for on-chain credential mapping`);
-    await this.finP2PContract.addCredential(finId, address);
+    await this.orchestrator.addCredential(finId, address);
     return { finId, fields };
   }
 
   async deleteAccount(finId: string, _fieldName?: string): Promise<void> {
-    await this.finP2PContract.removeCredential(finId);
+    await this.orchestrator.removeCredential(finId);
   }
 }

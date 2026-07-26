@@ -12,6 +12,7 @@ import { AccountResolver, AssetStore } from "../accounts";
 import { tokenStandardRegistry } from '../../integrations/token-standards/registry';
 import { TokenStandardName as ERC20_TOKEN_STANDARD, DEFAULT_NEW_ERC20_DECIMALS } from '@owneraio/finp2p-ethereum-erc20-plugin';
 import { buildOperationContext } from "../operations";
+import { ContractEscrow } from '../onchain';
 
 function resultToReceipt(
   result: TokenOperationResult, ast: Asset, operationType: OperationType, quantity: string,
@@ -69,6 +70,9 @@ export class CustodyTokenService implements TokenService, EscrowService, HealthS
     // not configured: deploy/issue then fail closed instead of stranding assets
     // behind a throwaway signer.
     readonly issuerWallet: CustodyWallet | undefined,
+    // when set (ESCROW_PROVIDER=contract), holds go to the standalone
+    // FinP2PEscrow contract instead of the custody escrow wallet
+    readonly contractEscrow?: ContractEscrow,
   ) {}
 
   // read-only paths need a Signer arg for the SPI; an ephemeral one suffices
@@ -260,6 +264,15 @@ export class CustodyTokenService implements TokenService, EscrowService, HealthS
       const asset = await this.assetRecord(ast.assetId);
       const standard = tokenStandardRegistry.resolve(asset.tokenStandard);
 
+      if (operationId && this.contractEscrow) {
+        const expectedAmount = parseUnits(quantity, asset.decimals);
+        const holdSourceAddress = await this.resolveAddress(sourceFinId);
+        const result = await this.contractEscrow.releaseAndBurn(operationId, {
+          token: asset.contractAddress, amount: expectedAmount, source: holdSourceAddress
+        });
+        return resultToReceipt(result, ast, "redeem", quantity, { finId: sourceFinId }, undefined, exCtx, operationId);
+      }
+
       let wallet: CustodyWallet;
       let burnFromAddress: string;
       if (operationId) {
@@ -296,6 +309,20 @@ export class CustodyTokenService implements TokenService, EscrowService, HealthS
       const { wallet } = resolved;
       const amount = parseUnits(quantity, asset.decimals);
 
+      if (this.contractEscrow) {
+        // a requested destination that cannot be resolved must fail loudly:
+        // silently falling back to an unpinned (destinationless) hold would
+        // drop the destination-pinning guarantee the caller asked for
+        let destinationAddress: string | undefined;
+        if (destination?.finId) {
+          destinationAddress = await this.accountMapping.resolveAccount(destination.finId)
+            ?? destination.account?.address;
+          if (!destinationAddress) throw new Error(`Cannot resolve address for destination finId: ${destination.finId}`);
+        }
+        const result = await this.contractEscrow.hold(
+          wallet, resolved.address, destinationAddress, asset.contractAddress, operationId, amount);
+        return resultToReceipt(result, ast, "hold", quantity, source, destination, exCtx, operationId);
+      }
       const opCtx = buildOperationContext(ast, signature, exCtx, operationId);
       const result = await standard.hold(wallet, this.escrowWallet, asset, amount, this.logger, opCtx);
       return resultToReceipt(result, ast, "hold", quantity, source, destination, exCtx, operationId);
@@ -318,6 +345,13 @@ export class CustodyTokenService implements TokenService, EscrowService, HealthS
       const escrowWallet = this.escrowWallet;
       const amount = parseUnits(quantity, asset.decimals);
 
+      if (this.contractEscrow) {
+        const holdSourceAddress = await this.resolveAddress(source.finId);
+        const result = await this.contractEscrow.release(operationId, destinationAddress, {
+          token: asset.contractAddress, amount, source: holdSourceAddress
+        });
+        return resultToReceipt(result, ast, "release", quantity, source, destination, exCtx, operationId);
+      }
       const opCtx = buildOperationContext(ast, undefined, exCtx, operationId);
       const result = await standard.release(escrowWallet, asset, destinationAddress, amount, this.logger, opCtx);
       return resultToReceipt(result, ast, "release", quantity, source, destination, exCtx, operationId);
@@ -338,6 +372,12 @@ export class CustodyTokenService implements TokenService, EscrowService, HealthS
       const escrowWallet = this.escrowWallet;
       const amount = parseUnits(quantity, asset.decimals);
 
+      if (this.contractEscrow) {
+        const result = await this.contractEscrow.rollback(operationId, {
+          token: asset.contractAddress, amount, source: sourceAddress
+        });
+        return resultToReceipt(result, ast, "release", quantity, source, undefined, exCtx, operationId);
+      }
       const opCtx = buildOperationContext(ast, undefined, exCtx, operationId);
       const result = await standard.release(escrowWallet, asset, sourceAddress, amount, this.logger, opCtx);
       return resultToReceipt(result, ast, "release", quantity, source, undefined, exCtx, operationId);
