@@ -206,7 +206,7 @@ export class CustodyTokenService implements TokenService, EscrowService, HealthS
   }
 
   async issue(
-    idempotencyKey: string, ast: Asset, toFinId: string, quantity: string,
+    idempotencyKey: string, ast: Asset, destination: Destination, quantity: string,
     exCtx: ExecutionContext | undefined
   ): Promise<ReceiptOperation> {
     try {
@@ -214,14 +214,15 @@ export class CustodyTokenService implements TokenService, EscrowService, HealthS
       const standard = tokenStandardRegistry.resolve(asset.tokenStandard);
       const wallet = this.issuerWallet;
       if (!wallet) return failedReceiptOperation(1, 'ASSET_ISSUER_PRIVATE_KEY is not set — issuance is disabled');
-      const address = await this.resolveAddress(toFinId);
+      const address = await this.accountMapping.resolveAccount(destination.finId)
+        ?? destination.account?.address;
+      if (!address) throw new Error(`Cannot resolve address for finId: ${destination.finId}`);
       const amount = parseUnits(quantity, asset.decimals);
 
       const result = await standard.mint(wallet, asset, address, amount, this.logger);
-      const dest: Destination = { finId: toFinId };
-      return resultToReceipt(result, ast, "issue", quantity, dest, dest, exCtx, undefined);
+      return resultToReceipt(result, ast, "issue", quantity, destination, destination, exCtx, undefined);
     } catch (e) {
-      this.logger.error(`Issue failed: asset=${ast.assetId} to=${toFinId} quantity=${quantity}`, e);
+      this.logger.error(`Issue failed: asset=${ast.assetId} to=${destination.finId} quantity=${quantity}`, e);
       return failedReceiptOperation(1, `${e}`);
     }
   }
@@ -252,7 +253,7 @@ export class CustodyTokenService implements TokenService, EscrowService, HealthS
   }
 
   async redeem(
-    idempotencyKey: string, nonce: string, sourceFinId: string, ast: Asset,
+    idempotencyKey: string, nonce: string, source: Source, ast: Asset,
     quantity: string, operationId: string | undefined, signature: Signature,
     exCtx: ExecutionContext | undefined
   ): Promise<ReceiptOperation> {
@@ -266,7 +267,7 @@ export class CustodyTokenService implements TokenService, EscrowService, HealthS
         wallet = this.escrowWallet;
         burnFromAddress = await wallet.signer.getAddress();
       } else {
-        const resolved = await this.resolveSourceWallet(sourceFinId);
+        const resolved = await this.resolveSourceWallet(source.finId);
         if (!resolved) return failedReceiptOperation(1, 'Source address cannot be resolved to a custody wallet');
         wallet = resolved.wallet;
         burnFromAddress = resolved.address;
@@ -275,10 +276,9 @@ export class CustodyTokenService implements TokenService, EscrowService, HealthS
 
       const opCtx = buildOperationContext(ast, signature, exCtx, operationId);
       const result = await standard.burn(wallet, asset, burnFromAddress, amount, this.logger, opCtx);
-      const source: Source = { finId: sourceFinId };
       return resultToReceipt(result, ast, "redeem", quantity, source, undefined, exCtx, operationId);
     } catch (e) {
-      this.logger.error(`Redeem failed: asset=${ast.assetId} source=${sourceFinId} quantity=${quantity}`, e);
+      this.logger.error(`Redeem failed: asset=${ast.assetId} source=${source.finId} quantity=${quantity}`, e);
       return failedReceiptOperation(1, `${e}`);
     }
   }
