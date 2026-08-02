@@ -11,7 +11,6 @@ import {
   NetworkAccountService,
   NetworkAccountServiceImpl,
   NotSupportedNetworkAccountService,
-  TokenService,
   workflows,
   storage as storageModule,
 } from "@owneraio/finp2p-nodejs-skeleton-adapter";
@@ -99,19 +98,7 @@ async function registerCustodyServices(
   if (appConfig.accountModel === 'omnibus') {
     if (!omnibusCtx) throw new Error('Omnibus context not built — createVanillaServices must run before registerCustodyServices');
     const { delegate, vanilla } = omnibusCtx;
-    const { tokenService: vanillaTokenService, escrowService, commonService, mappingService, distributionService, inboundTransferHook } = vanilla;
-    // vanilla-service still takes finId strings on issue/redeem; adapt to the
-    // skeleton's leg-object signatures (the omnibus model has no per-leg wallets)
-    const tokenService: TokenService = {
-      createAsset: vanillaTokenService.createAsset.bind(vanillaTokenService),
-      getBalance: vanillaTokenService.getBalance.bind(vanillaTokenService),
-      balance: vanillaTokenService.balance.bind(vanillaTokenService),
-      transfer: vanillaTokenService.transfer.bind(vanillaTokenService),
-      issue: (ik, ast, destination, quantity, exCtx) =>
-        vanillaTokenService.issue(ik, ast, destination.finId, quantity, exCtx),
-      redeem: (ik, nonce, source, ast, quantity, operationId, signature, exCtx) =>
-        vanillaTokenService.redeem(ik, nonce, source.finId, ast, quantity, operationId, signature, exCtx),
-    };
+    const { tokenService, escrowService, commonService, mappingService, distributionService, inboundTransferHook } = vanilla;
     const planApprovalService = await buildCustodyPlanApprovalService(
       appConfig.orgId, finP2PClient,
       new PlanApprovalServiceImpl(appConfig.orgId, pluginManager, finP2PClient, inboundTransferHook),
