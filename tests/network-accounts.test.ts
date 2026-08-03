@@ -58,7 +58,7 @@ describe("OnChainNetworkAccountService onboarding", () => {
 
   const storeMock = (): jest.Mocked<storage.NetworkAccountStore> => ({
     insert: jest.fn().mockImplementation(async (row) => row),
-    getByIdempotencyKey: jest.fn().mockResolvedValue(undefined),
+    getByFinId: jest.fn().mockResolvedValue(undefined),
     remove: jest.fn().mockResolvedValue(undefined),
   });
 
