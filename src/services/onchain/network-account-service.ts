@@ -3,8 +3,6 @@ import {
   BindInfo,
   NetworkAccountServiceImpl,
   NetworkAccountValidator,
-  ValidationError,
-  successfulAccountOperation,
   storage,
 } from '@owneraio/finp2p-nodejs-skeleton-adapter';
 import { FinP2PContract, finIdToAddress } from '@owneraio/finp2p-ethereum-orchestrator';
@@ -25,23 +23,7 @@ export class OnChainNetworkAccountService extends NetworkAccountServiceImpl {
     super(store, validator);
   }
 
-  async createAccount(idempotencyKey: string, organizationId: string, assetId: string, finId: string | undefined, bindInfo: BindInfo | undefined): Promise<AccountOperation> {
-    // the OAS marks finId optional "for backward compatibility" only — a
-    // request without it comes from a legacy router and can't be served here,
-    // since the credential registration below is keyed by it
-    if (!finId) {
-      throw new ValidationError('finId is required for network-account onboarding on the on-chain adapter');
-    }
-
-    // replay check up-front: a re-sent create-new must return the recorded
-    // wallet, not generate (and register) a fresh one
-    if (idempotencyKey) {
-      const existing = await this.store.getByIdempotencyKey(idempotencyKey);
-      if (existing) {
-        return successfulAccountOperation('', { id: existing.accountId, account: existing.account });
-      }
-    }
-
+  async createAccount(idempotencyKey: string, organizationId: string, assetId: string, finId: string, bindInfo: BindInfo | undefined): Promise<AccountOperation> {
     if (!bindInfo) {
       // create-new: the investor's wallet is the address derived from the
       // finId itself (finId = compressed secp256k1 pubkey), so the investor's

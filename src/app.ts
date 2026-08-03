@@ -95,6 +95,7 @@ async function registerCustodyServices(
 
   const mappingConfig = buildMappingConfig(custodyProvider);
   const workflowStorage = dbPool ? new workflows.WorkflowStorage(dbPool, ledgerSchema) : undefined;
+  const proxiedNetworkAccountService = wrapWithWorkflowProxy(networkAccountService, workflowStorage, finP2PClient, 'createAccount', 'removeAccount');
 
   if (appConfig.accountModel === 'omnibus') {
     if (!omnibusCtx) throw new Error('Omnibus context not built — createVanillaServices must run before registerCustodyServices');
@@ -114,7 +115,7 @@ async function registerCustodyServices(
     const proxiedPaymentService = wrapWithWorkflowProxy(paymentImpl, workflowStorage, finP2PClient, 'getDepositInstruction', 'payout');
     // vanilla's commonService.operationStatus throws; workflow-stored ops need DirectCommonServiceImpl
     const directCommonService = workflowStorage ? new DirectCommonServiceImpl(workflowStorage) : commonService;
-    register(app, proxiedTokenService, proxiedEscrowService, directCommonService, commonService, proxiedPaymentService, proxiedPlanService, networkAccountService, { mappingConfig, mappingService });
+    register(app, proxiedTokenService, proxiedEscrowService, directCommonService, commonService, proxiedPaymentService, proxiedPlanService, proxiedNetworkAccountService, { mappingConfig, mappingService });
     if (distributionService) {
       registerDistributionRoutes(app, distributionService);
     }
@@ -146,7 +147,7 @@ async function registerCustodyServices(
   const proxiedEscrowService = wrapWithWorkflowProxy(tokenService, workflowStorage, finP2PClient, 'hold', 'release', 'rollback');
   const proxiedPlanService = wrapWithWorkflowProxy(planApprovalService, workflowStorage, finP2PClient, 'approvePlan', 'proposeCancelPlan', 'proposeResetPlan', 'proposeInstructionApproval');
   const proxiedPaymentsService = wrapWithWorkflowProxy(paymentsService, workflowStorage, finP2PClient, 'getDepositInstruction', 'payout');
-  register(app, proxiedTokenService, proxiedEscrowService, commonService, tokenService, proxiedPaymentsService, proxiedPlanService, networkAccountService, { mappingConfig, mappingService: accountMappingService });
+  register(app, proxiedTokenService, proxiedEscrowService, commonService, tokenService, proxiedPaymentsService, proxiedPlanService, proxiedNetworkAccountService, { mappingConfig, mappingService: accountMappingService });
 }
 
 function registerFinP2PContractServices(
@@ -160,6 +161,7 @@ function registerFinP2PContractServices(
     throw new Error('Omnibus account model is not supported with finp2p-contract provider');
   }
   const workflowStorage = dbPool ? new workflows.WorkflowStorage(dbPool, ledgerSchema) : undefined;
+  const proxiedNetworkAccountService = wrapWithWorkflowProxy(networkAccountService, workflowStorage, finP2PClient, 'createAccount', 'removeAccount');
   let planApprovalService = new PlanApprovalServiceImpl(contractConfig.orgId, pluginManager, contractConfig.finP2PClient);
   const tokenService = new OnChainTokenService(contractConfig.finP2PContract, contractConfig.finP2PClient, contractConfig.execDetailsStore, contractConfig.proofProvider, pluginManager, contractConfig.defaultAssetStandard);
   const mappingService = new CredentialsMappingService(contractConfig.finP2PContract);
@@ -170,7 +172,7 @@ function registerFinP2PContractServices(
   const proxiedTokenService = wrapWithWorkflowProxy(tokenService, workflowStorage, finP2PClient, 'createAsset', 'issue', 'transfer', 'redeem');
   const proxiedEscrowService = wrapWithWorkflowProxy(tokenService, workflowStorage, finP2PClient, 'hold', 'release', 'rollback');
   const proxiedPlanService = wrapWithWorkflowProxy(planApprovalService, workflowStorage, finP2PClient, 'approvePlan', 'proposeCancelPlan', 'proposeResetPlan', 'proposeInstructionApproval');
-  register(app, proxiedTokenService, proxiedEscrowService, commonService, tokenService, paymentsService, proxiedPlanService, networkAccountService, { mappingConfig, mappingService });
+  register(app, proxiedTokenService, proxiedEscrowService, commonService, tokenService, paymentsService, proxiedPlanService, proxiedNetworkAccountService, { mappingConfig, mappingService });
 }
 
 async function createApp(
