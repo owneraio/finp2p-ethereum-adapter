@@ -40,16 +40,9 @@ export class OnChainTokenService implements TokenService, EscrowService, CommonS
     readonly defaultAssetStandard: string | undefined = undefined,
   ) {}
 
-  private async ensureCredential(finId: string, legAddress?: string): Promise<void> {
+  private async ensureCredential(finId: string): Promise<void> {
     if (this.registeredCredentials.has(finId)) return;
-    try {
-      await this.finP2PContract.getCredentialAddress(finId);
-    } catch (e) {
-      // network-account onboarding never tells the adapter the finId — the wallet
-      // arrives per operation on the instruction leg, so register it lazily here
-      if (!legAddress) throw e;
-      await this.finP2PContract.addCredential(finId, legAddress);
-    }
+    await this.finP2PContract.getCredentialAddress(finId);
     this.registeredCredentials.add(finId);
   }
 
@@ -131,7 +124,7 @@ export class OnChainTokenService implements TokenService, EscrowService, CommonS
   public async issue(idempotencyKey: string, asset: Asset, destination: Destination, quantity: string, exCtx: ExecutionContext): Promise<ReceiptOperation> {
     const issuerFinId = destination.finId;
     try {
-      await this.ensureCredential(issuerFinId, destination.account?.address);
+      await this.ensureCredential(issuerFinId);
       const transactionReceipt = await this.finP2PContract.issue(issuerFinId, term(asset.assetId, assetTypeFromString(asset.assetType), quantity), emptyOperationParams())
       if (exCtx) {
         this.execDetailsStore?.addExecutionContext(transactionReceipt.hash, exCtx.planId, exCtx.sequence);
@@ -160,8 +153,8 @@ export class OnChainTokenService implements TokenService, EscrowService, CommonS
     const { buyerFinId, sellerFinId, asset, settlement, loan, params } = details;
 
     try {
-      await this.ensureCredential(sellerFinId, sellerFinId === source.finId ? source.account?.address : undefined);
-      await this.ensureCredential(buyerFinId, buyerFinId === destination.finId ? destination.account?.address : undefined);
+      await this.ensureCredential(sellerFinId);
+      await this.ensureCredential(buyerFinId);
       const transactionReceipt  = await this.finP2PContract.transfer(nonce, sellerFinId, buyerFinId, asset, settlement, loan, params, sgn);
     if (exCtx) {
       this.execDetailsStore?.addExecutionContext(transactionReceipt.hash, exCtx.planId, exCtx.sequence);
@@ -187,7 +180,7 @@ export class OnChainTokenService implements TokenService, EscrowService, CommonS
     }
 
     try {
-      await this.ensureCredential(source.finId, source.account?.address);
+      await this.ensureCredential(source.finId);
       const transactionReceipt = await this.finP2PContract.releaseAndRedeem(operationId, source.finId, quantity, emptyOperationParams());
 
       if (exCtx) {
@@ -234,8 +227,8 @@ export class OnChainTokenService implements TokenService, EscrowService, CommonS
     const { buyerFinId, sellerFinId, asset, settlement, loan, params } = details;
 
     try {
-      await this.ensureCredential(sellerFinId, sellerFinId === source.finId ? source.account?.address : undefined);
-      await this.ensureCredential(buyerFinId, buyerFinId === destination?.finId ? destination?.account?.address : undefined);
+      await this.ensureCredential(sellerFinId);
+      await this.ensureCredential(buyerFinId);
       const transactionReceipt = await this.finP2PContract.hold(nonce, sellerFinId, buyerFinId, asset, settlement, loan, params, signature);
 
       if (exCtx) {

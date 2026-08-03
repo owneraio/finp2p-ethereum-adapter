@@ -19,6 +19,7 @@ import { LedgerStorage, VanillaServiceImpl, registerDistributionRoutes } from "@
 import {
   CredentialsMappingService,
   OnChainTokenService,
+  OnChainNetworkAccountService,
 } from "./services/onchain";
 import {
   CustodyProvider,
@@ -208,10 +209,15 @@ async function createApp(
   const assetStore = dbPool ? new storageModule.PgAssetStore(dbPool, ledgerSchema) : undefined;
 
   // Investor network-account onboarding (sync trust model, no ownership
-  // challenge) — the successor of the finId->wallet mapping API. The wallet
-  // reaches the token services per operation on the instruction legs.
-  const networkAccountService: NetworkAccountService = dbPool
-    ? new NetworkAccountServiceImpl(new storageModule.PgNetworkAccountStore(dbPool, ledgerSchema), new EvmNetworkAccountValidator())
+  // challenge) — the successor of the finId->wallet mapping API. Direct mode
+  // records bindings in the Postgres store only (the wallet reaches the token
+  // services per operation on the instruction legs); on-chain mode additionally
+  // registers generated wallets in the operator contract's credentials registry.
+  const networkAccountStore = dbPool ? new storageModule.PgNetworkAccountStore(dbPool, ledgerSchema) : undefined;
+  const networkAccountService: NetworkAccountService = networkAccountStore
+    ? (appConfig.type === 'finp2p-contract'
+      ? new OnChainNetworkAccountService(networkAccountStore, (appConfig as FinP2PContractAppConfig).finP2PContract, new EvmNetworkAccountValidator())
+      : new NetworkAccountServiceImpl(networkAccountStore, new EvmNetworkAccountValidator()))
     : new NotSupportedNetworkAccountService();
 
   let custodyProvider: CustodyProvider | undefined;
