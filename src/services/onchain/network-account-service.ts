@@ -3,15 +3,17 @@ import {
   BindInfo,
   NetworkAccountServiceImpl,
   NetworkAccountValidator,
+  ValidationError,
   successfulAccountOperation,
   storage,
 } from '@owneraio/finp2p-nodejs-skeleton-adapter';
-import { FinP2PContract, createAccount as generateAccount } from '@owneraio/finp2p-ethereum-orchestrator';
+import { FinP2PContract, finIdToAddress } from '@owneraio/finp2p-ethereum-orchestrator';
 
 /**
  * Investor onboarding for the on-chain operator contract: an operation
  * referencing a finId with no entry in the contract's credentials registry
- * reverts, so onboarding is where credentials get registered.
+ * reverts, so onboarding is where the investor finId gets bound to a wallet
+ * via addCredential.
  */
 export class OnChainNetworkAccountService extends NetworkAccountServiceImpl {
 
@@ -23,7 +25,14 @@ export class OnChainNetworkAccountService extends NetworkAccountServiceImpl {
     super(store, validator);
   }
 
-  async createAccount(idempotencyKey: string, organizationId: string, assetId: string, bindInfo: BindInfo | undefined): Promise<AccountOperation> {
+  async createAccount(idempotencyKey: string, organizationId: string, assetId: string, finId: string | undefined, bindInfo: BindInfo | undefined): Promise<AccountOperation> {
+    // the OAS marks finId optional "for backward compatibility" only — a
+    // request without it comes from a legacy router and can't be served here,
+    // since the credential registration below is keyed by it
+    if (!finId) {
+      throw new ValidationError('finId is required for network-account onboarding on the on-chain adapter');
+    }
+
     // replay check up-front: a re-sent create-new must return the recorded
     // wallet, not generate (and register) a fresh one
     if (idempotencyKey) {
@@ -34,22 +43,20 @@ export class OnChainNetworkAccountService extends NetworkAccountServiceImpl {
     }
 
     if (!bindInfo) {
-      // create-new: the wallet and its finId come from the same generated key
-      // (finId = compressed pubkey), so the credential is registrable here.
-      // The private key is discarded — no investor-side signing until key
-      // management exists for LA-generated wallets.
-      const { finId, address } = generateAccount();
+      // create-new: the investor's wallet is the address derived from the
+      // finId itself (finId = compressed secp256k1 pubkey), so the investor's
+      // existing finId key signs for it — no LA-side key to generate or hold
+      const address = finIdToAddress(finId);
       await this.finP2PContract.addCredential(finId, address);
-      return super.createAccount(idempotencyKey, organizationId, assetId, { account: { type: 'walletAccount', address } });
+      return super.createAccount(idempotencyKey, organizationId, assetId, finId, { account: { type: 'walletAccount', address } });
     }
 
-    // GAP: bind-existing should also register the wallet in the credentials
-    // registry, but the onboarding request carries no investor finId (BindInfo
-    // is only { account, ownershipSignature? }, and the router forwards the
-    // ownership hint with template: null). Until the protocol delivers the
-    // finId at onboarding time, the credential for a bound wallet is never
-    // registered and on-chain operations for it will revert:
-    // await this.finP2PContract.addCredential(finId, bindInfo.account.address);
-    return super.createAccount(idempotencyKey, organizationId, assetId, bindInfo);
+    // bind-existing: validate the wallet shape before touching the chain
+    // (super validates again — cheap and keeps its invariants intact)
+    await this.validator?.validate(bindInfo.account);
+    if (bindInfo.account.type === 'walletAccount') {
+      await this.finP2PContract.addCredential(finId, bindInfo.account.address);
+    }
+    return super.createAccount(idempotencyKey, organizationId, assetId, finId, bindInfo);
   }
 }

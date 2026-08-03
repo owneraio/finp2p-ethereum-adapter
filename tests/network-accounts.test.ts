@@ -1,5 +1,6 @@
-import { AccountInvalidShapeError, storage } from "@owneraio/finp2p-nodejs-skeleton-adapter";
+import { AccountInvalidShapeError, ValidationError, storage } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import { EvmNetworkAccountValidator } from "../src/services/accounts";
+import { finIdToAddress } from "@owneraio/finp2p-ethereum-orchestrator";
 import { OnChainTokenService, OnChainNetworkAccountService } from "../src/services/onchain";
 
 const ADDRESS = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266";
@@ -65,44 +66,65 @@ describe("OnChainNetworkAccountService onboarding", () => {
     addCredential: jest.fn().mockResolvedValue({ hash: "0x0" }),
   });
 
-  test("create-new: generates a wallet, registers its credential, persists the row", async () => {
+  const FIN_ID = "02b3e7cbe9b2e91832ea4a11a17a2e30d3cf52dae486ec1e1e3d0741e1f77210ab";
+
+  test("missing finId (legacy router): throws, no chain call, no row", async () => {
     const store = storeMock();
     const contract = contractMock();
     const service = new OnChainNetworkAccountService(store, contract as any, new EvmNetworkAccountValidator());
 
-    const op = await service.createAccount("ik-1", "org", "asset", undefined);
+    await expect(service.createAccount("ik-0", "org", "asset", undefined, undefined)).rejects.toThrow(ValidationError);
+    await expect(service.createAccount("ik-0", "org", "asset", undefined, { account: { type: "walletAccount", address: ADDRESS } })).rejects.toThrow(ValidationError);
+    expect(contract.addCredential).not.toHaveBeenCalled();
+    expect(store.insert).not.toHaveBeenCalled();
+  });
+
+  test("create-new: derives the wallet from the finId, registers and persists it", async () => {
+    const store = storeMock();
+    const contract = contractMock();
+    const service = new OnChainNetworkAccountService(store, contract as any, new EvmNetworkAccountValidator());
+
+    const op = await service.createAccount("ik-1", "org", "asset", FIN_ID, undefined);
     expect(op.type).toBe("success");
     const record = (op as any).record;
-    expect(record.account.type).toBe("walletAccount");
-    expect(contract.addCredential).toHaveBeenCalledTimes(1);
-    const [finId, address] = contract.addCredential.mock.calls[0];
-    expect(finId).toMatch(/^0[23][0-9a-f]{64}$/);
-    expect(address).toBe(record.account.address);
+    expect(record.account).toEqual({ type: "walletAccount", address: finIdToAddress(FIN_ID) });
+    expect(contract.addCredential).toHaveBeenCalledWith(FIN_ID, record.account.address);
+    expect(store.insert).toHaveBeenCalledWith(expect.objectContaining({ finId: FIN_ID, account: record.account }));
+  });
+
+  test("bind-existing: registers the supplied wallet under the investor finId", async () => {
+    const store = storeMock();
+    const contract = contractMock();
+    const service = new OnChainNetworkAccountService(store, contract as any, new EvmNetworkAccountValidator());
+
+    const op = await service.createAccount("ik-2", "org", "asset", FIN_ID, { account: { type: "walletAccount", address: ADDRESS } });
+    expect(op.type).toBe("success");
+    expect((op as any).record.account).toEqual({ type: "walletAccount", address: ADDRESS });
+    expect(contract.addCredential).toHaveBeenCalledWith(FIN_ID, ADDRESS);
     expect(store.insert).toHaveBeenCalledTimes(1);
   });
 
-  test("bind-existing: records the row without addCredential (finId gap)", async () => {
+  test("bind-existing with invalid wallet: rejected before any chain call", async () => {
     const store = storeMock();
     const contract = contractMock();
     const service = new OnChainNetworkAccountService(store, contract as any, new EvmNetworkAccountValidator());
 
-    const op = await service.createAccount("ik-2", "org", "asset", { account: { type: "walletAccount", address: ADDRESS } });
-    expect(op.type).toBe("success");
-    expect((op as any).record.account).toEqual({ type: "walletAccount", address: ADDRESS });
+    await expect(service.createAccount("ik-2b", "org", "asset", FIN_ID, { account: { type: "walletAccount", address: "0x1234" } as any }))
+      .rejects.toThrow(AccountInvalidShapeError);
     expect(contract.addCredential).not.toHaveBeenCalled();
-    expect(store.insert).toHaveBeenCalledTimes(1);
+    expect(store.insert).not.toHaveBeenCalled();
   });
 
   test("replayed create-new returns the recorded wallet without a fresh registration", async () => {
     const store = storeMock();
     store.getByIdempotencyKey.mockResolvedValue({
-      accountId: "acc-1", idempotencyKey: "ik-3", organizationId: "org", assetId: "asset",
+      accountId: "acc-1", idempotencyKey: "ik-3", organizationId: "org", assetId: "asset", finId: FIN_ID,
       account: { type: "walletAccount", address: ADDRESS },
     });
     const contract = contractMock();
     const service = new OnChainNetworkAccountService(store, contract as any, new EvmNetworkAccountValidator());
 
-    const op = await service.createAccount("ik-3", "org", "asset", undefined);
+    const op = await service.createAccount("ik-3", "org", "asset", FIN_ID, undefined);
     expect((op as any).record).toEqual({ id: "acc-1", account: { type: "walletAccount", address: ADDRESS } });
     expect(contract.addCredential).not.toHaveBeenCalled();
     expect(store.insert).not.toHaveBeenCalled();
