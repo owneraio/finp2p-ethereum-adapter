@@ -12,6 +12,8 @@ assert.strictEqual(spi.Phase.Close, 1);
 assert.strictEqual(spi.ReleaseType.Redeem, 1);
 
 assert.strictEqual(spi.supportsWhitelisting({}), false);
-assert.strictEqual(spi.supportsWhitelisting({ ensureWhitelisted: async () => {} }), true);
+assert.strictEqual(spi.supportsWhitelisting({ ensureWhitelisted: async () => {} }), false);
+assert.strictEqual(spi.supportsWhitelisting({ isWhitelisted: async () => true, whitelist: async () => {} }), false);
+assert.strictEqual(spi.supportsWhitelisting({ isWhitelisted: async () => true, whitelist: async () => {}, dewhitelist: async () => {} }), true);
 
 console.log('adapter-contract smoke: OK');
