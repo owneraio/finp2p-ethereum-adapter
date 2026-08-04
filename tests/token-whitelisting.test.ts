@@ -16,15 +16,17 @@ const ADDR: Record<string, string> = {
 };
 const EXPLICIT_ADDR = "0x3333333333333333333333333333333333333333";
 
-// ensureWhitelisted is called once per investor; record each (asset, finId, role).
+// whitelist is called once per not-yet-whitelisted investor; record each (asset, finId, role).
 type Call = { assetId: string; finId?: string; address: string; role: string };
 
-function whitelistingStandard(calls: Call[], failWith?: string) {
+function whitelistingStandard(calls: Call[], failWith?: string, alreadyWhitelisted = false) {
   return {
-    ensureWhitelisted: async (asset: any, parties: WhitelistParty[]) => {
-      for (const p of parties) calls.push({ assetId: asset.contractAddress, finId: p.finId, address: p.address, role: p.role });
+    isWhitelisted: async () => alreadyWhitelisted,
+    whitelist: async (asset: any, p: WhitelistParty) => {
+      calls.push({ assetId: asset.contractAddress, finId: p.finId, address: p.address, role: p.role });
       return failWith ? { status: "failure", reason: failWith } : { status: "success", transactionId: "tx", timestamp: 0 };
-    }
+    },
+    dewhitelist: async () => ({ status: "success", transactionId: "tx", timestamp: 0 })
   } as any;
 }
 
@@ -57,6 +59,7 @@ describe("TokenWhitelistingOption", () => {
   beforeAll(() => {
     tokenStandardRegistry.register("WL_TEST", whitelistingStandard(calls));
     tokenStandardRegistry.register("WL_FAILING", whitelistingStandard(calls, "not eligible"));
+    tokenStandardRegistry.register("WL_ALREADY", whitelistingStandard(calls, undefined, true));
     tokenStandardRegistry.register("WL_PLAIN", plainStandard);
   });
   beforeEach(() => { calls.length = 0; });
@@ -139,6 +142,13 @@ describe("TokenWhitelistingOption", () => {
     ]));
     expect(veto).toBeUndefined();
     expect(keys(calls)).toEqual([`0xtoken-${ASSET_ID}|${ALICE}|source`]);
+  });
+
+  test("an already-whitelisted party is validated only — no whitelist call", async () => {
+    const option = buildOption({ [ASSET_ID]: "WL_ALREADY" });
+    const veto = await option.apply(plan([instruction(ASSET_ID, ALICE, BOB)]));
+    expect(veto).toBeUndefined();
+    expect(calls).toHaveLength(0);
   });
 
   test("whitelisting failure vetoes the plan", async () => {

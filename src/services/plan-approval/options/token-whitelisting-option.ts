@@ -1,5 +1,5 @@
 import { logger, rejectedPlan } from "@owneraio/finp2p-nodejs-skeleton-adapter";
-import { AssetRecord, Logger as TokenLogger, supportsWhitelisting } from "@owneraio/finp2p-ethereum-adapter-contract";
+import { AssetRecord, InvestorWhitelisting, Logger as TokenLogger, WhitelistParty, supportsWhitelisting } from "@owneraio/finp2p-ethereum-adapter-contract";
 import { PlanApprovalOption, IntrospectedPlan } from "..";
 import { AccountResolver, AssetStore } from "../../accounts/account-resolver";
 import { tokenStandardRegistry } from "../../../integrations/token-standards/registry";
@@ -16,8 +16,8 @@ const tokenLogger: TokenLogger = {
  *
  * For each instruction that executes on this ledger against an asset kept in
  * this adapter, the investors it names — the source and destination finIds —
- * are resolved to addresses and ensured eligible via the standard's
- * ensureWhitelisted (idempotent). A finId-less endpoint (escrow, external
+ * are resolved to addresses, validated via the standard's isWhitelisted and
+ * whitelisted when not yet eligible. A finId-less endpoint (escrow, external
  * account) is not an investor and is not whitelisted. How the standard moves
  * tokens internally is its own concern. Standards without the whitelisting
  * capability (plain ERC20) are skipped; anything that can't be resolved or
@@ -32,6 +32,21 @@ export class TokenWhitelistingOption implements PlanApprovalOption {
     private readonly assetStore: AssetStore,
     private readonly accountMapping: AccountResolver,
   ) {}
+
+  private async whitelistParty(
+    standard: InvestorWhitelisting, asset: AssetRecord, party: WhitelistParty,
+    planId: string, assetId: string | undefined,
+  ): Promise<ReturnType<typeof rejectedPlan> | undefined> {
+    if (await standard.isWhitelisted(asset, party, tokenLogger)) {
+      return undefined;
+    }
+    const result = await standard.whitelist(asset, party, tokenLogger);
+    if (result.status === "failure") {
+      return rejectedPlan(1, `Whitelisting failed for asset ${assetId}: ${result.reason}`);
+    }
+    logger.info(`Plan ${planId}: whitelisted ${party.role} ${party.finId} (${party.address}) for asset ${assetId}`);
+    return undefined;
+  }
 
   async apply(plan: IntrospectedPlan): Promise<ReturnType<typeof rejectedPlan> | void> {
     for (const instruction of plan.instructions) {
@@ -58,10 +73,8 @@ export class TokenWhitelistingOption implements PlanApprovalOption {
         if (!address) {
           return rejectedPlan(1, `Plan ${plan.planId}: cannot resolve address for source ${instruction.sourceFinId} of asset ${instruction.assetId}`);
         }
-        const result = await standard.ensureWhitelisted(asset, [{ finId: instruction.sourceFinId, address, role: "source" }], tokenLogger);
-        if (result.status === "failure") {
-          return rejectedPlan(1, `Whitelisting failed for asset ${instruction.assetId}: ${result.reason}`);
-        }
+        const veto = await this.whitelistParty(standard, asset, { finId: instruction.sourceFinId, address, role: "source" }, plan.planId, instruction.assetId);
+        if (veto) return veto;
       }
 
       if (instruction.destinationFinId) {
@@ -69,10 +82,8 @@ export class TokenWhitelistingOption implements PlanApprovalOption {
         if (!address) {
           return rejectedPlan(1, `Plan ${plan.planId}: cannot resolve address for destination ${instruction.destinationFinId} of asset ${instruction.assetId}`);
         }
-        const result = await standard.ensureWhitelisted(asset, [{ finId: instruction.destinationFinId, address, role: "destination" }], tokenLogger);
-        if (result.status === "failure") {
-          return rejectedPlan(1, `Whitelisting failed for asset ${instruction.assetId}: ${result.reason}`);
-        }
+        const veto = await this.whitelistParty(standard, asset, { finId: instruction.destinationFinId, address, role: "destination" }, plan.planId, instruction.assetId);
+        if (veto) return veto;
       }
     }
   }
