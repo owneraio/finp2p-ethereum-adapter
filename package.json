@@ -56,7 +56,7 @@
     "@owneraio/finp2p-ethereum-hedera-plugin": "^0.28.19",
     "@owneraio/finp2p-ethereum-orchestrator": "^0.28.24",
     "@owneraio/finp2p-ethereum-trex-plugin": "^0.28.10",
-    "@owneraio/finp2p-nodejs-skeleton-adapter": "^0.28.25-onboard.10",
+    "@owneraio/finp2p-nodejs-skeleton-adapter": "^0.28.25",
     "@owneraio/finp2p-vanilla-service": "^0.28.7-onboard.1",
     "@types/node": "^24.10.1",
     "axios": "^1.1.3",
