@@ -10,7 +10,6 @@ import {
   AccountMappingServiceImpl,
   NetworkAccountService,
   NetworkAccountServiceImpl,
-  NotSupportedNetworkAccountService,
   workflows,
   storage as storageModule,
 } from "@owneraio/finp2p-nodejs-skeleton-adapter";
@@ -53,10 +52,9 @@ export interface WorkflowsConfig {
 }
 
 function wrapWithWorkflowProxy<T extends object>(
-  service: T, workflowStorage: InstanceType<typeof workflows.WorkflowStorage> | undefined,
+  service: T, workflowStorage: workflows.WorkflowStorage,
   finP2PClient: FinP2PClient | undefined, ...methods: (keyof T)[]
 ): T {
-  if (!workflowStorage) return service;
   return workflows.createServiceProxy(() => Promise.resolve(), workflowStorage, finP2PClient, service, ...methods);
 }
 
@@ -81,20 +79,18 @@ interface OmnibusContext {
 async function registerCustodyServices(
   app: express.Application, logger: winston.Logger, custodyProvider: CustodyProvider, escrowWallet: CustodyWallet | undefined, readProvider: Provider | undefined, gasStation: GasStation | undefined, appConfig: AppConfig,
   paymentsService: PaymentsServiceImpl, pluginManager: PluginManager,
-  dbPool: any, finP2PClient: FinP2PClient | undefined,
-  accountMappingStore: AccountMappingStore | undefined,
-  accountMappingService: AccountMappingServiceImpl | undefined,
-  assetStore: AssetStore | undefined,
+  workflowStorage: workflows.WorkflowStorage, finP2PClient: FinP2PClient | undefined,
+  accountMappingStore: AccountMappingStore,
+  accountMappingService: AccountMappingServiceImpl,
+  assetStore: AssetStore,
   accountMapping: AccountResolver,
   omnibusCtx: OmnibusContext | undefined,
-  ledgerSchema: string | undefined,
   networkAccountService: NetworkAccountService,
 ): Promise<void> {
   if (!readProvider) throw new Error('Read-only RPC provider is unavailable — set NETWORK_HOST or use a custody provider whose wallet exposes a transport');
   if (!escrowWallet) throw new Error('Escrow wallet is required for direct mode (set ASSET_ESCROW_CUSTODY_ACCOUNT_ID or OMNIBUS_CUSTODY_ACCOUNT_ID)');
 
   const mappingConfig = buildMappingConfig(custodyProvider);
-  const workflowStorage = dbPool ? new workflows.WorkflowStorage(dbPool, ledgerSchema) : undefined;
   const proxiedNetworkAccountService = wrapWithWorkflowProxy(networkAccountService, workflowStorage, finP2PClient, 'createAccount', 'removeAccount');
 
   if (appConfig.accountModel === 'omnibus') {
@@ -104,7 +100,7 @@ async function registerCustodyServices(
     const planApprovalService = await buildCustodyPlanApprovalService(
       appConfig.orgId, finP2PClient,
       new PlanApprovalServiceImpl(appConfig.orgId, pluginManager, finP2PClient, inboundTransferHook),
-      gasStation, readProvider, accountMapping, assetStore!,
+      gasStation, readProvider, accountMapping, assetStore,
       // omnibus transactions sign from the omnibus wallet — never prefund investors
       { walletActivationAmount: process.env.WALLET_ACTIVATION_AMOUNT, investorPrefunding: false },
     );
@@ -114,7 +110,7 @@ async function registerCustodyServices(
     const paymentImpl = pluginManager.getPaymentsPlugin() !== null ? paymentsService : delegate;
     const proxiedPaymentService = wrapWithWorkflowProxy(paymentImpl, workflowStorage, finP2PClient, 'getDepositInstruction', 'payout');
     // vanilla's commonService.operationStatus throws; workflow-stored ops need DirectCommonServiceImpl
-    const directCommonService = workflowStorage ? new DirectCommonServiceImpl(workflowStorage) : commonService;
+    const directCommonService = new DirectCommonServiceImpl(workflowStorage);
     register(app, proxiedTokenService, proxiedEscrowService, directCommonService, commonService, proxiedPaymentService, proxiedPlanService, proxiedNetworkAccountService, { mappingConfig, mappingService });
     if (distributionService) {
       registerDistributionRoutes(app, distributionService);
@@ -122,7 +118,6 @@ async function registerCustodyServices(
     return;
   }
 
-  if (!assetStore || !dbPool || !accountMappingStore || !accountMappingService) throw new Error('DB connection is required for direct mode');
   const assetIssuerKey = process.env.ASSET_ISSUER_PRIVATE_KEY;
   const networkHost = process.env.NETWORK_HOST;
   if (!assetIssuerKey) {
@@ -135,7 +130,7 @@ async function registerCustodyServices(
     ? { provider: readProvider, signer: pooledSigner(getNetworkRpcUrl(), assetIssuerKey) }
     : undefined;
   let tokenService: CustodyTokenService = new CustodyTokenService(logger, custodyProvider, escrowWallet, readProvider, accountMapping, assetStore, issuerWallet);
-  const commonService = new DirectCommonServiceImpl(workflowStorage!);
+  const commonService = new DirectCommonServiceImpl(workflowStorage);
   const planApprovalService = await buildCustodyPlanApprovalService(
     appConfig.orgId, finP2PClient,
     new PlanApprovalServiceImpl(appConfig.orgId, pluginManager, finP2PClient),
@@ -153,21 +148,19 @@ async function registerCustodyServices(
 function registerFinP2PContractServices(
   app: express.Application, contractConfig: FinP2PContractAppConfig,
   paymentsService: PaymentsServiceImpl, pluginManager: PluginManager,
-  dbPool: any, finP2PClient: FinP2PClient | undefined,
-  ledgerSchema: string | undefined,
+  workflowStorage: workflows.WorkflowStorage, finP2PClient: FinP2PClient | undefined,
   networkAccountService: NetworkAccountService,
 ) {
   if (contractConfig.accountModel === 'omnibus') {
     throw new Error('Omnibus account model is not supported with finp2p-contract provider');
   }
-  const workflowStorage = dbPool ? new workflows.WorkflowStorage(dbPool, ledgerSchema) : undefined;
   const proxiedNetworkAccountService = wrapWithWorkflowProxy(networkAccountService, workflowStorage, finP2PClient, 'createAccount', 'removeAccount');
   let planApprovalService = new PlanApprovalServiceImpl(contractConfig.orgId, pluginManager, contractConfig.finP2PClient);
   const tokenService = new OnChainTokenService(contractConfig.finP2PContract, contractConfig.finP2PClient, contractConfig.execDetailsStore, contractConfig.proofProvider, pluginManager, contractConfig.defaultAssetStandard);
   const mappingService = new CredentialsMappingService(contractConfig.finP2PContract);
   const mappingConfig = buildMappingConfig();
 
-  const commonService = workflowStorage ? new DirectCommonServiceImpl(workflowStorage) : tokenService;
+  const commonService = new DirectCommonServiceImpl(workflowStorage);
 
   const proxiedTokenService = wrapWithWorkflowProxy(tokenService, workflowStorage, finP2PClient, 'createAsset', 'issue', 'transfer', 'redeem');
   const proxiedEscrowService = wrapWithWorkflowProxy(tokenService, workflowStorage, finP2PClient, 'hold', 'release', 'rollback');
@@ -179,7 +172,7 @@ async function createApp(
   workflowsConfig: WorkflowsConfig | undefined,
   logger: winston.Logger,
   appConfig: AppConfig,
-  dbConnectionString?: string,
+  dbConnectionString: string,
 ): Promise<express.Application> {
   const app = express();
   app.use(express.json({ limit: "50mb" }));
@@ -205,22 +198,21 @@ async function createApp(
 
   // Shared data stores — decoupled from workflow storage
   const { Pool } = require('pg');
-  const dbPool = dbConnectionString ? new Pool({ connectionString: dbConnectionString }) : undefined;
-  dbPool?.on('error', () => {}); // Suppress pool errors during shutdown
-  const accountMappingStore = dbPool ? new storageModule.PgAccountStore(dbPool, ledgerSchema) : undefined;
-  const assetStore = dbPool ? new storageModule.PgAssetStore(dbPool, ledgerSchema) : undefined;
+  const dbPool = new Pool({ connectionString: dbConnectionString });
+  dbPool.on('error', () => {}); // Suppress pool errors during shutdown
+  const accountMappingStore = new storageModule.PgAccountStore(dbPool, ledgerSchema);
+  const assetStore = new storageModule.PgAssetStore(dbPool, ledgerSchema);
+  const workflowStorage = new workflows.WorkflowStorage(dbPool, ledgerSchema);
 
   // Investor network-account onboarding (sync trust model, no ownership
   // challenge) — the successor of the finId->wallet mapping API. Direct mode
   // records bindings in the Postgres store only (the wallet reaches the token
   // services per operation on the instruction legs); on-chain mode additionally
   // registers generated wallets in the operator contract's credentials registry.
-  const networkAccountStore = dbPool ? new storageModule.PgNetworkAccountStore(dbPool, ledgerSchema) : undefined;
-  const networkAccountService: NetworkAccountService = networkAccountStore
-    ? (appConfig.type === 'finp2p-contract'
-      ? new OnChainNetworkAccountService(networkAccountStore, (appConfig as FinP2PContractAppConfig).finP2PContract, new EvmNetworkAccountValidator())
-      : new NetworkAccountServiceImpl(networkAccountStore, new EvmNetworkAccountValidator()))
-    : new NotSupportedNetworkAccountService();
+  const networkAccountStore = new storageModule.PgNetworkAccountStore(dbPool, ledgerSchema);
+  const networkAccountService: NetworkAccountService = appConfig.type === 'finp2p-contract'
+    ? new OnChainNetworkAccountService(networkAccountStore, (appConfig as FinP2PContractAppConfig).finP2PContract, new EvmNetworkAccountValidator())
+    : new NetworkAccountServiceImpl(networkAccountStore, new EvmNetworkAccountValidator());
 
   let custodyProvider: CustodyProvider | undefined;
   if (custodyRegistry.has(appConfig.type)) {
@@ -281,18 +273,12 @@ async function createApp(
   // Skeleton 0.28.11+: caseSensitive=false makes the account-mapping service lowercase
   // FIELD_LEDGER_ACCOUNT_ID values on save and lookup, so EIP-55 checksummed and lowercase
   // EVM addresses resolve to the same record.
-  const accountMappingService = accountMappingStore
-    ? new AccountMappingServiceImpl(accountMappingStore, { caseSensitive: false })
-    : undefined;
-  if (!accountMappingService) {
-    throw new Error('DB-backed account mapping is required (DB_CONNECTION_STRING must be set).');
-  }
+  const accountMappingService = new AccountMappingServiceImpl(accountMappingStore, { caseSensitive: false });
   const accountMapping: AccountResolver = new DbAccountResolver(accountMappingService);
 
   let omnibusCtx: OmnibusContext | undefined;
   if (appConfig.accountModel === 'omnibus' && custodyProvider) {
     if (!omnibusWallet) throw new Error('Omnibus account model requires OMNIBUS_CUSTODY_ACCOUNT_ID (and a custody provider able to create wallets by custody id)');
-    if (!dbPool || !assetStore) throw new Error('DB connection is required for omnibus account model');
     const delegate = new OmnibusDelegate(logger, custodyProvider, omnibusWallet, escrowWallet!, readProvider!, gasStation, accountMapping, assetStore);
     // vanilla 0.28.2's createVanillaServices doesn't forward schemaName to its LedgerStorage,
     // so its account_mappings/accounts/transactions queries hit the default `ledger_adapter`
@@ -318,7 +304,7 @@ async function createApp(
     logger,
     pluginManager,
     finP2PClient: finP2PClient!,
-    walletResolver: custodyProvider && accountMappingStore ? createWalletResolver(accountMappingStore, custodyProvider) : undefined,
+    walletResolver: custodyProvider ? createWalletResolver(accountMappingStore, custodyProvider) : undefined,
     rpcUrl: process.env.NETWORK_HOST ? getNetworkRpcUrl() : undefined,
     readProvider,
     gasStation,
@@ -334,9 +320,9 @@ async function createApp(
   const paymentsService = new PaymentsServiceImpl(pluginManager);
 
   if (custodyProvider) {
-    await registerCustodyServices(app, logger, custodyProvider, escrowWallet, readProvider, gasStation, appConfig, paymentsService, pluginManager, dbPool, finP2PClient, accountMappingStore, accountMappingService, assetStore, accountMapping, omnibusCtx, ledgerSchema, networkAccountService);
+    await registerCustodyServices(app, logger, custodyProvider, escrowWallet, readProvider, gasStation, appConfig, paymentsService, pluginManager, workflowStorage, finP2PClient, accountMappingStore, accountMappingService, assetStore, accountMapping, omnibusCtx, networkAccountService);
   } else if (appConfig.type === 'finp2p-contract') {
-    registerFinP2PContractServices(app, appConfig as FinP2PContractAppConfig, paymentsService, pluginManager, dbPool, finP2PClient, ledgerSchema, networkAccountService);
+    registerFinP2PContractServices(app, appConfig as FinP2PContractAppConfig, paymentsService, pluginManager, workflowStorage, finP2PClient, networkAccountService);
   } else {
     throw new Error(`Unknown provider type: '${appConfig.type}'. Available custody providers: ${custodyRegistry.availableProviders.join(', ')}`);
   }
