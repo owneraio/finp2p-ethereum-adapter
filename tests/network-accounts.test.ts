@@ -174,10 +174,12 @@ describe("CustodyNetworkAccountService onboarding whitelisting", () => {
   });
 
   test("replayed create re-asserts the whitelist (idempotent self-heal)", async () => {
+    // skeleton 0.28.25: insert() is atomic and returns the pre-existing binding on replay
     const store = storeMock(row);
+    store.insert.mockResolvedValue(row);
     const op = await build(store).createAccount("ik", "org", WL_ASSET, FIN_ID, bind);
     expect(op.type).toBe("success");
-    expect(store.insert).not.toHaveBeenCalled();
+    expect((op as any).record.id).toBe("acc-1");
     expect(mutations.map(m => m.op)).toEqual(["whitelist"]);
   });
 
