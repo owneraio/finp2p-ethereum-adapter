@@ -12,20 +12,26 @@ export interface WhitelistParty {
 
 /**
  * Optional TokenStandard capability: token-standard-specific investor
- * whitelisting/onboarding, ensured at plan approval so instructions don't
- * fail at execution.
+ * whitelisting/onboarding.
  *
  * What "whitelisted" means is standard-specific — an identity-registry
  * entry, an allowlist authorization, accepting inbound transfers for a
  * token, etc. Implementations own whatever standard-specific agent keys the
- * operation needs (injected at construction, same as their value-op signers)
- * and MUST be idempotent: ensuring an already-whitelisted party is a cheap
- * no-op, not an error.
+ * operations need (injected at construction, same as their value-op signers).
+ *
+ * isWhitelisted is a pure check and never mutates state. whitelist and
+ * dewhitelist MUST be idempotent: applying them to a party already in the
+ * target state is a cheap success, not an error.
  */
 export interface InvestorWhitelisting {
-  ensureWhitelisted(asset: AssetRecord, parties: WhitelistParty[], logger: Logger): Promise<TokenOperationResult>;
+  isWhitelisted(asset: AssetRecord, party: WhitelistParty, logger: Logger): Promise<boolean>;
+  whitelist(asset: AssetRecord, party: WhitelistParty, logger: Logger): Promise<TokenOperationResult>;
+  dewhitelist(asset: AssetRecord, party: WhitelistParty, logger: Logger): Promise<TokenOperationResult>;
 }
 
 export function supportsWhitelisting(standard: TokenStandard): standard is TokenStandard & InvestorWhitelisting {
-  return typeof (standard as Partial<InvestorWhitelisting>).ensureWhitelisted === 'function';
+  const candidate = standard as Partial<InvestorWhitelisting>;
+  return typeof candidate.isWhitelisted === 'function'
+    && typeof candidate.whitelist === 'function'
+    && typeof candidate.dewhitelist === 'function';
 }
