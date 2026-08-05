@@ -9,7 +9,6 @@ import {
   PaymentsServiceImpl,
   AccountMappingServiceImpl,
   NetworkAccountService,
-  NetworkAccountServiceImpl,
   workflows,
   storage as storageModule,
 } from "@owneraio/finp2p-nodejs-skeleton-adapter";
@@ -24,6 +23,7 @@ import {
   CustodyProvider,
   CustodyWallet,
   CustodyTokenService,
+  CustodyNetworkAccountService,
   custodyRegistry,
 } from "./services/custody";
 import { createWalletResolver } from "./integrations/wallet-resolver";
@@ -205,14 +205,16 @@ async function createApp(
   const workflowStorage = new workflows.WorkflowStorage(dbPool, ledgerSchema);
 
   // Investor network-account onboarding (sync trust model, no ownership
-  // challenge) — the successor of the finId->wallet mapping API. Direct mode
-  // records bindings in the Postgres store only (the wallet reaches the token
-  // services per operation on the instruction legs); on-chain mode additionally
-  // registers generated wallets in the operator contract's credentials registry.
+  // challenge) — the successor of the finId->wallet mapping API. Custody modes
+  // record the binding in the Postgres store and whitelist the investor's
+  // wallet on the asset's token standard (plan approval only validates);
+  // on-chain mode registers generated wallets in the operator contract's
+  // credentials registry.
   const networkAccountStore = new storageModule.PgNetworkAccountStore(dbPool, ledgerSchema);
+  const dewhitelistOnRemove = appConfig.accountModel !== 'omnibus';
   const networkAccountService: NetworkAccountService = appConfig.type === 'finp2p-contract'
     ? new OnChainNetworkAccountService(networkAccountStore, (appConfig as FinP2PContractAppConfig).finP2PContract, new EvmNetworkAccountValidator())
-    : new NetworkAccountServiceImpl(networkAccountStore, new EvmNetworkAccountValidator());
+    : new CustodyNetworkAccountService(networkAccountStore, assetStore, logger, dewhitelistOnRemove, new EvmNetworkAccountValidator());
 
   let custodyProvider: CustodyProvider | undefined;
   if (custodyRegistry.has(appConfig.type)) {
