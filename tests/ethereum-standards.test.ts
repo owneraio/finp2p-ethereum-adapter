@@ -81,8 +81,9 @@ describe("registerTokenStandards (real plugin standards)", () => {
   });
 
   test("the plan-approval whitelisting probe picks up the plugin capability", () => {
-    // TREX, CMTAT and HEDERA_ATS implement InvestorWhitelisting since 0.28.2;
-    // plain ERC20 and BENJI have no investor gating, so the capability is absent
+    // TREX, CMTAT and HEDERA_ATS implement the split isWhitelisted/whitelist/
+    // dewhitelist interface (adapter-contract 0.28.12); plain ERC20 and BENJI
+    // have no investor gating, so the capability is absent
     for (const [name, capable] of [
       ["TREX", true], ["CMTAT", true], ["HEDERA_ATS", true], ["BENJI", false], ["ERC20", false],
     ] as const) {

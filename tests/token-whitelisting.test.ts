@@ -16,15 +16,18 @@ const ADDR: Record<string, string> = {
 };
 const EXPLICIT_ADDR = "0x3333333333333333333333333333333333333333";
 
-// ensureWhitelisted is called once per investor; record each (asset, finId, role).
+// isWhitelisted is called once per investor; record each (asset, finId, role).
+// The option is validate-only: whitelist/dewhitelist must never be invoked.
 type Call = { assetId: string; finId?: string; address: string; role: string };
 
-function whitelistingStandard(calls: Call[], failWith?: string) {
+function whitelistingStandard(calls: Call[], mutations: string[], whitelisted = true) {
   return {
-    ensureWhitelisted: async (asset: any, parties: WhitelistParty[]) => {
-      for (const p of parties) calls.push({ assetId: asset.contractAddress, finId: p.finId, address: p.address, role: p.role });
-      return failWith ? { status: "failure", reason: failWith } : { status: "success", transactionId: "tx", timestamp: 0 };
-    }
+    isWhitelisted: async (asset: any, p: WhitelistParty) => {
+      calls.push({ assetId: asset.contractAddress, finId: p.finId, address: p.address, role: p.role });
+      return whitelisted;
+    },
+    whitelist: async () => { mutations.push("whitelist"); return { status: "success", transactionId: "tx", timestamp: 0 }; },
+    dewhitelist: async () => { mutations.push("dewhitelist"); return { status: "success", transactionId: "tx", timestamp: 0 }; }
   } as any;
 }
 
@@ -54,14 +57,16 @@ const keys = (calls: Call[]) => calls.map(c => `${c.assetId}|${c.finId}|${c.role
 describe("TokenWhitelistingOption", () => {
 
   const calls: Call[] = [];
+  const mutations: string[] = [];
   beforeAll(() => {
-    tokenStandardRegistry.register("WL_TEST", whitelistingStandard(calls));
-    tokenStandardRegistry.register("WL_FAILING", whitelistingStandard(calls, "not eligible"));
+    tokenStandardRegistry.register("WL_TEST", whitelistingStandard(calls, mutations));
+    tokenStandardRegistry.register("WL_NOT_LISTED", whitelistingStandard(calls, mutations, false));
     tokenStandardRegistry.register("WL_PLAIN", plainStandard);
   });
-  beforeEach(() => { calls.length = 0; });
+  beforeEach(() => { calls.length = 0; mutations.length = 0; });
+  afterEach(() => { expect(mutations).toHaveLength(0); }); // approval never mutates whitelists
 
-  test("whitelists the source and destination of each asset kept in this adapter", async () => {
+  test("validates the source and destination of each asset kept in this adapter", async () => {
     const option = buildOption({ [ASSET_ID]: "WL_TEST", [SETTLEMENT_ID]: "WL_TEST" });
     const veto = await option.apply(plan([
       instruction(SETTLEMENT_ID, ALICE, BOB, true, "hold"),
@@ -76,14 +81,14 @@ describe("TokenWhitelistingOption", () => {
     ].sort());
   });
 
-  test("a finId-less endpoint (escrow/external) is never whitelisted", async () => {
+  test("a finId-less endpoint (escrow/external) is never checked", async () => {
     const option = buildOption({ [ASSET_ID]: "WL_TEST" });
     const veto = await option.apply(plan([instruction(ASSET_ID, ALICE, undefined, true, "hold")]));
     expect(veto).toBeUndefined();
     expect(keys(calls)).toEqual([`0xtoken-${ASSET_ID}|${ALICE}|source`]);
   });
 
-  test("only assets kept in this adapter are whitelisted", async () => {
+  test("only assets kept in this adapter are validated", async () => {
     const option = buildOption({ [ASSET_ID]: "WL_TEST" });
     const veto = await option.apply(plan([
       instruction(FOREIGN_ASSET_ID, ALICE, BOB, false),
@@ -107,7 +112,7 @@ describe("TokenWhitelistingOption", () => {
     const veto = await option.apply(plan([
       instruction(ASSET_ID, ALICE, BOB, true, "transfer", { destinationAddress: EXPLICIT_ADDR })
     ]));
-    // ALICE (source) is whitelisted via mapping; BOB is unmapped and the
+    // ALICE (source) is checked via mapping; BOB is unmapped and the
     // explicit address is not a whitelisting fallback → veto
     expect(veto?.type).toBe("rejected");
     expect((veto as any).error.message).toMatch(/cannot resolve address for destination/);
@@ -132,7 +137,7 @@ describe("TokenWhitelistingOption", () => {
     expect((veto as any).error.message).toMatch(/cannot resolve address for destination/);
   });
 
-  test("a finId-less destination carrying a network address is not whitelisted", async () => {
+  test("a finId-less destination carrying a network address is not checked", async () => {
     const option = buildOption({ [ASSET_ID]: "WL_TEST" });
     const veto = await option.apply(plan([
       instruction(ASSET_ID, ALICE, undefined, true, "transfer", { destinationAddress: EXPLICIT_ADDR })
@@ -141,14 +146,14 @@ describe("TokenWhitelistingOption", () => {
     expect(keys(calls)).toEqual([`0xtoken-${ASSET_ID}|${ALICE}|source`]);
   });
 
-  test("whitelisting failure vetoes the plan", async () => {
-    const option = buildOption({ [ASSET_ID]: "WL_FAILING" });
+  test("a party that is not whitelisted vetoes the plan", async () => {
+    const option = buildOption({ [ASSET_ID]: "WL_NOT_LISTED" });
     const veto = await option.apply(plan([instruction(ASSET_ID, ALICE, BOB)]));
     expect(veto?.type).toBe("rejected");
-    expect((veto as any).error.message).toMatch(/not eligible/);
+    expect((veto as any).error.message).toMatch(/is not whitelisted/);
   });
 
-  test("an unresolvable source vetoes the plan before any whitelisting call", async () => {
+  test("an unresolvable source vetoes the plan before any whitelisting check", async () => {
     const option = buildOption({ [ASSET_ID]: "WL_TEST" }, { [ALICE]: ADDR[ALICE] }); // BOB (source) unmapped
     const veto = await option.apply(plan([instruction(ASSET_ID, BOB, ALICE)]));
     expect(veto?.type).toBe("rejected");
