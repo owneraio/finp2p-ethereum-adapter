@@ -160,8 +160,15 @@ describe("CustodyNetworkAccountService onboarding whitelisting", () => {
       return ADDRESS;
     }),
   } as any;
-  const mappingService = { saveAccount: jest.fn().mockResolvedValue(undefined) } as any;
-  beforeEach(() => { custodyProvider.resolveAddressFromCustodyId.mockClear(); mappingService.saveAccount.mockClear(); });
+  const mappingService = {
+    saveAccount: jest.fn().mockResolvedValue(undefined),
+    getByFieldValue: jest.fn().mockResolvedValue([]),
+  } as any;
+  beforeEach(() => {
+    custodyProvider.resolveAddressFromCustodyId.mockClear();
+    mappingService.saveAccount.mockClear();
+    mappingService.getByFieldValue.mockClear().mockResolvedValue([]);
+  });
 
   const build = (store: storage.NetworkAccountStore, dewhitelistOnRemove = true, enabled = true) =>
     new CustodyNetworkAccountService(store, assetStore, custodyProvider, mappingService, logger, { enabled, dewhitelistOnRemove }, new EvmNetworkAccountValidator());
@@ -245,19 +252,24 @@ describe("CustodyNetworkAccountService onboarding whitelisting", () => {
     expect(mutations).toHaveLength(0);
   });
 
-  test("whitelist failure fails the onboarding (binding kept for retry)", async () => {
+  test("whitelist failure fails the onboarding before anything persists", async () => {
+    // the workflow proxy dedups by (method, inputs): a failure is terminal for
+    // that idempotency key, so it must leave no half-applied state behind
     whitelistFails = true;
     const store = storeMock();
     const op = await build(store).createAccount("ik", "org", WL_ASSET, FIN_ID, bind);
     expect(op.type).toBe("failure");
     expect((op as any).error.message).toMatch(/compliance says no/);
-    expect(store.insert).toHaveBeenCalledTimes(1);
+    expect(store.insert).not.toHaveBeenCalled();
+    expect(mappingService.saveAccount).not.toHaveBeenCalled();
   });
 
-  test("remove dewhitelists the unbound wallet without touching the shared mapping", async () => {
+  test("remove keeps the binding durable while dewhitelisting, then deletes it", async () => {
     const store = storeMock(row);
     const op = await build(store).removeAccount("ik", "acc-1");
     expect(op.type).toBe("success");
+    expect(store.insert).toHaveBeenCalledWith(row); // restored before the chain mutation
+    expect(store.remove).toHaveBeenCalledTimes(2); // peek + final delete after success
     expect(mappingService.saveAccount).not.toHaveBeenCalled();
     expect(mutations).toEqual([{
       op: "dewhitelist", contractAddress: "0xwl",
@@ -265,12 +277,25 @@ describe("CustodyNetworkAccountService onboarding whitelisting", () => {
     }]);
   });
 
-  test("dewhitelist failure restores the binding and fails the removal", async () => {
+  test("dewhitelist failure leaves the binding in place and fails the removal", async () => {
     whitelistFails = true;
     const store = storeMock(row);
     const op = await build(store).removeAccount("ik", "acc-1");
     expect(op.type).toBe("failure");
     expect(store.insert).toHaveBeenCalledWith(row);
+    expect(store.remove).toHaveBeenCalledTimes(1); // never deleted after the failure
+  });
+
+  test("a wallet shared with another investor is unbound but never dewhitelisted", async () => {
+    const store = storeMock(row);
+    mappingService.getByFieldValue.mockResolvedValue([
+      { finId: FIN_ID, fields: { ledgerAccountId: ADDRESS } },
+      { finId: "03" + "cc".repeat(32), fields: { ledgerAccountId: ADDRESS } },
+    ]);
+    const op = await build(store).removeAccount("ik", "acc-1");
+    expect(op.type).toBe("success");
+    expect(store.remove).toHaveBeenCalledTimes(2);
+    expect(mutations).toHaveLength(0);
   });
 
   test("omnibus (dewhitelistOnRemove=false): shared wallet is never dewhitelisted", async () => {

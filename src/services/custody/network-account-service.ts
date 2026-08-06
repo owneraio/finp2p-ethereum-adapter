@@ -30,7 +30,8 @@ const ETH_ADDRESS_FORMAT = /^0x[0-9a-fA-F]{40}$/;
  * and mirrored into the account-mapping store, which is what every
  * operational resolver reads (token services, plan approval, deposits); the
  * custody account id is kept on the mapping so per-operation signing skips
- * the vault scan.
+ * the vault scan. The mapping is per finId and shared across the investor's
+ * asset bindings, so unbinding leaves it in place.
  *
  * Whitelisting: plan approval only validates (isWhitelisted vetoes), so
  * onboarding whitelists the investor's wallet on the asset's token standard
@@ -38,11 +39,20 @@ const ETH_ADDRESS_FORMAT = /^0x[0-9a-fA-F]{40}$/;
  * (ONBOARDING_WHITELISTING_ENABLED; disabling leaves the mutations to an
  * external onboarding flow, plan approval keeps validating either way).
  * Assets not kept in this adapter and standards without the capability
- * bind/unbind as before. The whitelist runs after the binding is recorded:
- * the SPI mutations are idempotent, so a failed onboarding retried by the
- * router replays the stored binding and re-attempts the whitelist. In omnibus
- * mode all investors share one wallet, so removal must not dewhitelist it
- * (dewhitelistOnRemove=false).
+ * bind/unbind as before.
+ *
+ * Ordering is chosen so every reported outcome is a consistent state — the
+ * workflow proxy deduplicates by (method, inputs), so a failure with the same
+ * idempotency key is terminal and must not strand half-applied work:
+ * - create whitelists BEFORE persisting; a whitelist failure leaves nothing
+ *   behind and remediation is a fresh onboarding request. Mid-crash the
+ *   operation stays in_progress and crash recovery replays it end to end
+ *   (the SPI mutations and the binding insert are idempotent).
+ * - remove keeps the binding durable while dewhitelisting (peek by remove,
+ *   restore, mutate, then delete); a shared wallet — another investor mapped
+ *   to the same address — is never dewhitelisted.
+ * In omnibus mode all investors share one wallet, so removal must not
+ * dewhitelist it (dewhitelistOnRemove=false).
  */
 export interface OnboardingWhitelistingOptions {
   enabled: boolean;
@@ -78,6 +88,16 @@ export class CustodyNetworkAccountService extends NetworkAccountServiceImpl {
       effectiveBind = { ...bindInfo, account: { type: 'walletAccount', address } };
     }
 
+    if (effectiveBind?.account.type === 'walletAccount' && this.whitelisting.enabled) {
+      await this.validator?.validate(effectiveBind.account);
+      const { address } = effectiveBind.account;
+      const failure = await this.mutate('whitelist', assetId, { finId, address, role: 'destination' });
+      if (failure) {
+        this.logger.error(`onboarding: whitelisting ${finId} (${address}) for asset ${assetId} failed: ${failure}`);
+        return failedAccountOperation('', 1, `whitelisting investor ${finId} for asset ${assetId} failed: ${failure}`);
+      }
+    }
+
     const op = await super.createAccount(idempotencyKey, organizationId, assetId, finId, effectiveBind);
     if (op.type !== 'success' || op.record.account.type !== 'walletAccount') return op;
     const address = op.record.account.address;
@@ -86,30 +106,34 @@ export class CustodyNetworkAccountService extends NetworkAccountServiceImpl {
       ? { [FIELD_LEDGER_ACCOUNT_ID]: address, [FIELD_CUSTODY_ACCOUNT_ID]: custodyAccountId }
       : { [FIELD_LEDGER_ACCOUNT_ID]: address });
 
-    if (this.whitelisting.enabled) {
-      const failure = await this.mutate('whitelist', assetId, { finId, address, role: 'destination' });
-      if (failure) {
-        this.logger.error(`onboarding: whitelisting ${finId} (${address}) for asset ${assetId} failed: ${failure}`);
-        return failedAccountOperation(op.correlationId, 1, `whitelisting investor ${finId} for asset ${assetId} failed: ${failure}`);
-      }
-    }
     return op;
   }
 
   async removeAccount(idempotencyKey: string, accountId: string): Promise<AccountOperation> {
     const removed = await this.store.remove(accountId);
-    if (removed && removed.account.type === 'walletAccount' && this.whitelisting.enabled && this.whitelisting.dewhitelistOnRemove) {
-      const failure = await this.mutate('dewhitelist', removed.assetId, { finId: removed.finId, address: removed.account.address, role: 'destination' });
+    if (!removed || removed.account.type !== 'walletAccount' || !this.whitelisting.enabled || !this.whitelisting.dewhitelistOnRemove) {
+      return successfulAccountOperation('', { id: accountId, account: removed?.account ?? { type: 'none' } });
+    }
+
+    // keep the binding durable while the chain mutation runs; deleted only
+    // after the dewhitelist succeeded, so a mid-crash replay re-attempts it
+    await this.store.insert(removed);
+    const { assetId, finId, account } = removed;
+
+    const sharing = (await this.mappingService.getByFieldValue(FIELD_LEDGER_ACCOUNT_ID, account.address))
+      .filter(m => m.finId !== finId);
+    if (sharing.length > 0) {
+      this.logger.info(`offboarding: ${account.address} is mapped by ${sharing.length} other investor(s) — leaving it whitelisted`);
+    } else {
+      const failure = await this.mutate('dewhitelist', assetId, { finId, address: account.address, role: 'destination' });
       if (failure) {
-        // restore the binding so a retry reaches the dewhitelist again
-        await this.store.insert(removed);
-        this.logger.error(`offboarding: dewhitelisting ${removed.finId} (${removed.account.address}) for asset ${removed.assetId} failed: ${failure}`);
-        return failedAccountOperation('', 1, `dewhitelisting investor ${removed.finId} for asset ${removed.assetId} failed: ${failure}`);
+        this.logger.error(`offboarding: dewhitelisting ${finId} (${account.address}) for asset ${assetId} failed: ${failure}`);
+        return failedAccountOperation('', 1, `dewhitelisting investor ${finId} for asset ${assetId} failed: ${failure}`);
       }
     }
-    // the account mapping is per finId and shared across the investor's asset
-    // bindings, so unbinding one asset leaves it in place
-    return successfulAccountOperation('', { id: accountId, account: removed?.account ?? { type: 'none' } });
+
+    await this.store.remove(accountId);
+    return successfulAccountOperation('', { id: accountId, account });
   }
 
   private async resolveCustodyAddress(custodyAccountId: string): Promise<string> {
