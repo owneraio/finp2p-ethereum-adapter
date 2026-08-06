@@ -70,7 +70,7 @@ export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowD
   ): Promise<DelegateResult> {
     const dbAsset = await this.assetRecord(asset.assetId);
     const destinationAddress = await this.accountMapping.resolveAccount(destination.finId)
-      ?? ledgerAccountAddress(destination.account);
+      ?? ledgerAccountAddress(destination.account, (await this.readProvider.getNetwork()).chainId);
     if (!destinationAddress) throw new Error(`Cannot resolve address for finId: ${destination.finId}`);
 
     const amount = parseUnits(quantity, dbAsset.decimals);
@@ -209,7 +209,7 @@ export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowD
     // counterparty's on-chain address via `destination.account.address`; deliver
     // there directly so funds physically leave this org.
     const localAddress = await this.accountMapping.resolveAccount(destination.finId);
-    const externalAddress = ledgerAccountAddress(destination.account);
+    const externalAddress = ledgerAccountAddress(destination.account, (await this.readProvider.getNetwork()).chainId);
     if (!localAddress && !externalAddress) {
       return { success: false, error: `Cannot resolve release destination for finId: ${destination.finId}` };
     }

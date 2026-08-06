@@ -254,10 +254,11 @@ describe("CustodyNetworkAccountService onboarding whitelisting", () => {
     expect(store.insert).toHaveBeenCalledTimes(1);
   });
 
-  test("remove dewhitelists the unbound wallet", async () => {
+  test("remove dewhitelists the unbound wallet without touching the shared mapping", async () => {
     const store = storeMock(row);
     const op = await build(store).removeAccount("ik", "acc-1");
     expect(op.type).toBe("success");
+    expect(mappingService.saveAccount).not.toHaveBeenCalled();
     expect(mutations).toEqual([{
       op: "dewhitelist", contractAddress: "0xwl",
       party: { finId: FIN_ID, address: ADDRESS, role: "destination" },
