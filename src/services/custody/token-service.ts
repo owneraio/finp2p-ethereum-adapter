@@ -215,7 +215,7 @@ export class CustodyTokenService implements TokenService, EscrowService, HealthS
       const wallet = this.issuerWallet;
       if (!wallet) return failedReceiptOperation(1, 'ASSET_ISSUER_PRIVATE_KEY is not set — issuance is disabled');
       const address = await this.accountMapping.resolveAccount(destination.finId)
-        ?? ledgerAccountAddress(destination.account);
+        ?? ledgerAccountAddress(destination.account, (await this.readProvider.getNetwork()).chainId);
       if (!address) throw new Error(`Cannot resolve address for finId: ${destination.finId}`);
       const amount = parseUnits(quantity, asset.decimals);
 
@@ -241,7 +241,7 @@ export class CustodyTokenService implements TokenService, EscrowService, HealthS
       const amount = parseUnits(quantity, asset.decimals);
 
       const destinationAddress = await this.accountMapping.resolveAccount(destination.finId)
-        ?? ledgerAccountAddress(destination.account);
+        ?? ledgerAccountAddress(destination.account, (await this.readProvider.getNetwork()).chainId);
       if (!destinationAddress) throw new Error(`Cannot resolve address for finId: ${destination.finId}`);
       const opCtx = buildOperationContext(ast, signature, exCtx);
       const result = await standard.transfer(wallet, asset, destinationAddress, amount, this.logger, opCtx);
@@ -313,7 +313,7 @@ export class CustodyTokenService implements TokenService, EscrowService, HealthS
       const asset = await this.assetRecord(ast.assetId);
       const standard = tokenStandardRegistry.resolve(asset.tokenStandard);
       const destinationAddress = await this.accountMapping.resolveAccount(destination.finId)
-        ?? ledgerAccountAddress(destination.account);
+        ?? ledgerAccountAddress(destination.account, (await this.readProvider.getNetwork()).chainId);
       if (!destinationAddress) throw new Error(`Cannot resolve address for finId: ${destination.finId}`);
       const escrowWallet = this.escrowWallet;
       const amount = parseUnits(quantity, asset.decimals);

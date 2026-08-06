@@ -5,13 +5,21 @@ export type AccountMappingStore = storage.AccountStore;
 export type AssetStore = InstanceType<typeof storage.PgAssetStore>;
 
 /** Address carried by an instruction-leg account, if its variant has one
- *  (custodialAccount doesn't — those resolve via the account mapping). */
-export function ledgerAccountAddress(account: LedgerAccount | undefined): string | undefined {
+ *  (custodialAccount doesn't — those resolve via the account mapping).
+ *  A caip10Account is only usable when it names this adapter's chain; a
+ *  mismatch throws rather than settling on the wrong network. */
+export function ledgerAccountAddress(account: LedgerAccount | undefined, chainId: bigint): string | undefined {
   if (!account) return undefined;
   switch (account.type) {
     case 'walletAccount':
-    case 'caip10Account':
       return account.address;
+    case 'caip10Account': {
+      const eip155 = /^eip155:(\d+)$/.exec(account.network);
+      if (!eip155 || BigInt(eip155[1]) !== chainId) {
+        throw new Error(`caip10 account network '${account.network}' does not match this adapter's chain eip155:${chainId}`);
+      }
+      return account.address;
+    }
     default:
       return undefined;
   }
