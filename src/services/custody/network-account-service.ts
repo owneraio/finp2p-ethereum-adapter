@@ -34,13 +34,21 @@ const ETH_ADDRESS_FORMAT = /^0x[0-9a-fA-F]{40}$/;
  *
  * Whitelisting: plan approval only validates (isWhitelisted vetoes), so
  * onboarding whitelists the investor's wallet on the asset's token standard
- * and offboarding dewhitelists it. Assets not kept in this adapter and
- * standards without the capability bind/unbind as before. The whitelist runs
- * after the binding is recorded: the SPI mutations are idempotent, so a failed
- * onboarding retried by the router replays the stored binding and re-attempts
- * the whitelist. In omnibus mode all investors share one wallet, so removal
- * must not dewhitelist it (dewhitelistOnRemove=false).
+ * and offboarding dewhitelists it — gated by whitelisting.enabled
+ * (ONBOARDING_WHITELISTING_ENABLED; disabling leaves the mutations to an
+ * external onboarding flow, plan approval keeps validating either way).
+ * Assets not kept in this adapter and standards without the capability
+ * bind/unbind as before. The whitelist runs after the binding is recorded:
+ * the SPI mutations are idempotent, so a failed onboarding retried by the
+ * router replays the stored binding and re-attempts the whitelist. In omnibus
+ * mode all investors share one wallet, so removal must not dewhitelist it
+ * (dewhitelistOnRemove=false).
  */
+export interface OnboardingWhitelistingOptions {
+  enabled: boolean;
+  dewhitelistOnRemove: boolean;
+}
+
 export class CustodyNetworkAccountService extends NetworkAccountServiceImpl {
 
   constructor(
@@ -49,7 +57,7 @@ export class CustodyNetworkAccountService extends NetworkAccountServiceImpl {
     private readonly custodyProvider: CustodyProvider | undefined,
     private readonly mappingService: AccountMappingServiceImpl,
     private readonly logger: winston.Logger,
-    private readonly dewhitelistOnRemove: boolean,
+    private readonly whitelisting: OnboardingWhitelistingOptions,
     validator?: NetworkAccountValidator,
   ) {
     super(store, validator);
@@ -78,17 +86,19 @@ export class CustodyNetworkAccountService extends NetworkAccountServiceImpl {
       ? { [FIELD_LEDGER_ACCOUNT_ID]: address, [FIELD_CUSTODY_ACCOUNT_ID]: custodyAccountId }
       : { [FIELD_LEDGER_ACCOUNT_ID]: address });
 
-    const failure = await this.mutate('whitelist', assetId, { finId, address, role: 'destination' });
-    if (failure) {
-      this.logger.error(`onboarding: whitelisting ${finId} (${address}) for asset ${assetId} failed: ${failure}`);
-      return failedAccountOperation(op.correlationId, 1, `whitelisting investor ${finId} for asset ${assetId} failed: ${failure}`);
+    if (this.whitelisting.enabled) {
+      const failure = await this.mutate('whitelist', assetId, { finId, address, role: 'destination' });
+      if (failure) {
+        this.logger.error(`onboarding: whitelisting ${finId} (${address}) for asset ${assetId} failed: ${failure}`);
+        return failedAccountOperation(op.correlationId, 1, `whitelisting investor ${finId} for asset ${assetId} failed: ${failure}`);
+      }
     }
     return op;
   }
 
   async removeAccount(idempotencyKey: string, accountId: string): Promise<AccountOperation> {
     const removed = await this.store.remove(accountId);
-    if (removed && removed.account.type === 'walletAccount' && this.dewhitelistOnRemove) {
+    if (removed && removed.account.type === 'walletAccount' && this.whitelisting.enabled && this.whitelisting.dewhitelistOnRemove) {
       const failure = await this.mutate('dewhitelist', removed.assetId, { finId: removed.finId, address: removed.account.address, role: 'destination' });
       if (failure) {
         // restore the binding so a retry reaches the dewhitelist again

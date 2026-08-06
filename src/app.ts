@@ -274,10 +274,11 @@ async function createApp(
   // approval only validates); on-chain mode registers generated wallets in
   // the operator contract's credentials registry.
   const networkAccountStore = new storageModule.PgNetworkAccountStore(dbPool, ledgerSchema);
+  const onboardingWhitelistingEnabled = process.env.ONBOARDING_WHITELISTING_ENABLED !== 'false';
   const dewhitelistOnRemove = appConfig.accountModel !== 'omnibus';
   const networkAccountService: NetworkAccountService = appConfig.type === 'finp2p-contract'
     ? new OnChainNetworkAccountService(networkAccountStore, (appConfig as FinP2PContractAppConfig).finP2PContract, new EvmNetworkAccountValidator())
-    : new CustodyNetworkAccountService(networkAccountStore, assetStore, custodyProvider, accountMappingService, logger, dewhitelistOnRemove, new EvmNetworkAccountValidator());
+    : new CustodyNetworkAccountService(networkAccountStore, assetStore, custodyProvider, accountMappingService, logger, { enabled: onboardingWhitelistingEnabled, dewhitelistOnRemove }, new EvmNetworkAccountValidator());
 
   let omnibusCtx: OmnibusContext | undefined;
   if (appConfig.accountModel === 'omnibus' && custodyProvider) {

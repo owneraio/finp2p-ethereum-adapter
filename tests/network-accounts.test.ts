@@ -163,8 +163,8 @@ describe("CustodyNetworkAccountService onboarding whitelisting", () => {
   const mappingService = { saveAccount: jest.fn().mockResolvedValue(undefined) } as any;
   beforeEach(() => { custodyProvider.resolveAddressFromCustodyId.mockClear(); mappingService.saveAccount.mockClear(); });
 
-  const build = (store: storage.NetworkAccountStore, dewhitelistOnRemove = true) =>
-    new CustodyNetworkAccountService(store, assetStore, custodyProvider, mappingService, logger, dewhitelistOnRemove, new EvmNetworkAccountValidator());
+  const build = (store: storage.NetworkAccountStore, dewhitelistOnRemove = true, enabled = true) =>
+    new CustodyNetworkAccountService(store, assetStore, custodyProvider, mappingService, logger, { enabled, dewhitelistOnRemove }, new EvmNetworkAccountValidator());
 
   const bind = { account: { type: "walletAccount", address: ADDRESS } as const };
   const row: storage.NetworkAccountRow = {
@@ -217,7 +217,7 @@ describe("CustodyNetworkAccountService onboarding whitelisting", () => {
 
   test("custody-id bind without a resolving provider is rejected", async () => {
     const store = storeMock();
-    const service = new CustodyNetworkAccountService(store, assetStore, undefined, mappingService, logger, true, new EvmNetworkAccountValidator());
+    const service = new CustodyNetworkAccountService(store, assetStore, undefined, mappingService, logger, { enabled: true, dewhitelistOnRemove: true }, new EvmNetworkAccountValidator());
     await expect(service.createAccount("ik", "org", WL_ASSET, FIN_ID, { account: { type: "walletAccount", address: VAULT_ID } }))
       .rejects.toThrow(AccountInvalidShapeError);
     expect(store.insert).not.toHaveBeenCalled();
@@ -276,6 +276,22 @@ describe("CustodyNetworkAccountService onboarding whitelisting", () => {
   test("omnibus (dewhitelistOnRemove=false): shared wallet is never dewhitelisted", async () => {
     const store = storeMock(row);
     const op = await build(store, false).removeAccount("ik", "acc-1");
+    expect(op.type).toBe("success");
+    expect(mutations).toHaveLength(0);
+  });
+
+  test("flag off: binds and mirrors but never mutates the token standard", async () => {
+    const store = storeMock();
+    const service = build(store, true, false);
+    const op = await service.createAccount("ik", "org", WL_ASSET, FIN_ID, bind);
+    expect(op.type).toBe("success");
+    expect(mappingService.saveAccount).toHaveBeenCalledWith(FIN_ID, { ledgerAccountId: ADDRESS });
+    expect(mutations).toHaveLength(0);
+  });
+
+  test("flag off: remove never dewhitelists", async () => {
+    const store = storeMock(row);
+    const op = await build(store, true, false).removeAccount("ik", "acc-1");
     expect(op.type).toBe("success");
     expect(mutations).toHaveLength(0);
   });
