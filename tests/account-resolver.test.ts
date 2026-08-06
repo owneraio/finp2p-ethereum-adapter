@@ -2,6 +2,7 @@ import { finIdToAddress, privateKeyToFinId } from '@owneraio/finp2p-ethereum-orc
 import {
   AccountResolver,
   DbAccountResolver,
+  ledgerAccountAddress,
   AccountMappingStore,
 } from '../src/services/accounts/account-resolver';
 import { FIELD_LEDGER_ACCOUNT_ID } from '../src/services/accounts/mapping-validator';
@@ -153,5 +154,36 @@ describe('DbAccountResolver', () => {
     const mappings = await accountStore.getByFieldValue(FIELD_LEDGER_ACCOUNT_ID, TEST_ADDRESS);
     expect(mappings.length).toBeGreaterThan(0);
     expect(mappings[0].finId).toBe(TEST_FIN_ID);
+  });
+});
+
+describe('ledgerAccountAddress', () => {
+  const CHAIN = 11155111n;
+  const ADDR = '0x742d35Cc6634C0532925a3b844Bc9e7595f2bD18';
+
+  test('walletAccount address passes through', () => {
+    expect(ledgerAccountAddress({ type: 'walletAccount', address: ADDR }, CHAIN)).toBe(ADDR);
+  });
+
+  test('caip10Account on this chain resolves', () => {
+    expect(ledgerAccountAddress({ type: 'caip10Account', network: 'eip155:11155111', address: ADDR }, CHAIN)).toBe(ADDR);
+  });
+
+  test('caip10Account on another chain throws instead of settling here', () => {
+    expect(() => ledgerAccountAddress({ type: 'caip10Account', network: 'eip155:1', address: ADDR }, CHAIN))
+      .toThrow(/does not match this adapter's chain/);
+  });
+
+  test('non-eip155 caip10 network throws', () => {
+    expect(() => ledgerAccountAddress({ type: 'caip10Account', network: 'cosmos:cosmoshub-4', address: ADDR }, CHAIN))
+      .toThrow(/does not match this adapter's chain/);
+  });
+
+  test('custodialAccount carries no address', () => {
+    expect(ledgerAccountAddress({ type: 'custodialAccount', provider: 'fireblocks', vaultAccountId: '85' }, CHAIN)).toBeUndefined();
+  });
+
+  test('absent account is undefined', () => {
+    expect(ledgerAccountAddress(undefined, CHAIN)).toBeUndefined();
   });
 });
