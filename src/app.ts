@@ -9,7 +9,6 @@ import {
   PaymentsServiceImpl,
   AccountMappingServiceImpl,
   NetworkAccountService,
-  NetworkAccountServiceImpl,
   workflows,
   storage as storageModule,
 } from "@owneraio/finp2p-nodejs-skeleton-adapter";
@@ -24,6 +23,7 @@ import {
   CustodyProvider,
   CustodyWallet,
   CustodyTokenService,
+  CustodyNetworkAccountService,
   custodyRegistry,
 } from "./services/custody";
 import { createWalletResolver } from "./integrations/wallet-resolver";
@@ -204,16 +204,6 @@ async function createApp(
   const assetStore = new storageModule.PgAssetStore(dbPool, ledgerSchema);
   const workflowStorage = new workflows.WorkflowStorage(dbPool, ledgerSchema);
 
-  // Investor network-account onboarding (sync trust model, no ownership
-  // challenge) — the successor of the finId->wallet mapping API. Direct mode
-  // records bindings in the Postgres store only (the wallet reaches the token
-  // services per operation on the instruction legs); on-chain mode additionally
-  // registers generated wallets in the operator contract's credentials registry.
-  const networkAccountStore = new storageModule.PgNetworkAccountStore(dbPool, ledgerSchema);
-  const networkAccountService: NetworkAccountService = appConfig.type === 'finp2p-contract'
-    ? new OnChainNetworkAccountService(networkAccountStore, (appConfig as FinP2PContractAppConfig).finP2PContract, new EvmNetworkAccountValidator())
-    : new NetworkAccountServiceImpl(networkAccountStore, new EvmNetworkAccountValidator());
-
   let custodyProvider: CustodyProvider | undefined;
   if (custodyRegistry.has(appConfig.type)) {
     logger.info(`Activating custody provider: ${appConfig.type} (available: ${custodyRegistry.availableProviders.join(', ')})`);
@@ -275,6 +265,17 @@ async function createApp(
   // EVM addresses resolve to the same record.
   const accountMappingService = new AccountMappingServiceImpl(accountMappingStore, { caseSensitive: false });
   const accountMapping: AccountResolver = new DbAccountResolver(accountMappingService);
+
+  // Investor network-account onboarding (sync trust model, no ownership
+  // challenge) — the successor of the finId->wallet mapping API. Custody modes
+  // record the binding (a custody account id in place of the address is
+  // resolved via the provider) and mirror it into the account-mapping store;
+  // on-chain mode registers generated wallets in the operator contract's
+  // credentials registry.
+  const networkAccountStore = new storageModule.PgNetworkAccountStore(dbPool, ledgerSchema);
+  const networkAccountService: NetworkAccountService = appConfig.type === 'finp2p-contract'
+    ? new OnChainNetworkAccountService(networkAccountStore, (appConfig as FinP2PContractAppConfig).finP2PContract, new EvmNetworkAccountValidator())
+    : new CustodyNetworkAccountService(networkAccountStore, custodyProvider, accountMappingService, logger, new EvmNetworkAccountValidator());
 
   let omnibusCtx: OmnibusContext | undefined;
   if (appConfig.accountModel === 'omnibus' && custodyProvider) {
