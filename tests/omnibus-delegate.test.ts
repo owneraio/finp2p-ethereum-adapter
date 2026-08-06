@@ -137,7 +137,7 @@ describe('OmnibusDelegate', () => {
       const result = await delegate.outboundTransfer(
         'idem-2',
         { finId: 'source-fin-id' } as any,
-        { finId: 'dest-fin-id', account: { type: 'crypto', address: '0xDIRECT_ADDR' } } as any,
+        { finId: 'dest-fin-id', account: { type: 'walletAccount', address: '0xDIRECT_ADDR' } } as any,
         TEST_ASSET,
         '2.0',
         undefined,
@@ -209,7 +209,7 @@ describe('OmnibusDelegate', () => {
       const result = await delegate.release(
         'idem-release-cross-org',
         {} as any,
-        { finId: 'remote-org-finId', account: { type: 'crypto', address: '0xREMOTE_ORG_OMNIBUS' } } as any,
+        { finId: 'remote-org-finId', account: { type: 'walletAccount', address: '0xREMOTE_ORG_OMNIBUS' } } as any,
         TEST_ASSET, '7.0', 'op-cross', undefined,
       );
 

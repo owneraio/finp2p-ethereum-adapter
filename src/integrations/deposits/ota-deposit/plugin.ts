@@ -88,7 +88,7 @@ export class OtaDepositPlugin implements PaymentsPlugin {
 
     return successfulDepositOperation({
       asset,
-      account: { finId: ownerFinId, account: { type: 'crypto', address: ephemeralAddress } },
+      account: { finId: ownerFinId, account: { type: 'walletAccount', address: ephemeralAddress } },
       description: `Send ${asset.assetId} to one-time address ${ephemeralAddress}; funds will be swept to ${sweepTarget}`,
       paymentOptions: [{
         description: 'One-time-address deposit',
