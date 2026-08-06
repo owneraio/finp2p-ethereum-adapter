@@ -191,7 +191,7 @@ class DfnsTestEnvironment extends NodeEnvironment {
       service: {},
     };
 
-    const app = await createApp(workflowsConfig, logger, appConfig);
+    const app = await createApp(workflowsConfig, logger, appConfig, connectionString);
     console.log("App created successfully.");
 
     this.httpServer = app.listen(port, () => {

@@ -136,11 +136,13 @@ const startApp = async (
   workflowsConfig: any,
   logger: winston.Logger,
   appConfig: AppConfig,
+  dbConnectionString: string,
 ) => {
   const app = await createApp(
     workflowsConfig,
     logger,
-    appConfig
+    appConfig,
+    dbConnectionString
   );
   logger.info("App created successfully.");
 
@@ -231,7 +233,8 @@ const start = async () => {
       accountModel: 'segregated',
       finP2PContract,
       execDetailsStore,
-    }
+    },
+    connectionString
   );
 };
 
