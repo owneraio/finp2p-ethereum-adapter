@@ -121,8 +121,8 @@ export class OnChainTokenService implements TokenService, EscrowService, CommonS
     return successfulAssetCreation(result);
   }
 
-  public async issue(idempotencyKey: string, asset: Asset, destinationFinId: string, quantity: string, exCtx: ExecutionContext): Promise<ReceiptOperation> {
-    const issuerFinId = destinationFinId;
+  public async issue(idempotencyKey: string, asset: Asset, destination: Destination, quantity: string, exCtx: ExecutionContext): Promise<ReceiptOperation> {
+    const issuerFinId = destination.finId;
     try {
       await this.ensureCredential(issuerFinId);
       const transactionReceipt = await this.finP2PContract.issue(issuerFinId, term(asset.assetId, assetTypeFromString(asset.assetType), quantity), emptyOperationParams())
@@ -171,7 +171,7 @@ export class OnChainTokenService implements TokenService, EscrowService, CommonS
     }
   }
 
-  public async redeem(idempotencyKey: string, nonce: string, sourceFinId: string, asset: Asset, quantity: string, operationId: string | undefined,
+  public async redeem(idempotencyKey: string, nonce: string, source: Source, asset: Asset, quantity: string, operationId: string | undefined,
     signature: Signature, exCtx: ExecutionContext
   ): Promise<ReceiptOperation> {
     if (!operationId) {
@@ -180,8 +180,8 @@ export class OnChainTokenService implements TokenService, EscrowService, CommonS
     }
 
     try {
-      await this.ensureCredential(sourceFinId);
-      const transactionReceipt = await this.finP2PContract.releaseAndRedeem(operationId, sourceFinId, quantity, emptyOperationParams());
+      await this.ensureCredential(source.finId);
+      const transactionReceipt = await this.finP2PContract.releaseAndRedeem(operationId, source.finId, quantity, emptyOperationParams());
 
       if (exCtx) {
         this.execDetailsStore?.addExecutionContext(transactionReceipt.hash, exCtx.planId, exCtx.sequence);
