@@ -86,7 +86,7 @@ class WalletDepositPlugin implements PaymentsPlugin {
     );
     return successfulDepositOperation({
       asset,
-      account: { finId: ownerFinId, account: { type: 'crypto', address: resolved.walletAddress } },
+      account: { finId: ownerFinId, account: { type: 'walletAccount', address: resolved.walletAddress } },
       description: 'Wallet deposit to investor address',
       paymentOptions: [{
         description: 'Crypto transfer',

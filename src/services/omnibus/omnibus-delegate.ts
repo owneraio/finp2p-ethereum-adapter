@@ -14,7 +14,7 @@ import { GasStation } from '../gas-station';
 import { tokenStandardRegistry } from "../../integrations/token-standards/registry";
 import { TokenStandardName as ERC20_TOKEN_STANDARD, DEFAULT_NEW_ERC20_DECIMALS } from "@owneraio/finp2p-ethereum-erc20-plugin";
 import { AssetRecord } from '@owneraio/finp2p-ethereum-adapter-contract';
-import { AccountResolver, AssetStore } from '../accounts/account-resolver';
+import { AccountResolver, AssetStore, ledgerAccountAddress } from '../accounts/account-resolver';
 
 export interface ReceiptPollingConfig {
   timeoutMs: number;
@@ -70,7 +70,7 @@ export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowD
   ): Promise<DelegateResult> {
     const dbAsset = await this.assetRecord(asset.assetId);
     const destinationAddress = await this.accountMapping.resolveAccount(destination.finId)
-      ?? destination.account?.address;
+      ?? ledgerAccountAddress(destination.account);
     if (!destinationAddress) throw new Error(`Cannot resolve address for finId: ${destination.finId}`);
 
     const amount = parseUnits(quantity, dbAsset.decimals);
@@ -209,7 +209,7 @@ export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowD
     // counterparty's on-chain address via `destination.account.address`; deliver
     // there directly so funds physically leave this org.
     const localAddress = await this.accountMapping.resolveAccount(destination.finId);
-    const externalAddress = destination.account?.address;
+    const externalAddress = ledgerAccountAddress(destination.account);
     if (!localAddress && !externalAddress) {
       return { success: false, error: `Cannot resolve release destination for finId: ${destination.finId}` };
     }
@@ -279,7 +279,7 @@ export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowD
         // { type: 'finId', finId }; the depositor learns the on-chain address
         // from paymentOptions[].methodInstruction.walletAddress instead.
         account: {
-          type: 'crypto',
+          type: 'walletAccount',
           address: omnibusAddress,
         },
       },

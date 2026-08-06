@@ -21,14 +21,16 @@ const ETH_ADDRESS_FORMAT = /^0x[0-9a-fA-F]{40}$/;
 /**
  * Investor onboarding for custody modes.
  *
- * Binding: a walletAccount address in EVM format binds as-is. Anything else is
- * treated as a custody account id (e.g. a Fireblocks vault account id) and
- * resolved to its wallet address via the custody provider — a temporary
- * overload until the skeleton's NetworkAccount union carries the spec's
- * custodialAccount variant. Either way the binding is mirrored into the
- * account-mapping store, which is what every operational resolver reads
- * (token services, plan approval, deposits); the custody account id is kept
- * on the mapping so per-operation signing skips the vault scan.
+ * Binding: a custodialAccount bind carries the custody account id (e.g. a
+ * Fireblocks vault account id) explicitly and is resolved to its wallet
+ * address via the custody provider; a walletAccount address in EVM format
+ * binds as-is, and a walletAccount address in any other format is treated as
+ * a custody account id too — a temporary overload kept until routers send
+ * custodialAccount. Every binding is normalized to the resolved walletAccount
+ * and mirrored into the account-mapping store, which is what every
+ * operational resolver reads (token services, plan approval, deposits); the
+ * custody account id is kept on the mapping so per-operation signing skips
+ * the vault scan.
  *
  * Whitelisting: plan approval only validates (isWhitelisted vetoes), so
  * onboarding whitelists the investor's wallet on the asset's token standard
@@ -56,7 +58,12 @@ export class CustodyNetworkAccountService extends NetworkAccountServiceImpl {
   async createAccount(idempotencyKey: string, organizationId: string, assetId: string, finId: string, bindInfo: BindInfo | undefined): Promise<AccountOperation> {
     let effectiveBind = bindInfo;
     let custodyAccountId: string | undefined;
-    if (bindInfo?.account.type === 'walletAccount' && !ETH_ADDRESS_FORMAT.test(bindInfo.account.address)) {
+    if (bindInfo?.account.type === 'custodialAccount') {
+      custodyAccountId = bindInfo.account.vaultAccountId;
+      const address = await this.resolveCustodyAddress(custodyAccountId);
+      this.logger.info(`onboarding: custodial account ${custodyAccountId} (provider '${bindInfo.account.provider}') resolved to ${address}`);
+      effectiveBind = { ...bindInfo, account: { type: 'walletAccount', address } };
+    } else if (bindInfo?.account.type === 'walletAccount' && !ETH_ADDRESS_FORMAT.test(bindInfo.account.address)) {
       custodyAccountId = bindInfo.account.address;
       const address = await this.resolveCustodyAddress(custodyAccountId);
       this.logger.info(`onboarding: '${custodyAccountId}' taken as a custody account id, resolved to ${address}`);

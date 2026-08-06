@@ -184,6 +184,17 @@ describe("CustodyNetworkAccountService onboarding whitelisting", () => {
     }]);
   });
 
+  test("custodialAccount bind: vault id resolved, mirrored with both fields, whitelisted", async () => {
+    const store = storeMock();
+    const op = await build(store).createAccount("ik", "org", WL_ASSET, FIN_ID,
+      { account: { type: "custodialAccount", provider: "fireblocks", vaultAccountId: VAULT_ID } });
+    expect(op.type).toBe("success");
+    expect((op as any).record.account).toEqual({ type: "walletAccount", address: ADDRESS });
+    expect(custodyProvider.resolveAddressFromCustodyId).toHaveBeenCalledWith(VAULT_ID);
+    expect(mappingService.saveAccount).toHaveBeenCalledWith(FIN_ID, { ledgerAccountId: ADDRESS, custodyAccountId: VAULT_ID });
+    expect(mutations.map(m => m.party.address)).toEqual([ADDRESS]);
+  });
+
   test("non-EVM address binds as a custody account id: resolved, mirrored with both fields, whitelisted", async () => {
     const store = storeMock();
     const op = await build(store).createAccount("ik", "org", WL_ASSET, FIN_ID, { account: { type: "walletAccount", address: VAULT_ID } });

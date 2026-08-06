@@ -1,8 +1,21 @@
-import { storage } from '@owneraio/finp2p-nodejs-skeleton-adapter';
+import { LedgerAccount, storage } from '@owneraio/finp2p-nodejs-skeleton-adapter';
 import { FIELD_LEDGER_ACCOUNT_ID, FIELD_CUSTODY_ACCOUNT_ID } from './mapping-validator';
 
 export type AccountMappingStore = storage.AccountStore;
 export type AssetStore = InstanceType<typeof storage.PgAssetStore>;
+
+/** Address carried by an instruction-leg account, if its variant has one
+ *  (custodialAccount doesn't — those resolve via the account mapping). */
+export function ledgerAccountAddress(account: LedgerAccount | undefined): string | undefined {
+  if (!account) return undefined;
+  switch (account.type) {
+    case 'walletAccount':
+    case 'caip10Account':
+      return account.address;
+    default:
+      return undefined;
+  }
+}
 
 export interface ResolvedAccount {
   ledgerAccountId: string;
