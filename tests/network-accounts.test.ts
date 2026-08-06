@@ -153,8 +153,18 @@ describe("CustodyNetworkAccountService onboarding whitelisting", () => {
     remove: jest.fn().mockResolvedValue(existing),
   });
 
+  const VAULT_ID = "85";
+  const custodyProvider = {
+    resolveAddressFromCustodyId: jest.fn().mockImplementation(async (id: string) => {
+      if (id !== VAULT_ID) throw new Error(`No deposit address found for vault ${id}`);
+      return ADDRESS;
+    }),
+  } as any;
+  const mappingService = { saveAccount: jest.fn().mockResolvedValue(undefined) } as any;
+  beforeEach(() => { custodyProvider.resolveAddressFromCustodyId.mockClear(); mappingService.saveAccount.mockClear(); });
+
   const build = (store: storage.NetworkAccountStore, dewhitelistOnRemove = true) =>
-    new CustodyNetworkAccountService(store, assetStore, logger, dewhitelistOnRemove, new EvmNetworkAccountValidator());
+    new CustodyNetworkAccountService(store, assetStore, custodyProvider, mappingService, logger, dewhitelistOnRemove, new EvmNetworkAccountValidator());
 
   const bind = { account: { type: "walletAccount", address: ADDRESS } as const };
   const row: storage.NetworkAccountRow = {
@@ -162,15 +172,44 @@ describe("CustodyNetworkAccountService onboarding whitelisting", () => {
     assetId: WL_ASSET, finId: FIN_ID, account: bind.account,
   };
 
-  test("create whitelists the bound wallet on the asset's standard", async () => {
+  test("create whitelists the bound wallet on the asset's standard and mirrors the mapping", async () => {
     const store = storeMock();
     const op = await build(store).createAccount("ik", "org", WL_ASSET, FIN_ID, bind);
     expect(op.type).toBe("success");
     expect(store.insert).toHaveBeenCalledTimes(1);
+    expect(mappingService.saveAccount).toHaveBeenCalledWith(FIN_ID, { ledgerAccountId: ADDRESS });
     expect(mutations).toEqual([{
       op: "whitelist", contractAddress: "0xwl",
       party: { finId: FIN_ID, address: ADDRESS, role: "destination" },
     }]);
+  });
+
+  test("non-EVM address binds as a custody account id: resolved, mirrored with both fields, whitelisted", async () => {
+    const store = storeMock();
+    const op = await build(store).createAccount("ik", "org", WL_ASSET, FIN_ID, { account: { type: "walletAccount", address: VAULT_ID } });
+    expect(op.type).toBe("success");
+    expect((op as any).record.account).toEqual({ type: "walletAccount", address: ADDRESS });
+    expect(custodyProvider.resolveAddressFromCustodyId).toHaveBeenCalledWith(VAULT_ID);
+    expect(store.insert).toHaveBeenCalledWith(expect.objectContaining({ account: { type: "walletAccount", address: ADDRESS } }));
+    expect(mappingService.saveAccount).toHaveBeenCalledWith(FIN_ID, { ledgerAccountId: ADDRESS, custodyAccountId: VAULT_ID });
+    expect(mutations.map(m => m.party.address)).toEqual([ADDRESS]);
+  });
+
+  test("unresolvable custody account id is rejected before any persistence", async () => {
+    const store = storeMock();
+    await expect(build(store).createAccount("ik", "org", WL_ASSET, FIN_ID, { account: { type: "walletAccount", address: "no-such-vault" } }))
+      .rejects.toThrow(AccountInvalidShapeError);
+    expect(store.insert).not.toHaveBeenCalled();
+    expect(mappingService.saveAccount).not.toHaveBeenCalled();
+    expect(mutations).toHaveLength(0);
+  });
+
+  test("custody-id bind without a resolving provider is rejected", async () => {
+    const store = storeMock();
+    const service = new CustodyNetworkAccountService(store, assetStore, undefined, mappingService, logger, true, new EvmNetworkAccountValidator());
+    await expect(service.createAccount("ik", "org", WL_ASSET, FIN_ID, { account: { type: "walletAccount", address: VAULT_ID } }))
+      .rejects.toThrow(AccountInvalidShapeError);
+    expect(store.insert).not.toHaveBeenCalled();
   });
 
   test("replayed create re-asserts the whitelist (idempotent self-heal)", async () => {

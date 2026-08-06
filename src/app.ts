@@ -204,18 +204,6 @@ async function createApp(
   const assetStore = new storageModule.PgAssetStore(dbPool, ledgerSchema);
   const workflowStorage = new workflows.WorkflowStorage(dbPool, ledgerSchema);
 
-  // Investor network-account onboarding (sync trust model, no ownership
-  // challenge) — the successor of the finId->wallet mapping API. Custody modes
-  // record the binding in the Postgres store and whitelist the investor's
-  // wallet on the asset's token standard (plan approval only validates);
-  // on-chain mode registers generated wallets in the operator contract's
-  // credentials registry.
-  const networkAccountStore = new storageModule.PgNetworkAccountStore(dbPool, ledgerSchema);
-  const dewhitelistOnRemove = appConfig.accountModel !== 'omnibus';
-  const networkAccountService: NetworkAccountService = appConfig.type === 'finp2p-contract'
-    ? new OnChainNetworkAccountService(networkAccountStore, (appConfig as FinP2PContractAppConfig).finP2PContract, new EvmNetworkAccountValidator())
-    : new CustodyNetworkAccountService(networkAccountStore, assetStore, logger, dewhitelistOnRemove, new EvmNetworkAccountValidator());
-
   let custodyProvider: CustodyProvider | undefined;
   if (custodyRegistry.has(appConfig.type)) {
     logger.info(`Activating custody provider: ${appConfig.type} (available: ${custodyRegistry.availableProviders.join(', ')})`);
@@ -277,6 +265,19 @@ async function createApp(
   // EVM addresses resolve to the same record.
   const accountMappingService = new AccountMappingServiceImpl(accountMappingStore, { caseSensitive: false });
   const accountMapping: AccountResolver = new DbAccountResolver(accountMappingService);
+
+  // Investor network-account onboarding (sync trust model, no ownership
+  // challenge) — the successor of the finId->wallet mapping API. Custody modes
+  // record the binding (a custody account id in place of the address is
+  // resolved via the provider), mirror it into the account-mapping store, and
+  // whitelist the investor's wallet on the asset's token standard (plan
+  // approval only validates); on-chain mode registers generated wallets in
+  // the operator contract's credentials registry.
+  const networkAccountStore = new storageModule.PgNetworkAccountStore(dbPool, ledgerSchema);
+  const dewhitelistOnRemove = appConfig.accountModel !== 'omnibus';
+  const networkAccountService: NetworkAccountService = appConfig.type === 'finp2p-contract'
+    ? new OnChainNetworkAccountService(networkAccountStore, (appConfig as FinP2PContractAppConfig).finP2PContract, new EvmNetworkAccountValidator())
+    : new CustodyNetworkAccountService(networkAccountStore, assetStore, custodyProvider, accountMappingService, logger, dewhitelistOnRemove, new EvmNetworkAccountValidator());
 
   let omnibusCtx: OmnibusContext | undefined;
   if (appConfig.accountModel === 'omnibus' && custodyProvider) {
