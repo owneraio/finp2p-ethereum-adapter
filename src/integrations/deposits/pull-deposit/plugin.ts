@@ -91,7 +91,7 @@ export class PullDepositPlugin implements PaymentsPlugin {
 
     return successfulDepositOperation({
       asset,
-      account: { finId: ownerFinId, account: { type: 'crypto', address: destinationAddress } },
+      account: { finId: ownerFinId, account: { type: 'walletAccount', address: destinationAddress } },
       description: `Approve ${operatorAddress} on the token contract to deposit into ${destinationAddress}`,
       paymentOptions: [{
         description: 'ERC20 approve + pull',

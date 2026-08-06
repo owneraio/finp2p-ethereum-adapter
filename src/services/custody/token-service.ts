@@ -8,7 +8,7 @@ import winston from 'winston';
 import { parseUnits, Provider, Signer, Wallet } from "ethers";
 import { AssetRecord, TokenOperationResult } from '@owneraio/finp2p-ethereum-adapter-contract';
 import { CustodyProvider, CustodyWallet } from './custody-provider';
-import { AccountResolver, AssetStore } from "../accounts";
+import { AccountResolver, AssetStore, ledgerAccountAddress } from "../accounts";
 import { tokenStandardRegistry } from '../../integrations/token-standards/registry';
 import { TokenStandardName as ERC20_TOKEN_STANDARD, DEFAULT_NEW_ERC20_DECIMALS } from '@owneraio/finp2p-ethereum-erc20-plugin';
 import { buildOperationContext } from "../operations";
@@ -215,7 +215,7 @@ export class CustodyTokenService implements TokenService, EscrowService, HealthS
       const wallet = this.issuerWallet;
       if (!wallet) return failedReceiptOperation(1, 'ASSET_ISSUER_PRIVATE_KEY is not set — issuance is disabled');
       const address = await this.accountMapping.resolveAccount(destination.finId)
-        ?? destination.account?.address;
+        ?? ledgerAccountAddress(destination.account);
       if (!address) throw new Error(`Cannot resolve address for finId: ${destination.finId}`);
       const amount = parseUnits(quantity, asset.decimals);
 
@@ -241,7 +241,7 @@ export class CustodyTokenService implements TokenService, EscrowService, HealthS
       const amount = parseUnits(quantity, asset.decimals);
 
       const destinationAddress = await this.accountMapping.resolveAccount(destination.finId)
-        ?? destination.account?.address;
+        ?? ledgerAccountAddress(destination.account);
       if (!destinationAddress) throw new Error(`Cannot resolve address for finId: ${destination.finId}`);
       const opCtx = buildOperationContext(ast, signature, exCtx);
       const result = await standard.transfer(wallet, asset, destinationAddress, amount, this.logger, opCtx);
@@ -313,7 +313,7 @@ export class CustodyTokenService implements TokenService, EscrowService, HealthS
       const asset = await this.assetRecord(ast.assetId);
       const standard = tokenStandardRegistry.resolve(asset.tokenStandard);
       const destinationAddress = await this.accountMapping.resolveAccount(destination.finId)
-        ?? destination.account?.address;
+        ?? ledgerAccountAddress(destination.account);
       if (!destinationAddress) throw new Error(`Cannot resolve address for finId: ${destination.finId}`);
       const escrowWallet = this.escrowWallet;
       const amount = parseUnits(quantity, asset.decimals);
