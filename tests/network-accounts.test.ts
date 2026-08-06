@@ -2,6 +2,7 @@ import { AccountInvalidShapeError, storage } from "@owneraio/finp2p-nodejs-skele
 import { EvmNetworkAccountValidator } from "../src/services/accounts";
 import { finIdToAddress } from "@owneraio/finp2p-ethereum-orchestrator";
 import { OnChainTokenService, OnChainNetworkAccountService } from "../src/services/onchain";
+import { CustodyNetworkAccountService } from "../src/services/custody";
 
 const ADDRESS = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266";
 
@@ -102,5 +103,81 @@ describe("OnChainNetworkAccountService onboarding", () => {
       .rejects.toThrow(AccountInvalidShapeError);
     expect(contract.addCredential).not.toHaveBeenCalled();
     expect(store.insert).not.toHaveBeenCalled();
+  });
+});
+
+describe("CustodyNetworkAccountService onboarding", () => {
+
+  const FIN_ID = "02b3e7cbe9b2e91832ea4a11a17a2e30d3cf52dae486ec1e1e3d0741e1f77210ab";
+  const VAULT_ID = "85";
+  const logger = { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} } as any;
+
+  const storeMock = (): jest.Mocked<storage.NetworkAccountStore> => ({
+    insert: jest.fn().mockImplementation(async (row) => row),
+    getByFinId: jest.fn().mockResolvedValue(undefined),
+    remove: jest.fn().mockResolvedValue(undefined),
+  });
+
+  const custodyProvider = {
+    resolveAddressFromCustodyId: jest.fn().mockImplementation(async (id: string) => {
+      if (id !== VAULT_ID) throw new Error(`No deposit address found for vault ${id}`);
+      return ADDRESS;
+    }),
+  } as any;
+  const mappingService = { saveAccount: jest.fn().mockResolvedValue(undefined) } as any;
+  beforeEach(() => { custodyProvider.resolveAddressFromCustodyId.mockClear(); mappingService.saveAccount.mockClear(); });
+
+  const build = (store: storage.NetworkAccountStore) =>
+    new CustodyNetworkAccountService(store, custodyProvider, mappingService, logger, new EvmNetworkAccountValidator());
+
+  test("EVM wallet bind: recorded as-is and mirrored into the account mapping", async () => {
+    const store = storeMock();
+    const op = await build(store).createAccount("ik", "org", "asset", FIN_ID, { account: { type: "walletAccount", address: ADDRESS } });
+    expect(op.type).toBe("success");
+    expect(store.insert).toHaveBeenCalledTimes(1);
+    expect(mappingService.saveAccount).toHaveBeenCalledWith(FIN_ID, { ledgerAccountId: ADDRESS });
+  });
+
+  test("custodialAccount bind: vault id resolved via the provider, mirrored with both fields", async () => {
+    const store = storeMock();
+    const op = await build(store).createAccount("ik", "org", "asset", FIN_ID,
+      { account: { type: "custodialAccount", provider: "fireblocks", vaultAccountId: VAULT_ID } });
+    expect(op.type).toBe("success");
+    expect((op as any).record.account).toEqual({ type: "walletAccount", address: ADDRESS });
+    expect(custodyProvider.resolveAddressFromCustodyId).toHaveBeenCalledWith(VAULT_ID);
+    expect(store.insert).toHaveBeenCalledWith(expect.objectContaining({ account: { type: "walletAccount", address: ADDRESS } }));
+    expect(mappingService.saveAccount).toHaveBeenCalledWith(FIN_ID, { ledgerAccountId: ADDRESS, custodyAccountId: VAULT_ID });
+  });
+
+  test("non-EVM walletAccount address binds as a custody account id (temporary overload)", async () => {
+    const store = storeMock();
+    const op = await build(store).createAccount("ik", "org", "asset", FIN_ID, { account: { type: "walletAccount", address: VAULT_ID } });
+    expect(op.type).toBe("success");
+    expect((op as any).record.account).toEqual({ type: "walletAccount", address: ADDRESS });
+    expect(mappingService.saveAccount).toHaveBeenCalledWith(FIN_ID, { ledgerAccountId: ADDRESS, custodyAccountId: VAULT_ID });
+  });
+
+  test("unresolvable custody account id is rejected before any persistence", async () => {
+    const store = storeMock();
+    await expect(build(store).createAccount("ik", "org", "asset", FIN_ID, { account: { type: "walletAccount", address: "no-such-vault" } }))
+      .rejects.toThrow(AccountInvalidShapeError);
+    expect(store.insert).not.toHaveBeenCalled();
+    expect(mappingService.saveAccount).not.toHaveBeenCalled();
+  });
+
+  test("custody-id bind without a resolving provider is rejected", async () => {
+    const store = storeMock();
+    const service = new CustodyNetworkAccountService(store, undefined, mappingService, logger, new EvmNetworkAccountValidator());
+    await expect(service.createAccount("ik", "org", "asset", FIN_ID, { account: { type: "custodialAccount", provider: "fireblocks", vaultAccountId: VAULT_ID } }))
+      .rejects.toThrow(AccountInvalidShapeError);
+    expect(store.insert).not.toHaveBeenCalled();
+  });
+
+  test("remove unbinds without touching the shared account mapping", async () => {
+    const store = storeMock();
+    const op = await build(store).removeAccount("ik", "acc-1");
+    expect(op.type).toBe("success");
+    expect(store.remove).toHaveBeenCalledWith("acc-1");
+    expect(mappingService.saveAccount).not.toHaveBeenCalled();
   });
 });
