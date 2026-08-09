@@ -393,3 +393,81 @@ describe("WhitelistingMappingValidator (internal mapping API)", () => {
     expect(mutations).toHaveLength(0);
   });
 });
+
+describe("POST /whitelisting/dewhitelist", () => {
+
+  const FIN_ID = "02b3e7cbe9b2e91832ea4a11a17a2e30d3cf52dae486ec1e1e3d0741e1f77210ab";
+  const logger = { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} } as any;
+
+  const dewhitelisted: Array<{ contractAddress: string; address: string }> = [];
+  let dewhitelistFails = false;
+
+  beforeAll(() => {
+    tokenStandardRegistry.reset();
+    tokenStandardRegistry.register("WL", {
+      isWhitelisted: async () => true,
+      whitelist: async () => ({ status: "success", transactionId: "tx", timestamp: 0 }),
+      dewhitelist: async (asset: any, p: any) => {
+        dewhitelisted.push({ contractAddress: asset.contractAddress, address: p.address });
+        return dewhitelistFails
+          ? { status: "failure", reason: "still holds tokens" }
+          : { status: "success", transactionId: "tx-dw", timestamp: 0 };
+      },
+    } as any);
+    tokenStandardRegistry.register("PLAIN", {} as any);
+  });
+  afterAll(() => tokenStandardRegistry.reset());
+  beforeEach(() => { dewhitelisted.length = 0; dewhitelistFails = false; });
+
+  const assetStore = {
+    getAsset: async (id: string) =>
+      id === "org:102:wl" ? { contract_address: "0xwl", decimals: 2, token_standard: "WL", id }
+        : id === "org:102:plain" ? { contract_address: "0xp", decimals: 2, token_standard: "PLAIN", id }
+          : undefined,
+  } as any;
+  const accountMapping = { resolveAccount: async (finId: string) => finId === FIN_ID ? ADDRESS : undefined, resolveFinId: async () => undefined } as any;
+
+  const handler = (() => {
+    let h: any;
+    const app = { post: (_path: string, fn: any) => { h = fn; } } as any;
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { registerWhitelistingRoutes } = require("../src/services/accounts");
+    registerWhitelistingRoutes(app, assetStore, accountMapping, logger);
+    return (body: any) => new Promise<{ code: number; body: any }>((resolve) => {
+      const res = {
+        statusCode: 200,
+        status(c: number) { this.statusCode = c; return this; },
+        json(payload: any) { resolve({ code: this.statusCode, body: payload }); },
+      };
+      h({ body }, res);
+    });
+  })();
+
+  test("dewhitelists by finId via the account mapping", async () => {
+    const r = await handler({ assetId: "org:102:wl", finId: FIN_ID });
+    expect(r.code).toBe(200);
+    expect(r.body).toMatchObject({ status: "success", address: ADDRESS, transactionId: "tx-dw" });
+    expect(dewhitelisted).toEqual([{ contractAddress: "0xwl", address: ADDRESS }]);
+  });
+
+  test("dewhitelists by explicit address without a mapping lookup", async () => {
+    const r = await handler({ assetId: "org:102:wl", address: "0x9999999999999999999999999999999999999999" });
+    expect(r.code).toBe(200);
+    expect(dewhitelisted[0].address).toBe("0x9999999999999999999999999999999999999999");
+  });
+
+  test("standard-reported failure surfaces as 422", async () => {
+    dewhitelistFails = true;
+    const r = await handler({ assetId: "org:102:wl", finId: FIN_ID });
+    expect(r.code).toBe(422);
+    expect(r.body.reason).toMatch(/still holds tokens/);
+  });
+
+  test("unknown asset is 404, capability-less standard and bad input are 400", async () => {
+    expect((await handler({ assetId: "org:102:nope", finId: FIN_ID })).code).toBe(404);
+    expect((await handler({ assetId: "org:102:plain", finId: FIN_ID })).code).toBe(400);
+    expect((await handler({ assetId: "org:102:wl" })).code).toBe(400);
+    expect((await handler({ assetId: "org:102:wl", finId: "02" + "ee".repeat(32) })).code).toBe(404);
+    expect(dewhitelisted).toHaveLength(0);
+  });
+});

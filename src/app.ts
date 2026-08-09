@@ -36,6 +36,7 @@ import {
   buildMappingConfig,
   EvmNetworkAccountValidator,
   WhitelistingMappingValidator,
+  registerWhitelistingRoutes,
 } from "./services/accounts";
 import { OmnibusDelegate } from "./services/omnibus";
 import { GasStation } from "./services/gas-station";
@@ -94,6 +95,7 @@ async function registerCustodyServices(
   if (!escrowWallet) throw new Error('Escrow wallet is required for direct mode (set ASSET_ESCROW_CUSTODY_ACCOUNT_ID or OMNIBUS_CUSTODY_ACCOUNT_ID)');
 
   const mappingConfig = buildMappingConfig(custodyProvider, wrapMappingValidator);
+  registerWhitelistingRoutes(app, assetStore, accountMapping, logger);
   const proxiedNetworkAccountService = wrapWithWorkflowProxy(networkAccountService, workflowStorage, finP2PClient, 'createAccount', 'removeAccount');
 
   if (appConfig.accountModel === 'omnibus') {
