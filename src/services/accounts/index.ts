@@ -1,4 +1,6 @@
 export * from './account-resolver'
 export * from './mapping-validator'
 export * from './mapping-config'
+export * from './mapping-whitelisting'
+export * from './whitelisting-routes'
 export * from './network-account-validator'
