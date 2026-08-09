@@ -8,6 +8,7 @@ import {
   PlanApprovalServiceImpl,
   PaymentsServiceImpl,
   AccountMappingServiceImpl,
+  AccountMappingValidator,
   NetworkAccountService,
   workflows,
   storage as storageModule,
@@ -34,6 +35,7 @@ import {
   AssetStore,
   buildMappingConfig,
   EvmNetworkAccountValidator,
+  WhitelistingMappingValidator,
 } from "./services/accounts";
 import { OmnibusDelegate } from "./services/omnibus";
 import { GasStation } from "./services/gas-station";
@@ -86,11 +88,12 @@ async function registerCustodyServices(
   accountMapping: AccountResolver,
   omnibusCtx: OmnibusContext | undefined,
   networkAccountService: NetworkAccountService,
+  wrapMappingValidator: ((inner?: AccountMappingValidator) => AccountMappingValidator) | undefined,
 ): Promise<void> {
   if (!readProvider) throw new Error('Read-only RPC provider is unavailable — set NETWORK_HOST or use a custody provider whose wallet exposes a transport');
   if (!escrowWallet) throw new Error('Escrow wallet is required for direct mode (set ASSET_ESCROW_CUSTODY_ACCOUNT_ID or OMNIBUS_CUSTODY_ACCOUNT_ID)');
 
-  const mappingConfig = buildMappingConfig(custodyProvider);
+  const mappingConfig = buildMappingConfig(custodyProvider, wrapMappingValidator);
   const proxiedNetworkAccountService = wrapWithWorkflowProxy(networkAccountService, workflowStorage, finP2PClient, 'createAccount', 'removeAccount');
 
   if (appConfig.accountModel === 'omnibus') {
@@ -280,6 +283,17 @@ async function createApp(
     ? new OnChainNetworkAccountService(networkAccountStore, (appConfig as FinP2PContractAppConfig).finP2PContract, new EvmNetworkAccountValidator())
     : new CustodyNetworkAccountService(networkAccountStore, assetStore, custodyProvider, accountMappingService, logger, { enabled: onboardingWhitelistingEnabled, dewhitelistOnRemove }, new EvmNetworkAccountValidator());
 
+  // The internal /mapping/owners route carries no asset context, so under the
+  // same flag the mapped wallet is whitelisted on every stored
+  // whitelisting-capable asset before the mapping persists.
+  const listAssets = async (): Promise<storageModule.Asset[]> => {
+    const schema = ledgerSchema ?? storageModule.DEFAULT_SCHEMA_NAME;
+    return (await dbPool.query(`SELECT * FROM ${schema}.assets`)).rows;
+  };
+  const wrapMappingValidator = onboardingWhitelistingEnabled
+    ? (inner?: AccountMappingValidator) => new WhitelistingMappingValidator(inner, listAssets, logger)
+    : undefined;
+
   let omnibusCtx: OmnibusContext | undefined;
   if (appConfig.accountModel === 'omnibus' && custodyProvider) {
     if (!omnibusWallet) throw new Error('Omnibus account model requires OMNIBUS_CUSTODY_ACCOUNT_ID (and a custody provider able to create wallets by custody id)');
@@ -324,7 +338,7 @@ async function createApp(
   const paymentsService = new PaymentsServiceImpl(pluginManager);
 
   if (custodyProvider) {
-    await registerCustodyServices(app, logger, custodyProvider, escrowWallet, readProvider, gasStation, appConfig, paymentsService, pluginManager, workflowStorage, finP2PClient, accountMappingStore, accountMappingService, assetStore, accountMapping, omnibusCtx, networkAccountService);
+    await registerCustodyServices(app, logger, custodyProvider, escrowWallet, readProvider, gasStation, appConfig, paymentsService, pluginManager, workflowStorage, finP2PClient, accountMappingStore, accountMappingService, assetStore, accountMapping, omnibusCtx, networkAccountService, wrapMappingValidator);
   } else if (appConfig.type === 'finp2p-contract') {
     registerFinP2PContractServices(app, appConfig as FinP2PContractAppConfig, paymentsService, pluginManager, workflowStorage, finP2PClient, networkAccountService);
   } else {

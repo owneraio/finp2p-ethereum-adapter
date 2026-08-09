@@ -1,6 +1,6 @@
 import { AccountInvalidShapeError, storage } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import { WhitelistParty } from "@owneraio/finp2p-ethereum-adapter-contract";
-import { EvmNetworkAccountValidator } from "../src/services/accounts";
+import { EvmNetworkAccountValidator, WhitelistingMappingValidator } from "../src/services/accounts";
 import { finIdToAddress } from "@owneraio/finp2p-ethereum-orchestrator";
 import { OnChainTokenService, OnChainNetworkAccountService } from "../src/services/onchain";
 import { CustodyNetworkAccountService } from "../src/services/custody";
@@ -324,6 +324,72 @@ describe("CustodyNetworkAccountService onboarding whitelisting", () => {
   test("removing an absent binding stays an idempotent success", async () => {
     const op = await build(storeMock()).removeAccount("ik", "acc-x");
     expect(op.type).toBe("success");
+    expect(mutations).toHaveLength(0);
+  });
+});
+
+describe("WhitelistingMappingValidator (internal mapping API)", () => {
+
+  const FIN_ID = "02b3e7cbe9b2e91832ea4a11a17a2e30d3cf52dae486ec1e1e3d0741e1f77210ab";
+  const logger = { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} } as any;
+
+  const mutations: Array<{ contractAddress: string; address: string }> = [];
+  let whitelistFails = false;
+
+  beforeAll(() => {
+    tokenStandardRegistry.reset();
+    tokenStandardRegistry.register("WL", {
+      isWhitelisted: async () => true,
+      whitelist: async (asset: any, p: any) => {
+        mutations.push({ contractAddress: asset.contractAddress, address: p.address });
+        return whitelistFails
+          ? { status: "failure", reason: "compliance says no" }
+          : { status: "success", transactionId: "tx", timestamp: 0 };
+      },
+      dewhitelist: async () => ({ status: "success", transactionId: "tx", timestamp: 0 }),
+    } as any);
+    tokenStandardRegistry.register("PLAIN", {} as any);
+  });
+  afterAll(() => tokenStandardRegistry.reset());
+  beforeEach(() => { mutations.length = 0; whitelistFails = false; });
+
+  const assets = [
+    { id: "org:102:a1", contract_address: "0xa1", decimals: 2, token_standard: "WL" },
+    { id: "org:102:a2", contract_address: "0xa2", decimals: 2, token_standard: "PLAIN" },
+    { id: "org:102:a3", contract_address: "0xa3", decimals: 2, token_standard: "NOT_REGISTERED" },
+    { id: "org:102:a4", contract_address: "0xa4", decimals: 2, token_standard: "WL" },
+  ] as any[];
+  const listAssets = async () => assets;
+
+  const build = (inner?: any) => new WhitelistingMappingValidator(inner, listAssets, logger);
+
+  test("whitelists the mapped wallet on every capable asset, skipping the rest", async () => {
+    const fields = { ledgerAccountId: ADDRESS };
+    const validated = await build().validate(FIN_ID, fields);
+    expect(validated).toEqual(fields);
+    expect(mutations).toEqual([
+      { contractAddress: "0xa1", address: ADDRESS },
+      { contractAddress: "0xa4", address: ADDRESS },
+    ]);
+  });
+
+  test("runs after the inner validator so an enriched address is whitelisted", async () => {
+    const inner = { validate: jest.fn().mockResolvedValue({ custodyAccountId: "85", ledgerAccountId: ADDRESS }) };
+    const validated = await build(inner).validate(FIN_ID, { custodyAccountId: "85" });
+    expect(inner.validate).toHaveBeenCalledWith(FIN_ID, { custodyAccountId: "85" });
+    expect(validated.ledgerAccountId).toBe(ADDRESS);
+    expect(mutations.map(m => m.address)).toEqual([ADDRESS, ADDRESS]);
+  });
+
+  test("whitelist failure rejects the mapping request", async () => {
+    whitelistFails = true;
+    await expect(build().validate(FIN_ID, { ledgerAccountId: ADDRESS }))
+      .rejects.toThrow(/whitelisting investor .* for asset org:102:a1 failed: compliance says no/);
+  });
+
+  test("fields without an address pass through untouched", async () => {
+    const validated = await build().validate(FIN_ID, { somethingElse: "x" });
+    expect(validated).toEqual({ somethingElse: "x" });
     expect(mutations).toHaveLength(0);
   });
 });
