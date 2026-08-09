@@ -35,6 +35,8 @@ import {
   AssetStore,
   buildMappingConfig,
   EvmNetworkAccountValidator,
+  MappingWhitelisting,
+  WhitelistingAccountMappingService,
   WhitelistingMappingValidator,
   registerWhitelistingRoutes,
 } from "./services/accounts";
@@ -89,12 +91,18 @@ async function registerCustodyServices(
   accountMapping: AccountResolver,
   omnibusCtx: OmnibusContext | undefined,
   networkAccountService: NetworkAccountService,
-  wrapMappingValidator: ((inner?: AccountMappingValidator) => AccountMappingValidator) | undefined,
+  mappingWhitelisting: MappingWhitelisting | undefined,
 ): Promise<void> {
   if (!readProvider) throw new Error('Read-only RPC provider is unavailable — set NETWORK_HOST or use a custody provider whose wallet exposes a transport');
   if (!escrowWallet) throw new Error('Escrow wallet is required for direct mode (set ASSET_ESCROW_CUSTODY_ACCOUNT_ID or OMNIBUS_CUSTODY_ACCOUNT_ID)');
 
-  const mappingConfig = buildMappingConfig(custodyProvider, wrapMappingValidator);
+  const wrapMappingValidator = mappingWhitelisting
+    ? (inner?: AccountMappingValidator) => new WhitelistingMappingValidator(inner, mappingWhitelisting)
+    : undefined;
+  const mappingHook = mappingWhitelisting
+    ? { afterSave: async (finId: string) => { await mappingWhitelisting.afterSave(finId); return {}; } }
+    : undefined;
+  const mappingConfig = buildMappingConfig(custodyProvider, wrapMappingValidator, mappingHook);
   const whitelistingAdminToken = process.env.WHITELISTING_ADMIN_TOKEN;
   if (whitelistingAdminToken) {
     registerWhitelistingRoutes(app, assetStore, accountMapping, logger, whitelistingAdminToken);
@@ -139,7 +147,7 @@ async function registerCustodyServices(
   const issuerWallet = assetIssuerKey && networkHost
     ? { provider: readProvider, signer: pooledSigner(getNetworkRpcUrl(), assetIssuerKey) }
     : undefined;
-  let tokenService: CustodyTokenService = new CustodyTokenService(logger, custodyProvider, escrowWallet, readProvider, accountMapping, assetStore, issuerWallet);
+  let tokenService: CustodyTokenService = new CustodyTokenService(logger, custodyProvider, escrowWallet, readProvider, accountMapping, assetStore, issuerWallet, mappingWhitelisting);
   const commonService = new DirectCommonServiceImpl(workflowStorage);
   const planApprovalService = await buildCustodyPlanApprovalService(
     appConfig.orgId, finP2PClient,
@@ -273,7 +281,7 @@ async function createApp(
   // Skeleton 0.28.11+: caseSensitive=false makes the account-mapping service lowercase
   // FIELD_LEDGER_ACCOUNT_ID values on save and lookup, so EIP-55 checksummed and lowercase
   // EVM addresses resolve to the same record.
-  const accountMappingService = new AccountMappingServiceImpl(accountMappingStore, { caseSensitive: false });
+  const accountMappingService = new WhitelistingAccountMappingService(accountMappingStore, { caseSensitive: false });
   const accountMapping: AccountResolver = new DbAccountResolver(accountMappingService);
 
   // Investor network-account onboarding (sync trust model, no ownership
@@ -292,14 +300,20 @@ async function createApp(
 
   // The internal /mapping/owners route carries no asset context, so under the
   // same flag the mapped wallet is whitelisted on every stored
-  // whitelisting-capable asset before the mapping persists.
+  // whitelisting-capable asset (validator, pre-persist), a replaced wallet is
+  // dewhitelisted after the save (hook), deactivation dewhitelists before the
+  // mapping row is deleted (service override), and a newly created asset
+  // whitelists every mapped wallet (custody token service).
   const listAssets = async (): Promise<storageModule.Asset[]> => {
     const schema = ledgerSchema ?? storageModule.DEFAULT_SCHEMA_NAME;
     return (await dbPool.query(`SELECT * FROM ${schema}.assets`)).rows;
   };
-  const wrapMappingValidator = onboardingWhitelistingEnabled
-    ? (inner?: AccountMappingValidator) => new WhitelistingMappingValidator(inner, listAssets, accountMappingService, logger)
+  const mappingWhitelisting = onboardingWhitelistingEnabled
+    ? new MappingWhitelisting(listAssets, () => accountMappingService, logger)
     : undefined;
+  if (mappingWhitelisting) {
+    accountMappingService.attachWhitelisting(mappingWhitelisting);
+  }
 
   let omnibusCtx: OmnibusContext | undefined;
   if (appConfig.accountModel === 'omnibus' && custodyProvider) {
@@ -345,7 +359,7 @@ async function createApp(
   const paymentsService = new PaymentsServiceImpl(pluginManager);
 
   if (custodyProvider) {
-    await registerCustodyServices(app, logger, custodyProvider, escrowWallet, readProvider, gasStation, appConfig, paymentsService, pluginManager, workflowStorage, finP2PClient, accountMappingStore, accountMappingService, assetStore, accountMapping, omnibusCtx, networkAccountService, wrapMappingValidator);
+    await registerCustodyServices(app, logger, custodyProvider, escrowWallet, readProvider, gasStation, appConfig, paymentsService, pluginManager, workflowStorage, finP2PClient, accountMappingStore, accountMappingService, assetStore, accountMapping, omnibusCtx, networkAccountService, mappingWhitelisting);
   } else if (appConfig.type === 'finp2p-contract') {
     registerFinP2PContractServices(app, appConfig as FinP2PContractAppConfig, paymentsService, pluginManager, workflowStorage, finP2PClient, networkAccountService);
   } else {

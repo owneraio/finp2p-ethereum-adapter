@@ -1,9 +1,10 @@
 import { AccountInvalidShapeError, storage } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import { WhitelistParty } from "@owneraio/finp2p-ethereum-adapter-contract";
-import { EvmNetworkAccountValidator, WhitelistingMappingValidator } from "../src/services/accounts";
+import { EvmNetworkAccountValidator, MappingWhitelisting, WhitelistingMappingValidator } from "../src/services/accounts";
 import { finIdToAddress } from "@owneraio/finp2p-ethereum-orchestrator";
 import { OnChainTokenService, OnChainNetworkAccountService } from "../src/services/onchain";
 import { CustodyNetworkAccountService } from "../src/services/custody";
+import { ValidationError } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import { tokenStandardRegistry } from "../src/integrations/token-standards/registry";
 
 const ADDRESS = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266";
@@ -328,19 +329,21 @@ describe("CustodyNetworkAccountService onboarding whitelisting", () => {
   });
 });
 
-describe("WhitelistingMappingValidator (internal mapping API)", () => {
+describe("MappingWhitelisting (internal mapping API)", () => {
 
   const FIN_ID = "02b3e7cbe9b2e91832ea4a11a17a2e30d3cf52dae486ec1e1e3d0741e1f77210ab";
+  const OTHER_FIN_ID = "03" + "dd".repeat(32);
   const OLD_ADDRESS = "0x5555555555555555555555555555555555555555";
   const logger = { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} } as any;
 
   const mutations: Array<{ op: string; contractAddress: string; address: string }> = [];
+  const alreadyWhitelisted = new Set<string>(); // `${contract}:${address(lc)}`
   let failOnContract: string | undefined;
 
   beforeAll(() => {
     tokenStandardRegistry.reset();
     tokenStandardRegistry.register("WL", {
-      isWhitelisted: async () => true,
+      isWhitelisted: async (asset: any, p: any) => alreadyWhitelisted.has(`${asset.contractAddress}:${p.address.toLowerCase()}`),
       whitelist: async (asset: any, p: any) => {
         mutations.push({ op: "whitelist", contractAddress: asset.contractAddress, address: p.address });
         return asset.contractAddress === failOnContract
@@ -357,13 +360,13 @@ describe("WhitelistingMappingValidator (internal mapping API)", () => {
   afterAll(() => tokenStandardRegistry.reset());
 
   const mappingServiceMock = {
-    getAccounts: jest.fn().mockResolvedValue([]),
-    getByFieldValue: jest.fn().mockResolvedValue([]),
+    getAccounts: jest.fn(),
+    getByFieldValue: jest.fn(),
   } as any;
   beforeEach(() => {
-    mutations.length = 0; failOnContract = undefined;
-    mappingServiceMock.getAccounts.mockClear().mockResolvedValue([]);
-    mappingServiceMock.getByFieldValue.mockClear().mockResolvedValue([]);
+    mutations.length = 0; failOnContract = undefined; alreadyWhitelisted.clear();
+    mappingServiceMock.getAccounts.mockReset().mockResolvedValue([]);
+    mappingServiceMock.getByFieldValue.mockReset().mockResolvedValue([]);
   });
 
   const assets = [
@@ -374,11 +377,12 @@ describe("WhitelistingMappingValidator (internal mapping API)", () => {
   ] as any[];
   const listAssets = async () => assets;
 
-  const build = (inner?: any) => new WhitelistingMappingValidator(inner, listAssets, mappingServiceMock, logger);
+  const service = () => new MappingWhitelisting(listAssets, () => mappingServiceMock, logger);
+  const validator = (inner?: any) => new WhitelistingMappingValidator(inner, service());
 
   test("whitelists the mapped wallet on every capable asset, skipping the rest", async () => {
     const fields = { ledgerAccountId: ADDRESS };
-    const validated = await build().validate(FIN_ID, fields);
+    const validated = await validator().validate(FIN_ID, fields);
     expect(validated).toEqual(fields);
     expect(mutations).toEqual([
       { op: "whitelist", contractAddress: "0xa1", address: ADDRESS },
@@ -388,16 +392,26 @@ describe("WhitelistingMappingValidator (internal mapping API)", () => {
 
   test("runs after the inner validator so an enriched address is whitelisted", async () => {
     const inner = { validate: jest.fn().mockResolvedValue({ custodyAccountId: "85", ledgerAccountId: ADDRESS }) };
-    const validated = await build(inner).validate(FIN_ID, { custodyAccountId: "85" });
+    const validated = await validator(inner).validate(FIN_ID, { custodyAccountId: "85" });
     expect(inner.validate).toHaveBeenCalledWith(FIN_ID, { custodyAccountId: "85" });
     expect(validated.ledgerAccountId).toBe(ADDRESS);
     expect(mutations.map(m => m.address)).toEqual([ADDRESS, ADDRESS]);
   });
 
-  test("mid-sequence failure compensates the already-whitelisted assets and rejects", async () => {
+  test("mid-sequence failure compensates only this request's transitions — pre-existing authorization survives", async () => {
+    alreadyWhitelisted.add(`0xa1:${ADDRESS.toLowerCase()}`); // authorized before the request
     failOnContract = "0xa4";
-    await expect(build().validate(FIN_ID, { ledgerAccountId: ADDRESS }))
+    await expect(validator().validate(FIN_ID, { ledgerAccountId: ADDRESS }))
       .rejects.toThrow(/whitelisting investor .* for asset org:102:a4 failed: compliance says no/);
+    // a1 was skipped (already whitelisted) and is NOT dewhitelisted on rollback
+    expect(mutations).toEqual([
+      { op: "whitelist", contractAddress: "0xa4", address: ADDRESS },
+    ]);
+  });
+
+  test("mid-sequence failure rolls back the transitions made by the request", async () => {
+    failOnContract = "0xa4";
+    await expect(validator().validate(FIN_ID, { ledgerAccountId: ADDRESS })).rejects.toThrow(ValidationError);
     expect(mutations).toEqual([
       { op: "whitelist", contractAddress: "0xa1", address: ADDRESS },
       { op: "whitelist", contractAddress: "0xa4", address: ADDRESS },
@@ -405,34 +419,59 @@ describe("WhitelistingMappingValidator (internal mapping API)", () => {
     ]);
   });
 
-  test("replacing the wallet dewhitelists the previous address after the new one is authorized", async () => {
+  test("replacement dewhitelists the old wallet only after the save (hook)", async () => {
     mappingServiceMock.getAccounts.mockResolvedValue([{ finId: FIN_ID, fields: { ledgerAccountId: OLD_ADDRESS.toLowerCase() } }]);
-    await build().validate(FIN_ID, { ledgerAccountId: ADDRESS });
-    expect(mutations).toEqual([
-      { op: "whitelist", contractAddress: "0xa1", address: ADDRESS },
-      { op: "whitelist", contractAddress: "0xa4", address: ADDRESS },
-      { op: "dewhitelist", contractAddress: "0xa1", address: OLD_ADDRESS.toLowerCase() },
-      { op: "dewhitelist", contractAddress: "0xa4", address: OLD_ADDRESS.toLowerCase() },
-    ]);
-  });
-
-  test("re-mapping the same wallet (case-insensitive) never dewhitelists it", async () => {
-    mappingServiceMock.getAccounts.mockResolvedValue([{ finId: FIN_ID, fields: { ledgerAccountId: ADDRESS.toLowerCase() } }]);
-    await build().validate(FIN_ID, { ledgerAccountId: ADDRESS });
-    expect(mutations.every(m => m.op === "whitelist")).toBe(true);
+    const s = service();
+    await new WhitelistingMappingValidator(undefined, s).validate(FIN_ID, { ledgerAccountId: ADDRESS });
+    // validate itself never touches the old wallet
+    expect(mutations.filter(m => m.address === OLD_ADDRESS.toLowerCase())).toHaveLength(0);
+    await s.afterSave(FIN_ID);
+    expect(mutations.filter(m => m.op === "dewhitelist").map(m => m.contractAddress)).toEqual(["0xa1", "0xa4"]);
+    // consumed: a second afterSave is a no-op
+    mutations.length = 0;
+    await s.afterSave(FIN_ID);
+    expect(mutations).toHaveLength(0);
   });
 
   test("a replaced wallet shared with another investor stays whitelisted", async () => {
     mappingServiceMock.getAccounts.mockResolvedValue([{ finId: FIN_ID, fields: { ledgerAccountId: OLD_ADDRESS } }]);
-    mappingServiceMock.getByFieldValue.mockResolvedValue([
-      { finId: FIN_ID, fields: {} }, { finId: "02" + "dd".repeat(32), fields: {} },
-    ]);
-    await build().validate(FIN_ID, { ledgerAccountId: ADDRESS });
+    mappingServiceMock.getByFieldValue.mockResolvedValue([{ finId: FIN_ID, fields: {} }, { finId: OTHER_FIN_ID, fields: {} }]);
+    const s = service();
+    await new WhitelistingMappingValidator(undefined, s).validate(FIN_ID, { ledgerAccountId: ADDRESS });
+    await s.afterSave(FIN_ID);
     expect(mutations.every(m => m.op === "whitelist")).toBe(true);
   });
 
+  test("deactivation dewhitelists before the mapping row is deleted", async () => {
+    alreadyWhitelisted.add(`0xa1:${ADDRESS.toLowerCase()}`);
+    alreadyWhitelisted.add(`0xa4:${ADDRESS.toLowerCase()}`);
+    mappingServiceMock.getAccounts.mockResolvedValue([{ finId: FIN_ID, fields: { ledgerAccountId: ADDRESS } }]);
+    await service().beforeDelete(FIN_ID);
+    expect(mutations).toEqual([
+      { op: "dewhitelist", contractAddress: "0xa1", address: ADDRESS },
+      { op: "dewhitelist", contractAddress: "0xa4", address: ADDRESS },
+    ]);
+  });
+
+  test("a new capable asset whitelists every mapped wallet", async () => {
+    mappingServiceMock.getAccounts.mockResolvedValue([
+      { finId: FIN_ID, fields: { ledgerAccountId: ADDRESS } },
+      { finId: OTHER_FIN_ID, fields: { ledgerAccountId: OLD_ADDRESS } },
+    ]);
+    await service().onAssetCreated({ id: "org:102:new", contract_address: "0xnew", decimals: 2, token_standard: "WL" } as any);
+    expect(mutations).toEqual([
+      { op: "whitelist", contractAddress: "0xnew", address: ADDRESS },
+      { op: "whitelist", contractAddress: "0xnew", address: OLD_ADDRESS },
+    ]);
+  });
+
+  test("a new asset without the capability mutates nothing", async () => {
+    await service().onAssetCreated({ id: "org:102:p", contract_address: "0xp", decimals: 2, token_standard: "PLAIN" } as any);
+    expect(mutations).toHaveLength(0);
+  });
+
   test("fields without an address pass through untouched", async () => {
-    const validated = await build().validate(FIN_ID, { somethingElse: "x" });
+    const validated = await validator().validate(FIN_ID, { somethingElse: "x" });
     expect(validated).toEqual({ somethingElse: "x" });
     expect(mutations).toHaveLength(0);
   });
