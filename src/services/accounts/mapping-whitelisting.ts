@@ -95,8 +95,9 @@ export class MappingWhitelisting {
       if (!saved || !stale) return;
       const cleaned = await this.dewhitelistEverywhere(finId, stale, 'replaced-wallet cleanup');
       if (cleaned) {
-        const { [FIELD_STALE_LEDGER_ACCOUNT_ID]: _, ...rest } = saved;
-        await this.mappingService().saveAccount(finId, rest);
+        // saveAccount upserts per field and never removes omitted ones — the
+        // marker needs an explicit field-scoped delete
+        await this.mappingService().deleteAccount(finId, FIELD_STALE_LEDGER_ACCOUNT_ID);
       }
     });
   }

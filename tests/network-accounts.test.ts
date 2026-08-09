@@ -365,13 +365,13 @@ describe("MappingWhitelisting (internal mapping API)", () => {
   const mappingServiceMock = {
     getAccounts: jest.fn(),
     getByFieldValue: jest.fn(),
-    saveAccount: jest.fn(),
+    deleteAccount: jest.fn(),
   } as any;
   beforeEach(() => {
     mutations.length = 0; failOnContract = undefined; failDewhitelistOnContract = undefined; alreadyWhitelisted.clear();
     mappingServiceMock.getAccounts.mockReset().mockResolvedValue([]);
     mappingServiceMock.getByFieldValue.mockReset().mockResolvedValue([]);
-    mappingServiceMock.saveAccount.mockReset().mockResolvedValue(undefined);
+    mappingServiceMock.deleteAccount.mockReset().mockResolvedValue(undefined);
   });
 
   const assets = [
@@ -436,14 +436,15 @@ describe("MappingWhitelisting (internal mapping API)", () => {
     mappingServiceMock.getAccounts.mockResolvedValue([{ finId: FIN_ID, fields: { ledgerAccountId: ADDRESS, staleLedgerAccountId: OLD_ADDRESS.toLowerCase() } }]);
     await s.afterSave(FIN_ID);
     expect(mutations.filter(m => m.op === "dewhitelist").map(m => m.contractAddress)).toEqual(["0xa1", "0xa4"]);
-    expect(mappingServiceMock.saveAccount).toHaveBeenCalledWith(FIN_ID, { ledgerAccountId: ADDRESS });
+    // saveAccount upserts per field, so the marker needs a field-scoped delete
+    expect(mappingServiceMock.deleteAccount).toHaveBeenCalledWith(FIN_ID, "staleLedgerAccountId");
   });
 
   test("a failed stale cleanup keeps the marker for a later retry", async () => {
     failDewhitelistOnContract = "0xa4";
     mappingServiceMock.getAccounts.mockResolvedValue([{ finId: FIN_ID, fields: { ledgerAccountId: ADDRESS, staleLedgerAccountId: OLD_ADDRESS } }]);
     await service().afterSave(FIN_ID);
-    expect(mappingServiceMock.saveAccount).not.toHaveBeenCalled(); // marker survives
+    expect(mappingServiceMock.deleteAccount).not.toHaveBeenCalled(); // marker survives
   });
 
   test("a leftover stale marker from a crashed attempt is retried on the next update", async () => {
@@ -457,7 +458,7 @@ describe("MappingWhitelisting (internal mapping API)", () => {
     mappingServiceMock.getByFieldValue.mockResolvedValue([{ finId: FIN_ID, fields: {} }, { finId: OTHER_FIN_ID, fields: {} }]);
     await service().afterSave(FIN_ID);
     expect(mutations).toHaveLength(0);
-    expect(mappingServiceMock.saveAccount).toHaveBeenCalled(); // marker cleared, nothing to revoke
+    expect(mappingServiceMock.deleteAccount).toHaveBeenCalledWith(FIN_ID, "staleLedgerAccountId"); // marker cleared, nothing to revoke
   });
 
   test("deactivation dewhitelists before the mapping row is deleted", async () => {
