@@ -13,15 +13,24 @@ import { tokenStandardRegistry } from '../../integrations/token-standards/regist
  * { assetId, address } is that escape hatch. Deliberately not gated by
  * ONBOARDING_WHITELISTING_ENABLED: it is an explicit operator action, and
  * the manual path matters most when the automatic mutations are off.
+ *
+ * The endpoint can revoke any investor with the configured allowlister key,
+ * so it requires `Authorization: Bearer <WHITELISTING_ADMIN_TOKEN>` and is
+ * not registered at all when the token is not configured.
  */
 export function registerWhitelistingRoutes(
   app: express.Application,
   assetStore: AssetStore,
   accountMapping: AccountResolver,
   logger: winston.Logger,
+  adminToken: string,
 ): void {
   app.post('/whitelisting/dewhitelist', async (req, res) => {
     try {
+      if (req.headers.authorization !== `Bearer ${adminToken}`) {
+        res.status(401).json({ error: 'unauthorized' });
+        return;
+      }
       const { assetId, finId, address: explicitAddress } = req.body ?? {};
       if (!assetId || (!finId && !explicitAddress)) {
         res.status(400).json({ error: 'assetId and one of finId or address are required' });

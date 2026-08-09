@@ -331,27 +331,40 @@ describe("CustodyNetworkAccountService onboarding whitelisting", () => {
 describe("WhitelistingMappingValidator (internal mapping API)", () => {
 
   const FIN_ID = "02b3e7cbe9b2e91832ea4a11a17a2e30d3cf52dae486ec1e1e3d0741e1f77210ab";
+  const OLD_ADDRESS = "0x5555555555555555555555555555555555555555";
   const logger = { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} } as any;
 
-  const mutations: Array<{ contractAddress: string; address: string }> = [];
-  let whitelistFails = false;
+  const mutations: Array<{ op: string; contractAddress: string; address: string }> = [];
+  let failOnContract: string | undefined;
 
   beforeAll(() => {
     tokenStandardRegistry.reset();
     tokenStandardRegistry.register("WL", {
       isWhitelisted: async () => true,
       whitelist: async (asset: any, p: any) => {
-        mutations.push({ contractAddress: asset.contractAddress, address: p.address });
-        return whitelistFails
+        mutations.push({ op: "whitelist", contractAddress: asset.contractAddress, address: p.address });
+        return asset.contractAddress === failOnContract
           ? { status: "failure", reason: "compliance says no" }
           : { status: "success", transactionId: "tx", timestamp: 0 };
       },
-      dewhitelist: async () => ({ status: "success", transactionId: "tx", timestamp: 0 }),
+      dewhitelist: async (asset: any, p: any) => {
+        mutations.push({ op: "dewhitelist", contractAddress: asset.contractAddress, address: p.address });
+        return { status: "success", transactionId: "tx", timestamp: 0 };
+      },
     } as any);
     tokenStandardRegistry.register("PLAIN", {} as any);
   });
   afterAll(() => tokenStandardRegistry.reset());
-  beforeEach(() => { mutations.length = 0; whitelistFails = false; });
+
+  const mappingServiceMock = {
+    getAccounts: jest.fn().mockResolvedValue([]),
+    getByFieldValue: jest.fn().mockResolvedValue([]),
+  } as any;
+  beforeEach(() => {
+    mutations.length = 0; failOnContract = undefined;
+    mappingServiceMock.getAccounts.mockClear().mockResolvedValue([]);
+    mappingServiceMock.getByFieldValue.mockClear().mockResolvedValue([]);
+  });
 
   const assets = [
     { id: "org:102:a1", contract_address: "0xa1", decimals: 2, token_standard: "WL" },
@@ -361,15 +374,15 @@ describe("WhitelistingMappingValidator (internal mapping API)", () => {
   ] as any[];
   const listAssets = async () => assets;
 
-  const build = (inner?: any) => new WhitelistingMappingValidator(inner, listAssets, logger);
+  const build = (inner?: any) => new WhitelistingMappingValidator(inner, listAssets, mappingServiceMock, logger);
 
   test("whitelists the mapped wallet on every capable asset, skipping the rest", async () => {
     const fields = { ledgerAccountId: ADDRESS };
     const validated = await build().validate(FIN_ID, fields);
     expect(validated).toEqual(fields);
     expect(mutations).toEqual([
-      { contractAddress: "0xa1", address: ADDRESS },
-      { contractAddress: "0xa4", address: ADDRESS },
+      { op: "whitelist", contractAddress: "0xa1", address: ADDRESS },
+      { op: "whitelist", contractAddress: "0xa4", address: ADDRESS },
     ]);
   });
 
@@ -381,10 +394,41 @@ describe("WhitelistingMappingValidator (internal mapping API)", () => {
     expect(mutations.map(m => m.address)).toEqual([ADDRESS, ADDRESS]);
   });
 
-  test("whitelist failure rejects the mapping request", async () => {
-    whitelistFails = true;
+  test("mid-sequence failure compensates the already-whitelisted assets and rejects", async () => {
+    failOnContract = "0xa4";
     await expect(build().validate(FIN_ID, { ledgerAccountId: ADDRESS }))
-      .rejects.toThrow(/whitelisting investor .* for asset org:102:a1 failed: compliance says no/);
+      .rejects.toThrow(/whitelisting investor .* for asset org:102:a4 failed: compliance says no/);
+    expect(mutations).toEqual([
+      { op: "whitelist", contractAddress: "0xa1", address: ADDRESS },
+      { op: "whitelist", contractAddress: "0xa4", address: ADDRESS },
+      { op: "dewhitelist", contractAddress: "0xa1", address: ADDRESS },
+    ]);
+  });
+
+  test("replacing the wallet dewhitelists the previous address after the new one is authorized", async () => {
+    mappingServiceMock.getAccounts.mockResolvedValue([{ finId: FIN_ID, fields: { ledgerAccountId: OLD_ADDRESS.toLowerCase() } }]);
+    await build().validate(FIN_ID, { ledgerAccountId: ADDRESS });
+    expect(mutations).toEqual([
+      { op: "whitelist", contractAddress: "0xa1", address: ADDRESS },
+      { op: "whitelist", contractAddress: "0xa4", address: ADDRESS },
+      { op: "dewhitelist", contractAddress: "0xa1", address: OLD_ADDRESS.toLowerCase() },
+      { op: "dewhitelist", contractAddress: "0xa4", address: OLD_ADDRESS.toLowerCase() },
+    ]);
+  });
+
+  test("re-mapping the same wallet (case-insensitive) never dewhitelists it", async () => {
+    mappingServiceMock.getAccounts.mockResolvedValue([{ finId: FIN_ID, fields: { ledgerAccountId: ADDRESS.toLowerCase() } }]);
+    await build().validate(FIN_ID, { ledgerAccountId: ADDRESS });
+    expect(mutations.every(m => m.op === "whitelist")).toBe(true);
+  });
+
+  test("a replaced wallet shared with another investor stays whitelisted", async () => {
+    mappingServiceMock.getAccounts.mockResolvedValue([{ finId: FIN_ID, fields: { ledgerAccountId: OLD_ADDRESS } }]);
+    mappingServiceMock.getByFieldValue.mockResolvedValue([
+      { finId: FIN_ID, fields: {} }, { finId: "02" + "dd".repeat(32), fields: {} },
+    ]);
+    await build().validate(FIN_ID, { ledgerAccountId: ADDRESS });
+    expect(mutations.every(m => m.op === "whitelist")).toBe(true);
   });
 
   test("fields without an address pass through untouched", async () => {
@@ -432,16 +476,21 @@ describe("POST /whitelisting/dewhitelist", () => {
     const app = { post: (_path: string, fn: any) => { h = fn; } } as any;
     // eslint-disable-next-line @typescript-eslint/no-var-requires
     const { registerWhitelistingRoutes } = require("../src/services/accounts");
-    registerWhitelistingRoutes(app, assetStore, accountMapping, logger);
-    return (body: any) => new Promise<{ code: number; body: any }>((resolve) => {
+    registerWhitelistingRoutes(app, assetStore, accountMapping, logger, "test-token");
+    return (body: any, token = "test-token") => new Promise<{ code: number; body: any }>((resolve) => {
       const res = {
         statusCode: 200,
         status(c: number) { this.statusCode = c; return this; },
         json(payload: any) { resolve({ code: this.statusCode, body: payload }); },
       };
-      h({ body }, res);
+      h({ body, headers: { authorization: `Bearer ${token}` } }, res);
     });
   })();
+
+  test("missing or wrong bearer token is rejected with 401", async () => {
+    expect((await handler({ assetId: "org:102:wl", finId: FIN_ID }, "wrong")).code).toBe(401);
+    expect(dewhitelisted).toHaveLength(0);
+  });
 
   test("dewhitelists by finId via the account mapping", async () => {
     const r = await handler({ assetId: "org:102:wl", finId: FIN_ID });

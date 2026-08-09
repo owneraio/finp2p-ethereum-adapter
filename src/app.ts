@@ -95,7 +95,12 @@ async function registerCustodyServices(
   if (!escrowWallet) throw new Error('Escrow wallet is required for direct mode (set ASSET_ESCROW_CUSTODY_ACCOUNT_ID or OMNIBUS_CUSTODY_ACCOUNT_ID)');
 
   const mappingConfig = buildMappingConfig(custodyProvider, wrapMappingValidator);
-  registerWhitelistingRoutes(app, assetStore, accountMapping, logger);
+  const whitelistingAdminToken = process.env.WHITELISTING_ADMIN_TOKEN;
+  if (whitelistingAdminToken) {
+    registerWhitelistingRoutes(app, assetStore, accountMapping, logger, whitelistingAdminToken);
+  } else {
+    logger.info('WHITELISTING_ADMIN_TOKEN is not set — the manual /whitelisting/dewhitelist endpoint is disabled');
+  }
   const proxiedNetworkAccountService = wrapWithWorkflowProxy(networkAccountService, workflowStorage, finP2PClient, 'createAccount', 'removeAccount');
 
   if (appConfig.accountModel === 'omnibus') {
@@ -293,7 +298,7 @@ async function createApp(
     return (await dbPool.query(`SELECT * FROM ${schema}.assets`)).rows;
   };
   const wrapMappingValidator = onboardingWhitelistingEnabled
-    ? (inner?: AccountMappingValidator) => new WhitelistingMappingValidator(inner, listAssets, logger)
+    ? (inner?: AccountMappingValidator) => new WhitelistingMappingValidator(inner, listAssets, accountMappingService, logger)
     : undefined;
 
   let omnibusCtx: OmnibusContext | undefined;
