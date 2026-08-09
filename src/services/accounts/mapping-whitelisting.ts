@@ -1,5 +1,6 @@
 import winston from 'winston';
 import {
+  AccountMappingService,
   AccountMappingServiceImpl,
   AccountMappingValidator,
   ValidationError,
@@ -8,6 +9,10 @@ import {
 import { AssetRecord, InvestorWhitelisting, TokenStandard, supportsWhitelisting } from '@owneraio/finp2p-ethereum-adapter-contract';
 import { FIELD_LEDGER_ACCOUNT_ID } from './mapping-validator';
 import { tokenStandardRegistry } from '../../integrations/token-standards/registry';
+
+/** Replaced wallet awaiting dewhitelist, persisted on the mapping row itself
+ *  so the cleanup intent survives restarts. */
+export const FIELD_STALE_LEDGER_ACCOUNT_ID = 'staleLedgerAccountId';
 
 interface CapableAsset {
   id: string;
@@ -18,29 +23,31 @@ interface CapableAsset {
 /**
  * Keeps token-standard whitelisting in step with the internal mapping API,
  * which carries no asset context (a mapping is per finId), so every mutation
- * spans the stored whitelisting-capable assets. Four integration points:
+ * spans the stored whitelisting-capable assets. All entry points serialize
+ * per finId. Integration points:
  *
  * - validate (pre-persist): the mapped wallet is whitelisted on every capable
- *   asset. Only actual not-whitelisted -> whitelisted transitions are
- *   recorded, and on a mid-sequence failure exactly those are compensated —
- *   authorization that predated the request is never revoked. The failure
- *   rejects the mapping before it persists.
- * - afterSave (post-persist): a replaced wallet is dewhitelisted only after
- *   the new mapping is durably saved, so a storage failure cannot leave a
- *   persisted mapping with a revoked wallet. Dewhitelist failures are logged
- *   and left to the manual /whitelisting/dewhitelist endpoint.
- * - deleteAccount (deactivation): the wallet is dewhitelisted BEFORE the
- *   mapping row is deleted; a dewhitelist failure aborts the deactivation, so
- *   a retry still has the address on record. Wallets shared with another
- *   investor are never dewhitelisted.
- * - onAssetCreated: a new capable asset whitelists every mapped wallet, so
- *   investors onboarded before the asset existed are covered (failures are
- *   per-wallet logged, never failing the asset creation).
+ *   asset. isWhitelisted is checked first and only actual transitions are
+ *   recorded, so a mid-sequence rollback never revokes authorization that
+ *   predated the request. A replacement is recorded as staleLedgerAccountId
+ *   in the fields being saved — a durable cleanup intent, not process memory.
+ * - afterSave (post-persist): the stale wallet from the SAVED row is
+ *   dewhitelisted and the marker cleared; on failure or crash the marker
+ *   survives and the next update (or the manual endpoint) retries.
+ * - deleteAccount (deactivation): the wallet is dewhitelisted BEFORE the row
+ *   is deleted; a mid-sequence failure re-whitelists this call's transitions
+ *   and aborts the deactivation, so authorization stays whole and the retry
+ *   still has the address on record.
+ * - onAssetCreated: a new capable asset whitelists every mapped wallet
+ *   (investors onboarded before the asset existed). Never fails the asset
+ *   creation — the asset is already persisted; a blocked investor recovers by
+ *   resubmitting the mapping, which whitelists across all assets.
+ *
+ * Wallets shared with another investor are never dewhitelisted.
  */
 export class MappingWhitelisting {
 
-  /** replacement detected at validate time, consumed after the save */
-  private readonly pendingReplacements = new Map<string, string>();
+  private readonly locks = new Map<string, Promise<unknown>>();
 
   constructor(
     private readonly listAssets: () => Promise<storage.Asset[]>,
@@ -48,83 +55,118 @@ export class MappingWhitelisting {
     private readonly logger: winston.Logger,
   ) {}
 
-  async whitelistMappedWallet(finId: string, address: string): Promise<void> {
-    this.pendingReplacements.delete(finId);
-    const previous = await this.currentAddress(finId);
-    if (previous && previous.toLowerCase() !== address.toLowerCase()) {
-      this.pendingReplacements.set(finId, previous);
-    }
-
-    const transitions: CapableAsset[] = [];
-    for (const asset of await this.capableAssets()) {
-      const party = { finId, address, role: 'destination' as const };
-      if (await asset.standard.isWhitelisted(asset.record, party, this.logger)) continue;
-      const result = await asset.standard.whitelist(asset.record, party, this.logger);
-      if (result.status === 'failure') {
-        this.logger.error(`mapping: whitelisting ${finId} (${address}) for asset ${asset.id} failed: ${result.reason}`);
-        await this.dewhitelist(transitions, finId, address, 'compensating rollback');
-        throw new ValidationError(`whitelisting investor ${finId} for asset ${asset.id} failed: ${result.reason}`);
+  /** Validate-time arm; returns extra fields to persist with the mapping. */
+  async whitelistMappedWallet(finId: string, address: string): Promise<Record<string, string>> {
+    return this.withLock(finId, async () => {
+      const existing = (await this.mappingService().getAccounts([finId]))[0]?.fields ?? {};
+      const previous = existing[FIELD_LEDGER_ACCOUNT_ID];
+      const leftoverStale = existing[FIELD_STALE_LEDGER_ACCOUNT_ID];
+      if (leftoverStale && leftoverStale.toLowerCase() !== address.toLowerCase()) {
+        // a crashed earlier replacement never got cleaned — retry it now
+        await this.dewhitelistEverywhere(finId, leftoverStale, 'stale-marker retry');
       }
-      transitions.push(asset);
-    }
+
+      const transitions: CapableAsset[] = [];
+      for (const asset of await this.capableAssets()) {
+        const party = { finId, address, role: 'destination' as const };
+        if (await asset.standard.isWhitelisted(asset.record, party, this.logger)) continue;
+        const result = await asset.standard.whitelist(asset.record, party, this.logger);
+        if (result.status === 'failure') {
+          this.logger.error(`mapping: whitelisting ${finId} (${address}) for asset ${asset.id} failed: ${result.reason}`);
+          await this.mutateAll(transitions, 'dewhitelist', finId, address, 'compensating rollback');
+          throw new ValidationError(`whitelisting investor ${finId} for asset ${asset.id} failed: ${result.reason}`);
+        }
+        transitions.push(asset);
+      }
+
+      const markers: Record<string, string> = {};
+      if (previous && previous.toLowerCase() !== address.toLowerCase()) {
+        markers[FIELD_STALE_LEDGER_ACCOUNT_ID] = previous;
+      }
+      return markers;
+    });
   }
 
+  /** Post-save arm: consume the durable stale marker from the saved row. */
   async afterSave(finId: string): Promise<void> {
-    const replaced = this.pendingReplacements.get(finId);
-    if (!replaced) return;
-    this.pendingReplacements.delete(finId);
-    if (await this.sharedByOthers(finId, replaced)) return;
-    await this.dewhitelist(await this.capableAssets(), finId, replaced, 'replaced-wallet cleanup — use /whitelisting/dewhitelist');
+    return this.withLock(finId, async () => {
+      const saved = (await this.mappingService().getAccounts([finId]))[0]?.fields;
+      const stale = saved?.[FIELD_STALE_LEDGER_ACCOUNT_ID];
+      if (!saved || !stale) return;
+      const cleaned = await this.dewhitelistEverywhere(finId, stale, 'replaced-wallet cleanup');
+      if (cleaned) {
+        const { [FIELD_STALE_LEDGER_ACCOUNT_ID]: _, ...rest } = saved;
+        await this.mappingService().saveAccount(finId, rest);
+      }
+    });
   }
 
-  /** Dewhitelist-before-delete for deactivation; throwing aborts the deletion
-   *  so a retry still has the address on record. */
+  /** Deactivation arm: dewhitelist before the row is deleted; a failure
+   *  re-whitelists this call's transitions and aborts the deactivation. */
   async beforeDelete(finId: string): Promise<void> {
-    const address = await this.currentAddress(finId);
-    if (!address || await this.sharedByOthers(finId, address)) return;
-    for (const asset of await this.capableAssets()) {
-      const party = { finId, address, role: 'destination' as const };
-      if (!await asset.standard.isWhitelisted(asset.record, party, this.logger)) continue;
-      const result = await asset.standard.dewhitelist(asset.record, party, this.logger);
-      if (result.status === 'failure') {
-        throw new ValidationError(`dewhitelisting investor ${finId} for asset ${asset.id} failed: ${result.reason}`);
+    return this.withLock(finId, async () => {
+      const fields = (await this.mappingService().getAccounts([finId]))[0]?.fields;
+      const address = fields?.[FIELD_LEDGER_ACCOUNT_ID];
+      if (!address || await this.sharedByOthers(finId, address)) return;
+
+      const transitions: CapableAsset[] = [];
+      for (const asset of await this.capableAssets()) {
+        const party = { finId, address, role: 'destination' as const };
+        if (!await asset.standard.isWhitelisted(asset.record, party, this.logger)) continue;
+        const result = await asset.standard.dewhitelist(asset.record, party, this.logger);
+        if (result.status === 'failure') {
+          this.logger.error(`deactivation: dewhitelisting ${finId} (${address}) for asset ${asset.id} failed: ${result.reason}`);
+          await this.mutateAll(transitions, 'whitelist', finId, address, 'deactivation rollback');
+          throw new ValidationError(`dewhitelisting investor ${finId} for asset ${asset.id} failed: ${result.reason}`);
+        }
+        transitions.push(asset);
       }
-    }
+    });
   }
 
+  /** Never throws: the asset is already persisted when this runs; a blocked
+   *  investor recovers by resubmitting the mapping. */
   async onAssetCreated(dbAsset: Pick<storage.Asset, 'id' | 'contract_address' | 'decimals' | 'token_standard'>): Promise<void> {
-    if (!tokenStandardRegistry.has(dbAsset.token_standard)) return;
-    const standard = tokenStandardRegistry.resolve(dbAsset.token_standard);
-    if (!supportsWhitelisting(standard)) return;
-    const record: AssetRecord = {
-      contractAddress: dbAsset.contract_address,
-      decimals: dbAsset.decimals,
-      tokenStandard: dbAsset.token_standard,
-    };
-    for (const mapping of await this.mappingService().getAccounts()) {
-      const address = mapping.fields?.[FIELD_LEDGER_ACCOUNT_ID];
-      if (!address) continue;
-      const result = await standard.whitelist(record, { finId: mapping.finId, address, role: 'destination' }, this.logger)
-        .catch((e: Error) => ({ status: 'failure' as const, reason: e.message }));
-      if (result.status === 'failure') {
-        this.logger.error(`asset ${dbAsset.id}: whitelisting mapped investor ${mapping.finId} (${address}) failed: ${result.reason}`);
+    try {
+      if (!tokenStandardRegistry.has(dbAsset.token_standard)) return;
+      const standard = tokenStandardRegistry.resolve(dbAsset.token_standard);
+      if (!supportsWhitelisting(standard)) return;
+      const record: AssetRecord = {
+        contractAddress: dbAsset.contract_address,
+        decimals: dbAsset.decimals,
+        tokenStandard: dbAsset.token_standard,
+      };
+      for (const mapping of await this.mappingService().getAccounts()) {
+        const address = mapping.fields?.[FIELD_LEDGER_ACCOUNT_ID];
+        if (!address) continue;
+        const result = await standard.whitelist(record, { finId: mapping.finId, address, role: 'destination' }, this.logger)
+          .catch((e: Error) => ({ status: 'failure' as const, reason: e.message }));
+        if (result.status === 'failure') {
+          this.logger.error(`asset ${dbAsset.id}: whitelisting mapped investor ${mapping.finId} (${address}) failed: ${result.reason} — resubmit the mapping or use /whitelisting/dewhitelist tooling`);
+        }
       }
+    } catch (e) {
+      this.logger.error(`asset ${dbAsset.id}: whitelisting backfill failed: ${(e as Error).message} — mapped investors get whitelisted on their next mapping update`);
     }
   }
 
-  private async dewhitelist(assets: CapableAsset[], finId: string, address: string, context: string): Promise<void> {
+  /** @returns true when every capable asset was dewhitelisted */
+  private async dewhitelistEverywhere(finId: string, address: string, context: string): Promise<boolean> {
+    if (await this.sharedByOthers(finId, address)) return true;
+    return this.mutateAll(await this.capableAssets(), 'dewhitelist', finId, address, context);
+  }
+
+  private async mutateAll(assets: CapableAsset[], op: 'whitelist' | 'dewhitelist', finId: string, address: string, context: string): Promise<boolean> {
+    let allApplied = true;
     for (const asset of assets) {
-      const result = await asset.standard.dewhitelist(asset.record, { finId, address, role: 'destination' }, this.logger)
+      const result = await asset.standard[op](asset.record, { finId, address, role: 'destination' }, this.logger)
         .catch((e: Error) => ({ status: 'failure' as const, reason: e.message }));
       if (result.status === 'failure') {
-        this.logger.error(`mapping: dewhitelisting ${address} of ${finId} on asset ${asset.id} failed (${context}): ${result.reason}`);
+        allApplied = false;
+        this.logger.error(`mapping: ${op} of ${address} (${finId}) on asset ${asset.id} failed (${context}): ${result.reason}`);
       }
     }
-  }
-
-  private async currentAddress(finId: string): Promise<string | undefined> {
-    const existing = await this.mappingService().getAccounts([finId]);
-    return existing[0]?.fields?.[FIELD_LEDGER_ACCOUNT_ID];
+    return allApplied;
   }
 
   private async sharedByOthers(finId: string, address: string): Promise<boolean> {
@@ -154,6 +196,13 @@ export class MappingWhitelisting {
     }
     return capable;
   }
+
+  private withLock<T>(finId: string, fn: () => Promise<T>): Promise<T> {
+    const previous = this.locks.get(finId) ?? Promise.resolve();
+    const next = previous.then(fn, fn);
+    this.locks.set(finId, next.catch(() => {}));
+    return next;
+  }
 }
 
 /** Pre-persist arm of MappingWhitelisting, chained after the custody validator. */
@@ -167,10 +216,9 @@ export class WhitelistingMappingValidator implements AccountMappingValidator {
   async validate(finId: string, fields: Record<string, string>): Promise<Record<string, string>> {
     const validated = this.inner ? await this.inner.validate(finId, fields) : fields;
     const address = validated[FIELD_LEDGER_ACCOUNT_ID];
-    if (address) {
-      await this.whitelisting.whitelistMappedWallet(finId, address);
-    }
-    return validated;
+    if (!address) return validated;
+    const markers = await this.whitelisting.whitelistMappedWallet(finId, address);
+    return { ...validated, ...markers };
   }
 }
 
@@ -191,4 +239,24 @@ export class WhitelistingAccountMappingService extends AccountMappingServiceImpl
     }
     return super.deleteAccount(finId, fieldName);
   }
+}
+
+/** Same dewhitelist-before-delete for mapping services this adapter does not
+ *  own (the vanilla omnibus service) — delegation, since their class is not
+ *  ours to extend. */
+export function withDewhitelistOnDelete<T extends AccountMappingService>(service: T, whitelisting: MappingWhitelisting): T {
+  return new Proxy(service, {
+    get(target, prop, receiver) {
+      if (prop === 'deleteAccount') {
+        return async (finId: string, fieldName?: string) => {
+          if (!fieldName) {
+            await whitelisting.beforeDelete(finId);
+          }
+          return target.deleteAccount(finId, fieldName);
+        };
+      }
+      const value = Reflect.get(target, prop, receiver);
+      return typeof value === 'function' ? value.bind(target) : value;
+    },
+  });
 }

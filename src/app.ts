@@ -39,6 +39,7 @@ import {
   WhitelistingAccountMappingService,
   WhitelistingMappingValidator,
   registerWhitelistingRoutes,
+  withDewhitelistOnDelete,
 } from "./services/accounts";
 import { OmnibusDelegate } from "./services/omnibus";
 import { GasStation } from "./services/gas-station";
@@ -129,7 +130,8 @@ async function registerCustodyServices(
     const proxiedPaymentService = wrapWithWorkflowProxy(paymentImpl, workflowStorage, finP2PClient, 'getDepositInstruction', 'payout');
     // vanilla's commonService.operationStatus throws; workflow-stored ops need DirectCommonServiceImpl
     const directCommonService = new DirectCommonServiceImpl(workflowStorage);
-    register(app, proxiedTokenService, proxiedEscrowService, directCommonService, commonService, proxiedPaymentService, proxiedPlanService, proxiedNetworkAccountService, { mappingConfig, mappingService });
+    const omnibusMappingService = mappingWhitelisting ? withDewhitelistOnDelete(mappingService, mappingWhitelisting) : mappingService;
+    register(app, proxiedTokenService, proxiedEscrowService, directCommonService, commonService, proxiedPaymentService, proxiedPlanService, proxiedNetworkAccountService, { mappingConfig, mappingService: omnibusMappingService });
     if (distributionService) {
       registerDistributionRoutes(app, distributionService);
     }
@@ -284,26 +286,13 @@ async function createApp(
   const accountMappingService = new WhitelistingAccountMappingService(accountMappingStore, { caseSensitive: false });
   const accountMapping: AccountResolver = new DbAccountResolver(accountMappingService);
 
-  // Investor network-account onboarding (sync trust model, no ownership
-  // challenge) — the successor of the finId->wallet mapping API. Custody modes
-  // record the binding (a custody account id in place of the address is
-  // resolved via the provider), mirror it into the account-mapping store, and
-  // whitelist the investor's wallet on the asset's token standard (plan
-  // approval only validates); on-chain mode registers generated wallets in
-  // the operator contract's credentials registry.
-  const networkAccountStore = new storageModule.PgNetworkAccountStore(dbPool, ledgerSchema);
+  // The internal /mapping/owners route carries no asset context, so under
+  // ONBOARDING_WHITELISTING_ENABLED the mapped wallet is whitelisted on every
+  // stored whitelisting-capable asset (validator, pre-persist), a replaced
+  // wallet is dewhitelisted after the save via a durable marker (hook),
+  // deactivation dewhitelists before the mapping row is deleted (service
+  // override), and a newly created asset whitelists every mapped wallet.
   const onboardingWhitelistingEnabled = process.env.ONBOARDING_WHITELISTING_ENABLED !== 'false';
-  const dewhitelistOnRemove = appConfig.accountModel !== 'omnibus';
-  const networkAccountService: NetworkAccountService = appConfig.type === 'finp2p-contract'
-    ? new OnChainNetworkAccountService(networkAccountStore, (appConfig as FinP2PContractAppConfig).finP2PContract, new EvmNetworkAccountValidator())
-    : new CustodyNetworkAccountService(networkAccountStore, assetStore, custodyProvider, accountMappingService, logger, { enabled: onboardingWhitelistingEnabled, dewhitelistOnRemove }, new EvmNetworkAccountValidator());
-
-  // The internal /mapping/owners route carries no asset context, so under the
-  // same flag the mapped wallet is whitelisted on every stored
-  // whitelisting-capable asset (validator, pre-persist), a replaced wallet is
-  // dewhitelisted after the save (hook), deactivation dewhitelists before the
-  // mapping row is deleted (service override), and a newly created asset
-  // whitelists every mapped wallet (custody token service).
   const listAssets = async (): Promise<storageModule.Asset[]> => {
     const schema = ledgerSchema ?? storageModule.DEFAULT_SCHEMA_NAME;
     return (await dbPool.query(`SELECT * FROM ${schema}.assets`)).rows;
@@ -315,10 +304,24 @@ async function createApp(
     accountMappingService.attachWhitelisting(mappingWhitelisting);
   }
 
+  // Investor network-account onboarding (sync trust model, no ownership
+  // challenge) — the successor of the finId->wallet mapping API. Custody modes
+  // record the binding (a custody account id in place of the address is
+  // resolved via the provider), mirror it into the account-mapping store, and
+  // whitelist the investor's wallet on the asset's token standard (plan
+  // approval only validates); on-chain mode registers generated wallets in
+  // the operator contract's credentials registry.
+  const networkAccountStore = new storageModule.PgNetworkAccountStore(dbPool, ledgerSchema);
+  const dewhitelistOnRemove = appConfig.accountModel !== 'omnibus';
+  const networkAccountService: NetworkAccountService = appConfig.type === 'finp2p-contract'
+    ? new OnChainNetworkAccountService(networkAccountStore, (appConfig as FinP2PContractAppConfig).finP2PContract, new EvmNetworkAccountValidator())
+    : new CustodyNetworkAccountService(networkAccountStore, assetStore, custodyProvider, accountMappingService, logger, { enabled: onboardingWhitelistingEnabled, dewhitelistOnRemove }, new EvmNetworkAccountValidator());
+
+
   let omnibusCtx: OmnibusContext | undefined;
   if (appConfig.accountModel === 'omnibus' && custodyProvider) {
     if (!omnibusWallet) throw new Error('Omnibus account model requires OMNIBUS_CUSTODY_ACCOUNT_ID (and a custody provider able to create wallets by custody id)');
-    const delegate = new OmnibusDelegate(logger, custodyProvider, omnibusWallet, escrowWallet!, readProvider!, gasStation, accountMapping, assetStore);
+    const delegate = new OmnibusDelegate(logger, custodyProvider, omnibusWallet, escrowWallet!, readProvider!, gasStation, accountMapping, assetStore, mappingWhitelisting);
     // vanilla 0.28.2's createVanillaServices doesn't forward schemaName to its LedgerStorage,
     // so its account_mappings/accounts/transactions queries hit the default `ledger_adapter`
     // schema even when migrations placed those tables in `ethereum_adapter`. Build the storage
