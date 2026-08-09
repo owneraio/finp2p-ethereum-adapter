@@ -269,13 +269,16 @@ async function createApp(
   // Investor network-account onboarding (sync trust model, no ownership
   // challenge) — the successor of the finId->wallet mapping API. Custody modes
   // record the binding (a custody account id in place of the address is
-  // resolved via the provider) and mirror it into the account-mapping store;
-  // on-chain mode registers generated wallets in the operator contract's
-  // credentials registry.
+  // resolved via the provider), mirror it into the account-mapping store, and
+  // whitelist the investor's wallet on the asset's token standard (plan
+  // approval only validates); on-chain mode registers generated wallets in
+  // the operator contract's credentials registry.
   const networkAccountStore = new storageModule.PgNetworkAccountStore(dbPool, ledgerSchema);
+  const onboardingWhitelistingEnabled = process.env.ONBOARDING_WHITELISTING_ENABLED !== 'false';
+  const dewhitelistOnRemove = appConfig.accountModel !== 'omnibus';
   const networkAccountService: NetworkAccountService = appConfig.type === 'finp2p-contract'
     ? new OnChainNetworkAccountService(networkAccountStore, (appConfig as FinP2PContractAppConfig).finP2PContract, new EvmNetworkAccountValidator())
-    : new CustodyNetworkAccountService(networkAccountStore, custodyProvider, accountMappingService, logger, new EvmNetworkAccountValidator());
+    : new CustodyNetworkAccountService(networkAccountStore, assetStore, custodyProvider, accountMappingService, logger, { enabled: onboardingWhitelistingEnabled, dewhitelistOnRemove }, new EvmNetworkAccountValidator());
 
   let omnibusCtx: OmnibusContext | undefined;
   if (appConfig.accountModel === 'omnibus' && custodyProvider) {
