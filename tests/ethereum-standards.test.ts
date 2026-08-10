@@ -7,6 +7,7 @@ import { registerTokenStandards } from "../src/integrations/token-standards";
 import { tokenStandardRegistry } from "../src/integrations/token-standards/registry";
 import { supportsWhitelisting } from "@owneraio/finp2p-ethereum-adapter-contract";
 import { resetSignerPool } from "../src/integrations/signer-pool";
+import { parseAtsWhitelistingMechanisms } from "../src/integrations/token-standards/ats-policy";
 
 const AGENT_KEY = "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80";
 const RPC = "http://localhost:1";
@@ -90,4 +91,43 @@ describe("registerTokenStandards (real plugin standards)", () => {
       expect(supportsWhitelisting(tokenStandardRegistry.resolve(name))).toBe(capable);
     }
   });
+});
+
+describe("ATS whitelisting policy env parsing", () => {
+
+  const ISSUER = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266";
+
+  test("absent or empty env keeps the discovery default", () => {
+    expect(parseAtsWhitelistingMechanisms(undefined, ISSUER)).toBeUndefined();
+    expect(parseAtsWhitelistingMechanisms("  ", ISSUER)).toBeUndefined();
+  });
+
+  test("single mechanism parses to one config", () => {
+    expect(parseAtsWhitelistingMechanisms("control-list", ISSUER))
+      .toEqual({ mechanism: "control-list" });
+  });
+
+  test("internal-kyc aligns the credential issuer with the asset issuer key", () => {
+    expect(parseAtsWhitelistingMechanisms("internal-kyc", ISSUER))
+      .toEqual({ mechanism: "internal-kyc", issuer: ISSUER });
+    expect(parseAtsWhitelistingMechanisms("internal-kyc", undefined))
+      .toEqual({ mechanism: "internal-kyc" });
+  });
+
+  test("multiple mechanisms keep the declared grant order", () => {
+    expect(parseAtsWhitelistingMechanisms("internal-kyc, control-list", ISSUER)).toEqual([
+      { mechanism: "internal-kyc", issuer: ISSUER },
+      { mechanism: "control-list" },
+    ]);
+  });
+
+  test("'none' parses alone and refuses to combine", () => {
+    expect(parseAtsWhitelistingMechanisms("none", ISSUER)).toEqual({ mechanism: "none" });
+    expect(() => parseAtsWhitelistingMechanisms("none,control-list", ISSUER)).toThrow(/exclusive/);
+  });
+
+  test("a typo fails the boot instead of degrading to discovery", () => {
+    expect(() => parseAtsWhitelistingMechanisms("controll-list", ISSUER)).toThrow(/unknown mechanism 'controll-list'/);
+  });
+
 });
