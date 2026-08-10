@@ -15,7 +15,6 @@ import { tokenStandardRegistry } from "../../integrations/token-standards/regist
 import { TokenStandardName as ERC20_TOKEN_STANDARD, DEFAULT_NEW_ERC20_DECIMALS } from "@owneraio/finp2p-ethereum-erc20-plugin";
 import { AssetRecord } from '@owneraio/finp2p-ethereum-adapter-contract';
 import { AccountResolver, AssetStore, ledgerAccountAddress } from '../accounts/account-resolver';
-import { MappingWhitelisting } from '../accounts/mapping-whitelisting';
 
 export interface ReceiptPollingConfig {
   timeoutMs: number;
@@ -44,7 +43,6 @@ export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowD
     private readonly gasStation: GasStation | undefined,
     private readonly accountMapping: AccountResolver,
     private readonly assetStore: AssetStore,
-    private readonly mappingWhitelisting?: MappingWhitelisting,
     receiptPolling?: Partial<ReceiptPollingConfig>,
   ) {
     if (!omnibusWallet) throw new Error('Omnibus wallet is required for omnibus delegate');
@@ -339,7 +337,6 @@ export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowD
       await this.ensureGas(this.omnibusWallet);
       const result = await standard.deploy(this.omnibusWallet, assetName ?? 'OWNERACOIN', symbol, DEFAULT_NEW_ERC20_DECIMALS, this.logger);
       await this.assetStore.saveAsset({ contract_address: result.contractAddress, decimals: result.decimals, token_standard: result.tokenStandard, id: assetId });
-      await this.mappingWhitelisting?.onAssetCreated({ contract_address: result.contractAddress, decimals: result.decimals, token_standard: result.tokenStandard, id: assetId });
       // TODO(custody-registration): onAssetRegistered forwards to the custody
       // provider's ERC20 registration (Fireblocks registerNewAsset). It is an
       // ERC20-custody-only concern — collateral/registry standards are not
@@ -354,7 +351,6 @@ export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowD
     const network = assetBind.tokenIdentifier.network || defaultNetwork;
     const decimals = await standard.decimals(this.readProvider, tokenAddress, this.logger);
     await this.assetStore.saveAsset({ contract_address: tokenAddress, decimals, token_standard: tokenStandard, id: assetId });
-    await this.mappingWhitelisting?.onAssetCreated({ contract_address: tokenAddress, decimals, token_standard: tokenStandard, id: assetId });
     // TODO(custody-registration): see the deploy path above — disabled pending
     // a purpose-specific capability; reassess before re-enabling.
     // await this.custodyProvider.onAssetRegistered?.(tokenAddress);
