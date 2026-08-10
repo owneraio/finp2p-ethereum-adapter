@@ -7,7 +7,7 @@ import { registerTokenStandards } from "../src/integrations/token-standards";
 import { tokenStandardRegistry } from "../src/integrations/token-standards/registry";
 import { supportsWhitelisting } from "@owneraio/finp2p-ethereum-adapter-contract";
 import { resetSignerPool } from "../src/integrations/signer-pool";
-import { parseAtsWhitelistingMechanisms, parseFormerControllers } from "../src/integrations/token-standards/ats-policy";
+import { parseAtsWhitelistingMechanisms } from "../src/integrations/token-standards/ats-policy";
 
 const AGENT_KEY = "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80";
 const RPC = "http://localhost:1";
@@ -130,10 +130,4 @@ describe("ATS whitelisting policy env parsing", () => {
     expect(() => parseAtsWhitelistingMechanisms("controll-list", ISSUER)).toThrow(/unknown mechanism 'controll-list'/);
   });
 
-  test("former controllers parse and validate as addresses", () => {
-    expect(parseFormerControllers(undefined)).toEqual([]);
-    expect(parseFormerControllers(`${ISSUER}, 0x1111111111111111111111111111111111111111`))
-      .toEqual([ISSUER, "0x1111111111111111111111111111111111111111"]);
-    expect(() => parseFormerControllers("not-an-address")).toThrow(/not an EVM address/);
-  });
 });

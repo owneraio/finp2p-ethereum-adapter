@@ -1,4 +1,3 @@
-import { isAddress } from 'ethers';
 import { WhitelistingConfig, WhitelistingMechanism, WhitelistingPolicy } from '@owneraio/finp2p-ethereum-hedera-plugin';
 
 /**
@@ -29,17 +28,4 @@ export function parseAtsWhitelistingMechanisms(env: string | undefined, kycIssue
     throw new Error(`HEDERA_ATS_WHITELISTING_MECHANISMS: 'none' is exclusive and cannot be combined with other mechanisms`);
   }
   return configs.length === 1 ? configs[0] : configs;
-}
-
-/** HEDERA_ATS_FORMER_CONTROLLERS: comma-separated previous controller
- *  addresses, kept so holds signed before a controller rotation stay
- *  resolvable. */
-export function parseFormerControllers(env: string | undefined): string[] {
-  if (!env) return [];
-  return env.split(',').map(s => s.trim()).filter(Boolean).map(address => {
-    if (!isAddress(address)) {
-      throw new Error(`HEDERA_ATS_FORMER_CONTROLLERS: '${address}' is not an EVM address`);
-    }
-    return address;
-  });
 }
