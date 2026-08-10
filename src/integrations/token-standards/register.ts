@@ -8,6 +8,7 @@ import { OwneraCollateralTokenStandard, TokenStandardName as COLLATERAL_TOKEN_ST
 import { CollateralTokenStandard as DtccCollateralTokenStandard, TokenStandardName as DTCC_TOKEN_STANDARD } from "@owneraio/finp2p-ethereum-dtcc-plugin";
 import { ERC20TokenStandard, TokenStandardName as ERC20_STANDARD } from "@owneraio/finp2p-ethereum-erc20-plugin";
 import { tokenStandardRegistry } from "./registry";
+import { parseAtsWhitelistingMechanisms } from "./ats-policy";
 import { IntegrationContext } from "../registry";
 import { pooledProvider, pooledSigner } from "../signer-pool";
 
@@ -57,12 +58,16 @@ export function registerTokenStandards(ctx: IntegrationContext): void {
   const controller = controllerKey ? pooledSigner(rpcUrl, controllerKey) : Wallet.createRandom().connect(provider);
   const allowlister = allowlisterKey ? pooledSigner(rpcUrl, allowlisterKey) : undefined;
 
+  const atsMechanismsEnv = process.env.HEDERA_ATS_WHITELISTING_MECHANISMS;
+  const kycIssuerAddress = issuerKey ? new Wallet(issuerKey).address : undefined;
+  const atsWhitelisting = parseAtsWhitelistingMechanisms(atsMechanismsEnv, kycIssuerAddress);
+
   const registered = [
     register(ERC20_STANDARD, new ERC20TokenStandard(provider, issuer)),
     register(TREX_STANDARD, new TrexTokenStandard(provider, issuer, controller, allowlister)),
     register(CMTAT_STANDARD, new CmtatTokenStandard(provider, issuer, controller, allowlister)),
     register(BENJI_STANDARD, new BenjiTokenStandard(provider, issuer, controller)),
-    register(HEDERA_ATS_STANDARD, new AtsTokenStandard(provider, issuer, controller, allowlister)),
+    register(HEDERA_ATS_STANDARD, new AtsTokenStandard(provider, issuer, controller, allowlister, [], atsWhitelisting)),
   ].filter(Boolean);
   logger.info(`Ethereum token standards registered: ${registered.join(", ")}`);
 
