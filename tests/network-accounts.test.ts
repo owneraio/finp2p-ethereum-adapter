@@ -1,10 +1,10 @@
 import { AccountInvalidShapeError, storage } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import { WhitelistParty } from "@owneraio/finp2p-ethereum-adapter-contract";
-import { EvmNetworkAccountValidator, MappingWhitelisting, WhitelistingMappingValidator, withDewhitelistOnDelete } from "../src/services/accounts";
+import { ChainInvestorWhitelistService, EvmNetworkAccountValidator, MappingWhitelisting, WhitelistingMappingValidator, withDewhitelistOnDelete } from "../src/services/accounts";
 import { finIdToAddress } from "@owneraio/finp2p-ethereum-orchestrator";
 import { OnChainTokenService, OnChainNetworkAccountService } from "../src/services/onchain";
 import { CustodyNetworkAccountService } from "../src/services/custody";
-import { ValidationError } from "@owneraio/finp2p-nodejs-skeleton-adapter";
+import { ValidationError, WhitelistRefusedError } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import { tokenStandardRegistry } from "../src/integrations/token-standards/registry";
 
 const ADDRESS = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266";
@@ -520,85 +520,94 @@ describe("MappingWhitelisting (internal mapping API)", () => {
   });
 });
 
-describe("POST /whitelisting/dewhitelist", () => {
+describe("ChainInvestorWhitelistService (skeleton whitelist endpoints)", () => {
 
   const FIN_ID = "02b3e7cbe9b2e91832ea4a11a17a2e30d3cf52dae486ec1e1e3d0741e1f77210ab";
+  const ESCROW = "0x9999999999999999999999999999999999999999";
   const logger = { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} } as any;
 
-  const dewhitelisted: Array<{ contractAddress: string; address: string }> = [];
-  let dewhitelistFails = false;
+  const mutations: Array<{ op: string; contractAddress: string; party: any }> = [];
+  const whitelisted = new Set<string>(); // `${contract}:${address(lc)}`
+  let refuseOnContract: string | undefined;
 
   beforeAll(() => {
     tokenStandardRegistry.reset();
     tokenStandardRegistry.register("WL", {
-      isWhitelisted: async () => true,
-      whitelist: async () => ({ status: "success", transactionId: "tx", timestamp: 0 }),
+      isWhitelisted: async (asset: any, p: any) => whitelisted.has(`${asset.contractAddress}:${p.address.toLowerCase()}`),
+      whitelist: async (asset: any, p: any) => {
+        mutations.push({ op: "whitelist", contractAddress: asset.contractAddress, party: p });
+        return asset.contractAddress === refuseOnContract
+          ? { status: "failure", reason: "still blocked by internal KYC, which this standard is not configured to operate" }
+          : { status: "success", transactionId: "tx", timestamp: 0 };
+      },
       dewhitelist: async (asset: any, p: any) => {
-        dewhitelisted.push({ contractAddress: asset.contractAddress, address: p.address });
-        return dewhitelistFails
-          ? { status: "failure", reason: "still holds tokens" }
-          : { status: "success", transactionId: "tx-dw", timestamp: 0 };
+        mutations.push({ op: "dewhitelist", contractAddress: asset.contractAddress, party: p });
+        return { status: "success", transactionId: "tx", timestamp: 0 };
       },
     } as any);
     tokenStandardRegistry.register("PLAIN", {} as any);
   });
   afterAll(() => tokenStandardRegistry.reset());
-  beforeEach(() => { dewhitelisted.length = 0; dewhitelistFails = false; });
+  beforeEach(() => { mutations.length = 0; whitelisted.clear(); refuseOnContract = undefined; });
 
-  const assetStore = {
-    getAsset: async (id: string) =>
-      id === "org:102:wl" ? { contract_address: "0xwl", decimals: 2, token_standard: "WL", id }
-        : id === "org:102:plain" ? { contract_address: "0xp", decimals: 2, token_standard: "PLAIN", id }
-          : undefined,
-  } as any;
+  const assets = [
+    { id: "org:102:a1", contract_address: "0xa1", decimals: 2, token_standard: "WL" },
+    { id: "org:102:p1", contract_address: "0xp1", decimals: 2, token_standard: "PLAIN" },
+    { id: "org:102:a2", contract_address: "0xa2", decimals: 2, token_standard: "WL" },
+  ] as any[];
+  const assetStore = { getAsset: async (id: string) => assets.find(a => a.id === id) } as any;
   const accountMapping = { resolveAccount: async (finId: string) => finId === FIN_ID ? ADDRESS : undefined, resolveFinId: async () => undefined } as any;
 
-  const handler = (() => {
-    let h: any;
-    const app = { post: (_path: string, fn: any) => { h = fn; } } as any;
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const { registerWhitelistingRoutes } = require("../src/services/accounts");
-    registerWhitelistingRoutes(app, assetStore, accountMapping, logger, "test-token");
-    return (body: any, token = "test-token") => new Promise<{ code: number; body: any }>((resolve) => {
-      const res = {
-        statusCode: 200,
-        status(c: number) { this.statusCode = c; return this; },
-        json(payload: any) { resolve({ code: this.statusCode, body: payload }); },
-      };
-      h({ body, headers: { authorization: `Bearer ${token}` } }, res);
-    });
-  })();
+  const service = () => new ChainInvestorWhitelistService(assetStore, async () => assets, accountMapping, logger);
 
-  test("missing or wrong bearer token is rejected with 401", async () => {
-    expect((await handler({ assetId: "org:102:wl", finId: FIN_ID }, "wrong")).code).toBe(401);
-    expect(dewhitelisted).toHaveLength(0);
+  test("finId party resolves through the account mapping and whitelists the asset", async () => {
+    const entry = await service().whitelist({ type: "finId", finId: FIN_ID }, "org:102:a1", { country: 826 });
+    expect(entry).toEqual({ party: { type: "finId", finId: FIN_ID }, assetId: "org:102:a1", config: { country: 826 } });
+    expect(mutations).toEqual([{
+      op: "whitelist", contractAddress: "0xa1",
+      party: { finId: FIN_ID, address: ADDRESS, role: "destination", country: 826 },
+    }]);
   });
 
-  test("dewhitelists by finId via the account mapping", async () => {
-    const r = await handler({ assetId: "org:102:wl", finId: FIN_ID });
-    expect(r.code).toBe(200);
-    expect(r.body).toMatchObject({ status: "success", address: ADDRESS, transactionId: "tx-dw" });
-    expect(dewhitelisted).toEqual([{ contractAddress: "0xwl", address: ADDRESS }]);
+  test("address party (escrow wallet) whitelists without a mapping", async () => {
+    await service().whitelist({ type: "address", address: ESCROW }, "org:102:a1", {});
+    expect(mutations[0].party).toEqual({ address: ESCROW, role: "escrow" });
   });
 
-  test("dewhitelists by explicit address without a mapping lookup", async () => {
-    const r = await handler({ assetId: "org:102:wl", address: "0x9999999999999999999999999999999999999999" });
-    expect(r.code).toBe(200);
-    expect(dewhitelisted[0].address).toBe("0x9999999999999999999999999999999999999999");
+  test("a standard refusal surfaces as WhitelistRefusedError, faults as throws", async () => {
+    refuseOnContract = "0xa1";
+    await expect(service().whitelist({ type: "finId", finId: FIN_ID }, "org:102:a1", {}))
+      .rejects.toThrow(WhitelistRefusedError);
   });
 
-  test("standard-reported failure surfaces as 422", async () => {
-    dewhitelistFails = true;
-    const r = await handler({ assetId: "org:102:wl", finId: FIN_ID });
-    expect(r.code).toBe(422);
-    expect(r.body.reason).toMatch(/still holds tokens/);
+  test("unknown asset and capability-less standard reject as validation errors", async () => {
+    await expect(service().whitelist({ type: "finId", finId: FIN_ID }, "org:102:nope", {})).rejects.toThrow(ValidationError);
+    await expect(service().whitelist({ type: "finId", finId: FIN_ID }, "org:102:p1", {})).rejects.toThrow(/no whitelisting capability/);
+    await expect(service().whitelist({ type: "finId", finId: "02" + "ee".repeat(32) }, "org:102:a1", {})).rejects.toThrow(/no address mapped/);
   });
 
-  test("unknown asset is 404, capability-less standard and bad input are 400", async () => {
-    expect((await handler({ assetId: "org:102:nope", finId: FIN_ID })).code).toBe(404);
-    expect((await handler({ assetId: "org:102:plain", finId: FIN_ID })).code).toBe(400);
-    expect((await handler({ assetId: "org:102:wl" })).code).toBe(400);
-    expect((await handler({ assetId: "org:102:wl", finId: "02" + "ee".repeat(32) })).code).toBe(404);
-    expect(dewhitelisted).toHaveLength(0);
+  test("dewhitelist without assetId sweeps every capable asset, counting transitions", async () => {
+    whitelisted.add(`0xa1:${ADDRESS.toLowerCase()}`);
+    whitelisted.add(`0xa2:${ADDRESS.toLowerCase()}`);
+    const removed = await service().dewhitelist({ type: "finId", finId: FIN_ID });
+    expect(removed).toBe(2);
+    expect(mutations.map(m => m.contractAddress)).toEqual(["0xa1", "0xa2"]);
+  });
+
+  test("dewhitelisting an absent party removes nothing and is not an error", async () => {
+    const removed = await service().dewhitelist({ type: "finId", finId: FIN_ID }, "org:102:a1");
+    expect(removed).toBe(0);
+    expect(mutations).toHaveLength(0);
+  });
+
+  test("getWhitelist reports chain truth for a party; no party means no answer", async () => {
+    whitelisted.add(`0xa2:${ADDRESS.toLowerCase()}`);
+    expect(await service().getWhitelist()).toEqual([]);
+    expect(await service().getWhitelist({ type: "finId", finId: FIN_ID })).toEqual([
+      { party: { type: "finId", finId: FIN_ID }, assetId: "org:102:a2", config: {} },
+    ]);
+    expect(await service().isWhitelisted({ type: "finId", finId: FIN_ID }, "org:102:a2")).toBe(true);
+    expect(await service().isWhitelisted({ type: "finId", finId: FIN_ID }, "org:102:a1")).toBe(false);
   });
 });
+

@@ -35,10 +35,10 @@ import {
   AssetStore,
   buildMappingConfig,
   EvmNetworkAccountValidator,
+  ChainInvestorWhitelistService,
   MappingWhitelisting,
   WhitelistingAccountMappingService,
   WhitelistingMappingValidator,
-  registerWhitelistingRoutes,
   withDewhitelistOnDelete,
 } from "./services/accounts";
 import { OmnibusDelegate } from "./services/omnibus";
@@ -93,6 +93,8 @@ async function registerCustodyServices(
   omnibusCtx: OmnibusContext | undefined,
   networkAccountService: NetworkAccountService,
   mappingWhitelisting: MappingWhitelisting | undefined,
+  whitelistService: ChainInvestorWhitelistService | undefined,
+  whitelistOptions: { authToken: string } | undefined,
 ): Promise<void> {
   if (!readProvider) throw new Error('Read-only RPC provider is unavailable — set NETWORK_HOST or use a custody provider whose wallet exposes a transport');
   if (!escrowWallet) throw new Error('Escrow wallet is required for direct mode (set ASSET_ESCROW_CUSTODY_ACCOUNT_ID or OMNIBUS_CUSTODY_ACCOUNT_ID)');
@@ -104,12 +106,6 @@ async function registerCustodyServices(
     ? { afterSave: async (finId: string) => { await mappingWhitelisting.afterSave(finId); return {}; } }
     : undefined;
   const mappingConfig = buildMappingConfig(custodyProvider, wrapMappingValidator, mappingHook);
-  const whitelistingAdminToken = process.env.WHITELISTING_ADMIN_TOKEN;
-  if (whitelistingAdminToken) {
-    registerWhitelistingRoutes(app, assetStore, accountMapping, logger, whitelistingAdminToken);
-  } else {
-    logger.info('WHITELISTING_ADMIN_TOKEN is not set — the manual /whitelisting/dewhitelist endpoint is disabled');
-  }
   const proxiedNetworkAccountService = wrapWithWorkflowProxy(networkAccountService, workflowStorage, finP2PClient, 'createAccount', 'removeAccount');
 
   if (appConfig.accountModel === 'omnibus') {
@@ -131,7 +127,7 @@ async function registerCustodyServices(
     // vanilla's commonService.operationStatus throws; workflow-stored ops need DirectCommonServiceImpl
     const directCommonService = new DirectCommonServiceImpl(workflowStorage);
     const omnibusMappingService = mappingWhitelisting ? withDewhitelistOnDelete(mappingService, mappingWhitelisting) : mappingService;
-    register(app, proxiedTokenService, proxiedEscrowService, directCommonService, commonService, proxiedPaymentService, proxiedPlanService, proxiedNetworkAccountService, { mappingConfig, mappingService: omnibusMappingService });
+    register(app, proxiedTokenService, proxiedEscrowService, directCommonService, commonService, proxiedPaymentService, proxiedPlanService, proxiedNetworkAccountService, { mappingConfig, mappingService: omnibusMappingService, whitelistService, whitelistOptions });
     if (distributionService) {
       registerDistributionRoutes(app, distributionService);
     }
@@ -162,7 +158,7 @@ async function registerCustodyServices(
   const proxiedEscrowService = wrapWithWorkflowProxy(tokenService, workflowStorage, finP2PClient, 'hold', 'release', 'rollback');
   const proxiedPlanService = wrapWithWorkflowProxy(planApprovalService, workflowStorage, finP2PClient, 'approvePlan', 'proposeCancelPlan', 'proposeResetPlan', 'proposeInstructionApproval');
   const proxiedPaymentsService = wrapWithWorkflowProxy(paymentsService, workflowStorage, finP2PClient, 'getDepositInstruction', 'payout');
-  register(app, proxiedTokenService, proxiedEscrowService, commonService, tokenService, proxiedPaymentsService, proxiedPlanService, proxiedNetworkAccountService, { mappingConfig, mappingService: accountMappingService });
+  register(app, proxiedTokenService, proxiedEscrowService, commonService, tokenService, proxiedPaymentsService, proxiedPlanService, proxiedNetworkAccountService, { mappingConfig, mappingService: accountMappingService, whitelistService, whitelistOptions });
 }
 
 function registerFinP2PContractServices(
@@ -304,6 +300,18 @@ async function createApp(
     accountMappingService.attachWhitelisting(mappingWhitelisting);
   }
 
+  // Chain-backed investor-whitelist endpoints (skeleton 0.28.27): mounted only
+  // with an admin token — a tokenless DELETE without assetId could revoke a
+  // party everywhere.
+  const whitelistingAdminToken = process.env.WHITELISTING_ADMIN_TOKEN;
+  const whitelistService = whitelistingAdminToken
+    ? new ChainInvestorWhitelistService(assetStore, listAssets, accountMapping, logger)
+    : undefined;
+  const whitelistOptions = whitelistingAdminToken ? { authToken: whitelistingAdminToken } : undefined;
+  if (!whitelistService) {
+    logger.info('WHITELISTING_ADMIN_TOKEN is not set — the investor-whitelist endpoints are disabled');
+  }
+
   // Investor network-account onboarding (sync trust model, no ownership
   // challenge) — the successor of the finId->wallet mapping API. Custody modes
   // record the binding (a custody account id in place of the address is
@@ -362,7 +370,7 @@ async function createApp(
   const paymentsService = new PaymentsServiceImpl(pluginManager);
 
   if (custodyProvider) {
-    await registerCustodyServices(app, logger, custodyProvider, escrowWallet, readProvider, gasStation, appConfig, paymentsService, pluginManager, workflowStorage, finP2PClient, accountMappingStore, accountMappingService, assetStore, accountMapping, omnibusCtx, networkAccountService, mappingWhitelisting);
+    await registerCustodyServices(app, logger, custodyProvider, escrowWallet, readProvider, gasStation, appConfig, paymentsService, pluginManager, workflowStorage, finP2PClient, accountMappingStore, accountMappingService, assetStore, accountMapping, omnibusCtx, networkAccountService, mappingWhitelisting, whitelistService, whitelistOptions);
   } else if (appConfig.type === 'finp2p-contract') {
     registerFinP2PContractServices(app, appConfig as FinP2PContractAppConfig, paymentsService, pluginManager, workflowStorage, finP2PClient, networkAccountService);
   } else {
