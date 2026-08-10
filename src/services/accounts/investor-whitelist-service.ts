@@ -54,17 +54,27 @@ export class ChainInvestorWhitelistService implements InvestorWhitelistService {
     return { party, assetId, config };
   }
 
+  /** A sweep attempts every asset before reporting: refusals do not stop the
+   *  remaining removals, and the aggregated refusal names the assets and how
+   *  many were removed. A retry converges — already-removed assets skip via
+   *  isWhitelisted. */
   async dewhitelist(party: WhitelistParty, assetId?: string): Promise<number> {
     const spiParty = await this.resolveParty(party, {});
     const assets = assetId ? [await this.capableAsset(assetId)] : await this.capableAssets();
     let removed = 0;
+    const refused: string[] = [];
     for (const asset of assets) {
       if (!await asset.standard.isWhitelisted(asset.record, spiParty, this.logger)) continue;
       const result = await asset.standard.dewhitelist(asset.record, spiParty, this.logger);
       if (result.status === 'failure') {
-        throw new WhitelistRefusedError(`dewhitelisting ${whitelistPartyId(party)} for asset ${asset.id} refused: ${result.reason}`);
+        this.logger.error(`dewhitelist: ${whitelistPartyId(party)} for asset ${asset.id} refused: ${result.reason}`);
+        refused.push(`${asset.id} (${result.reason})`);
+        continue;
       }
       removed += 1;
+    }
+    if (refused.length > 0) {
+      throw new WhitelistRefusedError(`dewhitelisting ${whitelistPartyId(party)} refused for ${refused.join('; ')} — ${removed} asset(s) were removed`);
     }
     this.logger.info(`dewhitelist: ${whitelistPartyId(party)} (${spiParty.address}) removed from ${removed} asset(s)`);
     return removed;
@@ -90,7 +100,7 @@ export class ChainInvestorWhitelistService implements InvestorWhitelistService {
   }
 
   private async resolveParty(party: WhitelistParty, config: Record<string, unknown>): Promise<SpiParty> {
-    const country = typeof config.country === 'number' ? { country: config.country } : {};
+    const country = this.parseCountry(config.country);
     if (party.type === 'address') {
       return { address: party.address, role: 'escrow', ...country } as SpiParty;
     }
@@ -99,6 +109,19 @@ export class ChainInvestorWhitelistService implements InvestorWhitelistService {
       throw new ValidationError(`no address mapped for finId ${party.finId}`);
     }
     return { finId: party.finId, address, role: 'destination', ...country } as SpiParty;
+  }
+
+  /** ISO 3166 numeric — a malformed value is rejected, never silently dropped
+   *  while the response echoes it as applied. */
+  private parseCountry(value: unknown): { country?: number } {
+    if (value === undefined) return {};
+    const country = typeof value === 'number' ? value
+      : typeof value === 'string' && /^\d+$/.test(value.trim()) ? Number(value.trim())
+        : NaN;
+    if (!Number.isInteger(country) || country < 1 || country > 999) {
+      throw new ValidationError(`config.country must be an ISO 3166 numeric code (1-999), got '${String(value)}'`);
+    }
+    return { country };
   }
 
   private async capableAsset(assetId: string): Promise<CapableAsset> {

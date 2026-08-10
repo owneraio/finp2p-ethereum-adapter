@@ -193,6 +193,7 @@ describe("ChainInvestorWhitelistService (skeleton whitelist endpoints)", () => {
   const mutations: Array<{ op: string; contractAddress: string; party: any }> = [];
   const whitelisted = new Set<string>(); // `${contract}:${address(lc)}`
   let refuseOnContract: string | undefined;
+  let refuseDewhitelistOnContract: string | undefined;
 
   beforeAll(() => {
     tokenStandardRegistry.reset();
@@ -206,13 +207,15 @@ describe("ChainInvestorWhitelistService (skeleton whitelist endpoints)", () => {
       },
       dewhitelist: async (asset: any, p: any) => {
         mutations.push({ op: "dewhitelist", contractAddress: asset.contractAddress, party: p });
-        return { status: "success", transactionId: "tx", timestamp: 0 };
+        return asset.contractAddress === refuseDewhitelistOnContract
+          ? { status: "failure", reason: "holder still has balance" }
+          : { status: "success", transactionId: "tx", timestamp: 0 };
       },
     } as any);
     tokenStandardRegistry.register("PLAIN", {} as any);
   });
   afterAll(() => tokenStandardRegistry.reset());
-  beforeEach(() => { mutations.length = 0; whitelisted.clear(); refuseOnContract = undefined; });
+  beforeEach(() => { mutations.length = 0; whitelisted.clear(); refuseOnContract = undefined; refuseDewhitelistOnContract = undefined; });
 
   const assets = [
     { id: "org:102:a1", contract_address: "0xa1", decimals: 2, token_standard: "WL" },
@@ -248,6 +251,25 @@ describe("ChainInvestorWhitelistService (skeleton whitelist endpoints)", () => {
     await expect(service().whitelist({ type: "finId", finId: FIN_ID }, "org:102:nope", {})).rejects.toThrow(ValidationError);
     await expect(service().whitelist({ type: "finId", finId: FIN_ID }, "org:102:p1", {})).rejects.toThrow(/no whitelisting capability/);
     await expect(service().whitelist({ type: "finId", finId: "02" + "ee".repeat(32) }, "org:102:a1", {})).rejects.toThrow(/no address mapped/);
+  });
+
+  test("a numeric-string country is normalized; a malformed one rejects instead of silently dropping", async () => {
+    await service().whitelist({ type: "finId", finId: FIN_ID }, "org:102:a1", { country: "826" });
+    expect(mutations[0].party.country).toBe(826);
+    await expect(service().whitelist({ type: "finId", finId: FIN_ID }, "org:102:a1", { country: "UK" }))
+      .rejects.toThrow(/ISO 3166 numeric/);
+    await expect(service().whitelist({ type: "finId", finId: FIN_ID }, "org:102:a1", { country: 1826 }))
+      .rejects.toThrow(/ISO 3166 numeric/);
+  });
+
+  test("a sweep attempts every asset and aggregates refusals with the removed count", async () => {
+    whitelisted.add(`0xa1:${ADDRESS.toLowerCase()}`);
+    whitelisted.add(`0xa2:${ADDRESS.toLowerCase()}`);
+    refuseDewhitelistOnContract = "0xa1";
+    await expect(service().dewhitelist({ type: "finId", finId: FIN_ID }))
+      .rejects.toThrow(/refused for org:102:a1 .*— 1 asset\(s\) were removed/);
+    // the refusal did not stop the later asset
+    expect(mutations.filter(m => m.op === "dewhitelist").map(m => m.contractAddress)).toEqual(["0xa1", "0xa2"]);
   });
 
   test("dewhitelist without assetId sweeps every capable asset, counting transitions", async () => {
