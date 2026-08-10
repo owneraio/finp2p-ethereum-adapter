@@ -1,5 +1,5 @@
 import { AccountInvalidShapeError, storage } from "@owneraio/finp2p-nodejs-skeleton-adapter";
-import { ChainInvestorWhitelistService, EvmNetworkAccountValidator } from "../src/services/accounts";
+import { InvestorWhitelistServiceImpl, EvmNetworkAccountValidator } from "../src/services/accounts";
 import { finIdToAddress } from "@owneraio/finp2p-ethereum-orchestrator";
 import { OnChainTokenService, OnChainNetworkAccountService } from "../src/services/onchain";
 import { CustodyNetworkAccountService } from "../src/services/custody";
@@ -184,7 +184,7 @@ describe("CustodyNetworkAccountService onboarding", () => {
   });
 });
 
-describe("ChainInvestorWhitelistService (skeleton whitelist endpoints)", () => {
+describe("InvestorWhitelistServiceImpl (skeleton whitelist endpoints)", () => {
 
   const FIN_ID = "02b3e7cbe9b2e91832ea4a11a17a2e30d3cf52dae486ec1e1e3d0741e1f77210ab";
   const ESCROW = "0x9999999999999999999999999999999999999999";
@@ -225,7 +225,7 @@ describe("ChainInvestorWhitelistService (skeleton whitelist endpoints)", () => {
   const assetStore = { getAsset: async (id: string) => assets.find(a => a.id === id) } as any;
   const accountMapping = { resolveAccount: async (finId: string) => finId === FIN_ID ? ADDRESS : undefined, resolveFinId: async () => undefined } as any;
 
-  const service = () => new ChainInvestorWhitelistService(assetStore, async () => assets, accountMapping, logger);
+  const service = () => new InvestorWhitelistServiceImpl(assetStore, async () => assets, accountMapping, logger);
 
   test("finId party resolves through the account mapping and whitelists the asset", async () => {
     const entry = await service().whitelist({ type: "finId", finId: FIN_ID }, "org:102:a1", { country: 826 });

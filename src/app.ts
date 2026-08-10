@@ -35,7 +35,7 @@ import {
   AssetStore,
   buildMappingConfig,
   EvmNetworkAccountValidator,
-  ChainInvestorWhitelistService,
+  InvestorWhitelistServiceImpl,
 } from "./services/accounts";
 import { OmnibusDelegate } from "./services/omnibus";
 import { GasStation } from "./services/gas-station";
@@ -88,7 +88,7 @@ async function registerCustodyServices(
   accountMapping: AccountResolver,
   omnibusCtx: OmnibusContext | undefined,
   networkAccountService: NetworkAccountService,
-  whitelistService: ChainInvestorWhitelistService | undefined,
+  whitelistService: InvestorWhitelistServiceImpl | undefined,
   whitelistOptions: { authToken: string } | undefined,
 ): Promise<void> {
   if (!readProvider) throw new Error('Read-only RPC provider is unavailable — set NETWORK_HOST or use a custody provider whose wallet exposes a transport');
@@ -280,7 +280,7 @@ async function createApp(
   // party everywhere.
   const whitelistingAdminToken = process.env.WHITELISTING_ADMIN_TOKEN;
   const whitelistService = whitelistingAdminToken
-    ? new ChainInvestorWhitelistService(assetStore, listAssets, accountMapping, logger)
+    ? new InvestorWhitelistServiceImpl(assetStore, listAssets, accountMapping, logger)
     : undefined;
   const whitelistOptions = whitelistingAdminToken ? { authToken: whitelistingAdminToken } : undefined;
   if (!whitelistService) {

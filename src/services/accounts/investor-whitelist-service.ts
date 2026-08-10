@@ -25,8 +25,8 @@ interface CapableAsset {
 }
 
 /**
- * Chain-backed InvestorWhitelistService: the token's own enforcement is the
- * source of truth and nothing is stored adapter-side. A finId party resolves
+ * InvestorWhitelistService over the token standards: the token's own
+ * enforcement is the source of truth and nothing is stored adapter-side. A finId party resolves
  * to its mapped wallet; an address party is used as-is (the escrow custody
  * wallet has no finId). A failure the standard reports is a refusal
  * (WhitelistRefusedError -> 409) — with a partial whitelisting policy that is
@@ -34,7 +34,7 @@ interface CapableAsset {
  * faults stay 500s. getWhitelist can only report what the chain can tell it:
  * queries need a party, and config is never reconstructable.
  */
-export class ChainInvestorWhitelistService implements InvestorWhitelistService {
+export class InvestorWhitelistServiceImpl implements InvestorWhitelistService {
 
   constructor(
     private readonly assetStore: AssetStore,
