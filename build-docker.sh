@@ -7,3 +7,9 @@ docker build -t finp2p-ethereum-adapter:latest \
   --no-cache  --progress=plain -f Dockerfile .
 docker tag finp2p-ethereum-adapter:latest localhost:5000/finp2p-ethereum-adapter:latest
 docker push localhost:5000/finp2p-ethereum-adapter:latest
+
+docker build -t finp2p-contracts-deploy:latest \
+  --secret id=npm_token,env=GITHUB_TOKEN \
+  --no-cache  --progress=plain -f Dockerfile-deploy .
+docker tag finp2p-contracts-deploy:latest localhost:5000/finp2p-contracts-deploy:latest
+docker push localhost:5000/finp2p-contracts-deploy:latest

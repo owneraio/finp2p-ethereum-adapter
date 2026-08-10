@@ -1,0 +1,17 @@
+# syntax=docker/dockerfile:1
+
+FROM node:20-alpine
+WORKDIR /usr/app
+ENV NODE_ENV=production
+
+COPY package.json package-lock.json .npmrc ./
+RUN --mount=type=secret,id=npm_token \
+    NODE_AUTH_TOKEN="$(cat /run/secrets/npm_token)" \
+    npm clean-install --production --ignore-scripts && \
+    rm .npmrc
+
+# old image layout compat: manifests invoke node ./dist/scripts/deploy.js
+RUN ln -s node_modules/@owneraio/finp2p-ethereum-orchestrator/dist dist
+
+# Expect env vars at runtime: DEPLOYER_PRIVATE_KEY, RPC_URL, OPERATOR_ADDRESS, PAYMENT_ASSET_CODE
+CMD ["node", "node_modules/@owneraio/finp2p-ethereum-orchestrator/dist/scripts/deploy.js"]
