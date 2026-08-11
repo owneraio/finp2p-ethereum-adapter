@@ -35,11 +35,7 @@ import {
   AssetStore,
   buildMappingConfig,
   EvmNetworkAccountValidator,
-  MappingWhitelisting,
-  WhitelistingAccountMappingService,
-  WhitelistingMappingValidator,
-  registerWhitelistingRoutes,
-  withDewhitelistOnDelete,
+  InvestorWhitelistServiceImpl,
 } from "./services/accounts";
 import { OmnibusDelegate } from "./services/omnibus";
 import { GasStation } from "./services/gas-station";
@@ -92,24 +88,13 @@ async function registerCustodyServices(
   accountMapping: AccountResolver,
   omnibusCtx: OmnibusContext | undefined,
   networkAccountService: NetworkAccountService,
-  mappingWhitelisting: MappingWhitelisting | undefined,
+  whitelistService: InvestorWhitelistServiceImpl | undefined,
+  whitelistOptions: { authToken: string } | undefined,
 ): Promise<void> {
   if (!readProvider) throw new Error('Read-only RPC provider is unavailable — set NETWORK_HOST or use a custody provider whose wallet exposes a transport');
   if (!escrowWallet) throw new Error('Escrow wallet is required for direct mode (set ASSET_ESCROW_CUSTODY_ACCOUNT_ID or OMNIBUS_CUSTODY_ACCOUNT_ID)');
 
-  const wrapMappingValidator = mappingWhitelisting
-    ? (inner?: AccountMappingValidator) => new WhitelistingMappingValidator(inner, mappingWhitelisting)
-    : undefined;
-  const mappingHook = mappingWhitelisting
-    ? { afterSave: async (finId: string) => { await mappingWhitelisting.afterSave(finId); return {}; } }
-    : undefined;
-  const mappingConfig = buildMappingConfig(custodyProvider, wrapMappingValidator, mappingHook);
-  const whitelistingAdminToken = process.env.WHITELISTING_ADMIN_TOKEN;
-  if (whitelistingAdminToken) {
-    registerWhitelistingRoutes(app, assetStore, accountMapping, logger, whitelistingAdminToken);
-  } else {
-    logger.info('WHITELISTING_ADMIN_TOKEN is not set — the manual /whitelisting/dewhitelist endpoint is disabled');
-  }
+  const mappingConfig = buildMappingConfig(custodyProvider);
   const proxiedNetworkAccountService = wrapWithWorkflowProxy(networkAccountService, workflowStorage, finP2PClient, 'createAccount', 'removeAccount');
 
   if (appConfig.accountModel === 'omnibus') {
@@ -130,8 +115,7 @@ async function registerCustodyServices(
     const proxiedPaymentService = wrapWithWorkflowProxy(paymentImpl, workflowStorage, finP2PClient, 'getDepositInstruction', 'payout');
     // vanilla's commonService.operationStatus throws; workflow-stored ops need DirectCommonServiceImpl
     const directCommonService = new DirectCommonServiceImpl(workflowStorage);
-    const omnibusMappingService = mappingWhitelisting ? withDewhitelistOnDelete(mappingService, mappingWhitelisting) : mappingService;
-    register(app, proxiedTokenService, proxiedEscrowService, directCommonService, commonService, proxiedPaymentService, proxiedPlanService, proxiedNetworkAccountService, { mappingConfig, mappingService: omnibusMappingService });
+    register(app, proxiedTokenService, proxiedEscrowService, directCommonService, commonService, proxiedPaymentService, proxiedPlanService, proxiedNetworkAccountService, { mappingConfig, mappingService, whitelistService, whitelistOptions });
     if (distributionService) {
       registerDistributionRoutes(app, distributionService);
     }
@@ -149,7 +133,7 @@ async function registerCustodyServices(
   const issuerWallet = assetIssuerKey && networkHost
     ? { provider: readProvider, signer: pooledSigner(getNetworkRpcUrl(), assetIssuerKey) }
     : undefined;
-  let tokenService: CustodyTokenService = new CustodyTokenService(logger, custodyProvider, escrowWallet, readProvider, accountMapping, assetStore, issuerWallet, mappingWhitelisting);
+  let tokenService: CustodyTokenService = new CustodyTokenService(logger, custodyProvider, escrowWallet, readProvider, accountMapping, assetStore, issuerWallet);
   const commonService = new DirectCommonServiceImpl(workflowStorage);
   const planApprovalService = await buildCustodyPlanApprovalService(
     appConfig.orgId, finP2PClient,
@@ -162,7 +146,7 @@ async function registerCustodyServices(
   const proxiedEscrowService = wrapWithWorkflowProxy(tokenService, workflowStorage, finP2PClient, 'hold', 'release', 'rollback');
   const proxiedPlanService = wrapWithWorkflowProxy(planApprovalService, workflowStorage, finP2PClient, 'approvePlan', 'proposeCancelPlan', 'proposeResetPlan', 'proposeInstructionApproval');
   const proxiedPaymentsService = wrapWithWorkflowProxy(paymentsService, workflowStorage, finP2PClient, 'getDepositInstruction', 'payout');
-  register(app, proxiedTokenService, proxiedEscrowService, commonService, tokenService, proxiedPaymentsService, proxiedPlanService, proxiedNetworkAccountService, { mappingConfig, mappingService: accountMappingService });
+  register(app, proxiedTokenService, proxiedEscrowService, commonService, tokenService, proxiedPaymentsService, proxiedPlanService, proxiedNetworkAccountService, { mappingConfig, mappingService: accountMappingService, whitelistService, whitelistOptions });
 }
 
 function registerFinP2PContractServices(
@@ -283,45 +267,43 @@ async function createApp(
   // Skeleton 0.28.11+: caseSensitive=false makes the account-mapping service lowercase
   // FIELD_LEDGER_ACCOUNT_ID values on save and lookup, so EIP-55 checksummed and lowercase
   // EVM addresses resolve to the same record.
-  const accountMappingService = new WhitelistingAccountMappingService(accountMappingStore, { caseSensitive: false });
+  const accountMappingService = new AccountMappingServiceImpl(accountMappingStore, { caseSensitive: false });
   const accountMapping: AccountResolver = new DbAccountResolver(accountMappingService);
 
-  // The internal /mapping/owners route carries no asset context, so under
-  // ONBOARDING_WHITELISTING_ENABLED the mapped wallet is whitelisted on every
-  // stored whitelisting-capable asset (validator, pre-persist), a replaced
-  // wallet is dewhitelisted after the save via a durable marker (hook),
-  // deactivation dewhitelists before the mapping row is deleted (service
-  // override), and a newly created asset whitelists every mapped wallet.
-  const onboardingWhitelistingEnabled = process.env.ONBOARDING_WHITELISTING_ENABLED !== 'false';
   const listAssets = async (): Promise<storageModule.Asset[]> => {
     const schema = ledgerSchema ?? storageModule.DEFAULT_SCHEMA_NAME;
     return (await dbPool.query(`SELECT * FROM ${schema}.assets`)).rows;
   };
-  const mappingWhitelisting = onboardingWhitelistingEnabled
-    ? new MappingWhitelisting(listAssets, () => accountMappingService, logger)
+
+  // Chain-backed investor-whitelist endpoints (skeleton 0.28.27): mounted only
+  // with an admin token — a tokenless DELETE without assetId could revoke a
+  // party everywhere.
+  const whitelistingAdminToken = process.env.WHITELISTING_ADMIN_TOKEN;
+  const whitelistService = whitelistingAdminToken
+    ? new InvestorWhitelistServiceImpl(assetStore, listAssets, accountMapping, logger)
     : undefined;
-  if (mappingWhitelisting) {
-    accountMappingService.attachWhitelisting(mappingWhitelisting);
+  const whitelistOptions = whitelistingAdminToken ? { authToken: whitelistingAdminToken } : undefined;
+  if (!whitelistService) {
+    logger.info('WHITELISTING_ADMIN_TOKEN is not set — the investor-whitelist endpoints are disabled');
   }
 
   // Investor network-account onboarding (sync trust model, no ownership
   // challenge) — the successor of the finId->wallet mapping API. Custody modes
   // record the binding (a custody account id in place of the address is
-  // resolved via the provider), mirror it into the account-mapping store, and
-  // whitelist the investor's wallet on the asset's token standard (plan
-  // approval only validates); on-chain mode registers generated wallets in
-  // the operator contract's credentials registry.
+  // resolved via the provider) and mirror it into the account-mapping store;
+  // whitelisting is the dedicated /investor/whitelist surface, and plan
+  // approval only validates. On-chain mode registers generated wallets in the
+  // operator contract's credentials registry.
   const networkAccountStore = new storageModule.PgNetworkAccountStore(dbPool, ledgerSchema);
-  const dewhitelistOnRemove = appConfig.accountModel !== 'omnibus';
   const networkAccountService: NetworkAccountService = appConfig.type === 'finp2p-contract'
     ? new OnChainNetworkAccountService(networkAccountStore, (appConfig as FinP2PContractAppConfig).finP2PContract, new EvmNetworkAccountValidator())
-    : new CustodyNetworkAccountService(networkAccountStore, assetStore, custodyProvider, accountMappingService, logger, { enabled: onboardingWhitelistingEnabled, dewhitelistOnRemove }, new EvmNetworkAccountValidator());
+    : new CustodyNetworkAccountService(networkAccountStore, custodyProvider, accountMappingService, logger, new EvmNetworkAccountValidator());
 
 
   let omnibusCtx: OmnibusContext | undefined;
   if (appConfig.accountModel === 'omnibus' && custodyProvider) {
     if (!omnibusWallet) throw new Error('Omnibus account model requires OMNIBUS_CUSTODY_ACCOUNT_ID (and a custody provider able to create wallets by custody id)');
-    const delegate = new OmnibusDelegate(logger, custodyProvider, omnibusWallet, escrowWallet!, readProvider!, gasStation, accountMapping, assetStore, mappingWhitelisting);
+    const delegate = new OmnibusDelegate(logger, custodyProvider, omnibusWallet, escrowWallet!, readProvider!, gasStation, accountMapping, assetStore);
     // vanilla 0.28.2's createVanillaServices doesn't forward schemaName to its LedgerStorage,
     // so its account_mappings/accounts/transactions queries hit the default `ledger_adapter`
     // schema even when migrations placed those tables in `ethereum_adapter`. Build the storage
@@ -362,7 +344,7 @@ async function createApp(
   const paymentsService = new PaymentsServiceImpl(pluginManager);
 
   if (custodyProvider) {
-    await registerCustodyServices(app, logger, custodyProvider, escrowWallet, readProvider, gasStation, appConfig, paymentsService, pluginManager, workflowStorage, finP2PClient, accountMappingStore, accountMappingService, assetStore, accountMapping, omnibusCtx, networkAccountService, mappingWhitelisting);
+    await registerCustodyServices(app, logger, custodyProvider, escrowWallet, readProvider, gasStation, appConfig, paymentsService, pluginManager, workflowStorage, finP2PClient, accountMappingStore, accountMappingService, assetStore, accountMapping, omnibusCtx, networkAccountService, whitelistService, whitelistOptions);
   } else if (appConfig.type === 'finp2p-contract') {
     registerFinP2PContractServices(app, appConfig as FinP2PContractAppConfig, paymentsService, pluginManager, workflowStorage, finP2PClient, networkAccountService);
   } else {

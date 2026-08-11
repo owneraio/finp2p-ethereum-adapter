@@ -8,7 +8,7 @@ import winston from 'winston';
 import { parseUnits, Provider, Signer, Wallet } from "ethers";
 import { AssetRecord, TokenOperationResult } from '@owneraio/finp2p-ethereum-adapter-contract';
 import { CustodyProvider, CustodyWallet } from './custody-provider';
-import { AccountResolver, AssetStore, MappingWhitelisting, ledgerAccountAddress } from "../accounts";
+import { AccountResolver, AssetStore, ledgerAccountAddress } from "../accounts";
 import { tokenStandardRegistry } from '../../integrations/token-standards/registry';
 import { TokenStandardName as ERC20_TOKEN_STANDARD, DEFAULT_NEW_ERC20_DECIMALS } from '@owneraio/finp2p-ethereum-erc20-plugin';
 import { buildOperationContext } from "../operations";
@@ -69,7 +69,6 @@ export class CustodyTokenService implements TokenService, EscrowService, HealthS
     // not configured: deploy/issue then fail closed instead of stranding assets
     // behind a throwaway signer.
     readonly issuerWallet: CustodyWallet | undefined,
-    readonly mappingWhitelisting?: MappingWhitelisting,
   ) {}
 
   // read-only paths need a Signer arg for the SPI; an ephemeral one suffices
@@ -152,10 +151,6 @@ export class CustodyTokenService implements TokenService, EscrowService, HealthS
         token_standard: result.tokenStandard,
         id: assetId,
       });
-      await this.mappingWhitelisting?.onAssetCreated({
-        contract_address: result.contractAddress, decimals: result.decimals,
-        token_standard: result.tokenStandard, id: assetId,
-      });
       // TODO(custody-registration): onAssetRegistered forwards to the custody
       // provider's ERC20 registration (Fireblocks registerNewAsset). It is an
       // ERC20-custody-only concern — collateral/registry standards are not
@@ -180,10 +175,6 @@ export class CustodyTokenService implements TokenService, EscrowService, HealthS
         decimals,
         token_standard: requestedStandard,
         id: assetId,
-      });
-      await this.mappingWhitelisting?.onAssetCreated({
-        contract_address: tokenAddress, decimals,
-        token_standard: requestedStandard, id: assetId,
       });
 
       // TODO(custody-registration): see the deploy path above — disabled pending
