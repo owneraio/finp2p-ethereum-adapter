@@ -1,5 +1,5 @@
 import { AccountMappingService, AccountMapping, ReceiptOperation, Asset, ExecutionContext } from '@owneraio/finp2p-nodejs-skeleton-adapter';
-import { FinP2PContract, ReceiptOperation as ContractReceiptOperation } from '@owneraio/finp2p-ethereum-orchestrator';
+import { FinP2PContract, ReceiptOperation as ContractReceiptOperation, WalletResolutionMode } from '@owneraio/finp2p-ethereum-orchestrator';
 import { FIELD_LEDGER_ACCOUNT_ID } from '../accounts/mapping-validator';
 
 function mapAccount(acc: { finId: string; account?: string } | undefined) {
@@ -51,11 +51,16 @@ export function mapReceiptOperation(op: ContractReceiptOperation, asset?: Asset,
 
 /**
  * AccountMappingService backed by the on-chain credentials registry.
- * The contract is the source of truth — no DB persistence needed.
+ * The contract is the source of truth — no DB persistence needed. Under
+ * WalletResolutionMode.FinIdDerivation (demo mode) the registry is disabled
+ * (addCredential reverts), so writes are no-ops.
  */
 export class CredentialsMappingService implements AccountMappingService {
 
-  constructor(private readonly finP2PContract: FinP2PContract) {}
+  constructor(
+    private readonly finP2PContract: FinP2PContract,
+    private readonly resolutionMode: WalletResolutionMode,
+  ) {}
 
   async getAccounts(finIds?: string[]): Promise<AccountMapping[]> {
     if (!finIds || finIds.length === 0) return [];
@@ -77,6 +82,9 @@ export class CredentialsMappingService implements AccountMappingService {
   }
 
   async saveAccount(finId: string, fields: Record<string, string>): Promise<AccountMapping> {
+    if (this.resolutionMode === WalletResolutionMode.FinIdDerivation) {
+      return { finId, fields };
+    }
     const address = fields[FIELD_LEDGER_ACCOUNT_ID];
     if (!address) throw new Error(`Field '${FIELD_LEDGER_ACCOUNT_ID}' is required for on-chain credential mapping`);
     await this.finP2PContract.addCredential(finId, address);
@@ -84,6 +92,9 @@ export class CredentialsMappingService implements AccountMappingService {
   }
 
   async deleteAccount(finId: string, _fieldName?: string): Promise<void> {
+    if (this.resolutionMode === WalletResolutionMode.FinIdDerivation) {
+      return;
+    }
     await this.finP2PContract.removeCredential(finId);
   }
 }
