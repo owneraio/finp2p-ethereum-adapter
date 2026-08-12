@@ -3,7 +3,7 @@ import {
   CommonService, HealthService, OperationStatus,
   failedAssetCreation, successfulAssetCreation,
   failedReceiptOperation,
-  failedSwapOperation, pendingSwapOperation, successfulSwapOperation,
+  failedSwapOperation, successfulSwapOperation,
   AssetBind, AssetDenomination, AssetCreationResult, Destination, ExecutionContext,
   Receipt, ReceiptOperation, Source, Signature, SwapLeg, SwapOperation,
   logger, ProofProvider, PluginManager,
@@ -24,6 +24,10 @@ import { emptyOperationParams, extractBusinessDetails, validateRequest } from ".
 import { validateSwapWallets } from "../accounts";
 
 const DefaultDecimals = 2;
+
+const SwapExecutionPollIntervalMs = 2_000;
+// wait bound when the request carries no deadline
+const DefaultSwapWaitSeconds = 300;
 
 /** A swap settles as ONE ledger tx with two movements; each receipt attests one of them. */
 const swapMovementReceipt = (id: string, transactionId: string, operationId: string, leg: SwapLeg,
@@ -218,10 +222,34 @@ export class OnChainTokenService implements TokenService, EscrowService, CommonS
   }
 
   /**
+   * SwapExecuted is not indexed by operationId, so match client-side over
+   * getLogs from the block our prepare landed in. Resolves with the executing
+   * transaction (the counterparty's mirror call), undefined once past deadline.
+   */
+  private async waitForSwapExecution(operationId: string, fromBlock: number, deadline: number): Promise<{ transactionId: string, timestamp: number } | undefined> {
+    const filter = this.finP2PContract.finP2P.filters.SwapExecuted();
+    while (Math.floor(Date.now() / 1000) < deadline) {
+      const events = await this.finP2PContract.finP2P.queryFilter(filter, fromBlock, "latest");
+      const match = events.find((event) => event.args.operationId === operationId);
+      if (match) {
+        const { timestamp } = await match.getBlock();
+        return { transactionId: match.transactionHash, timestamp };
+      }
+      await new Promise((resolve) => setTimeout(resolve, SwapExecutionPollIntervalMs));
+    }
+    return undefined;
+  }
+
+  /**
    * Atomic same-ledger swap via the operator contract (allowance-based):
    * `assetLeg` is the leg this adapter executes, `settlementLeg` the binding
-   * counter-leg. First mirror call prepares (SwapPrepared -> pending), the
-   * second crosses both movements in one tx (SwapExecuted -> two receipts).
+   * counter-leg. First mirror call prepares (SwapPrepared), the second crosses
+   * both movements in one tx (SwapExecuted). Behaves synchronously: the
+   * preparing side blocks until the counterparty's executing transaction is
+   * observed (or the deadline passes), so both parties resolve with the SAME
+   * transaction id — the one that moved both legs. Long-blocking is safe: the
+   * workflow proxy answers the HTTP call with a pending cid and the router
+   * polls the final result.
    */
   public async swap(idempotencyKey: string, nonce: string, operationId: string, assetLeg: SwapLeg,
                     settlementLeg: SwapLeg, deadline: number, exCtx: ExecutionContext | undefined): Promise<SwapOperation> {
@@ -232,8 +260,9 @@ export class OnChainTokenService implements TokenService, EscrowService, CommonS
       if (!assetLeg.signature) {
         return failedSwapOperation(1, "asset leg signature is required");
       }
-      // absolute epoch seconds; the current operator contract has no expiry support,
-      // so only an already-passed deadline is rejected here
+      // absolute epoch seconds; enforced adapter-side as the wait bound below —
+      // the operator contract itself has no expiry, so an already-prepared leg
+      // stays executable on-chain past the deadline
       if (deadline && deadline <= Math.floor(Date.now() / 1000)) {
         return failedSwapOperation(1, `swap deadline ${deadline} has already passed`);
       }
@@ -273,21 +302,36 @@ export class OnChainTokenService implements TokenService, EscrowService, CommonS
         this.execDetailsStore?.addExecutionContext(txReceipt.hash, exCtx.planId, exCtx.sequence);
       }
 
-      const executed = txReceipt.logs.some((log) => {
+      const executedHere = txReceipt.logs.some((log) => {
         try {
           return this.finP2PContract.contractInterface.parseLog({ topics: [...log.topics], data: log.data })?.name === "SwapExecuted";
         } catch {
           return false;
         }
       });
-      if (!executed) {
-        // first leg recorded (SwapPrepared) — crosses when the counterparty submits the mirror
-        return pendingSwapOperation(txReceipt.hash, undefined);
+
+      let transactionId: string;
+      let timestamp: number;
+      if (executedHere) {
+        // we submitted the mirror of an already-prepared swap — both legs crossed in our tx
+        transactionId = txReceipt.hash;
+        timestamp = (await txReceipt.getBlock()).timestamp;
+      } else {
+        // our leg was only recorded (SwapPrepared) — block until the counterparty's
+        // mirror call executes the swap, giving up at the deadline
+        const executed = await this.waitForSwapExecution(operationId, txReceipt.blockNumber,
+          deadline || Math.floor(Date.now() / 1000) + DefaultSwapWaitSeconds);
+        if (!executed) {
+          return failedSwapOperation(1, `swap ${operationId} was prepared (tx ${txReceipt.hash}) but the counterparty did not execute it before the deadline`);
+        }
+        ({ transactionId, timestamp } = executed);
+        if (exCtx) {
+          this.execDetailsStore?.addExecutionContext(transactionId, exCtx.planId, exCtx.sequence);
+        }
       }
-      const timestamp = (await txReceipt.getBlock()).timestamp;
       return successfulSwapOperation(
-        swapMovementReceipt(`${txReceipt.hash}:0`, txReceipt.hash, operationId, assetLeg, exCtx, timestamp),
-        swapMovementReceipt(`${txReceipt.hash}:1`, txReceipt.hash, operationId, settlementLeg, exCtx, timestamp),
+        swapMovementReceipt(`${transactionId}:0`, transactionId, operationId, assetLeg, exCtx, timestamp),
+        swapMovementReceipt(`${transactionId}:1`, transactionId, operationId, settlementLeg, exCtx, timestamp),
       );
     } catch (e) {
       logger.error(`Error on swap: ${e}`);

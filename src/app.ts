@@ -62,9 +62,12 @@ export interface WorkflowsConfig {
 
 function wrapWithWorkflowProxy<T extends object>(
   service: T, workflowStorage: workflows.WorkflowStorage,
-  finP2PClient: FinP2PClient | undefined, ...methods: (keyof T)[]
+  _finP2PClient: FinP2PClient | undefined, ...methods: (keyof T)[]
 ): T {
-  return workflows.createServiceProxy(() => Promise.resolve(), workflowStorage, finP2PClient, service, ...methods);
+  // Callbacks are deliberately disabled (no finP2PClient handed to the proxy):
+  // the router callback flow doesn't support swap yet, so every proxied
+  // operation reports through polling (/operations/status/{cid}) instead.
+  return workflows.createServiceProxy(() => Promise.resolve(), workflowStorage, undefined, service, ...methods);
 }
 
 /**
@@ -185,7 +188,7 @@ function registerFinP2PContractServices(
 
   const commonService = new DirectCommonServiceImpl(workflowStorage);
 
-  const proxiedTokenService = wrapWithWorkflowProxy(tokenService, workflowStorage, finP2PClient, 'createAsset', 'issue', 'transfer', 'redeem');
+  const proxiedTokenService = wrapWithWorkflowProxy(tokenService, workflowStorage, finP2PClient, 'createAsset', 'issue', 'transfer', 'redeem', 'swap');
   const proxiedEscrowService = wrapWithWorkflowProxy(tokenService, workflowStorage, finP2PClient, 'hold', 'release', 'rollback');
   const proxiedPlanService = wrapWithWorkflowProxy(planApprovalService, workflowStorage, finP2PClient, 'approvePlan', 'proposeCancelPlan', 'proposeResetPlan', 'proposeInstructionApproval');
   register(app, proxiedTokenService, proxiedEscrowService, commonService, tokenService, paymentsService, proxiedPlanService, proxiedNetworkAccountService, { mappingConfig, mappingService });
@@ -333,7 +336,7 @@ async function createApp(
     const vanillaService = new VanillaServiceImpl(ledgerStorage, delegate, delegate, delegate, delegate, finP2PClient);
     // Skeleton's TokenService gained swap(); vanilla-service doesn't implement it and
     // an omnibus/off-ledger swap is out of scope — fail closed. Kept OUT of the
-    // workflow proxy method list: the callback flow doesn't support swap yet.
+    // workflow proxy method list: it fails fast, there is nothing to track.
     const vanillaTokenService: VanillaServiceImpl & TokenService = Object.assign(vanillaService, {
       swap: async (): Promise<SwapOperation> => failedSwapOperation(1, "Swap is not supported in omnibus mode"),
     });
