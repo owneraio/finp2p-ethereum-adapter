@@ -10,6 +10,9 @@ import {
   AccountMappingServiceImpl,
   AccountMappingValidator,
   NetworkAccountService,
+  TokenService,
+  SwapOperation,
+  failedSwapOperation,
   workflows,
   storage as storageModule,
 } from "@owneraio/finp2p-nodejs-skeleton-adapter";
@@ -73,7 +76,7 @@ function wrapWithWorkflowProxy<T extends object>(
 interface OmnibusContext {
   delegate: OmnibusDelegate;
   vanilla: {
-    tokenService: VanillaServiceImpl;
+    tokenService: VanillaServiceImpl & TokenService;
     escrowService: VanillaServiceImpl;
     commonService: VanillaServiceImpl;
     mappingService: VanillaServiceImpl;
@@ -328,10 +331,16 @@ async function createApp(
     // + service ourselves to pin the schema. (LedgerStorage + VanillaServiceImpl are public.)
     const ledgerStorage = new LedgerStorage(dbPool, ledgerSchema);
     const vanillaService = new VanillaServiceImpl(ledgerStorage, delegate, delegate, delegate, delegate, finP2PClient);
+    // Skeleton's TokenService gained swap(); vanilla-service doesn't implement it and
+    // an omnibus/off-ledger swap is out of scope — fail closed. Kept OUT of the
+    // workflow proxy method list: the callback flow doesn't support swap yet.
+    const vanillaTokenService: VanillaServiceImpl & TokenService = Object.assign(vanillaService, {
+      swap: async (): Promise<SwapOperation> => failedSwapOperation(1, "Swap is not supported in omnibus mode"),
+    });
     omnibusCtx = {
       delegate,
       vanilla: {
-        tokenService: vanillaService,
+        tokenService: vanillaTokenService,
         escrowService: vanillaService,
         commonService: vanillaService,
         mappingService: vanillaService,

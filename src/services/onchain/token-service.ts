@@ -3,8 +3,10 @@ import {
   CommonService, HealthService, OperationStatus,
   failedAssetCreation, successfulAssetCreation,
   failedReceiptOperation,
+  failedSwapOperation, pendingSwapOperation, successfulSwapOperation,
   AssetBind, AssetDenomination, AssetCreationResult, Destination, ExecutionContext,
-  ReceiptOperation, Source, Signature, logger, ProofProvider, PluginManager,
+  Receipt, ReceiptOperation, Source, Signature, SwapLeg, SwapOperation,
+  logger, ProofProvider, PluginManager,
 } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import { keccak256, toUtf8Bytes } from "ethers";
 import {
@@ -19,8 +21,24 @@ import { FinP2PClient } from "@owneraio/finp2p-client";
 import { ExecDetailsStore } from "./exec-details-store";
 import { mapReceiptOperation } from "./mapping";
 import { emptyOperationParams, extractBusinessDetails, validateRequest } from "./helpers";
+import { validateSwapWallets } from "../accounts";
 
 const DefaultDecimals = 2;
+
+/** A swap settles as ONE ledger tx with two movements; each receipt attests one of them. */
+const swapMovementReceipt = (id: string, transactionId: string, operationId: string, leg: SwapLeg,
+                             exCtx: ExecutionContext | undefined, timestamp: number): Receipt => ({
+  id,
+  asset: leg.asset,
+  source: leg.source,
+  destination: leg.destination,
+  quantity: leg.quantity,
+  operationType: "transfer",
+  proof: undefined,
+  timestamp,
+  tradeDetails: { executionContext: exCtx },
+  transactionDetails: { transactionId, operationId },
+});
 
 /**
  * On-chain (FINP2POperator contract) token, escrow and common operations —
@@ -197,6 +215,87 @@ export class OnChainTokenService implements TokenService, EscrowService, CommonS
       }
     }
 
+  }
+
+  /**
+   * Atomic same-ledger swap via the operator contract (allowance-based):
+   * `assetLeg` is the leg this adapter executes, `settlementLeg` the binding
+   * counter-leg. First mirror call prepares (SwapPrepared -> pending), the
+   * second crosses both movements in one tx (SwapExecuted -> two receipts).
+   */
+  public async swap(idempotencyKey: string, nonce: string, operationId: string, assetLeg: SwapLeg,
+                    settlementLeg: SwapLeg, deadline: number, exCtx: ExecutionContext | undefined): Promise<SwapOperation> {
+    try {
+      if (!operationId) {
+        return failedSwapOperation(1, "operationId is required");
+      }
+      if (!assetLeg.signature) {
+        return failedSwapOperation(1, "asset leg signature is required");
+      }
+      // absolute epoch seconds; the current operator contract has no expiry support,
+      // so only an already-passed deadline is rejected here
+      if (deadline && deadline <= Math.floor(Date.now() / 1000)) {
+        return failedSwapOperation(1, `swap deadline ${deadline} has already passed`);
+      }
+      // two-party mirror: the contract delivers the asset to the settlement sender's
+      // wallet and the settlement back to the asset sender's — a request naming
+      // other receivers cannot be honored
+      if (assetLeg.destination.finId !== settlementLeg.source.finId) {
+        return failedSwapOperation(1, `asset destination finId '${assetLeg.destination.finId}' does not match settlement source finId '${settlementLeg.source.finId}'`);
+      }
+      if (settlementLeg.destination.finId !== assetLeg.source.finId) {
+        return failedSwapOperation(1, `settlement destination finId '${settlementLeg.destination.finId}' does not match asset source finId '${assetLeg.source.finId}'`);
+      }
+
+      // any wallet address carried on the legs must be a valid EVM address on this chain
+      const { chainId } = await this.finP2PContract.provider.getNetwork();
+      const { approvalWallet, destinationWallet } = validateSwapWallets(assetLeg, settlementLeg, chainId);
+
+      // the contract pulls the asset from — and settles the counter-leg to — the
+      // registered credential wallet; an explicitly requested wallet must be that one
+      const ourWallet = await this.finP2PContract.getCredentialAddress(assetLeg.source.finId);
+      if (approvalWallet && approvalWallet.toLowerCase() !== ourWallet.toLowerCase()) {
+        return failedSwapOperation(1, `asset source wallet ${approvalWallet} does not match the registered credential ${ourWallet} holding the allowance`);
+      }
+      if (destinationWallet && destinationWallet.toLowerCase() !== ourWallet.toLowerCase()) {
+        return failedSwapOperation(1, `settlement destination wallet ${destinationWallet} does not match the registered credential ${ourWallet} the swap settles to`);
+      }
+
+      const txReceipt = await this.finP2PContract.swap(operationId, {
+        assetId: assetLeg.asset.assetId,
+        assetFinId: assetLeg.source.finId,
+        assetAmount: assetLeg.quantity,
+        settlementAssetId: settlementLeg.asset.assetId,
+        settlementFinId: settlementLeg.source.finId,
+        settlementAmount: settlementLeg.quantity,
+      });
+      if (exCtx) {
+        this.execDetailsStore?.addExecutionContext(txReceipt.hash, exCtx.planId, exCtx.sequence);
+      }
+
+      const executed = txReceipt.logs.some((log) => {
+        try {
+          return this.finP2PContract.contractInterface.parseLog({ topics: [...log.topics], data: log.data })?.name === "SwapExecuted";
+        } catch {
+          return false;
+        }
+      });
+      if (!executed) {
+        // first leg recorded (SwapPrepared) — crosses when the counterparty submits the mirror
+        return pendingSwapOperation(txReceipt.hash, undefined);
+      }
+      const timestamp = (await txReceipt.getBlock()).timestamp;
+      return successfulSwapOperation(
+        swapMovementReceipt(`${txReceipt.hash}:0`, txReceipt.hash, operationId, assetLeg, exCtx, timestamp),
+        swapMovementReceipt(`${txReceipt.hash}:1`, txReceipt.hash, operationId, settlementLeg, exCtx, timestamp),
+      );
+    } catch (e) {
+      logger.error(`Error on swap: ${e}`);
+      if (e instanceof EthereumTransactionError || e instanceof ValidationError) {
+        return failedSwapOperation(1, e.message);
+      }
+      return failedSwapOperation(1, `${e}`);
+    }
   }
 
   public async getBalance(asset: Asset, finId: string): Promise<string> {

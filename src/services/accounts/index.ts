@@ -1,4 +1,5 @@
 export * from './account-resolver'
+export * from './swap-wallets'
 export * from './mapping-validator'
 export * from './mapping-config'
 export * from './mapping-whitelisting'

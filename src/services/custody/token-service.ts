@@ -1,14 +1,14 @@
 import {
   Asset, AssetBind, AssetCreationStatus, AssetDenomination,
   Balance, Destination, ExecutionContext, HealthService, OperationType,
-  ReceiptOperation, Signature, Source, TokenService, EscrowService,
-  failedReceiptOperation, failedAssetCreation
+  ReceiptOperation, Signature, Source, SwapLeg, SwapOperation, TokenService, EscrowService,
+  failedReceiptOperation, failedAssetCreation, failedSwapOperation
 } from '@owneraio/finp2p-nodejs-skeleton-adapter';
 import winston from 'winston';
 import { parseUnits, Provider, Signer, Wallet } from "ethers";
 import { AssetRecord, TokenOperationResult } from '@owneraio/finp2p-ethereum-adapter-contract';
 import { CustodyProvider, CustodyWallet } from './custody-provider';
-import { AccountResolver, AssetStore, MappingWhitelisting, ledgerAccountAddress } from "../accounts";
+import { AccountResolver, AssetStore, MappingWhitelisting, ledgerAccountAddress, validateSwapWallets } from "../accounts";
 import { tokenStandardRegistry } from '../../integrations/token-standards/registry';
 import { TokenStandardName as ERC20_TOKEN_STANDARD, DEFAULT_NEW_ERC20_DECIMALS } from '@owneraio/finp2p-ethereum-erc20-plugin';
 import { buildOperationContext } from "../operations";
@@ -258,6 +258,37 @@ export class CustodyTokenService implements TokenService, EscrowService, HealthS
     } catch (e) {
       this.logger.error(`Transfer failed: asset=${ast.assetId} from=${source.finId} to=${destination.finId} quantity=${quantity}`, e);
       return failedReceiptOperation(1, `${e}`);
+    }
+  }
+
+  /**
+   * Swap needs an on-chain swap contract crossing both legs in one tx — not
+   * deployed for the direct/custody model yet, so this validates the request
+   * (wallet addresses on the legs, resolvability of the "approval from" and
+   * "swap to" wallets) and fails closed.
+   */
+  async swap(
+    idempotencyKey: string, nonce: string, operationId: string, asset: SwapLeg,
+    settlement: SwapLeg, deadline: number, exCtx: ExecutionContext | undefined
+  ): Promise<SwapOperation> {
+    try {
+      if (deadline && deadline <= Math.floor(Date.now() / 1000)) {
+        return failedSwapOperation(1, `swap deadline ${deadline} has already passed`);
+      }
+      // any wallet address carried on the legs must be a valid EVM address on this chain
+      const { chainId } = await this.readProvider.getNetwork();
+      const { approvalWallet, destinationWallet } = validateSwapWallets(asset, settlement, chainId);
+      // "approval from" (asset source) and "swap to" (settlement destination) wallets:
+      // taken from the leg accounts when present, otherwise from the account mapping
+      const approval = approvalWallet ?? await this.accountMapping.resolveAccount(asset.source.finId);
+      if (!approval) return failedSwapOperation(1, `No wallet address for asset source ${asset.source.finId} — pass source.account or map the finId`);
+      const to = destinationWallet ?? await this.accountMapping.resolveAccount(settlement.destination.finId);
+      if (!to) return failedSwapOperation(1, `No wallet address for settlement destination ${settlement.destination.finId} — pass destination.account or map the finId`);
+      this.logger.info(`Swap ${operationId}: approval from ${approval}, settle to ${to} — no swap contract for the custody provider yet`);
+      return failedSwapOperation(1, 'Swap is not supported by the custody provider yet');
+    } catch (e) {
+      this.logger.error(`Swap failed: operationId=${operationId} asset=${asset.asset.assetId} settlement=${settlement.asset.assetId}`, e);
+      return failedSwapOperation(1, `${e}`);
     }
   }
 
