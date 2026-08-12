@@ -33,7 +33,7 @@ const swapMovementReceipt = (id: string, transactionId: string, operationId: str
   source: leg.source,
   destination: leg.destination,
   quantity: leg.quantity,
-  operationType: "transfer",
+  operationType: "swap",
   proof: undefined,
   timestamp,
   tradeDetails: { executionContext: exCtx },
