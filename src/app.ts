@@ -20,6 +20,7 @@ import {
   OnChainTokenService,
   OnChainNetworkAccountService,
 } from "./services/onchain";
+import { WalletResolutionMode } from "@owneraio/finp2p-ethereum-orchestrator";
 import {
   CustodyProvider,
   CustodyWallet,
@@ -153,6 +154,7 @@ function registerFinP2PContractServices(
   paymentsService: PaymentsServiceImpl, pluginManager: PluginManager,
   workflowStorage: workflows.WorkflowStorage, finP2PClient: FinP2PClient | undefined,
   networkAccountService: NetworkAccountService,
+  walletResolutionMode: WalletResolutionMode,
 ) {
   if (contractConfig.accountModel === 'omnibus') {
     throw new Error('Omnibus account model is not supported with finp2p-contract provider');
@@ -160,7 +162,7 @@ function registerFinP2PContractServices(
   const proxiedNetworkAccountService = wrapWithWorkflowProxy(networkAccountService, workflowStorage, finP2PClient, 'createAccount', 'removeAccount');
   let planApprovalService = new PlanApprovalServiceImpl(contractConfig.orgId, pluginManager, contractConfig.finP2PClient);
   const tokenService = new OnChainTokenService(contractConfig.finP2PContract, contractConfig.finP2PClient, contractConfig.execDetailsStore, contractConfig.proofProvider, pluginManager, contractConfig.defaultAssetStandard);
-  const mappingService = new CredentialsMappingService(contractConfig.finP2PContract);
+  const mappingService = new CredentialsMappingService(contractConfig.finP2PContract, walletResolutionMode);
   const mappingConfig = buildMappingConfig();
 
   const commonService = new DirectCommonServiceImpl(workflowStorage);
@@ -287,8 +289,17 @@ async function createApp(
   // approval only validates. On-chain mode registers generated wallets in the
   // operator contract's credentials registry.
   const networkAccountStore = new storageModule.PgNetworkAccountStore(dbPool, ledgerSchema);
+  // The contract's wallet resolution mode is read once at boot: under
+  // FinIdDerivation (demo mode) the credentials mapping is disabled and
+  // onboarding/mapping writes are no-ops.
+  const walletResolutionMode = appConfig.type === 'finp2p-contract'
+    ? await (appConfig as FinP2PContractAppConfig).finP2PContract.getWalletResolutionMode()
+    : undefined;
+  if (walletResolutionMode !== undefined) {
+    logger.info(`FinP2P contract wallet resolution mode: ${WalletResolutionMode[walletResolutionMode]}`);
+  }
   const networkAccountService: NetworkAccountService = appConfig.type === 'finp2p-contract'
-    ? new OnChainNetworkAccountService(networkAccountStore, (appConfig as FinP2PContractAppConfig).finP2PContract, new EvmNetworkAccountValidator())
+    ? new OnChainNetworkAccountService(networkAccountStore, (appConfig as FinP2PContractAppConfig).finP2PContract, walletResolutionMode!, new EvmNetworkAccountValidator())
     : new CustodyNetworkAccountService(networkAccountStore, custodyProvider, accountMappingService, logger, new EvmNetworkAccountValidator());
 
 
@@ -338,7 +349,7 @@ async function createApp(
   if (custodyProvider) {
     await registerCustodyServices(app, logger, custodyProvider, escrowWallet, readProvider, gasStation, appConfig, paymentsService, pluginManager, workflowStorage, finP2PClient, accountMappingStore, accountMappingService, assetStore, accountMapping, omnibusCtx, networkAccountService, whitelistService);
   } else if (appConfig.type === 'finp2p-contract') {
-    registerFinP2PContractServices(app, appConfig as FinP2PContractAppConfig, paymentsService, pluginManager, workflowStorage, finP2PClient, networkAccountService);
+    registerFinP2PContractServices(app, appConfig as FinP2PContractAppConfig, paymentsService, pluginManager, workflowStorage, finP2PClient, networkAccountService, walletResolutionMode!);
   } else {
     throw new Error(`Unknown provider type: '${appConfig.type}'. Available custody providers: ${custodyRegistry.availableProviders.join(', ')}`);
   }
