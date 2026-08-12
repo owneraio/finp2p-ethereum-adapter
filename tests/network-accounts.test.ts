@@ -1,7 +1,7 @@
 import { AccountInvalidShapeError, storage } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import { InvestorWhitelistServiceImpl, EvmNetworkAccountValidator } from "../src/services/accounts";
-import { finIdToAddress } from "@owneraio/finp2p-ethereum-orchestrator";
-import { OnChainTokenService, OnChainNetworkAccountService } from "../src/services/onchain";
+import { WalletResolutionMode } from "@owneraio/finp2p-ethereum-orchestrator";
+import { OnChainTokenService, OnChainNetworkAccountService, CredentialsMappingService } from "../src/services/onchain";
 import { CustodyNetworkAccountService } from "../src/services/custody";
 import { ValidationError, WhitelistRefusedError } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import { tokenStandardRegistry } from "../src/integrations/token-standards/registry";
@@ -71,40 +71,81 @@ describe("OnChainNetworkAccountService onboarding", () => {
 
   const FIN_ID = "02b3e7cbe9b2e91832ea4a11a17a2e30d3cf52dae486ec1e1e3d0741e1f77210ab";
 
-  test("create-new: derives the wallet from the finId, registers and persists it", async () => {
+  const build = (store: storage.NetworkAccountStore, contract: any, mode: WalletResolutionMode) =>
+    new OnChainNetworkAccountService(store, contract, mode, new EvmNetworkAccountValidator());
+
+  test("wallet-mapping: bind-existing registers the wallet in the credentials registry", async () => {
     const store = storeMock();
     const contract = contractMock();
-    const service = new OnChainNetworkAccountService(store, contract as any, new EvmNetworkAccountValidator());
-
-    const op = await service.createAccount("ik-1", "org", "asset", FIN_ID, undefined);
-    expect(op.type).toBe("success");
-    const record = (op as any).record;
-    expect(record.account).toEqual({ type: "walletAccount", address: finIdToAddress(FIN_ID) });
-    expect(contract.addCredential).toHaveBeenCalledWith(FIN_ID, record.account.address);
-    expect(store.insert).toHaveBeenCalledWith(expect.objectContaining({ finId: FIN_ID, account: record.account }));
-  });
-
-  test("bind-existing: registers the supplied wallet under the investor finId", async () => {
-    const store = storeMock();
-    const contract = contractMock();
-    const service = new OnChainNetworkAccountService(store, contract as any, new EvmNetworkAccountValidator());
-
-    const op = await service.createAccount("ik-2", "org", "asset", FIN_ID, { account: { type: "walletAccount", address: ADDRESS } });
+    const op = await build(store, contract, WalletResolutionMode.WalletMapping)
+      .createAccount("ik-1", "org", "asset", FIN_ID, { account: { type: "walletAccount", address: ADDRESS } });
     expect(op.type).toBe("success");
     expect((op as any).record.account).toEqual({ type: "walletAccount", address: ADDRESS });
     expect(contract.addCredential).toHaveBeenCalledWith(FIN_ID, ADDRESS);
     expect(store.insert).toHaveBeenCalledTimes(1);
   });
 
-  test("bind-existing with invalid wallet: rejected before any chain call", async () => {
+  test("wallet-mapping: create-new is not supported — the adapter never derives a wallet off-chain", async () => {
     const store = storeMock();
     const contract = contractMock();
-    const service = new OnChainNetworkAccountService(store, contract as any, new EvmNetworkAccountValidator());
+    await expect(build(store, contract, WalletResolutionMode.WalletMapping).createAccount("ik-2", "org", "asset", FIN_ID, undefined))
+      .rejects.toThrow(/create-new account mode is not supported/);
+    expect(contract.addCredential).not.toHaveBeenCalled();
+    expect(store.insert).not.toHaveBeenCalled();
+  });
 
-    await expect(service.createAccount("ik-2b", "org", "asset", FIN_ID, { account: { type: "walletAccount", address: "0x1234" } as any }))
+  test("wallet-mapping: bind-existing with invalid wallet is rejected before any chain call", async () => {
+    const store = storeMock();
+    const contract = contractMock();
+    await expect(build(store, contract, WalletResolutionMode.WalletMapping)
+      .createAccount("ik-2b", "org", "asset", FIN_ID, { account: { type: "walletAccount", address: "0x1234" } as any }))
       .rejects.toThrow(AccountInvalidShapeError);
     expect(contract.addCredential).not.toHaveBeenCalled();
     expect(store.insert).not.toHaveBeenCalled();
+  });
+
+  test("finId-derivation (demo): onboarding is a no-op success — no registration, nothing stored", async () => {
+    const store = storeMock();
+    const contract = contractMock();
+    const service = build(store, contract, WalletResolutionMode.FinIdDerivation);
+    const op = await service.createAccount("ik-3", "org", "asset", FIN_ID, { account: { type: "walletAccount", address: ADDRESS } });
+    expect(op.type).toBe("success");
+    expect((op as any).record.account).toEqual({ type: "walletAccount", address: ADDRESS });
+    expect(contract.addCredential).not.toHaveBeenCalled();
+    expect(store.insert).not.toHaveBeenCalled();
+
+    const removed = await service.removeAccount("ik-4", "acc-1");
+    expect(removed.type).toBe("success");
+    expect(store.remove).not.toHaveBeenCalled();
+  });
+});
+
+describe("CredentialsMappingService wallet resolution modes", () => {
+
+  const FIN_ID = "02b3e7cbe9b2e91832ea4a11a17a2e30d3cf52dae486ec1e1e3d0741e1f77210ab";
+  const contractMock = () => ({
+    addCredential: jest.fn().mockResolvedValue({ hash: "0x0" }),
+    removeCredential: jest.fn().mockResolvedValue({ hash: "0x0" }),
+    getCredentialAddress: jest.fn().mockResolvedValue(ADDRESS),
+  });
+
+  test("wallet-mapping: writes reach the credentials registry", async () => {
+    const contract = contractMock();
+    const service = new CredentialsMappingService(contract as any, WalletResolutionMode.WalletMapping);
+    await service.saveAccount(FIN_ID, { ledgerAccountId: ADDRESS });
+    await service.deleteAccount(FIN_ID);
+    expect(contract.addCredential).toHaveBeenCalledWith(FIN_ID, ADDRESS);
+    expect(contract.removeCredential).toHaveBeenCalledWith(FIN_ID);
+  });
+
+  test("finId-derivation (demo): writes are no-ops — the registry is disabled", async () => {
+    const contract = contractMock();
+    const service = new CredentialsMappingService(contract as any, WalletResolutionMode.FinIdDerivation);
+    const saved = await service.saveAccount(FIN_ID, { ledgerAccountId: ADDRESS });
+    await service.deleteAccount(FIN_ID);
+    expect(saved).toEqual({ finId: FIN_ID, fields: { ledgerAccountId: ADDRESS } });
+    expect(contract.addCredential).not.toHaveBeenCalled();
+    expect(contract.removeCredential).not.toHaveBeenCalled();
   });
 });
 
