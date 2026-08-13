@@ -304,54 +304,30 @@ describe("buildCustodyPlanApprovalService composition", () => {
   const assetStore = {} as any;
   const gasStation = { wallet: {} } as any;
 
-  // isHederaNetwork() reads getNetwork() first, then probes web3_clientVersion via
-  // send(). A Hedera chain id short-circuits to true; a plain chain id with no send
-  // is false; a getNetwork() that rejects is a transient RPC failure.
-  const hederaProvider = { getNetwork: async () => ({ chainId: 296n }) } as any;
-  const nonHederaProvider = { getNetwork: async () => ({ chainId: 1n }) } as any;
-  const throwingProvider = { getNetwork: async () => { throw new Error("RPC unavailable"); } } as any;
-
   const optionNames = (svc: any): string[] => (svc as any).options.map((o: PlanApprovalOption) => o.name);
 
-  test("direct mode (investorPrefunding) includes gas-prefunding; no activation off-Hedera", async () => {
-    const svc = await buildCustodyPlanApprovalService(
-      ORG, undefined, base, gasStation, nonHederaProvider, accountMapping, assetStore,
+  test("direct mode (investorPrefunding) includes gas-prefunding", () => {
+    const svc = buildCustodyPlanApprovalService(
+      ORG, undefined, base, gasStation, accountMapping, assetStore,
       { investorPrefunding: true },
     );
     expect(optionNames(svc)).toEqual(["token-whitelisting", "gas-prefunding"]);
   });
 
-  test("omnibus mode (investorPrefunding=false) omits gas-prefunding", async () => {
-    const svc = await buildCustodyPlanApprovalService(
-      ORG, undefined, base, gasStation, nonHederaProvider, accountMapping, assetStore,
+  test("omnibus mode (investorPrefunding=false) omits gas-prefunding", () => {
+    const svc = buildCustodyPlanApprovalService(
+      ORG, undefined, base, gasStation, accountMapping, assetStore,
       { investorPrefunding: false },
     );
     expect(optionNames(svc)).toEqual(["token-whitelisting"]);
-    expect(optionNames(svc)).not.toContain("gas-prefunding");
   });
 
-  test("Hedera prepends wallet-activation before token-whitelisting", async () => {
-    const svc = await buildCustodyPlanApprovalService(
-      ORG, undefined, base, gasStation, hederaProvider, accountMapping, assetStore,
+  test("wallet activation is never a plan-approval option — it moved to onboarding", () => {
+    const svc = buildCustodyPlanApprovalService(
+      ORG, undefined, base, gasStation, accountMapping, assetStore,
       { investorPrefunding: true },
-    );
-    expect(optionNames(svc)).toEqual(["wallet-activation", "token-whitelisting", "gas-prefunding"]);
-    expect(optionNames(svc)[0]).toBe("wallet-activation");
-  });
-
-  test("Hedera without a gas station does NOT wire the activation no-op", async () => {
-    const svc = await buildCustodyPlanApprovalService(
-      ORG, undefined, base, undefined, hederaProvider, accountMapping, assetStore,
-      { investorPrefunding: false },
     );
     expect(optionNames(svc)).not.toContain("wallet-activation");
-    expect(optionNames(svc)).toEqual(["token-whitelisting"]);
-  });
-
-  test("a transient Hedera-probe failure fails startup (rejects, not silently disabled)", async () => {
-    await expect(buildCustodyPlanApprovalService(
-      ORG, undefined, base, gasStation, throwingProvider, accountMapping, assetStore,
-      { investorPrefunding: true },
-    )).rejects.toThrow(/RPC unavailable/);
   });
 });
+

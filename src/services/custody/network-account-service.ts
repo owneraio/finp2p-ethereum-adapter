@@ -6,10 +6,12 @@ import {
   BindInfo,
   NetworkAccountServiceImpl,
   NetworkAccountValidator,
+  failedAccountOperation,
   storage,
 } from '@owneraio/finp2p-nodejs-skeleton-adapter';
 import { FIELD_CUSTODY_ACCOUNT_ID, FIELD_LEDGER_ACCOUNT_ID } from '../accounts/mapping-validator';
 import { CustodyProvider } from './custody-provider';
+import { WalletActivator } from '../gas-station/wallet-activation';
 
 const ETH_ADDRESS_FORMAT = /^0x[0-9a-fA-F]{40}$/;
 
@@ -27,6 +29,13 @@ const ETH_ADDRESS_FORMAT = /^0x[0-9a-fA-F]{40}$/;
  * on the mapping so per-operation signing skips the vault scan. The mapping
  * is per finId and shared across the investor's asset bindings, so unbinding
  * one asset leaves it in place.
+ *
+ * On Hedera-style networks (walletActivator wired at boot) the bound wallet
+ * is activated BEFORE the binding persists: an account exists only after its
+ * first native funding, and onboarding is the one moment the adapter learns
+ * about the wallet. An activation failure fails the onboarding with nothing
+ * recorded — the workflow proxy makes failures terminal per idempotency key,
+ * so a fresh request retries cleanly (activation is idempotent).
  */
 export class CustodyNetworkAccountService extends NetworkAccountServiceImpl {
 
@@ -35,6 +44,7 @@ export class CustodyNetworkAccountService extends NetworkAccountServiceImpl {
     private readonly custodyProvider: CustodyProvider | undefined,
     private readonly mappingService: AccountMappingServiceImpl,
     private readonly logger: winston.Logger,
+    private readonly walletActivator: WalletActivator | undefined,
     validator?: NetworkAccountValidator,
   ) {
     super(store, validator);
@@ -53,6 +63,20 @@ export class CustodyNetworkAccountService extends NetworkAccountServiceImpl {
       const address = await this.resolveCustodyAddress(custodyAccountId);
       this.logger.info(`onboarding: '${custodyAccountId}' taken as a custody account id, resolved to ${address}`);
       effectiveBind = { ...bindInfo, account: { type: 'walletAccount', address } };
+    }
+
+    if (this.walletActivator && effectiveBind?.account.type === 'walletAccount') {
+      const wallet = effectiveBind.account.address;
+      await this.validator?.validate(effectiveBind.account);
+      try {
+        const txHash = await this.walletActivator.ensureActivated(wallet);
+        if (txHash) {
+          this.logger.info(`onboarding: investor ${finId} (${wallet}) activated by tx ${txHash}`);
+        }
+      } catch (e) {
+        this.logger.error(`onboarding: activating ${finId} (${wallet}) failed: ${(e as Error).message}`);
+        return failedAccountOperation('', 1, `activating investor ${finId} (${wallet}) failed: ${(e as Error).message}`);
+      }
     }
 
     const op = await super.createAccount(idempotencyKey, organizationId, assetId, finId, effectiveBind);
