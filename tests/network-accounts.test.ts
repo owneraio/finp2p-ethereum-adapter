@@ -171,7 +171,7 @@ describe("CustodyNetworkAccountService onboarding", () => {
   beforeEach(() => { custodyProvider.resolveAddressFromCustodyId.mockClear(); mappingService.saveAccount.mockClear(); });
 
   const build = (store: storage.NetworkAccountStore) =>
-    new CustodyNetworkAccountService(store, custodyProvider, mappingService, logger, new EvmNetworkAccountValidator());
+    new CustodyNetworkAccountService(store, custodyProvider, mappingService, logger, undefined, new EvmNetworkAccountValidator());
 
   test("EVM wallet bind: recorded as-is and mirrored into the account mapping", async () => {
     const store = storeMock();
@@ -210,10 +210,55 @@ describe("CustodyNetworkAccountService onboarding", () => {
 
   test("custody-id bind without a resolving provider is rejected", async () => {
     const store = storeMock();
-    const service = new CustodyNetworkAccountService(store, undefined, mappingService, logger, new EvmNetworkAccountValidator());
+    const service = new CustodyNetworkAccountService(store, undefined, mappingService, logger, undefined, new EvmNetworkAccountValidator());
     await expect(service.createAccount("ik", "org", "asset", FIN_ID, { account: { type: "custodialAccount", provider: "fireblocks", vaultAccountId: VAULT_ID } }))
       .rejects.toThrow(AccountInvalidShapeError);
     expect(store.insert).not.toHaveBeenCalled();
+  });
+
+  test("hedera onboarding activates the recorded wallet after the insert", async () => {
+    const store = storeMock();
+    const activator = { ensureActivated: jest.fn().mockResolvedValue("0xactivation") } as any;
+    const service = new CustodyNetworkAccountService(store, custodyProvider, mappingService, logger, activator, new EvmNetworkAccountValidator());
+    const op = await service.createAccount("ik", "org", "asset", FIN_ID, { account: { type: "walletAccount", address: ADDRESS } });
+    expect(op.type).toBe("success");
+    expect(activator.ensureActivated).toHaveBeenCalledWith(ADDRESS);
+    expect(store.insert).toHaveBeenCalledTimes(1);
+  });
+
+  test("activation failure fails the onboarding before the mapping mirrors — a repeat create re-attempts", async () => {
+    const store = storeMock();
+    const activator = { ensureActivated: jest.fn().mockRejectedValue(new Error("gas station empty")) } as any;
+    const service = new CustodyNetworkAccountService(store, custodyProvider, mappingService, logger, activator, new EvmNetworkAccountValidator());
+    const op = await service.createAccount("ik", "org", "asset", FIN_ID, { account: { type: "walletAccount", address: ADDRESS } });
+    expect(op.type).toBe("failure");
+    expect((op as any).error.message).toMatch(/gas station empty/);
+    expect(store.insert).toHaveBeenCalledTimes(1); // binding kept; replay re-activates idempotently
+    expect(mappingService.saveAccount).not.toHaveBeenCalled();
+  });
+
+  test("a replayed create with a different wallet activates the recorded binding, not the request's", async () => {
+    const OLD = "0x4444444444444444444444444444444444444444";
+    const row = { accountId: "acc-1", idempotencyKey: undefined, organizationId: "org", assetId: "asset", finId: FIN_ID, account: { type: "walletAccount", address: OLD } } as any;
+    const store = storeMock();
+    store.getByFinId.mockResolvedValue(row);
+    store.insert.mockResolvedValue(row);
+    const activator = { ensureActivated: jest.fn().mockResolvedValue("0xactivation") } as any;
+    const service = new CustodyNetworkAccountService(store, custodyProvider, mappingService, logger, activator, new EvmNetworkAccountValidator());
+    const op = await service.createAccount("ik", "org", "asset", FIN_ID, { account: { type: "walletAccount", address: ADDRESS } });
+    expect(op.type).toBe("success");
+    expect((op as any).record.account.address).toBe(OLD);
+    expect(activator.ensureActivated).toHaveBeenCalledWith(OLD);
+    expect(activator.ensureActivated).not.toHaveBeenCalledWith(ADDRESS);
+  });
+
+  test("a custodial bind activates the resolved wallet", async () => {
+    const store = storeMock();
+    const activator = { ensureActivated: jest.fn().mockResolvedValue(undefined) } as any;
+    const service = new CustodyNetworkAccountService(store, custodyProvider, mappingService, logger, activator, new EvmNetworkAccountValidator());
+    const op = await service.createAccount("ik", "org", "asset", FIN_ID, { account: { type: "custodialAccount", provider: "fireblocks", vaultAccountId: VAULT_ID } });
+    expect(op.type).toBe("success");
+    expect(activator.ensureActivated).toHaveBeenCalledWith(ADDRESS);
   });
 
   test("remove unbinds without touching the shared account mapping", async () => {

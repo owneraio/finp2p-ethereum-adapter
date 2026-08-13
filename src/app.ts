@@ -40,6 +40,7 @@ import {
 } from "./services/accounts";
 import { OmnibusDelegate } from "./services/omnibus";
 import { GasStation } from "./services/gas-station";
+import { DEFAULT_ACTIVATION_AMOUNT, WalletActivator, isHederaNetwork } from "./services/gas-station/wallet-activation";
 import { CommonServiceImpl as DirectCommonServiceImpl } from "./services/operations";
 import { registerCustodyIntegrations, registerIntegrations } from "./integrations/registry";
 import { pooledProvider, pooledSigner } from "./integrations/signer-pool";
@@ -101,12 +102,12 @@ async function registerCustodyServices(
     if (!omnibusCtx) throw new Error('Omnibus context not built — createVanillaServices must run before registerCustodyServices');
     const { delegate, vanilla } = omnibusCtx;
     const { tokenService, escrowService, commonService, mappingService, distributionService, inboundTransferHook } = vanilla;
-    const planApprovalService = await buildCustodyPlanApprovalService(
+    const planApprovalService = buildCustodyPlanApprovalService(
       appConfig.orgId, finP2PClient,
       new PlanApprovalServiceImpl(appConfig.orgId, pluginManager, finP2PClient, inboundTransferHook),
-      gasStation, readProvider, accountMapping, assetStore,
+      gasStation, accountMapping, assetStore,
       // omnibus transactions sign from the omnibus wallet — never prefund investors
-      { walletActivationAmount: process.env.WALLET_ACTIVATION_AMOUNT, investorPrefunding: false },
+      { investorPrefunding: false },
     );
     const proxiedPlanService = wrapWithWorkflowProxy(planApprovalService, workflowStorage, finP2PClient, 'approvePlan', 'proposeCancelPlan', 'proposeResetPlan', 'proposeInstructionApproval');
     const proxiedTokenService = wrapWithWorkflowProxy(tokenService, workflowStorage, finP2PClient, 'createAsset', 'issue', 'transfer', 'redeem');
@@ -135,11 +136,11 @@ async function registerCustodyServices(
     : undefined;
   let tokenService: CustodyTokenService = new CustodyTokenService(logger, custodyProvider, escrowWallet, readProvider, accountMapping, assetStore, issuerWallet);
   const commonService = new DirectCommonServiceImpl(workflowStorage);
-  const planApprovalService = await buildCustodyPlanApprovalService(
+  const planApprovalService = buildCustodyPlanApprovalService(
     appConfig.orgId, finP2PClient,
     new PlanApprovalServiceImpl(appConfig.orgId, pluginManager, finP2PClient),
-    gasStation, readProvider, accountMapping, assetStore,
-    { walletActivationAmount: process.env.WALLET_ACTIVATION_AMOUNT, investorPrefunding: true },
+    gasStation, accountMapping, assetStore,
+    { investorPrefunding: true },
   );
 
   const proxiedTokenService = wrapWithWorkflowProxy(tokenService, workflowStorage, finP2PClient, 'createAsset', 'issue', 'transfer', 'redeem');
@@ -252,6 +253,17 @@ async function createApp(
     }
   }
 
+  const walletActivationAmount = process.env.WALLET_ACTIVATION_AMOUNT;
+  let walletActivator: WalletActivator | undefined;
+  if (custodyProvider && readProvider && await isHederaNetwork(readProvider)) {
+    if (gasStation) {
+      logger.info('Wallet activation: network requires recipient activation — activating on investor onboarding');
+      walletActivator = new WalletActivator(gasStation.wallet, walletActivationAmount ?? DEFAULT_ACTIVATION_AMOUNT);
+    } else {
+      logger.warn('Wallet activation: Hedera-style network detected but no gas station is configured (set GAS_FUNDING_CUSTODY_ACCOUNT_ID and GAS_FUNDING_AMOUNT) — onboarded wallets will not be activated and will fail to receive');
+    }
+  }
+
   // The omnibus wallet is app-level composition as well — fabricated from
   // OMNIBUS_CUSTODY_ACCOUNT_ID and handed to the omnibus services explicitly.
   const omnibusAccountId = process.env.OMNIBUS_CUSTODY_ACCOUNT_ID;
@@ -300,7 +312,7 @@ async function createApp(
   }
   const networkAccountService: NetworkAccountService = appConfig.type === 'finp2p-contract'
     ? new OnChainNetworkAccountService(networkAccountStore, (appConfig as FinP2PContractAppConfig).finP2PContract, walletResolutionMode!, new EvmNetworkAccountValidator())
-    : new CustodyNetworkAccountService(networkAccountStore, custodyProvider, accountMappingService, logger, new EvmNetworkAccountValidator());
+    : new CustodyNetworkAccountService(networkAccountStore, custodyProvider, accountMappingService, logger, walletActivator, new EvmNetworkAccountValidator());
 
 
   let omnibusCtx: OmnibusContext | undefined;

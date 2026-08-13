@@ -6,10 +6,12 @@ import {
   BindInfo,
   NetworkAccountServiceImpl,
   NetworkAccountValidator,
+  failedAccountOperation,
   storage,
 } from '@owneraio/finp2p-nodejs-skeleton-adapter';
 import { FIELD_CUSTODY_ACCOUNT_ID, FIELD_LEDGER_ACCOUNT_ID } from '../accounts/mapping-validator';
 import { CustodyProvider } from './custody-provider';
+import { WalletActivator } from '../gas-station/wallet-activation';
 
 const ETH_ADDRESS_FORMAT = /^0x[0-9a-fA-F]{40}$/;
 
@@ -27,6 +29,12 @@ const ETH_ADDRESS_FORMAT = /^0x[0-9a-fA-F]{40}$/;
  * on the mapping so per-operation signing skips the vault scan. The mapping
  * is per finId and shared across the investor's asset bindings, so unbinding
  * one asset leaves it in place.
+ *
+ * On Hedera-style networks the wallet the store records is activated after
+ * the atomic insert, so only the winning binding is ever funded. An
+ * activation failure fails the onboarding before the account mapping is
+ * mirrored; a repeat create replays the binding and re-attempts the
+ * idempotent activation.
  */
 export class CustodyNetworkAccountService extends NetworkAccountServiceImpl {
 
@@ -35,6 +43,7 @@ export class CustodyNetworkAccountService extends NetworkAccountServiceImpl {
     private readonly custodyProvider: CustodyProvider | undefined,
     private readonly mappingService: AccountMappingServiceImpl,
     private readonly logger: winston.Logger,
+    private readonly walletActivator: WalletActivator | undefined,
     validator?: NetworkAccountValidator,
   ) {
     super(store, validator);
@@ -58,6 +67,18 @@ export class CustodyNetworkAccountService extends NetworkAccountServiceImpl {
     const op = await super.createAccount(idempotencyKey, organizationId, assetId, finId, effectiveBind);
     if (op.type !== 'success' || op.record.account.type !== 'walletAccount') return op;
     const address = op.record.account.address;
+
+    if (this.walletActivator) {
+      try {
+        const txHash = await this.walletActivator.ensureActivated(address);
+        if (txHash) {
+          this.logger.info(`onboarding: investor ${finId} (${address}) activated by tx ${txHash}`);
+        }
+      } catch (e) {
+        this.logger.error(`onboarding: activating ${finId} (${address}) failed: ${(e as Error).message}`);
+        return failedAccountOperation('', 1, `activating investor ${finId} (${address}) failed: ${(e as Error).message}`);
+      }
+    }
 
     await this.mappingService.saveAccount(finId, custodyAccountId
       ? { [FIELD_LEDGER_ACCOUNT_ID]: address, [FIELD_CUSTODY_ACCOUNT_ID]: custodyAccountId }
