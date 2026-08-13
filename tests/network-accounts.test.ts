@@ -216,7 +216,7 @@ describe("CustodyNetworkAccountService onboarding", () => {
     expect(store.insert).not.toHaveBeenCalled();
   });
 
-  test("hedera onboarding activates the bound wallet before persisting", async () => {
+  test("hedera onboarding activates the recorded wallet after the insert", async () => {
     const store = storeMock();
     const activator = { ensureActivated: jest.fn().mockResolvedValue("0xactivation") } as any;
     const service = new CustodyNetworkAccountService(store, custodyProvider, mappingService, logger, activator, new EvmNetworkAccountValidator());
@@ -226,14 +226,14 @@ describe("CustodyNetworkAccountService onboarding", () => {
     expect(store.insert).toHaveBeenCalledTimes(1);
   });
 
-  test("hedera onboarding activation failure fails the onboarding with nothing persisted", async () => {
+  test("activation failure fails the onboarding before the mapping mirrors — a repeat create re-attempts", async () => {
     const store = storeMock();
     const activator = { ensureActivated: jest.fn().mockRejectedValue(new Error("gas station empty")) } as any;
     const service = new CustodyNetworkAccountService(store, custodyProvider, mappingService, logger, activator, new EvmNetworkAccountValidator());
     const op = await service.createAccount("ik", "org", "asset", FIN_ID, { account: { type: "walletAccount", address: ADDRESS } });
     expect(op.type).toBe("failure");
     expect((op as any).error.message).toMatch(/gas station empty/);
-    expect(store.insert).not.toHaveBeenCalled();
+    expect(store.insert).toHaveBeenCalledTimes(1); // binding kept; replay re-activates idempotently
     expect(mappingService.saveAccount).not.toHaveBeenCalled();
   });
 
