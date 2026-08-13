@@ -237,6 +237,21 @@ describe("CustodyNetworkAccountService onboarding", () => {
     expect(mappingService.saveAccount).not.toHaveBeenCalled();
   });
 
+  test("a replayed create with a different wallet activates the recorded binding, not the request's", async () => {
+    const OLD = "0x4444444444444444444444444444444444444444";
+    const row = { accountId: "acc-1", idempotencyKey: undefined, organizationId: "org", assetId: "asset", finId: FIN_ID, account: { type: "walletAccount", address: OLD } } as any;
+    const store = storeMock();
+    store.getByFinId.mockResolvedValue(row);
+    store.insert.mockResolvedValue(row);
+    const activator = { ensureActivated: jest.fn().mockResolvedValue("0xactivation") } as any;
+    const service = new CustodyNetworkAccountService(store, custodyProvider, mappingService, logger, activator, new EvmNetworkAccountValidator());
+    const op = await service.createAccount("ik", "org", "asset", FIN_ID, { account: { type: "walletAccount", address: ADDRESS } });
+    expect(op.type).toBe("success");
+    expect((op as any).record.account.address).toBe(OLD);
+    expect(activator.ensureActivated).toHaveBeenCalledWith(OLD);
+    expect(activator.ensureActivated).not.toHaveBeenCalledWith(ADDRESS);
+  });
+
   test("a custodial bind activates the resolved wallet", async () => {
     const store = storeMock();
     const activator = { ensureActivated: jest.fn().mockResolvedValue(undefined) } as any;

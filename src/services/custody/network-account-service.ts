@@ -62,17 +62,22 @@ export class CustodyNetworkAccountService extends NetworkAccountServiceImpl {
       effectiveBind = { ...bindInfo, account: { type: 'walletAccount', address } };
     }
 
-    if (this.walletActivator && effectiveBind?.account.type === 'walletAccount') {
-      const wallet = effectiveBind.account.address;
-      await this.validator?.validate(effectiveBind.account);
-      try {
-        const txHash = await this.walletActivator.ensureActivated(wallet);
-        if (txHash) {
-          this.logger.info(`onboarding: investor ${finId} (${wallet}) activated by tx ${txHash}`);
+    if (this.walletActivator) {
+      // a repeat create replays the recorded binding even when the request
+      // carries a different wallet — activate the effective one, not the request's
+      const existing = await this.store.getByFinId(organizationId, assetId, finId);
+      const account = existing?.account ?? effectiveBind?.account;
+      if (account?.type === 'walletAccount') {
+        if (!existing && effectiveBind) await this.validator?.validate(effectiveBind.account);
+        try {
+          const txHash = await this.walletActivator.ensureActivated(account.address);
+          if (txHash) {
+            this.logger.info(`onboarding: investor ${finId} (${account.address}) activated by tx ${txHash}`);
+          }
+        } catch (e) {
+          this.logger.error(`onboarding: activating ${finId} (${account.address}) failed: ${(e as Error).message}`);
+          return failedAccountOperation('', 1, `activating investor ${finId} (${account.address}) failed: ${(e as Error).message}`);
         }
-      } catch (e) {
-        this.logger.error(`onboarding: activating ${finId} (${wallet}) failed: ${(e as Error).message}`);
-        return failedAccountOperation('', 1, `activating investor ${finId} (${wallet}) failed: ${(e as Error).message}`);
       }
     }
 
