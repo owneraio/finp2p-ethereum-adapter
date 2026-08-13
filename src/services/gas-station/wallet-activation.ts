@@ -22,31 +22,33 @@ export class WalletActivator {
     private readonly amount: string,
   ) {}
 
-  /** @returns true when an activation transfer was sent, false when the address was already active */
-  async ensureActivated(address: string): Promise<boolean> {
+  /** @returns the activation transaction hash, or undefined when the address was already active */
+  async ensureActivated(address: string): Promise<string | undefined> {
     let balance = await this.fundingWallet.provider.getBalance(address);
     if (balance > 0n) {
       logger.info(`Wallet activation: ${address} already active (balance ${balance}), skipping`);
-      return false;
+      return undefined;
     }
 
-    logger.info(`Wallet activation: ${address} has zero balance, sending ${this.amount} to activate`);
+    const from = await this.fundingWallet.signer.getAddress();
+    logger.info(`Wallet activation: ${address} has zero balance, sending ${this.amount} from gas station ${from}`);
+    const started = Date.now();
     const tx = await this.fundingWallet.signer.sendTransaction({
       to: address,
       value: parseEther(this.amount),
     });
-    logger.info(`Wallet activation: activation tx ${tx.hash} submitted for ${address}, polling for on-chain balance`);
+    logger.info(`Wallet activation: tx ${tx.hash} (${from} -> ${address}, ${this.amount}) submitted, polling for on-chain balance`);
 
-    const deadline = Date.now() + GAS_FUNDING_TIMEOUT_MS;
+    const deadline = started + GAS_FUNDING_TIMEOUT_MS;
     while (Date.now() < deadline) {
       await new Promise(r => setTimeout(r, GAS_FUNDING_POLL_INTERVAL_MS));
       balance = await this.fundingWallet.provider.getBalance(address);
       if (balance > 0n) {
-        logger.info(`Wallet activation: ${address} confirmed active on-chain (balance ${balance})`);
-        return true;
+        logger.info(`Wallet activation: tx ${tx.hash} confirmed — ${address} active with balance ${balance} after ${Date.now() - started}ms`);
+        return tx.hash;
       }
     }
-    throw new Error(`Activation transfer to ${address} did not reflect on-chain after ${GAS_FUNDING_TIMEOUT_MS}ms`);
+    throw new Error(`Activation tx ${tx.hash} to ${address} did not reflect on-chain after ${GAS_FUNDING_TIMEOUT_MS}ms`);
   }
 }
 
