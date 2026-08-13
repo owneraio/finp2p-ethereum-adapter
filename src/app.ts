@@ -253,9 +253,6 @@ async function createApp(
     }
   }
 
-  // Recipient activation for Hedera-style networks (probed once at boot):
-  // accounts come into existence on first native funding, so onboarding
-  // activates the investor's wallet — plan approval no longer touches it.
   const walletActivationAmount = process.env.WALLET_ACTIVATION_AMOUNT;
   let walletActivator: WalletActivator | undefined;
   if (custodyProvider && readProvider && await isHederaNetwork(readProvider)) {

@@ -30,12 +30,9 @@ const ETH_ADDRESS_FORMAT = /^0x[0-9a-fA-F]{40}$/;
  * is per finId and shared across the investor's asset bindings, so unbinding
  * one asset leaves it in place.
  *
- * On Hedera-style networks (walletActivator wired at boot) the bound wallet
- * is activated BEFORE the binding persists: an account exists only after its
- * first native funding, and onboarding is the one moment the adapter learns
- * about the wallet. An activation failure fails the onboarding with nothing
- * recorded — the workflow proxy makes failures terminal per idempotency key,
- * so a fresh request retries cleanly (activation is idempotent).
+ * On Hedera-style networks the bound wallet is activated before the binding
+ * persists: an activation failure fails the onboarding with nothing recorded,
+ * so a fresh request retries cleanly.
  */
 export class CustodyNetworkAccountService extends NetworkAccountServiceImpl {
 

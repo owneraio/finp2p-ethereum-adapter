@@ -19,8 +19,7 @@ export interface CustodyPlanApprovalOptions {
 
 /**
  * Assemble the plan-approval service shared by the custody-backed modes
- * (direct and omnibus): whitelisting validation + gas prefunding (direct
- * only). Recipient activation happens at investor onboarding, not here.
+ * (direct and omnibus): whitelisting validation + gas prefunding (direct only).
  */
 export function buildCustodyPlanApprovalService(
   orgId: string,
