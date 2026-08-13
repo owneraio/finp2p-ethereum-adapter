@@ -37,21 +37,26 @@ export class WalletActivationOption implements PlanApprovalOption {
           instruction.type !== "release") continue;
       if (!instruction.destinationFinId) continue;
 
+      const finId = instruction.destinationFinId;
       let address: string | undefined;
       try {
-        address = await this.accountMapping.resolveAccount(instruction.destinationFinId);
+        address = await this.accountMapping.resolveAccount(finId);
       } catch (e) {
-        logger.warning(`Wallet activation: resolving destination ${instruction.destinationFinId} of plan ${plan.planId} instruction ${instruction.sequence} failed, skipping: ${e}`);
+        logger.warning(`Wallet activation: resolving destination ${finId} of plan ${plan.planId} instruction ${instruction.sequence} failed, skipping: ${e}`);
         continue;
       }
-      if (!address) continue;
+      if (!address) {
+        logger.info(`Wallet activation: destination ${finId} of plan ${plan.planId} instruction ${instruction.sequence} has no mapped address, skipping`);
+        continue;
+      }
 
       try {
-        if (await activator.ensureActivated(address)) {
-          logger.info(`Wallet activation: sent ${this.activationAmount} to ${address} (plan ${plan.planId})`);
+        const txHash = await activator.ensureActivated(address);
+        if (txHash) {
+          logger.info(`Wallet activation: investor ${finId} (${address}) activated with ${this.activationAmount} by tx ${txHash} (plan ${plan.planId}, instruction ${instruction.sequence} ${instruction.type})`);
         }
       } catch (e) {
-        logger.warning(`Wallet activation: touch of ${address} for plan ${plan.planId} instruction ${instruction.sequence} failed: ${e}`);
+        logger.warning(`Wallet activation: activating investor ${finId} (${address}) for plan ${plan.planId} instruction ${instruction.sequence} failed: ${e}`);
       }
     }
   }

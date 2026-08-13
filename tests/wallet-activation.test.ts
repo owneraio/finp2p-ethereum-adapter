@@ -75,6 +75,7 @@ describe("WalletActivationOption", () => {
 
     const provider = { getBalance: async (address: string) => balances[address] ?? 0n };
     const signer = {
+      getAddress: async () => "0xGAS0000000000000000000000000000000000000",
       sendTransaction: async (tx: { to: string; value: bigint }) => {
         if (opts.failFor === tx.to) throw new Error("funding wallet out of funds");
         touches.push(tx);
