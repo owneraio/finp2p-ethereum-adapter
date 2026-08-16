@@ -1,7 +1,7 @@
 import { AccountInvalidShapeError, storage } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import { InvestorWhitelistServiceImpl, EvmNetworkAccountValidator } from "../src/services/accounts";
 import { WalletResolutionMode } from "@owneraio/finp2p-ethereum-orchestrator";
-import { OnChainTokenService, OnChainNetworkAccountService, CredentialsMappingService } from "../src/services/onchain";
+import { OnChainTokenService, OnChainNetworkAccountService, CredentialsMappingService, probeWalletResolutionMode } from "../src/services/onchain";
 import { CustodyNetworkAccountService } from "../src/services/custody";
 import { ValidationError, WhitelistRefusedError } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import { tokenStandardRegistry } from "../src/integrations/token-standards/registry";
@@ -383,3 +383,18 @@ describe("InvestorWhitelistServiceImpl (skeleton whitelist endpoints)", () => {
   });
 });
 
+
+describe("probeWalletResolutionMode fallback", () => {
+
+  const logger = { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} } as any;
+
+  test("a healthy probe reports the contract's mode", async () => {
+    const contract = { getWalletResolutionMode: async () => WalletResolutionMode.FinIdDerivation } as any;
+    expect(await probeWalletResolutionMode(contract, logger)).toBe(WalletResolutionMode.FinIdDerivation);
+  });
+
+  test("a probe failure defaults to WalletMapping instead of stopping the application", async () => {
+    const contract = { getWalletResolutionMode: async () => { throw new Error("execution reverted"); } } as any;
+    expect(await probeWalletResolutionMode(contract, logger)).toBe(WalletResolutionMode.WalletMapping);
+  });
+});
