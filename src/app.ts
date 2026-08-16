@@ -19,6 +19,7 @@ import {
   CredentialsMappingService,
   OnChainTokenService,
   OnChainNetworkAccountService,
+  probeWalletResolutionMode,
 } from "./services/onchain";
 import { WalletResolutionMode } from "@owneraio/finp2p-ethereum-orchestrator";
 import {
@@ -305,11 +306,8 @@ async function createApp(
   // FinIdDerivation (demo mode) the credentials mapping is disabled and
   // onboarding/mapping writes are no-ops.
   const walletResolutionMode = appConfig.type === 'finp2p-contract'
-    ? await (appConfig as FinP2PContractAppConfig).finP2PContract.getWalletResolutionMode()
+    ? await probeWalletResolutionMode((appConfig as FinP2PContractAppConfig).finP2PContract, logger)
     : undefined;
-  if (walletResolutionMode !== undefined) {
-    logger.info(`FinP2P contract wallet resolution mode: ${WalletResolutionMode[walletResolutionMode]}`);
-  }
   const networkAccountService: NetworkAccountService = appConfig.type === 'finp2p-contract'
     ? new OnChainNetworkAccountService(networkAccountStore, (appConfig as FinP2PContractAppConfig).finP2PContract, walletResolutionMode!, new EvmNetworkAccountValidator())
     : new CustodyNetworkAccountService(networkAccountStore, custodyProvider, accountMappingService, logger, walletActivator, new EvmNetworkAccountValidator());
