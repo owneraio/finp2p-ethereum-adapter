@@ -45,7 +45,7 @@ export function buildOperationContext(
 export function deriveReleaseType(signature: Signature | undefined, destination: Destination | undefined): ReleaseType {
   const template = (signature?.template?.type === 'EIP712') ? signature.template : undefined;
   const primaryType = template?.primaryType;
-  if (primaryType === undefined || primaryType === 'Transfer' || primaryType === 'Redemption') {
+  if (primaryType === undefined || primaryType === 'Transfer' || primaryType === 'Redemption' || primaryType === 'Move') {
     return destination?.finId ? ReleaseType.Release : ReleaseType.Redeem;
   }
   return ReleaseType.Release;

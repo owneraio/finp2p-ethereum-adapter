@@ -50,15 +50,17 @@ describe("deriveReleaseType (hold disposition)", () => {
 
   const DEST = { finId: "02" + "aa".repeat(32) } as any;
 
-  test("Transfer/Redemption intents without a destination investor end in a burn", () => {
+  test("Transfer/Redemption/Move intents without a destination investor end in a burn", () => {
     expect(deriveReleaseType(eip712("Transfer", {}), undefined)).toBe(ReleaseType.Redeem);
     expect(deriveReleaseType(eip712("Redemption", {}), undefined)).toBe(ReleaseType.Redeem);
+    expect(deriveReleaseType(eip712("Move", {}), undefined)).toBe(ReleaseType.Redeem);
     expect(deriveReleaseType(undefined, undefined)).toBe(ReleaseType.Redeem);
   });
 
   test("a destination investor means a plain release", () => {
     expect(deriveReleaseType(eip712("Transfer", {}), DEST)).toBe(ReleaseType.Release);
     expect(deriveReleaseType(eip712("Redemption", {}), DEST)).toBe(ReleaseType.Release);
+    expect(deriveReleaseType(eip712("Move", {}), DEST)).toBe(ReleaseType.Release);
     expect(deriveReleaseType(undefined, DEST)).toBe(ReleaseType.Release);
   });
 
