@@ -6,12 +6,12 @@ import {
 } from '@owneraio/finp2p-nodejs-skeleton-adapter';
 import winston from 'winston';
 import { parseUnits, Provider, Signer, Wallet } from "ethers";
-import { AssetRecord, TokenOperationResult } from '@owneraio/finp2p-ethereum-adapter-contract';
+import { AssetRecord, ReleaseType, TokenOperationResult } from '@owneraio/finp2p-ethereum-adapter-contract';
 import { CustodyProvider, CustodyWallet } from './custody-provider';
 import { AccountResolver, AssetStore, ledgerAccountAddress } from "../accounts";
 import { tokenStandardRegistry } from '../../integrations/token-standards/registry';
 import { TokenStandardName as ERC20_TOKEN_STANDARD, DEFAULT_NEW_ERC20_DECIMALS } from '@owneraio/finp2p-ethereum-erc20-plugin';
-import { buildOperationContext } from "../operations";
+import { buildOperationContext, deriveReleaseType } from "../operations";
 
 function resultToReceipt(
   result: TokenOperationResult, ast: Asset, operationType: OperationType, quantity: string,
@@ -274,7 +274,7 @@ export class CustodyTokenService implements TokenService, EscrowService, HealthS
       }
       const amount = parseUnits(quantity, asset.decimals);
 
-      const opCtx = buildOperationContext(ast, signature, exCtx, operationId);
+      const opCtx = buildOperationContext(ast, signature, exCtx, operationId, ReleaseType.Redeem);
       const result = await standard.burn(wallet, asset, burnFromAddress, amount, this.logger, opCtx);
       return resultToReceipt(result, ast, "redeem", quantity, source, undefined, exCtx, operationId);
     } catch (e) {
@@ -296,7 +296,7 @@ export class CustodyTokenService implements TokenService, EscrowService, HealthS
       const { wallet } = resolved;
       const amount = parseUnits(quantity, asset.decimals);
 
-      const opCtx = buildOperationContext(ast, signature, exCtx, operationId);
+      const opCtx = buildOperationContext(ast, signature, exCtx, operationId, deriveReleaseType(signature, destination));
       const result = await standard.hold(wallet, this.escrowWallet, asset, amount, this.logger, opCtx);
       return resultToReceipt(result, ast, "hold", quantity, source, destination, exCtx, operationId);
     } catch (e) {
