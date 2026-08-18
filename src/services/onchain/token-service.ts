@@ -2,10 +2,9 @@ import {
   Asset, AssetCreationStatus, EIP712Template, Balance, TokenService, EscrowService,
   CommonService, HealthService, OperationStatus,
   failedAssetCreation, successfulAssetCreation,
-  failedReceiptOperation,
-  failedSwapOperation, successfulSwapOperation,
+  failedReceiptOperation, successfulReceiptOperation,
   AssetBind, AssetDenomination, AssetCreationResult, Destination, ExecutionContext,
-  Receipt, ReceiptOperation, Source, Signature, SwapLeg, SwapOperation,
+  Receipt, ReceiptOperation, Source, Signature, SwapAssetLeg, SwapSettlementLeg,
   logger, ProofProvider, PluginManager,
 } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import { keccak256, toUtf8Bytes } from "ethers";
@@ -29,8 +28,8 @@ const SwapExecutionPollIntervalMs = 2_000;
 // wait bound when the request carries no deadline
 const DefaultSwapWaitSeconds = 300;
 
-/** A swap settles as ONE ledger tx with two movements; each receipt attests one of them. */
-const swapMovementReceipt = (id: string, transactionId: string, operationId: string, leg: SwapLeg,
+/** A swap settles as ONE ledger tx with two movements; the receipt attests this adapter's own leg. */
+const swapMovementReceipt = (id: string, transactionId: string, operationId: string, leg: SwapAssetLeg,
                              exCtx: ExecutionContext | undefined, timestamp: number): Receipt => ({
   id,
   asset: leg.asset,
@@ -249,31 +248,32 @@ export class OnChainTokenService implements TokenService, EscrowService, CommonS
    * observed (or the deadline passes), so both parties resolve with the SAME
    * transaction id — the one that moved both legs. Long-blocking is safe: the
    * workflow proxy answers the HTTP call with a pending cid and the router
-   * polls the final result.
+   * polls the final result. Completes with the single receipt of this
+   * adapter's own (asset) leg.
    */
-  public async swap(idempotencyKey: string, nonce: string, operationId: string, assetLeg: SwapLeg,
-                    settlementLeg: SwapLeg, deadline: number, exCtx: ExecutionContext | undefined): Promise<SwapOperation> {
+  public async swap(idempotencyKey: string, nonce: string, operationId: string, assetLeg: SwapAssetLeg,
+                    settlementLeg: SwapSettlementLeg, deadline: number, exCtx: ExecutionContext | undefined): Promise<ReceiptOperation> {
     try {
       if (!operationId) {
-        return failedSwapOperation(1, "operationId is required");
+        return failedReceiptOperation(1, "operationId is required");
       }
       if (!assetLeg.signature) {
-        return failedSwapOperation(1, "asset leg signature is required");
+        return failedReceiptOperation(1, "asset leg signature is required");
       }
       // absolute epoch seconds; enforced adapter-side as the wait bound below —
       // the operator contract itself has no expiry, so an already-prepared leg
       // stays executable on-chain past the deadline
       if (deadline && deadline <= Math.floor(Date.now() / 1000)) {
-        return failedSwapOperation(1, `swap deadline ${deadline} has already passed`);
+        return failedReceiptOperation(1, `swap deadline ${deadline} has already passed`);
       }
       // two-party mirror: the contract delivers the asset to the settlement sender's
       // wallet and the settlement back to the asset sender's — a request naming
       // other receivers cannot be honored
       if (assetLeg.destination.finId !== settlementLeg.source.finId) {
-        return failedSwapOperation(1, `asset destination finId '${assetLeg.destination.finId}' does not match settlement source finId '${settlementLeg.source.finId}'`);
+        return failedReceiptOperation(1, `asset destination finId '${assetLeg.destination.finId}' does not match settlement source finId '${settlementLeg.source.finId}'`);
       }
       if (settlementLeg.destination.finId !== assetLeg.source.finId) {
-        return failedSwapOperation(1, `settlement destination finId '${settlementLeg.destination.finId}' does not match asset source finId '${assetLeg.source.finId}'`);
+        return failedReceiptOperation(1, `settlement destination finId '${settlementLeg.destination.finId}' does not match asset source finId '${assetLeg.source.finId}'`);
       }
 
       // any wallet address carried on the legs must be a valid EVM address on this chain
@@ -284,10 +284,10 @@ export class OnChainTokenService implements TokenService, EscrowService, CommonS
       // registered credential wallet; an explicitly requested wallet must be that one
       const ourWallet = await this.finP2PContract.getCredentialAddress(assetLeg.source.finId);
       if (approvalWallet && approvalWallet.toLowerCase() !== ourWallet.toLowerCase()) {
-        return failedSwapOperation(1, `asset source wallet ${approvalWallet} does not match the registered credential ${ourWallet} holding the allowance`);
+        return failedReceiptOperation(1, `asset source wallet ${approvalWallet} does not match the registered credential ${ourWallet} holding the allowance`);
       }
       if (destinationWallet && destinationWallet.toLowerCase() !== ourWallet.toLowerCase()) {
-        return failedSwapOperation(1, `settlement destination wallet ${destinationWallet} does not match the registered credential ${ourWallet} the swap settles to`);
+        return failedReceiptOperation(1, `settlement destination wallet ${destinationWallet} does not match the registered credential ${ourWallet} the swap settles to`);
       }
 
       const txReceipt = await this.finP2PContract.swap(operationId, {
@@ -322,23 +322,22 @@ export class OnChainTokenService implements TokenService, EscrowService, CommonS
         const executed = await this.waitForSwapExecution(operationId, txReceipt.blockNumber,
           deadline || Math.floor(Date.now() / 1000) + DefaultSwapWaitSeconds);
         if (!executed) {
-          return failedSwapOperation(1, `swap ${operationId} was prepared (tx ${txReceipt.hash}) but the counterparty did not execute it before the deadline`);
+          return failedReceiptOperation(1, `swap ${operationId} was prepared (tx ${txReceipt.hash}) but the counterparty did not execute it before the deadline`);
         }
         ({ transactionId, timestamp } = executed);
         if (exCtx) {
           this.execDetailsStore?.addExecutionContext(transactionId, exCtx.planId, exCtx.sequence);
         }
       }
-      return successfulSwapOperation(
+      return successfulReceiptOperation(
         swapMovementReceipt(`${transactionId}:0`, transactionId, operationId, assetLeg, exCtx, timestamp),
-        swapMovementReceipt(`${transactionId}:1`, transactionId, operationId, settlementLeg, exCtx, timestamp),
       );
     } catch (e) {
       logger.error(`Error on swap: ${e}`);
       if (e instanceof EthereumTransactionError || e instanceof ValidationError) {
-        return failedSwapOperation(1, e.message);
+        return failedReceiptOperation(1, e.message);
       }
-      return failedSwapOperation(1, `${e}`);
+      return failedReceiptOperation(1, `${e}`);
     }
   }
 

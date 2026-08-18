@@ -1,8 +1,8 @@
 import {
   Asset, AssetBind, AssetCreationStatus, AssetDenomination,
   Balance, Destination, ExecutionContext, HealthService, OperationType,
-  ReceiptOperation, Signature, Source, SwapLeg, SwapOperation, TokenService, EscrowService,
-  failedReceiptOperation, failedAssetCreation, failedSwapOperation
+  ReceiptOperation, Signature, Source, SwapAssetLeg, SwapSettlementLeg, TokenService, EscrowService,
+  failedReceiptOperation, failedAssetCreation
 } from '@owneraio/finp2p-nodejs-skeleton-adapter';
 import winston from 'winston';
 import { parseUnits, Provider, Signer, Wallet } from "ethers";
@@ -268,12 +268,12 @@ export class CustodyTokenService implements TokenService, EscrowService, HealthS
    * "swap to" wallets) and fails closed.
    */
   async swap(
-    idempotencyKey: string, nonce: string, operationId: string, asset: SwapLeg,
-    settlement: SwapLeg, deadline: number, exCtx: ExecutionContext | undefined
-  ): Promise<SwapOperation> {
+    idempotencyKey: string, nonce: string, operationId: string, asset: SwapAssetLeg,
+    settlement: SwapSettlementLeg, deadline: number, exCtx: ExecutionContext | undefined
+  ): Promise<ReceiptOperation> {
     try {
       if (deadline && deadline <= Math.floor(Date.now() / 1000)) {
-        return failedSwapOperation(1, `swap deadline ${deadline} has already passed`);
+        return failedReceiptOperation(1, `swap deadline ${deadline} has already passed`);
       }
       // any wallet address carried on the legs must be a valid EVM address on this chain
       const { chainId } = await this.readProvider.getNetwork();
@@ -281,14 +281,14 @@ export class CustodyTokenService implements TokenService, EscrowService, HealthS
       // "approval from" (asset source) and "swap to" (settlement destination) wallets:
       // taken from the leg accounts when present, otherwise from the account mapping
       const approval = approvalWallet ?? await this.accountMapping.resolveAccount(asset.source.finId);
-      if (!approval) return failedSwapOperation(1, `No wallet address for asset source ${asset.source.finId} — pass source.account or map the finId`);
+      if (!approval) return failedReceiptOperation(1, `No wallet address for asset source ${asset.source.finId} — pass source.account or map the finId`);
       const to = destinationWallet ?? await this.accountMapping.resolveAccount(settlement.destination.finId);
-      if (!to) return failedSwapOperation(1, `No wallet address for settlement destination ${settlement.destination.finId} — pass destination.account or map the finId`);
+      if (!to) return failedReceiptOperation(1, `No wallet address for settlement destination ${settlement.destination.finId} — pass destination.account or map the finId`);
       this.logger.info(`Swap ${operationId}: approval from ${approval}, settle to ${to} — no swap contract for the custody provider yet`);
-      return failedSwapOperation(1, 'Swap is not supported by the custody provider yet');
+      return failedReceiptOperation(1, 'Swap is not supported by the custody provider yet');
     } catch (e) {
       this.logger.error(`Swap failed: operationId=${operationId} asset=${asset.asset.assetId} settlement=${settlement.asset.assetId}`, e);
-      return failedSwapOperation(1, `${e}`);
+      return failedReceiptOperation(1, `${e}`);
     }
   }
 

@@ -1,4 +1,4 @@
-import { SwapLeg } from "@owneraio/finp2p-nodejs-skeleton-adapter";
+import { SwapAssetLeg, SwapSettlementLeg } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import { isAddress } from "ethers";
 import { ValidationError } from "@owneraio/finp2p-ethereum-orchestrator";
 import { ledgerAccountAddress } from "./account-resolver";
@@ -22,8 +22,8 @@ export type SwapWallets = {
  * Absent addresses come back undefined — the caller decides how to resolve
  * them (credentials registry / account mapping) or reject.
  */
-export function validateSwapWallets(asset: SwapLeg, settlement: SwapLeg, chainId: bigint): SwapWallets {
-  const addressOf = (label: string, account: SwapLeg["source"]["account"]): string | undefined => {
+export function validateSwapWallets(asset: SwapAssetLeg, settlement: SwapSettlementLeg, chainId: bigint): SwapWallets {
+  const addressOf = (label: string, account: SwapAssetLeg["source"]["account"]): string | undefined => {
     let address: string | undefined;
     try {
       address = ledgerAccountAddress(account, chainId);

@@ -11,8 +11,8 @@ import {
   AccountMappingValidator,
   NetworkAccountService,
   TokenService,
-  SwapOperation,
-  failedSwapOperation,
+  ReceiptOperation,
+  failedReceiptOperation,
   workflows,
   storage as storageModule,
 } from "@owneraio/finp2p-nodejs-skeleton-adapter";
@@ -338,7 +338,7 @@ async function createApp(
     // an omnibus/off-ledger swap is out of scope — fail closed. Kept OUT of the
     // workflow proxy method list: it fails fast, there is nothing to track.
     const vanillaTokenService: VanillaServiceImpl & TokenService = Object.assign(vanillaService, {
-      swap: async (): Promise<SwapOperation> => failedSwapOperation(1, "Swap is not supported in omnibus mode"),
+      swap: async (): Promise<ReceiptOperation> => failedReceiptOperation(1, "Swap is not supported in omnibus mode"),
     });
     omnibusCtx = {
       delegate,
