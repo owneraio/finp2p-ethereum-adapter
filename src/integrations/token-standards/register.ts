@@ -7,15 +7,15 @@ import { AtsTokenStandard, TokenStandardName as HEDERA_ATS_STANDARD } from "@own
 import { OwneraCollateralTokenStandard, TokenStandardName as COLLATERAL_TOKEN_STANDARD } from "@owneraio/finp2p-ethereum-collateral";
 import { CollateralTokenStandard as DtccCollateralTokenStandard, TokenStandardName as DTCC_TOKEN_STANDARD } from "@owneraio/finp2p-ethereum-dtcc-plugin";
 import { ERC20TokenStandard, TokenStandardName as ERC20_STANDARD } from "@owneraio/finp2p-ethereum-erc20-plugin";
-import { tokenStandardRegistry } from "./registry";
+import { HoldModel, tokenStandardRegistry } from "./registry";
 import { parseAtsWhitelistingMechanisms } from "./ats-policy";
 import { IntegrationContext } from "../registry";
 import { pooledProvider, pooledSigner } from "../signer-pool";
 
 /** Register a standard once (idempotent); returns its name if newly added, else undefined. */
-function register(name: string, impl: TokenStandard): string | undefined {
+function register(name: string, impl: TokenStandard, holdModel?: HoldModel): string | undefined {
   if (tokenStandardRegistry.has(name)) return undefined;
-  tokenStandardRegistry.register(name, impl);
+  tokenStandardRegistry.register(name, impl, holdModel);
   return name;
 }
 
@@ -67,7 +67,7 @@ export function registerTokenStandards(ctx: IntegrationContext): void {
     register(TREX_STANDARD, new TrexTokenStandard(provider, issuer, controller, allowlister)),
     register(CMTAT_STANDARD, new CmtatTokenStandard(provider, issuer, controller, allowlister)),
     register(BENJI_STANDARD, new BenjiTokenStandard(provider, issuer, controller)),
-    register(HEDERA_ATS_STANDARD, new AtsTokenStandard(provider, issuer, controller, allowlister, [], atsWhitelisting)),
+    register(HEDERA_ATS_STANDARD, new AtsTokenStandard(provider, issuer, controller, allowlister, [], atsWhitelisting), 'holder-reservation'),
   ].filter(Boolean);
   logger.info(`Ethereum token standards registered: ${registered.join(", ")}`);
 
