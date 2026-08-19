@@ -5,7 +5,7 @@ import {
   failedReceiptOperation, failedAssetCreation
 } from '@owneraio/finp2p-nodejs-skeleton-adapter';
 import winston from 'winston';
-import { parseUnits, Provider, Signer, Wallet } from "ethers";
+import { parseUnits, Provider, Signer, Wallet, ZeroAddress } from "ethers";
 import { AssetRecord, ReleaseType, TokenOperationResult } from '@owneraio/finp2p-ethereum-adapter-contract';
 import { CustodyProvider, CustodyWallet } from './custody-provider';
 import { AccountResolver, AssetStore, ledgerAccountAddress } from "../accounts";
@@ -260,6 +260,18 @@ export class CustodyTokenService implements TokenService, EscrowService, HealthS
     try {
       const asset = await this.assetRecord(ast.assetId);
       const standard = tokenStandardRegistry.resolve(asset.tokenStandard);
+      const amount = parseUnits(quantity, asset.decimals);
+      const opCtx = buildOperationContext(ast, signature, exCtx, operationId, ReleaseType.Redeem);
+
+      if (operationId && tokenStandardRegistry.holdModel(asset.tokenStandard) === 'holder-reservation') {
+        // The held tokens never reached the escrow wallet — hold() reserved them
+        // on the investor's account, so there is nothing to burn from escrow.
+        // release(ReleaseType.Redeem) resolves the reservation by operationId and
+        // burns from the holder; a redemption delivers to no one, hence the
+        // zero destination.
+        const result = await standard.release(this.escrowWallet, asset, ZeroAddress, amount, this.logger, opCtx);
+        return resultToReceipt(result, ast, "redeem", quantity, source, undefined, exCtx, operationId);
+      }
 
       let wallet: CustodyWallet;
       let burnFromAddress: string;
@@ -272,9 +284,7 @@ export class CustodyTokenService implements TokenService, EscrowService, HealthS
         wallet = resolved.wallet;
         burnFromAddress = resolved.address;
       }
-      const amount = parseUnits(quantity, asset.decimals);
 
-      const opCtx = buildOperationContext(ast, signature, exCtx, operationId, ReleaseType.Redeem);
       const result = await standard.burn(wallet, asset, burnFromAddress, amount, this.logger, opCtx);
       return resultToReceipt(result, ast, "redeem", quantity, source, undefined, exCtx, operationId);
     } catch (e) {

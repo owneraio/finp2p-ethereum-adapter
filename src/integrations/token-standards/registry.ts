@@ -1,6 +1,20 @@
 import { TokenStandard } from '@owneraio/finp2p-ethereum-adapter-contract';
 
 /**
+ * Where a standard's hold() leaves the held tokens — the fact that decides how
+ * a held redemption (redeem carrying an operationId) settles:
+ *
+ * - 'escrow-transfer': hold() moved the tokens into the escrow wallet, so a
+ *   held redemption burns the escrow wallet's own balance.
+ * - 'holder-reservation': hold() reserved the tokens on the holder's account
+ *   and the escrow wallet is only an authority that never holds tokens, so a
+ *   held redemption must settle through release() with ReleaseType.Redeem,
+ *   which resolves the reservation by its operationId and burns from the
+ *   holder.
+ */
+export type HoldModel = 'escrow-transfer' | 'holder-reservation';
+
+/**
  * Registry for token standard implementations in direct mode.
  *
  * Each registered standard handles the on-chain call construction for
@@ -11,24 +25,32 @@ import { TokenStandard } from '@owneraio/finp2p-ethereum-adapter-contract';
  * ERC20 and plugin packages may register additional standards.
  */
 class TokenStandardRegistry {
-  private standards = new Map<string, TokenStandard>();
+  private standards = new Map<string, { impl: TokenStandard; holdModel: HoldModel }>();
 
-  register(tokenStandard: string, impl: TokenStandard): void {
+  register(tokenStandard: string, impl: TokenStandard, holdModel: HoldModel = 'escrow-transfer'): void {
     const key = tokenStandard.toUpperCase();
     if (this.standards.has(key)) {
       throw new Error(`Token standard '${tokenStandard}' is already registered`);
     }
-    this.standards.set(key, impl);
+    this.standards.set(key, { impl, holdModel });
   }
 
   resolve(tokenStandard: string): TokenStandard {
+    return this.entry(tokenStandard).impl;
+  }
+
+  holdModel(tokenStandard: string): HoldModel {
+    return this.entry(tokenStandard).holdModel;
+  }
+
+  private entry(tokenStandard: string): { impl: TokenStandard; holdModel: HoldModel } {
     const key = tokenStandard.toUpperCase();
-    const impl = this.standards.get(key);
-    if (!impl) {
+    const entry = this.standards.get(key);
+    if (!entry) {
       const available = Array.from(this.standards.keys()).join(', ');
       throw new Error(`Unknown token standard: '${tokenStandard}'. Available: ${available}`);
     }
-    return impl;
+    return entry;
   }
 
   has(tokenStandard: string): boolean {
