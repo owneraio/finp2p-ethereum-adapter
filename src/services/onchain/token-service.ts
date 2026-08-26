@@ -330,7 +330,7 @@ export class OnChainTokenService implements TokenService, EscrowService, CommonS
         }
       }
       return successfulReceiptOperation(
-        swapMovementReceipt(`${transactionId}:0`, transactionId, operationId, assetLeg, exCtx, timestamp),
+        swapMovementReceipt(`${transactionId}:${assetLeg.asset.assetId}`, transactionId, operationId, assetLeg, exCtx, timestamp),
       );
     } catch (e) {
       logger.error(`Error on swap: ${e}`);
