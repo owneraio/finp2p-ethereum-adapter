@@ -14,7 +14,8 @@ module.exports = {
     "<rootDir>/tests/ethereum-standards.test.+(ts|tsx|js)",
     "<rootDir>/tests/token-whitelisting.test.+(ts|tsx|js)",
     "<rootDir>/tests/wallet-activation.test.+(ts|tsx|js)",
-    "<rootDir>/tests/network-accounts.test.+(ts|tsx|js)"
+    "<rootDir>/tests/network-accounts.test.+(ts|tsx|js)",
+    "<rootDir>/tests/custody-provider.test.+(ts|tsx|js)"
   ],
   "transform": {
     "^.+\\.(ts|tsx)$": "ts-jest"
