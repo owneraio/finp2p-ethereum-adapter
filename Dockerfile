@@ -2,7 +2,12 @@
 FROM golang:1.26.5-alpine AS migrator
 
 RUN apk update && apk add make gcc git build-base
-RUN go install github.com/pressly/goose/v3/cmd/goose@v3.27.2
+# goose v3.27.3 still pins the CVE-2026-56854-affected golang.org/x/crypto,
+# so build it from source with the patched dependency
+RUN git clone --depth 1 --branch v3.27.3 https://github.com/pressly/goose /src/goose \
+    && cd /src/goose \
+    && go get golang.org/x/crypto@v0.55.0 \
+    && go build -o /go/bin/goose ./cmd/goose
 
 # --- Base image -----
 FROM node:20-alpine AS base
