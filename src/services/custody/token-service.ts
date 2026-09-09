@@ -137,8 +137,10 @@ export class CustodyTokenService implements TokenService, EscrowService, HealthS
     const { chainId } = await this.readProvider.getNetwork();
     const defaultNetwork = `eip155:${chainId}`;
 
-    if (assetBind === undefined || assetBind.tokenIdentifier === undefined) {
-      this.logger.info(`createAsset: deploy path — assetId=${assetId} standard=${requestedStandard} name=${assetName ?? 'OWNERACOIN'}`);
+    // A tokenIdentifier without a tokenId is a deploy request scoped to a
+    // network ("deploy on Sepolia"), not a bind to an existing token.
+    if (!assetBind?.tokenIdentifier?.tokenId) {
+      this.logger.info(`createAsset: deploy path — assetId=${assetId} standard=${requestedStandard} name=${assetName ?? 'OWNERACOIN'} requestedNetwork=${assetBind?.tokenIdentifier?.network ?? defaultNetwork}`);
       if (!this.issuerWallet) {
         return failedAssetCreation(1, 'ASSET_ISSUER_PRIVATE_KEY is not set — refusing to deploy an asset a throwaway signer would strand');
       }

@@ -332,7 +332,13 @@ export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowD
       standard: std,
     });
 
-    if (assetBind === undefined || assetBind.tokenIdentifier === undefined) {
+    // A tokenIdentifier without a tokenId is a deploy request scoped to a
+    // network ("deploy on Sepolia"), not a bind to an existing token.
+    if (!assetBind?.tokenIdentifier?.tokenId) {
+      const requestedNetwork = assetBind?.tokenIdentifier?.network;
+      if (requestedNetwork && requestedNetwork !== defaultNetwork) {
+        this.logger.warn(`createAsset: requested network ${requestedNetwork} differs from the adapter chain ${defaultNetwork} — deploying on ${defaultNetwork}`);
+      }
       const symbol = 'OWNERA';
       await this.ensureGas(this.omnibusWallet);
       const result = await standard.deploy(this.omnibusWallet, assetName ?? 'OWNERACOIN', symbol, DEFAULT_NEW_ERC20_DECIMALS, this.logger);
