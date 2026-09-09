@@ -10,7 +10,7 @@ import { migrationsTableName as vanillaMigrationsTable } from "@owneraio/finp2p-
  * and goose doesn't re-run the schema-creating initial migration.
  *
  * Identifiers come from hardcoded literals, validated derivations
- * (workflows.toPostgresIdentifier), or operator-supplied env (LEDGER_SCHEMA) — all trusted.
+ * (storage.toPostgresIdentifier), or operator-supplied env (LEDGER_SCHEMA) — all trusted.
  *
  * Atomic: all renames run inside a single transaction so a partial failure (transient
  * connection error, lock timeout) leaves the DB unchanged rather than half-migrated.
