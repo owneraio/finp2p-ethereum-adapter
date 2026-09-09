@@ -6,8 +6,9 @@ import { TaurusAppConfig } from './config';
  * TypeScript SDK is not on public npm) plus the request-lifecycle calls the
  * custody provider needs. Live-verified against the UAT tg-validatord: TPV1
  * signing, {result: [...]} envelopes, /whitelists/{addresses,contracts}
- * paths; the request create/approve round-trip still needs a live run with
- * an operator key.
+ * paths with metadata.payloadAsString envelopes, and the full request
+ * pipeline (CREATED -> APPROVED -> BROADCASTING -> CONFIRMED) with the
+ * on-chain hash reported in signedRequests[].hash.
  */
 
 export interface TaurusAddress {
@@ -21,13 +22,32 @@ export interface TaurusRequest {
   id: string;
   status: string;
   metadata?: { hash?: string };
-  transactionHash?: string;
+  /** blockchain hashes are reported per signed transaction, not top-level */
+  signedRequests?: { hash?: string; status?: string }[];
+}
+
+/** first on-chain hash reported by the request's signed transactions */
+export function transactionHashOf(request: TaurusRequest): string | undefined {
+  return request.signedRequests?.find(s => s.hash)?.hash;
+}
+
+export interface ContractArgValue {
+  primitive?: string;
+  composite?: ContractArgValue[];
+}
+
+export interface ContractArg {
+  name?: string;
+  type: string;
+  value: ContractArgValue;
 }
 
 export interface ContractCall {
   functionSignature: string;
-  args: unknown[];
+  args: ContractArg[];
 }
+
+const PAGE_LIMIT = 100;
 
 export class TaurusClient {
 
@@ -68,9 +88,15 @@ export class TaurusClient {
     return text ? JSON.parse(text) as T : (undefined as T);
   }
 
-  async listAddresses(limit = 500): Promise<TaurusAddress[]> {
-    const reply = await this.call<{ result?: TaurusAddress[]; addresses?: TaurusAddress[] }>('GET', '/api/rest/v1/addresses', { query: `limit=${limit}` });
-    return reply.result ?? reply.addresses ?? [];
+  async listAddresses(): Promise<TaurusAddress[]> {
+    const all: TaurusAddress[] = [];
+    for (let offset = 0; ; offset += PAGE_LIMIT) {
+      const reply = await this.call<{ result?: TaurusAddress[]; addresses?: TaurusAddress[] }>(
+        'GET', '/api/rest/v1/addresses', { query: `limit=${PAGE_LIMIT}&offset=${offset}` });
+      const page = reply.result ?? reply.addresses ?? [];
+      all.push(...page);
+      if (page.length < PAGE_LIMIT) return all;
+    }
   }
 
   async getAddress(addressId: string): Promise<TaurusAddress> {
@@ -78,17 +104,45 @@ export class TaurusClient {
     return (reply as { result?: TaurusAddress }).result ?? (reply as TaurusAddress);
   }
 
-  /** Whitelisted external addresses (live-verified path). Entries carry a
-   *  signed envelope; the chain address may sit at the top level or inside
-   *  signedAddress, so both are checked. */
+  /** Whitelist entries are signed envelopes; the authoritative content is
+   *  metadata.payloadAsString (the string the approval hash covers) — parse
+   *  the chain address from it rather than trusting mutable display fields. */
+  private async findWhitelistId(
+    path: string, address: string, payloadAddressField: string,
+  ): Promise<string | undefined> {
+    type Entry = { id: string; address?: string; metadata?: { payloadAsString?: string; payload?: Record<string, unknown> } };
+    const wanted = address.toLowerCase();
+    const addressOf = (w: Entry): string | undefined => {
+      const raw = w.metadata?.payloadAsString;
+      if (raw) {
+        try {
+          const payload = JSON.parse(raw) as Record<string, unknown>;
+          const a = payload[payloadAddressField];
+          if (typeof a === 'string') return a;
+        } catch { /* fall through to the parsed payload / top-level field */ }
+      }
+      const parsed = w.metadata?.payload?.[payloadAddressField];
+      if (typeof parsed === 'string') return parsed;
+      return w.address;
+    };
+    for (let offset = 0; ; offset += PAGE_LIMIT) {
+      const reply = await this.call<{ result?: Entry[] }>('GET', path, { query: `limit=${PAGE_LIMIT}&offset=${offset}` });
+      const page = reply.result ?? [];
+      const hit = page.find(w => addressOf(w)?.toLowerCase() === wanted);
+      if (hit) return hit.id;
+      if (page.length < PAGE_LIMIT) return undefined;
+    }
+  }
+
+  /** Whitelisted external (payout) addresses. */
   async findWhitelistedAddressId(address: string): Promise<string | undefined> {
-    type Entry = { id: string; address?: string; signedAddress?: { address?: { address?: string } } };
-    const reply = await this.call<{ result?: Entry[] }>('GET', '/api/rest/v1/whitelists/addresses', { query: 'limit=500' });
-    const hit = (reply.result ?? []).find(w => {
-      const a = w.address ?? w.signedAddress?.address?.address;
-      return a?.toLowerCase() === address.toLowerCase();
-    });
-    return hit?.id;
+    return this.findWhitelistId('/api/rest/v1/whitelists/addresses', address, 'address');
+  }
+
+  /** Whitelisted contracts live under a separate endpoint with their own
+   *  payload shape ({blockchain, contractAddress, symbol, ...}). */
+  async findWhitelistedContractId(contractAddress: string): Promise<string | undefined> {
+    return this.findWhitelistId('/api/rest/v1/whitelists/contracts', contractAddress, 'contractAddress');
   }
 
   async createContractCallRequest(params: {
