@@ -81,16 +81,18 @@ describe('DbAccountResolver', () => {
     const { Pool } = require('pg');
     pool = new Pool({ connectionString });
     pool.on('error', () => {});
+    const ledgerSchema = 'ledger_adapter';
+
     // Match production wiring: AccountMappingServiceImpl with caseSensitive=false
     // normalizes EVM address fields on both save and lookup.
-    accountStore = new AccountMappingServiceImpl(new storage.PgAccountStore(pool), { caseSensitive: false });
+    accountStore = new AccountMappingServiceImpl(new storage.PgAccountStore(pool, ledgerSchema), { caseSensitive: false });
 
     // Run skeleton migrations (includes account_mappings table)
     const gooseBin = join(process.cwd(), 'bin', 'goose');
     const migrationsDir = join(process.cwd(), 'node_modules', '@owneraio', 'finp2p-nodejs-skeleton-adapter', 'migrations');
     execSync(
       `${gooseBin} -table account_mapping_test_migrations -dir ${migrationsDir} up`,
-      { env: { ...process.env, GOOSE_DRIVER: 'postgres', GOOSE_DBSTRING: connectionString } }
+      { env: { ...process.env, GOOSE_DRIVER: 'postgres', GOOSE_DBSTRING: connectionString, LEDGER_SCHEMA: ledgerSchema } }
     );
 
     service = new DbAccountResolver(accountStore);
