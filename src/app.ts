@@ -200,8 +200,11 @@ async function createApp(
   const finP2PClient = workflowsConfig?.finP2PClient;
 
   // Postgres schema for skeleton tables — must match what migration created.
-  // Read from migration config (preferred) or fall back to LEDGER_SCHEMA env var.
-  const ledgerSchema = workflowsConfig?.migration?.schemaName || process.env.LEDGER_SCHEMA || undefined;
+  // Read from migration config (preferred), then LEDGER_SCHEMA env var, then
+  // the same ADAPTER_ID-derived default index.ts uses (schemaName is mandatory
+  // in skeleton 0.28.28+; the library no longer supplies a default).
+  const ledgerSchema = workflowsConfig?.migration?.schemaName || process.env.LEDGER_SCHEMA
+    || storageModule.toPostgresIdentifier(process.env.ADAPTER_ID || 'ethereum_adapter');
 
   // Shared data stores — decoupled from workflow storage
   const { Pool } = require('pg');
@@ -285,8 +288,7 @@ async function createApp(
   const accountMapping: AccountResolver = new DbAccountResolver(accountMappingService);
 
   const listAssets = async (): Promise<storageModule.Asset[]> => {
-    const schema = ledgerSchema ?? storageModule.DEFAULT_SCHEMA_NAME;
-    return (await dbPool.query(`SELECT * FROM ${schema}.assets`)).rows;
+    return (await dbPool.query(`SELECT * FROM ${ledgerSchema}.assets`)).rows;
   };
 
   // Chain-backed investor-whitelist endpoints (skeleton 0.28.27). The adapter
@@ -317,10 +319,9 @@ async function createApp(
   if (appConfig.accountModel === 'omnibus' && custodyProvider) {
     if (!omnibusWallet) throw new Error('Omnibus account model requires OMNIBUS_CUSTODY_ACCOUNT_ID (and a custody provider able to create wallets by custody id)');
     const delegate = new OmnibusDelegate(logger, custodyProvider, omnibusWallet, escrowWallet!, readProvider!, gasStation, accountMapping, assetStore);
-    // vanilla 0.28.2's createVanillaServices doesn't forward schemaName to its LedgerStorage,
-    // so its account_mappings/accounts/transactions queries hit the default `ledger_adapter`
-    // schema even when migrations placed those tables in `ethereum_adapter`. Build the storage
-    // + service ourselves to pin the schema. (LedgerStorage + VanillaServiceImpl are public.)
+    // Build the storage + service ourselves (instead of createVanillaServices, which
+    // opens its own pool from a connection string) so the vanilla service shares dbPool
+    // and the schema stays pinned to what migrations created.
     const ledgerStorage = new LedgerStorage(dbPool, ledgerSchema);
     const vanillaService = new VanillaServiceImpl(ledgerStorage, delegate, delegate, delegate, delegate, finP2PClient);
     omnibusCtx = {

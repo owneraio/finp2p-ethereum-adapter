@@ -225,6 +225,7 @@ class CustomTestEnvironment extends NodeEnvironment {
         gooseExecutablePath: await this.whichGoose(),
         migrationListTableName: "finp2p_ethereum_adapter_migrations",
         storageUser,
+        schemaName: "ledger_adapter",
       },
       storage: { connectionString },
       service: {},
