@@ -3,6 +3,7 @@ import { Interface, parseUnits } from "ethers";
 import { TaurusClient, decodeToContractCall, TaurusCustodyProvider } from "../src/integrations/custody/taurus";
 import { TaurusAppConfig } from "../src/integrations/custody/taurus/config";
 import { custodyProviderConformance } from "./utils/custody-provider-conformance";
+import { runWithIdempotencyKey } from "../src/services/custody/idempotency-scope";
 
 const CONFIG: TaurusAppConfig = {
   host: "https://taurus.example.test",
@@ -10,6 +11,8 @@ const CONFIG: TaurusAppConfig = {
   apiSecret: "a1b2c3d4e5f6",
   authScheme: "TDXV1",
   operationMode: "transfer-only",
+  blockchain: "ETH",
+  network: "mainnet",
   rpcUrl: "http://localhost:1",
   requestPollIntervalMs: 10,
   requestTimeoutMs: 1000,
@@ -115,25 +118,38 @@ describe("TaurusSigner request lifecycle (mocked backend)", () => {
   const { privateKey } = generateKeyPairSync("ec", { namedCurve: "prime256v1" });
   const OPERATOR_PEM = privateKey.export({ type: "pkcs8", format: "pem" }) as string;
 
-  function lifecycleBackend(opts: { whitelisted?: boolean } = {}) {
+  const INTERNAL_B = "0x00000000000000000000000000000000000000bb";
+
+  function requestMetadata(fields: Record<string, unknown>, tamper?: (f: Record<string, unknown>) => void) {
+    const items = Object.entries(fields).map(([key, value]) => ({ key, type: "x", value, column: "" }));
+    const payloadAsString = JSON.stringify(items);
+    const hash = createHash("sha256").update(payloadAsString, "utf-8").digest("hex");
+    if (tamper) {
+      const tampered = Object.fromEntries(Object.entries(fields));
+      tamper(tampered);
+      const items2 = Object.entries(tampered).map(([key, value]) => ({ key, type: "x", value, column: "" }));
+      return { hash: createHash("sha256").update(JSON.stringify(items2), "utf-8").digest("hex"), payloadAsString: JSON.stringify(items2) };
+    }
+    return { hash, payloadAsString };
+  }
+
+  function lifecycleBackend(opts: { whitelisted?: boolean; tamperDestination?: string } = {}) {
     const statuses = ["APPROVING", "HSM_SIGNED", "BROADCASTING"];
     let polls = 0;
     const calls: string[] = [];
     const bodies: Record<string, unknown[]> = {};
+    const address = (a: string) => ({ payload: { address: a } });
     const fetchMock = jest.fn(async (url: string, init?: RequestInit) => {
       const path = new URL(url).pathname;
       calls.push(`${init?.method ?? "GET"} ${path}`);
-      if (init?.body) (bodies[path] ??= []).push(JSON.parse(String(init.body)));
-      const reply = (body: unknown) => ({ ok: true, status: 200, text: async () => JSON.stringify(body) } as Response);
-      if (path === "/api/rest/v1/addresses") return reply({ result: [{ id: "42", walletId: "7", address: FROM }] });
-      // whitelist entries carry the address inside the signed payload string
-      if (path === "/api/rest/v1/whitelists/contracts") {
-        return reply({
-          result: opts.whitelisted === false ? [] : [{
-            id: "8",
-            metadata: { payloadAsString: JSON.stringify({ blockchain: "ETH", contractAddress: TOKEN, symbol: "TT" }) },
-          }],
-        });
+      const body: any = init?.body ? JSON.parse(String(init.body)) : undefined;
+      if (body) (bodies[path] ??= []).push(body);
+      const reply = (b: unknown) => ({ ok: true, status: 200, text: async () => JSON.stringify(b) } as Response);
+      const createdRequest = (fields: Record<string, unknown>) =>
+        reply({ result: { id: "77", status: "CREATED", metadata: requestMetadata(fields) } });
+
+      if (path === "/api/rest/v1/addresses") {
+        return reply({ result: [{ id: "42", walletId: "7", address: FROM }, { id: "43", walletId: "7", address: INTERNAL_B }] });
       }
       if (path === "/api/rest/v1/whitelists/addresses") {
         return reply({
@@ -145,12 +161,28 @@ describe("TaurusSigner request lifecycle (mocked backend)", () => {
       }
       if (path === "/api/rest/v1/currencies") {
         return reply({
-          result: opts.whitelisted === false ? [] : [{ id: "c1", symbol: "TT", contractAddress: TOKEN, decimals: "2" }],
+          result: opts.whitelisted === false ? [] : [
+            { id: "c1", symbol: "TT", type: "token", blockchain: "ETH", network: "mainnet", contractAddress: TOKEN, decimals: "2" },
+            { id: "native1", symbol: "ETH", type: "native", blockchain: "ETH", network: "mainnet" },
+            { id: "cx", symbol: "TT", type: "token", blockchain: "AVAX", network: "mainnet", contractAddress: TOKEN, decimals: "2" },
+          ],
         });
       }
-      if (path === "/api/rest/v1/requests/outgoing/contracts/call" || path === "/api/rest/v1/requests/outgoing"
-        || path === "/api/rest/v1/requests/outgoing/transfers/address_to_address") {
-        return reply({ result: { id: "77", status: "CREATED", metadata: { hash: "req-hash" } } });
+      if (path === "/api/rest/v1/requests/outgoing/transfers/address_to_address") {
+        const toAddress = opts.tamperDestination ?? body.toAddress;
+        return createdRequest(body.currency === "native1"
+          ? { source: address(body.fromAddress), currency_id: body.currency, destination: address(toAddress), amount: { valueFrom: body.amount } }
+          : { source: address(body.fromAddress), currency_id: body.currency, function: "transfer(address,uint256)", arg_1: address(toAddress), arg_2: { valueFrom: body.amount } });
+      }
+      if (path === "/api/rest/v1/requests/outgoing/contracts/call") {
+        const fields: Record<string, unknown> = { source: address(FROM), function: body.method.functionSignature };
+        body.method.args.forEach((arg: any, i: number) => {
+          fields[`arg_${i + 1}`] = arg.type === "address" ? address(arg.value.primitive) : { valueFrom: arg.value.primitive };
+        });
+        return createdRequest(fields);
+      }
+      if (path === "/api/rest/v1/requests/outgoing") {
+        return createdRequest({ source: address(FROM), destination: address(TOKEN), amount: { valueFrom: body.amount } });
       }
       if (path === "/api/rest/v1/requests/approve") return reply({ signedRequests: "1" });
       if (path === "/api/rest/v1/requests/77") {
@@ -190,7 +222,7 @@ describe("TaurusSigner request lifecycle (mocked backend)", () => {
     expect(calls).toContain("POST /api/rest/v1/requests/outgoing/transfers/address_to_address");
     expect(calls).toContain("POST /api/rest/v1/requests/approve");
     const created = bodies["/api/rest/v1/requests/outgoing/transfers/address_to_address"][0] as any;
-    expect(created.currency).toBe("TT");
+    expect(created.currency).toBe("c1"); // by id — symbols are not unique across networks
     // PROTECT matches addresses case-sensitively against lowercase storage
     expect(created.fromAddress).toBe(FROM.toLowerCase());
     expect(created.toAddress).toBe("0xcd971e054569fd0c430b92b2e8098ace3638ee58");
@@ -214,6 +246,40 @@ describe("TaurusSigner request lifecycle (mocked backend)", () => {
       { name: "amount", type: "uint256", value: { primitive: "7" } },
     ]);
     expect(transfer.method.functionSignature).toBe("transfer(address,uint256)");
+  });
+
+  test("native transfers to internal custody addresses go as native-currency transfers", async () => {
+    const { fetchMock, bodies } = lifecycleBackend();
+    (global as any).fetch = fetchMock;
+    const wallet = await walletWithoutRpc(OPERATOR_PEM);
+
+    const tx = await wallet.signer.sendTransaction({ to: INTERNAL_B, value: 7000n });
+    expect(tx.hash).toBe("0xdeadbeef");
+    const created = bodies["/api/rest/v1/requests/outgoing/transfers/address_to_address"][0] as any;
+    expect(created.currency).toBe("native1");
+    expect(created.toAddress).toBe(INTERNAL_B);
+    expect(created.amount).toBe("7000");
+  });
+
+  test("a request whose signed payload differs from the submission is never approved", async () => {
+    const { fetchMock, calls } = lifecycleBackend({ tamperDestination: "0x000000000000000000000000000000000000dead" });
+    (global as any).fetch = fetchMock;
+    const wallet = await walletWithoutRpc(OPERATOR_PEM);
+
+    await expect(wallet.signer.sendTransaction({ to: TOKEN, data: erc20.encodeFunctionData("transfer", [FROM, 5n]) }))
+      .rejects.toThrow(/failed pre-approval verification/);
+    expect(calls).not.toContain("POST /api/rest/v1/requests/approve");
+  });
+
+  test("the adapter idempotency key rides as externalRequestId", async () => {
+    const { fetchMock, bodies } = lifecycleBackend();
+    (global as any).fetch = fetchMock;
+    const wallet = await walletWithoutRpc(OPERATOR_PEM);
+
+    await runWithIdempotencyKey("idem-123", () =>
+      wallet.signer.sendTransaction({ to: TOKEN, data: erc20.encodeFunctionData("transfer", [FROM, 5n]) }));
+    const created = bodies["/api/rest/v1/requests/outgoing/transfers/address_to_address"][0] as any;
+    expect(created.externalRequestId).toBe("idem-123");
   });
 
   test("contract-call mode refuses native transfers", async () => {

@@ -12,6 +12,7 @@ import { AccountResolver, AssetStore, ledgerAccountAddress } from "../accounts";
 import { tokenStandardRegistry } from '../../integrations/token-standards/registry';
 import { TokenStandardName as ERC20_TOKEN_STANDARD, DEFAULT_NEW_ERC20_DECIMALS } from '@owneraio/finp2p-ethereum-erc20-plugin';
 import { buildOperationContext, deriveReleaseType } from "../operations";
+import { runWithIdempotencyKey } from './idempotency-scope';
 
 function resultToReceipt(
   result: TokenOperationResult, ast: Asset, operationType: OperationType, quantity: string,
@@ -221,7 +222,7 @@ export class CustodyTokenService implements TokenService, EscrowService, HealthS
       if (!address) throw new Error(`Cannot resolve address for finId: ${destination.finId}`);
       const amount = parseUnits(quantity, asset.decimals);
 
-      const result = await standard.mint(wallet, asset, address, amount, this.logger);
+      const result = await runWithIdempotencyKey(idempotencyKey, () => standard.mint(wallet, asset, address, amount, this.logger));
       return resultToReceipt(result, ast, "issue", quantity, destination, destination, exCtx, undefined);
     } catch (e) {
       this.logger.error(`Issue failed: asset=${ast.assetId} to=${destination.finId} quantity=${quantity}`, e);
@@ -246,7 +247,7 @@ export class CustodyTokenService implements TokenService, EscrowService, HealthS
         ?? ledgerAccountAddress(destination.account, (await this.readProvider.getNetwork()).chainId);
       if (!destinationAddress) throw new Error(`Cannot resolve address for finId: ${destination.finId}`);
       const opCtx = buildOperationContext(ast, signature, exCtx);
-      const result = await standard.transfer(wallet, asset, destinationAddress, amount, this.logger, opCtx);
+      const result = await runWithIdempotencyKey(idempotencyKey, () => standard.transfer(wallet, asset, destinationAddress, amount, this.logger, opCtx));
       return resultToReceipt(result, ast, "transfer", quantity, source, destination, exCtx, undefined);
     } catch (e) {
       this.logger.error(`Transfer failed: asset=${ast.assetId} from=${source.finId} to=${destination.finId} quantity=${quantity}`, e);
@@ -271,7 +272,7 @@ export class CustodyTokenService implements TokenService, EscrowService, HealthS
         // release(ReleaseType.Redeem) resolves the reservation by operationId and
         // burns from the holder; a redemption delivers to no one, hence the
         // zero destination.
-        const result = await standard.release(this.escrowWallet, asset, ZeroAddress, amount, this.logger, opCtx);
+        const result = await runWithIdempotencyKey(idempotencyKey, () => standard.release(this.escrowWallet, asset, ZeroAddress, amount, this.logger, opCtx));
         return resultToReceipt(result, ast, "redeem", quantity, source, undefined, exCtx, operationId);
       }
 
@@ -287,7 +288,7 @@ export class CustodyTokenService implements TokenService, EscrowService, HealthS
         burnFromAddress = resolved.address;
       }
 
-      const result = await standard.burn(wallet, asset, burnFromAddress, amount, this.logger, opCtx);
+      const result = await runWithIdempotencyKey(idempotencyKey, () => standard.burn(wallet, asset, burnFromAddress, amount, this.logger, opCtx));
       return resultToReceipt(result, ast, "redeem", quantity, source, undefined, exCtx, operationId);
     } catch (e) {
       this.logger.error(`Redeem failed: asset=${ast.assetId} source=${source.finId} quantity=${quantity}`, e);
@@ -309,7 +310,7 @@ export class CustodyTokenService implements TokenService, EscrowService, HealthS
       const amount = parseUnits(quantity, asset.decimals);
 
       const opCtx = buildOperationContext(ast, signature, exCtx, operationId, deriveReleaseType(signature, destination));
-      const result = await standard.hold(wallet, this.escrowWallet, asset, amount, this.logger, opCtx);
+      const result = await runWithIdempotencyKey(idempotencyKey, () => standard.hold(wallet, this.escrowWallet, asset, amount, this.logger, opCtx));
       return resultToReceipt(result, ast, "hold", quantity, source, destination, exCtx, operationId);
     } catch (e) {
       this.logger.error(`Hold failed: asset=${ast.assetId} source=${source.finId} quantity=${quantity} operationId=${operationId}`, e);
@@ -331,7 +332,7 @@ export class CustodyTokenService implements TokenService, EscrowService, HealthS
       const amount = parseUnits(quantity, asset.decimals);
 
       const opCtx = buildOperationContext(ast, undefined, exCtx, operationId);
-      const result = await standard.release(escrowWallet, asset, destinationAddress, amount, this.logger, opCtx);
+      const result = await runWithIdempotencyKey(idempotencyKey, () => standard.release(escrowWallet, asset, destinationAddress, amount, this.logger, opCtx));
       return resultToReceipt(result, ast, "release", quantity, source, destination, exCtx, operationId);
     } catch (e) {
       this.logger.error(`Release failed: asset=${ast.assetId} destination=${destination.finId} quantity=${quantity}`, e);
@@ -351,7 +352,7 @@ export class CustodyTokenService implements TokenService, EscrowService, HealthS
       const amount = parseUnits(quantity, asset.decimals);
 
       const opCtx = buildOperationContext(ast, undefined, exCtx, operationId);
-      const result = await standard.release(escrowWallet, asset, sourceAddress, amount, this.logger, opCtx);
+      const result = await runWithIdempotencyKey(idempotencyKey, () => standard.release(escrowWallet, asset, sourceAddress, amount, this.logger, opCtx));
       return resultToReceipt(result, ast, "release", quantity, source, undefined, exCtx, operationId);
     } catch (e) {
       this.logger.error(`Rollback failed: asset=${ast.assetId} source=${source.finId} quantity=${quantity}`, e);

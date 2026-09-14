@@ -1,6 +1,6 @@
 import { Provider, TransactionDescription, TransactionRequest } from 'ethers';
 import { ContractArg, ContractCall, TaurusRequest } from '../client';
-import { TaurusSigner, TOKEN_CONTRACT_ABI } from './base';
+import { RequestExpectation, TaurusSigner, TOKEN_CONTRACT_ABI } from './base';
 
 /** 'contract-call' mode: contract calls ONLY. The token standard's contract
  *  call IS the operation, submitted structurally against the
@@ -12,7 +12,9 @@ export class TaurusContractCallSigner extends TaurusSigner {
     return new TaurusContractCallSigner(provider, this.client, this.config, this.addressId, this.address);
   }
 
-  protected async createRequest(to: string, parsed: TransactionDescription | undefined, tx: TransactionRequest): Promise<TaurusRequest> {
+  protected async createRequest(
+    to: string, parsed: TransactionDescription | undefined, tx: TransactionRequest, externalRequestId: string | undefined,
+  ): Promise<{ request: TaurusRequest; expected: RequestExpectation }> {
     if (!parsed) {
       throw new Error('Taurus signer: contract-call mode submits contract calls only — native transfers are not supported');
     }
@@ -20,14 +22,23 @@ export class TaurusContractCallSigner extends TaurusSigner {
     if (!toWhitelistedAddressId) {
       throw new Error(`Taurus signer: contract ${to} is not in the PROTECT whitelisted-addresses registry — contract calls require the contract whitelisted as an address`);
     }
-    return this.client.createContractCallRequest({
+    const request = await this.client.createContractCallRequest({
       fromAddressId: this.addressId,
       toWhitelistedAddressId,
       method: toContractCall(parsed),
       amount: tx.value !== undefined && tx.value !== null ? tx.value.toString() : undefined,
       gasLimit: tx.gasLimit?.toString(),
       comment: 'finp2p adapter contract call',
+      externalRequestId,
     });
+    const expected: RequestExpectation = {
+      source: this.address.toLowerCase(),
+      fn: parsed.signature,
+      args: parsed.fragment.inputs.map((input, i) => input.type === 'address'
+        ? { address: String(parsed.args[i]).toLowerCase() }
+        : { value: String(parsed.args[i]) }),
+    };
+    return { request, expected };
   }
 }
 

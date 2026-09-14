@@ -21,6 +21,9 @@ export interface TaurusAddress {
 export interface TaurusCurrency {
   id: string;
   symbol: string;
+  type?: string;
+  blockchain?: string;
+  network?: string;
   contractAddress?: string;
   decimals?: string;
 }
@@ -28,7 +31,7 @@ export interface TaurusCurrency {
 export interface TaurusRequest {
   id: string;
   status: string;
-  metadata?: { hash?: string };
+  metadata?: { hash?: string; payloadAsString?: string };
   /** blockchain hashes are reported per signed transaction, not top-level */
   signedRequests?: { hash?: string; status?: string }[];
 }
@@ -111,16 +114,25 @@ export class TaurusClient {
     return (reply as { result?: TaurusAddress }).result ?? (reply as TaurusAddress);
   }
 
+  /** Internal custody address matching a chain (0x…) address, if any. */
+  async findInternalAddress(address: string): Promise<TaurusAddress | undefined> {
+    const wanted = address.toLowerCase();
+    return (await this.listAddresses()).find(a => a.address?.toLowerCase() === wanted);
+  }
+
   /** Whitelisted (payout) addresses are signed envelopes; the authoritative
    *  content is metadata.payloadAsString (the string the approval hash
-   *  covers) — anything else is ignored, fail closed. */
+   *  covers) — anything else is ignored, fail closed. Entries of other
+   *  blockchains/networks are not matches. */
   async findWhitelistedAddressId(address: string): Promise<string | undefined> {
     type Entry = { id: string; metadata?: { payloadAsString?: string } };
     const wanted = address.toLowerCase();
     const addressOf = (w: Entry): string | undefined => {
       if (!w.metadata?.payloadAsString) return undefined;
       try {
-        const payload = JSON.parse(w.metadata.payloadAsString) as { address?: string };
+        const payload = JSON.parse(w.metadata.payloadAsString) as { address?: string; blockchain?: string; network?: string };
+        if (payload.blockchain !== this.config.blockchain) return undefined;
+        if (payload.network && payload.network !== this.config.network) return undefined;
         return typeof payload.address === 'string' ? payload.address : undefined;
       } catch {
         return undefined;
@@ -135,12 +147,22 @@ export class TaurusClient {
     }
   }
 
-  /** A whitelisted+approved contract becomes a PROTECT currency; token
-   *  transfers reference it by symbol. */
+  /** A whitelisted+approved contract becomes a PROTECT currency, referenced
+   *  by its id (symbols are not unique across networks). */
   async findCurrencyByContract(contractAddress: string): Promise<TaurusCurrency | undefined> {
     const wanted = contractAddress.toLowerCase();
+    return (await this.currencies()).find(c => c.contractAddress?.toLowerCase() === wanted);
+  }
+
+  /** The configured chain's native currency (for internal value transfers). */
+  async findNativeCurrency(): Promise<TaurusCurrency | undefined> {
+    return (await this.currencies()).find(c => c.type === 'native');
+  }
+
+  private async currencies(): Promise<TaurusCurrency[]> {
     const reply = await this.call<{ result?: TaurusCurrency[] }>('GET', '/api/rest/v1/currencies');
-    return (reply.result ?? []).find(c => c.contractAddress?.toLowerCase() === wanted);
+    return (reply.result ?? []).filter(c =>
+      c.blockchain === this.config.blockchain && (c.network ?? 'mainnet') === this.config.network);
   }
 
   async createContractCallRequest(params: {
@@ -150,6 +172,7 @@ export class TaurusClient {
     amount?: string;
     gasLimit?: string;
     comment?: string;
+    externalRequestId?: string;
   }): Promise<TaurusRequest> {
     const reply = await this.call<{ result?: TaurusRequest } | TaurusRequest>('POST', '/api/rest/v1/requests/outgoing/contracts/call', { body: params });
     return (reply as { result?: TaurusRequest }).result ?? (reply as TaurusRequest);
@@ -160,6 +183,7 @@ export class TaurusClient {
     toWhitelistedAddressId: string;
     amount: string;
     comment?: string;
+    externalRequestId?: string;
   }): Promise<TaurusRequest> {
     const reply = await this.call<{ result?: TaurusRequest } | TaurusRequest>('POST', '/api/rest/v1/requests/outgoing', { body: params });
     return (reply as { result?: TaurusRequest }).result ?? (reply as TaurusRequest);
@@ -177,6 +201,7 @@ export class TaurusClient {
     amount: string;
     currency: string;
     comment?: string;
+    externalRequestId?: string;
   }): Promise<TaurusRequest> {
     const body = { ...params, fromAddress: params.fromAddress.toLowerCase(), toAddress: params.toAddress.toLowerCase() };
     const reply = await this.call<{ result?: TaurusRequest } | TaurusRequest>('POST', '/api/rest/v1/requests/outgoing/transfers/address_to_address', { body });
