@@ -111,29 +111,23 @@ export class TaurusClient {
     return (reply as { result?: TaurusAddress }).result ?? (reply as TaurusAddress);
   }
 
-  /** Whitelist entries are signed envelopes; the authoritative content is
-   *  metadata.payloadAsString (the string the approval hash covers) — parse
-   *  the chain address from it rather than trusting mutable display fields. */
-  private async findWhitelistId(
-    path: string, address: string, payloadAddressField: string,
-  ): Promise<string | undefined> {
-    type Entry = { id: string; address?: string; metadata?: { payloadAsString?: string; payload?: Record<string, unknown> } };
+  /** Whitelisted (payout) addresses are signed envelopes; the authoritative
+   *  content is metadata.payloadAsString (the string the approval hash
+   *  covers) — anything else is ignored, fail closed. */
+  async findWhitelistedAddressId(address: string): Promise<string | undefined> {
+    type Entry = { id: string; metadata?: { payloadAsString?: string } };
     const wanted = address.toLowerCase();
     const addressOf = (w: Entry): string | undefined => {
-      const raw = w.metadata?.payloadAsString;
-      if (raw) {
-        try {
-          const payload = JSON.parse(raw) as Record<string, unknown>;
-          const a = payload[payloadAddressField];
-          if (typeof a === 'string') return a;
-        } catch { /* fall through to the parsed payload / top-level field */ }
+      if (!w.metadata?.payloadAsString) return undefined;
+      try {
+        const payload = JSON.parse(w.metadata.payloadAsString) as { address?: string };
+        return typeof payload.address === 'string' ? payload.address : undefined;
+      } catch {
+        return undefined;
       }
-      const parsed = w.metadata?.payload?.[payloadAddressField];
-      if (typeof parsed === 'string') return parsed;
-      return w.address;
     };
     for (let offset = 0; ; offset += PAGE_LIMIT) {
-      const reply = await this.call<{ result?: Entry[] }>('GET', path, { query: `limit=${PAGE_LIMIT}&offset=${offset}` });
+      const reply = await this.call<{ result?: Entry[] }>('GET', '/api/rest/v1/whitelists/addresses', { query: `limit=${PAGE_LIMIT}&offset=${offset}` });
       const page = reply.result ?? [];
       const hit = page.find(w => addressOf(w)?.toLowerCase() === wanted);
       if (hit) return hit.id;
@@ -141,29 +135,12 @@ export class TaurusClient {
     }
   }
 
-  /** Whitelisted external (payout) addresses. */
-  async findWhitelistedAddressId(address: string): Promise<string | undefined> {
-    return this.findWhitelistId('/api/rest/v1/whitelists/addresses', address, 'address');
-  }
-
-  /** Whitelisted contracts live under a separate endpoint with their own
-   *  payload shape ({blockchain, contractAddress, symbol, ...}). */
-  async findWhitelistedContractId(contractAddress: string): Promise<string | undefined> {
-    return this.findWhitelistId('/api/rest/v1/whitelists/contracts', contractAddress, 'contractAddress');
-  }
-
   /** A whitelisted+approved contract becomes a PROTECT currency; token
-   *  transfers reference it by symbol. Cached, with one refetch on a miss so
-   *  freshly approved tokens are picked up. */
-  private currencies?: TaurusCurrency[];
-
+   *  transfers reference it by symbol. */
   async findCurrencyByContract(contractAddress: string): Promise<TaurusCurrency | undefined> {
     const wanted = contractAddress.toLowerCase();
-    const match = () => this.currencies?.find(c => c.contractAddress?.toLowerCase() === wanted);
-    if (this.currencies && match()) return match();
     const reply = await this.call<{ result?: TaurusCurrency[] }>('GET', '/api/rest/v1/currencies');
-    this.currencies = reply.result ?? [];
-    return match();
+    return (reply.result ?? []).find(c => c.contractAddress?.toLowerCase() === wanted);
   }
 
   async createContractCallRequest(params: {

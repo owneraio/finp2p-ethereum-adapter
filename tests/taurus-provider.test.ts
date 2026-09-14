@@ -72,7 +72,7 @@ describe("Taurus calldata translation (no raw signing in PROTECT)", () => {
   });
 
   test("unknown selectors are refused instead of mis-sent", () => {
-    expect(() => decodeToContractCall("0xdeadbeef")).toThrow(/not part of the frozen token-contract models/);
+    expect(() => decodeToContractCall("0xdeadbeef")).toThrow(/not part of the frozen token-contract model/);
   });
 });
 

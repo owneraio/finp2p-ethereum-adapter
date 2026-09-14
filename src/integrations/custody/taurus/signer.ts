@@ -2,17 +2,17 @@ import {
   AbstractSigner, Provider, TransactionDescription, TransactionRequest, TransactionResponse,
   TypedDataDomain, TypedDataField,
 } from 'ethers';
-import { ERC20__factory, ERC20WithOperator__factory } from '@owneraio/finp2p-ethereum-erc20-plugin';
-import { TaurusClient, ContractArg, ContractArgValue, ContractCall, TaurusRequest, transactionHashOf } from './client';
+import { ERC20__factory } from '@owneraio/finp2p-ethereum-erc20-plugin';
+import { TaurusClient, ContractArg, ContractCall, TaurusRequest, transactionHashOf } from './client';
 import { TaurusAppConfig } from './config';
 
 /**
  * Taurus signs only approved, structured requests in its HSM — there is no
  * raw-hash or raw-calldata signing — so sendTransaction is TRANSLATED into
  * PROTECT outgoing requests. Calldata is decoded against the plugin's
- * hardhat-generated models of the frozen token contracts (the same source the
- * standards deploy from); how the decoded operation is submitted depends on
- * the configured operation mode:
+ * hardhat-generated model of the frozen token contract (the same source the
+ * default standard deploys from); how the decoded operation is submitted
+ * depends on the configured operation mode:
  *
  *  - TaurusContractCallSigner ('contract-call'): every token operation is
  *    submitted as the structured form of the token standard's contract call,
@@ -28,18 +28,7 @@ import { TaurusAppConfig } from './config';
  * rejected with an explicit error rather than mis-sent.
  */
 
-const TOKEN_CONTRACT_ABIS = [
-  ERC20__factory.createInterface(),
-  ERC20WithOperator__factory.createInterface(),
-];
-
-function parseTokenCalldata(data: string): TransactionDescription | null {
-  for (const abi of TOKEN_CONTRACT_ABIS) {
-    const parsed = abi.parseTransaction({ data });
-    if (parsed) return parsed;
-  }
-  return null;
-}
+const TOKEN_CONTRACT_ABI = ERC20__factory.createInterface();
 
 const TERMINAL_FAIL = new Set(['REJECTED', 'FAILED', 'CANCELED', 'CANCELLED', 'EXPIRED']);
 
@@ -70,9 +59,9 @@ export abstract class TaurusSigner extends AbstractSigner {
     const data = tx.data && tx.data !== '0x' ? String(tx.data) : undefined;
     let parsed: TransactionDescription | undefined;
     if (data) {
-      parsed = parseTokenCalldata(data) ?? undefined;
+      parsed = TOKEN_CONTRACT_ABI.parseTransaction({ data }) ?? undefined;
       if (!parsed) {
-        throw new Error(`Taurus signer: calldata selector ${data.slice(0, 10)} is not part of the frozen token-contract models — PROTECT accepts structured calls only`);
+        throw new Error(`Taurus signer: calldata selector ${data.slice(0, 10)} is not part of the frozen token-contract model — PROTECT accepts structured calls only`);
       }
     }
     const request = await this.createRequest(to, parsed, tx);
@@ -181,30 +170,22 @@ export class TaurusTransferOnlySigner extends TaurusSigner {
   }
 }
 
-function toArgValue(value: unknown): ContractArgValue {
-  if (Array.isArray(value)) return { composite: value.map(toArgValue) };
-  if (typeof value === 'bigint' || typeof value === 'boolean' || typeof value === 'number') {
-    return { primitive: value.toString() };
-  }
-  return { primitive: String(value) };
-}
-
 function toContractCall(parsed: TransactionDescription): ContractCall {
   const args: ContractArg[] = parsed.fragment.inputs.map((input, i) => ({
     name: input.name || `arg_${i + 1}`,
     type: input.type,
-    value: toArgValue(parsed.args[i]),
+    value: { primitive: String(parsed.args[i]) },
   }));
   return { functionSignature: parsed.signature, args };
 }
 
 /** Decode calldata into PROTECT's structured ContractCall ({name, type,
- *  value: {primitive | composite}} per argument); unknown selectors are
- *  refused — mis-translating a call is worse than failing it. */
+ *  value: {primitive}} per argument); unknown selectors are refused —
+ *  mis-translating a call is worse than failing it. */
 export function decodeToContractCall(data: string): ContractCall {
-  const parsed = parseTokenCalldata(data);
+  const parsed = TOKEN_CONTRACT_ABI.parseTransaction({ data });
   if (!parsed) {
-    throw new Error(`Taurus signer: calldata selector ${data.slice(0, 10)} is not part of the frozen token-contract models — PROTECT accepts structured calls only`);
+    throw new Error(`Taurus signer: calldata selector ${data.slice(0, 10)} is not part of the frozen token-contract model — PROTECT accepts structured calls only`);
   }
   return toContractCall(parsed);
 }
