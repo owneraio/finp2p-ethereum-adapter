@@ -7,8 +7,7 @@ import {
 } from '@owneraio/finp2p-nodejs-skeleton-adapter';
 import winston from 'winston';
 import { Contract, parseUnits, Provider, Signer, Wallet, ZeroAddress } from "ethers";
-import { AllowanceSwap, SwapLeg as AllowanceSwapLeg, mirrored } from '@owneraio/finp2p-ethereum-allowance-swap';
-import { AssetRecord, ReleaseType, TokenOperationResult } from '@owneraio/finp2p-ethereum-adapter-contract';
+import { AssetRecord, ReleaseType, TokenOperationResult, SwapIntent, SwapVenue, mirrored } from '@owneraio/finp2p-ethereum-adapter-contract';
 import { CustodyProvider, CustodyWallet } from './custody-provider';
 import { AccountResolver, AssetStore, ledgerAccountAddress, validateSwapWallets } from "../accounts";
 import { tokenStandardRegistry } from '../../integrations/token-standards/registry';
@@ -86,7 +85,12 @@ export class CustodyTokenService implements TokenService, EscrowService, HealthS
     // not configured: deploy/issue then fail closed instead of stranding assets
     // behind a throwaway signer.
     readonly issuerWallet: CustodyWallet | undefined,
-    readonly allowanceSwapAddress?: string,
+    // swap execution venue (SPI plugin), constructed at app startup from
+    // FINP2P_ETHEREUM_ALLOWANCE_SWAP_ADDRESS when that env var is set
+    readonly swapVenue?: SwapVenue,
+    // the venue contract both parties must ERC20-approve before swapping;
+    // allowance-based venues ignore intent permits
+    readonly swapVenueApprovalAddress?: string,
   ) {}
 
   // read-only paths need a Signer arg for the SPI; an ephemeral one suffices
@@ -276,44 +280,38 @@ export class CustodyTokenService implements TokenService, EscrowService, HealthS
   }
 
   /**
-   * The AllowanceSwap contract wants addresses and raw token units; the request
-   * carries finIds, assetIds and decimal quantities. Token address + decimals
-   * come from the asset store — both legs must be registered assets here.
+   * The swap venue wants addresses and raw token units; the request carries
+   * finIds, assetIds and decimal quantities. Token address + decimals come
+   * from the asset store — both legs must be registered assets here.
    */
-  private async toAllowanceSwapLeg(asset: SwapLeg, settlement: SwapLeg, party: string, counterParty: string): Promise<AllowanceSwapLeg> {
+  private async toSwapIntent(operationId: string, asset: SwapLeg, settlement: SwapLeg,
+                             party: string, counterParty: string, deadline: number): Promise<SwapIntent> {
     const assetRecord = await this.assetRecord(asset.asset.assetId);
     const settlementRecord = await this.assetRecord(settlement.asset.assetId);
     return {
-      token: assetRecord.contractAddress,
-      party,
-      amount: parseUnits(asset.quantity, assetRecord.decimals),
-      counterToken: settlementRecord.contractAddress,
-      counterParty,
-      counterAmount: parseUnits(settlement.quantity, settlementRecord.decimals),
+      operationId,
+      give: { token: assetRecord.contractAddress, party, amount: parseUnits(asset.quantity, assetRecord.decimals) },
+      take: { token: settlementRecord.contractAddress, party: counterParty, amount: parseUnits(settlement.quantity, settlementRecord.decimals) },
+      deadline: deadline || undefined,
     };
   }
 
-  private allowanceSwapFor(signer: Signer): AllowanceSwap {
-    return new AllowanceSwap(this.allowanceSwapAddress!, signer);
-  }
-
-  // TODO: AllowanceSwap is permissionless — an allowance granted here is spendable by ANY
+  // TODO: the venue contract is permissionless — an allowance granted here is spendable by ANY
   // mirrored pair naming this party, not just this operationId. Exact per-swap amounts limit
   // the exposure but don't remove it (a competing swap can still consume the approval).
   // Needs review later.
-  private async approveToSwapContract(signer: Signer, token: string, amount: bigint): Promise<void> {
+  private async approveToSwapVenue(signer: Signer, token: string, amount: bigint): Promise<void> {
     const erc20 = new Contract(token, ["function approve(address spender, uint256 amount) returns (bool)"], signer);
-    const tx = await erc20.approve(this.allowanceSwapAddress!, amount);
+    const tx = await erc20.approve(this.swapVenueApprovalAddress!, amount);
     await tx.wait();
   }
 
   /**
-   * Atomic same-ledger swap via the standalone AllowanceSwap contract
-   * (FINP2P_ETHEREUM_ALLOWANCE_SWAP_ADDRESS): this adapter submits its own
-   * (asset) leg signed by the asset source's custody wallet; the counterparty's
-   * mirrored call crosses both movements. Behaves synchronously like the
-   * on-chain path: the preparing side blocks until the counterparty's executing
-   * transaction is observed (or the deadline passes). Without the env var the
+   * Atomic same-ledger swap through the configured SwapVenue (SPI plugin):
+   * this adapter submits its own (asset) leg signed by the asset source's
+   * custody wallet; the venue resolves only once both legs have crossed
+   * (the counterparty's mirrored call), or fails at the deadline — the
+   * polling is internal to the venue. Without a configured venue the
    * request is validated and fails closed as before.
    *
    * `numberOfReceipts` selects the mode: 1 = cross-org (this adapter executes
@@ -339,14 +337,14 @@ export class CustodyTokenService implements TokenService, EscrowService, HealthS
       const { chainId } = await this.readProvider.getNetwork();
       const { approvalWallet, destinationWallet } = validateSwapWallets(asset, settlement, chainId);
 
-      if (!this.allowanceSwapAddress) {
+      if (!this.swapVenue) {
         // "approval from" (asset source) and "swap to" (settlement destination) wallets:
         // taken from the leg accounts when present, otherwise from the account mapping
         const approval = approvalWallet ?? await this.accountMapping.resolveAccount(asset.source.finId);
         if (!approval) return failedSwapOperation(1, `No wallet address for asset source ${asset.source.finId} — pass source.account or map the finId`);
         const to = destinationWallet ?? await this.accountMapping.resolveAccount(settlement.destination.finId);
         if (!to) return failedSwapOperation(1, `No wallet address for settlement destination ${settlement.destination.finId} — pass destination.account or map the finId`);
-        this.logger.info(`Swap ${operationId}: approval from ${approval}, settle to ${to} — FINP2P_ETHEREUM_ALLOWANCE_SWAP_ADDRESS is not set`);
+        this.logger.info(`Swap ${operationId}: approval from ${approval}, settle to ${to} — no swap venue is configured (FINP2P_ETHEREUM_ALLOWANCE_SWAP_ADDRESS is not set)`);
         return failedSwapOperation(1, 'Swap is not supported: FINP2P_ETHEREUM_ALLOWANCE_SWAP_ADDRESS is not set');
       }
 
@@ -374,26 +372,15 @@ export class CustodyTokenService implements TokenService, EscrowService, HealthS
         ?? await this.accountMapping.resolveAccount(settlement.source.finId);
       if (!counterParty) return failedSwapOperation(1, `No wallet address for settlement source ${settlement.source.finId} — pass source.account or map the finId`);
 
-      const leg = await this.toAllowanceSwapLeg(asset, settlement, resolved.address, counterParty);
-      await this.approveToSwapContract(resolved.wallet.signer, leg.token, leg.amount);
-      const result = await this.allowanceSwapFor(resolved.wallet.signer).swap(operationId, leg);
-
-      let transactionId: string;
-      let timestamp: number;
-      if (result.status === "executed") {
-        // we submitted the mirror of an already-prepared swap — both legs crossed in our tx
-        transactionId = result.transactionHash;
-        timestamp = (await this.readProvider.getBlock(result.blockNumber))?.timestamp ?? 0;
-      } else {
-        // our leg was only recorded (SwapPrepared) — block until the counterparty's
-        // mirror call executes the swap, giving up at the deadline
-        const executed = await new AllowanceSwap(this.allowanceSwapAddress, this.readProvider)
-          .waitForExecution(operationId, { fromBlock: result.blockNumber, deadline: deadline || undefined });
-        if (!executed) {
-          return failedSwapOperation(1, `swap ${operationId} was prepared (tx ${result.transactionHash}) but the counterparty did not execute it before the deadline`);
-        }
-        ({ transactionHash: transactionId, timestamp } = executed);
+      const intent = await this.toSwapIntent(operationId, asset, settlement, resolved.address, counterParty, deadline);
+      await this.approveToSwapVenue(resolved.wallet.signer, intent.give.token, intent.give.amount);
+      // the venue resolves only once both legs have crossed (or the deadline
+      // passes) — waiting for the counterparty's mirror is internal to it
+      const submission = await this.swapVenue.swap(resolved.wallet, intent, this.logger);
+      if (submission.status === 'failure') {
+        return failedSwapOperation(1, submission.reason);
       }
+      const { transactionId, timestamp } = submission;
       return successfulSwapOperation(
         swapMovementReceipt(`${transactionId}:${asset.asset.assetId}`, transactionId, operationId, asset, exCtx, timestamp),
       );
@@ -404,17 +391,19 @@ export class CustodyTokenService implements TokenService, EscrowService, HealthS
   }
 
   /**
-   * Same-org swap (numberOfReceipts = 2, both wallets custodied here) via the
-   * standalone AllowanceSwap contract: the asset owner's wallet prepares, the
-   * settlement owner's wallet submits the mirror that crosses both movements
-   * in one tx. Completes with both leg receipts.
+   * Same-org swap (numberOfReceipts = 2, both wallets custodied here) through
+   * the configured SwapVenue: both mirrored swap calls are submitted IN
+   * PARALLEL — the venue's swap() resolves only once both legs have crossed
+   * (it polls internally, there is no separate prepared/executed state on the
+   * SPI), so submitting sequentially would block the first call forever
+   * waiting for a mirror that never comes. Completes with both leg receipts.
    */
   private async swapBothLegs(
     operationId: string, asset: SwapLeg,
     settlement: SwapLeg, deadline: number, exCtx: ExecutionContext | undefined
   ): Promise<SwapOperation> {
     try {
-      if (!this.allowanceSwapAddress) {
+      if (!this.swapVenue) {
         return failedSwapOperation(1, 'Swap is not supported: FINP2P_ETHEREUM_ALLOWANCE_SWAP_ADDRESS is not set');
       }
       if (deadline && deadline <= Math.floor(Date.now() / 1000)) {
@@ -436,27 +425,29 @@ export class CustodyTokenService implements TokenService, EscrowService, HealthS
       const resolvedSettlement = await this.resolveSourceWallet(settlement.source.finId);
       if (!resolvedSettlement) return failedSwapOperation(1, `Settlement source ${settlement.source.finId} cannot be resolved to a custody wallet`);
 
-      const leg = await this.toAllowanceSwapLeg(asset, settlement, resolvedAsset.address, resolvedSettlement.address);
+      const intent = await this.toSwapIntent(operationId, asset, settlement, resolvedAsset.address, resolvedSettlement.address, deadline);
 
-      // both allowances up front: the executing call re-checks both, and the
-      // first call may already execute an operationId prepared out of band
-      await this.approveToSwapContract(resolvedAsset.wallet.signer, leg.token, leg.amount);
-      await this.approveToSwapContract(resolvedSettlement.wallet.signer, leg.counterToken, leg.counterAmount);
+      // both allowances up front — the venue checks them when the legs cross
+      await Promise.all([
+        this.approveToSwapVenue(resolvedAsset.wallet.signer, intent.give.token, intent.give.amount),
+        this.approveToSwapVenue(resolvedSettlement.wallet.signer, intent.take.token, intent.take.amount),
+      ]);
 
-      // 1st call — the asset owner's wallet records its leg (SwapPrepared);
-      // an operationId prepared out of band may already execute here
-      const first = await this.allowanceSwapFor(resolvedAsset.wallet.signer).swap(operationId, leg);
-      let executed = first;
-      if (first.status !== "executed") {
-        // 2nd call — the settlement owner's mirrored perspective crosses both movements
-        executed = await this.allowanceSwapFor(resolvedSettlement.wallet.signer).swap(operationId, mirrored(leg));
-        if (executed.status !== "executed") {
-          return failedSwapOperation(1, `swap ${operationId}: mirror call ${executed.transactionHash} did not execute the swap prepared by ${first.transactionHash}`);
-        }
+      // both mirrored perspectives in parallel: each call resolves only once
+      // BOTH legs have crossed, so each side's submission unblocks the other
+      const [assetSubmission, settlementSubmission] = await Promise.all([
+        this.swapVenue.swap(resolvedAsset.wallet, intent, this.logger),
+        this.swapVenue.swap(resolvedSettlement.wallet, mirrored(intent), this.logger),
+      ]);
+      if (assetSubmission.status === 'failure') {
+        return failedSwapOperation(1, assetSubmission.reason);
+      }
+      if (settlementSubmission.status === 'failure') {
+        return failedSwapOperation(1, settlementSubmission.reason);
       }
 
-      const transactionId = executed.transactionHash;
-      const timestamp = (await this.readProvider.getBlock(executed.blockNumber))?.timestamp ?? 0;
+      // both submissions attest the same executing transaction
+      const { transactionId, timestamp } = assetSubmission;
       return successfulSwapOperation(
         swapMovementReceipt(`${transactionId}:${asset.asset.assetId}`, transactionId, operationId, asset, exCtx, timestamp),
         swapMovementReceipt(`${transactionId}:${settlement.asset.assetId}`, transactionId, operationId, settlement, exCtx, timestamp),

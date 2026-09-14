@@ -9,11 +9,7 @@ import {
   logger, ProofProvider, PluginManager,
 } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import { Contract, keccak256, parseUnits, toUtf8Bytes } from "ethers";
-import {
-  AllowanceSwap,
-  SwapLeg as AllowanceSwapLeg,
-  mirrored,
-} from "@owneraio/finp2p-ethereum-allowance-swap";
+import { Logger as SpiLogger, SwapIntent, SwapVenue, TokenWallet, mirrored } from "@owneraio/finp2p-ethereum-adapter-contract";
 import {
   FinP2PContract,
   assetTypeFromString,
@@ -30,8 +26,13 @@ import { validateSwapWallets } from "../accounts";
 
 const DefaultDecimals = 2;
 
-// wait bound when the request carries no deadline
-const DefaultSwapWaitSeconds = 300;
+// the skeleton logger has warning() where the SPI wants warn()
+const spiLogger: SpiLogger = {
+  debug: (message, ...args) => logger.debug(message, ...args),
+  info: (message, ...args) => logger.info(message, ...args),
+  warn: (message, ...args) => logger.warning(message, ...args),
+  error: (message, ...args) => logger.error(message, ...args),
+};
 
 /** A swap settles as ONE ledger tx with two movements; the receipt attests this adapter's own leg. */
 const swapMovementReceipt = (id: string, transactionId: string, operationId: string, leg: SwapLeg,
@@ -64,8 +65,16 @@ export class OnChainTokenService implements TokenService, EscrowService, CommonS
     readonly proofProvider: ProofProvider | undefined,
     readonly pluginManager: PluginManager | undefined,
     readonly defaultAssetStandard: string | undefined = undefined,
-    readonly allowanceSwap: AllowanceSwap | undefined = undefined,
+    // swap execution venue (SPI plugin), constructed at app startup from
+    // FINP2P_ETHEREUM_ALLOWANCE_SWAP_ADDRESS when that env var is set
+    readonly swapVenue: SwapVenue | undefined = undefined,
   ) {}
+
+  // the operator wallet submits venue transactions; the venue contract pulls
+  // from — and settles to — the parties' allowance-granting wallets
+  private operatorWallet(): TokenWallet {
+    return { provider: this.finP2PContract.provider, signer: this.finP2PContract.signer };
+  }
 
   private async ensureCredential(finId: string): Promise<void> {
     if (this.registeredCredentials.has(finId)) return;
@@ -233,11 +242,11 @@ export class OnChainTokenService implements TokenService, EscrowService, CommonS
   }
 
   /**
-   * Translate the request's finId/assetId legs into the standalone AllowanceSwap
-   * contract's address/raw-units leg: token via the operator's asset association,
-   * party via the credentials registry, amounts scaled by the token's own decimals.
+   * Translate the request's finId/assetId legs into the venue's address/raw-units
+   * intent: token via the operator's asset association, party via the credentials
+   * registry, amounts scaled by the token's own decimals.
    */
-  private async toAllowanceSwapLeg(assetLeg: SwapLeg, settlementLeg: SwapLeg): Promise<AllowanceSwapLeg> {
+  private async toSwapIntent(operationId: string, assetLeg: SwapLeg, settlementLeg: SwapLeg, deadline: number): Promise<SwapIntent> {
     const [token, counterToken, party, counterParty] = await Promise.all([
       this.finP2PContract.getAssetAddress(assetLeg.asset.assetId),
       this.finP2PContract.getAssetAddress(settlementLeg.asset.assetId),
@@ -248,7 +257,12 @@ export class OnChainTokenService implements TokenService, EscrowService, CommonS
       this.toTokenUnits(token, assetLeg.quantity),
       this.toTokenUnits(counterToken, settlementLeg.quantity),
     ]);
-    return { token, party, amount, counterToken, counterParty, counterAmount };
+    return {
+      operationId,
+      give: { token, party, amount },
+      take: { token: counterToken, party: counterParty, amount: counterAmount },
+      deadline: deadline || undefined,
+    };
   }
 
   private async toTokenUnits(token: string, quantity: string): Promise<bigint> {
@@ -256,32 +270,17 @@ export class OnChainTokenService implements TokenService, EscrowService, CommonS
     return parseUnits(quantity, await erc20.decimals());
   }
 
-  /** Same prepare/execute mirror semantics as the operator-contract path, against the standalone AllowanceSwap contract. */
-  private async swapViaAllowanceContract(allowanceSwap: AllowanceSwap, operationId: string, assetLeg: SwapLeg,
-                                         settlementLeg: SwapLeg, deadline: number, exCtx: ExecutionContext | undefined): Promise<SwapOperation> {
-    const leg = await this.toAllowanceSwapLeg(assetLeg, settlementLeg);
-    const result = await allowanceSwap.swap(operationId, leg);
-    if (exCtx) {
-      this.execDetailsStore?.addExecutionContext(result.transactionHash, exCtx.planId, exCtx.sequence);
+  /** Submit this side's leg through the venue; the venue resolves only once both legs cross (polling is internal to it). */
+  private async swapViaVenue(swapVenue: SwapVenue, operationId: string, assetLeg: SwapLeg,
+                             settlementLeg: SwapLeg, deadline: number, exCtx: ExecutionContext | undefined): Promise<SwapOperation> {
+    const intent = await this.toSwapIntent(operationId, assetLeg, settlementLeg, deadline);
+    const submission = await swapVenue.swap(this.operatorWallet(), intent, spiLogger);
+    if (submission.status === "failure") {
+      return failedSwapOperation(1, submission.reason);
     }
-
-    let transactionId: string;
-    let timestamp: number;
-    if (result.status === "executed") {
-      transactionId = result.transactionHash;
-      timestamp = (await this.finP2PContract.provider.getBlock(result.blockNumber))?.timestamp ?? 0;
-    } else {
-      const executed = await allowanceSwap.waitForExecution(operationId, {
-        fromBlock: result.blockNumber,
-        deadline: deadline || Math.floor(Date.now() / 1000) + DefaultSwapWaitSeconds,
-      });
-      if (!executed) {
-        return failedSwapOperation(1, `swap ${operationId} was prepared (tx ${result.transactionHash}) but the counterparty did not execute it before the deadline`);
-      }
-      ({ transactionHash: transactionId, timestamp } = executed);
-      if (exCtx) {
-        this.execDetailsStore?.addExecutionContext(transactionId, exCtx.planId, exCtx.sequence);
-      }
+    const { transactionId, timestamp } = submission;
+    if (exCtx) {
+      this.execDetailsStore?.addExecutionContext(transactionId, exCtx.planId, exCtx.sequence);
     }
     return successfulSwapOperation(
       swapMovementReceipt(`${transactionId}:${assetLeg.asset.assetId}`, transactionId, operationId, assetLeg, exCtx, timestamp),
@@ -289,17 +288,15 @@ export class OnChainTokenService implements TokenService, EscrowService, CommonS
   }
 
   /**
-   * Atomic same-ledger swap via the standalone AllowanceSwap contract
-   * (FINP2P_ETHEREUM_ALLOWANCE_SWAP_ADDRESS — the operator contract is no
-   * longer used for swap): `assetLeg` is the leg this adapter executes,
-   * `settlementLeg` the binding counter-leg. First mirror call prepares
-   * (SwapPrepared), the second crosses both movements in one tx (SwapExecuted).
-   * Behaves synchronously: the preparing side blocks until the counterparty's
-   * executing transaction is observed (or the deadline passes), so both parties
-   * resolve with the SAME transaction id — the one that moved both legs.
-   * Long-blocking is safe: the workflow proxy answers the HTTP call with a
-   * pending cid and the router polls the final result. Completes with the
-   * single receipt of this adapter's own (asset) leg.
+   * Atomic same-ledger swap through the configured SwapVenue (SPI plugin, the
+   * operator contract is no longer used for swap): `assetLeg` is the leg this
+   * adapter executes, `settlementLeg` the binding counter-leg. The venue's
+   * swap() honors the SPI's synchronous contract — it resolves only once BOTH
+   * legs have crossed (or fails at the deadline), so both parties resolve with
+   * the SAME transaction id: the one that moved both legs. Long-blocking is
+   * safe: the workflow proxy answers the HTTP call with a pending cid and the
+   * router polls the final result. Completes with the single receipt of this
+   * adapter's own (asset) leg.
    *
    * `numberOfReceipts` selects the mode: 1 = cross-org (counterparty's adapter
    * mirrors the settlement leg), 2 = same-org (both wallets are operated here —
@@ -315,7 +312,7 @@ export class OnChainTokenService implements TokenService, EscrowService, CommonS
       return failedSwapOperation(1, `numberOfReceipts must be 1 or 2, got ${numberOfReceipts}`);
     }
     try {
-      if (!this.allowanceSwap) {
+      if (!this.swapVenue) {
         return failedSwapOperation(1, "Swap is not supported: FINP2P_ETHEREUM_ALLOWANCE_SWAP_ADDRESS is not set");
       }
       if (!operationId) {
@@ -324,9 +321,7 @@ export class OnChainTokenService implements TokenService, EscrowService, CommonS
       if (!assetLeg.signature) {
         return failedSwapOperation(1, "asset leg signature is required");
       }
-      // absolute epoch seconds; enforced adapter-side as the wait bound below —
-      // the operator contract itself has no expiry, so an already-prepared leg
-      // stays executable on-chain past the deadline
+      // absolute epoch seconds; the venue enforces it as its wait bound
       if (deadline && deadline <= Math.floor(Date.now() / 1000)) {
         return failedSwapOperation(1, `swap deadline ${deadline} has already passed`);
       }
@@ -354,7 +349,7 @@ export class OnChainTokenService implements TokenService, EscrowService, CommonS
         return failedSwapOperation(1, `settlement destination wallet ${destinationWallet} does not match the registered credential ${ourWallet} the swap settles to`);
       }
 
-      return await this.swapViaAllowanceContract(this.allowanceSwap, operationId, assetLeg, settlementLeg, deadline, exCtx);
+      return await this.swapViaVenue(this.swapVenue, operationId, assetLeg, settlementLeg, deadline, exCtx);
     } catch (e) {
       logger.error(`Error on swap: ${e}`);
       if (e instanceof EthereumTransactionError || e instanceof ValidationError) {
@@ -364,20 +359,28 @@ export class OnChainTokenService implements TokenService, EscrowService, CommonS
     }
   }
 
-  /** Both-legs swap through the standalone AllowanceSwap contract: prepare then execute the mirror, both signed by the operator. */
-  private async swapBothLegsViaAllowanceContract(allowanceSwap: AllowanceSwap, operationId: string, asset: SwapLeg,
-                                                 settlement: SwapLeg, exCtx: ExecutionContext | undefined): Promise<SwapOperation> {
-    const leg = await this.toAllowanceSwapLeg(asset, settlement);
-    const first = await allowanceSwap.swap(operationId, leg);
-    let executed = first;
-    if (first.status !== "executed") {
-      executed = await allowanceSwap.swap(operationId, mirrored(leg));
-      if (executed.status !== "executed") {
-        return failedSwapOperation(1, `swap ${operationId}: mirror call ${executed.transactionHash} did not execute the swap prepared by ${first.transactionHash}`);
-      }
+  /**
+   * Both-legs swap through the venue: both mirrored swap calls are submitted
+   * IN PARALLEL, both signed by the operator. The venue's swap() resolves only
+   * once both legs have crossed (it polls internally — the SPI exposes no
+   * separate prepared/executed states), so submitting sequentially would block
+   * the first call forever waiting for a mirror that never comes.
+   */
+  private async swapBothLegsViaVenue(swapVenue: SwapVenue, operationId: string, asset: SwapLeg,
+                                     settlement: SwapLeg, deadline: number, exCtx: ExecutionContext | undefined): Promise<SwapOperation> {
+    const intent = await this.toSwapIntent(operationId, asset, settlement, deadline);
+    const [assetSubmission, settlementSubmission] = await Promise.all([
+      swapVenue.swap(this.operatorWallet(), intent, spiLogger),
+      swapVenue.swap(this.operatorWallet(), mirrored(intent), spiLogger),
+    ]);
+    if (assetSubmission.status === "failure") {
+      return failedSwapOperation(1, assetSubmission.reason);
     }
-    const transactionId = executed.transactionHash;
-    const timestamp = (await this.finP2PContract.provider.getBlock(executed.blockNumber))?.timestamp ?? 0;
+    if (settlementSubmission.status === "failure") {
+      return failedSwapOperation(1, settlementSubmission.reason);
+    }
+    // both submissions attest the same executing transaction
+    const { transactionId, timestamp } = assetSubmission;
     if (exCtx) {
       this.execDetailsStore?.addExecutionContext(transactionId, exCtx.planId, exCtx.sequence);
     }
@@ -388,17 +391,15 @@ export class OnChainTokenService implements TokenService, EscrowService, CommonS
   }
 
   /**
-   * Same-org swap (numberOfReceipts = 2, both wallets operated here) via the
-   * standalone AllowanceSwap contract: drive its two-party prepare/execute
-   * mirror ourselves — first call from the asset owner's perspective
-   * (SwapPrepared), then the mirrored call from the settlement owner's
-   * perspective, which crosses both movements in one tx (SwapExecuted).
-   * Completes with both leg receipts, both attesting that executing tx.
+   * Same-org swap (numberOfReceipts = 2, both wallets operated here) through
+   * the configured SwapVenue: drive both mirrored perspectives ourselves, in
+   * parallel (see swapBothLegsViaVenue). Completes with both leg receipts,
+   * both attesting the same executing tx.
    */
   private async swapBothLegs(operationId: string, asset: SwapLeg,
                              settlement: SwapLeg, deadline: number, exCtx: ExecutionContext | undefined): Promise<SwapOperation> {
     try {
-      if (!this.allowanceSwap) {
+      if (!this.swapVenue) {
         return failedSwapOperation(1, "Swap is not supported: FINP2P_ETHEREUM_ALLOWANCE_SWAP_ADDRESS is not set");
       }
       if (!operationId) {
@@ -426,7 +427,7 @@ export class OnChainTokenService implements TokenService, EscrowService, CommonS
       const { chainId } = await this.finP2PContract.provider.getNetwork();
       validateSwapWallets(asset, settlement, chainId);
 
-      return await this.swapBothLegsViaAllowanceContract(this.allowanceSwap, operationId, asset, settlement, exCtx);
+      return await this.swapBothLegsViaVenue(this.swapVenue, operationId, asset, settlement, deadline, exCtx);
     } catch (e) {
       logger.error(`Error on swap (both legs): ${e}`);
       if (e instanceof EthereumTransactionError || e instanceof ValidationError) {
