@@ -2,7 +2,9 @@ import { JsonRpcProvider, Provider } from 'ethers';
 import { CustodyProvider, CustodyWallet } from '../../../services/custody';
 import { TaurusAppConfig } from './config';
 import { TaurusClient } from './client';
-import { TaurusContractCallSigner, TaurusSigner, TaurusTransferOnlySigner } from './signer';
+import { TaurusSigner } from './signer';
+import { TaurusContractCallSigner } from './contract-call-signer';
+import { TaurusTransferOnlySigner } from './transfer-only-signer';
 
 /**
  * Taurus-PROTECT/TDX custody provider (PoC). Custody account id = PROTECT

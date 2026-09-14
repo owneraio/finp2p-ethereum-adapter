@@ -3,7 +3,7 @@ import {
   TypedDataDomain, TypedDataField,
 } from 'ethers';
 import { ERC20__factory } from '@owneraio/finp2p-ethereum-erc20-plugin';
-import { TaurusClient, ContractArg, ContractCall, TaurusRequest, transactionHashOf } from './client';
+import { TaurusClient, TaurusRequest, transactionHashOf } from './client';
 import { TaurusAppConfig } from './config';
 
 /**
@@ -14,10 +14,10 @@ import { TaurusAppConfig } from './config';
  * default standard deploys from); how the decoded operation is submitted
  * depends on the configured operation mode:
  *
- *  - TaurusContractCallSigner ('contract-call'): every token operation is
+ *  - contract-call-signer.ts ('contract-call'): every token operation is
  *    submitted as the structured form of the token standard's contract call,
  *    like the other custody providers sign it — token standards supported.
- *  - TaurusTransferOnlySigner ('transfer-only'): plain ERC20 transfers only,
+ *  - transfer-only-signer.ts ('transfer-only'): plain ERC20 transfers only,
  *    as PROTECT-native currency transfers (the live-verified path); any other
  *    token operation is refused — token standards NOT supported.
  *
@@ -28,7 +28,7 @@ import { TaurusAppConfig } from './config';
  * rejected with an explicit error rather than mis-sent.
  */
 
-const TOKEN_CONTRACT_ABI = ERC20__factory.createInterface();
+export const TOKEN_CONTRACT_ABI = ERC20__factory.createInterface();
 
 const TERMINAL_FAIL = new Set(['REJECTED', 'FAILED', 'CANCELED', 'CANCELLED', 'EXPIRED']);
 
@@ -100,92 +100,4 @@ export abstract class TaurusSigner extends AbstractSigner {
   async signTypedData(_d: TypedDataDomain, _t: Record<string, TypedDataField[]>, _v: Record<string, unknown>): Promise<string> {
     throw new Error('Taurus signer: typed-data signing is not supported');
   }
-}
-
-/** 'contract-call' mode: contract calls ONLY. The token standard's contract
- *  call IS the operation, submitted structurally against the
- *  whitelisted-ADDRESSES registry (contracts/call does not resolve
- *  whitelisted-contract ids); a transaction without calldata is refused. */
-export class TaurusContractCallSigner extends TaurusSigner {
-
-  connect(provider: Provider): TaurusContractCallSigner {
-    return new TaurusContractCallSigner(provider, this.client, this.config, this.addressId, this.address);
-  }
-
-  protected async createRequest(to: string, parsed: TransactionDescription | undefined, tx: TransactionRequest): Promise<TaurusRequest> {
-    if (!parsed) {
-      throw new Error('Taurus signer: contract-call mode submits contract calls only — native transfers are not supported');
-    }
-    const toWhitelistedAddressId = await this.client.findWhitelistedAddressId(to);
-    if (!toWhitelistedAddressId) {
-      throw new Error(`Taurus signer: contract ${to} is not in the PROTECT whitelisted-addresses registry — contract calls require the contract whitelisted as an address`);
-    }
-    return this.client.createContractCallRequest({
-      fromAddressId: this.addressId,
-      toWhitelistedAddressId,
-      method: toContractCall(parsed),
-      amount: tx.value !== undefined && tx.value !== null ? tx.value.toString() : undefined,
-      gasLimit: tx.gasLimit?.toString(),
-      comment: 'finp2p adapter contract call',
-    });
-  }
-}
-
-/** 'transfer-only' mode: plain transfers as PROTECT-native requests — ERC20
- *  transfers as currency transfers, native transfers to whitelisted
- *  addresses; everything else a token standard might do is unsupported. */
-export class TaurusTransferOnlySigner extends TaurusSigner {
-
-  connect(provider: Provider): TaurusTransferOnlySigner {
-    return new TaurusTransferOnlySigner(provider, this.client, this.config, this.addressId, this.address);
-  }
-
-  protected async createRequest(to: string, parsed: TransactionDescription | undefined, tx: TransactionRequest): Promise<TaurusRequest> {
-    if (!parsed) {
-      const toWhitelistedAddressId = await this.client.findWhitelistedAddressId(to);
-      if (!toWhitelistedAddressId) {
-        throw new Error(`Taurus signer: ${to} is not a whitelisted address in PROTECT — whitelist it before transacting`);
-      }
-      return this.client.createTransferRequest({
-        fromAddressId: this.addressId,
-        toWhitelistedAddressId,
-        amount: (tx.value ?? 0n).toString(),
-        comment: 'finp2p adapter transfer',
-      });
-    }
-    if (parsed.signature !== 'transfer(address,uint256)') {
-      throw new Error(`Taurus signer: ${parsed.name} is not supported in transfer-only mode — token standards require TAURUS_OPERATION_MODE=contract-call`);
-    }
-    const currency = await this.client.findCurrencyByContract(to);
-    if (!currency) {
-      throw new Error(`Taurus signer: token ${to} is not a registered PROTECT currency — whitelist and approve the contract before transferring`);
-    }
-    return this.client.createAddressToAddressTransfer({
-      fromAddress: this.address,
-      toAddress: String(parsed.args[0]),
-      amount: (parsed.args[1] as bigint).toString(),
-      currency: currency.symbol,
-      comment: 'finp2p adapter token transfer',
-    });
-  }
-}
-
-function toContractCall(parsed: TransactionDescription): ContractCall {
-  const args: ContractArg[] = parsed.fragment.inputs.map((input, i) => ({
-    name: input.name || `arg_${i + 1}`,
-    type: input.type,
-    value: { primitive: String(parsed.args[i]) },
-  }));
-  return { functionSignature: parsed.signature, args };
-}
-
-/** Decode calldata into PROTECT's structured ContractCall ({name, type,
- *  value: {primitive}} per argument); unknown selectors are refused —
- *  mis-translating a call is worse than failing it. */
-export function decodeToContractCall(data: string): ContractCall {
-  const parsed = TOKEN_CONTRACT_ABI.parseTransaction({ data });
-  if (!parsed) {
-    throw new Error(`Taurus signer: calldata selector ${data.slice(0, 10)} is not part of the frozen token-contract model — PROTECT accepts structured calls only`);
-  }
-  return toContractCall(parsed);
 }
