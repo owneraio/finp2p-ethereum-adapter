@@ -1,7 +1,7 @@
 import { JsonRpcProvider, Wallet, parseUnits } from "ethers";
 import { ERC20TokenStandard, ERC20__factory } from "@owneraio/finp2p-ethereum-erc20-plugin";
 import { AssetRecord, Logger, TokenWallet } from "@owneraio/finp2p-ethereum-adapter-contract";
-import { TaurusCustodyProvider } from "../src/integrations/custody/taurus";
+import { TaurusClient, TaurusCustodyProvider } from "../src/integrations/custody/taurus";
 import { TaurusAppConfig } from "../src/integrations/custody/taurus/config";
 
 /**
@@ -94,16 +94,30 @@ function taurusConfig(operationMode: TaurusAppConfig["operationMode"]): TaurusAp
 
     let asset: AssetRecord;
 
+    const balances = async (...addrs: string[]) => Promise.all(addrs.map(a => balance(TOKEN!, a)));
+    const units = (amount: string) => parseUnits(amount, asset.decimals);
+
     beforeAll(async () => {
       const decimals = await erc20(TOKEN!).decimals();
       asset = { contractAddress: TOKEN!, decimals: Number(decimals), tokenStandard: "erc20" };
     });
 
+    test("the PROTECT currency registration matches the on-chain decimals", async () => {
+      // Taurus valorizes and displays in the REGISTERED decimals; a mismatch
+      // (e.g. whitelisted with the default 18 against an on-chain 2) corrupts
+      // every amount downstream. Registration is the source of the defect, so
+      // this gate fails the suite before any value moves.
+      const currency = await new TaurusClient(taurusConfig("transfer-only")).findCurrencyByContract(TOKEN!);
+      expect(currency).toBeDefined();
+      expect(Number(currency!.decimals)).toBe(asset.decimals);
+    });
+
     test("mint outside custody: issuer EOA mints to investor A", async () => {
-      const before = await balance(TOKEN!, INVESTOR_A);
-      const result = await standard.mint(issuerWallet, asset, INVESTOR_A, parseUnits("10", asset.decimals), logger);
+      const [beforeA] = await balances(INVESTOR_A);
+      const result = await standard.mint(issuerWallet, asset, INVESTOR_A, units("10.07"), logger);
       expect(result.status).toBe("success");
-      expect(await balance(TOKEN!, INVESTOR_A)).toBe(before + parseUnits("10", asset.decimals));
+      const [afterA] = await balances(INVESTOR_A);
+      expect(afterA - beforeA).toBe(units("10.07"));
     });
 
     describe("transfer-only mode", () => {
@@ -113,29 +127,41 @@ function taurusConfig(operationMode: TaurusAppConfig["operationMode"]): TaurusAp
         provider = await TaurusCustodyProvider.create(taurusConfig("transfer-only"));
       });
 
-      test("internal transfer: A -> B through the custody signer", async () => {
+      test("internal transfer: A -> B moves the exact amount on both sides", async () => {
         const wallet = await provider.resolveWallet(INVESTOR_A);
         expect(wallet).toBeDefined();
-        const before = await balance(TOKEN!, INVESTOR_B);
-        const result = await standard.transfer(wallet!, asset, INVESTOR_B, parseUnits("3", asset.decimals), logger);
+        // non-round amount: any decimals scaling error shows up as a wrong delta
+        const amount = units("1.23");
+        const [beforeA, beforeB] = await balances(INVESTOR_A, INVESTOR_B);
+        const result = await standard.transfer(wallet!, asset, INVESTOR_B, amount, logger);
         expect(result).toMatchObject({ status: "success" });
-        expect(await balance(TOKEN!, INVESTOR_B)).toBe(before + parseUnits("3", asset.decimals));
+        const [afterA, afterB] = await balances(INVESTOR_A, INVESTOR_B);
+        expect(beforeA - afterA).toBe(amount);
+        expect(afterB - beforeB).toBe(amount);
       });
 
-      test("external transfer: A -> whitelisted external address", async () => {
+      test("external transfer: A -> whitelisted external address, exact amount on both sides", async () => {
         if (!EXTERNAL) return console.warn("TAURUS_TEST_EXTERNAL not set — skipping");
         const wallet = await provider.resolveWallet(INVESTOR_A);
-        const before = await balance(TOKEN!, EXTERNAL);
-        const result = await standard.transfer(wallet!, asset, EXTERNAL, parseUnits("2", asset.decimals), logger);
+        const amount = units("0.42");
+        const [beforeA, beforeX] = await balances(INVESTOR_A, EXTERNAL);
+        const result = await standard.transfer(wallet!, asset, EXTERNAL, amount, logger);
         expect(result).toMatchObject({ status: "success" });
-        expect(await balance(TOKEN!, EXTERNAL)).toBe(before + parseUnits("2", asset.decimals));
+        const [afterA, afterX] = await balances(INVESTOR_A, EXTERNAL);
+        expect(beforeA - afterA).toBe(amount);
+        expect(afterX - beforeX).toBe(amount);
       });
 
-      test("investor burn is refused (token standards unsupported in this mode)", async () => {
+      test("investor burn is refused and balances stay untouched", async () => {
         const wallet = await provider.resolveWallet(INVESTOR_A);
-        const result = await standard.burn(wallet!, asset, INVESTOR_A, parseUnits("1", asset.decimals), logger);
+        const [beforeA] = await balances(INVESTOR_A);
+        const supplyBefore = await erc20(TOKEN!).totalSupply();
+        const result = await standard.burn(wallet!, asset, INVESTOR_A, units("1"), logger);
         expect(result.status).toBe("failure");
         expect((result as { reason: string }).reason).toMatch(/not supported in transfer-only mode/);
+        const [afterA] = await balances(INVESTOR_A);
+        expect(afterA).toBe(beforeA);
+        expect(await erc20(TOKEN!).totalSupply()).toBe(supplyBefore);
       });
     });
 
