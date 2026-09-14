@@ -52,7 +52,7 @@ describe("Taurus calldata translation (no raw signing in PROTECT)", () => {
     expect(call.functionSignature).toBe("transfer(address,uint256)");
     expect(call.args).toEqual([
       { name: "to", type: "address", value: { primitive: TO } },
-      { name: "amount", type: "uint256", value: { primitive: "1250" } },
+      { name: "value", type: "uint256", value: { primitive: "1250" } },
     ]);
 
     const mint = decodeToContractCall(erc20.encodeFunctionData("mint", [TO, 7n]));
@@ -67,11 +67,11 @@ describe("Taurus calldata translation (no raw signing in PROTECT)", () => {
     const burnable = new Interface(["function burn(uint256)"]);
     const call = decodeToContractCall(burnable.encodeFunctionData("burn", [42n]));
     expect(call.functionSignature).toBe("burn(uint256)");
-    expect(call.args).toEqual([{ name: "amount", type: "uint256", value: { primitive: "42" } }]);
+    expect(call.args).toEqual([{ name: "value", type: "uint256", value: { primitive: "42" } }]);
   });
 
   test("unknown selectors are refused instead of mis-sent", () => {
-    expect(() => decodeToContractCall("0xdeadbeef")).toThrow(/not in the known token-operation ABI/);
+    expect(() => decodeToContractCall("0xdeadbeef")).toThrow(/not part of the frozen token-contract models/);
   });
 });
 

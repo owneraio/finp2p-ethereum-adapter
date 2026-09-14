@@ -1,7 +1,8 @@
 import {
-  AbstractSigner, Interface, Provider, TransactionRequest, TransactionResponse,
+  AbstractSigner, Provider, TransactionDescription, TransactionRequest, TransactionResponse,
   TypedDataDomain, TypedDataField,
 } from 'ethers';
+import { ERC20__factory, ERC20WithOperator__factory } from '@owneraio/finp2p-ethereum-erc20-plugin';
 import { TaurusClient, ContractArg, ContractArgValue, ContractCall, TaurusRequest, transactionHashOf } from './client';
 import { TaurusAppConfig } from './config';
 
@@ -9,23 +10,27 @@ import { TaurusAppConfig } from './config';
  * Taurus signs only approved, structured requests in its HSM — there is no
  * raw-hash or raw-calldata signing. This signer therefore TRANSLATES
  * sendTransaction into PROTECT outgoing requests: calldata is decoded against
- * the token-operation ABI the adapter actually uses, submitted as a contract
- * call (or a native transfer), approved with the operator key when one is
- * configured (otherwise the request waits for a human approver), and the
- * request pipeline (APPROVED -> HSM_SIGNED -> BROADCASTING -> CONFIRMED) is
- * polled for the transaction hash. Calldata outside the known ABI is
- * rejected with an explicit error rather than mis-sent.
+ * the plugin's hardhat-generated models of the frozen token contracts (the
+ * same source the standards deploy from), submitted as a currency transfer /
+ * contract call (or a native transfer), approved with the operator key when
+ * one is configured (otherwise the request waits for a human approver), and
+ * the request pipeline (APPROVED -> HSM_SIGNED -> BROADCASTING -> CONFIRMED)
+ * is polled for the transaction hash. Calldata outside those contract models
+ * is rejected with an explicit error rather than mis-sent.
  */
 
-const KNOWN_ABI = new Interface([
-  'function transfer(address to, uint256 amount)',
-  'function transferFrom(address from, address to, uint256 amount)',
-  'function approve(address spender, uint256 amount)',
-  'function mint(address to, uint256 amount)',
-  'function burn(uint256 amount)',
-  'function burn(address from, uint256 amount)',
-  'function burnFrom(address account, uint256 amount)',
-]);
+const TOKEN_CONTRACT_ABIS = [
+  ERC20__factory.createInterface(),
+  ERC20WithOperator__factory.createInterface(),
+];
+
+function parseTokenCalldata(data: string): TransactionDescription | null {
+  for (const abi of TOKEN_CONTRACT_ABIS) {
+    const parsed = abi.parseTransaction({ data });
+    if (parsed) return parsed;
+  }
+  return null;
+}
 
 const TERMINAL_FAIL = new Set(['REJECTED', 'FAILED', 'CANCELED', 'CANCELLED', 'EXPIRED']);
 
@@ -67,9 +72,9 @@ export class TaurusSigner extends AbstractSigner {
         comment: 'finp2p adapter transfer',
       });
     } else {
-      const parsed = KNOWN_ABI.parseTransaction({ data });
+      const parsed = parseTokenCalldata(data);
       if (!parsed) {
-        throw new Error(`Taurus signer: calldata selector ${data.slice(0, 10)} is not in the known token-operation ABI — PROTECT accepts structured calls only`);
+        throw new Error(`Taurus signer: calldata selector ${data.slice(0, 10)} is not part of the frozen token-contract models — PROTECT accepts structured calls only`);
       }
       if (parsed.signature === 'transfer(address,uint256)') {
         // PROTECT's native ERC20 transfer: the token must be a registered
@@ -149,7 +154,7 @@ function toArgValue(value: unknown): ContractArgValue {
   return { primitive: String(value) };
 }
 
-function toContractCall(parsed: NonNullable<ReturnType<Interface['parseTransaction']>>): ContractCall {
+function toContractCall(parsed: TransactionDescription): ContractCall {
   const args: ContractArg[] = parsed.fragment.inputs.map((input, i) => ({
     name: input.name || `arg_${i + 1}`,
     type: input.type,
@@ -162,9 +167,9 @@ function toContractCall(parsed: NonNullable<ReturnType<Interface['parseTransacti
  *  value: {primitive | composite}} per argument); unknown selectors are
  *  refused — mis-translating a call is worse than failing it. */
 export function decodeToContractCall(data: string): ContractCall {
-  const parsed = KNOWN_ABI.parseTransaction({ data });
+  const parsed = parseTokenCalldata(data);
   if (!parsed) {
-    throw new Error(`Taurus signer: calldata selector ${data.slice(0, 10)} is not in the known token-operation ABI — PROTECT accepts structured calls only`);
+    throw new Error(`Taurus signer: calldata selector ${data.slice(0, 10)} is not part of the frozen token-contract models — PROTECT accepts structured calls only`);
   }
   return toContractCall(parsed);
 }
