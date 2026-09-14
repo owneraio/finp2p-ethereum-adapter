@@ -18,6 +18,13 @@ export interface TaurusAddress {
   label?: string;
 }
 
+export interface TaurusCurrency {
+  id: string;
+  symbol: string;
+  contractAddress?: string;
+  decimals?: string;
+}
+
 export interface TaurusRequest {
   id: string;
   status: string;
@@ -145,6 +152,20 @@ export class TaurusClient {
     return this.findWhitelistId('/api/rest/v1/whitelists/contracts', contractAddress, 'contractAddress');
   }
 
+  /** A whitelisted+approved contract becomes a PROTECT currency; token
+   *  transfers reference it by symbol. Cached, with one refetch on a miss so
+   *  freshly approved tokens are picked up. */
+  private currencies?: TaurusCurrency[];
+
+  async findCurrencyByContract(contractAddress: string): Promise<TaurusCurrency | undefined> {
+    const wanted = contractAddress.toLowerCase();
+    const match = () => this.currencies?.find(c => c.contractAddress?.toLowerCase() === wanted);
+    if (this.currencies && match()) return match();
+    const reply = await this.call<{ result?: TaurusCurrency[] }>('GET', '/api/rest/v1/currencies');
+    this.currencies = reply.result ?? [];
+    return match();
+  }
+
   async createContractCallRequest(params: {
     fromAddressId: string;
     toWhitelistedAddressId: string;
@@ -164,6 +185,21 @@ export class TaurusClient {
     comment?: string;
   }): Promise<TaurusRequest> {
     const reply = await this.call<{ result?: TaurusRequest } | TaurusRequest>('POST', '/api/rest/v1/requests/outgoing', { body: params });
+    return (reply as { result?: TaurusRequest }).result ?? (reply as TaurusRequest);
+  }
+
+  /** Address-to-address transfer of a registered currency (live-verified:
+   *  this is how PROTECT moves ERC20s — it builds and signs the token call
+   *  itself). fromAddress/toAddress are chain (0x…) addresses; amount is in
+   *  the smallest currency unit. */
+  async createAddressToAddressTransfer(params: {
+    fromAddress: string;
+    toAddress: string;
+    amount: string;
+    currency: string;
+    comment?: string;
+  }): Promise<TaurusRequest> {
+    const reply = await this.call<{ result?: TaurusRequest } | TaurusRequest>('POST', '/api/rest/v1/requests/outgoing/transfers/address_to_address', { body: params });
     return (reply as { result?: TaurusRequest }).result ?? (reply as TaurusRequest);
   }
 

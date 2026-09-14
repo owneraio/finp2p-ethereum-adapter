@@ -142,7 +142,13 @@ describe("TaurusSigner request lifecycle (mocked backend)", () => {
           }],
         });
       }
-      if (path === "/api/rest/v1/requests/outgoing/contracts/call" || path === "/api/rest/v1/requests/outgoing") {
+      if (path === "/api/rest/v1/currencies") {
+        return reply({
+          result: opts.whitelisted === false ? [] : [{ id: "c1", symbol: "TT", contractAddress: TOKEN, decimals: "2" }],
+        });
+      }
+      if (path === "/api/rest/v1/requests/outgoing/contracts/call" || path === "/api/rest/v1/requests/outgoing"
+        || path === "/api/rest/v1/requests/outgoing/transfers/address_to_address") {
         return reply({ result: { id: "77", status: "CREATED", metadata: { hash: "req-hash" } } });
       }
       if (path === "/api/rest/v1/requests/approve") return reply({ signedRequests: "1" });
@@ -171,20 +177,37 @@ describe("TaurusSigner request lifecycle (mocked backend)", () => {
     return wallet!;
   }
 
-  test("sendTransaction: create contract-call request -> approve -> poll signedRequests hash", async () => {
+  test("ERC20 transfer: currency-based address_to_address request -> approve -> poll signedRequests hash", async () => {
     const { fetchMock, calls, bodies } = lifecycleBackend();
     (global as any).fetch = fetchMock;
     const wallet = await walletWithoutRpc(OPERATOR_PEM);
 
-    const tx = await wallet.signer.sendTransaction({ to: TOKEN, data: erc20.encodeFunctionData("transfer", [FROM, 5n]) });
+    const tx = await wallet.signer.sendTransaction({ to: TOKEN, data: erc20.encodeFunctionData("transfer", ["0x1111111111111111111111111111111111111111", 5n]) });
+    expect(tx.hash).toBe("0xdeadbeef");
+    expect(calls).toContain("GET /api/rest/v1/currencies");
+    expect(calls).toContain("POST /api/rest/v1/requests/outgoing/transfers/address_to_address");
+    expect(calls).toContain("POST /api/rest/v1/requests/approve");
+    const created = bodies["/api/rest/v1/requests/outgoing/transfers/address_to_address"][0] as any;
+    expect(created.currency).toBe("TT");
+    expect(created.fromAddress).toBe(FROM);
+    expect(created.toAddress).toBe("0x1111111111111111111111111111111111111111");
+    expect(created.amount).toBe("5");
+  });
+
+  test("non-transfer token operations go through contracts/call against the whitelisted-addresses registry", async () => {
+    const { fetchMock, calls, bodies } = lifecycleBackend();
+    (global as any).fetch = fetchMock;
+    const wallet = await walletWithoutRpc(OPERATOR_PEM);
+    const mintable = new Interface(["function mint(address,uint256)"]);
+
+    const tx = await wallet.signer.sendTransaction({ to: TOKEN, data: mintable.encodeFunctionData("mint", [FROM, 7n]) });
     expect(tx.hash).toBe("0xdeadbeef");
     expect(calls).toContain("POST /api/rest/v1/requests/outgoing/contracts/call");
-    expect(calls).toContain("POST /api/rest/v1/requests/approve");
     const created = bodies["/api/rest/v1/requests/outgoing/contracts/call"][0] as any;
-    expect(created.toWhitelistedAddressId).toBe("8"); // resolved via /whitelists/contracts
+    expect(created.toWhitelistedAddressId).toBe("9"); // resolved via /whitelists/addresses
     expect(created.method.args).toEqual([
       { name: "to", type: "address", value: { primitive: FROM } },
-      { name: "amount", type: "uint256", value: { primitive: "5" } },
+      { name: "amount", type: "uint256", value: { primitive: "7" } },
     ]);
   });
 
@@ -209,13 +232,13 @@ describe("TaurusSigner request lifecycle (mocked backend)", () => {
     expect(created.toWhitelistedAddressId).toBe("9"); // resolved via /whitelists/addresses
   });
 
-  test("a non-whitelisted destination is refused before any request is created", async () => {
+  test("a transfer of an unregistered token is refused before any request is created", async () => {
     const { fetchMock, calls } = lifecycleBackend({ whitelisted: false });
     (global as any).fetch = fetchMock;
     const provider = await TaurusCustodyProvider.create({ ...CONFIG, operatorPrivateKey: OPERATOR_PEM });
     const wallet = await provider.resolveWallet(FROM);
     await expect(wallet!.signer.sendTransaction({ to: TOKEN, data: erc20.encodeFunctionData("transfer", [FROM, 5n]) }))
-      .rejects.toThrow(/not whitelisted in PROTECT/);
+      .rejects.toThrow(/not a registered PROTECT currency/);
     expect(calls.filter(c => c.includes("/requests/")).length).toBe(0);
   });
 });
