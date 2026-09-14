@@ -16,4 +16,23 @@ assert.strictEqual(spi.supportsWhitelisting({ ensureWhitelisted: async () => {} 
 assert.strictEqual(spi.supportsWhitelisting({ isWhitelisted: async () => true, whitelist: async () => {} }), false);
 assert.strictEqual(spi.supportsWhitelisting({ isWhitelisted: async () => true, whitelist: async () => {}, dewhitelist: async () => {} }), true);
 
+assert.deepStrictEqual(spi.executedSwap('tx-1', 42, 1700000000), { status: 'executed', transactionId: 'tx-1', blockNumber: 42, timestamp: 1700000000 });
+assert.deepStrictEqual(spi.failedSwap('nope'), { status: 'failure', reason: 'nope' });
+assert.deepStrictEqual(spi.failedSwap('timeout', 'tx-prep'), { status: 'failure', reason: 'timeout', preparedTransactionId: 'tx-prep' });
+
+const intent = {
+  operationId: 'op-1',
+  give: { token: '0xaaa', party: '0x111', amount: 1n },
+  take: { token: '0xbbb', party: '0x222', amount: 10n },
+  deadline: 1700000300,
+  permit: { signature: '0xsig', nonce: 0n, deadline: 1700000300 },
+};
+const mirror = spi.mirrored(intent);
+assert.deepStrictEqual(mirror.give, intent.take);
+assert.deepStrictEqual(mirror.take, intent.give);
+assert.strictEqual(mirror.permit, undefined); // permit authorizes its own give.party only
+assert.strictEqual(mirror.operationId, intent.operationId);
+const { permit, ...intentSansPermit } = intent;
+assert.deepStrictEqual(spi.mirrored(mirror), intentSansPermit);
+
 console.log('adapter-contract smoke: OK');
