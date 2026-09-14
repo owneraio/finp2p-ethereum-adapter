@@ -317,13 +317,19 @@ export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowD
     assetMetadata: any | undefined, assetName: string | undefined, issuerId: string | undefined,
     assetDenomination: AssetDenomination | undefined,
   ): Promise<AssetCreationResult> {
-    const tokenStandard = assetBind?.tokenIdentifier?.standard
-      ? (tokenStandardRegistry.has(assetBind.tokenIdentifier.standard) ? assetBind.tokenIdentifier.standard : ERC20_TOKEN_STANDARD)
-      : ERC20_TOKEN_STANDARD;
+    const requestedStandard = assetBind?.tokenIdentifier?.standard;
+    if (requestedStandard && !tokenStandardRegistry.has(requestedStandard)) {
+      throw new Error(`Unsupported token standard '${requestedStandard}'; available: ${tokenStandardRegistry.availableStandards.join(', ')}`);
+    }
+    const tokenStandard = requestedStandard ?? ERC20_TOKEN_STANDARD;
     const standard = tokenStandardRegistry.resolve(tokenStandard);
 
     const { chainId } = await this.readProvider.getNetwork();
     const defaultNetwork = `eip155:${chainId}`;
+    const requestedNetwork = assetBind?.tokenIdentifier?.network;
+    if (requestedNetwork && requestedNetwork !== defaultNetwork) {
+      throw new Error(`Unsupported network '${requestedNetwork}'; this adapter serves ${defaultNetwork}`);
+    }
 
     const makeLedgerIdentifier = (tokenId: string, std: string, network: string): LedgerAssetIdentifier => ({
       assetIdentifierType: 'CAIP-19',
@@ -332,7 +338,9 @@ export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowD
       standard: std,
     });
 
-    if (assetBind === undefined || assetBind.tokenIdentifier === undefined) {
+    // an empty tokenId is the "create it for me" signal — deploy a new token
+    const tokenAddress = assetBind?.tokenIdentifier?.tokenId;
+    if (!tokenAddress) {
       const symbol = 'OWNERA';
       await this.ensureGas(this.omnibusWallet);
       const result = await standard.deploy(this.omnibusWallet, assetName ?? 'OWNERACOIN', symbol, DEFAULT_NEW_ERC20_DECIMALS, this.logger);
@@ -347,8 +355,7 @@ export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowD
       return { ledgerIdentifier: makeLedgerIdentifier(result.contractAddress, result.tokenStandard, defaultNetwork), reference: undefined };
     }
 
-    const tokenAddress = assetBind.tokenIdentifier.tokenId;
-    const network = assetBind.tokenIdentifier.network || defaultNetwork;
+    const network = requestedNetwork || defaultNetwork;
     const decimals = await standard.decimals(this.readProvider, tokenAddress, this.logger);
     await this.assetStore.saveAsset({ contract_address: tokenAddress, decimals, token_standard: tokenStandard, id: assetId });
     // TODO(custody-registration): see the deploy path above — disabled pending

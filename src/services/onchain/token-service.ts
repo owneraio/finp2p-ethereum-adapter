@@ -4,8 +4,8 @@ import {
   failedAssetCreation, successfulAssetCreation,
   failedReceiptOperation, successfulReceiptOperation,
   AssetBind, AssetDenomination, AssetCreationResult, Destination, ExecutionContext,
-  Receipt, ReceiptOperation, Source, Signature, SwapLeg, SwapOperation, SwapSingleOperation,
-  successfulSwapOperation, failedSwapOperation, successfulSwapSingleOperation, failedSwapSingleOperation,
+  Receipt, ReceiptOperation, Source, Signature, SwapLeg, SwapOperation,
+  successfulSwapOperation, failedSwapOperation,
   logger, ProofProvider, PluginManager,
 } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import { Contract, keccak256, parseUnits, toUtf8Bytes } from "ethers";
@@ -96,8 +96,14 @@ export class OnChainTokenService implements TokenService, EscrowService, CommonS
                            assetDenomination: AssetDenomination | undefined): Promise<AssetCreationStatus> {
     let tokenAddress: string;
     let allowanceRequired: boolean
-    if (assetBind?.tokenIdentifier?.tokenId && isEthereumAddress(assetBind.tokenIdentifier.tokenId)) {
-      tokenAddress = assetBind.tokenIdentifier.tokenId;
+    // an empty tokenId is the "create it for me" signal; a provided one must be
+    // a token address on this ledger — anything else is refused, not redeployed
+    const requestedTokenId = assetBind?.tokenIdentifier?.tokenId;
+    if (requestedTokenId && !isEthereumAddress(requestedTokenId)) {
+      return failedAssetCreation(1, `tokenId '${requestedTokenId}' is not an Ethereum token address`);
+    }
+    if (requestedTokenId) {
+      tokenAddress = requestedTokenId;
       allowanceRequired = true; // TODO: parse from metadata
       logger.debug(`Associating existing token ${tokenAddress} to asset ${assetId}`);
     } else {
@@ -294,9 +300,20 @@ export class OnChainTokenService implements TokenService, EscrowService, CommonS
    * Long-blocking is safe: the workflow proxy answers the HTTP call with a
    * pending cid and the router polls the final result. Completes with the
    * single receipt of this adapter's own (asset) leg.
+   *
+   * `numberOfReceipts` selects the mode: 1 = cross-org (counterparty's adapter
+   * mirrors the settlement leg), 2 = same-org (both wallets are operated here —
+   * this adapter drives both mirror calls itself and completes with both leg
+   * receipts).
    */
   public async swap(idempotencyKey: string, nonce: string, operationId: string, assetLeg: SwapLeg,
-                    settlementLeg: SwapLeg, deadline: number, exCtx: ExecutionContext | undefined): Promise<SwapOperation> {
+                    settlementLeg: SwapLeg, numberOfReceipts: number, deadline: number, exCtx: ExecutionContext | undefined): Promise<SwapOperation> {
+    if (numberOfReceipts === 2) {
+      return this.swapBothLegs(operationId, assetLeg, settlementLeg, deadline, exCtx);
+    }
+    if (numberOfReceipts !== 1) {
+      return failedSwapOperation(1, `numberOfReceipts must be 1 or 2, got ${numberOfReceipts}`);
+    }
     try {
       if (!this.allowanceSwap) {
         return failedSwapOperation(1, "Swap is not supported: FINP2P_ETHEREUM_ALLOWANCE_SWAP_ADDRESS is not set");
@@ -347,16 +364,16 @@ export class OnChainTokenService implements TokenService, EscrowService, CommonS
     }
   }
 
-  /** Single-call swap through the standalone AllowanceSwap contract: prepare then execute the mirror, both signed by the operator. */
-  private async swapSingleViaAllowanceContract(allowanceSwap: AllowanceSwap, operationId: string, asset: SwapLeg,
-                                               settlement: SwapLeg, exCtx: ExecutionContext | undefined): Promise<SwapSingleOperation> {
+  /** Both-legs swap through the standalone AllowanceSwap contract: prepare then execute the mirror, both signed by the operator. */
+  private async swapBothLegsViaAllowanceContract(allowanceSwap: AllowanceSwap, operationId: string, asset: SwapLeg,
+                                                 settlement: SwapLeg, exCtx: ExecutionContext | undefined): Promise<SwapOperation> {
     const leg = await this.toAllowanceSwapLeg(asset, settlement);
     const first = await allowanceSwap.swap(operationId, leg);
     let executed = first;
     if (first.status !== "executed") {
       executed = await allowanceSwap.swap(operationId, mirrored(leg));
       if (executed.status !== "executed") {
-        return failedSwapSingleOperation(1, `swapSingle ${operationId}: mirror call ${executed.transactionHash} did not execute the swap prepared by ${first.transactionHash}`);
+        return failedSwapOperation(1, `swap ${operationId}: mirror call ${executed.transactionHash} did not execute the swap prepared by ${first.transactionHash}`);
       }
     }
     const transactionId = executed.transactionHash;
@@ -364,58 +381,58 @@ export class OnChainTokenService implements TokenService, EscrowService, CommonS
     if (exCtx) {
       this.execDetailsStore?.addExecutionContext(transactionId, exCtx.planId, exCtx.sequence);
     }
-    return successfulSwapSingleOperation(
+    return successfulSwapOperation(
       swapMovementReceipt(`${transactionId}:${asset.asset.assetId}`, transactionId, operationId, asset, exCtx, timestamp),
       swapMovementReceipt(`${transactionId}:${settlement.asset.assetId}`, transactionId, operationId, settlement, exCtx, timestamp),
     );
   }
 
   /**
-   * Single-call swap (both wallets custodied here) via the standalone
-   * AllowanceSwap contract: drive its two-party prepare/execute mirror
-   * ourselves — first call from the asset owner's perspective (SwapPrepared),
-   * then the mirrored call from the settlement owner's perspective, which
-   * crosses both movements in one tx (SwapExecuted). Completes with both leg
-   * receipts, both attesting that executing tx.
+   * Same-org swap (numberOfReceipts = 2, both wallets operated here) via the
+   * standalone AllowanceSwap contract: drive its two-party prepare/execute
+   * mirror ourselves — first call from the asset owner's perspective
+   * (SwapPrepared), then the mirrored call from the settlement owner's
+   * perspective, which crosses both movements in one tx (SwapExecuted).
+   * Completes with both leg receipts, both attesting that executing tx.
    */
-  public async swapSingle(idempotencyKey: string, nonce: string, operationId: string, asset: SwapLeg,
-                          settlement: SwapLeg, deadline: number, exCtx: ExecutionContext | undefined): Promise<SwapSingleOperation> {
+  private async swapBothLegs(operationId: string, asset: SwapLeg,
+                             settlement: SwapLeg, deadline: number, exCtx: ExecutionContext | undefined): Promise<SwapOperation> {
     try {
       if (!this.allowanceSwap) {
-        return failedSwapSingleOperation(1, "Single-call swap is not supported: FINP2P_ETHEREUM_ALLOWANCE_SWAP_ADDRESS is not set");
+        return failedSwapOperation(1, "Swap is not supported: FINP2P_ETHEREUM_ALLOWANCE_SWAP_ADDRESS is not set");
       }
       if (!operationId) {
-        return failedSwapSingleOperation(1, "operationId is required");
+        return failedSwapOperation(1, "operationId is required");
       }
       // both wallets are custodied here, and each leg carries its own owner's
       // signature over the full swap terms
       if (!asset.signature) {
-        return failedSwapSingleOperation(1, "asset leg signature is required");
+        return failedSwapOperation(1, "asset leg signature is required");
       }
       if (!settlement.signature) {
-        return failedSwapSingleOperation(1, "settlement leg signature is required");
+        return failedSwapOperation(1, "settlement leg signature is required");
       }
       if (deadline && deadline <= Math.floor(Date.now() / 1000)) {
-        return failedSwapSingleOperation(1, `swap deadline ${deadline} has already passed`);
+        return failedSwapOperation(1, `swap deadline ${deadline} has already passed`);
       }
       // same mirror invariant as the two-party swap: the contract settles each
       // leg back to the counter-leg's sender
       if (asset.destination.finId !== settlement.source.finId) {
-        return failedSwapSingleOperation(1, `asset destination finId '${asset.destination.finId}' does not match settlement source finId '${settlement.source.finId}'`);
+        return failedSwapOperation(1, `asset destination finId '${asset.destination.finId}' does not match settlement source finId '${settlement.source.finId}'`);
       }
       if (settlement.destination.finId !== asset.source.finId) {
-        return failedSwapSingleOperation(1, `settlement destination finId '${settlement.destination.finId}' does not match asset source finId '${asset.source.finId}'`);
+        return failedSwapOperation(1, `settlement destination finId '${settlement.destination.finId}' does not match asset source finId '${asset.source.finId}'`);
       }
       const { chainId } = await this.finP2PContract.provider.getNetwork();
       validateSwapWallets(asset, settlement, chainId);
 
-      return await this.swapSingleViaAllowanceContract(this.allowanceSwap, operationId, asset, settlement, exCtx);
+      return await this.swapBothLegsViaAllowanceContract(this.allowanceSwap, operationId, asset, settlement, exCtx);
     } catch (e) {
-      logger.error(`Error on swapSingle: ${e}`);
+      logger.error(`Error on swap (both legs): ${e}`);
       if (e instanceof EthereumTransactionError || e instanceof ValidationError) {
-        return failedSwapSingleOperation(1, e.message);
+        return failedSwapOperation(1, e.message);
       }
-      return failedSwapSingleOperation(1, `${e}`);
+      return failedSwapOperation(1, `${e}`);
     }
   }
 

@@ -14,9 +14,7 @@ import {
   ReceiptOperation,
   failedReceiptOperation,
   SwapOperation,
-  SwapSingleOperation,
   failedSwapOperation,
-  failedSwapSingleOperation,
   workflows,
   storage as storageModule,
 } from "@owneraio/finp2p-nodejs-skeleton-adapter";
@@ -183,7 +181,7 @@ function registerFinP2PContractServices(
 
   const commonService = new DirectCommonServiceImpl(workflowStorage);
 
-  const proxiedTokenService = wrapWithWorkflowProxy(tokenService, workflowStorage, finP2PClient, 'createAsset', 'issue', 'transfer', 'redeem', 'swap', 'swapSingle');
+  const proxiedTokenService = wrapWithWorkflowProxy(tokenService, workflowStorage, finP2PClient, 'createAsset', 'issue', 'transfer', 'redeem', 'swap');
   const proxiedEscrowService = wrapWithWorkflowProxy(tokenService, workflowStorage, finP2PClient, 'hold', 'release', 'rollback');
   const proxiedPlanService = wrapWithWorkflowProxy(planApprovalService, workflowStorage, finP2PClient, 'approvePlan', 'proposeCancelPlan', 'proposeResetPlan', 'proposeInstructionApproval');
   register(app, proxiedTokenService, proxiedEscrowService, commonService, tokenService, paymentsService, proxiedPlanService, proxiedNetworkAccountService, { mappingConfig, mappingService });
@@ -343,7 +341,6 @@ async function createApp(
     // workflow proxy method list: it fails fast, there is nothing to track.
     const vanillaTokenService: VanillaServiceImpl & TokenService = Object.assign(vanillaService, {
       swap: async (): Promise<SwapOperation> => failedSwapOperation(1, "Swap is not supported in omnibus mode"),
-      swapSingle: async (): Promise<SwapSingleOperation> => failedSwapSingleOperation(1, "Swap is not supported in omnibus mode"),
     });
     omnibusCtx = {
       delegate,
