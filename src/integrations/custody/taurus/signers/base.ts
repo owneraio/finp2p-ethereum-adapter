@@ -3,8 +3,8 @@ import {
   TypedDataDomain, TypedDataField,
 } from 'ethers';
 import { ERC20__factory } from '@owneraio/finp2p-ethereum-erc20-plugin';
-import { TaurusClient, TaurusRequest, transactionHashOf } from './client';
-import { TaurusAppConfig } from './config';
+import { TaurusClient, TaurusRequest, transactionHashOf } from '../client';
+import { TaurusAppConfig } from '../config';
 
 /**
  * Taurus signs only approved, structured requests in its HSM — there is no
@@ -14,10 +14,10 @@ import { TaurusAppConfig } from './config';
  * default standard deploys from); how the decoded operation is submitted
  * depends on the configured operation mode:
  *
- *  - contract-call-signer.ts ('contract-call'): every token operation is
+ *  - signers/contract-call.ts ('contract-call'): every token operation is
  *    submitted as the structured form of the token standard's contract call,
  *    like the other custody providers sign it — token standards supported.
- *  - transfer-only-signer.ts ('transfer-only'): plain ERC20 transfers only,
+ *  - signers/transfer-only.ts ('transfer-only'): plain ERC20 transfers only,
  *    as PROTECT-native currency transfers (the live-verified path); any other
  *    token operation is refused — token standards NOT supported.
  *

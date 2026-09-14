@@ -1,6 +1,6 @@
 import { Provider, TransactionDescription, TransactionRequest } from 'ethers';
-import { TaurusRequest } from './client';
-import { TaurusSigner } from './signer';
+import { TaurusRequest } from '../client';
+import { TaurusSigner } from './base';
 
 /** 'transfer-only' mode: plain transfers as PROTECT-native requests — ERC20
  *  transfers as currency transfers (the live-verified path), native transfers

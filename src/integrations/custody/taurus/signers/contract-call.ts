@@ -1,6 +1,6 @@
 import { Provider, TransactionDescription, TransactionRequest } from 'ethers';
-import { ContractArg, ContractCall, TaurusRequest } from './client';
-import { TaurusSigner, TOKEN_CONTRACT_ABI } from './signer';
+import { ContractArg, ContractCall, TaurusRequest } from '../client';
+import { TaurusSigner, TOKEN_CONTRACT_ABI } from './base';
 
 /** 'contract-call' mode: contract calls ONLY. The token standard's contract
  *  call IS the operation, submitted structurally against the
