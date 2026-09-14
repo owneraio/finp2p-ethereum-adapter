@@ -64,12 +64,9 @@ export interface WorkflowsConfig {
 
 function wrapWithWorkflowProxy<T extends object>(
   service: T, workflowStorage: workflows.WorkflowStorage,
-  _finP2PClient: FinP2PClient | undefined, ...methods: (keyof T)[]
+  finP2PClient: FinP2PClient | undefined, ...methods: (keyof T)[]
 ): T {
-  // Callbacks are deliberately disabled (no finP2PClient handed to the proxy):
-  // the router callback flow doesn't support swap yet, so every proxied
-  // operation reports through polling (/operations/status/{cid}) instead.
-  return workflows.createServiceProxy(() => Promise.resolve(), workflowStorage, undefined, service, ...methods);
+  return workflows.createServiceProxy(() => Promise.resolve(), workflowStorage, finP2PClient, service, ...methods);
 }
 
 /**
