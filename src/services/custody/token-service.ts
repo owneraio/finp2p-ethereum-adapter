@@ -1,14 +1,16 @@
 import {
   Asset, AssetBind, AssetCreationStatus, AssetDenomination,
-  Balance, Destination, ExecutionContext, HealthService, OperationType,
-  ReceiptOperation, Signature, Source, TokenService, EscrowService,
-  failedReceiptOperation, failedAssetCreation
+  Balance, Destination, ExecutionContext, HealthService, OperationType, Receipt,
+  ReceiptOperation, Signature, Source, SwapLeg, SwapOperation, SwapSingleOperation, TokenService, EscrowService,
+  failedReceiptOperation, failedAssetCreation, failedSwapOperation, failedSwapSingleOperation,
+  successfulSwapOperation, successfulSwapSingleOperation
 } from '@owneraio/finp2p-nodejs-skeleton-adapter';
 import winston from 'winston';
-import { parseUnits, Provider, Signer, Wallet, ZeroAddress } from "ethers";
+import { Contract, parseUnits, Provider, Signer, Wallet, ZeroAddress } from "ethers";
+import { AllowanceSwap, SwapLeg as AllowanceSwapLeg, mirrored } from '@owneraio/finp2p-ethereum-allowance-swap';
 import { AssetRecord, ReleaseType, TokenOperationResult } from '@owneraio/finp2p-ethereum-adapter-contract';
 import { CustodyProvider, CustodyWallet } from './custody-provider';
-import { AccountResolver, AssetStore, ledgerAccountAddress } from "../accounts";
+import { AccountResolver, AssetStore, ledgerAccountAddress, validateSwapWallets } from "../accounts";
 import { tokenStandardRegistry } from '../../integrations/token-standards/registry';
 import { TokenStandardName as ERC20_TOKEN_STANDARD, DEFAULT_NEW_ERC20_DECIMALS } from '@owneraio/finp2p-ethereum-erc20-plugin';
 import { buildOperationContext, deriveReleaseType } from "../operations";
@@ -40,6 +42,21 @@ function resultToReceipt(
   };
 }
 
+/** A swap settles as ONE ledger tx with two movements; the receipt attests this adapter's own leg. */
+const swapMovementReceipt = (id: string, transactionId: string, operationId: string, leg: SwapLeg,
+                             exCtx: ExecutionContext | undefined, timestamp: number): Receipt => ({
+  id,
+  asset: leg.asset,
+  source: leg.source,
+  destination: leg.destination,
+  quantity: leg.quantity,
+  operationType: "swap",
+  proof: undefined,
+  timestamp,
+  tradeDetails: { executionContext: exCtx },
+  transactionDetails: { transactionId, operationId },
+});
+
 /**
  * Custody-backed token & escrow operations (direct account model).
  *
@@ -69,6 +86,7 @@ export class CustodyTokenService implements TokenService, EscrowService, HealthS
     // not configured: deploy/issue then fail closed instead of stranding assets
     // behind a throwaway signer.
     readonly issuerWallet: CustodyWallet | undefined,
+    readonly allowanceSwapAddress?: string,
   ) {}
 
   // read-only paths need a Signer arg for the SPI; an ephemeral one suffices
@@ -249,6 +267,186 @@ export class CustodyTokenService implements TokenService, EscrowService, HealthS
     } catch (e) {
       this.logger.error(`Transfer failed: asset=${ast.assetId} from=${source.finId} to=${destination.finId} quantity=${quantity}`, e);
       return failedReceiptOperation(1, `${e}`);
+    }
+  }
+
+  /**
+   * The AllowanceSwap contract wants addresses and raw token units; the request
+   * carries finIds, assetIds and decimal quantities. Token address + decimals
+   * come from the asset store — both legs must be registered assets here.
+   */
+  private async toAllowanceSwapLeg(asset: SwapLeg, settlement: SwapLeg, party: string, counterParty: string): Promise<AllowanceSwapLeg> {
+    const assetRecord = await this.assetRecord(asset.asset.assetId);
+    const settlementRecord = await this.assetRecord(settlement.asset.assetId);
+    return {
+      token: assetRecord.contractAddress,
+      party,
+      amount: parseUnits(asset.quantity, assetRecord.decimals),
+      counterToken: settlementRecord.contractAddress,
+      counterParty,
+      counterAmount: parseUnits(settlement.quantity, settlementRecord.decimals),
+    };
+  }
+
+  private allowanceSwapFor(signer: Signer): AllowanceSwap {
+    return new AllowanceSwap(this.allowanceSwapAddress!, signer);
+  }
+
+  // TODO: AllowanceSwap is permissionless — an allowance granted here is spendable by ANY
+  // mirrored pair naming this party, not just this operationId. Exact per-swap amounts limit
+  // the exposure but don't remove it (a competing swap can still consume the approval).
+  // Needs review later.
+  private async approveToSwapContract(signer: Signer, token: string, amount: bigint): Promise<void> {
+    const erc20 = new Contract(token, ["function approve(address spender, uint256 amount) returns (bool)"], signer);
+    const tx = await erc20.approve(this.allowanceSwapAddress!, amount);
+    await tx.wait();
+  }
+
+  /**
+   * Atomic same-ledger swap via the standalone AllowanceSwap contract
+   * (FINP2P_ETHEREUM_ALLOWANCE_SWAP_ADDRESS): this adapter submits its own
+   * (asset) leg signed by the asset source's custody wallet; the counterparty's
+   * mirrored call crosses both movements. Behaves synchronously like the
+   * on-chain path: the preparing side blocks until the counterparty's executing
+   * transaction is observed (or the deadline passes). Without the env var the
+   * request is validated and fails closed as before.
+   */
+  async swap(
+    idempotencyKey: string, nonce: string, operationId: string, asset: SwapLeg,
+    settlement: SwapLeg, deadline: number, exCtx: ExecutionContext | undefined
+  ): Promise<SwapOperation> {
+    try {
+      if (deadline && deadline <= Math.floor(Date.now() / 1000)) {
+        return failedSwapOperation(1, `swap deadline ${deadline} has already passed`);
+      }
+      // any wallet address carried on the legs must be a valid EVM address on this chain
+      const { chainId } = await this.readProvider.getNetwork();
+      const { approvalWallet, destinationWallet } = validateSwapWallets(asset, settlement, chainId);
+
+      if (!this.allowanceSwapAddress) {
+        // "approval from" (asset source) and "swap to" (settlement destination) wallets:
+        // taken from the leg accounts when present, otherwise from the account mapping
+        const approval = approvalWallet ?? await this.accountMapping.resolveAccount(asset.source.finId);
+        if (!approval) return failedSwapOperation(1, `No wallet address for asset source ${asset.source.finId} — pass source.account or map the finId`);
+        const to = destinationWallet ?? await this.accountMapping.resolveAccount(settlement.destination.finId);
+        if (!to) return failedSwapOperation(1, `No wallet address for settlement destination ${settlement.destination.finId} — pass destination.account or map the finId`);
+        this.logger.info(`Swap ${operationId}: approval from ${approval}, settle to ${to} — FINP2P_ETHEREUM_ALLOWANCE_SWAP_ADDRESS is not set`);
+        return failedSwapOperation(1, 'Swap is not supported: FINP2P_ETHEREUM_ALLOWANCE_SWAP_ADDRESS is not set');
+      }
+
+      // two-party mirror: the contract delivers the asset to the settlement sender's
+      // wallet and the settlement back to the asset sender's — a request naming
+      // other receivers cannot be honored
+      if (asset.destination.finId !== settlement.source.finId) {
+        return failedSwapOperation(1, `asset destination finId '${asset.destination.finId}' does not match settlement source finId '${settlement.source.finId}'`);
+      }
+      if (settlement.destination.finId !== asset.source.finId) {
+        return failedSwapOperation(1, `settlement destination finId '${settlement.destination.finId}' does not match asset source finId '${asset.source.finId}'`);
+      }
+
+      const resolved = await this.resolveSourceWallet(asset.source.finId);
+      if (!resolved) return failedSwapOperation(1, `Asset source ${asset.source.finId} cannot be resolved to a custody wallet`);
+      if (approvalWallet && approvalWallet.toLowerCase() !== resolved.address.toLowerCase()) {
+        return failedSwapOperation(1, `asset source wallet ${approvalWallet} does not match the custody wallet ${resolved.address} holding the allowance`);
+      }
+      if (destinationWallet && destinationWallet.toLowerCase() !== resolved.address.toLowerCase()) {
+        return failedSwapOperation(1, `settlement destination wallet ${destinationWallet} does not match the custody wallet ${resolved.address} the swap settles to`);
+      }
+
+      // the counterparty's wallet: from the leg account when present, otherwise the mapping
+      const counterParty = ledgerAccountAddress(settlement.source.account, chainId)
+        ?? await this.accountMapping.resolveAccount(settlement.source.finId);
+      if (!counterParty) return failedSwapOperation(1, `No wallet address for settlement source ${settlement.source.finId} — pass source.account or map the finId`);
+
+      const leg = await this.toAllowanceSwapLeg(asset, settlement, resolved.address, counterParty);
+      await this.approveToSwapContract(resolved.wallet.signer, leg.token, leg.amount);
+      const result = await this.allowanceSwapFor(resolved.wallet.signer).swap(operationId, leg);
+
+      let transactionId: string;
+      let timestamp: number;
+      if (result.status === "executed") {
+        // we submitted the mirror of an already-prepared swap — both legs crossed in our tx
+        transactionId = result.transactionHash;
+        timestamp = (await this.readProvider.getBlock(result.blockNumber))?.timestamp ?? 0;
+      } else {
+        // our leg was only recorded (SwapPrepared) — block until the counterparty's
+        // mirror call executes the swap, giving up at the deadline
+        const executed = await new AllowanceSwap(this.allowanceSwapAddress, this.readProvider)
+          .waitForExecution(operationId, { fromBlock: result.blockNumber, deadline: deadline || undefined });
+        if (!executed) {
+          return failedSwapOperation(1, `swap ${operationId} was prepared (tx ${result.transactionHash}) but the counterparty did not execute it before the deadline`);
+        }
+        ({ transactionHash: transactionId, timestamp } = executed);
+      }
+      return successfulSwapOperation(
+        swapMovementReceipt(`${transactionId}:${asset.asset.assetId}`, transactionId, operationId, asset, exCtx, timestamp),
+      );
+    } catch (e) {
+      this.logger.error(`Swap failed: operationId=${operationId} asset=${asset.asset.assetId} settlement=${settlement.asset.assetId}`, e);
+      return failedSwapOperation(1, `${e}`);
+    }
+  }
+
+  /**
+   * Single-call swap (both wallets custodied here) via the standalone
+   * AllowanceSwap contract: the asset owner's wallet prepares, the settlement
+   * owner's wallet submits the mirror that crosses both movements in one tx.
+   */
+  async swapSingle(
+    idempotencyKey: string, nonce: string, operationId: string, asset: SwapLeg,
+    settlement: SwapLeg, deadline: number, exCtx: ExecutionContext | undefined
+  ): Promise<SwapSingleOperation> {
+    try {
+      if (!this.allowanceSwapAddress) {
+        return failedSwapSingleOperation(1, 'Single-call swap is not supported: FINP2P_ETHEREUM_ALLOWANCE_SWAP_ADDRESS is not set');
+      }
+      if (deadline && deadline <= Math.floor(Date.now() / 1000)) {
+        return failedSwapSingleOperation(1, `swap deadline ${deadline} has already passed`);
+      }
+      // same mirror invariant as the two-party swap: the contract settles each
+      // leg back to the counter-leg's sender
+      if (asset.destination.finId !== settlement.source.finId) {
+        return failedSwapSingleOperation(1, `asset destination finId '${asset.destination.finId}' does not match settlement source finId '${settlement.source.finId}'`);
+      }
+      if (settlement.destination.finId !== asset.source.finId) {
+        return failedSwapSingleOperation(1, `settlement destination finId '${settlement.destination.finId}' does not match asset source finId '${asset.source.finId}'`);
+      }
+      const { chainId } = await this.readProvider.getNetwork();
+      validateSwapWallets(asset, settlement, chainId);
+
+      const resolvedAsset = await this.resolveSourceWallet(asset.source.finId);
+      if (!resolvedAsset) return failedSwapSingleOperation(1, `Asset source ${asset.source.finId} cannot be resolved to a custody wallet`);
+      const resolvedSettlement = await this.resolveSourceWallet(settlement.source.finId);
+      if (!resolvedSettlement) return failedSwapSingleOperation(1, `Settlement source ${settlement.source.finId} cannot be resolved to a custody wallet`);
+
+      const leg = await this.toAllowanceSwapLeg(asset, settlement, resolvedAsset.address, resolvedSettlement.address);
+
+      // both allowances up front: the executing call re-checks both, and the
+      // first call may already execute an operationId prepared out of band
+      await this.approveToSwapContract(resolvedAsset.wallet.signer, leg.token, leg.amount);
+      await this.approveToSwapContract(resolvedSettlement.wallet.signer, leg.counterToken, leg.counterAmount);
+
+      // 1st call — the asset owner's wallet records its leg (SwapPrepared);
+      // an operationId prepared out of band may already execute here
+      const first = await this.allowanceSwapFor(resolvedAsset.wallet.signer).swap(operationId, leg);
+      let executed = first;
+      if (first.status !== "executed") {
+        // 2nd call — the settlement owner's mirrored perspective crosses both movements
+        executed = await this.allowanceSwapFor(resolvedSettlement.wallet.signer).swap(operationId, mirrored(leg));
+        if (executed.status !== "executed") {
+          return failedSwapSingleOperation(1, `swapSingle ${operationId}: mirror call ${executed.transactionHash} did not execute the swap prepared by ${first.transactionHash}`);
+        }
+      }
+
+      const transactionId = executed.transactionHash;
+      const timestamp = (await this.readProvider.getBlock(executed.blockNumber))?.timestamp ?? 0;
+      return successfulSwapSingleOperation(
+        swapMovementReceipt(`${transactionId}:${asset.asset.assetId}`, transactionId, operationId, asset, exCtx, timestamp),
+        swapMovementReceipt(`${transactionId}:${settlement.asset.assetId}`, transactionId, operationId, settlement, exCtx, timestamp),
+      );
+    } catch (e) {
+      this.logger.error(`SwapSingle failed: operationId=${operationId} asset=${asset.asset.assetId} settlement=${settlement.asset.assetId}`, e);
+      return failedSwapSingleOperation(1, `${e}`);
     }
   }
 

@@ -10,10 +10,18 @@ import {
   AccountMappingServiceImpl,
   AccountMappingValidator,
   NetworkAccountService,
+  TokenService,
+  ReceiptOperation,
+  failedReceiptOperation,
+  SwapOperation,
+  SwapSingleOperation,
+  failedSwapOperation,
+  failedSwapSingleOperation,
   workflows,
   storage as storageModule,
 } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import { FinP2PClient } from "@owneraio/finp2p-client";
+import { AllowanceSwap } from "@owneraio/finp2p-ethereum-allowance-swap";
 import { LedgerStorage, VanillaServiceImpl, registerDistributionRoutes } from "@owneraio/finp2p-vanilla-service";
 import {
   CredentialsMappingService,
@@ -58,9 +66,12 @@ export interface WorkflowsConfig {
 
 function wrapWithWorkflowProxy<T extends object>(
   service: T, workflowStorage: workflows.WorkflowStorage,
-  finP2PClient: FinP2PClient | undefined, ...methods: (keyof T)[]
+  _finP2PClient: FinP2PClient | undefined, ...methods: (keyof T)[]
 ): T {
-  return workflows.createServiceProxy(() => Promise.resolve(), workflowStorage, finP2PClient, service, ...methods);
+  // Callbacks are deliberately disabled (no finP2PClient handed to the proxy):
+  // the router callback flow doesn't support swap yet, so every proxied
+  // operation reports through polling (/operations/status/{cid}) instead.
+  return workflows.createServiceProxy(() => Promise.resolve(), workflowStorage, undefined, service, ...methods);
 }
 
 /**
@@ -72,7 +83,7 @@ function wrapWithWorkflowProxy<T extends object>(
 interface OmnibusContext {
   delegate: OmnibusDelegate;
   vanilla: {
-    tokenService: VanillaServiceImpl;
+    tokenService: VanillaServiceImpl & TokenService;
     escrowService: VanillaServiceImpl;
     commonService: VanillaServiceImpl;
     mappingService: VanillaServiceImpl;
@@ -135,7 +146,7 @@ async function registerCustodyServices(
   const issuerWallet = assetIssuerKey && networkHost
     ? { provider: readProvider, signer: pooledSigner(getNetworkRpcUrl(), assetIssuerKey) }
     : undefined;
-  let tokenService: CustodyTokenService = new CustodyTokenService(logger, custodyProvider, escrowWallet, readProvider, accountMapping, assetStore, issuerWallet);
+  let tokenService: CustodyTokenService = new CustodyTokenService(logger, custodyProvider, escrowWallet, readProvider, accountMapping, assetStore, issuerWallet, appConfig.allowanceSwapAddress);
   const commonService = new DirectCommonServiceImpl(workflowStorage);
   const planApprovalService = buildCustodyPlanApprovalService(
     appConfig.orgId, finP2PClient,
@@ -163,13 +174,16 @@ function registerFinP2PContractServices(
   }
   const proxiedNetworkAccountService = wrapWithWorkflowProxy(networkAccountService, workflowStorage, finP2PClient, 'createAccount', 'removeAccount');
   let planApprovalService = new PlanApprovalServiceImpl(contractConfig.orgId, pluginManager, contractConfig.finP2PClient);
-  const tokenService = new OnChainTokenService(contractConfig.finP2PContract, contractConfig.finP2PClient, contractConfig.execDetailsStore, contractConfig.proofProvider, pluginManager, contractConfig.defaultAssetStandard);
+  const allowanceSwap = contractConfig.allowanceSwapAddress
+    ? new AllowanceSwap(contractConfig.allowanceSwapAddress, contractConfig.signer)
+    : undefined;
+  const tokenService = new OnChainTokenService(contractConfig.finP2PContract, contractConfig.finP2PClient, contractConfig.execDetailsStore, contractConfig.proofProvider, pluginManager, contractConfig.defaultAssetStandard, allowanceSwap);
   const mappingService = new CredentialsMappingService(contractConfig.finP2PContract, walletResolutionMode);
   const mappingConfig = buildMappingConfig();
 
   const commonService = new DirectCommonServiceImpl(workflowStorage);
 
-  const proxiedTokenService = wrapWithWorkflowProxy(tokenService, workflowStorage, finP2PClient, 'createAsset', 'issue', 'transfer', 'redeem');
+  const proxiedTokenService = wrapWithWorkflowProxy(tokenService, workflowStorage, finP2PClient, 'createAsset', 'issue', 'transfer', 'redeem', 'swap', 'swapSingle');
   const proxiedEscrowService = wrapWithWorkflowProxy(tokenService, workflowStorage, finP2PClient, 'hold', 'release', 'rollback');
   const proxiedPlanService = wrapWithWorkflowProxy(planApprovalService, workflowStorage, finP2PClient, 'approvePlan', 'proposeCancelPlan', 'proposeResetPlan', 'proposeInstructionApproval');
   register(app, proxiedTokenService, proxiedEscrowService, commonService, tokenService, paymentsService, proxiedPlanService, proxiedNetworkAccountService, { mappingConfig, mappingService });
@@ -324,10 +338,17 @@ async function createApp(
     // and the schema stays pinned to what migrations created.
     const ledgerStorage = new LedgerStorage(dbPool, ledgerSchema);
     const vanillaService = new VanillaServiceImpl(ledgerStorage, delegate, delegate, delegate, delegate, finP2PClient);
+    // Skeleton's TokenService gained swap(); vanilla-service doesn't implement it and
+    // an omnibus/off-ledger swap is out of scope — fail closed. Kept OUT of the
+    // workflow proxy method list: it fails fast, there is nothing to track.
+    const vanillaTokenService: VanillaServiceImpl & TokenService = Object.assign(vanillaService, {
+      swap: async (): Promise<SwapOperation> => failedSwapOperation(1, "Swap is not supported in omnibus mode"),
+      swapSingle: async (): Promise<SwapSingleOperation> => failedSwapSingleOperation(1, "Swap is not supported in omnibus mode"),
+    });
     omnibusCtx = {
       delegate,
       vanilla: {
-        tokenService: vanillaService,
+        tokenService: vanillaTokenService,
         escrowService: vanillaService,
         commonService: vanillaService,
         mappingService: vanillaService,
