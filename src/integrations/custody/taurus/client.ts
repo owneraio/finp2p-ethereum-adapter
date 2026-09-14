@@ -191,7 +191,9 @@ export class TaurusClient {
   /** Address-to-address transfer of a registered currency (live-verified:
    *  this is how PROTECT moves ERC20s — it builds and signs the token call
    *  itself). fromAddress/toAddress are chain (0x…) addresses; amount is in
-   *  the smallest currency unit. */
+   *  the smallest currency unit. PROTECT matches addresses case-sensitively
+   *  against its lowercase storage (live-verified: a checksummed form of a
+   *  known internal address is rejected as not found), so both are lowercased. */
   async createAddressToAddressTransfer(params: {
     fromAddress: string;
     toAddress: string;
@@ -199,7 +201,8 @@ export class TaurusClient {
     currency: string;
     comment?: string;
   }): Promise<TaurusRequest> {
-    const reply = await this.call<{ result?: TaurusRequest } | TaurusRequest>('POST', '/api/rest/v1/requests/outgoing/transfers/address_to_address', { body: params });
+    const body = { ...params, fromAddress: params.fromAddress.toLowerCase(), toAddress: params.toAddress.toLowerCase() };
+    const reply = await this.call<{ result?: TaurusRequest } | TaurusRequest>('POST', '/api/rest/v1/requests/outgoing/transfers/address_to_address', { body });
     return (reply as { result?: TaurusRequest }).result ?? (reply as TaurusRequest);
   }
 

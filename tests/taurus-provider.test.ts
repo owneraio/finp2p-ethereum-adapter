@@ -182,15 +182,17 @@ describe("TaurusSigner request lifecycle (mocked backend)", () => {
     (global as any).fetch = fetchMock;
     const wallet = await walletWithoutRpc(OPERATOR_PEM);
 
-    const tx = await wallet.signer.sendTransaction({ to: TOKEN, data: erc20.encodeFunctionData("transfer", ["0x1111111111111111111111111111111111111111", 5n]) });
+    const CHECKSUMMED_DEST = "0xCD971e054569Fd0C430B92B2E8098ACe3638eE58";
+    const tx = await wallet.signer.sendTransaction({ to: TOKEN, data: erc20.encodeFunctionData("transfer", [CHECKSUMMED_DEST, 5n]) });
     expect(tx.hash).toBe("0xdeadbeef");
     expect(calls).toContain("GET /api/rest/v1/currencies");
     expect(calls).toContain("POST /api/rest/v1/requests/outgoing/transfers/address_to_address");
     expect(calls).toContain("POST /api/rest/v1/requests/approve");
     const created = bodies["/api/rest/v1/requests/outgoing/transfers/address_to_address"][0] as any;
     expect(created.currency).toBe("TT");
-    expect(created.fromAddress).toBe(FROM);
-    expect(created.toAddress).toBe("0x1111111111111111111111111111111111111111");
+    // PROTECT matches addresses case-sensitively against lowercase storage
+    expect(created.fromAddress).toBe(FROM.toLowerCase());
+    expect(created.toAddress).toBe("0xcd971e054569fd0c430b92b2e8098ace3638ee58");
     expect(created.amount).toBe("5");
   });
 
