@@ -216,6 +216,15 @@ describe("TaurusSigner request lifecycle (mocked backend)", () => {
     expect(transfer.method.functionSignature).toBe("transfer(address,uint256)");
   });
 
+  test("contract-call mode refuses native transfers", async () => {
+    const { fetchMock, calls } = lifecycleBackend();
+    (global as any).fetch = fetchMock;
+    const wallet = await walletWithoutRpc(OPERATOR_PEM, "contract-call");
+    await expect(wallet.signer.sendTransaction({ to: TOKEN, value: 5n }))
+      .rejects.toThrow(/contract-call mode submits contract calls only/);
+    expect(calls.filter(c => c.includes("/requests/")).length).toBe(0);
+  });
+
   test("transfer-only mode refuses non-transfer token operations", async () => {
     const { fetchMock, calls } = lifecycleBackend();
     (global as any).fetch = fetchMock;
