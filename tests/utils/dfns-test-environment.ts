@@ -1,5 +1,4 @@
 import { EnvironmentContext, JestEnvironmentConfig } from "@jest/environment";
-import { workflows } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import {
   PostgreSqlContainer,
   StartedPostgreSqlContainer,
@@ -157,7 +156,8 @@ class DfnsTestEnvironment extends NodeEnvironment {
   async teardown() {
     try {
       this.httpServer?.close();
-      await workflows.Storage.closeAllConnections();
+      // skeleton's WorkflowStorage no longer owns connections (pool is injected
+      // by the app) — nothing to close here; stopping the container ends them
       await this.postgresSqlContainer?.stop();
       console.log("Dfns test environment torn down successfully.");
     } catch (err) {

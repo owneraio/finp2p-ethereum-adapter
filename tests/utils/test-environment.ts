@@ -35,6 +35,38 @@ const logger = winston.createLogger({
 
 const DefaultOrgId = "some-org";
 
+// TEMPORARY: orchestrator 0.28.25-swap.0 ships FINP2POperator with runtime
+// bytecode of 29807 bytes, over the EIP-170 limit (24576). Override the
+// image's hardhat.config.js to disable the size check until the contract is
+// shrunk. Same override must be applied on anvil (--disable-code-size-limit).
+const HardhatUnlimitedSizeConfig = `
+require("@nomicfoundation/hardhat-toolbox");
+module.exports = {
+  networks: {
+      hardhat: {
+        chainId: 1337,
+        hardfork: "berlin",
+        loggingEnabled: true,
+        allowUnlimitedContractSize: true,
+        accounts: [
+          {
+            privateKey: "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80",
+            balance: "1000000000000000000000"
+          },
+          {
+            privateKey: "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d",
+            balance: "1000000000000000000000"
+          },
+          {
+            privateKey: "0x5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a",
+            balance: "1000000000000000000000"
+          }
+        ]
+      }
+  }
+};
+`;
+
 class CustomTestEnvironment extends NodeEnvironment {
   network: NetworkParameters | undefined;
   adapter: AdapterParameters | undefined;
@@ -159,6 +191,12 @@ class CustomTestEnvironment extends NodeEnvironment {
     const startedContainer = await new GenericContainer(
       "ghcr.io/owneraio/hardhat:task-fix-docker-build"
     )
+      .withCopyContentToContainer([
+        {
+          content: HardhatUnlimitedSizeConfig,
+          target: "/usr/app/hardhat.config.js",
+        },
+      ])
       .withLogConsumer((stream) => logExtractor.consume(stream))
       .withExposedPorts(containerPort)
       .start();

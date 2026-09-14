@@ -12,6 +12,7 @@ import {
 } from '@testcontainers/postgresql';
 import { storage, AccountMappingServiceImpl } from '@owneraio/finp2p-nodejs-skeleton-adapter';
 import { execSync } from 'child_process';
+import { existsSync } from 'fs';
 import { join } from 'path';
 
 const TEST_PRIVATE_KEY = '0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d';
@@ -88,7 +89,8 @@ describe('DbAccountResolver', () => {
     accountStore = new AccountMappingServiceImpl(new storage.PgAccountStore(pool, ledgerSchema), { caseSensitive: false });
 
     // Run skeleton migrations (includes account_mappings table)
-    const gooseBin = join(process.cwd(), 'bin', 'goose');
+    const localGoose = join(process.cwd(), 'bin', 'goose');
+    const gooseBin = existsSync(localGoose) ? localGoose : 'goose'; // fall back to PATH, like test-environment.whichGoose
     const migrationsDir = join(process.cwd(), 'node_modules', '@owneraio', 'finp2p-nodejs-skeleton-adapter', 'migrations');
     execSync(
       `${gooseBin} -table account_mapping_test_migrations -dir ${migrationsDir} up`,
