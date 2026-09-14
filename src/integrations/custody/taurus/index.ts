@@ -4,7 +4,7 @@ import { createTaurusAppConfig } from './config';
 
 export { TaurusCustodyProvider } from './provider';
 export { TaurusClient } from './client';
-export { TaurusSigner, decodeToContractCall } from './signer';
+export { TaurusSigner, TaurusContractCallSigner, TaurusTransferOnlySigner, decodeToContractCall } from './signer';
 export { TaurusAppConfig, createTaurusAppConfig } from './config';
 
 export function registerTaurus(): void {

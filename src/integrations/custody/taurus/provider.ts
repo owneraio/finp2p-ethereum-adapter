@@ -2,7 +2,7 @@ import { JsonRpcProvider, Provider } from 'ethers';
 import { CustodyProvider, CustodyWallet } from '../../../services/custody';
 import { TaurusAppConfig } from './config';
 import { TaurusClient } from './client';
-import { TaurusSigner } from './signer';
+import { TaurusContractCallSigner, TaurusSigner, TaurusTransferOnlySigner } from './signer';
 
 /**
  * Taurus-PROTECT/TDX custody provider (PoC). Custody account id = PROTECT
@@ -47,9 +47,9 @@ export class TaurusCustodyProvider implements CustodyProvider {
   }
 
   private wallet(addressId: string, address: string): CustodyWallet {
-    return {
-      provider: this.rpcProvider,
-      signer: new TaurusSigner(this.rpcProvider, this.client, this.config, addressId, address),
-    };
+    const signer: TaurusSigner = this.config.operationMode === 'contract-call'
+      ? new TaurusContractCallSigner(this.rpcProvider, this.client, this.config, addressId, address)
+      : new TaurusTransferOnlySigner(this.rpcProvider, this.client, this.config, addressId, address);
+    return { provider: this.rpcProvider, signer };
   }
 }

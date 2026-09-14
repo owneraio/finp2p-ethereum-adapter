@@ -9,6 +9,7 @@ const CONFIG: TaurusAppConfig = {
   apiKey: "key-1",
   apiSecret: "a1b2c3d4e5f6",
   authScheme: "TDXV1",
+  operationMode: "transfer-only",
   rpcUrl: "http://localhost:1",
   requestPollIntervalMs: 10,
   requestTimeoutMs: 1000,
@@ -169,8 +170,8 @@ describe("TaurusSigner request lifecycle (mocked backend)", () => {
   const realFetch = global.fetch;
   afterEach(() => { (global as any).fetch = realFetch; });
 
-  async function walletWithoutRpc(operatorPrivateKey?: string) {
-    const provider = await TaurusCustodyProvider.create({ ...CONFIG, operatorPrivateKey });
+  async function walletWithoutRpc(operatorPrivateKey?: string, operationMode: TaurusAppConfig["operationMode"] = "transfer-only") {
+    const provider = await TaurusCustodyProvider.create({ ...CONFIG, operatorPrivateKey, operationMode });
     const wallet = await provider.resolveWallet(FROM);
     (wallet!.provider as any).getTransaction = async () => null; // no live RPC in test
     (wallet!.signer as any).provider.getTransaction = async () => null;
@@ -196,21 +197,34 @@ describe("TaurusSigner request lifecycle (mocked backend)", () => {
     expect(created.amount).toBe("5");
   });
 
-  test("non-transfer token operations go through contracts/call against the whitelisted-addresses registry", async () => {
+  test("contract-call mode: every token operation is a structured contract call", async () => {
     const { fetchMock, calls, bodies } = lifecycleBackend();
+    (global as any).fetch = fetchMock;
+    const wallet = await walletWithoutRpc(OPERATOR_PEM, "contract-call");
+    const mintable = new Interface(["function mint(address,uint256)"]);
+
+    await wallet.signer.sendTransaction({ to: TOKEN, data: mintable.encodeFunctionData("mint", [FROM, 7n]) });
+    const tx = await wallet.signer.sendTransaction({ to: TOKEN, data: erc20.encodeFunctionData("transfer", [FROM, 5n]) });
+    expect(tx.hash).toBe("0xdeadbeef");
+    expect(calls).not.toContain("POST /api/rest/v1/requests/outgoing/transfers/address_to_address");
+    const [mint, transfer] = bodies["/api/rest/v1/requests/outgoing/contracts/call"] as any[];
+    expect(mint.toWhitelistedAddressId).toBe("9"); // resolved via /whitelists/addresses
+    expect(mint.method.args).toEqual([
+      { name: "to", type: "address", value: { primitive: FROM } },
+      { name: "amount", type: "uint256", value: { primitive: "7" } },
+    ]);
+    expect(transfer.method.functionSignature).toBe("transfer(address,uint256)");
+  });
+
+  test("transfer-only mode refuses non-transfer token operations", async () => {
+    const { fetchMock, calls } = lifecycleBackend();
     (global as any).fetch = fetchMock;
     const wallet = await walletWithoutRpc(OPERATOR_PEM);
     const mintable = new Interface(["function mint(address,uint256)"]);
 
-    const tx = await wallet.signer.sendTransaction({ to: TOKEN, data: mintable.encodeFunctionData("mint", [FROM, 7n]) });
-    expect(tx.hash).toBe("0xdeadbeef");
-    expect(calls).toContain("POST /api/rest/v1/requests/outgoing/contracts/call");
-    const created = bodies["/api/rest/v1/requests/outgoing/contracts/call"][0] as any;
-    expect(created.toWhitelistedAddressId).toBe("9"); // resolved via /whitelists/addresses
-    expect(created.method.args).toEqual([
-      { name: "to", type: "address", value: { primitive: FROM } },
-      { name: "amount", type: "uint256", value: { primitive: "7" } },
-    ]);
+    await expect(wallet.signer.sendTransaction({ to: TOKEN, data: mintable.encodeFunctionData("mint", [FROM, 7n]) }))
+      .rejects.toThrow(/not supported in transfer-only mode/);
+    expect(calls.filter(c => c.includes("/requests/")).length).toBe(0);
   });
 
   test("without an operator key the request is left for manual approval, not self-approved", async () => {
