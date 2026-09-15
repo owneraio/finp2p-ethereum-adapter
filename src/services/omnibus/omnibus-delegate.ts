@@ -15,6 +15,7 @@ import { tokenStandardRegistry } from "../../integrations/token-standards/regist
 import { TokenStandardName as ERC20_TOKEN_STANDARD, DEFAULT_NEW_ERC20_DECIMALS } from "@owneraio/finp2p-ethereum-erc20-plugin";
 import { AssetRecord } from '@owneraio/finp2p-ethereum-adapter-contract';
 import { AccountResolver, AssetStore, ledgerAccountAddress } from '../accounts/account-resolver';
+import { runWithIdempotencyKey } from '../custody/idempotency-scope';
 
 export interface ReceiptPollingConfig {
   timeoutMs: number;
@@ -76,7 +77,7 @@ export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowD
     const amount = parseUnits(quantity, dbAsset.decimals);
     const standard = tokenStandardRegistry.resolve(dbAsset.tokenStandard);
     await this.ensureGas(this.omnibusWallet);
-    const result = await standard.transfer(this.omnibusWallet, dbAsset, destinationAddress, amount, this.logger);
+    const result = await runWithIdempotencyKey(idempotencyKey, () => standard.transfer(this.omnibusWallet, dbAsset, destinationAddress, amount, this.logger));
     if (result.status === 'failure') return { success: false, error: result.reason };
 
     this.logger.info(`Outbound transfer: ${quantity} of ${asset.assetId} to ${destinationAddress}, tx: ${result.transactionId}`);
@@ -187,7 +188,7 @@ export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowD
 
     const standard = tokenStandardRegistry.resolve(dbAsset.tokenStandard);
     await this.ensureGas(this.omnibusWallet);
-    const result = await standard.hold(this.omnibusWallet, this.escrowWallet, dbAsset, amount, this.logger);
+    const result = await runWithIdempotencyKey(idempotencyKey, () => standard.hold(this.omnibusWallet, this.escrowWallet, dbAsset, amount, this.logger));
     if (result.status === 'failure') return { success: false, error: result.reason };
 
     this.logger.info(`Hold: ${quantity} of ${asset.assetId} from omnibus to escrow, tx: ${result.transactionId}`);
@@ -217,7 +218,7 @@ export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowD
 
     const standard = tokenStandardRegistry.resolve(dbAsset.tokenStandard);
     await this.ensureGas(escrowWallet);
-    const result = await standard.release(escrowWallet, dbAsset, onChainTarget, amount, this.logger);
+    const result = await runWithIdempotencyKey(idempotencyKey, () => standard.release(escrowWallet, dbAsset, onChainTarget, amount, this.logger));
     if (result.status === 'failure') return { success: false, error: result.reason };
 
     this.logger.info(`Release: ${quantity} of ${asset.assetId} from escrow to ${onChainTarget} (${localAddress ? 'local omnibus' : 'external'}), tx: ${result.transactionId}`);
@@ -235,7 +236,7 @@ export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowD
 
     const standard = tokenStandardRegistry.resolve(dbAsset.tokenStandard);
     await this.ensureGas(escrowWallet);
-    const result = await standard.release(escrowWallet, dbAsset, omnibusAddress, amount, this.logger);
+    const result = await runWithIdempotencyKey(idempotencyKey, () => standard.release(escrowWallet, dbAsset, omnibusAddress, amount, this.logger));
     if (result.status === 'failure') return { success: false, error: result.reason };
 
     this.logger.info(`Rollback: ${quantity} of ${asset.assetId} from escrow to omnibus, tx: ${result.transactionId}`);
@@ -332,7 +333,13 @@ export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowD
       standard: std,
     });
 
-    if (assetBind === undefined || assetBind.tokenIdentifier === undefined) {
+    // A tokenIdentifier without a tokenId is a deploy request scoped to a
+    // network ("deploy on Sepolia"), not a bind to an existing token.
+    if (!assetBind?.tokenIdentifier?.tokenId) {
+      const requestedNetwork = assetBind?.tokenIdentifier?.network;
+      if (requestedNetwork && requestedNetwork !== defaultNetwork) {
+        this.logger.warn(`createAsset: requested network ${requestedNetwork} differs from the adapter chain ${defaultNetwork} — deploying on ${defaultNetwork}`);
+      }
       const symbol = 'OWNERA';
       await this.ensureGas(this.omnibusWallet);
       const result = await standard.deploy(this.omnibusWallet, assetName ?? 'OWNERACOIN', symbol, DEFAULT_NEW_ERC20_DECIMALS, this.logger);

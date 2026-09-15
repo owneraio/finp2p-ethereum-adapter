@@ -1,0 +1,238 @@
+import { createHash, createHmac, createPrivateKey, randomUUID, sign as ecdsaSign } from 'crypto';
+import { TaurusAppConfig } from './config';
+
+/**
+ * Minimal Taurus-PROTECT REST client — hand-rolled HMAC auth (the official
+ * TypeScript SDK is not on public npm) plus the request-lifecycle calls the
+ * custody provider needs. Live-verified against the UAT tg-validatord: TPV1
+ * signing, {result: [...]} envelopes, /whitelists/{addresses,contracts}
+ * paths with metadata.payloadAsString envelopes, and the full request
+ * pipeline (CREATED -> APPROVED -> BROADCASTING -> CONFIRMED) with the
+ * on-chain hash reported in signedRequests[].hash.
+ */
+
+export interface TaurusAddress {
+  id: string;
+  walletId: string;
+  address: string;
+  label?: string;
+}
+
+export interface TaurusCurrency {
+  id: string;
+  symbol: string;
+  type?: string;
+  blockchain?: string;
+  network?: string;
+  contractAddress?: string;
+  decimals?: string;
+}
+
+export interface TaurusRequest {
+  id: string;
+  status: string;
+  metadata?: { hash?: string; payloadAsString?: string };
+  /** blockchain hashes are reported per signed transaction, not top-level */
+  signedRequests?: { hash?: string; status?: string }[];
+}
+
+/** first on-chain hash reported by the request's signed transactions */
+export function transactionHashOf(request: TaurusRequest): string | undefined {
+  return request.signedRequests?.find(s => s.hash)?.hash;
+}
+
+export interface ContractArgValue {
+  primitive?: string;
+  composite?: ContractArgValue[];
+}
+
+export interface ContractArg {
+  name?: string;
+  type: string;
+  value: ContractArgValue;
+}
+
+export interface ContractCall {
+  functionSignature: string;
+  args: ContractArg[];
+}
+
+const PAGE_LIMIT = 100;
+
+export class TaurusClient {
+
+  constructor(private readonly config: TaurusAppConfig) {}
+
+  /** string_to_hash = "<SCHEME> <apiKey> <nonce> <ts> <METHOD> <host> <path> <query> <content-type> <body>",
+   *  space-joined with empty parts omitted; TDXV1 hashes it (base64(sha256))
+   *  before the HMAC, TPV1 HMACs the string directly; secret is hex. */
+  authorizationHeader(method: string, path: string, query = '', contentType = '', body = ''): string {
+    const { apiKey, apiSecret, authScheme, host } = this.config;
+    const nonce = randomUUID();
+    const timestamp = Date.now().toString();
+    const stringToHash = [authScheme, apiKey, nonce, timestamp, method.toUpperCase(), new URL(host).host, path, query, contentType, body]
+      .filter(p => p !== '' && p !== undefined && p !== null)
+      .join(' ');
+    const payload = authScheme === 'TDXV1'
+      ? createHash('sha256').update(stringToHash).digest('base64')
+      : stringToHash;
+    const signature = createHmac('sha256', Buffer.from(apiSecret, 'hex')).update(payload).digest('base64');
+    return `${authScheme}-HMAC-SHA256 ApiKey=${apiKey} Nonce=${nonce} Timestamp=${timestamp} Signature=${signature}`;
+  }
+
+  private async call<T>(method: string, path: string, opts: { query?: string; body?: unknown } = {}): Promise<T> {
+    const query = opts.query ?? '';
+    const body = opts.body === undefined ? '' : JSON.stringify(opts.body);
+    const contentType = body ? 'application/json' : '';
+    const headers: Record<string, string> = {
+      Authorization: this.authorizationHeader(method, path, query, contentType, body),
+    };
+    if (contentType) headers['Content-Type'] = contentType;
+    const res = await fetch(`${this.config.host}${path}${query ? `?${query}` : ''}`, {
+      method, headers, body: body || undefined,
+    });
+    const text = await res.text();
+    if (!res.ok) {
+      throw new Error(`Taurus ${method} ${path} failed: ${res.status} ${text.slice(0, 300)}`);
+    }
+    return text ? JSON.parse(text) as T : (undefined as T);
+  }
+
+  async listAddresses(): Promise<TaurusAddress[]> {
+    const all: TaurusAddress[] = [];
+    for (let offset = 0; ; offset += PAGE_LIMIT) {
+      const reply = await this.call<{ result?: TaurusAddress[]; addresses?: TaurusAddress[] }>(
+        'GET', '/api/rest/v1/addresses', { query: `limit=${PAGE_LIMIT}&offset=${offset}` });
+      const page = reply.result ?? reply.addresses ?? [];
+      all.push(...page);
+      if (page.length < PAGE_LIMIT) return all;
+    }
+  }
+
+  async getAddress(addressId: string): Promise<TaurusAddress> {
+    const reply = await this.call<{ result?: TaurusAddress } | TaurusAddress>('GET', `/api/rest/v1/addresses/${addressId}`);
+    return (reply as { result?: TaurusAddress }).result ?? (reply as TaurusAddress);
+  }
+
+  /** Internal custody address matching a chain (0x…) address, if any. */
+  async findInternalAddress(address: string): Promise<TaurusAddress | undefined> {
+    const wanted = address.toLowerCase();
+    return (await this.listAddresses()).find(a => a.address?.toLowerCase() === wanted);
+  }
+
+  /** Whitelisted (payout) addresses are signed envelopes; the authoritative
+   *  content is metadata.payloadAsString (the string the approval hash
+   *  covers) — anything else is ignored, fail closed. Entries of other
+   *  blockchains/networks are not matches. */
+  async findWhitelistedAddressId(address: string): Promise<string | undefined> {
+    type Entry = { id: string; metadata?: { payloadAsString?: string } };
+    const wanted = address.toLowerCase();
+    const addressOf = (w: Entry): string | undefined => {
+      if (!w.metadata?.payloadAsString) return undefined;
+      try {
+        const payload = JSON.parse(w.metadata.payloadAsString) as { address?: string; blockchain?: string; network?: string };
+        if (payload.blockchain !== this.config.blockchain) return undefined;
+        if (payload.network && payload.network !== this.config.network) return undefined;
+        return typeof payload.address === 'string' ? payload.address : undefined;
+      } catch {
+        return undefined;
+      }
+    };
+    for (let offset = 0; ; offset += PAGE_LIMIT) {
+      const reply = await this.call<{ result?: Entry[] }>('GET', '/api/rest/v1/whitelists/addresses', { query: `limit=${PAGE_LIMIT}&offset=${offset}` });
+      const page = reply.result ?? [];
+      const hit = page.find(w => addressOf(w)?.toLowerCase() === wanted);
+      if (hit) return hit.id;
+      if (page.length < PAGE_LIMIT) return undefined;
+    }
+  }
+
+  /** A whitelisted+approved contract becomes a PROTECT currency, referenced
+   *  by its id (symbols are not unique across networks). */
+  async findCurrencyByContract(contractAddress: string): Promise<TaurusCurrency | undefined> {
+    const wanted = contractAddress.toLowerCase();
+    return (await this.currencies()).find(c => c.contractAddress?.toLowerCase() === wanted);
+  }
+
+  /** The configured chain's native currency (for internal value transfers). */
+  async findNativeCurrency(): Promise<TaurusCurrency | undefined> {
+    return (await this.currencies()).find(c => c.type === 'native');
+  }
+
+  private async currencies(): Promise<TaurusCurrency[]> {
+    const reply = await this.call<{ result?: TaurusCurrency[] }>('GET', '/api/rest/v1/currencies');
+    return (reply.result ?? []).filter(c =>
+      c.blockchain === this.config.blockchain && (c.network ?? 'mainnet') === this.config.network);
+  }
+
+  async createContractCallRequest(params: {
+    fromAddressId: string;
+    toWhitelistedAddressId: string;
+    method: ContractCall;
+    amount?: string;
+    gasLimit?: string;
+    comment?: string;
+    externalRequestId?: string;
+  }): Promise<TaurusRequest> {
+    const reply = await this.call<{ result?: TaurusRequest } | TaurusRequest>('POST', '/api/rest/v1/requests/outgoing/contracts/call', { body: params });
+    return (reply as { result?: TaurusRequest }).result ?? (reply as TaurusRequest);
+  }
+
+  async createTransferRequest(params: {
+    fromAddressId: string;
+    toWhitelistedAddressId: string;
+    amount: string;
+    comment?: string;
+    externalRequestId?: string;
+  }): Promise<TaurusRequest> {
+    const reply = await this.call<{ result?: TaurusRequest } | TaurusRequest>('POST', '/api/rest/v1/requests/outgoing', { body: params });
+    return (reply as { result?: TaurusRequest }).result ?? (reply as TaurusRequest);
+  }
+
+  /** Address-to-address transfer of a registered currency (live-verified:
+   *  this is how PROTECT moves ERC20s — it builds and signs the token call
+   *  itself). fromAddress/toAddress are chain (0x…) addresses; amount is in
+   *  the smallest currency unit. PROTECT matches addresses case-sensitively
+   *  against its lowercase storage (live-verified: a checksummed form of a
+   *  known internal address is rejected as not found), so both are lowercased. */
+  async createAddressToAddressTransfer(params: {
+    fromAddress: string;
+    toAddress: string;
+    amount: string;
+    currency: string;
+    comment?: string;
+    externalRequestId?: string;
+  }): Promise<TaurusRequest> {
+    const body = { ...params, fromAddress: params.fromAddress.toLowerCase(), toAddress: params.toAddress.toLowerCase() };
+    const reply = await this.call<{ result?: TaurusRequest } | TaurusRequest>('POST', '/api/rest/v1/requests/outgoing/transfers/address_to_address', { body });
+    return (reply as { result?: TaurusRequest }).result ?? (reply as TaurusRequest);
+  }
+
+  async getRequest(id: string): Promise<TaurusRequest> {
+    const reply = await this.call<{ result?: TaurusRequest } | TaurusRequest>('GET', `/api/rest/v1/requests/${id}`);
+    return (reply as { result?: TaurusRequest }).result ?? (reply as TaurusRequest);
+  }
+
+  /** Self-approval with the service account's operator key. Recipe per the
+   *  official SDK: sort requests by numeric id, JSON-encode the array of
+   *  metadata.hash values, ECDSA-P256/SHA-256 sign it in raw r||s form
+   *  (Java's SHA256withPLAIN-ECDSA; node: dsaEncoding ieee-p1363), base64. */
+  async approveRequests(requests: TaurusRequest[], comment = 'auto-approved by finp2p adapter'): Promise<void> {
+    const operatorKey = this.config.operatorPrivateKey;
+    if (!operatorKey) {
+      throw new Error('TAURUS_OPERATOR_PRIVATE_KEY is not configured — requests need manual approval in the console');
+    }
+    for (const r of requests) {
+      if (!r.metadata?.hash) throw new Error(`Taurus request ${r.id} carries no metadata.hash — cannot approve`);
+    }
+    const sorted = [...requests].sort((a, b) => Number(a.id) - Number(b.id));
+    const hashesJson = JSON.stringify(sorted.map(r => r.metadata!.hash));
+    const key = createPrivateKey(operatorKey);
+    const details = key.asymmetricKeyDetails;
+    if (details?.namedCurve && details.namedCurve !== 'prime256v1' && details.namedCurve !== 'P-256') {
+      throw new Error(`Taurus approval keys must be ECDSA P-256, got ${details.namedCurve}`);
+    }
+    const signature = ecdsaSign('sha256', Buffer.from(hashesJson, 'utf-8'), { key, dsaEncoding: 'ieee-p1363' }).toString('base64');
+    await this.call('POST', '/api/rest/v1/requests/approve', { body: { comment, ids: sorted.map(r => String(r.id)), signature } });
+  }
+}
