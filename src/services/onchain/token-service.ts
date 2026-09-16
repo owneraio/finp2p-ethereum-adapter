@@ -105,13 +105,11 @@ export class OnChainTokenService implements TokenService, EscrowService, CommonS
                            assetDenomination: AssetDenomination | undefined): Promise<AssetCreationStatus> {
     let tokenAddress: string;
     let allowanceRequired: boolean
-    // an empty tokenId is the "create it for me" signal; a provided one must be
-    // a token address on this ledger — anything else is refused, not redeployed
+    // an empty tokenId — or one that isn't a token address on this ledger (the
+    // router/tests still send asset codes like 'USD' or the finp2p resource id
+    // here) — is the "create it for me" signal: deploy a new token
     const requestedTokenId = assetBind?.tokenIdentifier?.tokenId;
-    if (requestedTokenId && !isEthereumAddress(requestedTokenId)) {
-      return failedAssetCreation(1, `tokenId '${requestedTokenId}' is not an Ethereum token address`);
-    }
-    if (requestedTokenId) {
+    if (requestedTokenId && isEthereumAddress(requestedTokenId)) {
       tokenAddress = requestedTokenId;
       allowanceRequired = true; // TODO: parse from metadata
       logger.debug(`Associating existing token ${tokenAddress} to asset ${assetId}`);

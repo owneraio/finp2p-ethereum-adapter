@@ -6,7 +6,7 @@ import {
   successfulSwapOperation
 } from '@owneraio/finp2p-nodejs-skeleton-adapter';
 import winston from 'winston';
-import { Contract, parseUnits, Provider, Signer, Wallet, ZeroAddress } from "ethers";
+import { Contract, isAddress, parseUnits, Provider, Signer, Wallet, ZeroAddress } from "ethers";
 import { AssetRecord, ReleaseType, TokenOperationResult, SwapIntent, SwapVenue, mirrored } from '@owneraio/finp2p-ethereum-adapter-contract';
 import { CustodyProvider, CustodyWallet } from './custody-provider';
 import { AccountResolver, AssetStore, ledgerAccountAddress, validateSwapWallets } from "../accounts";
@@ -160,11 +160,14 @@ export class CustodyTokenService implements TokenService, EscrowService, HealthS
     const defaultNetwork = `eip155:${chainId}`;
     const requestedNetwork = assetBind?.tokenIdentifier?.network;
     if (requestedNetwork && requestedNetwork !== defaultNetwork) {
-      return failedAssetCreation(1, `Unsupported network '${requestedNetwork}'; this adapter serves ${defaultNetwork}`);
+      this.logger.warn(`createAsset: requested network '${requestedNetwork}' differs from this adapter's chain ${defaultNetwork}`);
     }
 
-    // an empty tokenId is the "create it for me" signal — deploy a new token
-    const tokenAddress = assetBind?.tokenIdentifier?.tokenId;
+    // an empty tokenId — or one that isn't a token address on this ledger (the
+    // router/tests still send asset codes like 'USD' here) — is the "create it
+    // for me" signal: deploy a new token
+    const requestedTokenId = assetBind?.tokenIdentifier?.tokenId;
+    const tokenAddress = requestedTokenId && isAddress(requestedTokenId) ? requestedTokenId : undefined;
     if (!tokenAddress) {
       this.logger.info(`createAsset: deploy path — assetId=${assetId} standard=${requestedStandard} name=${assetName ?? 'OWNERACOIN'}`);
       if (!this.issuerWallet) {

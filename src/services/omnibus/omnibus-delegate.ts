@@ -328,7 +328,7 @@ export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowD
     const defaultNetwork = `eip155:${chainId}`;
     const requestedNetwork = assetBind?.tokenIdentifier?.network;
     if (requestedNetwork && requestedNetwork !== defaultNetwork) {
-      throw new Error(`Unsupported network '${requestedNetwork}'; this adapter serves ${defaultNetwork}`);
+      this.logger.warn(`createAsset: requested network '${requestedNetwork}' differs from this adapter's chain ${defaultNetwork}`);
     }
 
     const makeLedgerIdentifier = (tokenId: string, std: string, network: string): LedgerAssetIdentifier => ({
