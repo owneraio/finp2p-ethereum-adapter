@@ -1,44 +1,17 @@
 import {
   Asset, AssetBind, AssetCreationStatus, AssetDenomination,
-  Balance, Destination, ExecutionContext, HealthService, OperationType,
+  Balance, Destination, ExecutionContext, HealthService,
   ReceiptOperation, Signature, Source, TokenService, EscrowService,
   failedReceiptOperation, failedAssetCreation
 } from '@owneraio/finp2p-nodejs-skeleton-adapter';
 import winston from 'winston';
 import { parseUnits, Provider, Signer, Wallet, ZeroAddress } from "ethers";
-import { AssetRecord, ReleaseType, TokenOperationResult } from '@owneraio/finp2p-ethereum-adapter-contract';
+import { AssetRecord, ReleaseType } from '@owneraio/finp2p-ethereum-adapter-contract';
 import { CustodyProvider, CustodyWallet } from './custody-provider';
 import { AccountResolver, AssetStore, ledgerAccountAddress } from "../accounts";
 import { tokenStandardRegistry } from '../../integrations/token-standards/registry';
 import { TokenStandardName as ERC20_TOKEN_STANDARD, DEFAULT_NEW_ERC20_DECIMALS } from '@owneraio/finp2p-ethereum-erc20-plugin';
-import { buildOperationContext, deriveReleaseType } from "../operations";
-
-function resultToReceipt(
-  result: TokenOperationResult, ast: Asset, operationType: OperationType, quantity: string,
-  source: Source | undefined,
-  destination: Destination | undefined,
-  exCtx: ExecutionContext | undefined, operationId: string | undefined,
-): ReceiptOperation {
-  if (result.status === 'failure') {
-    return failedReceiptOperation(1, result.reason);
-  }
-  return {
-    operation: "receipt",
-    type: "success",
-    receipt: {
-      id: result.transactionId,
-      asset: ast,
-      source,
-      destination,
-      operationType,
-      proof: undefined,
-      quantity,
-      timestamp: result.timestamp,
-      tradeDetails: { executionContext: exCtx },
-      transactionDetails: { operationId, transactionId: result.transactionId }
-    }
-  };
-}
+import { buildOperationContext, deriveReleaseType, resultToReceipt } from "../operations";
 
 /**
  * Custody-backed token & escrow operations (direct account model).
