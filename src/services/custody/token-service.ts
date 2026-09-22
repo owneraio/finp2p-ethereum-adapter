@@ -451,9 +451,14 @@ export class CustodyTokenService implements TokenService, EscrowService, HealthS
 
       // both submissions attest the same executing transaction
       const { transactionId, timestamp } = assetSubmission;
+      // same-org: the router sends ONE exCtx, so its counterpartyAssetId can be
+      // right for at most one leg — each receipt gets a COPY (exCtx is shared with
+      // the parallel venue calls) naming the OTHER leg's asset
+      const assetExCtx = exCtx && { ...exCtx, counterpartyAssetId: settlement.asset.assetId };
+      const settlementExCtx = exCtx && { ...exCtx, counterpartyAssetId: asset.asset.assetId };
       return successfulSwapOperation(
-        swapMovementReceipt(`${transactionId}:${asset.asset.assetId}`, transactionId, operationId, asset, exCtx, timestamp),
-        swapMovementReceipt(`${transactionId}:${settlement.asset.assetId}`, transactionId, operationId, settlement, exCtx, timestamp),
+        swapMovementReceipt(`${transactionId}:${asset.asset.assetId}`, transactionId, operationId, asset, assetExCtx, timestamp),
+        swapMovementReceipt(`${transactionId}:${settlement.asset.assetId}`, transactionId, operationId, settlement, settlementExCtx, timestamp),
       );
     } catch (e) {
       this.logger.error(`Swap (both legs) failed: operationId=${operationId} asset=${asset.asset.assetId} settlement=${settlement.asset.assetId}`, e);
