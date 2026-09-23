@@ -14,7 +14,7 @@ import {
   storage as storageModule,
 } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import { FinP2PClient } from "@owneraio/finp2p-client";
-import { LedgerStorage, VanillaServiceImpl, registerDistributionRoutes } from "@owneraio/finp2p-vanilla-service";
+import { LedgerStorage, registerDistributionRoutes } from "@owneraio/finp2p-vanilla-service";
 import {
   CredentialsMappingService,
   OnChainTokenService,
@@ -39,7 +39,7 @@ import {
   EvmNetworkAccountValidator,
   InvestorWhitelistServiceImpl,
 } from "./services/accounts";
-import { OmnibusDelegate } from "./services/omnibus";
+import { OmnibusDelegate, OmnibusVanillaService } from "./services/omnibus";
 import { GasStation } from "./services/gas-station";
 import { DEFAULT_ACTIVATION_AMOUNT, WalletActivator, isHederaNetwork } from "./services/gas-station/wallet-activation";
 import { CommonServiceImpl as DirectCommonServiceImpl } from "./services/operations";
@@ -72,12 +72,12 @@ function wrapWithWorkflowProxy<T extends object>(
 interface OmnibusContext {
   delegate: OmnibusDelegate;
   vanilla: {
-    tokenService: VanillaServiceImpl;
-    escrowService: VanillaServiceImpl;
-    commonService: VanillaServiceImpl;
-    mappingService: VanillaServiceImpl;
-    distributionService: VanillaServiceImpl;
-    inboundTransferHook: VanillaServiceImpl;
+    tokenService: OmnibusVanillaService;
+    escrowService: OmnibusVanillaService;
+    commonService: OmnibusVanillaService;
+    mappingService: OmnibusVanillaService;
+    distributionService: OmnibusVanillaService;
+    inboundTransferHook: OmnibusVanillaService;
   };
 }
 
@@ -323,7 +323,7 @@ async function createApp(
     // opens its own pool from a connection string) so the vanilla service shares dbPool
     // and the schema stays pinned to what migrations created.
     const ledgerStorage = new LedgerStorage(dbPool, ledgerSchema);
-    const vanillaService = new VanillaServiceImpl(ledgerStorage, delegate, delegate, delegate, delegate, finP2PClient);
+    const vanillaService = new OmnibusVanillaService(ledgerStorage, delegate, delegate, delegate, delegate, finP2PClient);
     omnibusCtx = {
       delegate,
       vanilla: {
