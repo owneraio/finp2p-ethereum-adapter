@@ -22,6 +22,9 @@ import { emptyOperationParams, extractBusinessDetails, validateRequest } from ".
 
 const DefaultDecimals = 2;
 
+/** LedgerBindingNotSupportedErr — the ledger does not support the requested network/standard. */
+const LEDGER_BINDING_NOT_SUPPORTED = 7311;
+
 /**
  * On-chain (FINP2POperator contract) token, escrow and common operations —
  * every instruction executes as a transaction against the operator contract,
@@ -65,24 +68,30 @@ export class OnChainTokenService implements TokenService, EscrowService, CommonS
   }
 
   public async createAsset(idempotencyKey: string, assetId: string,
-                           assetBind: AssetBind | undefined, assetMetadata: any | undefined, assetName: string | undefined, issuerId: string | undefined,
+                           assetBind: AssetBind, assetMetadata: any | undefined, assetName: string | undefined, issuerId: string | undefined,
                            assetDenomination: AssetDenomination | undefined): Promise<AssetCreationStatus> {
+    const { chainId, name } = await this.finP2PContract.provider.getNetwork();
+    const requestedStandard = assetBind.standard;
+    const responseStandard = requestedStandard ?? this.defaultAssetStandard;
+    if (!responseStandard) {
+      return failedAssetCreation(LEDGER_BINDING_NOT_SUPPORTED, 'No asset standard supplied and DEFAULT_ASSET_STANDARD env not set');
+    }
+
     let tokenAddress: string;
     let allowanceRequired: boolean
-    if (assetBind?.tokenIdentifier?.tokenId && isEthereumAddress(assetBind.tokenIdentifier.tokenId)) {
-      tokenAddress = assetBind.tokenIdentifier.tokenId;
+    if (assetBind.tokenId && isEthereumAddress(assetBind.tokenId)) {
+      tokenAddress = assetBind.tokenId;
       allowanceRequired = true; // TODO: parse from metadata
       logger.debug(`Associating existing token ${tokenAddress} to asset ${assetId}`);
     } else {
+      const supportedNetwork = `eip155:${chainId}`;
+      if (assetBind.network && assetBind.network !== supportedNetwork) {
+        return failedAssetCreation(LEDGER_BINDING_NOT_SUPPORTED,
+          `unsupported ledger network '${assetBind.network}', only ${supportedNetwork} is supported`);
+      }
       tokenAddress = await this.finP2PContract.deployERC20(assetId, assetId, DefaultDecimals, this.finP2PContract.finP2PContractAddress);
       allowanceRequired = false;
       logger.debug(`Deployed new token ${tokenAddress} for asset ${assetId}`);
-    }
-
-    const requestedStandard = assetBind?.tokenIdentifier?.standard;
-    const responseStandard = requestedStandard ?? this.defaultAssetStandard;
-    if (!responseStandard) {
-      return failedAssetCreation(1, 'No asset standard supplied and DEFAULT_ASSET_STANDARD env not set');
     }
     // The basic FINP2POperator's associateAsset takes 2 args; the WithRegistry
     // variant takes 3 (extra bytes32 assetStandard). Only thread the standard
@@ -102,7 +111,6 @@ export class OnChainTokenService implements TokenService, EscrowService, CommonS
       }
     }
 
-    const { chainId, name } = await this.finP2PContract.provider.getNetwork();
     const network = `name: ${name}, chainId: ${chainId}`;
     const finP2POperatorContractAddress = this.finP2PContract.finP2PContractAddress;
     const result: AssetCreationResult = {
