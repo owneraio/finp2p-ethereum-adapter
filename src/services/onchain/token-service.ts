@@ -174,14 +174,11 @@ export class OnChainTokenService implements TokenService, EscrowService, CommonS
   public async redeem(idempotencyKey: string, nonce: string, source: Source, asset: Asset, quantity: string, operationId: string | undefined,
     signature: Signature, exCtx: ExecutionContext
   ): Promise<ReceiptOperation> {
-    if (!operationId) {
-      logger.error("No operationId provided");
-      return failedReceiptOperation(1, "operationId is required");
-    }
-
     try {
       await this.ensureCredential(source.finId);
-      const transactionReceipt = await this.finP2PContract.releaseAndRedeem(operationId, source.finId, quantity, emptyOperationParams());
+      const transactionReceipt = operationId
+        ? await this.finP2PContract.releaseAndRedeem(operationId, source.finId, quantity, emptyOperationParams())
+        : await this.finP2PContract.redeem(source.finId, term(asset.assetId, assetTypeFromString(asset.assetType), quantity), emptyOperationParams());
 
       if (exCtx) {
         this.execDetailsStore?.addExecutionContext(transactionReceipt.hash, exCtx.planId, exCtx.sequence);
@@ -189,7 +186,7 @@ export class OnChainTokenService implements TokenService, EscrowService, CommonS
 
       return mapReceiptOperation(await this.finP2PContract.getReceiptFromTransactionReceipt(transactionReceipt), asset, exCtx)
     } catch (e) {
-      logger.error(`Error releasing asset: ${e}`);
+      logger.error(`Error redeeming asset: ${e}`);
       if (e instanceof EthereumTransactionError) {
         return failedReceiptOperation(1, e.message);
       } else {
