@@ -1,0 +1,367 @@
+import { createHash, createHmac, generateKeyPairSync, verify as ecdsaVerify } from "crypto";
+import { Interface, parseUnits } from "ethers";
+import { TaurusClient, decodeToContractCall, TaurusCustodyProvider } from "../src/integrations/custody/taurus";
+import { TaurusAppConfig } from "../src/integrations/custody/taurus/config";
+import { custodyProviderConformance } from "./utils/custody-provider-conformance";
+import { runWithIdempotencyKey } from "../src/services/custody/idempotency-scope";
+
+const CONFIG: TaurusAppConfig = {
+  host: "https://taurus.example.test",
+  apiKey: "key-1",
+  apiSecret: "a1b2c3d4e5f6",
+  authScheme: "TDXV1",
+  operationMode: "transfer-only",
+  blockchain: "ETH",
+  network: "mainnet",
+  rpcUrl: "http://localhost:1",
+  requestPollIntervalMs: 10,
+  requestTimeoutMs: 1000,
+};
+
+describe("Taurus HMAC authorization header", () => {
+
+  const parse = (header: string) => Object.fromEntries(
+    header.split(" ").slice(1).map(kv => kv.split("=") as [string, string]).map(([k, ...v]) => [k, v.join("=")]),
+  );
+
+  test("TDXV1 hashes the string before the HMAC", () => {
+    const client = new TaurusClient(CONFIG);
+    const header = client.authorizationHeader("GET", "/api/rest/v1/wallets", "limit=5");
+    expect(header.startsWith("TDXV1-HMAC-SHA256 ApiKey=key-1 ")).toBe(true);
+    const { Nonce, Timestamp, Signature } = parse(header);
+    const stringToHash = ["TDXV1", "key-1", Nonce, Timestamp, "GET", "taurus.example.test", "/api/rest/v1/wallets", "limit=5"].join(" ");
+    const expected = createHmac("sha256", Buffer.from(CONFIG.apiSecret, "hex"))
+      .update(createHash("sha256").update(stringToHash).digest("base64"))
+      .digest("base64");
+    expect(Signature).toBe(expected);
+  });
+
+  test("TPV1 signs the plain string; empty parts are omitted", () => {
+    const client = new TaurusClient({ ...CONFIG, authScheme: "TPV1" });
+    const header = client.authorizationHeader("POST", "/api/rest/v1/requests/outgoing", "", "application/json", '{"a":1}');
+    const { Nonce, Timestamp, Signature } = parse(header);
+    const stringToSign = ["TPV1", "key-1", Nonce, Timestamp, "POST", "taurus.example.test", "/api/rest/v1/requests/outgoing", "application/json", '{"a":1}'].join(" ");
+    const expected = createHmac("sha256", Buffer.from(CONFIG.apiSecret, "hex")).update(stringToSign).digest("base64");
+    expect(Signature).toBe(expected);
+  });
+});
+
+describe("Taurus calldata translation (no raw signing in PROTECT)", () => {
+
+  const erc20 = new Interface(["function transfer(address,uint256)", "function mint(address,uint256)"]);
+  const TO = "0x1111111111111111111111111111111111111111";
+
+  test("known token operations decode to structured ContractArg calls", () => {
+    const call = decodeToContractCall(erc20.encodeFunctionData("transfer", [TO, parseUnits("12.5", 2)]));
+    expect(call.functionSignature).toBe("transfer(address,uint256)");
+    expect(call.args).toEqual([
+      { name: "to", type: "address", value: { primitive: TO } },
+      { name: "value", type: "uint256", value: { primitive: "1250" } },
+    ]);
+
+    const mint = decodeToContractCall(erc20.encodeFunctionData("mint", [TO, 7n]));
+    expect(mint.functionSignature).toBe("mint(address,uint256)");
+    expect(mint.args).toEqual([
+      { name: "to", type: "address", value: { primitive: TO } },
+      { name: "amount", type: "uint256", value: { primitive: "7" } },
+    ]);
+  });
+
+  test("single-argument burn (default ERC-20 redemption) is known", () => {
+    const burnable = new Interface(["function burn(uint256)"]);
+    const call = decodeToContractCall(burnable.encodeFunctionData("burn", [42n]));
+    expect(call.functionSignature).toBe("burn(uint256)");
+    expect(call.args).toEqual([{ name: "value", type: "uint256", value: { primitive: "42" } }]);
+  });
+
+  test("unknown selectors are refused instead of mis-sent", () => {
+    expect(() => decodeToContractCall("0xdeadbeef")).toThrow(/not part of the frozen token-contract model/);
+  });
+});
+
+describe("Taurus approval signature (SDK-verified recipe)", () => {
+
+  test("numeric-id sort, JSON hash array, P-256 raw r||s signature", async () => {
+    const { privateKey, publicKey } = generateKeyPairSync("ec", { namedCurve: "prime256v1" });
+    const pem = privateKey.export({ type: "pkcs8", format: "pem" }) as string;
+
+    let approvedBody: any;
+    const realFetch = global.fetch;
+    (global as any).fetch = jest.fn(async (url: string, init?: RequestInit) => {
+      approvedBody = JSON.parse(String(init?.body));
+      return { ok: true, status: 200, text: async () => "{}" } as Response;
+    });
+    try {
+      const client = new TaurusClient({ ...CONFIG, operatorPrivateKey: pem });
+      await client.approveRequests([
+        { id: "10", status: "CREATED", metadata: { hash: "hash-ten" } },
+        { id: "2", status: "CREATED", metadata: { hash: "hash-two" } },
+      ]);
+    } finally {
+      (global as any).fetch = realFetch;
+    }
+
+    expect(approvedBody.ids).toEqual(["2", "10"]); // numeric, not lexicographic
+    const hashesJson = JSON.stringify(["hash-two", "hash-ten"]);
+    const ok = ecdsaVerify("sha256", Buffer.from(hashesJson, "utf-8"),
+      { key: publicKey, dsaEncoding: "ieee-p1363" }, Buffer.from(approvedBody.signature, "base64"));
+    expect(ok).toBe(true);
+    expect(Buffer.from(approvedBody.signature, "base64")).toHaveLength(64); // raw r||s
+  });
+});
+
+describe("TaurusSigner request lifecycle (mocked backend)", () => {
+
+  const FROM = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266";
+  const TOKEN = "0xB35aC1D4E76dfA0b3Da44714eFf45305ed6A9e00";
+  const erc20 = new Interface(["function transfer(address,uint256)"]);
+  const { privateKey } = generateKeyPairSync("ec", { namedCurve: "prime256v1" });
+  const OPERATOR_PEM = privateKey.export({ type: "pkcs8", format: "pem" }) as string;
+
+  const INTERNAL_B = "0x00000000000000000000000000000000000000bb";
+
+  function requestMetadata(fields: Record<string, unknown>, tamper?: (f: Record<string, unknown>) => void) {
+    const items = Object.entries(fields).map(([key, value]) => ({ key, type: "x", value, column: "" }));
+    const payloadAsString = JSON.stringify(items);
+    const hash = createHash("sha256").update(payloadAsString, "utf-8").digest("hex");
+    if (tamper) {
+      const tampered = Object.fromEntries(Object.entries(fields));
+      tamper(tampered);
+      const items2 = Object.entries(tampered).map(([key, value]) => ({ key, type: "x", value, column: "" }));
+      return { hash: createHash("sha256").update(JSON.stringify(items2), "utf-8").digest("hex"), payloadAsString: JSON.stringify(items2) };
+    }
+    return { hash, payloadAsString };
+  }
+
+  function lifecycleBackend(opts: { whitelisted?: boolean; tamperDestination?: string } = {}) {
+    const statuses = ["APPROVING", "HSM_SIGNED", "BROADCASTING"];
+    let polls = 0;
+    const calls: string[] = [];
+    const bodies: Record<string, unknown[]> = {};
+    const address = (a: string) => ({ payload: { address: a } });
+    const fetchMock = jest.fn(async (url: string, init?: RequestInit) => {
+      const path = new URL(url).pathname;
+      calls.push(`${init?.method ?? "GET"} ${path}`);
+      const body: any = init?.body ? JSON.parse(String(init.body)) : undefined;
+      if (body) (bodies[path] ??= []).push(body);
+      const reply = (b: unknown) => ({ ok: true, status: 200, text: async () => JSON.stringify(b) } as Response);
+      const createdRequest = (fields: Record<string, unknown>) =>
+        reply({ result: { id: "77", status: "CREATED", metadata: requestMetadata(fields) } });
+
+      if (path === "/api/rest/v1/addresses") {
+        return reply({ result: [{ id: "42", walletId: "7", address: FROM }, { id: "43", walletId: "7", address: INTERNAL_B }] });
+      }
+      if (path === "/api/rest/v1/whitelists/addresses") {
+        return reply({
+          result: opts.whitelisted === false ? [] : [{
+            id: "9",
+            metadata: { payloadAsString: JSON.stringify({ blockchain: "ETH", address: TOKEN, label: "payout" }) },
+          }],
+        });
+      }
+      if (path === "/api/rest/v1/currencies") {
+        return reply({
+          result: opts.whitelisted === false ? [] : [
+            { id: "c1", symbol: "TT", type: "token", blockchain: "ETH", network: "mainnet", contractAddress: TOKEN, decimals: "2" },
+            { id: "native1", symbol: "ETH", type: "native", blockchain: "ETH", network: "mainnet" },
+            { id: "cx", symbol: "TT", type: "token", blockchain: "AVAX", network: "mainnet", contractAddress: TOKEN, decimals: "2" },
+          ],
+        });
+      }
+      if (path === "/api/rest/v1/requests/outgoing/transfers/address_to_address") {
+        const toAddress = opts.tamperDestination ?? body.toAddress;
+        return createdRequest(body.currency === "native1"
+          ? { source: address(body.fromAddress), currency_id: body.currency, destination: address(toAddress), amount: { valueFrom: body.amount } }
+          : { source: address(body.fromAddress), currency_id: body.currency, function: "transfer(address,uint256)", arg_1: address(toAddress), arg_2: { valueFrom: body.amount } });
+      }
+      if (path === "/api/rest/v1/requests/outgoing/contracts/call") {
+        const fields: Record<string, unknown> = { source: address(FROM), function: body.method.functionSignature };
+        body.method.args.forEach((arg: any, i: number) => {
+          fields[`arg_${i + 1}`] = arg.type === "address" ? address(arg.value.primitive) : { valueFrom: arg.value.primitive };
+        });
+        return createdRequest(fields);
+      }
+      if (path === "/api/rest/v1/requests/outgoing") {
+        return createdRequest({ source: address(FROM), destination: address(TOKEN), amount: { valueFrom: body.amount } });
+      }
+      if (path === "/api/rest/v1/requests/approve") return reply({ signedRequests: "1" });
+      if (path === "/api/rest/v1/requests/77") {
+        const status = statuses[Math.min(polls++, statuses.length - 1)];
+        return reply({
+          result: {
+            id: "77", status,
+            ...(status === "BROADCASTING" ? { signedRequests: [{ id: "1", status, hash: "0xdeadbeef" }] } : {}),
+          },
+        });
+      }
+      return { ok: false, status: 404, text: async () => "{}" } as Response;
+    });
+    return { fetchMock, calls, bodies };
+  }
+
+  const realFetch = global.fetch;
+  afterEach(() => { (global as any).fetch = realFetch; });
+
+  async function walletWithoutRpc(operatorPrivateKey?: string, operationMode: TaurusAppConfig["operationMode"] = "transfer-only") {
+    const provider = await TaurusCustodyProvider.create({ ...CONFIG, operatorPrivateKey, operationMode });
+    const wallet = await provider.resolveWallet(FROM);
+    (wallet!.provider as any).getTransaction = async () => null; // no live RPC in test
+    (wallet!.signer as any).provider.getTransaction = async () => null;
+    return wallet!;
+  }
+
+  test("ERC20 transfer: currency-based address_to_address request -> approve -> poll signedRequests hash", async () => {
+    const { fetchMock, calls, bodies } = lifecycleBackend();
+    (global as any).fetch = fetchMock;
+    const wallet = await walletWithoutRpc(OPERATOR_PEM);
+
+    const CHECKSUMMED_DEST = "0xCD971e054569Fd0C430B92B2E8098ACe3638eE58";
+    const tx = await wallet.signer.sendTransaction({ to: TOKEN, data: erc20.encodeFunctionData("transfer", [CHECKSUMMED_DEST, 5n]) });
+    expect(tx.hash).toBe("0xdeadbeef");
+    expect(calls).toContain("GET /api/rest/v1/currencies");
+    expect(calls).toContain("POST /api/rest/v1/requests/outgoing/transfers/address_to_address");
+    expect(calls).toContain("POST /api/rest/v1/requests/approve");
+    const created = bodies["/api/rest/v1/requests/outgoing/transfers/address_to_address"][0] as any;
+    expect(created.currency).toBe("c1"); // by id — symbols are not unique across networks
+    // PROTECT matches addresses case-sensitively against lowercase storage
+    expect(created.fromAddress).toBe(FROM.toLowerCase());
+    expect(created.toAddress).toBe("0xcd971e054569fd0c430b92b2e8098ace3638ee58");
+    expect(created.amount).toBe("5");
+  });
+
+  test("contract-call mode: every token operation is a structured contract call", async () => {
+    const { fetchMock, calls, bodies } = lifecycleBackend();
+    (global as any).fetch = fetchMock;
+    const wallet = await walletWithoutRpc(OPERATOR_PEM, "contract-call");
+    const mintable = new Interface(["function mint(address,uint256)"]);
+
+    await wallet.signer.sendTransaction({ to: TOKEN, data: mintable.encodeFunctionData("mint", [FROM, 7n]) });
+    const tx = await wallet.signer.sendTransaction({ to: TOKEN, data: erc20.encodeFunctionData("transfer", [FROM, 5n]) });
+    expect(tx.hash).toBe("0xdeadbeef");
+    expect(calls).not.toContain("POST /api/rest/v1/requests/outgoing/transfers/address_to_address");
+    const [mint, transfer] = bodies["/api/rest/v1/requests/outgoing/contracts/call"] as any[];
+    expect(mint.toWhitelistedAddressId).toBe("9"); // resolved via /whitelists/addresses
+    expect(mint.method.args).toEqual([
+      { name: "to", type: "address", value: { primitive: FROM } },
+      { name: "amount", type: "uint256", value: { primitive: "7" } },
+    ]);
+    expect(transfer.method.functionSignature).toBe("transfer(address,uint256)");
+  });
+
+  test("native transfers to internal custody addresses go as native-currency transfers", async () => {
+    const { fetchMock, bodies } = lifecycleBackend();
+    (global as any).fetch = fetchMock;
+    const wallet = await walletWithoutRpc(OPERATOR_PEM);
+
+    const tx = await wallet.signer.sendTransaction({ to: INTERNAL_B, value: 7000n });
+    expect(tx.hash).toBe("0xdeadbeef");
+    const created = bodies["/api/rest/v1/requests/outgoing/transfers/address_to_address"][0] as any;
+    expect(created.currency).toBe("native1");
+    expect(created.toAddress).toBe(INTERNAL_B);
+    expect(created.amount).toBe("7000");
+  });
+
+  test("a request whose signed payload differs from the submission is never approved", async () => {
+    const { fetchMock, calls } = lifecycleBackend({ tamperDestination: "0x000000000000000000000000000000000000dead" });
+    (global as any).fetch = fetchMock;
+    const wallet = await walletWithoutRpc(OPERATOR_PEM);
+
+    await expect(wallet.signer.sendTransaction({ to: TOKEN, data: erc20.encodeFunctionData("transfer", [FROM, 5n]) }))
+      .rejects.toThrow(/failed pre-approval verification/);
+    expect(calls).not.toContain("POST /api/rest/v1/requests/approve");
+  });
+
+  test("the adapter idempotency key rides as externalRequestId", async () => {
+    const { fetchMock, bodies } = lifecycleBackend();
+    (global as any).fetch = fetchMock;
+    const wallet = await walletWithoutRpc(OPERATOR_PEM);
+
+    await runWithIdempotencyKey("idem-123", () =>
+      wallet.signer.sendTransaction({ to: TOKEN, data: erc20.encodeFunctionData("transfer", [FROM, 5n]) }));
+    const created = bodies["/api/rest/v1/requests/outgoing/transfers/address_to_address"][0] as any;
+    expect(created.externalRequestId).toBe("idem-123");
+  });
+
+  test("contract-call mode refuses native transfers", async () => {
+    const { fetchMock, calls } = lifecycleBackend();
+    (global as any).fetch = fetchMock;
+    const wallet = await walletWithoutRpc(OPERATOR_PEM, "contract-call");
+    await expect(wallet.signer.sendTransaction({ to: TOKEN, value: 5n }))
+      .rejects.toThrow(/contract-call mode submits contract calls only/);
+    expect(calls.filter(c => c.includes("/requests/")).length).toBe(0);
+  });
+
+  test("transfer-only mode refuses non-transfer token operations", async () => {
+    const { fetchMock, calls } = lifecycleBackend();
+    (global as any).fetch = fetchMock;
+    const wallet = await walletWithoutRpc(OPERATOR_PEM);
+    const mintable = new Interface(["function mint(address,uint256)"]);
+
+    await expect(wallet.signer.sendTransaction({ to: TOKEN, data: mintable.encodeFunctionData("mint", [FROM, 7n]) }))
+      .rejects.toThrow(/not supported in transfer-only mode/);
+    expect(calls.filter(c => c.includes("/requests/")).length).toBe(0);
+  });
+
+  test("without an operator key the request is left for manual approval, not self-approved", async () => {
+    const { fetchMock, calls } = lifecycleBackend();
+    (global as any).fetch = fetchMock;
+    const wallet = await walletWithoutRpc(undefined);
+
+    const tx = await wallet.signer.sendTransaction({ to: TOKEN, data: erc20.encodeFunctionData("transfer", [FROM, 5n]) });
+    expect(tx.hash).toBe("0xdeadbeef");
+    expect(calls).not.toContain("POST /api/rest/v1/requests/approve");
+  });
+
+  test("native transfers keep the amount in the smallest unit (wei)", async () => {
+    const { fetchMock, bodies } = lifecycleBackend();
+    (global as any).fetch = fetchMock;
+    const wallet = await walletWithoutRpc(OPERATOR_PEM);
+
+    await wallet.signer.sendTransaction({ to: TOKEN, value: 1000000000000000n });
+    const created = bodies["/api/rest/v1/requests/outgoing"][0] as any;
+    expect(created.amount).toBe("1000000000000000");
+    expect(created.toWhitelistedAddressId).toBe("9"); // resolved via /whitelists/addresses
+  });
+
+  test("a transfer of an unregistered token is refused before any request is created", async () => {
+    const { fetchMock, calls } = lifecycleBackend({ whitelisted: false });
+    (global as any).fetch = fetchMock;
+    const provider = await TaurusCustodyProvider.create({ ...CONFIG, operatorPrivateKey: OPERATOR_PEM });
+    const wallet = await provider.resolveWallet(FROM);
+    await expect(wallet!.signer.sendTransaction({ to: TOKEN, data: erc20.encodeFunctionData("transfer", [FROM, 5n]) }))
+      .rejects.toThrow(/not a registered PROTECT currency/);
+    expect(calls.filter(c => c.includes("/requests/")).length).toBe(0);
+  });
+});
+
+// ---- conformance against a mocked PROTECT backend --------------------------
+
+const ADDR_1 = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266";
+
+function mockBackend() {
+  const addresses = [{ id: "42", walletId: "7", address: ADDR_1 }];
+  return jest.fn(async (url: string) => {
+    const path = new URL(url).pathname;
+    const body =
+      path === "/api/rest/v1/addresses" ? { result: addresses } :
+        path === "/api/rest/v1/addresses/42" ? { result: addresses[0] } :
+          undefined;
+    return {
+      ok: body !== undefined,
+      status: body ? 200 : 404,
+      text: async () => JSON.stringify(body ?? { error: "not found" }),
+    } as Response;
+  });
+}
+
+describe("TaurusCustodyProvider over a mocked backend", () => {
+  const realFetch = global.fetch;
+  beforeAll(() => { (global as any).fetch = mockBackend(); });
+  afterAll(() => { (global as any).fetch = realFetch; });
+
+  custodyProviderConformance("taurus (mocked PROTECT)", async () => ({
+    provider: await TaurusCustodyProvider.create(CONFIG),
+    knownCustodyId: "42",
+    knownAddress: ADDR_1,
+  }));
+});

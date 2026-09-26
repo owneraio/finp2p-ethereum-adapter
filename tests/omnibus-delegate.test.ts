@@ -297,5 +297,19 @@ describe('OmnibusDelegate', () => {
 
       expect(result.ledgerIdentifier.network).toBe('eip155:11155111');
     });
+
+    it('deploys (not binds) when tokenIdentifier names a network but no tokenId', async () => {
+      mockStandard.deploy.mockResolvedValue({ contractAddress: '0xNEW_TOKEN', decimals: 2, tokenStandard: ERC20 });
+
+      const result = await delegate.createAsset(
+        'idem-create-4', TEST_ASSET.assetId,
+        { tokenIdentifier: { tokenId: null, network: 'eip155:11155111' } } as any,
+        undefined, 'TestCoin', undefined, undefined,
+      );
+
+      expect(mockStandard.deploy).toHaveBeenCalled();
+      expect(mockStandard.decimals).not.toHaveBeenCalled();
+      expect(result.ledgerIdentifier.tokenId).toBe('0xNEW_TOKEN');
+    });
   });
 });
