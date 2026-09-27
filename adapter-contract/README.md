@@ -4,7 +4,27 @@ The FinP2P Ethereum adapter's plugin SPI — the single source of truth for what
 token-standard plugin implements: the `TokenStandard` interface, the optional
 `InvestorWhitelisting` capability, and the runtime values plugins use
 (`successfulTokenOp` / `failedTokenOp`, the `LegType` / `PrimaryType` / `Phase` /
-`ReleaseType` enums).
+`ReleaseType` enums, the `signsMessages` guard).
+
+## Ledgers beyond EVM
+
+`TokenStandard<W = TokenWallet>` is parameterised by what a write is
+authorised with. Every EVM plugin implements `TokenStandard` with no type
+argument, exactly as before. A plugin for a ledger whose transactions are
+signed bytes (Stellar, Solana) implements `TokenStandard<MessageSigner>`; the
+ethers `provider` / `signer` on `decimals` and `balanceOf` are the configured
+chain's and such a plugin ignores them, reaching its ledger through the
+transport it was constructed with. One instance serves one ledger, the way the
+EVM plugins already take their provider at construction.
+
+`AssetRecord.ledger` is the CAIP-2 id of the ledger the record lives on;
+absent means the host's configured chain. The host registry keys on
+`(ledger, standard)`, so a record without a ledger resolves as it always has.
+
+`InvestorWhitelisting<W>` takes the party's own wallet as an optional last
+argument to `whitelist` / `dewhitelist`, for admissions the party signs itself
+(a Stellar trustline). A standard that admits with its own agent keys ignores
+it; one that needs it and is not given it fails with a reason.
 
 Owned and released from the adapter repository by its own tag pipeline
 (`adapter-contract-v*`), like `finp2p-contracts/`. Versioning: the

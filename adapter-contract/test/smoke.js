@@ -1,5 +1,5 @@
 // Loads the built package exactly as a plugin would and asserts the runtime
-// surface: helpers, enums, and the whitelisting probe. No adapter involved.
+// surface: helpers, enums, and the capability probes. No adapter involved.
 const assert = require('node:assert');
 const spi = require('../dist/index.js');
 
@@ -15,5 +15,8 @@ assert.strictEqual(spi.supportsWhitelisting({}), false);
 assert.strictEqual(spi.supportsWhitelisting({ ensureWhitelisted: async () => {} }), false);
 assert.strictEqual(spi.supportsWhitelisting({ isWhitelisted: async () => true, whitelist: async () => {} }), false);
 assert.strictEqual(spi.supportsWhitelisting({ isWhitelisted: async () => true, whitelist: async () => {}, dewhitelist: async () => {} }), true);
+
+assert.strictEqual(spi.signsMessages({ address: 'G' }), false);
+assert.strictEqual(spi.signsMessages({ address: 'G', sign: async () => new Uint8Array() }), true);
 
 console.log('adapter-contract smoke: OK');

@@ -1,6 +1,6 @@
 {
   "name": "@owneraio/finp2p-ethereum-adapter-contract",
-  "version": "0.28.12",
+  "version": "0.28.13",
   "description": "The FinP2P Ethereum adapter's plugin SPI: the interfaces and runtime values token-standard plugins implement. Owned and released from the adapter repository; shares the platform's major.minor line with an independent patch version.",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -16,7 +16,7 @@
   ],
   "scripts": {
     "build": "tsc",
-    "test": "tsc --noEmit && npm run build && node test/smoke.js"
+    "test": "tsc --noEmit && tsc --noEmit -p test/typecheck && npm run build && node test/smoke.js"
   },
   "license": "TBD",
   "publishConfig": {
@@ -31,6 +31,7 @@
     "ethers": "^6.9.0"
   },
   "devDependencies": {
-    "typescript": "^5.2.0"
+    "typescript": "^5.2.0",
+    "@types/node": "^20.0.0"
   }
 }
