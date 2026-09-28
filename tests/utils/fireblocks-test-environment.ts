@@ -95,6 +95,9 @@ class FireblocksTestEnvironment extends NodeEnvironment {
 
     const network = await provider.getNetwork();
     console.log(`Connected to chain ${network.chainId}`);
+    // adapter-tests fabricate ledger identifiers from this profile; the create
+    // path rejects a network other than the connected chain with 7311.
+    this.global.ledgerProfile = { network: `eip155:${network.chainId}`, standard: 'ERC20' };
 
     const fireblocksSdk = new FireblocksSDK(apiPrivateKey, apiKey, apiBaseUrl as string);
 

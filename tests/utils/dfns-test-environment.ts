@@ -96,6 +96,9 @@ class DfnsTestEnvironment extends NodeEnvironment {
 
     const network = await provider.getNetwork();
     console.log(`Connected to chain ${network.chainId}`);
+    // adapter-tests fabricate ledger identifiers from this profile; the create
+    // path rejects a network other than the connected chain with 7311.
+    this.global.ledgerProfile = { network: `eip155:${network.chainId}`, standard: 'ERC20' };
 
     // Get the wallet's compressed public key to derive finId
     // finId = compressed secp256k1 public key (hex, no 0x prefix)
