@@ -3,6 +3,7 @@ import { CustodyProvider, CustodyWallet } from '../src/services/custody/custody-
 import { AccountResolver, AssetStore } from '../src/services/accounts/account-resolver';
 import { tokenStandardRegistry } from '../src/integrations/token-standards/registry';
 import winston from 'winston';
+import { BusinessError } from '@owneraio/finp2p-nodejs-skeleton-adapter';
 
 // The delegate talks to token standards only through the TokenStandard SPI, so the
 // test mocks the standard, not any plugin internals (mocking the plugin's ERC20
@@ -249,11 +250,11 @@ describe('OmnibusDelegate', () => {
   });
 
   describe('createAsset', () => {
-    it('should deploy via the standard when no tokenIdentifier provided', async () => {
+    it('should deploy via the standard when no tokenId provided', async () => {
       mockStandard.deploy.mockResolvedValue({ contractAddress: '0xNEW_TOKEN', decimals: 2, tokenStandard: ERC20 });
 
       const result = await delegate.createAsset(
-        'idem-create', TEST_ASSET.assetId, undefined,
+        'idem-create', TEST_ASSET.assetId, {},
         undefined, 'TestCoin', undefined, undefined,
       );
 
@@ -271,7 +272,7 @@ describe('OmnibusDelegate', () => {
 
       const result = await delegate.createAsset(
         'idem-create-2', TEST_ASSET.assetId,
-        { tokenIdentifier: { tokenId: '0xEXISTING_TOKEN', network: 'eip155:42161' } } as any,
+        { tokenId: '0xEXISTING_TOKEN', network: 'eip155:42161' },
         undefined, 'TestCoin', undefined, undefined,
       );
 
@@ -291,11 +292,47 @@ describe('OmnibusDelegate', () => {
 
       const result = await delegate.createAsset(
         'idem-create-3', TEST_ASSET.assetId,
-        { tokenIdentifier: { tokenId: '0xANY' } } as any,
+        { tokenId: '0xANY' },
         undefined, undefined, undefined, undefined,
       );
 
       expect(result.ledgerIdentifier.network).toBe('eip155:11155111');
+    });
+
+    it('should reject a create on a foreign network with 7311', async () => {
+      await expect(delegate.createAsset(
+        'idem-create-4', TEST_ASSET.assetId,
+        { network: 'eip155:1', standard: ERC20 },
+        undefined, undefined, undefined, undefined,
+      )).rejects.toMatchObject(expect.objectContaining({ code: 7311 }));
+      await expect(delegate.createAsset(
+        'idem-create-4', TEST_ASSET.assetId,
+        { network: 'eip155:1' },
+        undefined, undefined, undefined, undefined,
+      )).rejects.toBeInstanceOf(BusinessError);
+      expect(mockStandard.deploy).not.toHaveBeenCalled();
+    });
+
+    it('should reject a create with an unregistered standard with 7311', async () => {
+      await expect(delegate.createAsset(
+        'idem-create-5', TEST_ASSET.assetId,
+        { network: 'eip155:11155111', standard: 'NOPE' },
+        undefined, undefined, undefined, undefined,
+      )).rejects.toMatchObject(expect.objectContaining({ code: 7311 }));
+      expect(mockStandard.deploy).not.toHaveBeenCalled();
+    });
+
+    it('should deploy when the requested network matches the chain', async () => {
+      mockStandard.deploy.mockResolvedValue({ contractAddress: '0xNEW_TOKEN', decimals: 2, tokenStandard: ERC20 });
+
+      const result = await delegate.createAsset(
+        'idem-create-6', TEST_ASSET.assetId,
+        { network: 'eip155:11155111', standard: ERC20 },
+        undefined, 'TestCoin', undefined, undefined,
+      );
+
+      expect(mockStandard.deploy).toHaveBeenCalled();
+      expect(result.ledgerIdentifier.tokenId).toBe('0xNEW_TOKEN');
     });
   });
 });
