@@ -146,7 +146,7 @@ export class ZodiaClient {
 
   /** Per-address balances of a wallet, as fixed-point strings. */
   async walletBalances(walletId: string): Promise<{ address: string; balance: string; currency?: string }[]> {
-    return paged(await this.post<{ address: string; balance: string; currency?: string }[]>('/v3/api/custody/wallets/balance', { walletId }));
+    return paged(await this.post<{ address: string; balance: string; currency?: string }[]>('/v3/api/custody/wallets/balance', { walletId, hideZeroBalance: false }));
   }
 
   async addresses(filter: { walletIds?: string[]; addresses?: string[]; currenciesIds?: string[]; paginationLimit?: number } = {}): Promise<ZodiaAddress[]> {
@@ -171,11 +171,13 @@ export class ZodiaClient {
 
   // ------------------------------------------------------------ service desk
 
-  async serviceRequests(filter: { requestIds?: string[]; endToEndIds?: string[]; serviceIds?: string[]; entityIds?: string[]; statuses?: string[]; paginationLimit?: number } = {}): Promise<ZodiaServiceRequest[]> {
-    return paged(await this.post<{ items?: ZodiaServiceRequest[] }>('/v3/api/servicedesk/requests', { paginationLimit: 100, ...filter }));
+  /** `serviceIds` is required by Zodia, and so are the product ids, which are the service ids' prefix. */
+  async serviceRequests(filter: { serviceIds: string[]; requestIds?: string[]; endToEndIds?: string[]; entityIds?: string[]; statuses?: string[]; paginationLimit?: number }): Promise<ZodiaServiceRequest[]> {
+    const productIds = [...new Set(filter.serviceIds.map(id => id.split('-')[0]!))];
+    return paged(await this.post<{ items?: ZodiaServiceRequest[] }>('/v3/api/servicedesk/requests', { paginationLimit: 100, productIds, ...filter }));
   }
 
-  /** Step 1 of every state change: a service request in DRAFT. `endToEndId` is the caller's own reference and what a retry is found by. */
+  /** Step 1 of every state change: a service request in DRAFT. `endToEndId` is the caller's own reference, a UUID, and what a retry is found by. */
   async createServiceRequest(serviceId: string, payload: Record<string, unknown>, endToEndId?: string): Promise<ZodiaServiceDeskResponse> {
     return this.post<ZodiaServiceDeskResponse>('/v3/api/servicedesk/create', endToEndId ? { serviceId, endToEndId, payload } : { serviceId, payload });
   }

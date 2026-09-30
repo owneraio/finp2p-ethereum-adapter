@@ -33,7 +33,8 @@
     "start-debug": "ts-node ./src/index.ts",
     "start": "node .",
     "test:plan-approval": "jest --config jest.plan-approval.config.js",
-    "zodia:probe": "ts-node scripts/zodia-probe.ts"
+    "zodia:probe": "ts-node scripts/zodia-probe.ts",
+    "test:zodia": "jest --config jest.zodia.config.js"
   },
   "publishConfig": {
     "registry": "https://npm.pkg.github.com"

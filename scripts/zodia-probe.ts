@@ -1,5 +1,5 @@
 import fs from 'fs';
-import { ZodiaApiError, ZodiaClient } from '../src/integrations/custody/zodia/client';
+import { ZODIA_SERVICE, ZodiaApiError, ZodiaClient } from '../src/integrations/custody/zodia/client';
 
 /**
  * Read-only probe of a Zodia company: proves the request signature and the
@@ -45,7 +45,7 @@ async function main(): Promise<void> {
   say(`\n${beneficiaries.length} active beneficiary addresses (the only external destinations a transfer may name):`);
   for (const b of beneficiaries) say(`  ${b.cryptoAddressId.padEnd(38)} ${b.blockchainId.padEnd(12)} ${b.address}  ${(b.addressPurpose ?? []).join('/')}`);
 
-  const requests = await client.serviceRequests({ paginationLimit: 10 });
+  const requests = await client.serviceRequests({ serviceIds: Object.values(ZODIA_SERVICE), paginationLimit: 10 });
   say(`\nlast ${requests.length} service requests:`);
   for (const r of requests) say(`  ${r.requestId.padEnd(22)} ${r.serviceId.padEnd(11)} ${r.status.padEnd(24)} ${r.entityId ?? ''}${r.endToEndId ? `  e2e=${r.endToEndId}` : ''}`);
 }

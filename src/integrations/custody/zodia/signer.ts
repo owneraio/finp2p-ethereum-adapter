@@ -64,7 +64,7 @@ export class ZodiaSigner extends AbstractSigner {
 
     const { currency, to, amount } = this.translate(target, tx);
     const destination = await this.destination(to);
-    const endToEndId = `finp2p-${randomUUID()}`;
+    const endToEndId = randomUUID();
     const created = await this.api.createServiceRequest(ZODIA_SERVICE.transfer, {
       amount,
       sender: { type: 'WALLETID', value: this.walletId },
@@ -128,7 +128,7 @@ export class ZodiaSigner extends AbstractSigner {
     let wait = this.config.pollIntervalMs;
     let last = 'not listed yet';
     while (Date.now() < deadline) {
-      const [request] = await this.api.serviceRequests({ requestIds: [requestId] });
+      const [request] = await this.api.serviceRequests({ serviceIds: [ZODIA_SERVICE.transfer], requestIds: [requestId] });
       if (request) {
         last = request.status;
         if (SERVICE_REQUEST_FAILED.has(request.status)) throw new Error(`Zodia service request ${requestId} ended ${request.status}`);

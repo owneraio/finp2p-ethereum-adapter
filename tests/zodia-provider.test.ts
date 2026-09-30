@@ -51,7 +51,7 @@ function fakeZodia(calls: unknown[][], options: { approveAfter?: number; rejects
         ? [{ cryptoAddressId: "bnf-addr-7", address: BENEFICIARY, blockchain: "ETH", blockchainId: "eth-Seth", status: "ACTIVE", addressPurpose: ["OUTGOING"] }]
         : [];
     },
-    serviceRequests: async (f = {}) => {
+    serviceRequests: async f => {
       calls.push(["serviceRequests", f]);
       polls += 1;
       for (const r of requests.values()) {
@@ -114,6 +114,24 @@ describe("Zodia request signing", () => {
     expect(ecdsaVerify("sha256", Buffer.from(stableStringify(signed.request)), { key: maker.publicKey, dsaEncoding: "der" }, Buffer.from(signed.signature, "base64"))).toBe(true);
     expect(stableStringify({ b: [3, 1, 2], a: "x" })).toBe('{"a":"x","b":[3,1,2]}');
   });
+
+  test("sends the fields Zodia marks required: product and service ids on listing requests, hideZeroBalance on balances", async () => {
+    const bodies: Record<string, unknown> = {};
+    const realFetch = global.fetch;
+    (global as any).fetch = jest.fn(async (url: string, init?: RequestInit) => {
+      bodies[new URL(url).pathname] = JSON.parse(String(init?.body));
+      return { ok: true, status: 200, text: async () => '{"items":[]}' } as Response;
+    });
+    try {
+      const client = new ZodiaClient(CONFIG);
+      await client.serviceRequests({ serviceIds: ["0x0014-007", "0x0013-001"], requestIds: ["SERV-REQ-1"] });
+      await client.walletBalances("ZTEST-NOBENF-ALICE");
+    } finally {
+      (global as any).fetch = realFetch;
+    }
+    expect(bodies["/v3/api/servicedesk/requests"]).toMatchObject({ productIds: ["0x0014", "0x0013"], serviceIds: ["0x0014-007", "0x0013-001"], requestIds: ["SERV-REQ-1"] });
+    expect(bodies["/v3/api/custody/wallets/balance"]).toEqual({ walletId: "ZTEST-NOBENF-ALICE", hideZeroBalance: false });
+  });
 });
 
 describe("ZodiaSigner: sendTransaction as a governed Service Desk transfer", () => {
@@ -130,7 +148,8 @@ describe("ZodiaSigner: sendTransaction as a governed Service Desk transfer", () 
       amount: "5", sender: { type: "WALLETID", value: "ZTEST-NOBENF-ALICE" }, currency: "ETH", currencyId: "eth-Seth",
       destination: { type: "WALLETID", value: "ZTEST-NOBENF-BOB" }, subtractFee: false,
     });
-    expect(endToEndId).toMatch(/^finp2p-[0-9a-f-]{36}$/);
+    expect(endToEndId).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+    expect(calls.filter(c => c[0] === "serviceRequests").every(c => (c[1] as { serviceIds?: string[] }).serviceIds?.includes("0x0014-007"))).toBe(true);
     const order = calls.map(c => c[0]).filter(c => c !== "serviceRequests" && c !== "transactions" && c !== "addresses");
     expect(order).toEqual(["createServiceRequest", "submitServiceRequest", "pendingInstruction", "confirmAsMaker"]);
   });
