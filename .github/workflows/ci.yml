@@ -155,6 +155,37 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
+      # Phase 1: build into the local daemon for the Wiz scan (before push).
+      # Phase 2 below shares the buildx cache, so it only exports and pushes.
+      - name: Adapter build locally for Wiz scan
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          platforms: ${{ matrix.platform }}
+          load: true
+          sbom: false
+          provenance: false
+          secrets: |
+            npm_token=${{ secrets.GITHUB_TOKEN }}
+          tags: finp2p-ethereum-adapter:scan-${{ env.PLATFORM_PAIR }}
+
+      # Fail-closed: a Wiz policy violation blocks the push.
+      - name: Wiz Security Scan
+        env:
+          WIZ_CLIENT_ID: ${{ secrets.WIZ_CLIENT_ID }}
+          WIZ_CLIENT_SECRET: ${{ secrets.WIZ_CLIENT_SECRET }}
+        run: |
+          set -euo pipefail
+
+          curl -Lo /usr/local/bin/wizcli "https://downloads.wiz.io/v1/wizcli/latest/wizcli-${PLATFORM_PAIR}"
+          chmod 755 /usr/local/bin/wizcli
+
+          wizcli auth --id "$WIZ_CLIENT_ID" --secret "$WIZ_CLIENT_SECRET"
+
+          echo "##### Scanning: finp2p-ethereum-adapter:scan-${PLATFORM_PAIR} #####"
+          wizcli docker scan --timeout 10m --image "finp2p-ethereum-adapter:scan-${PLATFORM_PAIR}"
+
+      # Phase 2: push the scanned image by digest
       - name: Adapter build and push by digest
         id: build_adapter
         uses: docker/build-push-action@v5
