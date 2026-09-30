@@ -90,7 +90,7 @@ describe('DbAccountResolver', () => {
 
     // Run skeleton migrations (includes account_mappings table)
     const localGoose = join(process.cwd(), 'bin', 'goose');
-    const gooseBin = existsSync(localGoose) ? localGoose : 'goose'; // fall back to PATH, like test-environment.whichGoose
+    const gooseBin = existsSync(localGoose) ? localGoose : 'goose';
     const migrationsDir = join(process.cwd(), 'node_modules', '@owneraio', 'finp2p-nodejs-skeleton-adapter', 'migrations');
     execSync(
       `${gooseBin} -table account_mapping_test_migrations -dir ${migrationsDir} up`,

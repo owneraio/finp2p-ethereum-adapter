@@ -60,12 +60,6 @@ export interface WorkflowsConfig {
   finP2PClient?: FinP2PClient;
 }
 
-/**
- * Swap execution venue selection: the env-configured allowance-swap contract
- * address (FINP2P_ETHEREUM_ALLOWANCE_SWAP_ADDRESS) selects the allowance-based
- * venue; no address means no venue and swap fails closed downstream. Services
- * only see the SwapVenue SPI interface.
- */
 function buildSwapVenue(allowanceSwapAddress: string | undefined): SwapVenue | undefined {
   return allowanceSwapAddress ? new AllowanceSwapVenue(allowanceSwapAddress) : undefined;
 }

@@ -29,7 +29,6 @@ const DefaultDecimals = 2;
 /** LedgerBindingNotSupportedErr — the ledger does not support the requested network/standard. */
 const LEDGER_BINDING_NOT_SUPPORTED = 7311;
 
-// the skeleton logger has warning() where the SPI wants warn()
 const spiLogger: SpiLogger = {
   debug: (message, ...args) => logger.debug(message, ...args),
   info: (message, ...args) => logger.info(message, ...args),
@@ -37,7 +36,6 @@ const spiLogger: SpiLogger = {
   error: (message, ...args) => logger.error(message, ...args),
 };
 
-/** A swap settles as ONE ledger tx with two movements; the receipt attests this adapter's own leg. */
 const swapMovementReceipt = (id: string, transactionId: string, operationId: string, leg: SwapLeg,
                              exCtx: ExecutionContext | undefined, timestamp: number): Receipt => ({
   id,
@@ -68,13 +66,9 @@ export class OnChainTokenService implements TokenService, EscrowService, CommonS
     readonly proofProvider: ProofProvider | undefined,
     readonly pluginManager: PluginManager | undefined,
     readonly defaultAssetStandard: string | undefined = undefined,
-    // swap execution venue (SPI plugin), constructed at app startup from
-    // FINP2P_ETHEREUM_ALLOWANCE_SWAP_ADDRESS when that env var is set
     readonly swapVenue: SwapVenue | undefined = undefined,
   ) {}
 
-  // the operator wallet submits venue transactions; the venue contract pulls
-  // from — and settles to — the parties' allowance-granting wallets
   private operatorWallet(): TokenWallet {
     return { provider: this.finP2PContract.provider, signer: this.finP2PContract.signer };
   }
@@ -115,9 +109,6 @@ export class OnChainTokenService implements TokenService, EscrowService, CommonS
 
     let tokenAddress: string;
     let allowanceRequired: boolean
-    // an empty tokenId — or one that isn't a token address on this ledger (the
-    // router/tests still send asset codes like 'USD' or the finp2p resource id
-    // here) — is the "create it for me" signal: deploy a new token
     if (assetBind.tokenId && isEthereumAddress(assetBind.tokenId)) {
       tokenAddress = assetBind.tokenId;
       allowanceRequired = true; // TODO: parse from metadata
@@ -243,11 +234,6 @@ export class OnChainTokenService implements TokenService, EscrowService, CommonS
 
   }
 
-  /**
-   * Translate the request's finId/assetId legs into the venue's address/raw-units
-   * intent: token via the operator's asset association, party via the credentials
-   * registry, amounts scaled by the token's own decimals.
-   */
   private async toSwapIntent(operationId: string, assetLeg: SwapLeg, settlementLeg: SwapLeg, deadline: number): Promise<SwapIntent> {
     const [token, counterToken, party, counterParty] = await Promise.all([
       this.finP2PContract.getAssetAddress(assetLeg.asset.assetId),
@@ -272,7 +258,6 @@ export class OnChainTokenService implements TokenService, EscrowService, CommonS
     return parseUnits(quantity, await erc20.decimals());
   }
 
-  /** Submit this side's leg through the venue; the venue resolves only once both legs cross (polling is internal to it). */
   private async swapViaVenue(swapVenue: SwapVenue, operationId: string, assetLeg: SwapLeg,
                              settlementLeg: SwapLeg, deadline: number, exCtx: ExecutionContext | undefined): Promise<SwapOperation> {
     const intent = await this.toSwapIntent(operationId, assetLeg, settlementLeg, deadline);
@@ -289,22 +274,6 @@ export class OnChainTokenService implements TokenService, EscrowService, CommonS
     );
   }
 
-  /**
-   * Atomic same-ledger swap through the configured SwapVenue (SPI plugin, the
-   * operator contract is no longer used for swap): `assetLeg` is the leg this
-   * adapter executes, `settlementLeg` the binding counter-leg. The venue's
-   * swap() honors the SPI's synchronous contract — it resolves only once BOTH
-   * legs have crossed (or fails at the deadline), so both parties resolve with
-   * the SAME transaction id: the one that moved both legs. Long-blocking is
-   * safe: the workflow proxy answers the HTTP call with a pending cid and the
-   * router polls the final result. Completes with the single receipt of this
-   * adapter's own (asset) leg.
-   *
-   * `numberOfReceipts` selects the mode: 1 = cross-org (counterparty's adapter
-   * mirrors the settlement leg), 2 = same-org (both wallets are operated here —
-   * this adapter drives both mirror calls itself and completes with both leg
-   * receipts).
-   */
   public async swap(idempotencyKey: string, nonce: string, operationId: string, assetLeg: SwapLeg,
                     settlementLeg: SwapLeg, numberOfReceipts: number, deadline: number, exCtx: ExecutionContext | undefined): Promise<SwapOperation> {
     if (numberOfReceipts === 2) {
@@ -323,13 +292,9 @@ export class OnChainTokenService implements TokenService, EscrowService, CommonS
       if (!assetLeg.signature) {
         return failedSwapOperation(1, "asset leg signature is required");
       }
-      // absolute epoch seconds; the venue enforces it as its wait bound
       if (deadline && deadline <= Math.floor(Date.now() / 1000)) {
         return failedSwapOperation(1, `swap deadline ${deadline} has already passed`);
       }
-      // two-party mirror: the contract delivers the asset to the settlement sender's
-      // wallet and the settlement back to the asset sender's — a request naming
-      // other receivers cannot be honored
       if (assetLeg.destination.finId !== settlementLeg.source.finId) {
         return failedSwapOperation(1, `asset destination finId '${assetLeg.destination.finId}' does not match settlement source finId '${settlementLeg.source.finId}'`);
       }
@@ -337,12 +302,9 @@ export class OnChainTokenService implements TokenService, EscrowService, CommonS
         return failedSwapOperation(1, `settlement destination finId '${settlementLeg.destination.finId}' does not match asset source finId '${assetLeg.source.finId}'`);
       }
 
-      // any wallet address carried on the legs must be a valid EVM address on this chain
       const { chainId } = await this.finP2PContract.provider.getNetwork();
       const { approvalWallet, destinationWallet } = validateSwapWallets(assetLeg, settlementLeg, chainId);
 
-      // the contract pulls the asset from — and settles the counter-leg to — the
-      // registered credential wallet; an explicitly requested wallet must be that one
       const ourWallet = await this.finP2PContract.getCredentialAddress(assetLeg.source.finId);
       if (approvalWallet && approvalWallet.toLowerCase() !== ourWallet.toLowerCase()) {
         return failedSwapOperation(1, `asset source wallet ${approvalWallet} does not match the registered credential ${ourWallet} holding the allowance`);
@@ -361,13 +323,6 @@ export class OnChainTokenService implements TokenService, EscrowService, CommonS
     }
   }
 
-  /**
-   * Both-legs swap through the venue: both mirrored swap calls are submitted
-   * IN PARALLEL, both signed by the operator. The venue's swap() resolves only
-   * once both legs have crossed (it polls internally — the SPI exposes no
-   * separate prepared/executed states), so submitting sequentially would block
-   * the first call forever waiting for a mirror that never comes.
-   */
   private async swapBothLegsViaVenue(swapVenue: SwapVenue, operationId: string, asset: SwapLeg,
                                      settlement: SwapLeg, deadline: number, exCtx: ExecutionContext | undefined): Promise<SwapOperation> {
     const intent = await this.toSwapIntent(operationId, asset, settlement, deadline);
@@ -381,15 +336,10 @@ export class OnChainTokenService implements TokenService, EscrowService, CommonS
     if (settlementSubmission.status === "failure") {
       return failedSwapOperation(1, settlementSubmission.reason);
     }
-    // both submissions attest the same executing transaction
     const { transactionId, timestamp } = assetSubmission;
     if (exCtx) {
       this.execDetailsStore?.addExecutionContext(transactionId, exCtx.planId, exCtx.sequence);
     }
-    // same-org: the router sends ONE exCtx from the asset-leg perspective, and
-    // receiptToAPI always reads counterpartyAssetId — the settlement receipt
-    // needs the two counterparty ids exchanged, on a COPY (exCtx is shared with
-    // the parallel venue calls)
     const settlementExCtx = exCtx && {
       ...exCtx,
       counterpartyAssetId: exCtx.counterpartySettlementId,
@@ -401,12 +351,6 @@ export class OnChainTokenService implements TokenService, EscrowService, CommonS
     );
   }
 
-  /**
-   * Same-org swap (numberOfReceipts = 2, both wallets operated here) through
-   * the configured SwapVenue: drive both mirrored perspectives ourselves, in
-   * parallel (see swapBothLegsViaVenue). Completes with both leg receipts,
-   * both attesting the same executing tx.
-   */
   private async swapBothLegs(operationId: string, asset: SwapLeg,
                              settlement: SwapLeg, deadline: number, exCtx: ExecutionContext | undefined): Promise<SwapOperation> {
     try {
@@ -416,8 +360,6 @@ export class OnChainTokenService implements TokenService, EscrowService, CommonS
       if (!operationId) {
         return failedSwapOperation(1, "operationId is required");
       }
-      // both wallets are custodied here, and each leg carries its own owner's
-      // signature over the full swap terms
       if (!asset.signature) {
         return failedSwapOperation(1, "asset leg signature is required");
       }
@@ -427,8 +369,6 @@ export class OnChainTokenService implements TokenService, EscrowService, CommonS
       if (deadline && deadline <= Math.floor(Date.now() / 1000)) {
         return failedSwapOperation(1, `swap deadline ${deadline} has already passed`);
       }
-      // same mirror invariant as the two-party swap: the contract settles each
-      // leg back to the counter-leg's sender
       if (asset.destination.finId !== settlement.source.finId) {
         return failedSwapOperation(1, `asset destination finId '${asset.destination.finId}' does not match settlement source finId '${settlement.source.finId}'`);
       }

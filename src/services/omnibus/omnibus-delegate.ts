@@ -323,7 +323,6 @@ export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowD
     const { chainId } = await this.readProvider.getNetwork();
     const defaultNetwork = `eip155:${chainId}`;
 
-    // no tokenId is the "create it for me" signal: deploy a new token
     const tokenAddress = assetBind.tokenId;
 
     if (tokenAddress === undefined) {
