@@ -1,6 +1,5 @@
 import { EnvironmentContext, JestEnvironmentConfig } from "@jest/environment";
 import { ChainId, ApiBaseUrl } from "@fireblocks/fireblocks-web3-provider";
-import { workflows } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import {
   PostgreSqlContainer,
   StartedPostgreSqlContainer,
@@ -171,7 +170,6 @@ class FireblocksTestEnvironment extends NodeEnvironment {
   async teardown() {
     try {
       this.httpServer?.close();
-      await workflows.Storage.closeAllConnections();
       await this.postgresSqlContainer?.stop();
       console.log("Fireblocks test environment torn down successfully.");
     } catch (err) {

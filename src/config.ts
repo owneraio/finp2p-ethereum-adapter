@@ -1,4 +1,4 @@
-import { Interface, JsonRpcProvider, NonceManager, Provider, Signer, Wallet, ZeroAddress, keccak256, toUtf8Bytes } from "ethers";
+import { Interface, JsonRpcProvider, NonceManager, Provider, Signer, Wallet, ZeroAddress, isAddress, keccak256, toUtf8Bytes } from "ethers";
 import process from "process";
 import { FinP2PContract } from '@owneraio/finp2p-ethereum-orchestrator'
 import { FinP2PClient } from '@owneraio/finp2p-client'
@@ -41,6 +41,7 @@ export type BaseAppConfig = {
   proofProvider: ProofProvider | undefined
   accountMappingType: AccountMappingType
   accountModel: AccountModel
+  allowanceSwapAddress?: string
 }
 
 export type FinP2PContractAppConfig = BaseAppConfig & {
@@ -82,6 +83,15 @@ export const getNetworkRpcUrl = (): string => {
   return networkHost;
 };
 
+export const getAllowanceSwapAddress = (): string | undefined => {
+  const address = process.env.FINP2P_ETHEREUM_ALLOWANCE_SWAP_ADDRESS;
+  if (!address) return undefined;
+  if (!isAddress(address)) {
+    throw new Error(`Invalid FINP2P_ETHEREUM_ALLOWANCE_SWAP_ADDRESS: '${address}' is not an Ethereum address`);
+  }
+  return address;
+};
+
 export const createJsonProvider = (
   operatorPrivateKey: string, ethereumRPCUrl: string, useNonceManager: boolean = true
 ): { provider: Provider, signer: Signer } => {
@@ -100,6 +110,12 @@ export async function envVarsToAppConfig(logger: Logger): Promise<AppConfig> {
   const configType = (process.env.PROVIDER_TYPE || 'finp2p-contract') as AppConfig['type']
   const accountMappingType = resolveAccountMappingType(process.env.ACCOUNT_MAPPING_TYPE)
   const accountModel = resolveAccountModel(process.env.ACCOUNT_MODEL)
+  const allowanceSwapAddress = getAllowanceSwapAddress()
+  if (allowanceSwapAddress) {
+    logger.info(`Allowance-swap contract configured at ${allowanceSwapAddress} — swap/swapSingle enabled`);
+  } else {
+    logger.info('FINP2P_ETHEREUM_ALLOWANCE_SWAP_ADDRESS is not set — swap/swapSingle are disabled');
+  }
 
   switch (configType) {
     case 'finp2p-contract': {
@@ -196,13 +212,14 @@ export async function envVarsToAppConfig(logger: Logger): Promise<AppConfig> {
         finP2PContract,
         execDetailsStore,
         defaultAssetStandard: defaultAssetStandardRaw,
+        allowanceSwapAddress,
       }
     }
     case 'fireblocks': {
-      return { ...await createFireblocksAppConfig(), accountMappingType, accountModel }
+      return { ...await createFireblocksAppConfig(), accountMappingType, accountModel, allowanceSwapAddress }
     }
     case 'dfns': {
-      return { ...await createDfnsAppConfig(), accountMappingType, accountModel }
+      return { ...await createDfnsAppConfig(), accountMappingType, accountModel, allowanceSwapAddress }
     }
     default: {
       // For registry-based providers: return generic config.
@@ -219,6 +236,7 @@ export async function envVarsToAppConfig(logger: Logger): Promise<AppConfig> {
         proofProvider: undefined,
         accountMappingType,
         accountModel,
+        allowanceSwapAddress,
       } as CustodyAppConfig;
     }
   }

@@ -323,7 +323,9 @@ export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowD
     const { chainId } = await this.readProvider.getNetwork();
     const defaultNetwork = `eip155:${chainId}`;
 
-    if (assetBind.tokenId === undefined) {
+    const tokenAddress = assetBind.tokenId;
+
+    if (tokenAddress === undefined) {
       if (assetBind.network && assetBind.network !== defaultNetwork) {
         throw new BusinessError(LEDGER_BINDING_NOT_SUPPORTED, `unsupported ledger network '${assetBind.network}', only ${defaultNetwork} is supported`);
       }
@@ -343,7 +345,7 @@ export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowD
       standard: std,
     });
 
-    if (assetBind.tokenId === undefined) {
+    if (tokenAddress === undefined) {
       const symbol = 'OWNERA';
       await this.ensureGas(this.omnibusWallet);
       const result = await standard.deploy(this.omnibusWallet, assetName ?? 'OWNERACOIN', symbol, DEFAULT_NEW_ERC20_DECIMALS, this.logger);
@@ -358,7 +360,6 @@ export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowD
       return { ledgerIdentifier: makeLedgerIdentifier(result.contractAddress, result.tokenStandard, defaultNetwork), reference: undefined };
     }
 
-    const tokenAddress = assetBind.tokenId;
     const network = assetBind.network || defaultNetwork;
     const decimals = await standard.decimals(this.readProvider, tokenAddress, this.logger);
     await this.assetStore.saveAsset({ contract_address: tokenAddress, decimals, token_standard: tokenStandard, id: assetId });

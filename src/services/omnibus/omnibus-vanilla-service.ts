@@ -1,17 +1,9 @@
 import {
   AssetBind, AssetCreationStatus, AssetDenomination, BusinessError, failedAssetCreation,
+  SwapOperation, failedSwapOperation,
 } from '@owneraio/finp2p-nodejs-skeleton-adapter';
 import { VanillaServiceImpl } from '@owneraio/finp2p-vanilla-service';
 
-/**
- * Vanilla service for the omnibus account model.
- *
- * `AssetDelegate.createAsset` can only return a successful result, so the
- * omnibus delegate signals an unsupported network/standard by throwing a
- * `BusinessError` (7311). The workflow proxy would record any thrown error
- * as a generic code-1 failure; this override turns it back into the
- * well-known business error the OAS documents for `createAsset`.
- */
 export class OmnibusVanillaService extends VanillaServiceImpl {
   async createAsset(
     idempotencyKey: string, assetId: string,
@@ -27,5 +19,9 @@ export class OmnibusVanillaService extends VanillaServiceImpl {
       }
       throw e;
     }
+  }
+
+  async swap(): Promise<SwapOperation> {
+    return failedSwapOperation(1, 'Swap is not supported in omnibus mode');
   }
 }
