@@ -6,7 +6,7 @@ import {
   successfulSwapOperation
 } from '@owneraio/finp2p-nodejs-skeleton-adapter';
 import winston from 'winston';
-import { Contract, parseUnits, Provider, Signer, Wallet, ZeroAddress } from "ethers";
+import { parseUnits, Provider, Signer, Wallet, ZeroAddress } from "ethers";
 import { AssetRecord, ReleaseType, TokenOperationResult, SwapIntent, SwapVenue, mirrored } from '@owneraio/finp2p-ethereum-adapter-contract';
 import { CustodyProvider, CustodyWallet } from './custody-provider';
 import { AccountResolver, AssetStore, ledgerAccountAddress, validateSwapWallets } from "../accounts";
@@ -292,16 +292,6 @@ export class CustodyTokenService implements TokenService, EscrowService, HealthS
     };
   }
 
-  // TODO: the venue contract is permissionless — an allowance granted here is spendable by ANY
-  // mirrored pair naming this party, not just this operationId. Exact per-swap amounts limit
-  // the exposure but don't remove it (a competing swap can still consume the approval).
-  // Needs review later.
-  private async approveToSwapVenue(venue: SwapVenue, signer: Signer, token: string, amount: bigint): Promise<void> {
-    const erc20 = new Contract(token, ["function approve(address spender, uint256 amount) returns (bool)"], signer);
-    const tx = await erc20.approve(venue.venueAddress, amount);
-    await tx.wait();
-  }
-
   async swap(
     idempotencyKey: string, nonce: string, operationId: string, asset: SwapLeg,
     settlement: SwapLeg, numberOfReceipts: number, deadline: number, exCtx: ExecutionContext | undefined
@@ -349,7 +339,6 @@ export class CustodyTokenService implements TokenService, EscrowService, HealthS
       if (!counterParty) return failedSwapOperation(1, `No wallet address for settlement source ${settlement.source.finId} — pass source.account or map the finId`);
 
       const intent = await this.toSwapIntent(operationId, asset, settlement, resolved.address, counterParty, deadline);
-      await this.approveToSwapVenue(this.swapVenue, resolved.wallet.signer, intent.give.token, intent.give.amount);
       const submission = await this.swapVenue.swap(resolved.wallet, intent, this.logger);
       if (submission.status === 'failure') {
         return failedSwapOperation(1, submission.reason);
@@ -390,11 +379,6 @@ export class CustodyTokenService implements TokenService, EscrowService, HealthS
       if (!resolvedSettlement) return failedSwapOperation(1, `Settlement source ${settlement.source.finId} cannot be resolved to a custody wallet`);
 
       const intent = await this.toSwapIntent(operationId, asset, settlement, resolvedAsset.address, resolvedSettlement.address, deadline);
-
-      await Promise.all([
-        this.approveToSwapVenue(this.swapVenue, resolvedAsset.wallet.signer, intent.give.token, intent.give.amount),
-        this.approveToSwapVenue(this.swapVenue, resolvedSettlement.wallet.signer, intent.take.token, intent.take.amount),
-      ]);
 
       const [assetSubmission, settlementSubmission] = await Promise.all([
         this.swapVenue.swap(resolvedAsset.wallet, intent, this.logger),
