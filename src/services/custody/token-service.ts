@@ -91,9 +91,6 @@ export class CustodyTokenService implements TokenService, EscrowService, HealthS
     // swap execution venue (SPI plugin), constructed at app startup from
     // FINP2P_ETHEREUM_ALLOWANCE_SWAP_ADDRESS when that env var is set
     readonly swapVenue?: SwapVenue,
-    // the venue contract both parties must ERC20-approve before swapping;
-    // allowance-based venues ignore intent permits
-    readonly swapVenueApprovalAddress?: string,
   ) {}
 
   // read-only paths need a Signer arg for the SPI; an ephemeral one suffices
@@ -309,9 +306,9 @@ export class CustodyTokenService implements TokenService, EscrowService, HealthS
   // mirrored pair naming this party, not just this operationId. Exact per-swap amounts limit
   // the exposure but don't remove it (a competing swap can still consume the approval).
   // Needs review later.
-  private async approveToSwapVenue(signer: Signer, token: string, amount: bigint): Promise<void> {
+  private async approveToSwapVenue(venue: SwapVenue, signer: Signer, token: string, amount: bigint): Promise<void> {
     const erc20 = new Contract(token, ["function approve(address spender, uint256 amount) returns (bool)"], signer);
-    const tx = await erc20.approve(this.swapVenueApprovalAddress!, amount);
+    const tx = await erc20.approve(venue.venueAddress, amount);
     await tx.wait();
   }
 
@@ -382,7 +379,7 @@ export class CustodyTokenService implements TokenService, EscrowService, HealthS
       if (!counterParty) return failedSwapOperation(1, `No wallet address for settlement source ${settlement.source.finId} — pass source.account or map the finId`);
 
       const intent = await this.toSwapIntent(operationId, asset, settlement, resolved.address, counterParty, deadline);
-      await this.approveToSwapVenue(resolved.wallet.signer, intent.give.token, intent.give.amount);
+      await this.approveToSwapVenue(this.swapVenue, resolved.wallet.signer, intent.give.token, intent.give.amount);
       // the venue resolves only once both legs have crossed (or the deadline
       // passes) — waiting for the counterparty's mirror is internal to it
       const submission = await this.swapVenue.swap(resolved.wallet, intent, this.logger);
@@ -438,8 +435,8 @@ export class CustodyTokenService implements TokenService, EscrowService, HealthS
 
       // both allowances up front — the venue checks them when the legs cross
       await Promise.all([
-        this.approveToSwapVenue(resolvedAsset.wallet.signer, intent.give.token, intent.give.amount),
-        this.approveToSwapVenue(resolvedSettlement.wallet.signer, intent.take.token, intent.take.amount),
+        this.approveToSwapVenue(this.swapVenue, resolvedAsset.wallet.signer, intent.give.token, intent.give.amount),
+        this.approveToSwapVenue(this.swapVenue, resolvedSettlement.wallet.signer, intent.take.token, intent.take.amount),
       ]);
 
       // both mirrored perspectives in parallel: each call resolves only once

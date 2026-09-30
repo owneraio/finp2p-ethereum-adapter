@@ -149,7 +149,7 @@ async function registerCustodyServices(
   const issuerWallet = assetIssuerKey && networkHost
     ? { provider: readProvider, signer: pooledSigner(getNetworkRpcUrl(), assetIssuerKey) }
     : undefined;
-  let tokenService: CustodyTokenService = new CustodyTokenService(logger, custodyProvider, escrowWallet, readProvider, accountMapping, assetStore, issuerWallet, buildSwapVenue(appConfig.allowanceSwapAddress), appConfig.allowanceSwapAddress);
+  let tokenService: CustodyTokenService = new CustodyTokenService(logger, custodyProvider, escrowWallet, readProvider, accountMapping, assetStore, issuerWallet, buildSwapVenue(appConfig.allowanceSwapAddress));
   const commonService = new DirectCommonServiceImpl(workflowStorage);
   const planApprovalService = buildCustodyPlanApprovalService(
     appConfig.orgId, finP2PClient,
