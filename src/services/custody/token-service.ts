@@ -6,13 +6,16 @@ import {
   successfulSwapOperation
 } from '@owneraio/finp2p-nodejs-skeleton-adapter';
 import winston from 'winston';
-import { Contract, isAddress, parseUnits, Provider, Signer, Wallet, ZeroAddress } from "ethers";
+import { Contract, parseUnits, Provider, Signer, Wallet, ZeroAddress } from "ethers";
 import { AssetRecord, ReleaseType, TokenOperationResult, SwapIntent, SwapVenue, mirrored } from '@owneraio/finp2p-ethereum-adapter-contract';
 import { CustodyProvider, CustodyWallet } from './custody-provider';
 import { AccountResolver, AssetStore, ledgerAccountAddress, validateSwapWallets } from "../accounts";
 import { tokenStandardRegistry } from '../../integrations/token-standards/registry';
 import { TokenStandardName as ERC20_TOKEN_STANDARD, DEFAULT_NEW_ERC20_DECIMALS } from '@owneraio/finp2p-ethereum-erc20-plugin';
 import { buildOperationContext, deriveReleaseType } from "../operations";
+
+/** LedgerBindingNotSupportedErr — the ledger does not support the requested network/standard. */
+const LEDGER_BINDING_NOT_SUPPORTED = 7311;
 
 function resultToReceipt(
   result: TokenOperationResult, ast: Asset, operationType: OperationType, quantity: string,
@@ -144,31 +147,34 @@ export class CustodyTokenService implements TokenService, EscrowService, HealthS
   }
 
   async createAsset(
-    idempotencyKey: string, assetId: string, assetBind: AssetBind | undefined,
+    idempotencyKey: string, assetId: string, assetBind: AssetBind,
     assetMetadata: any, assetName: string | undefined, issuerId: string | undefined,
     assetDenomination: AssetDenomination | undefined,
   ): Promise<AssetCreationStatus> {
-    const explicitStandard = assetBind?.tokenIdentifier?.standard;
+    const explicitStandard = assetBind.standard;
     const requestedStandard = explicitStandard ?? ERC20_TOKEN_STANDARD;
-    if (!tokenStandardRegistry.has(requestedStandard)) {
-      return failedAssetCreation(1, `Unsupported token standard '${requestedStandard}'; available: ${tokenStandardRegistry.availableStandards.join(', ')}`);
+    const { chainId } = await this.readProvider.getNetwork();
+    const defaultNetwork = `eip155:${chainId}`;
+
+    // no tokenId is the "create it for me" signal: deploy a new token
+    const tokenAddress = assetBind.tokenId;
+
+    if (tokenAddress === undefined) {
+      if (assetBind.network && assetBind.network !== defaultNetwork) {
+        return failedAssetCreation(LEDGER_BINDING_NOT_SUPPORTED,
+          `unsupported ledger network '${assetBind.network}', only ${defaultNetwork} is supported`);
+      }
+      if (!tokenStandardRegistry.has(requestedStandard)) {
+        return failedAssetCreation(LEDGER_BINDING_NOT_SUPPORTED,
+          `unsupported token standard '${requestedStandard}', available: ${tokenStandardRegistry.availableStandards.join(', ')}`);
+      }
+    } else if (!tokenStandardRegistry.has(requestedStandard)) {
+      this.logger.error(`createAsset: assetId=${assetId} requested token standard '${requestedStandard}' is not registered; available: ${tokenStandardRegistry.availableStandards.join(', ')}`);
     }
     const standard = tokenStandardRegistry.resolve(requestedStandard);
     this.logger.info(`createAsset: assetId=${assetId} token standard '${requestedStandard}'${explicitStandard === undefined ? ' (defaulted, none requested)' : ''} resolved to ${standard.constructor.name}`);
 
-    const { chainId } = await this.readProvider.getNetwork();
-    const defaultNetwork = `eip155:${chainId}`;
-    const requestedNetwork = assetBind?.tokenIdentifier?.network;
-    if (requestedNetwork && requestedNetwork !== defaultNetwork) {
-      this.logger.warn(`createAsset: requested network '${requestedNetwork}' differs from this adapter's chain ${defaultNetwork}`);
-    }
-
-    // an empty tokenId — or one that isn't a token address on this ledger (the
-    // router/tests still send asset codes like 'USD' here) — is the "create it
-    // for me" signal: deploy a new token
-    const requestedTokenId = assetBind?.tokenIdentifier?.tokenId;
-    const tokenAddress = requestedTokenId && isAddress(requestedTokenId) ? requestedTokenId : undefined;
-    if (!tokenAddress) {
+    if (tokenAddress === undefined) {
       this.logger.info(`createAsset: deploy path — assetId=${assetId} standard=${requestedStandard} name=${assetName ?? 'OWNERACOIN'}`);
       if (!this.issuerWallet) {
         return failedAssetCreation(1, 'ASSET_ISSUER_PRIVATE_KEY is not set — refusing to deploy an asset a throwaway signer would strand');
@@ -196,7 +202,7 @@ export class CustodyTokenService implements TokenService, EscrowService, HealthS
         result: { ledgerIdentifier: { assetIdentifierType: 'CAIP-19', network: defaultNetwork, tokenId: result.contractAddress, standard: result.tokenStandard }, reference: undefined }
       };
     } else {
-      this.logger.info(`createAsset: bind path — assetId=${assetId} standard=${requestedStandard} tokenAddress=${tokenAddress} network=${requestedNetwork ?? defaultNetwork}`);
+      this.logger.info(`createAsset: bind path — assetId=${assetId} standard=${requestedStandard} tokenAddress=${tokenAddress} network=${assetBind.network ?? defaultNetwork}`);
 
       const decimals = await standard.decimals(this.readProvider, tokenAddress, this.logger);
       this.logger.info(`createAsset: standard '${requestedStandard}' reported decimals=${decimals} for ${tokenAddress}`);
@@ -214,7 +220,7 @@ export class CustodyTokenService implements TokenService, EscrowService, HealthS
       return {
         operation: "createAsset",
         type: "success",
-        result: { ledgerIdentifier: { assetIdentifierType: 'CAIP-19', network: requestedNetwork || defaultNetwork, tokenId: tokenAddress, standard: requestedStandard }, reference: undefined }
+        result: { ledgerIdentifier: { assetIdentifierType: 'CAIP-19', network: assetBind.network || defaultNetwork, tokenId: tokenAddress, standard: requestedStandard }, reference: undefined }
       };
     }
   }

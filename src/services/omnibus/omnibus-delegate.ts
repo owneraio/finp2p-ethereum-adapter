@@ -4,7 +4,7 @@ import {
   Destination, ExecutionContext, Source,
   PaymentService, DepositAsset, DepositOperation, ReceiptOperation, Signature,
   successfulDepositOperation, failedDepositOperation, failedReceiptOperation,
-  workflows,
+  workflows, BusinessError,
 } from '@owneraio/finp2p-nodejs-skeleton-adapter';
 import { TransferDelegate, AssetDelegate, EscrowDelegate, OmnibusDelegate as OmnibusDelegateInterface, DelegateResult, InboundTransferVerificationError } from '@owneraio/finp2p-vanilla-service';
 import { parseUnits, Provider, id as keccak256 } from 'ethers';
@@ -22,6 +22,9 @@ export interface ReceiptPollingConfig {
   minConfirmations: number;
   requireFinalizedBlock: boolean;
 }
+
+/** LedgerBindingNotSupportedErr — the ledger does not support the requested network/standard. */
+const LEDGER_BINDING_NOT_SUPPORTED = 7311;
 
 const defaultReceiptPolling: ReceiptPollingConfig = {
   timeoutMs: 180000,
@@ -313,23 +316,28 @@ export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowD
   }
 
   async createAsset(
-    idempotencyKey: string, assetId: string, assetBind: AssetBind | undefined,
+    idempotencyKey: string, assetId: string, assetBind: AssetBind,
     assetMetadata: any | undefined, assetName: string | undefined, issuerId: string | undefined,
     assetDenomination: AssetDenomination | undefined,
   ): Promise<AssetCreationResult> {
-    const requestedStandard = assetBind?.tokenIdentifier?.standard;
-    if (requestedStandard && !tokenStandardRegistry.has(requestedStandard)) {
-      throw new Error(`Unsupported token standard '${requestedStandard}'; available: ${tokenStandardRegistry.availableStandards.join(', ')}`);
-    }
-    const tokenStandard = requestedStandard ?? ERC20_TOKEN_STANDARD;
-    const standard = tokenStandardRegistry.resolve(tokenStandard);
-
     const { chainId } = await this.readProvider.getNetwork();
     const defaultNetwork = `eip155:${chainId}`;
-    const requestedNetwork = assetBind?.tokenIdentifier?.network;
-    if (requestedNetwork && requestedNetwork !== defaultNetwork) {
-      this.logger.warn(`createAsset: requested network '${requestedNetwork}' differs from this adapter's chain ${defaultNetwork}`);
+
+    // no tokenId is the "create it for me" signal: deploy a new token
+    const tokenAddress = assetBind.tokenId;
+
+    if (tokenAddress === undefined) {
+      if (assetBind.network && assetBind.network !== defaultNetwork) {
+        throw new BusinessError(LEDGER_BINDING_NOT_SUPPORTED, `unsupported ledger network '${assetBind.network}', only ${defaultNetwork} is supported`);
+      }
+      if (assetBind.standard && !tokenStandardRegistry.has(assetBind.standard)) {
+        throw new BusinessError(LEDGER_BINDING_NOT_SUPPORTED, `unsupported token standard '${assetBind.standard}', available: ${tokenStandardRegistry.availableStandards.join(', ')}`);
+      }
     }
+    const tokenStandard = assetBind.standard
+      ? (tokenStandardRegistry.has(assetBind.standard) ? assetBind.standard : ERC20_TOKEN_STANDARD)
+      : ERC20_TOKEN_STANDARD;
+    const standard = tokenStandardRegistry.resolve(tokenStandard);
 
     const makeLedgerIdentifier = (tokenId: string, std: string, network: string): LedgerAssetIdentifier => ({
       assetIdentifierType: 'CAIP-19',
@@ -338,9 +346,7 @@ export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowD
       standard: std,
     });
 
-    // an empty tokenId is the "create it for me" signal — deploy a new token
-    const tokenAddress = assetBind?.tokenIdentifier?.tokenId;
-    if (!tokenAddress) {
+    if (tokenAddress === undefined) {
       const symbol = 'OWNERA';
       await this.ensureGas(this.omnibusWallet);
       const result = await standard.deploy(this.omnibusWallet, assetName ?? 'OWNERACOIN', symbol, DEFAULT_NEW_ERC20_DECIMALS, this.logger);
@@ -355,7 +361,7 @@ export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowD
       return { ledgerIdentifier: makeLedgerIdentifier(result.contractAddress, result.tokenStandard, defaultNetwork), reference: undefined };
     }
 
-    const network = requestedNetwork || defaultNetwork;
+    const network = assetBind.network || defaultNetwork;
     const decimals = await standard.decimals(this.readProvider, tokenAddress, this.logger);
     await this.assetStore.saveAsset({ contract_address: tokenAddress, decimals, token_standard: tokenStandard, id: assetId });
     // TODO(custody-registration): see the deploy path above — disabled pending

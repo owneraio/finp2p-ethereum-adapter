@@ -26,6 +26,9 @@ import { validateSwapWallets } from "../accounts";
 
 const DefaultDecimals = 2;
 
+/** LedgerBindingNotSupportedErr — the ledger does not support the requested network/standard. */
+const LEDGER_BINDING_NOT_SUPPORTED = 7311;
+
 // the skeleton logger has warning() where the SPI wants warn()
 const spiLogger: SpiLogger = {
   debug: (message, ...args) => logger.debug(message, ...args),
@@ -101,28 +104,33 @@ export class OnChainTokenService implements TokenService, EscrowService, CommonS
   }
 
   public async createAsset(idempotencyKey: string, assetId: string,
-                           assetBind: AssetBind | undefined, assetMetadata: any | undefined, assetName: string | undefined, issuerId: string | undefined,
+                           assetBind: AssetBind, assetMetadata: any | undefined, assetName: string | undefined, issuerId: string | undefined,
                            assetDenomination: AssetDenomination | undefined): Promise<AssetCreationStatus> {
+    const { chainId, name } = await this.finP2PContract.provider.getNetwork();
+    const requestedStandard = assetBind.standard;
+    const responseStandard = requestedStandard ?? this.defaultAssetStandard;
+    if (!responseStandard) {
+      return failedAssetCreation(LEDGER_BINDING_NOT_SUPPORTED, 'No asset standard supplied and DEFAULT_ASSET_STANDARD env not set');
+    }
+
     let tokenAddress: string;
     let allowanceRequired: boolean
     // an empty tokenId — or one that isn't a token address on this ledger (the
     // router/tests still send asset codes like 'USD' or the finp2p resource id
     // here) — is the "create it for me" signal: deploy a new token
-    const requestedTokenId = assetBind?.tokenIdentifier?.tokenId;
-    if (requestedTokenId && isEthereumAddress(requestedTokenId)) {
-      tokenAddress = requestedTokenId;
+    if (assetBind.tokenId && isEthereumAddress(assetBind.tokenId)) {
+      tokenAddress = assetBind.tokenId;
       allowanceRequired = true; // TODO: parse from metadata
       logger.debug(`Associating existing token ${tokenAddress} to asset ${assetId}`);
     } else {
+      const supportedNetwork = `eip155:${chainId}`;
+      if (assetBind.network && assetBind.network !== supportedNetwork) {
+        return failedAssetCreation(LEDGER_BINDING_NOT_SUPPORTED,
+          `unsupported ledger network '${assetBind.network}', only ${supportedNetwork} is supported`);
+      }
       tokenAddress = await this.finP2PContract.deployERC20(assetId, assetId, DefaultDecimals, this.finP2PContract.finP2PContractAddress);
       allowanceRequired = false;
       logger.debug(`Deployed new token ${tokenAddress} for asset ${assetId}`);
-    }
-
-    const requestedStandard = assetBind?.tokenIdentifier?.standard;
-    const responseStandard = requestedStandard ?? this.defaultAssetStandard;
-    if (!responseStandard) {
-      return failedAssetCreation(1, 'No asset standard supplied and DEFAULT_ASSET_STANDARD env not set');
     }
     // The basic FINP2POperator's associateAsset takes 2 args; the WithRegistry
     // variant takes 3 (extra bytes32 assetStandard). Only thread the standard
@@ -142,7 +150,6 @@ export class OnChainTokenService implements TokenService, EscrowService, CommonS
       }
     }
 
-    const { chainId, name } = await this.finP2PContract.provider.getNetwork();
     const network = `name: ${name}, chainId: ${chainId}`;
     const finP2POperatorContractAddress = this.finP2PContract.finP2PContractAddress;
     const result: AssetCreationResult = {
@@ -214,14 +221,11 @@ export class OnChainTokenService implements TokenService, EscrowService, CommonS
   public async redeem(idempotencyKey: string, nonce: string, source: Source, asset: Asset, quantity: string, operationId: string | undefined,
     signature: Signature, exCtx: ExecutionContext
   ): Promise<ReceiptOperation> {
-    if (!operationId) {
-      logger.error("No operationId provided");
-      return failedReceiptOperation(1, "operationId is required");
-    }
-
     try {
       await this.ensureCredential(source.finId);
-      const transactionReceipt = await this.finP2PContract.releaseAndRedeem(operationId, source.finId, quantity, emptyOperationParams());
+      const transactionReceipt = operationId
+        ? await this.finP2PContract.releaseAndRedeem(operationId, source.finId, quantity, emptyOperationParams())
+        : await this.finP2PContract.redeem(source.finId, term(asset.assetId, assetTypeFromString(asset.assetType), quantity), emptyOperationParams());
 
       if (exCtx) {
         this.execDetailsStore?.addExecutionContext(transactionReceipt.hash, exCtx.planId, exCtx.sequence);
@@ -229,7 +233,7 @@ export class OnChainTokenService implements TokenService, EscrowService, CommonS
 
       return mapReceiptOperation(await this.finP2PContract.getReceiptFromTransactionReceipt(transactionReceipt), asset, exCtx)
     } catch (e) {
-      logger.error(`Error releasing asset: ${e}`);
+      logger.error(`Error redeeming asset: ${e}`);
       if (e instanceof EthereumTransactionError) {
         return failedReceiptOperation(1, e.message);
       } else {

@@ -10,18 +10,15 @@ import {
   AccountMappingServiceImpl,
   AccountMappingValidator,
   NetworkAccountService,
-  TokenService,
   ReceiptOperation,
   failedReceiptOperation,
-  SwapOperation,
-  failedSwapOperation,
   workflows,
   storage as storageModule,
 } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import { FinP2PClient } from "@owneraio/finp2p-client";
 import { SwapVenue } from "@owneraio/finp2p-ethereum-adapter-contract";
 import { AllowanceSwapVenue } from "@owneraio/finp2p-ethereum-allowance-swap";
-import { LedgerStorage, VanillaServiceImpl, registerDistributionRoutes } from "@owneraio/finp2p-vanilla-service";
+import { LedgerStorage, registerDistributionRoutes } from "@owneraio/finp2p-vanilla-service";
 import {
   CredentialsMappingService,
   OnChainTokenService,
@@ -46,7 +43,7 @@ import {
   EvmNetworkAccountValidator,
   InvestorWhitelistServiceImpl,
 } from "./services/accounts";
-import { OmnibusDelegate } from "./services/omnibus";
+import { OmnibusDelegate, OmnibusVanillaService } from "./services/omnibus";
 import { GasStation } from "./services/gas-station";
 import { DEFAULT_ACTIVATION_AMOUNT, WalletActivator, isHederaNetwork } from "./services/gas-station/wallet-activation";
 import { CommonServiceImpl as DirectCommonServiceImpl } from "./services/operations";
@@ -89,12 +86,12 @@ function wrapWithWorkflowProxy<T extends object>(
 interface OmnibusContext {
   delegate: OmnibusDelegate;
   vanilla: {
-    tokenService: VanillaServiceImpl & TokenService;
-    escrowService: VanillaServiceImpl;
-    commonService: VanillaServiceImpl;
-    mappingService: VanillaServiceImpl;
-    distributionService: VanillaServiceImpl;
-    inboundTransferHook: VanillaServiceImpl;
+    tokenService: OmnibusVanillaService;
+    escrowService: OmnibusVanillaService;
+    commonService: OmnibusVanillaService;
+    mappingService: OmnibusVanillaService;
+    distributionService: OmnibusVanillaService;
+    inboundTransferHook: OmnibusVanillaService;
   };
 }
 
@@ -341,17 +338,11 @@ async function createApp(
     // opens its own pool from a connection string) so the vanilla service shares dbPool
     // and the schema stays pinned to what migrations created.
     const ledgerStorage = new LedgerStorage(dbPool, ledgerSchema);
-    const vanillaService = new VanillaServiceImpl(ledgerStorage, delegate, delegate, delegate, delegate, finP2PClient);
-    // Skeleton's TokenService gained swap(); vanilla-service doesn't implement it and
-    // an omnibus/off-ledger swap is out of scope — fail closed. Kept OUT of the
-    // workflow proxy method list: it fails fast, there is nothing to track.
-    const vanillaTokenService: VanillaServiceImpl & TokenService = Object.assign(vanillaService, {
-      swap: async (): Promise<SwapOperation> => failedSwapOperation(1, "Swap is not supported in omnibus mode"),
-    });
+    const vanillaService = new OmnibusVanillaService(ledgerStorage, delegate, delegate, delegate, delegate, finP2PClient);
     omnibusCtx = {
       delegate,
       vanilla: {
-        tokenService: vanillaTokenService,
+        tokenService: vanillaService,
         escrowService: vanillaService,
         commonService: vanillaService,
         mappingService: vanillaService,

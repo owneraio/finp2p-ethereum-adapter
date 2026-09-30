@@ -1,4 +1,3 @@
-import type { Provider, TypedDataDomain, TypedDataField } from 'ethers';
 import type { TokenWallet, Logger } from './types';
 
 export interface SwapSide {
@@ -35,6 +34,15 @@ export const failedSwap = (reason: string, preparedTransactionId?: string): Swap
   ({ status: 'failure', reason, ...(preparedTransactionId ? { preparedTransactionId } : {}) });
 
 export interface SwapVenue {
+  /**
+   * The venue's funds-entry point: the address give.party must direct its
+   * authorization (or deposit) at before swap() — the ERC20 spender for
+   * allowance venues, Permit2 for permit-based ones, a deposit account for
+   * custodial venues. Known at construction (venues are built from their
+   * on-chain config), hence a plain readonly value.
+   */
+  readonly venueAddress: string;
+
   /**
    * Settle the calling side of the swap. Synchronous contract: resolves only
    * once both legs have crossed (AMM venues execute in a single transaction;
