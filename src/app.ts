@@ -312,7 +312,7 @@ async function createApp(
     : undefined;
   const networkAccountService: NetworkAccountService = appConfig.type === 'finp2p-contract'
     ? new OnChainNetworkAccountService(networkAccountStore, (appConfig as FinP2PContractAppConfig).finP2PContract, walletResolutionMode!, new EvmNetworkAccountValidator())
-    : new CustodyNetworkAccountService(networkAccountStore, custodyProvider, accountMappingService, logger, walletActivator, new EvmNetworkAccountValidator());
+    : new CustodyNetworkAccountService(networkAccountStore, appConfig.orgId, custodyProvider, accountMappingService, logger, walletActivator, new EvmNetworkAccountValidator());
 
 
   let omnibusCtx: OmnibusContext | undefined;
