@@ -35,16 +35,23 @@ const ETH_ADDRESS_FORMAT = /^0x[0-9a-fA-F]{40}$/;
  * activation failure fails the onboarding before the account mapping is
  * mirrored; a repeat create replays the binding and re-attempts the
  * idempotent activation.
+ *
+ * Without an account mapping (ACCOUNT_MAPPING=disabled) there is nowhere to
+ * mirror to, so the binding itself must carry the custody account id: a
+ * custodial bind is recorded as sent, and the custody-id overload is recorded
+ * as the custodial account it stands for. The router then echoes that account
+ * on operation legs, and the onboarded-account resolver reads it back.
  */
 export class CustodyNetworkAccountService extends NetworkAccountServiceImpl {
 
   constructor(
     store: storage.NetworkAccountStore,
     private readonly custodyProvider: CustodyProvider | undefined,
-    private readonly mappingService: AccountMappingServiceImpl,
+    private readonly mappingService: AccountMappingServiceImpl | undefined,
     private readonly logger: winston.Logger,
     private readonly walletActivator: WalletActivator | undefined,
     validator?: NetworkAccountValidator,
+    private readonly custodyProviderName = 'custody',
   ) {
     super(store, validator);
   }
@@ -56,17 +63,21 @@ export class CustodyNetworkAccountService extends NetworkAccountServiceImpl {
       custodyAccountId = bindInfo.account.vaultAccountId;
       const address = await this.resolveCustodyAddress(custodyAccountId);
       this.logger.info(`onboarding: custodial account ${custodyAccountId} (provider '${bindInfo.account.provider}') resolved to ${address}`);
-      effectiveBind = { ...bindInfo, account: { type: 'walletAccount', address } };
+      effectiveBind = this.mappingService ? { ...bindInfo, account: { type: 'walletAccount', address } } : bindInfo;
     } else if (bindInfo?.account.type === 'walletAccount' && !ETH_ADDRESS_FORMAT.test(bindInfo.account.address)) {
       custodyAccountId = bindInfo.account.address;
       const address = await this.resolveCustodyAddress(custodyAccountId);
       this.logger.info(`onboarding: '${custodyAccountId}' taken as a custody account id, resolved to ${address}`);
-      effectiveBind = { ...bindInfo, account: { type: 'walletAccount', address } };
+      effectiveBind = this.mappingService
+        ? { ...bindInfo, account: { type: 'walletAccount', address } }
+        : { ...bindInfo, account: { type: 'custodialAccount', provider: this.custodyProviderName, vaultAccountId: custodyAccountId } };
     }
 
     const op = await super.createAccount(idempotencyKey, organizationId, assetId, finId, effectiveBind);
-    if (op.type !== 'success' || op.record.account.type !== 'walletAccount') return op;
-    const address = op.record.account.address;
+    if (op.type !== 'success') return op;
+    const recorded = op.record.account;
+    if (recorded.type !== 'walletAccount' && recorded.type !== 'custodialAccount') return op;
+    const address = recorded.type === 'walletAccount' ? recorded.address : await this.resolveCustodyAddress(recorded.vaultAccountId);
 
     if (this.walletActivator) {
       try {
@@ -80,7 +91,7 @@ export class CustodyNetworkAccountService extends NetworkAccountServiceImpl {
       }
     }
 
-    await this.mappingService.saveAccount(finId, custodyAccountId
+    await this.mappingService?.saveAccount(finId, custodyAccountId
       ? { [FIELD_LEDGER_ACCOUNT_ID]: address, [FIELD_CUSTODY_ACCOUNT_ID]: custodyAccountId }
       : { [FIELD_LEDGER_ACCOUNT_ID]: address });
 

@@ -107,31 +107,39 @@ describe("TokenWhitelistingOption", () => {
     expect(calls).toHaveLength(0);
   });
 
-  test("investors resolve through account mapping only — an explicit ledger address is ignored", async () => {
+  test("an unmapped destination is checked at the network account the plan carries — the address execution falls back to", async () => {
     const option = buildOption({ [ASSET_ID]: "WL_TEST" }, { [ALICE]: ADDR[ALICE] }); // BOB unmapped
     const veto = await option.apply(plan([
       instruction(ASSET_ID, ALICE, BOB, true, "transfer", { destinationAddress: EXPLICIT_ADDR })
     ]));
-    // ALICE (source) is checked via mapping; BOB is unmapped and the
-    // explicit address is not a whitelisting fallback → veto
-    expect(veto?.type).toBe("rejected");
-    expect((veto as any).error.message).toMatch(/cannot resolve address for destination/);
-    expect(keys(calls)).toEqual([`0xtoken-${ASSET_ID}|${ALICE}|source`]);
+    expect(veto).toBeUndefined();
+    expect(calls.map(c => `${c.finId}|${c.address}|${c.role}`)).toEqual([
+      `${ALICE}|${ADDR[ALICE]}|source`,
+      `${BOB}|${EXPLICIT_ADDR}|destination`,
+    ]);
   });
 
-  test("an explicit address is not accepted for a source — execution needs a mapped custody wallet", async () => {
+  test("an unmapped source is checked at the plan's network account too — execution signs with the leg's custody wallet", async () => {
     const option = buildOption({ [ASSET_ID]: "WL_TEST" }, { [BOB]: ADDR[BOB] }); // ALICE (source) unmapped
     const veto = await option.apply(plan([
       instruction(ASSET_ID, ALICE, BOB, true, "transfer", { sourceAddress: EXPLICIT_ADDR })
     ]));
-    expect(veto?.type).toBe("rejected");
-    expect((veto as any).error.message).toMatch(/cannot resolve address for source/);
+    expect(veto).toBeUndefined();
+    expect(calls[0]).toMatchObject({ finId: ALICE, address: EXPLICIT_ADDR, role: "source" });
   });
 
-  test("an unmapped destination vetoes regardless of instruction type", async () => {
+  test("a mapped investor is checked at the mapped address even when the plan names another", async () => {
+    const option = buildOption({ [ASSET_ID]: "WL_TEST" });
+    await option.apply(plan([
+      instruction(ASSET_ID, ALICE, BOB, true, "transfer", { sourceAddress: EXPLICIT_ADDR, destinationAddress: EXPLICIT_ADDR })
+    ]));
+    expect(calls.map(c => c.address)).toEqual([ADDR[ALICE], ADDR[BOB]]);
+  });
+
+  test("an investor with neither a mapping nor a plan network account vetoes, regardless of instruction type", async () => {
     const option = buildOption({ [ASSET_ID]: "WL_TEST" }, {}); // BOB unmapped
     const veto = await option.apply(plan([
-      instruction(ASSET_ID, undefined, BOB, true, "issue", { destinationAddress: EXPLICIT_ADDR })
+      instruction(ASSET_ID, undefined, BOB, true, "issue")
     ]));
     expect(veto?.type).toBe("rejected");
     expect((veto as any).error.message).toMatch(/cannot resolve address for destination/);

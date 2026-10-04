@@ -33,7 +33,7 @@ export class GasPrefundingOption implements PlanApprovalOption {
       if (instruction.type !== "transfer" && instruction.type !== "hold" && instruction.type !== "redeem") continue;
       if (!instruction.sourceFinId) continue;
       try {
-        const address = await this.accountMapping.resolveAccount(instruction.sourceFinId);
+        const address = await this.accountMapping.resolveAccount(instruction.sourceFinId) ?? instruction.sourceAddress;
         if (address) txCounts.set(address, (txCounts.get(address) ?? 0) + 1);
       } catch (e) {
         logger.warning(`Gas prefunding: resolving source finId ${instruction.sourceFinId} of plan ${plan.planId} instruction ${instruction.sequence} failed, skipping: ${e}`);

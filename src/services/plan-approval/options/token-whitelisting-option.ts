@@ -16,8 +16,9 @@ const tokenLogger: TokenLogger = {
  *
  * Validate-only gating: for each instruction that executes on this ledger
  * against an asset kept in this adapter, the investors it names — the source
- * and destination finIds — are resolved to addresses and checked via the
- * standard's isWhitelisted. A party that is not whitelisted vetoes the plan;
+ * and destination finIds — are resolved to addresses, falling back to the
+ * network account the plan itself carries, and checked via the standard's
+ * isWhitelisted. A party that is not whitelisted vetoes the plan;
  * whitelisting itself (whitelist/dewhitelist) is an onboarding concern
  * outside plan approval. A finId-less endpoint (escrow, external account) is
  * not an investor and is not checked. Standards without the whitelisting
@@ -65,7 +66,7 @@ export class TokenWhitelistingOption implements PlanApprovalOption {
       };
 
       if (instruction.sourceFinId) {
-        const address = await this.accountMapping.resolveAccount(instruction.sourceFinId);
+        const address = await this.accountMapping.resolveAccount(instruction.sourceFinId) ?? instruction.sourceAddress;
         if (!address) {
           return rejectedPlan(1, `Plan ${plan.planId}: cannot resolve address for source ${instruction.sourceFinId} of asset ${instruction.assetId}`);
         }
@@ -74,7 +75,7 @@ export class TokenWhitelistingOption implements PlanApprovalOption {
       }
 
       if (instruction.destinationFinId) {
-        const address = await this.accountMapping.resolveAccount(instruction.destinationFinId);
+        const address = await this.accountMapping.resolveAccount(instruction.destinationFinId) ?? instruction.destinationAddress;
         if (!address) {
           return rejectedPlan(1, `Plan ${plan.planId}: cannot resolve address for destination ${instruction.destinationFinId} of asset ${instruction.assetId}`);
         }
