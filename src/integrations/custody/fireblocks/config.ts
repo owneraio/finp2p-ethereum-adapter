@@ -10,6 +10,8 @@ export type FireblocksAppConfig = BaseAppConfig & {
   apiBaseUrl?: ApiBaseUrl | string
   omnibusVaultId?: string
   localSubmit?: boolean
+  /** NETWORK_HOST: the chain endpoint the Fireblocks web3 provider reads through, instead of its built-in default for the chain id */
+  rpcUrl?: string
 }
 
 export const createFireblocksEthersProvider = async (config: {
@@ -18,6 +20,7 @@ export const createFireblocksEthersProvider = async (config: {
   chainId: ChainId;
   apiBaseUrl?: ApiBaseUrl | string;
   vaultAccountIds: number | number[] | string | string[];
+  rpcUrl?: string;
 }): Promise<{ provider: Provider; signer: Signer }> => {
   const eip1193Provider = new FireblocksWeb3Provider({
     privateKey: config.privateKey,
@@ -25,6 +28,7 @@ export const createFireblocksEthersProvider = async (config: {
     chainId: config.chainId,
     apiBaseUrl: config.apiBaseUrl,
     vaultAccountIds: config.vaultAccountIds,
+    rpcUrl: config.rpcUrl,
   });
   const provider = new BrowserProvider(eip1193Provider);
   const signer = await provider.getSigner();
@@ -72,13 +76,13 @@ export async function createFireblocksAppConfig(): Promise<Omit<FireblocksAppCon
   const omnibusVaultId = process.env.OMNIBUS_CUSTODY_ACCOUNT_ID || undefined
 
   const localSubmit = process.env.LOCAL_SUBMIT === 'true';
+  const rpcUrl = process.env.NETWORK_HOST ? getNetworkRpcUrl() : undefined;
 
   let provider: Provider;
   let signer: Signer;
 
   if (localSubmit) {
-    const rpcUrl = getNetworkRpcUrl();
-    const rpcProvider = new JsonRpcProvider(rpcUrl);
+    const rpcProvider = new JsonRpcProvider(rpcUrl ?? getNetworkRpcUrl());
     provider = rpcProvider;
     signer = rpcProvider as any;
   } else {
@@ -87,7 +91,7 @@ export async function createFireblocksAppConfig(): Promise<Omit<FireblocksAppCon
       throw new Error('At least one of ASSET_ESCROW_CUSTODY_ACCOUNT_ID or OMNIBUS_CUSTODY_ACCOUNT_ID must be set');
     }
     const fb = await createFireblocksEthersProvider({
-      apiKey, privateKey: apiPrivateKey, chainId, apiBaseUrl, vaultAccountIds: [baseVaultId]
+      apiKey, privateKey: apiPrivateKey, chainId, apiBaseUrl, vaultAccountIds: [baseVaultId], rpcUrl,
     });
     provider = fb.provider;
     signer = fb.signer;
@@ -106,5 +110,6 @@ export async function createFireblocksAppConfig(): Promise<Omit<FireblocksAppCon
     apiBaseUrl,
     omnibusVaultId,
     localSubmit,
+    rpcUrl,
   };
 }

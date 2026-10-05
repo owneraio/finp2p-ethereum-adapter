@@ -2,14 +2,24 @@ import { FireblocksSDK, PeerType, TransactionOperation, TransactionStatus } from
 import axios from 'axios'
 import { setTimeout as sleep } from 'node:timers/promises'
 
-async function retryIfRateLimited<T>(apiCall: () => Promise<T>, retryCount: number = 30): Promise<T> {
+const MAX_RETRIES = 30
+const MAX_BACKOFF_MS = 16_000
+
+/** How long a 429 asks us to wait: Retry-After is in seconds; without it, back off exponentially. */
+export function rateLimitDelayMs(retryAfter: unknown, attempt: number): number {
+  const seconds = Number(retryAfter)
+  if (Number.isFinite(seconds) && seconds > 0) return seconds * 1000
+  return Math.min(1000 * 2 ** attempt, MAX_BACKOFF_MS)
+}
+
+async function retryIfRateLimited<T>(apiCall: () => Promise<T>, retryCount: number = MAX_RETRIES): Promise<T> {
   try {
     const response = await apiCall()
     return response
   } catch (error) {
-    if (axios.isAxiosError(error) && error.status === 429 && retryCount > 0) {
-      const sleepCount = Number(error.response?.headers["retry-after"]) ?? 1000
-      await sleep(sleepCount)
+    const status = axios.isAxiosError(error) ? (error.response?.status ?? error.status) : undefined
+    if (status === 429 && retryCount > 0) {
+      await sleep(rateLimitDelayMs((error as { response?: { headers?: Record<string, unknown> } }).response?.headers?.['retry-after'], MAX_RETRIES - retryCount))
       return retryIfRateLimited(apiCall, retryCount - 1)
     } else {
       throw error
@@ -86,7 +96,7 @@ export interface FlattenedVaultDetails { vaultId: string, assetId: string, depos
  * fetchAllVaults is expensive call, that's why we'll cache known vault-id and eth address pairs for later lookups. If not found, then
  * fetchAllVaults called again to detect new vaults
  */
-export const createVaultManagementFunctions = (fireblocksSdk: FireblocksSDK) => {
+export const createVaultManagementFunctions = (fireblocksSdk: FireblocksSDK, baseAssetId?: string) => {
 
   const fetchAllVaults = () => autoPaginate(
     'getVaults',
@@ -140,6 +150,49 @@ export const createVaultManagementFunctions = (fireblocksSdk: FireblocksSDK) => 
     return activeScanPromise
   }
 
+  // Address -> vault index for the base asset only: one deposit-address call per
+  // vault holding it, instead of two calls per asset of every vault. EVM tokens
+  // share the base asset's address, so this is all an address lookup needs.
+  const addressIndex = new Map<string, string>()
+  let activeIndexPromise: Promise<void> | null = null
+  const INDEX_CONCURRENCY = 4
+
+  const buildAddressIndex = async (): Promise<void> => {
+    if (!baseAssetId) return
+    const vaults = await autoPaginate(
+      'getVaults',
+      (after) => fireblocksSdk.getVaultAccountsWithPageInfo({ after, assetId: baseAssetId }),
+      (response) => response.accounts,
+    )
+    let next = 0
+    const worker = async () => {
+      while (next < vaults.length) {
+        const vault = vaults[next++]
+        const addresses = await retryIfRateLimited(() => fireblocksSdk.getDepositAddresses(vault.id, baseAssetId))
+        for (const addr of addresses) addressIndex.set(addr.address.toLowerCase(), vault.id)
+      }
+    }
+    await Promise.all(Array.from({ length: Math.min(INDEX_CONCURRENCY, vaults.length) }, worker))
+  }
+
+  const reindex = (): Promise<void> => {
+    if (!activeIndexPromise) {
+      activeIndexPromise = buildAddressIndex().finally(() => {
+        activeIndexPromise = null
+      })
+    }
+    return activeIndexPromise
+  }
+
+  let indexBuilt = false
+  /** Builds the address index once; safe to call early (e.g. at boot) and concurrently. */
+  const warmAddressIndex = async (): Promise<void> => {
+    if (!indexBuilt) {
+      await reindex()
+      indexBuilt = true
+    }
+  }
+
   let initialScanComplete = false
   const ensureInitialScan = async (): Promise<void> => {
     if (!initialScanComplete) {
@@ -154,8 +207,17 @@ export const createVaultManagementFunctions = (fireblocksSdk: FireblocksSDK) => 
   }
 
   const getVaultIdForAddress = async (address: string): Promise<string | undefined> => {
-    await ensureInitialScan()
     const key = address.toLowerCase()
+    if (baseAssetId) {
+      await warmAddressIndex()
+      const indexed = addressIndex.get(key)
+      if (indexed) return indexed
+      // not indexed yet: a vault created since the index was built
+      await reindex()
+      return addressIndex.get(key)
+    }
+
+    await ensureInitialScan()
 
     // Fast leaf lookup
     const cached = addressLeafCache.get(key)
@@ -195,6 +257,7 @@ export const createVaultManagementFunctions = (fireblocksSdk: FireblocksSDK) => 
     fetchAllVaults,
     getCollectedAddresses,
     getVaultIdForAddress,
+    warmAddressIndex,
     getVaultAssetBalance,
     balance,
     transferAssetFromVaultToVault,

@@ -17,7 +17,8 @@ module.exports = {
     "<rootDir>/tests/wallet-activation.test.+(ts|tsx|js)",
     "<rootDir>/tests/network-accounts.test.+(ts|tsx|js)",
     "<rootDir>/tests/custody-provider.test.+(ts|tsx|js)",
-    "<rootDir>/tests/account-mapping-disabled.test.+(ts|tsx|js)"
+    "<rootDir>/tests/account-mapping-disabled.test.+(ts|tsx|js)",
+    "<rootDir>/tests/fireblocks-address-index.test.+(ts|tsx|js)"
   ],
   "transform": {
     "^.+\\.(ts|tsx)$": "ts-jest"
