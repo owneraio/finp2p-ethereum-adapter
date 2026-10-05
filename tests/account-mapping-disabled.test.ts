@@ -8,7 +8,7 @@ import { createWalletResolver } from "../src/integrations/wallet-resolver";
 import { tokenStandardRegistry } from "../src/integrations/token-standards/registry";
 
 /**
- * ACCOUNT_MAPPING=disabled: no account_mappings table, no /mapping endpoints.
+ * ACCOUNT_MAPPING=disabled (the default): no account_mappings table, no /mapping endpoints.
  * Investors resolve from the router's onboarded accounts (network_accounts)
  * and from the account on each operation leg.
  */
@@ -46,8 +46,9 @@ function onboarded(rows: { fin_id: string; account: NetworkAccount }[]) {
 }
 
 describe("ACCOUNT_MAPPING setting", () => {
-  test("defaults to enabled; accepts enabled and disabled; rejects anything else", () => {
-    expect(resolveAccountMappingMode(undefined)).toBe("enabled");
+  test("defaults to disabled; accepts enabled and disabled; rejects anything else", () => {
+    expect(resolveAccountMappingMode(undefined)).toBe("disabled");
+    expect(resolveAccountMappingMode("enabled")).toBe("enabled");
     expect(resolveAccountMappingMode(" Disabled ")).toBe("disabled");
     expect(() => resolveAccountMappingMode("off")).toThrow(/ACCOUNT_MAPPING/);
   });

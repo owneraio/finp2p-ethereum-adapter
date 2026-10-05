@@ -36,7 +36,7 @@ const ETH_ADDRESS_FORMAT = /^0x[0-9a-fA-F]{40}$/;
  * mirrored; a repeat create replays the binding and re-attempts the
  * idempotent activation.
  *
- * Without an account mapping (ACCOUNT_MAPPING=disabled) there is nowhere to
+ * Without an account mapping (ACCOUNT_MAPPING=disabled, the default) there is nowhere to
  * mirror to, so the binding itself must carry the custody account id: a
  * custodial bind is recorded as sent, and the custody-id overload is recorded
  * as the custodial account it stands for. The router then echoes that account
