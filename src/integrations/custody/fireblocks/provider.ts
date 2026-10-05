@@ -21,9 +21,11 @@ export class FireblocksCustodyProvider implements CustodyProvider {
 
   static async create(config: FireblocksAppConfig): Promise<FireblocksCustodyProvider> {
     const fireblocksSdk = new FireblocksSDK(config.apiPrivateKey, config.apiKey, config.apiBaseUrl as string);
-    const vaultManagement = createVaultManagementFunctions(fireblocksSdk);
-
     const fireblocksAssetId = process.env.FIREBLOCKS_ASSET_ID ?? 'ETH_TEST5';
+    const vaultManagement = createVaultManagementFunctions(fireblocksSdk, fireblocksAssetId);
+    // Start indexing vault addresses now, so the first address lookup does not
+    // wait for it; a failure here is retried by that lookup.
+    vaultManagement.warmAddressIndex().catch(() => undefined);
 
     const createWallet = config.localSubmit
       ? (vaultId: string): CustodyWallet => {
@@ -38,6 +40,7 @@ export class FireblocksCustodyProvider implements CustodyProvider {
             chainId: config.chainId,
             apiBaseUrl: config.apiBaseUrl!,
             vaultAccountIds: [vaultId],
+            rpcUrl: config.rpcUrl,
           });
         };
 
@@ -63,6 +66,7 @@ export class FireblocksCustodyProvider implements CustodyProvider {
       chainId: this.config.chainId,
       apiBaseUrl: this.config.apiBaseUrl!,
       vaultAccountIds: [vaultAccountId],
+      rpcUrl: this.config.rpcUrl,
     });
   }
 
