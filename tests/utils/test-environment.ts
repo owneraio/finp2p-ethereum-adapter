@@ -1,4 +1,5 @@
 import { EnvironmentContext, JestEnvironmentConfig } from "@jest/environment";
+import { RouterFacade, startRouterFacade } from "./router-facade";
 import {
   ContractsManager,
   FinP2PContract,
@@ -42,6 +43,7 @@ class CustomTestEnvironment extends NodeEnvironment {
   ethereumNodeContainer: StartedTestContainer | undefined;
   postgresSqlContainer: StartedPostgreSqlContainer | undefined;
   httpServer: http.Server | undefined;
+  routerFacade: RouterFacade | undefined;
 
   constructor(config: JestEnvironmentConfig, context: EnvironmentContext) {
     super(config, context);
@@ -94,10 +96,12 @@ class CustomTestEnvironment extends NodeEnvironment {
       );
       // adapter-tests' LedgerAPIClient takes (host, callbackServer, baseAddress):
       //   • host        — used by tokens/escrow/payments/plan/common  → /api/...
-      //   • baseAddress — used by mapping                              → bare /mapping/...
-      // Skeleton 0.28.20 mounts mapping at the bare path, everything else under /api.
+      //   • baseAddress — used by mapping                              → /mapping/...
+      // The adapter has no mapping endpoint: investors are onboarded by the
+      // router. The facade turns the suite's actor registration into that.
       this.global.serverAddress = `${baseUrl}/api`;
-      this.global.serverBaseAddress = baseUrl;
+      this.routerFacade = await startRouterFacade(`${baseUrl}/api`, this.orgId);
+      this.global.serverBaseAddress = this.routerFacade.url;
     } catch (err) {
       console.error("Error starting container:", err);
     }
@@ -108,6 +112,7 @@ class CustomTestEnvironment extends NodeEnvironment {
       if (this.postgresSqlContainer) {
         await this.dumpDatabase();
       }
+      await this.routerFacade?.close();
       this.httpServer?.close();
       await this.ethereumNodeContainer?.stop();
       await this.postgresSqlContainer?.stop();
