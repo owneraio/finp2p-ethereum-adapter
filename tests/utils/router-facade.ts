@@ -85,7 +85,7 @@ export async function startRouterFacade(adapterApiUrl: string, organizationId: s
     }
   });
 
-  app.all("/mapping/*", (_req, res) => {
+  app.all(/^\/mapping(\/.*)?$/, (_req, res) => {
     res.status(501).json({ error: "router facade: only POST /mapping/owners is translated, into router onboarding" });
   });
 
