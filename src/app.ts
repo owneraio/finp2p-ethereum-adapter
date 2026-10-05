@@ -161,6 +161,7 @@ function registerFinP2PContractServices(
   workflowStorage: workflows.WorkflowStorage, finP2PClient: FinP2PClient | undefined,
   networkAccountService: NetworkAccountService,
   walletResolutionMode: WalletResolutionMode,
+  accountMappingMode: AccountMappingMode,
 ) {
   if (contractConfig.accountModel === 'omnibus') {
     throw new Error('Omnibus account model is not supported with finp2p-contract provider');
@@ -169,16 +170,14 @@ function registerFinP2PContractServices(
   let planApprovalService = new PlanApprovalServiceImpl(contractConfig.orgId, pluginManager, contractConfig.finP2PClient);
   const tokenService = new OnChainTokenService(contractConfig.finP2PContract, contractConfig.finP2PClient, contractConfig.execDetailsStore, contractConfig.proofProvider, pluginManager, contractConfig.defaultAssetStandard);
   const mappingService = new CredentialsMappingService(contractConfig.finP2PContract, walletResolutionMode);
-  // Not the account-mapping table: on-chain /mapping reads and writes the
-  // operator contract's credentials registry, so ACCOUNT_MAPPING leaves it mounted.
-  const mappingConfig = buildMappingConfig();
+  const mappingConfig = accountMappingMode === 'enabled' ? buildMappingConfig() : undefined;
 
   const commonService = new DirectCommonServiceImpl(workflowStorage);
 
   const proxiedTokenService = wrapWithWorkflowProxy(tokenService, workflowStorage, finP2PClient, 'createAsset', 'issue', 'transfer', 'redeem');
   const proxiedEscrowService = wrapWithWorkflowProxy(tokenService, workflowStorage, finP2PClient, 'hold', 'release', 'rollback');
   const proxiedPlanService = wrapWithWorkflowProxy(planApprovalService, workflowStorage, finP2PClient, 'approvePlan', 'proposeCancelPlan', 'proposeResetPlan', 'proposeInstructionApproval');
-  register(app, proxiedTokenService, proxiedEscrowService, commonService, tokenService, paymentsService, proxiedPlanService, proxiedNetworkAccountService, { mappingConfig, mappingService });
+  register(app, proxiedTokenService, proxiedEscrowService, commonService, tokenService, paymentsService, proxiedPlanService, proxiedNetworkAccountService, { mappingConfig, mappingService: mappingConfig ? mappingService : undefined });
 }
 
 async function createApp(
@@ -295,11 +294,9 @@ async function createApp(
   const accountMapping: AccountResolver = accountMappingMode === 'enabled'
     ? new DbAccountResolver(accountMappingService)
     : new OnboardedAccountResolver((sql, params) => dbPool.query(sql, params), ledgerSchema, custodyProvider);
-  if (appConfig.type !== 'finp2p-contract') {
-    logger.info(accountMappingMode === 'enabled'
-      ? 'Account mapping: enabled — investors resolve from the account_mappings table, /mapping endpoints mounted'
-      : 'Account mapping: disabled — investors resolve from router-onboarded accounts and operation legs; no /mapping endpoints');
-  }
+  logger.info(accountMappingMode === 'enabled'
+    ? 'Account mapping: enabled — investors resolve from the account_mappings table, /mapping endpoints mounted'
+    : 'Account mapping: disabled — investors resolve from router-onboarded accounts and operation legs; no /mapping endpoints');
 
   const listAssets = async (): Promise<storageModule.Asset[]> => {
     return (await dbPool.query(`SELECT * FROM ${ledgerSchema}.assets`)).rows;
@@ -376,7 +373,7 @@ async function createApp(
   if (custodyProvider) {
     await registerCustodyServices(app, logger, custodyProvider, escrowWallet, readProvider, gasStation, appConfig, paymentsService, pluginManager, workflowStorage, finP2PClient, accountMappingStore, accountMappingService, assetStore, accountMapping, omnibusCtx, networkAccountService, whitelistService, accountMappingMode);
   } else if (appConfig.type === 'finp2p-contract') {
-    registerFinP2PContractServices(app, appConfig as FinP2PContractAppConfig, paymentsService, pluginManager, workflowStorage, finP2PClient, networkAccountService, walletResolutionMode!);
+    registerFinP2PContractServices(app, appConfig as FinP2PContractAppConfig, paymentsService, pluginManager, workflowStorage, finP2PClient, networkAccountService, walletResolutionMode!, accountMappingMode);
   } else {
     throw new Error(`Unknown provider type: '${appConfig.type}'. Available custody providers: ${custodyRegistry.availableProviders.join(', ')}`);
   }
