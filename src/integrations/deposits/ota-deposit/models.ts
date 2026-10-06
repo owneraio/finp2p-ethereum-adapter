@@ -1,4 +1,4 @@
-import { CustodyWallet } from "../../../services/direct";
+import { CustodyWallet } from "../../../services/custody";
 
 /**
  * In-flight OTA deposit: a freshly-provisioned custody account waiting for funds.

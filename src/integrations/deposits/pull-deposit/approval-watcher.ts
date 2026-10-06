@@ -1,7 +1,8 @@
 import winston from "winston";
 import { formatUnits, Interface, Log, Provider, parseUnits, id as keccakStr, zeroPadValue } from "ethers";
-import { ERC20Contract } from "@owneraio/finp2p-contracts";
-import { CustodyWallet, GasStation } from "../../../services/direct";
+import { Erc20Contract } from "@owneraio/finp2p-ethereum-erc20-plugin";
+import { CustodyWallet } from "../../../services/custody";
+import { GasStation } from "../../../services/gas-station";
 import { PullDeposit, PullResult } from "./models";
 
 const APPROVAL_IFACE = new Interface([
@@ -145,7 +146,7 @@ export class ApprovalWatcher {
       return;
     }
 
-    const erc20 = new ERC20Contract(this.provider, this.operatorWallet.signer, contractAddress, this.logger);
+    const erc20 = new Erc20Contract(this.operatorWallet.signer, contractAddress);
     const currentAllowance: bigint = await erc20.allowance(owner, this.operatorAddress);
     // expectedAmount is human-readable (caller convention); fall back to the on-chain
     // event value when not specified. Compare and pull in base units; report in

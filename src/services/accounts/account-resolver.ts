@@ -1,0 +1,67 @@
+import { LedgerAccount, storage } from '@owneraio/finp2p-nodejs-skeleton-adapter';
+import { FIELD_LEDGER_ACCOUNT_ID, FIELD_CUSTODY_ACCOUNT_ID } from './mapping-validator';
+
+export type AccountMappingStore = storage.AccountStore;
+export type AssetStore = InstanceType<typeof storage.PgAssetStore>;
+
+/** Address carried by an instruction-leg account, if its variant has one
+ *  (custodialAccount doesn't — those resolve via the account mapping).
+ *  A caip10Account is only usable when it names this adapter's chain; a
+ *  mismatch throws rather than settling on the wrong network. */
+export function ledgerAccountAddress(account: LedgerAccount | undefined, chainId: bigint): string | undefined {
+  if (!account) return undefined;
+  switch (account.type) {
+    case 'walletAccount':
+      return account.address;
+    case 'caip10Account': {
+      const eip155 = /^eip155:(\d+)$/.exec(account.network);
+      if (!eip155 || BigInt(eip155[1]) !== chainId) {
+        throw new Error(`caip10 account network '${account.network}' does not match this adapter's chain eip155:${chainId}`);
+      }
+      return account.address;
+    }
+    default:
+      return undefined;
+  }
+}
+
+export interface ResolvedAccount {
+  ledgerAccountId: string;
+  custodyAccountId?: string;
+}
+
+export interface AccountResolver {
+  resolveAccount(finId: string): Promise<string | undefined>;
+  resolveFullAccount?(finId: string): Promise<ResolvedAccount | undefined>;
+  resolveFinId(account: string): Promise<string | undefined>;
+}
+
+/**
+ * DB-backed mapping: uses skeleton's account store for address resolution.
+ */
+export class DbAccountResolver implements AccountResolver {
+  constructor(private readonly accountStore: AccountMappingStore) {}
+
+  async resolveAccount(finId: string): Promise<string | undefined> {
+    const mappings = await this.accountStore.getAccounts([finId]);
+    if (mappings.length === 0) return undefined;
+    return mappings[0].fields[FIELD_LEDGER_ACCOUNT_ID];
+  }
+
+  async resolveFullAccount(finId: string): Promise<ResolvedAccount | undefined> {
+    const mappings = await this.accountStore.getAccounts([finId]);
+    if (mappings.length === 0) return undefined;
+    const ledgerAccountId = mappings[0].fields[FIELD_LEDGER_ACCOUNT_ID];
+    if (!ledgerAccountId) return undefined;
+    return {
+      ledgerAccountId,
+      custodyAccountId: mappings[0].fields[FIELD_CUSTODY_ACCOUNT_ID],
+    };
+  }
+
+  async resolveFinId(account: string): Promise<string | undefined> {
+    const mappings = await this.accountStore.getByFieldValue(FIELD_LEDGER_ACCOUNT_ID, account);
+    if (mappings.length === 0) return undefined;
+    return mappings[0].finId;
+  }
+}

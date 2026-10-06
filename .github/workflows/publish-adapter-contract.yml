@@ -1,0 +1,67 @@
+name: Publish Adapter Contract
+
+on:
+  push:
+    tags:
+      - "adapter-contract-v*"
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      packages: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: https://npm.pkg.github.com/
+          scope: '@owneraio'
+
+      - name: Verify tag matches package version
+        working-directory: ./adapter-contract
+        run: |
+          TAG_VERSION="${GITHUB_REF_NAME#adapter-contract-v}"
+          PKG_VERSION=$(node -p "require('./package.json').version")
+          if [ "$TAG_VERSION" != "$PKG_VERSION" ]; then
+            echo "tag version ($TAG_VERSION) does not match package.json ($PKG_VERSION)"
+            exit 1
+          fi
+
+      - name: Install
+        working-directory: ./adapter-contract
+        run: npm ci
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Test
+        working-directory: ./adapter-contract
+        run: npm test
+
+      - name: Pack contents check
+        working-directory: ./adapter-contract
+        run: |
+          npm pack --dry-run --json > /tmp/pack.json
+          node -e "
+            const files = require('/tmp/pack.json')[0].files.map(f => f.path);
+            const stray = files.filter(f => !/^(dist\/|src\/|package\.json$|README\.md$)/.test(f));
+            if (stray.length) { console.error('unexpected files in pack:', stray); process.exit(1); }
+            console.log('pack contents OK:', files.length, 'files');
+          "
+
+      - name: Publish
+        # prereleases (x.y.z-<tag>.n) go under their prerelease dist-tag, never latest
+        working-directory: ./adapter-contract
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          if [[ "$VERSION" == *-* ]]; then
+            TAG=$(echo "$VERSION" | sed -E 's/^[^-]+-([a-zA-Z]+).*/\1/')
+            npm publish --tag "$TAG"
+          else
+            npm publish
+          fi
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

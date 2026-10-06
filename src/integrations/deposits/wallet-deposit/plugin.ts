@@ -12,7 +12,9 @@ import {
   successfulDepositOperation,
   failedDepositOperation,
 } from "@owneraio/finp2p-nodejs-skeleton-adapter";
-import { AssetStore, WalletResolver } from "../../../services/direct";
+import { WalletResolver } from "../../wallet-resolver";
+import { AssetStore } from "../../../services/accounts";
+import { paymentsSlotClaimedExternally } from "../payments-slot";
 import { IntegrationContext } from "../../registry";
 import { resolveDepositMethod } from "../types";
 
@@ -26,11 +28,10 @@ import { resolveDepositMethod } from "../types";
  *
  * Not registered when:
  *   - ACCOUNT_MODEL is omnibus (omnibus has its own deposit flow)
- *   - DTCC_PLUGIN_ENABLED=true (DTCC registers its own PaymentsPlugin — single-plugin manager)
+ *   - another integration (DTCC, collateral, …) owns the single PaymentsPlugin slot
  */
 export function registerWalletDeposit(ctx: IntegrationContext): void {
-  const dtccEnabled = process.env.DTCC_PLUGIN_ENABLED === 'true';
-  if (dtccEnabled) return;
+  if (paymentsSlotClaimedExternally()) return;
   if (ctx.accountModel === 'omnibus') return;
   if (resolveDepositMethod(ctx.accountModel) !== 'wallet') return;
 
@@ -85,7 +86,7 @@ class WalletDepositPlugin implements PaymentsPlugin {
     );
     return successfulDepositOperation({
       asset,
-      account: { finId: ownerFinId, account: { type: 'crypto', address: resolved.walletAddress } },
+      account: { finId: ownerFinId, account: { type: 'walletAccount', address: resolved.walletAddress } },
       description: 'Wallet deposit to investor address',
       paymentOptions: [{
         description: 'Crypto transfer',

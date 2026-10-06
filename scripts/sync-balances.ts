@@ -2,15 +2,16 @@
 import console from "console";
 import winston, { format, transports } from "winston";
 import { FinP2PClient } from "@owneraio/finp2p-client";
-import { FinP2PContract, AssetType, term } from "@owneraio/finp2p-contracts";
-import { emptyOperationParams } from "../src/services/finp2p-contract/helpers";
-import { createJsonProvider, parseConfig } from "../src/config";
+import { FinP2PContract, AssetType, term } from "@owneraio/finp2p-ethereum-orchestrator";
+import { emptyOperationParams } from "../src/services/onchain/helpers";
+import { createJsonProvider, parseConfig, verifyAssetStandardRegistered } from "../src/config";
+import { redactSecrets } from "../src/redact-secrets";
 
 
 const logger = winston.createLogger({
   level: "info",
   transports: [new transports.Console()],
-  format: format.json()
+  format: format.combine(format.json(), redactSecrets())
 });
 
 const syncBalanceFromOssToEthereum = async (
@@ -29,7 +30,14 @@ const syncBalanceFromOssToEthereum = async (
   }
 
   const { provider, signer } = await createJsonProvider(operatorPrivateKey, ethereumRPCUrl);
-  const contract = new FinP2PContract(provider, signer, finp2pContractAddress, logger);
+  const contract = await FinP2PContract.create(provider, signer, finp2pContractAddress, logger);
+  const assetStandard = process.env.DEFAULT_ASSET_STANDARD;
+  if (contract.variant === 'with-registry') {
+    if (!assetStandard) {
+      throw new Error('FINP2POperatorWithRegistry detected — set DEFAULT_ASSET_STANDARD (0x-prefixed bytes32) before running this script.');
+    }
+    await verifyAssetStandardRegistered(provider, finp2pContractAddress, assetStandard, logger);
+  }
 
   for (const { id: assetId } of assets) {
     try {
@@ -40,7 +48,7 @@ const syncBalanceFromOssToEthereum = async (
         logger.info(`Deploying new token for asset ${assetId}`);
         const erc20Address = await contract.deployERC20(assetId, assetId, 0, finp2pContractAddress);
         logger.info(`Associating asset ${assetId} with token ${erc20Address}`);
-        await contract.associateAsset(assetId, erc20Address);
+        await contract.associateAsset(assetId, erc20Address, assetStandard);
       } else {
         logger.error(`Error migrating asset ${assetId}: ${e}`);
       }

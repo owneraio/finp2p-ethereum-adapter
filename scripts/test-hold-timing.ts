@@ -1,6 +1,6 @@
 /**
  * Reproduces a hold (ERC20 transfer) via Fireblocks to measure timing.
- * Uses the same code path as the adapter: FireblocksWeb3Provider → ERC20Contract.transfer().
+ * Uses the same code path as the adapter: FireblocksWeb3Provider → erc20 transfer.
  *
  * Usage: npx ts-node scripts/test-hold-timing.ts
  * Requires .env.fireblocks or env vars set.
@@ -8,8 +8,8 @@
 import * as dotenv from 'dotenv';
 import { resolve } from 'path';
 import { BrowserProvider, parseUnits, formatUnits } from 'ethers';
-import { ERC20Contract } from '@owneraio/finp2p-contracts';
-import { createFireblocksEthersProvider } from '../src/integrations/fireblocks/config';
+import { Erc20WithOperatorContract } from '@owneraio/finp2p-ethereum-erc20-plugin';
+import { createFireblocksEthersProvider } from '../src/integrations/custody/fireblocks/config';
 
 dotenv.config({ path: resolve(process.cwd(), '.env.fireblocks') });
 
@@ -67,7 +67,7 @@ async function main() {
 
   // Check balance
   const logger = { info: console.log, warn: console.warn, error: console.error, debug: console.debug, warning: console.warn, alert: console.error };
-  const erc20 = new ERC20Contract(sourceWallet.provider, sourceWallet.signer, tokenAddress, logger as any);
+  const erc20 = new Erc20WithOperatorContract(sourceWallet.signer, tokenAddress);
 
   console.log('\n[3] Checking source balance...');
   const t2 = Date.now();
