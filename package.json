@@ -87,8 +87,5 @@
     "prettier": "2.5.1",
     "testcontainers": "^11.8.0",
     "ts-jest": "^29.0.3"
-  },
-  "overrides": {
-    "proxy-addr": "^2.0.8"
   }
 }
