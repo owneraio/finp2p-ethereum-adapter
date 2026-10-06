@@ -1,5 +1,4 @@
 import { EnvironmentContext, JestEnvironmentConfig } from "@jest/environment";
-import { workflows } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import {
   PostgreSqlContainer,
   StartedPostgreSqlContainer,
@@ -160,7 +159,6 @@ class DfnsTestEnvironment extends NodeEnvironment {
   async teardown() {
     try {
       this.httpServer?.close();
-      await workflows.Storage.closeAllConnections();
       await this.postgresSqlContainer?.stop();
       console.log("Dfns test environment torn down successfully.");
     } catch (err) {

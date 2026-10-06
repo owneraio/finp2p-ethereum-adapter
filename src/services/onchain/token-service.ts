@@ -2,11 +2,14 @@ import {
   Asset, AssetCreationStatus, EIP712Template, Balance, TokenService, EscrowService,
   CommonService, HealthService, OperationStatus,
   failedAssetCreation, successfulAssetCreation,
-  failedReceiptOperation,
+  failedReceiptOperation, successfulReceiptOperation,
   AssetBind, AssetDenomination, AssetCreationResult, Destination, ExecutionContext,
-  ReceiptOperation, Source, Signature, logger, ProofProvider, PluginManager,
+  Receipt, ReceiptOperation, Source, Signature, SwapLeg, SwapOperation,
+  successfulSwapOperation, failedSwapOperation,
+  logger, ProofProvider, PluginManager,
 } from "@owneraio/finp2p-nodejs-skeleton-adapter";
-import { keccak256, toUtf8Bytes } from "ethers";
+import { Contract, keccak256, parseUnits, toUtf8Bytes } from "ethers";
+import { Logger as SpiLogger, SwapIntent, SwapVenue, TokenWallet, mirrored } from "@owneraio/finp2p-ethereum-adapter-contract";
 import {
   FinP2PContract,
   assetTypeFromString,
@@ -19,11 +22,33 @@ import { FinP2PClient } from "@owneraio/finp2p-client";
 import { ExecDetailsStore } from "./exec-details-store";
 import { mapReceiptOperation } from "./mapping";
 import { emptyOperationParams, extractBusinessDetails, validateRequest } from "./helpers";
+import { validateSwapWallets } from "../accounts";
 
 const DefaultDecimals = 2;
 
 /** LedgerBindingNotSupportedErr — the ledger does not support the requested network/standard. */
 const LEDGER_BINDING_NOT_SUPPORTED = 7311;
+
+const spiLogger: SpiLogger = {
+  debug: (message, ...args) => logger.debug(message, ...args),
+  info: (message, ...args) => logger.info(message, ...args),
+  warn: (message, ...args) => logger.warning(message, ...args),
+  error: (message, ...args) => logger.error(message, ...args),
+};
+
+const swapMovementReceipt = (id: string, transactionId: string, operationId: string, leg: SwapLeg,
+                             exCtx: ExecutionContext | undefined, timestamp: number): Receipt => ({
+  id,
+  asset: leg.asset,
+  source: leg.source,
+  destination: leg.destination,
+  quantity: leg.quantity,
+  operationType: "swap",
+  proof: undefined,
+  timestamp,
+  tradeDetails: { executionContext: exCtx },
+  transactionDetails: { transactionId, operationId },
+});
 
 /**
  * On-chain (FINP2POperator contract) token, escrow and common operations —
@@ -41,7 +66,12 @@ export class OnChainTokenService implements TokenService, EscrowService, CommonS
     readonly proofProvider: ProofProvider | undefined,
     readonly pluginManager: PluginManager | undefined,
     readonly defaultAssetStandard: string | undefined = undefined,
+    readonly swapVenue: SwapVenue | undefined = undefined,
   ) {}
+
+  private operatorWallet(): TokenWallet {
+    return { provider: this.finP2PContract.provider, signer: this.finP2PContract.signer };
+  }
 
   private async ensureCredential(finId: string): Promise<void> {
     if (this.registeredCredentials.has(finId)) return;
@@ -202,6 +232,160 @@ export class OnChainTokenService implements TokenService, EscrowService, CommonS
       }
     }
 
+  }
+
+  private async toSwapIntent(operationId: string, assetLeg: SwapLeg, settlementLeg: SwapLeg, deadline: number): Promise<SwapIntent> {
+    const [token, counterToken, party, counterParty] = await Promise.all([
+      this.finP2PContract.getAssetAddress(assetLeg.asset.assetId),
+      this.finP2PContract.getAssetAddress(settlementLeg.asset.assetId),
+      this.finP2PContract.getCredentialAddress(assetLeg.source.finId),
+      this.finP2PContract.getCredentialAddress(settlementLeg.source.finId),
+    ]);
+    const [amount, counterAmount] = await Promise.all([
+      this.toTokenUnits(token, assetLeg.quantity),
+      this.toTokenUnits(counterToken, settlementLeg.quantity),
+    ]);
+    return {
+      operationId,
+      give: { token, party, amount },
+      take: { token: counterToken, party: counterParty, amount: counterAmount },
+      deadline: deadline || undefined,
+    };
+  }
+
+  private async toTokenUnits(token: string, quantity: string): Promise<bigint> {
+    const erc20 = new Contract(token, ["function decimals() view returns (uint8)"], this.finP2PContract.provider);
+    return parseUnits(quantity, await erc20.decimals());
+  }
+
+  private async swapViaVenue(swapVenue: SwapVenue, operationId: string, assetLeg: SwapLeg,
+                             settlementLeg: SwapLeg, deadline: number, exCtx: ExecutionContext | undefined): Promise<SwapOperation> {
+    const intent = await this.toSwapIntent(operationId, assetLeg, settlementLeg, deadline);
+    const submission = await swapVenue.swap(this.operatorWallet(), intent, spiLogger);
+    if (submission.status === "failure") {
+      return failedSwapOperation(1, submission.reason);
+    }
+    const { transactionId, timestamp } = submission;
+    if (exCtx) {
+      this.execDetailsStore?.addExecutionContext(transactionId, exCtx.planId, exCtx.sequence);
+    }
+    return successfulSwapOperation(
+      swapMovementReceipt(`${transactionId}:${assetLeg.asset.assetId}`, transactionId, operationId, assetLeg, exCtx, timestamp),
+    );
+  }
+
+  public async swap(idempotencyKey: string, nonce: string, operationId: string, assetLeg: SwapLeg,
+                    settlementLeg: SwapLeg, numberOfReceipts: number, deadline: number, exCtx: ExecutionContext | undefined): Promise<SwapOperation> {
+    if (numberOfReceipts === 2) {
+      return this.swapBothLegs(operationId, assetLeg, settlementLeg, deadline, exCtx);
+    }
+    if (numberOfReceipts !== 1) {
+      return failedSwapOperation(1, `numberOfReceipts must be 1 or 2, got ${numberOfReceipts}`);
+    }
+    try {
+      if (!this.swapVenue) {
+        return failedSwapOperation(1, "Swap is not supported: no swap venue is configured");
+      }
+      if (!operationId) {
+        return failedSwapOperation(1, "operationId is required");
+      }
+      if (!assetLeg.signature) {
+        return failedSwapOperation(1, "asset leg signature is required");
+      }
+      if (deadline && deadline <= Math.floor(Date.now() / 1000)) {
+        return failedSwapOperation(1, `swap deadline ${deadline} has already passed`);
+      }
+      if (assetLeg.destination.finId !== settlementLeg.source.finId) {
+        return failedSwapOperation(1, `asset destination finId '${assetLeg.destination.finId}' does not match settlement source finId '${settlementLeg.source.finId}'`);
+      }
+      if (settlementLeg.destination.finId !== assetLeg.source.finId) {
+        return failedSwapOperation(1, `settlement destination finId '${settlementLeg.destination.finId}' does not match asset source finId '${assetLeg.source.finId}'`);
+      }
+
+      const { chainId } = await this.finP2PContract.provider.getNetwork();
+      const { approvalWallet, destinationWallet } = validateSwapWallets(assetLeg, settlementLeg, chainId);
+
+      const ourWallet = await this.finP2PContract.getCredentialAddress(assetLeg.source.finId);
+      if (approvalWallet && approvalWallet.toLowerCase() !== ourWallet.toLowerCase()) {
+        return failedSwapOperation(1, `asset source wallet ${approvalWallet} does not match the registered credential ${ourWallet} holding the allowance`);
+      }
+      if (destinationWallet && destinationWallet.toLowerCase() !== ourWallet.toLowerCase()) {
+        return failedSwapOperation(1, `settlement destination wallet ${destinationWallet} does not match the registered credential ${ourWallet} the swap settles to`);
+      }
+
+      return await this.swapViaVenue(this.swapVenue, operationId, assetLeg, settlementLeg, deadline, exCtx);
+    } catch (e) {
+      logger.error(`Error on swap: ${e}`);
+      if (e instanceof EthereumTransactionError || e instanceof ValidationError) {
+        return failedSwapOperation(1, e.message);
+      }
+      return failedSwapOperation(1, `${e}`);
+    }
+  }
+
+  private async swapBothLegsViaVenue(swapVenue: SwapVenue, operationId: string, asset: SwapLeg,
+                                     settlement: SwapLeg, deadline: number, exCtx: ExecutionContext | undefined): Promise<SwapOperation> {
+    const intent = await this.toSwapIntent(operationId, asset, settlement, deadline);
+    const [assetSubmission, settlementSubmission] = await Promise.all([
+      swapVenue.swap(this.operatorWallet(), intent, spiLogger),
+      swapVenue.swap(this.operatorWallet(), mirrored(intent), spiLogger),
+    ]);
+    if (assetSubmission.status === "failure") {
+      return failedSwapOperation(1, assetSubmission.reason);
+    }
+    if (settlementSubmission.status === "failure") {
+      return failedSwapOperation(1, settlementSubmission.reason);
+    }
+    const { transactionId, timestamp } = assetSubmission;
+    if (exCtx) {
+      this.execDetailsStore?.addExecutionContext(transactionId, exCtx.planId, exCtx.sequence);
+    }
+    const settlementExCtx = exCtx && {
+      ...exCtx,
+      counterpartyAssetId: exCtx.counterpartySettlementId,
+      counterpartySettlementId: exCtx.counterpartyAssetId,
+    };
+    return successfulSwapOperation(
+      swapMovementReceipt(`${transactionId}:${asset.asset.assetId}`, transactionId, operationId, asset, exCtx, timestamp),
+      swapMovementReceipt(`${transactionId}:${settlement.asset.assetId}`, transactionId, operationId, settlement, settlementExCtx, timestamp),
+    );
+  }
+
+  private async swapBothLegs(operationId: string, asset: SwapLeg,
+                             settlement: SwapLeg, deadline: number, exCtx: ExecutionContext | undefined): Promise<SwapOperation> {
+    try {
+      if (!this.swapVenue) {
+        return failedSwapOperation(1, "Swap is not supported: no swap venue is configured");
+      }
+      if (!operationId) {
+        return failedSwapOperation(1, "operationId is required");
+      }
+      if (!asset.signature) {
+        return failedSwapOperation(1, "asset leg signature is required");
+      }
+      if (!settlement.signature) {
+        return failedSwapOperation(1, "settlement leg signature is required");
+      }
+      if (deadline && deadline <= Math.floor(Date.now() / 1000)) {
+        return failedSwapOperation(1, `swap deadline ${deadline} has already passed`);
+      }
+      if (asset.destination.finId !== settlement.source.finId) {
+        return failedSwapOperation(1, `asset destination finId '${asset.destination.finId}' does not match settlement source finId '${settlement.source.finId}'`);
+      }
+      if (settlement.destination.finId !== asset.source.finId) {
+        return failedSwapOperation(1, `settlement destination finId '${settlement.destination.finId}' does not match asset source finId '${asset.source.finId}'`);
+      }
+      const { chainId } = await this.finP2PContract.provider.getNetwork();
+      validateSwapWallets(asset, settlement, chainId);
+
+      return await this.swapBothLegsViaVenue(this.swapVenue, operationId, asset, settlement, deadline, exCtx);
+    } catch (e) {
+      logger.error(`Error on swap (both legs): ${e}`);
+      if (e instanceof EthereumTransactionError || e instanceof ValidationError) {
+        return failedSwapOperation(1, e.message);
+      }
+      return failedSwapOperation(1, `${e}`);
+    }
   }
 
   public async getBalance(asset: Asset, finId: string): Promise<string> {
