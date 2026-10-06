@@ -160,8 +160,8 @@ export function verifyRequestPayload(request: TaurusRequest, expected: RequestEx
     if (fields.get('function') !== expected.fn) refuse(`function is ${fields.get('function')}, submitted ${expected.fn}`);
     (expected.args ?? []).forEach((arg, i) => {
       const key = `arg_${i + 1}`;
-      if (arg.address && addressOf(key) !== arg.address) refuse(`${key} is ${addressOf(key)}, submitted ${arg.address}`);
-      if (arg.value && amountOf(key) !== arg.value) refuse(`${key} is ${amountOf(key)}, submitted ${arg.value}`);
+      if (arg.address !== undefined && addressOf(key) !== arg.address) refuse(`${key} is ${addressOf(key)}, submitted ${arg.address}`);
+      if (arg.value !== undefined && amountOf(key) !== arg.value) refuse(`${key} is ${amountOf(key)}, submitted ${arg.value}`);
     });
   }
 }
