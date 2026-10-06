@@ -218,7 +218,7 @@ async function createApp(
 
   let custodyProvider: CustodyProvider | undefined;
   if (custodyRegistry.has(appConfig.type)) {
-    logger.info(`Activating custody provider: ${appConfig.type} (available: ${custodyRegistry.availableProviders.join(', ')})`);
+    logger.info(`Activating custody provider: ${appConfig.type}`);
     custodyProvider = await custodyRegistry.create(appConfig.type, appConfig);
   }
 
