@@ -393,3 +393,31 @@ describe("TaurusCustodyProvider over a mocked backend", () => {
     knownAddress: ADDR_1,
   }));
 });
+
+describe("pre-approval payload verification of zero-valued arguments", () => {
+  const { verifyRequestPayload } = require("../src/integrations/custody/taurus/signers/base");
+
+  const payloadOf = (fields: Record<string, unknown>) => {
+    const payloadAsString = JSON.stringify(Object.entries(fields).map(([key, value]) => ({ key, type: "x", value, column: "" })));
+    return { hash: createHash("sha256").update(payloadAsString, "utf-8").digest("hex"), payloadAsString };
+  };
+  const SRC = "0x00000000000000000000000000000000000000aa";
+  const DST = "0x00000000000000000000000000000000000000bb";
+  const fields = (amount: string) => ({
+    source: { payload: { address: SRC } },
+    function: "transfer(address,uint256)",
+    arg_1: { payload: { address: DST } },
+    arg_2: { valueFrom: amount },
+  });
+  const expectation = { source: SRC, fn: "transfer(address,uint256)", args: [{ address: DST }, { value: "0" }] };
+
+  test("a payload claiming a different amount than the submitted zero is refused", () => {
+    const request = { id: "9", status: "CREATED", metadata: payloadOf(fields("1000")) };
+    expect(() => verifyRequestPayload(request as any, expectation as any)).toThrow(/arg_2/);
+  });
+
+  test("an honest zero-amount payload verifies", () => {
+    const request = { id: "9", status: "CREATED", metadata: payloadOf(fields("0")) };
+    expect(() => verifyRequestPayload(request as any, expectation as any)).not.toThrow();
+  });
+});
