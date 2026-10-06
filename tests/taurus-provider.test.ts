@@ -172,10 +172,16 @@ describe("TaurusSigner request lifecycle (mocked backend)", () => {
         const toAddress = opts.tamperDestination ?? body.toAddress;
         return createdRequest(body.currency === "native1"
           ? { source: address(body.fromAddress), currency_id: body.currency, destination: address(toAddress), amount: { valueFrom: body.amount } }
-          : { source: address(body.fromAddress), currency_id: body.currency, function: "transfer(address,uint256)", arg_1: address(toAddress), arg_2: { valueFrom: body.amount } });
+          : { source: address(body.fromAddress), currency_id: body.currency, destination: address(TOKEN), function: "transfer(address,uint256)", arg_1: address(toAddress), arg_2: { valueFrom: body.amount } });
       }
       if (path === "/api/rest/v1/requests/outgoing/contracts/call") {
-        const fields: Record<string, unknown> = { source: address(FROM), function: body.method.functionSignature };
+        const destination = opts.tamperDestination ?? TOKEN;
+        const fields: Record<string, unknown> = {
+          source: address(FROM),
+          destination: address(destination),
+          amount: { valueFrom: body.amount ?? "0" },
+          function: body.method.functionSignature,
+        };
         body.method.args.forEach((arg: any, i: number) => {
           fields[`arg_${i + 1}`] = arg.type === "address" ? address(arg.value.primitive) : { valueFrom: arg.value.primitive };
         });
@@ -269,6 +275,28 @@ describe("TaurusSigner request lifecycle (mocked backend)", () => {
     await expect(wallet.signer.sendTransaction({ to: TOKEN, data: erc20.encodeFunctionData("transfer", [FROM, 5n]) }))
       .rejects.toThrow(/failed pre-approval verification/);
     expect(calls).not.toContain("POST /api/rest/v1/requests/approve");
+  });
+
+  test("a contract call whose payload names a different destination contract is never approved", async () => {
+    const { fetchMock, calls } = lifecycleBackend({ tamperDestination: "0x000000000000000000000000000000000000dead" });
+    (global as any).fetch = fetchMock;
+    const wallet = await walletWithoutRpc(OPERATOR_PEM, "contract-call");
+    const mintable = new Interface(["function mint(address,uint256)"]);
+
+    await expect(wallet.signer.sendTransaction({ to: TOKEN, data: mintable.encodeFunctionData("mint", [FROM, 7n]) }))
+      .rejects.toThrow(/failed pre-approval verification: destination/);
+    expect(calls).not.toContain("POST /api/rest/v1/requests/approve");
+  });
+
+  test("a blank idempotency key omits externalRequestId instead of sending ''", async () => {
+    const { fetchMock, bodies } = lifecycleBackend();
+    (global as any).fetch = fetchMock;
+    const wallet = await walletWithoutRpc(OPERATOR_PEM);
+
+    await runWithIdempotencyKey("", () =>
+      wallet.signer.sendTransaction({ to: TOKEN, data: erc20.encodeFunctionData("transfer", [FROM, 5n]) }));
+    const created = bodies["/api/rest/v1/requests/outgoing/transfers/address_to_address"][0] as any;
+    expect("externalRequestId" in created).toBe(false);
   });
 
   test("the adapter idempotency key rides as externalRequestId", async () => {

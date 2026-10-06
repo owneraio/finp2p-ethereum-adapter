@@ -33,6 +33,8 @@ export class TaurusContractCallSigner extends TaurusSigner {
     });
     const expected: RequestExpectation = {
       source: this.address.toLowerCase(),
+      destination: to.toLowerCase(),
+      amount: (tx.value ?? 0n).toString(),
       fn: parsed.signature,
       args: parsed.fragment.inputs.map((input, i) => input.type === 'address'
         ? { address: String(parsed.args[i]).toLowerCase() }

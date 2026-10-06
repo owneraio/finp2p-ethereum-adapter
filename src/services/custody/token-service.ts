@@ -127,7 +127,7 @@ export class CustodyTokenService implements TokenService, EscrowService, HealthS
     assetMetadata: any, assetName: string | undefined, issuerId: string | undefined,
     assetDenomination: AssetDenomination | undefined,
   ): Promise<AssetCreationStatus> {
-    const explicitStandard = assetBind?.tokenIdentifier?.standard;
+    const explicitStandard = assetBind?.standard;
     const requestedStandard = explicitStandard ?? ERC20_TOKEN_STANDARD;
     if (!tokenStandardRegistry.has(requestedStandard)) {
       this.logger.error(`createAsset: assetId=${assetId} requested token standard '${requestedStandard}' is not registered; available: ${tokenStandardRegistry.availableStandards.join(', ')}`);
@@ -138,10 +138,10 @@ export class CustodyTokenService implements TokenService, EscrowService, HealthS
     const { chainId } = await this.readProvider.getNetwork();
     const defaultNetwork = `eip155:${chainId}`;
 
-    // A tokenIdentifier without a tokenId is a deploy request scoped to a
+    // An AssetBind without a tokenId is a deploy request scoped to a
     // network ("deploy on Sepolia"), not a bind to an existing token.
-    if (!assetBind?.tokenIdentifier?.tokenId) {
-      this.logger.info(`createAsset: deploy path — assetId=${assetId} standard=${requestedStandard} name=${assetName ?? 'OWNERACOIN'} requestedNetwork=${assetBind?.tokenIdentifier?.network ?? defaultNetwork}`);
+    if (!assetBind?.tokenId) {
+      this.logger.info(`createAsset: deploy path — assetId=${assetId} standard=${requestedStandard} name=${assetName ?? 'OWNERACOIN'} requestedNetwork=${assetBind?.network ?? defaultNetwork}`);
       if (!this.issuerWallet) {
         return failedAssetCreation(1, 'ASSET_ISSUER_PRIVATE_KEY is not set — refusing to deploy an asset a throwaway signer would strand');
       }
@@ -168,8 +168,8 @@ export class CustodyTokenService implements TokenService, EscrowService, HealthS
         result: { ledgerIdentifier: { assetIdentifierType: 'CAIP-19', network: defaultNetwork, tokenId: result.contractAddress, standard: result.tokenStandard }, reference: undefined }
       };
     } else {
-      const tokenAddress = assetBind.tokenIdentifier.tokenId;
-      this.logger.info(`createAsset: bind path — assetId=${assetId} standard=${requestedStandard} tokenAddress=${tokenAddress} network=${assetBind.tokenIdentifier.network ?? defaultNetwork}`);
+      const tokenAddress = assetBind.tokenId;
+      this.logger.info(`createAsset: bind path — assetId=${assetId} standard=${requestedStandard} tokenAddress=${tokenAddress} network=${assetBind.network ?? defaultNetwork}`);
 
       const decimals = await standard.decimals(this.readProvider, tokenAddress, this.logger);
       this.logger.info(`createAsset: standard '${requestedStandard}' reported decimals=${decimals} for ${tokenAddress}`);
@@ -187,7 +187,7 @@ export class CustodyTokenService implements TokenService, EscrowService, HealthS
       return {
         operation: "createAsset",
         type: "success",
-        result: { ledgerIdentifier: { assetIdentifierType: 'CAIP-19', network: assetBind.tokenIdentifier.network || defaultNetwork, tokenId: tokenAddress, standard: requestedStandard }, reference: undefined }
+        result: { ledgerIdentifier: { assetIdentifierType: 'CAIP-19', network: assetBind.network || defaultNetwork, tokenId: tokenAddress, standard: requestedStandard }, reference: undefined }
       };
     }
   }

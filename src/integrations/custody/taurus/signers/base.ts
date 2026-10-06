@@ -86,7 +86,11 @@ export abstract class TaurusSigner extends AbstractSigner {
         throw new Error(`Taurus signer: calldata selector ${data.slice(0, 10)} is not part of the frozen token-contract model — PROTECT accepts structured calls only`);
       }
     }
-    const { request, expected } = await this.createRequest(to, parsed, tx, currentIdempotencyKey());
+    // a blank key (skeleton encodes a missing header as '') must omit the
+    // field — PROTECT treats externalRequestId as unique and returns the
+    // FIRST request for any later duplicate
+    const externalRequestId = currentIdempotencyKey() || undefined;
+    const { request, expected } = await this.createRequest(to, parsed, tx, externalRequestId);
 
     if (this.config.operatorPrivateKey) {
       verifyRequestPayload(request, expected);
@@ -146,7 +150,12 @@ export function verifyRequestPayload(request: TaurusRequest, expected: RequestEx
 
   if (addressOf('source') !== expected.source) refuse(`source is ${addressOf('source')}, submitted ${expected.source}`);
   if (expected.currencyId && fields.get('currency_id') !== expected.currencyId) refuse('currency mismatch');
-
+  if (expected.destination && addressOf('destination') !== expected.destination) {
+    refuse(`destination is ${addressOf('destination')}, submitted ${expected.destination}`);
+  }
+  if (expected.amount !== undefined && amountOf('amount') !== expected.amount) {
+    refuse(`amount is ${amountOf('amount')}, submitted ${expected.amount}`);
+  }
   if (expected.fn) {
     if (fields.get('function') !== expected.fn) refuse(`function is ${fields.get('function')}, submitted ${expected.fn}`);
     (expected.args ?? []).forEach((arg, i) => {
@@ -154,8 +163,5 @@ export function verifyRequestPayload(request: TaurusRequest, expected: RequestEx
       if (arg.address && addressOf(key) !== arg.address) refuse(`${key} is ${addressOf(key)}, submitted ${arg.address}`);
       if (arg.value && amountOf(key) !== arg.value) refuse(`${key} is ${amountOf(key)}, submitted ${arg.value}`);
     });
-  } else {
-    if (addressOf('destination') !== expected.destination) refuse(`destination is ${addressOf('destination')}, submitted ${expected.destination}`);
-    if (amountOf('amount') !== expected.amount) refuse(`amount is ${amountOf('amount')}, submitted ${expected.amount}`);
   }
 }

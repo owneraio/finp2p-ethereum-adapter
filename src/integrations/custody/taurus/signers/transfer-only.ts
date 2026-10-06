@@ -38,6 +38,7 @@ export class TaurusTransferOnlySigner extends TaurusSigner {
     const expected: RequestExpectation = {
       source: this.address.toLowerCase(),
       currencyId: currency.id,
+      destination: currency.contractAddress?.toLowerCase(),
       fn: 'transfer(address,uint256)',
       args: [{ address: toAddress }, { value: amount }],
     };

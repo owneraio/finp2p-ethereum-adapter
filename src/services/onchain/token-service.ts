@@ -69,8 +69,8 @@ export class OnChainTokenService implements TokenService, EscrowService, CommonS
                            assetDenomination: AssetDenomination | undefined): Promise<AssetCreationStatus> {
     let tokenAddress: string;
     let allowanceRequired: boolean
-    if (assetBind?.tokenIdentifier?.tokenId && isEthereumAddress(assetBind.tokenIdentifier.tokenId)) {
-      tokenAddress = assetBind.tokenIdentifier.tokenId;
+    if (assetBind?.tokenId && isEthereumAddress(assetBind.tokenId)) {
+      tokenAddress = assetBind.tokenId;
       allowanceRequired = true; // TODO: parse from metadata
       logger.debug(`Associating existing token ${tokenAddress} to asset ${assetId}`);
     } else {
@@ -79,7 +79,7 @@ export class OnChainTokenService implements TokenService, EscrowService, CommonS
       logger.debug(`Deployed new token ${tokenAddress} for asset ${assetId}`);
     }
 
-    const requestedStandard = assetBind?.tokenIdentifier?.standard;
+    const requestedStandard = assetBind?.standard;
     const responseStandard = requestedStandard ?? this.defaultAssetStandard;
     if (!responseStandard) {
       return failedAssetCreation(1, 'No asset standard supplied and DEFAULT_ASSET_STANDARD env not set');

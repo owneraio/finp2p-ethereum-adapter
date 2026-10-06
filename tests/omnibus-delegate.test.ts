@@ -271,7 +271,7 @@ describe('OmnibusDelegate', () => {
 
       const result = await delegate.createAsset(
         'idem-create-2', TEST_ASSET.assetId,
-        { tokenIdentifier: { tokenId: '0xEXISTING_TOKEN', network: 'eip155:42161' } } as any,
+        { tokenId: '0xEXISTING_TOKEN', network: 'eip155:42161' } as any,
         undefined, 'TestCoin', undefined, undefined,
       );
 
@@ -291,7 +291,7 @@ describe('OmnibusDelegate', () => {
 
       const result = await delegate.createAsset(
         'idem-create-3', TEST_ASSET.assetId,
-        { tokenIdentifier: { tokenId: '0xANY' } } as any,
+        { tokenId: '0xANY' } as any,
         undefined, undefined, undefined, undefined,
       );
 
@@ -303,7 +303,7 @@ describe('OmnibusDelegate', () => {
 
       const result = await delegate.createAsset(
         'idem-create-4', TEST_ASSET.assetId,
-        { tokenIdentifier: { tokenId: null, network: 'eip155:11155111' } } as any,
+        { tokenId: null, network: 'eip155:11155111' } as any,
         undefined, 'TestCoin', undefined, undefined,
       );
 

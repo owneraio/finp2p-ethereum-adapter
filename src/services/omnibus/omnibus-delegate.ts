@@ -318,8 +318,8 @@ export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowD
     assetMetadata: any | undefined, assetName: string | undefined, issuerId: string | undefined,
     assetDenomination: AssetDenomination | undefined,
   ): Promise<AssetCreationResult> {
-    const tokenStandard = assetBind?.tokenIdentifier?.standard
-      ? (tokenStandardRegistry.has(assetBind.tokenIdentifier.standard) ? assetBind.tokenIdentifier.standard : ERC20_TOKEN_STANDARD)
+    const tokenStandard = assetBind?.standard
+      ? (tokenStandardRegistry.has(assetBind.standard) ? assetBind.standard : ERC20_TOKEN_STANDARD)
       : ERC20_TOKEN_STANDARD;
     const standard = tokenStandardRegistry.resolve(tokenStandard);
 
@@ -333,10 +333,10 @@ export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowD
       standard: std,
     });
 
-    // A tokenIdentifier without a tokenId is a deploy request scoped to a
+    // An AssetBind without a tokenId is a deploy request scoped to a
     // network ("deploy on Sepolia"), not a bind to an existing token.
-    if (!assetBind?.tokenIdentifier?.tokenId) {
-      const requestedNetwork = assetBind?.tokenIdentifier?.network;
+    if (!assetBind?.tokenId) {
+      const requestedNetwork = assetBind?.network;
       if (requestedNetwork && requestedNetwork !== defaultNetwork) {
         this.logger.warn(`createAsset: requested network ${requestedNetwork} differs from the adapter chain ${defaultNetwork} — deploying on ${defaultNetwork}`);
       }
@@ -354,8 +354,8 @@ export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowD
       return { ledgerIdentifier: makeLedgerIdentifier(result.contractAddress, result.tokenStandard, defaultNetwork), reference: undefined };
     }
 
-    const tokenAddress = assetBind.tokenIdentifier.tokenId;
-    const network = assetBind.tokenIdentifier.network || defaultNetwork;
+    const tokenAddress = assetBind.tokenId;
+    const network = assetBind.network || defaultNetwork;
     const decimals = await standard.decimals(this.readProvider, tokenAddress, this.logger);
     await this.assetStore.saveAsset({ contract_address: tokenAddress, decimals, token_standard: tokenStandard, id: assetId });
     // TODO(custody-registration): see the deploy path above — disabled pending
