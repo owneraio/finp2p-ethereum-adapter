@@ -116,6 +116,7 @@ async function startAdapter(depositMethod: "pull" | "ota", finP2PClientMock: any
       gooseExecutablePath,
       migrationListTableName: "deposit_omnibus_test_migrations",
       storageUser: new URL(connectionString).username,
+      schemaName: "ledger_adapter",
     },
     finP2PClient: finP2PClientMock,
   };

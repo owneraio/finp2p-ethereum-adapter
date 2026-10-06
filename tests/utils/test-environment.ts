@@ -215,6 +215,11 @@ class CustomTestEnvironment extends NodeEnvironment {
     const version = await finP2PContract.getVersion();
     console.log(`FinP2P contract version: ${version}`);
 
+    // adapter-tests fabricate ledger identifiers from this profile; the create
+    // path rejects a network other than the connected chain with 7311.
+    const { chainId } = await provider.getNetwork();
+    this.global.ledgerProfile = { network: `eip155:${chainId}`, standard: 'ERC20' };
+
     const execDetailsStore = new InMemoryExecDetailsStore();
     const connectionString =
       this.postgresSqlContainer?.getConnectionUri() ?? "";
@@ -225,6 +230,7 @@ class CustomTestEnvironment extends NodeEnvironment {
         gooseExecutablePath: await this.whichGoose(),
         migrationListTableName: "finp2p_ethereum_adapter_migrations",
         storageUser,
+        schemaName: "ledger_adapter",
       },
       storage: { connectionString },
       service: {},
