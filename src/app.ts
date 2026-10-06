@@ -94,7 +94,7 @@ async function registerCustodyServices(
   whitelistService: InvestorWhitelistServiceImpl,
 ): Promise<void> {
   if (!readProvider) throw new Error('Read-only RPC provider is unavailable — set NETWORK_HOST or use a custody provider whose wallet exposes a transport');
-  if (!escrowWallet) throw new Error('Escrow wallet is required for direct mode (set ASSET_ESCROW_CUSTODY_ACCOUNT_ID or OMNIBUS_CUSTODY_ACCOUNT_ID)');
+  if (!escrowWallet) logger.warn('No escrow wallet configured — hold/release/rollback and escrow-backed redeem will fail (set ASSET_ESCROW_CUSTODY_ACCOUNT_ID to enable them)');
 
   const mappingConfig = buildMappingConfig(custodyProvider);
   const proxiedNetworkAccountService = wrapWithWorkflowProxy(networkAccountService, workflowStorage, finP2PClient, 'createAccount', 'removeAccount');
@@ -216,7 +216,7 @@ async function createApp(
 
   let custodyProvider: CustodyProvider | undefined;
   if (custodyRegistry.has(appConfig.type)) {
-    logger.info(`Activating custody provider: ${appConfig.type} (available: ${custodyRegistry.availableProviders.join(', ')})`);
+    logger.info(`Activating custody provider: ${appConfig.type}`);
     custodyProvider = await custodyRegistry.create(appConfig.type, appConfig);
   }
 

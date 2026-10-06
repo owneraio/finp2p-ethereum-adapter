@@ -11,6 +11,7 @@ import { AssetStore } from "../services/accounts";
 import { AccountModel } from "../config";
 import { registerFireblocks } from "./custody/fireblocks";
 import { registerDfns } from "./custody/dfns";
+import { registerTaurus } from "./custody/taurus";
 import { registerDeposits } from "./deposits";
 import { registerTokenStandards } from "./token-standards";
 
@@ -43,6 +44,7 @@ export type IntegrationRegistrar = (ctx: IntegrationContext) => void;
 export function registerCustodyIntegrations(): void {
   registerFireblocks();
   registerDfns();
+  registerTaurus();
 }
 
 const integrations: IntegrationRegistrar[] = [

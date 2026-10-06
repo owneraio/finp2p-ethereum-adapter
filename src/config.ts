@@ -60,6 +60,7 @@ export { DfnsAppConfig } from './integrations/custody/dfns/config'
  */
 export type CustodyAppConfig = BaseAppConfig & {
   type: string
+  rpcUrl?: string
 }
 
 export type AppConfig = FinP2PContractAppConfig | FireblocksAppConfig | DfnsAppConfig | CustodyAppConfig
@@ -213,6 +214,7 @@ export async function envVarsToAppConfig(logger: Logger): Promise<AppConfig> {
       return {
         type: configType,
         orgId,
+        rpcUrl,
         provider,
         signer: provider as any, // Provider-factory will set up the real signer
         finP2PClient: undefined,
