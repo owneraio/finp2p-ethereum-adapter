@@ -13,6 +13,7 @@ import { AccountResolver, AssetStore, ledgerAccountAddress, validateSwapWallets 
 import { tokenStandardRegistry } from '../../integrations/token-standards/registry';
 import { TokenStandardName as ERC20_TOKEN_STANDARD, DEFAULT_NEW_ERC20_DECIMALS } from '@owneraio/finp2p-ethereum-erc20-plugin';
 import { buildOperationContext, deriveReleaseType } from "../operations";
+import { runWithIdempotencyKey } from './idempotency-scope';
 
 /** LedgerBindingNotSupportedErr — the ledger does not support the requested network/standard. */
 const LEDGER_BINDING_NOT_SUPPORTED = 7311;
@@ -78,7 +79,10 @@ export class CustodyTokenService implements TokenService, EscrowService, HealthS
   constructor(
     readonly logger: winston.Logger,
     readonly custodyProvider: CustodyProvider,
-    readonly escrowWallet: CustodyWallet,
+    // hold/release/rollback and escrow-backed redeem sign from here; absent
+    // (no ASSET_ESCROW_CUSTODY_ACCOUNT_ID) those operations fail closed while
+    // everything else works.
+    readonly escrowWallet: CustodyWallet | undefined,
     readonly readProvider: Provider,
     readonly accountMapping: AccountResolver,
     readonly assetStore: AssetStore,
@@ -91,6 +95,11 @@ export class CustodyTokenService implements TokenService, EscrowService, HealthS
   ) {}
 
   private readSigner?: Signer;
+
+  private requireEscrow(): CustodyWallet {
+    if (!this.escrowWallet) throw new Error('No escrow wallet configured — set ASSET_ESCROW_CUSTODY_ACCOUNT_ID to enable hold/release/rollback and escrow-backed redeem');
+    return this.escrowWallet;
+  }
 
   private issuerSigner(): Signer {
     if (this.issuerWallet) return this.issuerWallet.signer;
@@ -247,7 +256,7 @@ export class CustodyTokenService implements TokenService, EscrowService, HealthS
       if (!address) throw new Error(`Cannot resolve address for finId: ${destination.finId}`);
       const amount = parseUnits(quantity, asset.decimals);
 
-      const result = await standard.mint(wallet, asset, address, amount, this.logger);
+      const result = await runWithIdempotencyKey(idempotencyKey, () => standard.mint(wallet, asset, address, amount, this.logger));
       return resultToReceipt(result, ast, "issue", quantity, destination, destination, exCtx, undefined);
     } catch (e) {
       this.logger.error(`Issue failed: asset=${ast.assetId} to=${destination.finId} quantity=${quantity}`, e);
@@ -272,7 +281,7 @@ export class CustodyTokenService implements TokenService, EscrowService, HealthS
         ?? ledgerAccountAddress(destination.account, (await this.readProvider.getNetwork()).chainId);
       if (!destinationAddress) throw new Error(`Cannot resolve address for finId: ${destination.finId}`);
       const opCtx = buildOperationContext(ast, signature, exCtx);
-      const result = await standard.transfer(wallet, asset, destinationAddress, amount, this.logger, opCtx);
+      const result = await runWithIdempotencyKey(idempotencyKey, () => standard.transfer(wallet, asset, destinationAddress, amount, this.logger, opCtx));
       return resultToReceipt(result, ast, "transfer", quantity, source, destination, exCtx, undefined);
     } catch (e) {
       this.logger.error(`Transfer failed: asset=${ast.assetId} from=${source.finId} to=${destination.finId} quantity=${quantity}`, e);
@@ -424,14 +433,14 @@ export class CustodyTokenService implements TokenService, EscrowService, HealthS
         // release(ReleaseType.Redeem) resolves the reservation by operationId and
         // burns from the holder; a redemption delivers to no one, hence the
         // zero destination.
-        const result = await standard.release(this.escrowWallet, asset, ZeroAddress, amount, this.logger, opCtx);
+        const result = await runWithIdempotencyKey(idempotencyKey, () => standard.release(this.requireEscrow(), asset, ZeroAddress, amount, this.logger, opCtx));
         return resultToReceipt(result, ast, "redeem", quantity, source, undefined, exCtx, operationId);
       }
 
       let wallet: CustodyWallet;
       let burnFromAddress: string;
       if (operationId) {
-        wallet = this.escrowWallet;
+        wallet = this.requireEscrow();
         burnFromAddress = await wallet.signer.getAddress();
       } else {
         const resolved = await this.resolveSourceWallet(source.finId);
@@ -440,7 +449,7 @@ export class CustodyTokenService implements TokenService, EscrowService, HealthS
         burnFromAddress = resolved.address;
       }
 
-      const result = await standard.burn(wallet, asset, burnFromAddress, amount, this.logger, opCtx);
+      const result = await runWithIdempotencyKey(idempotencyKey, () => standard.burn(wallet, asset, burnFromAddress, amount, this.logger, opCtx));
       return resultToReceipt(result, ast, "redeem", quantity, source, undefined, exCtx, operationId);
     } catch (e) {
       this.logger.error(`Redeem failed: asset=${ast.assetId} source=${source.finId} quantity=${quantity}`, e);
@@ -462,7 +471,7 @@ export class CustodyTokenService implements TokenService, EscrowService, HealthS
       const amount = parseUnits(quantity, asset.decimals);
 
       const opCtx = buildOperationContext(ast, signature, exCtx, operationId, deriveReleaseType(signature, destination));
-      const result = await standard.hold(wallet, this.escrowWallet, asset, amount, this.logger, opCtx);
+      const result = await runWithIdempotencyKey(idempotencyKey, () => standard.hold(wallet, this.requireEscrow(), asset, amount, this.logger, opCtx));
       return resultToReceipt(result, ast, "hold", quantity, source, destination, exCtx, operationId);
     } catch (e) {
       this.logger.error(`Hold failed: asset=${ast.assetId} source=${source.finId} quantity=${quantity} operationId=${operationId}`, e);
@@ -480,11 +489,11 @@ export class CustodyTokenService implements TokenService, EscrowService, HealthS
       const destinationAddress = await this.accountMapping.resolveAccount(destination.finId)
         ?? ledgerAccountAddress(destination.account, (await this.readProvider.getNetwork()).chainId);
       if (!destinationAddress) throw new Error(`Cannot resolve address for finId: ${destination.finId}`);
-      const escrowWallet = this.escrowWallet;
+      const escrowWallet = this.requireEscrow();
       const amount = parseUnits(quantity, asset.decimals);
 
       const opCtx = buildOperationContext(ast, undefined, exCtx, operationId);
-      const result = await standard.release(escrowWallet, asset, destinationAddress, amount, this.logger, opCtx);
+      const result = await runWithIdempotencyKey(idempotencyKey, () => standard.release(escrowWallet, asset, destinationAddress, amount, this.logger, opCtx));
       return resultToReceipt(result, ast, "release", quantity, source, destination, exCtx, operationId);
     } catch (e) {
       this.logger.error(`Release failed: asset=${ast.assetId} destination=${destination.finId} quantity=${quantity}`, e);
@@ -500,11 +509,11 @@ export class CustodyTokenService implements TokenService, EscrowService, HealthS
       const asset = await this.assetRecord(ast.assetId);
       const standard = tokenStandardRegistry.resolve(asset.tokenStandard);
       const sourceAddress = await this.resolveAddress(source.finId);
-      const escrowWallet = this.escrowWallet;
+      const escrowWallet = this.requireEscrow();
       const amount = parseUnits(quantity, asset.decimals);
 
       const opCtx = buildOperationContext(ast, undefined, exCtx, operationId);
-      const result = await standard.release(escrowWallet, asset, sourceAddress, amount, this.logger, opCtx);
+      const result = await runWithIdempotencyKey(idempotencyKey, () => standard.release(escrowWallet, asset, sourceAddress, amount, this.logger, opCtx));
       return resultToReceipt(result, ast, "release", quantity, source, undefined, exCtx, operationId);
     } catch (e) {
       this.logger.error(`Rollback failed: asset=${ast.assetId} source=${source.finId} quantity=${quantity}`, e);

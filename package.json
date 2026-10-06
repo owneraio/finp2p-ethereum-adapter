@@ -32,7 +32,8 @@
     "verify-signature": "ts-node ./scripts/verify-signature.ts",
     "start-debug": "ts-node ./src/index.ts",
     "start": "node .",
-    "test:plan-approval": "jest --config jest.plan-approval.config.js"
+    "test:plan-approval": "jest --config jest.plan-approval.config.js",
+    "test:taurus": "jest --config jest.taurus.config.js"
   },
   "publishConfig": {
     "registry": "https://npm.pkg.github.com"
