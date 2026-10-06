@@ -10,6 +10,8 @@ import {
   AccountMappingServiceImpl,
   AccountMappingValidator,
   NetworkAccountService,
+  ReceiptOperation,
+  failedReceiptOperation,
   workflows,
   storage as storageModule,
 } from "@owneraio/finp2p-nodejs-skeleton-adapter";
@@ -135,7 +137,7 @@ async function registerCustodyServices(
   const issuerWallet = assetIssuerKey && networkHost
     ? { provider: readProvider, signer: pooledSigner(getNetworkRpcUrl(), assetIssuerKey) }
     : undefined;
-  let tokenService: CustodyTokenService = new CustodyTokenService(logger, custodyProvider, escrowWallet, readProvider, accountMapping, assetStore, issuerWallet);
+  let tokenService: CustodyTokenService = new CustodyTokenService(logger, custodyProvider, escrowWallet, readProvider, accountMapping, assetStore, issuerWallet, appConfig.swapVenue);
   const commonService = new DirectCommonServiceImpl(workflowStorage);
   const planApprovalService = buildCustodyPlanApprovalService(
     appConfig.orgId, finP2PClient,
@@ -163,13 +165,13 @@ function registerFinP2PContractServices(
   }
   const proxiedNetworkAccountService = wrapWithWorkflowProxy(networkAccountService, workflowStorage, finP2PClient, 'createAccount', 'removeAccount');
   let planApprovalService = new PlanApprovalServiceImpl(contractConfig.orgId, pluginManager, contractConfig.finP2PClient);
-  const tokenService = new OnChainTokenService(contractConfig.finP2PContract, contractConfig.finP2PClient, contractConfig.execDetailsStore, contractConfig.proofProvider, pluginManager, contractConfig.defaultAssetStandard);
+  const tokenService = new OnChainTokenService(contractConfig.finP2PContract, contractConfig.finP2PClient, contractConfig.execDetailsStore, contractConfig.proofProvider, pluginManager, contractConfig.defaultAssetStandard, contractConfig.swapVenue);
   const mappingService = new CredentialsMappingService(contractConfig.finP2PContract, walletResolutionMode);
   const mappingConfig = buildMappingConfig();
 
   const commonService = new DirectCommonServiceImpl(workflowStorage);
 
-  const proxiedTokenService = wrapWithWorkflowProxy(tokenService, workflowStorage, finP2PClient, 'createAsset', 'issue', 'transfer', 'redeem');
+  const proxiedTokenService = wrapWithWorkflowProxy(tokenService, workflowStorage, finP2PClient, 'createAsset', 'issue', 'transfer', 'redeem', 'swap');
   const proxiedEscrowService = wrapWithWorkflowProxy(tokenService, workflowStorage, finP2PClient, 'hold', 'release', 'rollback');
   const proxiedPlanService = wrapWithWorkflowProxy(planApprovalService, workflowStorage, finP2PClient, 'approvePlan', 'proposeCancelPlan', 'proposeResetPlan', 'proposeInstructionApproval');
   register(app, proxiedTokenService, proxiedEscrowService, commonService, tokenService, paymentsService, proxiedPlanService, proxiedNetworkAccountService, { mappingConfig, mappingService });
