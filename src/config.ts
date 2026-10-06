@@ -8,6 +8,8 @@ import { Logger } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import { InMemoryExecDetailsStore } from './services/onchain'
 import { FireblocksAppConfig, createFireblocksAppConfig } from './integrations/custody/fireblocks/config'
 import { DfnsAppConfig, createDfnsAppConfig } from './integrations/custody/dfns/config'
+import { SwapVenue } from '@owneraio/finp2p-ethereum-adapter-contract'
+import { AllowanceSwapVenue } from '@owneraio/finp2p-ethereum-allowance-swap'
 
 export const DEFAULT_ASSET_STANDARD_ERC20 = keccak256(toUtf8Bytes("ERC20"));
 
@@ -41,7 +43,7 @@ export type BaseAppConfig = {
   proofProvider: ProofProvider | undefined
   accountMappingType: AccountMappingType
   accountModel: AccountModel
-  allowanceSwapAddress?: string
+  swapVenue?: SwapVenue
 }
 
 export type FinP2PContractAppConfig = BaseAppConfig & {
@@ -83,13 +85,15 @@ export const getNetworkRpcUrl = (): string => {
   return networkHost;
 };
 
-export const getAllowanceSwapAddress = (): string | undefined => {
-  const address = process.env.FINP2P_ETHEREUM_ALLOWANCE_SWAP_ADDRESS;
-  if (!address) return undefined;
-  if (!isAddress(address)) {
-    throw new Error(`Invalid FINP2P_ETHEREUM_ALLOWANCE_SWAP_ADDRESS: '${address}' is not an Ethereum address`);
+export const detectSwapVenue = (env: NodeJS.ProcessEnv = process.env): SwapVenue | undefined => {
+  const allowanceSwapAddress = env.FINP2P_ETHEREUM_ALLOWANCE_SWAP_ADDRESS;
+  if (allowanceSwapAddress) {
+    if (!isAddress(allowanceSwapAddress)) {
+      throw new Error(`Invalid FINP2P_ETHEREUM_ALLOWANCE_SWAP_ADDRESS: '${allowanceSwapAddress}' is not an Ethereum address`);
+    }
+    return new AllowanceSwapVenue(allowanceSwapAddress);
   }
-  return address;
+  return undefined;
 };
 
 export const createJsonProvider = (
@@ -110,11 +114,11 @@ export async function envVarsToAppConfig(logger: Logger): Promise<AppConfig> {
   const configType = (process.env.PROVIDER_TYPE || 'finp2p-contract') as AppConfig['type']
   const accountMappingType = resolveAccountMappingType(process.env.ACCOUNT_MAPPING_TYPE)
   const accountModel = resolveAccountModel(process.env.ACCOUNT_MODEL)
-  const allowanceSwapAddress = getAllowanceSwapAddress()
-  if (allowanceSwapAddress) {
-    logger.info(`Allowance-swap contract configured at ${allowanceSwapAddress} — swap/swapSingle enabled`);
+  const swapVenue = detectSwapVenue()
+  if (swapVenue) {
+    logger.info(`Swap venue ${swapVenue.constructor.name} configured at ${swapVenue.venueAddress} — swap functionality enabled`);
   } else {
-    logger.info('FINP2P_ETHEREUM_ALLOWANCE_SWAP_ADDRESS is not set — swap/swapSingle are disabled');
+    logger.info('No swap venue configured — swap functionality is disabled');
   }
 
   switch (configType) {
@@ -212,14 +216,14 @@ export async function envVarsToAppConfig(logger: Logger): Promise<AppConfig> {
         finP2PContract,
         execDetailsStore,
         defaultAssetStandard: defaultAssetStandardRaw,
-        allowanceSwapAddress,
+        swapVenue,
       }
     }
     case 'fireblocks': {
-      return { ...await createFireblocksAppConfig(), accountMappingType, accountModel, allowanceSwapAddress }
+      return { ...await createFireblocksAppConfig(), accountMappingType, accountModel, swapVenue }
     }
     case 'dfns': {
-      return { ...await createDfnsAppConfig(), accountMappingType, accountModel, allowanceSwapAddress }
+      return { ...await createDfnsAppConfig(), accountMappingType, accountModel, swapVenue }
     }
     default: {
       // For registry-based providers: return generic config.
@@ -236,7 +240,7 @@ export async function envVarsToAppConfig(logger: Logger): Promise<AppConfig> {
         proofProvider: undefined,
         accountMappingType,
         accountModel,
-        allowanceSwapAddress,
+        swapVenue,
       } as CustodyAppConfig;
     }
   }

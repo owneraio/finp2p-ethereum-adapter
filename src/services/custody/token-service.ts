@@ -314,8 +314,8 @@ export class CustodyTokenService implements TokenService, EscrowService, HealthS
         if (!approval) return failedSwapOperation(1, `No wallet address for asset source ${asset.source.finId} — pass source.account or map the finId`);
         const to = destinationWallet ?? await this.accountMapping.resolveAccount(settlement.destination.finId);
         if (!to) return failedSwapOperation(1, `No wallet address for settlement destination ${settlement.destination.finId} — pass destination.account or map the finId`);
-        this.logger.info(`Swap ${operationId}: approval from ${approval}, settle to ${to} — no swap venue is configured (FINP2P_ETHEREUM_ALLOWANCE_SWAP_ADDRESS is not set)`);
-        return failedSwapOperation(1, 'Swap is not supported: FINP2P_ETHEREUM_ALLOWANCE_SWAP_ADDRESS is not set');
+        this.logger.info(`Swap ${operationId}: approval from ${approval}, settle to ${to} — no swap venue is configured`);
+        return failedSwapOperation(1, 'Swap is not supported: no swap venue is configured');
       }
 
       if (asset.destination.finId !== settlement.source.finId) {
@@ -359,7 +359,7 @@ export class CustodyTokenService implements TokenService, EscrowService, HealthS
   ): Promise<SwapOperation> {
     try {
       if (!this.swapVenue) {
-        return failedSwapOperation(1, 'Swap is not supported: FINP2P_ETHEREUM_ALLOWANCE_SWAP_ADDRESS is not set');
+        return failedSwapOperation(1, 'Swap is not supported: no swap venue is configured');
       }
       if (deadline && deadline <= Math.floor(Date.now() / 1000)) {
         return failedSwapOperation(1, `swap deadline ${deadline} has already passed`);

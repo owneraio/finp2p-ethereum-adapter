@@ -284,7 +284,7 @@ export class OnChainTokenService implements TokenService, EscrowService, CommonS
     }
     try {
       if (!this.swapVenue) {
-        return failedSwapOperation(1, "Swap is not supported: FINP2P_ETHEREUM_ALLOWANCE_SWAP_ADDRESS is not set");
+        return failedSwapOperation(1, "Swap is not supported: no swap venue is configured");
       }
       if (!operationId) {
         return failedSwapOperation(1, "operationId is required");
@@ -355,7 +355,7 @@ export class OnChainTokenService implements TokenService, EscrowService, CommonS
                              settlement: SwapLeg, deadline: number, exCtx: ExecutionContext | undefined): Promise<SwapOperation> {
     try {
       if (!this.swapVenue) {
-        return failedSwapOperation(1, "Swap is not supported: FINP2P_ETHEREUM_ALLOWANCE_SWAP_ADDRESS is not set");
+        return failedSwapOperation(1, "Swap is not supported: no swap venue is configured");
       }
       if (!operationId) {
         return failedSwapOperation(1, "operationId is required");

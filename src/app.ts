@@ -16,8 +16,6 @@ import {
   storage as storageModule,
 } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import { FinP2PClient } from "@owneraio/finp2p-client";
-import { SwapVenue } from "@owneraio/finp2p-ethereum-adapter-contract";
-import { AllowanceSwapVenue } from "@owneraio/finp2p-ethereum-allowance-swap";
 import { LedgerStorage, registerDistributionRoutes } from "@owneraio/finp2p-vanilla-service";
 import {
   CredentialsMappingService,
@@ -58,10 +56,6 @@ registerCustodyIntegrations();
 export interface WorkflowsConfig {
   migration: workflows.MigrationConfig;
   finP2PClient?: FinP2PClient;
-}
-
-function buildSwapVenue(allowanceSwapAddress: string | undefined): SwapVenue | undefined {
-  return allowanceSwapAddress ? new AllowanceSwapVenue(allowanceSwapAddress) : undefined;
 }
 
 function wrapWithWorkflowProxy<T extends object>(
@@ -143,7 +137,7 @@ async function registerCustodyServices(
   const issuerWallet = assetIssuerKey && networkHost
     ? { provider: readProvider, signer: pooledSigner(getNetworkRpcUrl(), assetIssuerKey) }
     : undefined;
-  let tokenService: CustodyTokenService = new CustodyTokenService(logger, custodyProvider, escrowWallet, readProvider, accountMapping, assetStore, issuerWallet, buildSwapVenue(appConfig.allowanceSwapAddress));
+  let tokenService: CustodyTokenService = new CustodyTokenService(logger, custodyProvider, escrowWallet, readProvider, accountMapping, assetStore, issuerWallet, appConfig.swapVenue);
   const commonService = new DirectCommonServiceImpl(workflowStorage);
   const planApprovalService = buildCustodyPlanApprovalService(
     appConfig.orgId, finP2PClient,
@@ -171,8 +165,7 @@ function registerFinP2PContractServices(
   }
   const proxiedNetworkAccountService = wrapWithWorkflowProxy(networkAccountService, workflowStorage, finP2PClient, 'createAccount', 'removeAccount');
   let planApprovalService = new PlanApprovalServiceImpl(contractConfig.orgId, pluginManager, contractConfig.finP2PClient);
-  const swapVenue = buildSwapVenue(contractConfig.allowanceSwapAddress);
-  const tokenService = new OnChainTokenService(contractConfig.finP2PContract, contractConfig.finP2PClient, contractConfig.execDetailsStore, contractConfig.proofProvider, pluginManager, contractConfig.defaultAssetStandard, swapVenue);
+  const tokenService = new OnChainTokenService(contractConfig.finP2PContract, contractConfig.finP2PClient, contractConfig.execDetailsStore, contractConfig.proofProvider, pluginManager, contractConfig.defaultAssetStandard, contractConfig.swapVenue);
   const mappingService = new CredentialsMappingService(contractConfig.finP2PContract, walletResolutionMode);
   const mappingConfig = buildMappingConfig();
 
