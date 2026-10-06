@@ -9,6 +9,7 @@ const LEGACY_ETH_TABLE = 'finp2p_ethereum_adapater_migrations';
 const NEW_ETH_TABLE = `${LEDGER_SCHEMA}_migrations`;
 const LEGACY_VANILLA_TABLE = vanillaMigrationsTable;
 const NEW_VANILLA_TABLE = `${LEDGER_SCHEMA}_${vanillaMigrationsTable}`;
+const TABLE_NAMES = { migrationsTableName: NEW_ETH_TABLE, vanillaMigrationsTableName: NEW_VANILLA_TABLE };
 
 const silentLogger = winston.createLogger({
   level: 'error',
@@ -68,7 +69,7 @@ describe('adoptLegacyMigrationTables', () => {
   it('renames the legacy ethereum-adapter table when only the legacy name exists', async () => {
     await createGooseLikeTable(pool, LEGACY_ETH_TABLE);
 
-    await adoptLegacyMigrationTables(connectionString, silentLogger, LEDGER_SCHEMA);
+    await adoptLegacyMigrationTables(connectionString, silentLogger, TABLE_NAMES);
 
     expect(await tableExists(pool, LEGACY_ETH_TABLE)).toBe(false);
     expect(await tableExists(pool, NEW_ETH_TABLE)).toBe(true);
@@ -80,7 +81,7 @@ describe('adoptLegacyMigrationTables', () => {
   it('renames the vanilla migrations table when only the legacy name exists', async () => {
     await createGooseLikeTable(pool, LEGACY_VANILLA_TABLE);
 
-    await adoptLegacyMigrationTables(connectionString, silentLogger, LEDGER_SCHEMA);
+    await adoptLegacyMigrationTables(connectionString, silentLogger, TABLE_NAMES);
 
     expect(await tableExists(pool, LEGACY_VANILLA_TABLE)).toBe(false);
     expect(await tableExists(pool, NEW_VANILLA_TABLE)).toBe(true);
@@ -90,7 +91,7 @@ describe('adoptLegacyMigrationTables', () => {
     await createGooseLikeTable(pool, LEGACY_ETH_TABLE);
     await createGooseLikeTable(pool, LEGACY_VANILLA_TABLE);
 
-    await adoptLegacyMigrationTables(connectionString, silentLogger, LEDGER_SCHEMA);
+    await adoptLegacyMigrationTables(connectionString, silentLogger, TABLE_NAMES);
 
     expect(await tableExists(pool, LEGACY_ETH_TABLE)).toBe(false);
     expect(await tableExists(pool, NEW_ETH_TABLE)).toBe(true);
@@ -99,7 +100,7 @@ describe('adoptLegacyMigrationTables', () => {
   });
 
   it('is a no-op on a fresh deployment (no legacy tables)', async () => {
-    await adoptLegacyMigrationTables(connectionString, silentLogger, LEDGER_SCHEMA);
+    await adoptLegacyMigrationTables(connectionString, silentLogger, TABLE_NAMES);
 
     expect(await tableExists(pool, LEGACY_ETH_TABLE)).toBe(false);
     expect(await tableExists(pool, NEW_ETH_TABLE)).toBe(false);
@@ -111,7 +112,7 @@ describe('adoptLegacyMigrationTables', () => {
     await createGooseLikeTable(pool, LEGACY_ETH_TABLE, true);
     await createGooseLikeTable(pool, NEW_ETH_TABLE, false);
 
-    await adoptLegacyMigrationTables(connectionString, silentLogger, LEDGER_SCHEMA);
+    await adoptLegacyMigrationTables(connectionString, silentLogger, TABLE_NAMES);
 
     // Legacy is preserved (we don't overwrite the new table); operator must reconcile manually.
     expect(await tableExists(pool, LEGACY_ETH_TABLE)).toBe(true);
@@ -123,8 +124,8 @@ describe('adoptLegacyMigrationTables', () => {
   it('is idempotent (running twice produces the same result as running once)', async () => {
     await createGooseLikeTable(pool, LEGACY_ETH_TABLE);
 
-    await adoptLegacyMigrationTables(connectionString, silentLogger, LEDGER_SCHEMA);
-    await adoptLegacyMigrationTables(connectionString, silentLogger, LEDGER_SCHEMA);
+    await adoptLegacyMigrationTables(connectionString, silentLogger, TABLE_NAMES);
+    await adoptLegacyMigrationTables(connectionString, silentLogger, TABLE_NAMES);
 
     expect(await tableExists(pool, LEGACY_ETH_TABLE)).toBe(false);
     expect(await tableExists(pool, NEW_ETH_TABLE)).toBe(true);
@@ -134,9 +135,9 @@ describe('adoptLegacyMigrationTables', () => {
     await createGooseLikeTable(pool, LEGACY_ETH_TABLE);
 
     await Promise.all([
-      adoptLegacyMigrationTables(connectionString, silentLogger, LEDGER_SCHEMA),
-      adoptLegacyMigrationTables(connectionString, silentLogger, LEDGER_SCHEMA),
-      adoptLegacyMigrationTables(connectionString, silentLogger, LEDGER_SCHEMA),
+      adoptLegacyMigrationTables(connectionString, silentLogger, TABLE_NAMES),
+      adoptLegacyMigrationTables(connectionString, silentLogger, TABLE_NAMES),
+      adoptLegacyMigrationTables(connectionString, silentLogger, TABLE_NAMES),
     ]);
 
     expect(await tableExists(pool, LEGACY_ETH_TABLE)).toBe(false);
@@ -157,7 +158,7 @@ describe('adoptLegacyMigrationTables', () => {
       VALUES (1, true), (2, true), (3, false);
     `);
 
-    await adoptLegacyMigrationTables(connectionString, silentLogger, LEDGER_SCHEMA);
+    await adoptLegacyMigrationTables(connectionString, silentLogger, TABLE_NAMES);
 
     const { rows } = await pool.query(
       `SELECT version_id, is_applied FROM public.${NEW_ETH_TABLE} ORDER BY version_id;`,

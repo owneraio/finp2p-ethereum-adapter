@@ -6,6 +6,8 @@ import { migrationsTableName as vanillaMigrationsTable } from "@owneraio/finp2p-
  * Pre-#265 the goose tracking tables were hardcoded (`finp2p_ethereum_adapater_migrations`
  * with a typo + vanilla's `finp2p_vanilla_service_migrations`) and lived in `public`.
  * #265 derives them per-adapter from ledgerSchema so co-deployed adapters stop colliding.
+ * The caller passes the final (sanitized) table names so the adopted tables match exactly
+ * what goose is configured with — a long ADAPTER_ID yields a hashed/truncated name.
  * On upgrade we claim the legacy tables for this binary so migration history isn't lost
  * and goose doesn't re-run the schema-creating initial migration.
  *
@@ -18,14 +20,21 @@ import { migrationsTableName as vanillaMigrationsTable } from "@owneraio/finp2p-
  * another replica completes it between our check and our ALTER, we ROLLBACK TO SAVEPOINT,
  * recognise the post-rename state, and continue with the next rename.
  */
+export interface MigrationTableNames {
+  /** goose tracking table for this adapter's own migrations (already sanitized). */
+  migrationsTableName: string;
+  /** goose tracking table for the vanilla-service migrations (already sanitized). */
+  vanillaMigrationsTableName: string;
+}
+
 export async function adoptLegacyMigrationTables(
   connectionString: string,
   log: winston.Logger,
-  ledgerSchema: string,
+  { migrationsTableName, vanillaMigrationsTableName }: MigrationTableNames,
 ): Promise<void> {
   const renames: Array<{ from: string; to: string }> = [
-    { from: 'finp2p_ethereum_adapater_migrations', to: `${ledgerSchema}_migrations` },
-    { from: vanillaMigrationsTable, to: `${ledgerSchema}_${vanillaMigrationsTable}` },
+    { from: 'finp2p_ethereum_adapater_migrations', to: migrationsTableName },
+    { from: vanillaMigrationsTable, to: vanillaMigrationsTableName },
   ];
   const pool = new Pool({ connectionString });
   let client: PoolClient | undefined;
