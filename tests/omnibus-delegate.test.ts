@@ -253,7 +253,7 @@ describe('OmnibusDelegate', () => {
       mockStandard.deploy.mockResolvedValue({ contractAddress: '0xNEW_TOKEN', decimals: 2, tokenStandard: ERC20 });
 
       const result = await delegate.createAsset(
-        'idem-create', TEST_ASSET.assetId, undefined,
+        'idem-create', TEST_ASSET.assetId, {} as any,
         undefined, 'TestCoin', undefined, undefined,
       );
 
@@ -303,7 +303,7 @@ describe('OmnibusDelegate', () => {
 
       const result = await delegate.createAsset(
         'idem-create-4', TEST_ASSET.assetId,
-        { tokenId: null, network: 'eip155:11155111' } as any,
+        { network: 'eip155:11155111' } as any,
         undefined, 'TestCoin', undefined, undefined,
       );
 

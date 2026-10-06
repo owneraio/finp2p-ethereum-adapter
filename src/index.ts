@@ -1,5 +1,5 @@
 import * as process from "process";
-import { logger, workflows } from "@owneraio/finp2p-nodejs-skeleton-adapter";
+import { logger, storage } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import { FinP2PClient } from "@owneraio/finp2p-client";
 import winston, { format, transports } from "winston";
 import { migrationsDir as vanillaMigrationsDir, migrationsTableName as vanillaMigrationsTable } from "@owneraio/finp2p-vanilla-service";
@@ -29,10 +29,10 @@ const init = async () => {
   const finP2PUrl = process.env.FINP2P_ADDRESS;
   const ossUrl = process.env.OSS_URL;
   const finP2PClient = finP2PUrl && ossUrl ? new FinP2PClient(finP2PUrl, ossUrl) : undefined;
-  const schemaName = process.env.LEDGER_SCHEMA || workflows.toPostgresIdentifier(process.env.ADAPTER_ID || 'ethereum_adapter');
+  const schemaName = process.env.LEDGER_SCHEMA || storage.toPostgresIdentifier(process.env.ADAPTER_ID || 'ethereum_adapter');
   // LEDGER_SCHEMA is operator-supplied and trusted verbatim; derived names must be
   // sanitized because `${schemaName}_<suffix>` can exceed the Postgres identifier limit.
-  const tableNameSanitizer = process.env.LEDGER_SCHEMA ? (id: string) => id : workflows.toPostgresIdentifier;
+  const tableNameSanitizer = process.env.LEDGER_SCHEMA ? (id: string) => id : storage.toPostgresIdentifier;
   const migrationsTableName = tableNameSanitizer(`${schemaName}_migrations`);
   const vanillaMigrationsTableName = tableNameSanitizer(`${schemaName}_${vanillaMigrationsTable}`);
 
