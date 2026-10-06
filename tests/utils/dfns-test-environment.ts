@@ -1,4 +1,5 @@
 import { EnvironmentContext, JestEnvironmentConfig } from "@jest/environment";
+import { RouterFacade, startRouterFacade } from "./router-facade";
 import { workflows } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import {
   PostgreSqlContainer,
@@ -52,6 +53,7 @@ class DfnsTestEnvironment extends NodeEnvironment {
   destWalletId: string | undefined;
   postgresSqlContainer: StartedPostgreSqlContainer | undefined;
   httpServer: http.Server | undefined;
+  routerFacade: RouterFacade | undefined;
 
   constructor(config: JestEnvironmentConfig, context: EnvironmentContext) {
     super(config, context);
@@ -155,10 +157,17 @@ class DfnsTestEnvironment extends NodeEnvironment {
     await this.startPostgresContainer();
 
     this.global.serverAddress = await this.startApp(appConfig);
+
+    // investors are onboarded through the router: the facade turns the suite's actor registration into that
+
+    this.routerFacade = await startRouterFacade(this.global.serverAddress as string, this.orgId);
+
+    this.global.serverBaseAddress = this.routerFacade.url;
   }
 
   async teardown() {
     try {
+      await this.routerFacade?.close();
       this.httpServer?.close();
       await workflows.Storage.closeAllConnections();
       await this.postgresSqlContainer?.stop();

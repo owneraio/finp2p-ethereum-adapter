@@ -1,22 +1,19 @@
 import { CustodyProvider, CustodyWallet } from '../services/custody/custody-provider';
-import { FIELD_CUSTODY_ACCOUNT_ID, FIELD_LEDGER_ACCOUNT_ID } from '../services/accounts/mapping-validator';
-import { AccountMappingStore } from '../services/accounts/account-resolver';
+import { AccountResolver } from '../services/accounts/account-resolver';
 
 /**
  * Resolves a finId to the investor's on-chain address and custody-signed wallet,
- * using the account mapping store and the custody provider.
+ * using the adapter's account resolver (the account mapping, or the router's
+ * onboarded accounts) and the custody provider.
  */
 export type WalletResolver = (finId: string) => Promise<{ walletAddress: string; wallet: CustodyWallet } | undefined>;
 
-export function createWalletResolver(accountMappingStore: AccountMappingStore, custodyProvider: CustodyProvider): WalletResolver {
+export function createWalletResolver(accounts: AccountResolver, custodyProvider: CustodyProvider): WalletResolver {
   return async (finId) => {
-    if (!custodyProvider.createWalletForCustodyId) return undefined;
-    const mappings = await accountMappingStore.getAccounts([finId]);
-    if (mappings.length === 0) return undefined;
-    const walletAddress = mappings[0].fields?.[FIELD_LEDGER_ACCOUNT_ID];
-    const custodyAccountId = mappings[0].fields?.[FIELD_CUSTODY_ACCOUNT_ID];
-    if (!walletAddress || !custodyAccountId) return undefined;
-    const wallet = await custodyProvider.createWalletForCustodyId(custodyAccountId);
-    return { walletAddress, wallet };
+    if (!custodyProvider.createWalletForCustodyId || !accounts.resolveFullAccount) return undefined;
+    const resolved = await accounts.resolveFullAccount(finId);
+    if (!resolved?.custodyAccountId) return undefined;
+    const wallet = await custodyProvider.createWalletForCustodyId(resolved.custodyAccountId);
+    return { walletAddress: resolved.ledgerAccountId, wallet };
   };
 }

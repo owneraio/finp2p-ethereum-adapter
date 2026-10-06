@@ -1,6 +1,6 @@
 import {
   Asset, AssetBind, AssetCreationStatus, AssetDenomination,
-  Balance, Destination, ExecutionContext, HealthService, OperationType,
+  Balance, Destination, ExecutionContext, HealthService, LedgerAccount, OperationType,
   ReceiptOperation, Signature, Source, TokenService, EscrowService,
   failedReceiptOperation, failedAssetCreation
 } from '@owneraio/finp2p-nodejs-skeleton-adapter';
@@ -91,12 +91,6 @@ export class CustodyTokenService implements TokenService, EscrowService, HealthS
     await this.readProvider.getBlockNumber();
   }
 
-  private async resolveAddress(finId: string): Promise<string> {
-    const address = await this.accountMapping.resolveAccount(finId);
-    if (address === undefined) throw new Error(`Cannot resolve address for finId: ${finId}`);
-    return address;
-  }
-
   private async assetRecord(assetId: string): Promise<AssetRecord> {
     const dbAsset = await this.assetStore.getAsset(assetId);
     if (dbAsset === undefined) throw new Error(`Asset ${assetId} is not registered in DB`);
@@ -107,9 +101,14 @@ export class CustodyTokenService implements TokenService, EscrowService, HealthS
     };
   }
 
-  private async resolveSourceWallet(finId: string): Promise<{ address: string; wallet: CustodyWallet } | undefined> {
+  /**
+   * The wallet that signs for a source leg: the investor's resolved account
+   * first, then the account the router put on the leg. A custody account id,
+   * from either, opens the custody wallet directly; an address is looked up.
+   */
+  private async resolveSourceWallet(source: Source): Promise<{ address: string; wallet: CustodyWallet } | undefined> {
     const full = this.accountMapping.resolveFullAccount
-      ? await this.accountMapping.resolveFullAccount(finId)
+      ? await this.accountMapping.resolveFullAccount(source.finId)
       : undefined;
 
     if (full?.custodyAccountId && this.custodyProvider.createWalletForCustodyId) {
@@ -117,11 +116,30 @@ export class CustodyTokenService implements TokenService, EscrowService, HealthS
       return { address: full.ledgerAccountId, wallet };
     }
 
-    const address = full?.ledgerAccountId ?? await this.accountMapping.resolveAccount(finId);
+    const leg = source.account;
+    if (!full && leg?.type === 'custodialAccount' && this.custodyProvider.createWalletForCustodyId) {
+      const wallet = await this.custodyProvider.createWalletForCustodyId(leg.vaultAccountId);
+      return { address: await wallet.signer.getAddress(), wallet };
+    }
+
+    const address = full?.ledgerAccountId ?? await this.accountMapping.resolveAccount(source.finId) ?? await this.legAddress(leg);
     if (!address) return undefined;
     const wallet = await this.custodyProvider.resolveWallet(address);
     if (!wallet) return undefined;
     return { address, wallet };
+  }
+
+  /** The address of a leg's account: carried by wallet and caip10 accounts, looked up for a custodial one. */
+  private async legAddress(account: LedgerAccount | undefined): Promise<string | undefined> {
+    if (account?.type === 'custodialAccount') {
+      return this.custodyProvider.resolveAddressFromCustodyId?.(account.vaultAccountId);
+    }
+    return ledgerAccountAddress(account, (await this.readProvider.getNetwork()).chainId);
+  }
+
+  /** A party's address: the resolved account first, then the leg's. */
+  private async partyAddress(party: Source | Destination): Promise<string | undefined> {
+    return await this.accountMapping.resolveAccount(party.finId) ?? await this.legAddress(party.account);
   }
 
   async createAsset(
@@ -226,8 +244,7 @@ export class CustodyTokenService implements TokenService, EscrowService, HealthS
       const standard = tokenStandardRegistry.resolve(asset.tokenStandard);
       const wallet = this.issuerWallet;
       if (!wallet) return failedReceiptOperation(1, 'ASSET_ISSUER_PRIVATE_KEY is not set — issuance is disabled');
-      const address = await this.accountMapping.resolveAccount(destination.finId)
-        ?? ledgerAccountAddress(destination.account, (await this.readProvider.getNetwork()).chainId);
+      const address = await this.partyAddress(destination);
       if (!address) throw new Error(`Cannot resolve address for finId: ${destination.finId}`);
       const amount = parseUnits(quantity, asset.decimals);
 
@@ -247,13 +264,12 @@ export class CustodyTokenService implements TokenService, EscrowService, HealthS
     try {
       const asset = await this.assetRecord(ast.assetId);
       const standard = tokenStandardRegistry.resolve(asset.tokenStandard);
-      const resolved = await this.resolveSourceWallet(source.finId);
+      const resolved = await this.resolveSourceWallet(source);
       if (!resolved) return failedReceiptOperation(1, 'Source address cannot be resolved to a custody wallet');
       const { wallet } = resolved;
       const amount = parseUnits(quantity, asset.decimals);
 
-      const destinationAddress = await this.accountMapping.resolveAccount(destination.finId)
-        ?? ledgerAccountAddress(destination.account, (await this.readProvider.getNetwork()).chainId);
+      const destinationAddress = await this.partyAddress(destination);
       if (!destinationAddress) throw new Error(`Cannot resolve address for finId: ${destination.finId}`);
       const opCtx = buildOperationContext(ast, signature, exCtx);
       const result = await standard.transfer(wallet, asset, destinationAddress, amount, this.logger, opCtx);
@@ -291,7 +307,7 @@ export class CustodyTokenService implements TokenService, EscrowService, HealthS
         wallet = this.escrowWallet;
         burnFromAddress = await wallet.signer.getAddress();
       } else {
-        const resolved = await this.resolveSourceWallet(source.finId);
+        const resolved = await this.resolveSourceWallet(source);
         if (!resolved) return failedReceiptOperation(1, 'Source address cannot be resolved to a custody wallet');
         wallet = resolved.wallet;
         burnFromAddress = resolved.address;
@@ -313,7 +329,7 @@ export class CustodyTokenService implements TokenService, EscrowService, HealthS
     try {
       const asset = await this.assetRecord(ast.assetId);
       const standard = tokenStandardRegistry.resolve(asset.tokenStandard);
-      const resolved = await this.resolveSourceWallet(source.finId);
+      const resolved = await this.resolveSourceWallet(source);
       if (!resolved) return failedReceiptOperation(1, 'Source address cannot be resolved to a custody wallet');
       const { wallet } = resolved;
       const amount = parseUnits(quantity, asset.decimals);
@@ -334,8 +350,7 @@ export class CustodyTokenService implements TokenService, EscrowService, HealthS
     try {
       const asset = await this.assetRecord(ast.assetId);
       const standard = tokenStandardRegistry.resolve(asset.tokenStandard);
-      const destinationAddress = await this.accountMapping.resolveAccount(destination.finId)
-        ?? ledgerAccountAddress(destination.account, (await this.readProvider.getNetwork()).chainId);
+      const destinationAddress = await this.partyAddress(destination);
       if (!destinationAddress) throw new Error(`Cannot resolve address for finId: ${destination.finId}`);
       const escrowWallet = this.escrowWallet;
       const amount = parseUnits(quantity, asset.decimals);
@@ -356,7 +371,8 @@ export class CustodyTokenService implements TokenService, EscrowService, HealthS
     try {
       const asset = await this.assetRecord(ast.assetId);
       const standard = tokenStandardRegistry.resolve(asset.tokenStandard);
-      const sourceAddress = await this.resolveAddress(source.finId);
+      const sourceAddress = await this.partyAddress(source);
+      if (!sourceAddress) throw new Error(`Cannot resolve address for finId: ${source.finId}`);
       const escrowWallet = this.escrowWallet;
       const amount = parseUnits(quantity, asset.decimals);
 
