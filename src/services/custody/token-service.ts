@@ -64,7 +64,10 @@ export class CustodyTokenService implements TokenService, EscrowService, HealthS
   constructor(
     readonly logger: winston.Logger,
     readonly custodyProvider: CustodyProvider,
-    readonly escrowWallet: CustodyWallet,
+    // hold/release/rollback and escrow-backed redeem sign from here; absent
+    // (no ASSET_ESCROW_CUSTODY_ACCOUNT_ID) those operations fail closed while
+    // everything else works.
+    readonly escrowWallet: CustodyWallet | undefined,
     readonly readProvider: Provider,
     readonly accountMapping: AccountResolver,
     readonly assetStore: AssetStore,
@@ -77,6 +80,11 @@ export class CustodyTokenService implements TokenService, EscrowService, HealthS
 
   // read-only paths need a Signer arg for the SPI; an ephemeral one suffices
   private readSigner?: Signer;
+
+  private requireEscrow(): CustodyWallet {
+    if (!this.escrowWallet) throw new Error('No escrow wallet configured — set ASSET_ESCROW_CUSTODY_ACCOUNT_ID to enable hold/release/rollback and escrow-backed redeem');
+    return this.escrowWallet;
+  }
 
   private issuerSigner(): Signer {
     if (this.issuerWallet) return this.issuerWallet.signer;
@@ -282,14 +290,14 @@ export class CustodyTokenService implements TokenService, EscrowService, HealthS
         // release(ReleaseType.Redeem) resolves the reservation by operationId and
         // burns from the holder; a redemption delivers to no one, hence the
         // zero destination.
-        const result = await runWithIdempotencyKey(idempotencyKey, () => standard.release(this.escrowWallet, asset, ZeroAddress, amount, this.logger, opCtx));
+        const result = await runWithIdempotencyKey(idempotencyKey, () => standard.release(this.requireEscrow(), asset, ZeroAddress, amount, this.logger, opCtx));
         return resultToReceipt(result, ast, "redeem", quantity, source, undefined, exCtx, operationId);
       }
 
       let wallet: CustodyWallet;
       let burnFromAddress: string;
       if (operationId) {
-        wallet = this.escrowWallet;
+        wallet = this.requireEscrow();
         burnFromAddress = await wallet.signer.getAddress();
       } else {
         const resolved = await this.resolveSourceWallet(source.finId);
@@ -320,7 +328,7 @@ export class CustodyTokenService implements TokenService, EscrowService, HealthS
       const amount = parseUnits(quantity, asset.decimals);
 
       const opCtx = buildOperationContext(ast, signature, exCtx, operationId, deriveReleaseType(signature, destination));
-      const result = await runWithIdempotencyKey(idempotencyKey, () => standard.hold(wallet, this.escrowWallet, asset, amount, this.logger, opCtx));
+      const result = await runWithIdempotencyKey(idempotencyKey, () => standard.hold(wallet, this.requireEscrow(), asset, amount, this.logger, opCtx));
       return resultToReceipt(result, ast, "hold", quantity, source, destination, exCtx, operationId);
     } catch (e) {
       this.logger.error(`Hold failed: asset=${ast.assetId} source=${source.finId} quantity=${quantity} operationId=${operationId}`, e);
@@ -338,7 +346,7 @@ export class CustodyTokenService implements TokenService, EscrowService, HealthS
       const destinationAddress = await this.accountMapping.resolveAccount(destination.finId)
         ?? ledgerAccountAddress(destination.account, (await this.readProvider.getNetwork()).chainId);
       if (!destinationAddress) throw new Error(`Cannot resolve address for finId: ${destination.finId}`);
-      const escrowWallet = this.escrowWallet;
+      const escrowWallet = this.requireEscrow();
       const amount = parseUnits(quantity, asset.decimals);
 
       const opCtx = buildOperationContext(ast, undefined, exCtx, operationId);
@@ -358,7 +366,7 @@ export class CustodyTokenService implements TokenService, EscrowService, HealthS
       const asset = await this.assetRecord(ast.assetId);
       const standard = tokenStandardRegistry.resolve(asset.tokenStandard);
       const sourceAddress = await this.resolveAddress(source.finId);
-      const escrowWallet = this.escrowWallet;
+      const escrowWallet = this.requireEscrow();
       const amount = parseUnits(quantity, asset.decimals);
 
       const opCtx = buildOperationContext(ast, undefined, exCtx, operationId);
