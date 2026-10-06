@@ -29,17 +29,22 @@ const init = async () => {
   const finP2PUrl = process.env.FINP2P_ADDRESS;
   const ossUrl = process.env.OSS_URL;
   const finP2PClient = finP2PUrl && ossUrl ? new FinP2PClient(finP2PUrl, ossUrl) : undefined;
-  const ledgerSchema = process.env.LEDGER_SCHEMA || storage.toPostgresIdentifier(process.env.ADAPTER_ID || 'ethereum_adapter')
+  const schemaName = process.env.LEDGER_SCHEMA || storage.toPostgresIdentifier(process.env.ADAPTER_ID || 'ethereum_adapter');
+  // LEDGER_SCHEMA is operator-supplied and trusted verbatim; derived names must be
+  // sanitized because `${schemaName}_<suffix>` can exceed the Postgres identifier limit.
+  const tableNameSanitizer = process.env.LEDGER_SCHEMA ? (id: string) => id : storage.toPostgresIdentifier;
+  const migrationsTableName = tableNameSanitizer(`${schemaName}_migrations`);
+  const vanillaMigrationsTableName = tableNameSanitizer(`${schemaName}_${vanillaMigrationsTable}`);
 
   const workflowsConfig = {
     migration: {
       connectionString: migrationConnectionString,
       gooseExecutablePath: "/usr/bin/goose",
-      migrationListTableName: `${ledgerSchema}_migrations`,
+      migrationListTableName: migrationsTableName,
       storageUser,
-      schemaName: ledgerSchema,
+      schemaName,
       additionalMigrations: [
-        { migrationsDir: vanillaMigrationsDir, tableName: `${ledgerSchema}_${vanillaMigrationsTable}` },
+        { migrationsDir: vanillaMigrationsDir, tableName: vanillaMigrationsTableName },
       ],
     },
     storage: { connectionString: dbConnectionString },
@@ -69,7 +74,7 @@ const init = async () => {
     ),
   });
 
-  await adoptLegacyMigrationTables(migrationConnectionString, logger, ledgerSchema);
+  await adoptLegacyMigrationTables(migrationConnectionString, logger, { migrationsTableName, vanillaMigrationsTableName });
 
   (await createApp(
     workflowsConfig,
