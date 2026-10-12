@@ -4,6 +4,7 @@ import { AsymmetricKeySigner } from "@dfns/sdk-keysigner";
 import { DfnsWallet } from "@dfns/lib-ethersjs6";
 import { JsonRpcProvider, Provider, Signer } from "ethers";
 import { BaseAppConfig } from "../../../config";
+import { configuredRpcUrl, resolveRpcUrl } from "../../../network-rpc";
 
 export type DfnsAppConfig = BaseAppConfig & {
   type: 'dfns'
@@ -30,23 +31,36 @@ export const createDfnsEthersProvider = async (config: {
   return { provider, signer };
 };
 
-const getNetworkRpcUrl = (): string => {
-  let networkHost = process.env.NETWORK_HOST;
-  if (!networkHost) {
-    throw new Error("NETWORK_HOST is not set");
-  }
-  const ethereumRPCAuth = process.env.NETWORK_AUTH;
-  if (ethereumRPCAuth) {
-    if (networkHost.startsWith("https://")) {
-      networkHost = "https://" + ethereumRPCAuth + "@" + networkHost.replace("https://", "");
-    } else if (networkHost.startsWith("http://")) {
-      networkHost = "http://" + ethereumRPCAuth + "@" + networkHost.replace("http://", "");
-    } else {
-      networkHost = ethereumRPCAuth + "@" + networkHost;
-    }
-  }
-  return networkHost;
+const EVM_CHAIN_IDS: Record<string, number> = {
+  Ethereum: 1,
+  EthereumSepolia: 11155111,
+  EthereumHolesky: 17000,
+  EthereumHoodi: 560048,
+  Hedera: 295,
+  HederaTestnet: 296,
+  Base: 8453,
+  BaseSepolia: 84532,
+  Polygon: 137,
+  PolygonAmoy: 80002,
+  ArbitrumOne: 42161,
+  ArbitrumSepolia: 421614,
+  Optimism: 10,
+  OptimismSepolia: 11155420,
+  Bsc: 56,
+  BscTestnet: 97,
+  AvalancheC: 43114,
+  AvalancheCFuji: 43113,
 };
+
+/** NETWORK_HOST, or a public RPC of the chain DFNS_NETWORK (or else the base wallet) is on. */
+async function dfnsRpcUrl(dfnsClient: DfnsApiClient, baseWalletId: string): Promise<string> {
+  const configured = configuredRpcUrl();
+  if (configured) return configured;
+  const network = process.env.DFNS_NETWORK || (await dfnsClient.wallets.getWallet({ walletId: baseWalletId })).network;
+  const chainId = EVM_CHAIN_IDS[network];
+  if (chainId === undefined) throw new Error(`DFNS network '${network}' is not a known EVM network; set NETWORK_HOST`);
+  return resolveRpcUrl(chainId);
+}
 
 export async function createDfnsAppConfig(): Promise<Omit<DfnsAppConfig, 'accountMappingType' | 'accountModel'>> {
   const orgId = process.env.ORGANIZATION_ID || '';
@@ -67,9 +81,6 @@ export async function createDfnsAppConfig(): Promise<Omit<DfnsAppConfig, 'accoun
     : privateKeyEnv;
   if (!dfnsPrivateKey) throw new Error('DFNS_PRIVATE_KEY or DFNS_PRIVATE_KEY_PATH is not set');
 
-  const rpcUrl = getNetworkRpcUrl();
-  const provider = new JsonRpcProvider(rpcUrl);
-
   const escrowWalletId = process.env.ASSET_ESCROW_CUSTODY_ACCOUNT_ID || undefined;
   const omnibusWalletId = process.env.OMNIBUS_CUSTODY_ACCOUNT_ID || undefined;
   const baseWalletId = escrowWalletId ?? omnibusWalletId;
@@ -77,6 +88,8 @@ export async function createDfnsAppConfig(): Promise<Omit<DfnsAppConfig, 'accoun
 
   const keySigner = new AsymmetricKeySigner({ credId: dfnsCredId, privateKey: dfnsPrivateKey });
   const dfnsClient = new DfnsApiClient({ baseUrl: dfnsBaseUrl, orgId: dfnsOrgId, authToken: dfnsAuthToken, signer: keySigner });
+  const rpcUrl = await dfnsRpcUrl(dfnsClient, baseWalletId);
+  const provider = new JsonRpcProvider(rpcUrl);
   const { signer } = await createDfnsEthersProvider({ dfnsClient, walletId: baseWalletId, rpcUrl });
 
   return {

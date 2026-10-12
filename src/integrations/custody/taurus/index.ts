@@ -10,7 +10,5 @@ export { TaurusTransferOnlySigner } from './signers/transfer-only';
 export { TaurusAppConfig, createTaurusAppConfig } from './config';
 
 export function registerTaurus(): void {
-  // the registry hands the app config through; the generic provider config
-  // carries the resolved rpcUrl, everything else comes from TAURUS_* envs
-  custodyRegistry.register('taurus', async (config: { rpcUrl: string }) => TaurusCustodyProvider.create(createTaurusAppConfig(config.rpcUrl)));
+  custodyRegistry.register('taurus', async () => TaurusCustodyProvider.create(createTaurusAppConfig()));
 }

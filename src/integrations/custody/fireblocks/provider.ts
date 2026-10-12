@@ -19,6 +19,10 @@ export class FireblocksCustodyProvider implements CustodyProvider {
     this.vaultManagement = vaultManagement;
   }
 
+  get rpcUrl(): string {
+    return this.config.rpcUrl;
+  }
+
   static async create(config: FireblocksAppConfig): Promise<FireblocksCustodyProvider> {
     const fireblocksSdk = new FireblocksSDK(config.apiPrivateKey, config.apiKey, config.apiBaseUrl as string);
     const vaultManagement = createVaultManagementFunctions(fireblocksSdk);

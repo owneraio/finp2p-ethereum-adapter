@@ -8,6 +8,7 @@ import { Logger } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import { InMemoryExecDetailsStore } from './services/onchain'
 import { FireblocksAppConfig, createFireblocksAppConfig } from './integrations/custody/fireblocks/config'
 import { DfnsAppConfig, createDfnsAppConfig } from './integrations/custody/dfns/config'
+import { configuredRpcUrl } from './network-rpc'
 
 export const DEFAULT_ASSET_STANDARD_ERC20 = keccak256(toUtf8Bytes("ERC20"));
 
@@ -58,29 +59,18 @@ export { DfnsAppConfig } from './integrations/custody/dfns/config'
  * The provider factory is responsible for reading its own env vars.
  * The type excludes known built-in types to allow TypeScript narrowing.
  */
-export type CustodyAppConfig = BaseAppConfig & {
+export type CustodyAppConfig = Omit<BaseAppConfig, 'provider' | 'signer'> & {
   type: string
-  rpcUrl?: string
 }
 
 export type AppConfig = FinP2PContractAppConfig | FireblocksAppConfig | DfnsAppConfig | CustodyAppConfig
 
 export const getNetworkRpcUrl = (): string => {
-  let networkHost = process.env.NETWORK_HOST;
-  if (!networkHost) {
+  const rpcUrl = configuredRpcUrl();
+  if (!rpcUrl) {
     throw new Error("NETWORK_HOST is not set");
   }
-  const ethereumRPCAuth = process.env.NETWORK_AUTH;
-  if (ethereumRPCAuth) {
-    if (networkHost.startsWith("https://")) {
-      networkHost = "https://" + ethereumRPCAuth + "@" + networkHost.replace("https://", "");
-    } else if (networkHost.startsWith("http://")) {
-      networkHost = "http://" + ethereumRPCAuth + "@" + networkHost.replace("http://", "");
-    } else {
-      networkHost = ethereumRPCAuth + "@" + networkHost;
-    }
-  }
-  return networkHost;
+  return rpcUrl;
 };
 
 export const createJsonProvider = (
@@ -206,17 +196,12 @@ export async function envVarsToAppConfig(logger: Logger): Promise<AppConfig> {
       return { ...await createDfnsAppConfig(), accountMappingType, accountModel }
     }
     default: {
-      // For registry-based providers: return generic config.
-      // The provider factory reads its own env vars.
+      // For registry-based providers: the provider factory reads its own env
+      // vars and resolves the RPC endpoint of the chain it operates on.
       const orgId = process.env.ORGANIZATION_ID || '';
-      const rpcUrl = getNetworkRpcUrl();
-      const provider = new JsonRpcProvider(rpcUrl);
       return {
         type: configType,
         orgId,
-        rpcUrl,
-        provider,
-        signer: provider as any, // Provider-factory will set up the real signer
         finP2PClient: undefined,
         proofProvider: undefined,
         accountMappingType,

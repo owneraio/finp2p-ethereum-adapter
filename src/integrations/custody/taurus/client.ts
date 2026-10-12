@@ -147,6 +147,17 @@ export class TaurusClient {
     }
   }
 
+  /** EVM chain id PROTECT operates the configured blockchain/network on. */
+  async getChainId(): Promise<string> {
+    type Entry = { symbol?: string; network?: string; chainId?: string; ethInfo?: { chainId?: string } };
+    const query = `blockchain=${encodeURIComponent(this.config.blockchain)}&network=${encodeURIComponent(this.config.network)}`;
+    const reply = await this.call<{ blockchains?: Entry[]; result?: Entry[] }>('GET', '/api/rest/v1/blockchains', { query });
+    const entries = reply.blockchains ?? reply.result ?? [];
+    const chainId = entries.map(b => b.ethInfo?.chainId || b.chainId).find(Boolean);
+    if (!chainId) throw new Error(`Taurus reports no EVM chain id for ${this.config.blockchain}/${this.config.network}`);
+    return chainId;
+  }
+
   /** A whitelisted+approved contract becomes a PROTECT currency, referenced
    *  by its id (symbols are not unique across networks). */
   async findCurrencyByContract(contractAddress: string): Promise<TaurusCurrency | undefined> {

@@ -46,7 +46,13 @@ import { CommonServiceImpl as DirectCommonServiceImpl } from "./services/operati
 import { registerCustodyIntegrations, registerIntegrations } from "./integrations/registry";
 import { pooledProvider, pooledSigner } from "./integrations/signer-pool";
 import { buildCustodyPlanApprovalService } from "./services/plan-approval";
-import { AppConfig, FinP2PContractAppConfig, getNetworkRpcUrl } from "./config";
+import { AppConfig, FinP2PContractAppConfig } from "./config";
+import { configuredRpcUrl } from "./network-rpc";
+
+/** NETWORK_HOST, or the public endpoint the custody provider resolved for its chain. */
+function chainRpcUrl(custodyProvider: CustodyProvider | undefined): string | undefined {
+  return configuredRpcUrl() ?? custodyProvider?.rpcUrl;
+}
 
 // Register compiled-in custody providers; token standards are registered per-network in registerIntegrations.
 registerCustodyIntegrations();
@@ -93,7 +99,7 @@ async function registerCustodyServices(
   networkAccountService: NetworkAccountService,
   whitelistService: InvestorWhitelistServiceImpl,
 ): Promise<void> {
-  if (!readProvider) throw new Error('Read-only RPC provider is unavailable — set NETWORK_HOST or use a custody provider whose wallet exposes a transport');
+  if (!readProvider) throw new Error(`Custody provider '${appConfig.type}' resolves no RPC endpoint for chain reads; set NETWORK_HOST`);
   if (!escrowWallet) logger.warn('No escrow wallet configured — hold/release/rollback and escrow-backed redeem will fail (set ASSET_ESCROW_CUSTODY_ACCOUNT_ID to enable them)');
 
   const mappingConfig = buildMappingConfig(custodyProvider);
@@ -125,15 +131,12 @@ async function registerCustodyServices(
   }
 
   const assetIssuerKey = process.env.ASSET_ISSUER_PRIVATE_KEY;
-  const networkHost = process.env.NETWORK_HOST;
   if (!assetIssuerKey) {
     logger.warn("ASSET_ISSUER_PRIVATE_KEY is not set — asset deployment and issuance are disabled");
-  } else if (!networkHost) {
-    logger.warn("NETWORK_HOST is not set — asset deployment and issuance are disabled");
   }
   // pooled signer: same NonceManager per key as the token standards use
-  const issuerWallet = assetIssuerKey && networkHost
-    ? { provider: readProvider, signer: pooledSigner(getNetworkRpcUrl(), assetIssuerKey) }
+  const issuerWallet = assetIssuerKey
+    ? { provider: readProvider, signer: pooledSigner(chainRpcUrl(custodyProvider)!, assetIssuerKey) }
     : undefined;
   let tokenService: CustodyTokenService = new CustodyTokenService(logger, custodyProvider, escrowWallet, readProvider, accountMapping, assetStore, issuerWallet);
   const commonService = new DirectCommonServiceImpl(workflowStorage);
@@ -236,13 +239,14 @@ async function createApp(
     ? await custodyProvider.createWalletForCustodyId(escrowAccountId)
     : undefined;
 
-  // The adapter's single read-only RPC provider, decided once here: the plain
-  // NETWORK_HOST endpoint when configured, otherwise the custody transport
-  // (taken from a fabricated custody wallet). Everything downstream receives
-  // this Provider and stays unaware of the choice.
-  const readProvider: Provider | undefined = custodyProvider
-    ? (process.env.NETWORK_HOST ? pooledProvider(getNetworkRpcUrl()) : escrowWallet?.provider)
-    : undefined;
+  // The adapter's single read-only RPC provider, decided once here: NETWORK_HOST
+  // when configured, otherwise a public endpoint of the custodian's chain.
+  // Everything downstream receives this Provider and stays unaware of the choice.
+  const rpcUrl = chainRpcUrl(custodyProvider);
+  if (custodyProvider && rpcUrl && !configuredRpcUrl()) {
+    logger.warn(`NETWORK_HOST is not set — chain reads go through the public RPC ${rpcUrl}; set NETWORK_HOST for production`);
+  }
+  const readProvider: Provider | undefined = custodyProvider && rpcUrl ? pooledProvider(rpcUrl) : undefined;
 
   // Gas funding is app-level composition too: the custody provider only
   // fabricates the wallet for the configured funding account.
@@ -343,7 +347,7 @@ async function createApp(
     pluginManager,
     finP2PClient: finP2PClient!,
     walletResolver: custodyProvider ? createWalletResolver(accountMappingStore, custodyProvider) : undefined,
-    rpcUrl: process.env.NETWORK_HOST ? getNetworkRpcUrl() : undefined,
+    rpcUrl,
     readProvider,
     gasStation,
     omnibusWallet,

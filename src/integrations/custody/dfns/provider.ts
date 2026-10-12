@@ -19,6 +19,10 @@ export class DfnsCustodyProvider implements CustodyProvider {
     this.addressToWalletId = addressToWalletId;
   }
 
+  get rpcUrl(): string {
+    return this.config.rpcUrl;
+  }
+
   private static createDfnsClient(config: DfnsAppConfig): DfnsApiClient {
     const keySigner = new AsymmetricKeySigner({ credId: config.dfnsCredId, privateKey: config.dfnsPrivateKey });
     return new DfnsApiClient({ baseUrl: config.dfnsBaseUrl, orgId: config.dfnsOrgId, authToken: config.dfnsAuthToken, signer: keySigner });

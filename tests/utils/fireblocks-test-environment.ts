@@ -22,6 +22,7 @@ import {
   FireblocksAppConfig,
 } from "../../src/integrations/custody/fireblocks/config";
 import { randomPort } from "./utils";
+import { resolveRpcUrl } from "../../src/network-rpc";
 
 dotenv.config({ path: resolve(process.cwd(), ".env.fireblocks") });
 
@@ -161,6 +162,7 @@ class FireblocksTestEnvironment extends NodeEnvironment {
       apiPrivateKey,
       chainId,
       apiBaseUrl,
+      rpcUrl: resolveRpcUrl(chainId),
     };
 
     await this.startPostgresContainer();

@@ -5,6 +5,9 @@ import { TaurusAppConfig } from "../src/integrations/custody/taurus/config";
 import { custodyProviderConformance } from "./utils/custody-provider-conformance";
 import { runWithIdempotencyKey } from "../src/services/custody/idempotency-scope";
 
+// chain reads in these suites go to a dead local endpoint; the RPC default is covered below
+process.env.NETWORK_HOST = "http://localhost:1";
+
 const CONFIG: TaurusAppConfig = {
   host: "https://taurus.example.test",
   apiKey: "key-1",
@@ -13,7 +16,6 @@ const CONFIG: TaurusAppConfig = {
   operationMode: "transfer-only",
   blockchain: "ETH",
   network: "mainnet",
-  rpcUrl: "http://localhost:1",
   requestPollIntervalMs: 10,
   requestTimeoutMs: 1000,
 };
@@ -419,5 +421,49 @@ describe("pre-approval payload verification of zero-valued arguments", () => {
   test("an honest zero-amount payload verifies", () => {
     const request = { id: "9", status: "CREATED", metadata: payloadOf(fields("0")) };
     expect(() => verifyRequestPayload(request as any, expectation as any)).not.toThrow();
+  });
+});
+
+describe("Taurus chain reads without NETWORK_HOST", () => {
+  const realFetch = global.fetch;
+  const savedHost = process.env.NETWORK_HOST;
+  let calls: string[];
+
+  beforeEach(() => {
+    calls = [];
+    (global as any).fetch = jest.fn(async (url: string) => {
+      const { pathname, search } = new URL(url);
+      calls.push(`${pathname}${search}`);
+      const reply = (b: unknown) => ({ ok: true, status: 200, text: async () => JSON.stringify(b) } as Response);
+      if (pathname === "/api/rest/v1/blockchains") {
+        return reply({ blockchains: [{ symbol: "ETH", network: "mainnet", ethInfo: { chainId: "11155111" } }] });
+      }
+      if (pathname === "/api/rest/v1/addresses") return reply({ result: [] });
+      return { ok: false, status: 404, text: async () => "{}" } as Response;
+    });
+  });
+  afterEach(() => {
+    (global as any).fetch = realFetch;
+    process.env.NETWORK_HOST = savedHost;
+  });
+
+  test("reads the chain PROTECT reports for the configured blockchain/network through its public RPC", async () => {
+    delete process.env.NETWORK_HOST;
+    const provider = await TaurusCustodyProvider.create(CONFIG);
+    expect(provider.rpcUrl).toBe("https://ethereum-sepolia-rpc.publicnode.com");
+    expect(calls).toContain("/api/rest/v1/blockchains?blockchain=ETH&network=mainnet");
+  });
+
+  test("NETWORK_HOST, when set, is used as is and PROTECT is not asked for the chain", async () => {
+    process.env.NETWORK_HOST = "https://rpc.example.test";
+    const provider = await TaurusCustodyProvider.create(CONFIG);
+    expect(provider.rpcUrl).toBe("https://rpc.example.test");
+    expect(calls.some(c => c.startsWith("/api/rest/v1/blockchains"))).toBe(false);
+  });
+
+  test("a chain without a known public RPC asks for NETWORK_HOST", async () => {
+    delete process.env.NETWORK_HOST;
+    (global as any).fetch = jest.fn(async () => ({ ok: true, status: 200, text: async () => JSON.stringify({ blockchains: [{ ethInfo: { chainId: "999999999" } }] }) } as Response));
+    await expect(TaurusCustodyProvider.create(CONFIG)).rejects.toThrow(/No public RPC endpoint is known for chain 999999999; set NETWORK_HOST/);
   });
 });

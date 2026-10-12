@@ -5,6 +5,7 @@ import { TaurusClient } from './client';
 import { TaurusSigner } from './signers/base';
 import { TaurusContractCallSigner } from './signers/contract-call';
 import { TaurusTransferOnlySigner } from './signers/transfer-only';
+import { configuredRpcUrl, resolveRpcUrl } from '../../../network-rpc';
 
 /**
  * Taurus-PROTECT/TDX custody provider (PoC). Custody account id = PROTECT
@@ -19,16 +20,18 @@ export class TaurusCustodyProvider implements CustodyProvider {
     private readonly client: TaurusClient,
     private readonly rpcProvider: Provider,
     private readonly addressToId: Map<string, string>,
+    readonly rpcUrl: string,
   ) {}
 
   static async create(config: TaurusAppConfig): Promise<TaurusCustodyProvider> {
     const client = new TaurusClient(config);
-    const rpcProvider = new JsonRpcProvider(config.rpcUrl);
+    const rpcUrl = configuredRpcUrl() ?? resolveRpcUrl(await client.getChainId());
+    const rpcProvider = new JsonRpcProvider(rpcUrl);
     const addressToId = new Map<string, string>();
     for (const a of await client.listAddresses()) {
       if (a.address) addressToId.set(a.address.toLowerCase(), a.id);
     }
-    return new TaurusCustodyProvider(config, client, rpcProvider, addressToId);
+    return new TaurusCustodyProvider(config, client, rpcProvider, addressToId, rpcUrl);
   }
 
   async resolveWallet(account: string): Promise<CustodyWallet | undefined> {

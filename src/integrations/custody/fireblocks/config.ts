@@ -1,6 +1,7 @@
 import { ApiBaseUrl, ChainId, FireblocksWeb3Provider } from "@fireblocks/fireblocks-web3-provider";
 import { BrowserProvider, JsonRpcProvider, Provider, Signer } from "ethers";
 import { BaseAppConfig } from "../../../config";
+import { resolveRpcUrl } from "../../../network-rpc";
 
 export type FireblocksAppConfig = BaseAppConfig & {
   type: 'fireblocks'
@@ -10,6 +11,7 @@ export type FireblocksAppConfig = BaseAppConfig & {
   apiBaseUrl?: ApiBaseUrl | string
   omnibusVaultId?: string
   localSubmit?: boolean
+  rpcUrl: string
 }
 
 export const createFireblocksEthersProvider = async (config: {
@@ -29,24 +31,6 @@ export const createFireblocksEthersProvider = async (config: {
   const provider = new BrowserProvider(eip1193Provider);
   const signer = await provider.getSigner();
   return { provider, signer };
-};
-
-const getNetworkRpcUrl = (): string => {
-  let networkHost = process.env.NETWORK_HOST;
-  if (!networkHost) {
-    throw new Error("NETWORK_HOST is not set");
-  }
-  const ethereumRPCAuth = process.env.NETWORK_AUTH;
-  if (ethereumRPCAuth) {
-    if (networkHost.startsWith("https://")) {
-      networkHost = "https://" + ethereumRPCAuth + "@" + networkHost.replace("https://", "");
-    } else if (networkHost.startsWith("http://")) {
-      networkHost = "http://" + ethereumRPCAuth + "@" + networkHost.replace("http://", "");
-    } else {
-      networkHost = ethereumRPCAuth + "@" + networkHost;
-    }
-  }
-  return networkHost;
 };
 
 export async function createFireblocksAppConfig(): Promise<Omit<FireblocksAppConfig, 'accountMappingType' | 'accountModel'>> {
@@ -72,12 +56,12 @@ export async function createFireblocksAppConfig(): Promise<Omit<FireblocksAppCon
   const omnibusVaultId = process.env.OMNIBUS_CUSTODY_ACCOUNT_ID || undefined
 
   const localSubmit = process.env.LOCAL_SUBMIT === 'true';
+  const rpcUrl = resolveRpcUrl(chainId);
 
   let provider: Provider;
   let signer: Signer;
 
   if (localSubmit) {
-    const rpcUrl = getNetworkRpcUrl();
     const rpcProvider = new JsonRpcProvider(rpcUrl);
     provider = rpcProvider;
     signer = rpcProvider as any;
@@ -106,5 +90,6 @@ export async function createFireblocksAppConfig(): Promise<Omit<FireblocksAppCon
     apiBaseUrl,
     omnibusVaultId,
     localSubmit,
+    rpcUrl,
   };
 }

@@ -26,6 +26,7 @@ import winston, { format, transports } from "winston";
 import createApp, { WorkflowsConfig } from "../src/app";
 import { FireblocksAppConfig, createFireblocksEthersProvider } from "../src/integrations/custody/fireblocks/config";
 import { randomPort } from "./utils/utils";
+import { resolveRpcUrl } from "../src/network-rpc";
 
 declare const fireblocksConfig: {
   apiKey: string;
@@ -108,6 +109,7 @@ async function startAdapter(depositMethod: "pull" | "ota", finP2PClientMock: any
     apiPrivateKey: fireblocksConfig.apiPrivateKey,
     chainId: fireblocksConfig.chainId,
     apiBaseUrl: fireblocksConfig.apiBaseUrl,
+    rpcUrl: resolveRpcUrl(fireblocksConfig.chainId),
   };
 
   const workflowsConfig: WorkflowsConfig = {
