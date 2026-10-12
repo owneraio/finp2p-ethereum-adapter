@@ -6,6 +6,8 @@ export interface CustodyWallet {
 }
 
 export interface CustodyProvider {
+  /** chain reads served by the custodian itself (no RPC node); when present, NETWORK_HOST is not used */
+  readonly readProvider?: Provider;
   resolveWallet(account: string): Promise<CustodyWallet | undefined>;
   createWalletForCustodyId?(custodyAccountId: string): Promise<CustodyWallet>;
   resolveAddressFromCustodyId?(custodyAccountId: string): Promise<string>;

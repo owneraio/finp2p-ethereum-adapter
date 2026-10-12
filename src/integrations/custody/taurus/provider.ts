@@ -1,10 +1,10 @@
-import { JsonRpcProvider, Provider } from 'ethers';
 import { CustodyProvider, CustodyWallet } from '../../../services/custody';
 import { TaurusAppConfig } from './config';
 import { TaurusClient } from './client';
 import { TaurusSigner } from './signers/base';
 import { TaurusContractCallSigner } from './signers/contract-call';
 import { TaurusTransferOnlySigner } from './signers/transfer-only';
+import { TaurusChainProvider } from './chain-provider';
 
 /**
  * Taurus-PROTECT/TDX custody provider (PoC). Custody account id = PROTECT
@@ -17,18 +17,18 @@ export class TaurusCustodyProvider implements CustodyProvider {
   private constructor(
     private readonly config: TaurusAppConfig,
     private readonly client: TaurusClient,
-    private readonly rpcProvider: Provider,
+    readonly readProvider: TaurusChainProvider,
     private readonly addressToId: Map<string, string>,
   ) {}
 
   static async create(config: TaurusAppConfig): Promise<TaurusCustodyProvider> {
     const client = new TaurusClient(config);
-    const rpcProvider = new JsonRpcProvider(config.rpcUrl);
+    const readProvider = new TaurusChainProvider(client, await client.getChainId());
     const addressToId = new Map<string, string>();
     for (const a of await client.listAddresses()) {
       if (a.address) addressToId.set(a.address.toLowerCase(), a.id);
     }
-    return new TaurusCustodyProvider(config, client, rpcProvider, addressToId);
+    return new TaurusCustodyProvider(config, client, readProvider, addressToId);
   }
 
   async resolveWallet(account: string): Promise<CustodyWallet | undefined> {
@@ -50,8 +50,8 @@ export class TaurusCustodyProvider implements CustodyProvider {
 
   private wallet(addressId: string, address: string): CustodyWallet {
     const signer: TaurusSigner = this.config.operationMode === 'contract-call'
-      ? new TaurusContractCallSigner(this.rpcProvider, this.client, this.config, addressId, address)
-      : new TaurusTransferOnlySigner(this.rpcProvider, this.client, this.config, addressId, address);
-    return { provider: this.rpcProvider, signer };
+      ? new TaurusContractCallSigner(this.readProvider, this.client, this.config, addressId, address)
+      : new TaurusTransferOnlySigner(this.readProvider, this.client, this.config, addressId, address);
+    return { provider: this.readProvider, signer };
   }
 }
