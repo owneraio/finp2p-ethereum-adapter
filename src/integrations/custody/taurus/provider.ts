@@ -1,4 +1,7 @@
+import { JsonRpcProvider, Provider } from 'ethers';
 import { CustodyProvider, CustodyWallet } from '../../../services/custody';
+import { ChainReadScope } from '../../../services/custody/custody-provider';
+import { getNetworkRpcUrl } from '../../../network-host';
 import { TaurusAppConfig } from './config';
 import { TaurusClient } from './client';
 import { TaurusSigner } from './signers/base';
@@ -17,18 +20,30 @@ export class TaurusCustodyProvider implements CustodyProvider {
   private constructor(
     private readonly config: TaurusAppConfig,
     private readonly client: TaurusClient,
-    readonly readProvider: TaurusChainProvider,
+    readonly chainReads: { provider: Provider; scope: ChainReadScope },
     private readonly addressToId: Map<string, string>,
   ) {}
 
   static async create(config: TaurusAppConfig): Promise<TaurusCustodyProvider> {
     const client = new TaurusClient(config);
-    const readProvider = new TaurusChainProvider(client, await client.getChainId());
+    const chainReads = await TaurusCustodyProvider.chainReads(client, await client.getChainId());
     const addressToId = new Map<string, string>();
     for (const a of await client.listAddresses()) {
       if (a.address) addressToId.set(a.address.toLowerCase(), a.id);
     }
-    return new TaurusCustodyProvider(config, client, readProvider, addressToId);
+    return new TaurusCustodyProvider(config, client, chainReads, addressToId);
+  }
+
+  /** NETWORK_HOST when set (checked to be PROTECT's chain), otherwise PROTECT itself, which serves ERC20 reads only. */
+  private static async chainReads(client: TaurusClient, chainId: bigint): Promise<{ provider: Provider; scope: ChainReadScope }> {
+    if (!process.env.NETWORK_HOST) return { provider: new TaurusChainProvider(client, chainId), scope: 'erc20' };
+    const rpc = new JsonRpcProvider(getNetworkRpcUrl());
+    const rpcChainId = (await rpc.getNetwork()).chainId;
+    if (rpcChainId !== chainId) {
+      rpc.destroy();
+      throw new Error(`NETWORK_HOST is on chain ${rpcChainId}, but Taurus PROTECT operates ${client.scope} on chain ${chainId}`);
+    }
+    return { provider: rpc, scope: 'full' };
   }
 
   async resolveWallet(account: string): Promise<CustodyWallet | undefined> {
@@ -50,8 +65,8 @@ export class TaurusCustodyProvider implements CustodyProvider {
 
   private wallet(addressId: string, address: string): CustodyWallet {
     const signer: TaurusSigner = this.config.operationMode === 'contract-call'
-      ? new TaurusContractCallSigner(this.readProvider, this.client, this.config, addressId, address)
-      : new TaurusTransferOnlySigner(this.readProvider, this.client, this.config, addressId, address);
-    return { provider: this.readProvider, signer };
+      ? new TaurusContractCallSigner(this.chainReads.provider, this.client, this.config, addressId, address)
+      : new TaurusTransferOnlySigner(this.chainReads.provider, this.client, this.config, addressId, address);
+    return { provider: this.chainReads.provider, signer };
   }
 }

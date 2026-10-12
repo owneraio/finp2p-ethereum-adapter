@@ -236,15 +236,16 @@ async function createApp(
     ? await custodyProvider.createWalletForCustodyId(escrowAccountId)
     : undefined;
 
-  // The adapter's single read-only provider, decided once here: the custodian's
-  // own chain reads when it serves them (Taurus PROTECT — no RPC node at all),
-  // else the plain NETWORK_HOST endpoint when configured, otherwise the custody
-  // transport (taken from a fabricated custody wallet). Everything downstream
-  // receives this Provider and stays unaware of the choice.
+  // The adapter's single read-only provider, decided once here: a custodian
+  // without an RPC transport decides its own chain reads (Taurus: NETWORK_HOST
+  // when set, else PROTECT); otherwise the plain NETWORK_HOST endpoint when
+  // configured, else the custody transport (taken from a fabricated custody
+  // wallet). Everything downstream receives this Provider and its scope.
   const readProvider: Provider | undefined = custodyProvider
-    ? (custodyProvider.readProvider
+    ? (custodyProvider.chainReads?.provider
       ?? (process.env.NETWORK_HOST ? pooledProvider(getNetworkRpcUrl()) : escrowWallet?.provider))
     : undefined;
+  const chainReadScope = custodyProvider?.chainReads?.scope ?? 'full';
 
   // Gas funding is app-level composition too: the custody provider only
   // fabricates the wallet for the configured funding account.
@@ -347,6 +348,7 @@ async function createApp(
     walletResolver: custodyProvider ? createWalletResolver(accountMappingStore, custodyProvider) : undefined,
     rpcUrl: process.env.NETWORK_HOST ? getNetworkRpcUrl() : undefined,
     readProvider,
+    chainReadScope,
     gasStation,
     omnibusWallet,
     escrowWallet,

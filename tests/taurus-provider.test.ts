@@ -1,4 +1,6 @@
 import { createHash, createHmac, generateKeyPairSync, verify as ecdsaVerify } from "crypto";
+import http from "http";
+import { AddressInfo } from "net";
 import { Contract, Interface, parseUnits } from "ethers";
 import { TaurusClient, decodeToContractCall, TaurusCustodyProvider } from "../src/integrations/custody/taurus";
 import { TaurusAppConfig } from "../src/integrations/custody/taurus/config";
@@ -435,7 +437,7 @@ describe("Taurus chain reads come from PROTECT, never from an RPC node", () => {
   beforeEach(() => {
     calls = [];
     txStatus = "MINED";
-    process.env.NETWORK_HOST = "http://must-not-be-used.invalid";
+    delete process.env.NETWORK_HOST;
     (global as any).fetch = jest.fn(async (url: string, init?: RequestInit) => {
       const { hostname, pathname, search } = new URL(url);
       if (hostname !== "taurus.example.test") throw new Error(`unexpected request to ${url}`);
@@ -467,9 +469,10 @@ describe("Taurus chain reads come from PROTECT, never from an RPC node", () => {
     process.env.NETWORK_HOST = savedHost;
   });
 
-  const readProvider = async () => (await TaurusCustodyProvider.create(CONFIG)).readProvider;
+  const readProvider = async () => (await TaurusCustodyProvider.create(CONFIG)).chainReads.provider;
 
-  test("chain id and block height are PROTECT's, even with NETWORK_HOST set", async () => {
+  test("without NETWORK_HOST, chain id and block height are PROTECT's and the read scope is ERC20", async () => {
+    expect((await TaurusCustodyProvider.create(CONFIG)).chainReads.scope).toBe("erc20");
     const provider = await readProvider();
     expect((await provider.getNetwork()).chainId).toBe(11155111n);
     expect(await provider.getBlockNumber()).toBe(9375001);
@@ -493,6 +496,43 @@ describe("Taurus chain reads come from PROTECT, never from an RPC node", () => {
     await expect(provider.getTransactionCount(HOLDER)).rejects.toThrow(/Taurus PROTECT does not serve 'getTransactionCount'/);
     const other = new Contract(TOKEN_ADDR, ["function totalSupply() view returns (uint256)"], provider);
     await expect(other.totalSupply()).rejects.toThrow(/only ERC20 balanceOf and decimals/);
+  });
+
+  describe("with NETWORK_HOST set", () => {
+    let rpc: http.Server;
+    let rpcChainId: string;
+    let rpcUrl: string;
+    beforeAll(async () => {
+      rpc = http.createServer((req, res) => {
+        let raw = "";
+        req.on("data", c => { raw += c; });
+        req.on("end", () => {
+          const reply = (r: { id: number; method: string }) => ({ jsonrpc: "2.0", id: r.id, result: r.method === "eth_chainId" ? rpcChainId : "0x1" });
+          const body = JSON.parse(raw);
+          res.setHeader("Content-Type", "application/json");
+          res.end(JSON.stringify(Array.isArray(body) ? body.map(reply) : reply(body)));
+        });
+      });
+      await new Promise<void>(r => rpc.listen(0, "127.0.0.1", r));
+      rpcUrl = `http://127.0.0.1:${(rpc.address() as AddressInfo).port}`;
+    });
+    afterAll(() => new Promise<void>(r => rpc.close(() => r())));
+
+    test("the configured RPC serves every read once it is on PROTECT's chain", async () => {
+      rpcChainId = "0xaa36a7";
+      process.env.NETWORK_HOST = rpcUrl;
+      const { chainReads } = await TaurusCustodyProvider.create(CONFIG);
+      expect(chainReads.scope).toBe("full");
+      expect((await chainReads.provider.getNetwork()).chainId).toBe(11155111n);
+      expect(calls.some(c => c.includes("includeBlockHeight"))).toBe(false);
+      (chainReads.provider as any).destroy();
+    });
+
+    test("an RPC on another chain is refused at boot", async () => {
+      rpcChainId = "0x1";
+      process.env.NETWORK_HOST = rpcUrl;
+      await expect(TaurusCustodyProvider.create(CONFIG)).rejects.toThrow(/NETWORK_HOST is on chain 1, but Taurus PROTECT operates ETH\/mainnet on chain 11155111/);
+    });
   });
 
   test("a broadcast transaction is awaited on PROTECT's record of it", async () => {

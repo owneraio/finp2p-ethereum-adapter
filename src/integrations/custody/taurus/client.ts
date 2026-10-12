@@ -172,6 +172,10 @@ export class TaurusClient {
     return entry;
   }
 
+  get scope(): string {
+    return `${this.config.blockchain}/${this.config.network}`;
+  }
+
   /** EVM chain id PROTECT operates the configured blockchain/network on. */
   async getChainId(): Promise<bigint> {
     const entry = await this.blockchain(false);

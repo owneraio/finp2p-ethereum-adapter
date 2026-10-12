@@ -32,7 +32,9 @@ function register(name: string, impl: TokenStandard, holdModel?: HoldModel): str
  */
 export function registerTokenStandards(ctx: IntegrationContext): void {
   const { logger, rpcUrl, readProvider } = ctx;
-  const provider = readProvider ?? (rpcUrl ? pooledProvider(rpcUrl) : undefined);
+  // a configured RPC serves every read; a custodian API may serve ERC20 reads only
+  const provider = rpcUrl ? pooledProvider(rpcUrl) : readProvider;
+  const fullChainReads = !!rpcUrl || ctx.chainReadScope === 'full';
   if (!provider) {
     logger.warn(`Token standards not registered: no chain reads (NETWORK_HOST is not set and the custodian serves none)`);
     return;
@@ -53,28 +55,36 @@ export function registerTokenStandards(ctx: IntegrationContext): void {
   // The issuer is optional on every standard now: pass undefined when the key is
   // absent (issuance stays disabled) rather than a throwaway signer.
   const issuer = issuerKey ? pooledSigner(localSubmitRpcUrl('ASSET_ISSUER_PRIVATE_KEY'), issuerKey) : undefined;
-  // The controller is still a required constructor arg (TREX/CMTAT/BENJI/HEDERA).
-  // Until it too becomes optional, stand in an ephemeral signer when the key is
-  // absent — a required-arg placeholder, not a working signer (on-chain admin
-  // writes with it do not persist across restart).
-  if (!controllerKey) {
-    logger.warn(`Ethereum token standards: ASSET_CONTROLLER_PRIVATE_KEY is not set — using an ephemeral controller; administration will not persist (set the key to enable)`);
+  const registered = [register(ERC20_STANDARD, new ERC20TokenStandard(provider, issuer))];
+
+  if (fullChainReads) {
+    // The controller is still a required constructor arg (TREX/CMTAT/BENJI/HEDERA).
+    // Until it too becomes optional, stand in an ephemeral signer when the key is
+    // absent — a required-arg placeholder, not a working signer (on-chain admin
+    // writes with it do not persist across restart).
+    if (!controllerKey) {
+      logger.warn(`Ethereum token standards: ASSET_CONTROLLER_PRIVATE_KEY is not set — using an ephemeral controller; administration will not persist (set the key to enable)`);
+    }
+    const controller = controllerKey ? pooledSigner(localSubmitRpcUrl('ASSET_CONTROLLER_PRIVATE_KEY'), controllerKey) : Wallet.createRandom().connect(provider);
+    const allowlister = allowlisterKey ? pooledSigner(localSubmitRpcUrl('ASSET_WHITELIST_PRIVATE_KEY'), allowlisterKey) : undefined;
+
+    const atsMechanismsEnv = process.env.HEDERA_ATS_WHITELISTING_MECHANISMS;
+    const kycIssuerAddress = issuerKey ? new Wallet(issuerKey).address : undefined;
+    const atsWhitelisting = parseAtsWhitelistingMechanisms(atsMechanismsEnv, kycIssuerAddress);
+
+    registered.push(
+      register(TREX_STANDARD, new TrexTokenStandard(provider, issuer, controller, allowlister)),
+      register(CMTAT_STANDARD, new CmtatTokenStandard(provider, issuer, controller, allowlister)),
+      register(BENJI_STANDARD, new BenjiTokenStandard(provider, issuer, controller)),
+      register(HEDERA_ATS_STANDARD, new AtsTokenStandard(provider, issuer, controller, allowlister, [], atsWhitelisting), 'holder-reservation'),
+    );
+  } else {
+    for (const key of ['ASSET_CONTROLLER_PRIVATE_KEY', 'ASSET_WHITELIST_PRIVATE_KEY']) {
+      if (process.env[key]) localSubmitRpcUrl(key);
+    }
+    logger.info(`Ethereum token standards: ${TREX_STANDARD}, ${CMTAT_STANDARD}, ${BENJI_STANDARD} and ${HEDERA_ATS_STANDARD} are not registered — the custodian serves ERC20 chain reads only; set NETWORK_HOST to enable them`);
   }
-  const controller = controllerKey ? pooledSigner(localSubmitRpcUrl('ASSET_CONTROLLER_PRIVATE_KEY'), controllerKey) : Wallet.createRandom().connect(provider);
-  const allowlister = allowlisterKey ? pooledSigner(localSubmitRpcUrl('ASSET_WHITELIST_PRIVATE_KEY'), allowlisterKey) : undefined;
-
-  const atsMechanismsEnv = process.env.HEDERA_ATS_WHITELISTING_MECHANISMS;
-  const kycIssuerAddress = issuerKey ? new Wallet(issuerKey).address : undefined;
-  const atsWhitelisting = parseAtsWhitelistingMechanisms(atsMechanismsEnv, kycIssuerAddress);
-
-  const registered = [
-    register(ERC20_STANDARD, new ERC20TokenStandard(provider, issuer)),
-    register(TREX_STANDARD, new TrexTokenStandard(provider, issuer, controller, allowlister)),
-    register(CMTAT_STANDARD, new CmtatTokenStandard(provider, issuer, controller, allowlister)),
-    register(BENJI_STANDARD, new BenjiTokenStandard(provider, issuer, controller)),
-    register(HEDERA_ATS_STANDARD, new AtsTokenStandard(provider, issuer, controller, allowlister, [], atsWhitelisting), 'holder-reservation'),
-  ].filter(Boolean);
-  logger.info(`Ethereum token standards registered: ${registered.join(", ")}`);
+  logger.info(`Ethereum token standards registered: ${registered.filter(Boolean).join(", ")}`);
 
   // OWNERA_COLLATERAL_REGISTRY — gated on COLLATERAL_REGISTRY_ADDRESS +
   // COLLATERAL_AGENT_PRIVATE_KEY (its own signer, separate from the operator).
