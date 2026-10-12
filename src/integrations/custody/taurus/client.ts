@@ -16,6 +16,22 @@ export interface TaurusAddress {
   walletId: string;
   address: string;
   label?: string;
+  balance?: { totalConfirmed?: string };
+}
+
+export interface TaurusBlockchain {
+  chainId?: string;
+  ethInfo?: { chainId?: string };
+  blockHeight?: string;
+}
+
+export interface TaurusTransaction {
+  hash?: string;
+  block?: string;
+  status?: string;
+  isConfirmed?: boolean;
+  receptionDate?: string;
+  confirmationDate?: string;
 }
 
 export interface TaurusCurrency {
@@ -145,6 +161,54 @@ export class TaurusClient {
       if (hit) return hit.id;
       if (page.length < PAGE_LIMIT) return undefined;
     }
+  }
+
+  private async blockchain(includeBlockHeight: boolean): Promise<TaurusBlockchain> {
+    const query = `blockchain=${encodeURIComponent(this.config.blockchain)}&network=${encodeURIComponent(this.config.network)}`
+      + (includeBlockHeight ? '&includeBlockHeight=true' : '');
+    const reply = await this.call<{ blockchains?: TaurusBlockchain[] }>('GET', '/api/rest/v1/blockchains', { query });
+    const entry = reply.blockchains?.[0];
+    if (!entry) throw new Error(`Taurus knows no blockchain ${this.config.blockchain}/${this.config.network}`);
+    return entry;
+  }
+
+  /** EVM chain id PROTECT operates the configured blockchain/network on. */
+  async getChainId(): Promise<bigint> {
+    const entry = await this.blockchain(false);
+    const chainId = entry.ethInfo?.chainId || entry.chainId;
+    if (!chainId) throw new Error(`Taurus reports no EVM chain id for ${this.config.blockchain}/${this.config.network}`);
+    return BigInt(chainId);
+  }
+
+  async getBlockHeight(): Promise<number> {
+    const height = (await this.blockchain(true)).blockHeight;
+    if (!height) throw new Error(`Taurus reports no block height for ${this.config.blockchain}/${this.config.network}`);
+    return Number(height);
+  }
+
+  /** Confirmed balance, in the currency's smallest unit, PROTECT tracks for a chain address. */
+  async getBalance(address: string, currencyId: string): Promise<bigint> {
+    // PROTECT matches addresses case-sensitively against its lowercase storage
+    const query = `currency=${encodeURIComponent(currencyId)}&addresses=${encodeURIComponent(address.toLowerCase())}`
+      + `&blockchain=${encodeURIComponent(this.config.blockchain)}&network=${encodeURIComponent(this.config.network)}`;
+    const reply = await this.call<{ result?: TaurusAddress[] }>('GET', '/api/rest/v1/addresses', { query });
+    const records = (reply.result ?? []).filter(a => a.address?.toLowerCase() === address.toLowerCase());
+    if (records.length === 0) throw new Error(`Taurus holds no address ${address} for currency ${currencyId}; balances are known only for addresses in custody`);
+    return records.reduce((sum, a) => sum + BigInt(a.balance?.totalConfirmed ?? '0'), 0n);
+  }
+
+  /** The chain transaction PROTECT recorded for a hash, once it has seen it. */
+  async findTransaction(hash: string): Promise<TaurusTransaction | undefined> {
+    const query = `hashes=${encodeURIComponent(hash)}`
+      + `&blockchain=${encodeURIComponent(this.config.blockchain)}&network=${encodeURIComponent(this.config.network)}`;
+    const reply = await this.call<{ result?: TaurusTransaction[] }>('GET', '/api/rest/v1/transactions', { query });
+    return (reply.result ?? []).find(t => t.hash?.toLowerCase() === hash.toLowerCase());
+  }
+
+  async findNativeCurrencyOrFail(): Promise<TaurusCurrency> {
+    const native = await this.findNativeCurrency();
+    if (!native) throw new Error(`Taurus has no native currency for ${this.config.blockchain}/${this.config.network}`);
+    return native;
   }
 
   /** A whitelisted+approved contract becomes a PROTECT currency, referenced

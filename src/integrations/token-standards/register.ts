@@ -31,11 +31,17 @@ function register(name: string, impl: TokenStandard, holdModel?: HoldModel): str
  * env-gated.
  */
 export function registerTokenStandards(ctx: IntegrationContext): void {
-  const { logger, rpcUrl } = ctx;
-  if (!rpcUrl) {
-    logger.warn(`Token standards not registered: NETWORK_HOST is not set`);
+  const { logger, rpcUrl, readProvider } = ctx;
+  const provider = readProvider ?? (rpcUrl ? pooledProvider(rpcUrl) : undefined);
+  if (!provider) {
+    logger.warn(`Token standards not registered: no chain reads (NETWORK_HOST is not set and the custodian serves none)`);
     return;
   }
+  // keys that sign and submit their own transactions (local submit) — the one use of NETWORK_HOST
+  const localSubmitRpcUrl = (keyName: string): string => {
+    if (!rpcUrl) throw new Error(`${keyName} signs and submits its own transactions, which needs NETWORK_HOST`);
+    return rpcUrl;
+  };
 
   const issuerKey = process.env.ASSET_ISSUER_PRIVATE_KEY;
   const controllerKey = process.env.ASSET_CONTROLLER_PRIVATE_KEY;
@@ -44,10 +50,9 @@ export function registerTokenStandards(ctx: IntegrationContext): void {
     logger.warn(`Ethereum token standards: ASSET_ISSUER_PRIVATE_KEY is not set — issuance is disabled (reads and whitelist checks still work; set the key to enable)`);
   }
 
-  const provider = pooledProvider(rpcUrl);
   // The issuer is optional on every standard now: pass undefined when the key is
   // absent (issuance stays disabled) rather than a throwaway signer.
-  const issuer = issuerKey ? pooledSigner(rpcUrl, issuerKey) : undefined;
+  const issuer = issuerKey ? pooledSigner(localSubmitRpcUrl('ASSET_ISSUER_PRIVATE_KEY'), issuerKey) : undefined;
   // The controller is still a required constructor arg (TREX/CMTAT/BENJI/HEDERA).
   // Until it too becomes optional, stand in an ephemeral signer when the key is
   // absent — a required-arg placeholder, not a working signer (on-chain admin
@@ -55,8 +60,8 @@ export function registerTokenStandards(ctx: IntegrationContext): void {
   if (!controllerKey) {
     logger.warn(`Ethereum token standards: ASSET_CONTROLLER_PRIVATE_KEY is not set — using an ephemeral controller; administration will not persist (set the key to enable)`);
   }
-  const controller = controllerKey ? pooledSigner(rpcUrl, controllerKey) : Wallet.createRandom().connect(provider);
-  const allowlister = allowlisterKey ? pooledSigner(rpcUrl, allowlisterKey) : undefined;
+  const controller = controllerKey ? pooledSigner(localSubmitRpcUrl('ASSET_CONTROLLER_PRIVATE_KEY'), controllerKey) : Wallet.createRandom().connect(provider);
+  const allowlister = allowlisterKey ? pooledSigner(localSubmitRpcUrl('ASSET_WHITELIST_PRIVATE_KEY'), allowlisterKey) : undefined;
 
   const atsMechanismsEnv = process.env.HEDERA_ATS_WHITELISTING_MECHANISMS;
   const kycIssuerAddress = issuerKey ? new Wallet(issuerKey).address : undefined;
@@ -76,8 +81,8 @@ export function registerTokenStandards(ctx: IntegrationContext): void {
   const collateralRegistry = process.env.COLLATERAL_REGISTRY_ADDRESS;
   const collateralAgentKey = process.env.COLLATERAL_AGENT_PRIVATE_KEY;
   if (collateralRegistry && collateralAgentKey) {
-    const agentSigner = pooledSigner(rpcUrl, collateralAgentKey);
-    const impl = new OwneraCollateralTokenStandard(collateralRegistry, pooledProvider(rpcUrl), agentSigner);
+    const agentSigner = pooledSigner(localSubmitRpcUrl('COLLATERAL_AGENT_PRIVATE_KEY'), collateralAgentKey);
+    const impl = new OwneraCollateralTokenStandard(collateralRegistry, provider, agentSigner);
     if (register(COLLATERAL_TOKEN_STANDARD, impl)) {
       logger.info(`Collateral token standard '${COLLATERAL_TOKEN_STANDARD}' registered: registry=${collateralRegistry}`);
     }
@@ -87,8 +92,8 @@ export function registerTokenStandards(ctx: IntegrationContext): void {
   if (process.env.DTCC_PLUGIN_ENABLED === "true") {
     const operatorKey = process.env.OPERATOR_PRIVATE_KEY!;
     const factoryAddress = process.env.FACTORY_ADDRESS ?? "";
-    const agentSigner = pooledSigner(rpcUrl, operatorKey);
-    const impl = new DtccCollateralTokenStandard(factoryAddress, pooledProvider(rpcUrl), agentSigner);
+    const agentSigner = pooledSigner(localSubmitRpcUrl('OPERATOR_PRIVATE_KEY'), operatorKey);
+    const impl = new DtccCollateralTokenStandard(factoryAddress, provider, agentSigner);
     if (register(DTCC_TOKEN_STANDARD, impl)) {
       logger.info(`DTCC token standard '${DTCC_TOKEN_STANDARD}' registered`);
     }

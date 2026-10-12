@@ -1,3 +1,4 @@
+import { JsonRpcProvider } from "ethers";
 import { TrexTokenStandard } from "@owneraio/finp2p-ethereum-trex-plugin";
 import { CmtatTokenStandard } from "@owneraio/finp2p-ethereum-cmtat-plugin";
 import { BenjiTokenStandard } from "@owneraio/finp2p-ethereum-benji-plugin";
@@ -74,6 +75,34 @@ describe("registerTokenStandards (real plugin standards)", () => {
     for (const [name, cls] of expected) {
       expect(tokenStandardRegistry.has(name)).toBe(true);
       expect(tokenStandardRegistry.resolve(name)).toBeInstanceOf(cls);
+    }
+  });
+
+  test("a custodian that serves chain reads registers the standards without NETWORK_HOST", () => {
+    tokenStandardRegistry.reset();
+    delete process.env.ASSET_ISSUER_PRIVATE_KEY;
+    delete process.env.ASSET_CONTROLLER_PRIVATE_KEY;
+    const savedHost = process.env.NETWORK_HOST;
+    delete process.env.NETWORK_HOST;
+    try {
+      registerTokenStandards({ logger, rpcUrl: undefined, readProvider: new JsonRpcProvider(RPC) } as any);
+      for (const name of ALL) expect(tokenStandardRegistry.has(name)).toBe(true);
+    } finally {
+      process.env.NETWORK_HOST = savedHost;
+    }
+  });
+
+  test("a key that signs and submits its own transactions needs NETWORK_HOST, and says so at boot", () => {
+    tokenStandardRegistry.reset();
+    process.env.ASSET_ISSUER_PRIVATE_KEY = AGENT_KEY;
+    const savedHost = process.env.NETWORK_HOST;
+    delete process.env.NETWORK_HOST;
+    try {
+      expect(() => registerTokenStandards({ logger, rpcUrl: undefined, readProvider: new JsonRpcProvider(RPC) } as any))
+        .toThrow(/ASSET_ISSUER_PRIVATE_KEY signs and submits its own transactions, which needs NETWORK_HOST/);
+    } finally {
+      process.env.NETWORK_HOST = savedHost;
+      delete process.env.ASSET_ISSUER_PRIVATE_KEY;
     }
   });
 
