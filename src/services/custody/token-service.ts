@@ -401,11 +401,8 @@ export class CustodyTokenService implements TokenService, EscrowService, HealthS
       }
 
       const { transactionId, timestamp } = assetSubmission;
-      const settlementExCtx = exCtx && {
-        ...exCtx,
-        counterpartyAssetId: exCtx.counterpartySettlementId,
-        counterpartySettlementId: exCtx.counterpartyAssetId,
-      };
+      // the settlement leg arrives here: receiptToAPI puts the counterparty's binding on source
+      const settlementExCtx = exCtx && { ...exCtx, direction: 'inbound' as const };
       return successfulSwapOperation(
         swapMovementReceipt(`${transactionId}:${asset.asset.assetId}`, transactionId, operationId, asset, exCtx, timestamp),
         swapMovementReceipt(`${transactionId}:${settlement.asset.assetId}`, transactionId, operationId, settlement, settlementExCtx, timestamp),
