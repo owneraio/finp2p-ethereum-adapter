@@ -1,11 +1,12 @@
 import {
-  AbstractSigner, Provider, TransactionDescription, TransactionReceipt, TransactionRequest, TransactionResponse,
+  AbstractSigner, Provider, TransactionDescription, TransactionRequest, TransactionResponse,
   TypedDataDomain, TypedDataField,
 } from 'ethers';
 import { createHash } from 'crypto';
 import { ERC20__factory } from '@owneraio/finp2p-ethereum-erc20-plugin';
 import { TaurusClient, TaurusRequest, transactionHashOf } from '../client';
 import { TaurusAppConfig } from '../config';
+import { TaurusChainProvider } from '../chain-provider';
 import { currentIdempotencyKey } from '../../../../services/custody/idempotency-scope';
 
 /**
@@ -34,9 +35,6 @@ import { currentIdempotencyKey } from '../../../../services/custody/idempotency-
  */
 
 export const TOKEN_CONTRACT_ABI = ERC20__factory.createInterface();
-
-const MINED = new Set(['SUCCESS', 'MINED']);
-const TRANSACTION_FAILED = new Set(['INVALID', 'TIMEOUT', 'LOST', 'EXPIRED']);
 
 const TERMINAL_FAIL = new Set([
   'REJECTED', 'FAILED', 'CANCELED', 'CANCELLED', 'EXPIRED',
@@ -100,28 +98,12 @@ export abstract class TaurusSigner extends AbstractSigner {
       await this.client.approveRequests([request]);
     }
     const hash = await this.waitForHash(request.id);
-    return { hash, wait: async () => this.waitForMined(hash) } as unknown as TransactionResponse;
-  }
-
-  /** Taurus broadcast the transaction; PROTECT, not an RPC node, reports when it is mined. */
-  private async waitForMined(hash: string): Promise<TransactionReceipt> {
-    const deadline = Date.now() + this.config.requestTimeoutMs;
-    while (Date.now() < deadline) {
-      const tx = await this.client.findTransaction(hash);
-      const status = tx?.status?.toUpperCase();
-      if (tx && status && (MINED.has(status) || TRANSACTION_FAILED.has(status))) {
-        const recorded = tx.confirmationDate ?? tx.receptionDate;
-        const timestamp = Math.floor((recorded ? Date.parse(recorded) : Date.now()) / 1000);
-        return {
-          hash,
-          status: MINED.has(status) ? 1 : 0,
-          blockNumber: tx.block ? Number(tx.block) : null,
-          getBlock: async () => ({ timestamp }),
-        } as unknown as TransactionReceipt;
-      }
-      await new Promise(r => setTimeout(r, this.config.requestPollIntervalMs));
-    }
-    throw new Error(`Taurus broadcast ${hash} but PROTECT did not report it mined within ${this.config.requestTimeoutMs}ms; it may still confirm, do not resubmit`);
+    // ethers Contract re-wraps this response on the provider and waits through
+    // block subscriptions; on PROTECT reads, settle here on PROTECT's record
+    // (serialized, bounded, failing on permanent errors) so that wait finds the
+    // receipt at once
+    if (this.provider instanceof TaurusChainProvider) await this.provider.waitForTransaction(hash);
+    return { hash, wait: async () => this.provider!.waitForTransaction(hash) } as unknown as TransactionResponse;
   }
 
   private async waitForHash(requestId: string): Promise<string> {
