@@ -3,6 +3,7 @@ import http from "http";
 import { AddressInfo } from "net";
 import { Contract, Interface, parseUnits } from "ethers";
 import { TaurusClient, decodeToContractCall, TaurusCustodyProvider } from "../src/integrations/custody/taurus";
+import { ERC20TokenStandard } from "@owneraio/finp2p-ethereum-erc20-plugin";
 import { TaurusAppConfig } from "../src/integrations/custody/taurus/config";
 import { custodyProviderConformance } from "./utils/custody-provider-conformance";
 import { runWithIdempotencyKey } from "../src/services/custody/idempotency-scope";
@@ -120,6 +121,7 @@ describe("TaurusSigner request lifecycle (mocked backend)", () => {
   const OPERATOR_PEM = privateKey.export({ type: "pkcs8", format: "pem" }) as string;
 
   const INTERNAL_B = "0x00000000000000000000000000000000000000bb";
+  const TX_HASH = "0x" + "de".repeat(32);
 
   function requestMetadata(fields: Record<string, unknown>, tamper?: (f: Record<string, unknown>) => void) {
     const items = Object.entries(fields).map(([key, value]) => ({ key, type: "x", value, column: "" }));
@@ -134,9 +136,11 @@ describe("TaurusSigner request lifecycle (mocked backend)", () => {
     return { hash, payloadAsString };
   }
 
-  function lifecycleBackend(opts: { whitelisted?: boolean; tamperDestination?: string } = {}) {
+  function lifecycleBackend(opts: { whitelisted?: boolean; tamperDestination?: string; txStatuses?: string[] } = {}) {
     const statuses = ["APPROVING", "HSM_SIGNED", "BROADCASTING"];
+    const txStatuses = opts.txStatuses ?? ["SUCCESS"];
     let polls = 0;
+    let txPolls = 0;
     const calls: string[] = [];
     const bodies: Record<string, unknown[]> = {};
     const address = (a: string) => ({ payload: { address: a } });
@@ -150,7 +154,11 @@ describe("TaurusSigner request lifecycle (mocked backend)", () => {
         reply({ result: { id: "77", status: "CREATED", metadata: requestMetadata(fields) } });
 
       if (path === "/api/rest/v1/blockchains") {
-        return reply({ blockchains: [{ symbol: "ETH", network: "mainnet", ethInfo: { chainId: "11155111" } }] });
+        return reply({ blockchains: [{ symbol: "ETH", network: "mainnet", ethInfo: { chainId: "11155111" }, blockHeight: "11904960" }] });
+      }
+      if (path === "/api/rest/v1/transactions") {
+        const status = txStatuses[Math.min(txPolls++, txStatuses.length - 1)];
+        return reply({ result: [{ hash: TX_HASH, status, block: "11904950", sources: [{ address: FROM.toLowerCase() }] }] });
       }
       if (path === "/api/rest/v1/addresses") {
         return reply({ result: [{ id: "42", walletId: "7", address: FROM }, { id: "43", walletId: "7", address: INTERNAL_B }] });
@@ -200,7 +208,7 @@ describe("TaurusSigner request lifecycle (mocked backend)", () => {
         return reply({
           result: {
             id: "77", status,
-            ...(status === "BROADCASTING" ? { signedRequests: [{ id: "1", status, hash: "0xdeadbeef" }] } : {}),
+            ...(status === "BROADCASTING" ? { signedRequests: [{ id: "1", status, hash: TX_HASH }] } : {}),
           },
         });
       }
@@ -224,7 +232,7 @@ describe("TaurusSigner request lifecycle (mocked backend)", () => {
 
     const CHECKSUMMED_DEST = "0xCD971e054569Fd0C430B92B2E8098ACe3638eE58";
     const tx = await wallet.signer.sendTransaction({ to: TOKEN, data: erc20.encodeFunctionData("transfer", [CHECKSUMMED_DEST, 5n]) });
-    expect(tx.hash).toBe("0xdeadbeef");
+    expect(tx.hash).toBe(TX_HASH);
     expect(calls).toContain("GET /api/rest/v1/currencies");
     expect(calls).toContain("POST /api/rest/v1/requests/outgoing/transfers/address_to_address");
     expect(calls).toContain("POST /api/rest/v1/requests/approve");
@@ -236,6 +244,32 @@ describe("TaurusSigner request lifecycle (mocked backend)", () => {
     expect(created.amount).toBe("5");
   });
 
+  // the path a plan's transfer takes: the ERC20 plugin sends through ethers
+  // Contract, which re-wraps the signer's response on the provider, so the
+  // receipt must come from the provider — PROTECT's record without NETWORK_HOST
+  test("an ERC20 plugin transfer completes on PROTECT's record of the broadcast, without NETWORK_HOST", async () => {
+    const { fetchMock, calls } = lifecycleBackend({ txStatuses: ["PENDING", "SUCCESS"] });
+    (global as any).fetch = fetchMock;
+    delete process.env.NETWORK_HOST;
+    const wallet = await walletOf(OPERATOR_PEM);
+    const asset = { contractAddress: TOKEN, decimals: 2, tokenStandard: "ERC20" };
+    const result = await new ERC20TokenStandard(wallet.provider, undefined)
+      .transfer(wallet, asset, INTERNAL_B, 5n, console as any);
+    expect(result).toEqual({ status: "success", transactionId: TX_HASH, timestamp: expect.any(Number) });
+    expect(calls.filter(c => c === "GET /api/rest/v1/transactions").length).toBeGreaterThanOrEqual(2);
+  });
+
+  test("a broadcast PROTECT reports as failed fails the plugin operation instead of hanging", async () => {
+    const { fetchMock } = lifecycleBackend({ txStatuses: ["INVALID"] });
+    (global as any).fetch = fetchMock;
+    delete process.env.NETWORK_HOST;
+    const wallet = await walletOf(OPERATOR_PEM);
+    const asset = { contractAddress: TOKEN, decimals: 2, tokenStandard: "ERC20" };
+    const result = await new ERC20TokenStandard(wallet.provider, undefined)
+      .transfer(wallet, asset, INTERNAL_B, 5n, console as any);
+    expect(result.status).toBe("failure");
+  });
+
   test("contract-call mode: every token operation is a structured contract call", async () => {
     const { fetchMock, calls, bodies } = lifecycleBackend();
     (global as any).fetch = fetchMock;
@@ -244,7 +278,7 @@ describe("TaurusSigner request lifecycle (mocked backend)", () => {
 
     await wallet.signer.sendTransaction({ to: TOKEN, data: mintable.encodeFunctionData("mint", [FROM, 7n]) });
     const tx = await wallet.signer.sendTransaction({ to: TOKEN, data: erc20.encodeFunctionData("transfer", [FROM, 5n]) });
-    expect(tx.hash).toBe("0xdeadbeef");
+    expect(tx.hash).toBe(TX_HASH);
     expect(calls).not.toContain("POST /api/rest/v1/requests/outgoing/transfers/address_to_address");
     const [mint, transfer] = bodies["/api/rest/v1/requests/outgoing/contracts/call"] as any[];
     expect(mint.toWhitelistedAddressId).toBe("9"); // resolved via /whitelists/addresses
@@ -261,7 +295,7 @@ describe("TaurusSigner request lifecycle (mocked backend)", () => {
     const wallet = await walletOf(OPERATOR_PEM);
 
     const tx = await wallet.signer.sendTransaction({ to: INTERNAL_B, value: 7000n });
-    expect(tx.hash).toBe("0xdeadbeef");
+    expect(tx.hash).toBe(TX_HASH);
     const created = bodies["/api/rest/v1/requests/outgoing/transfers/address_to_address"][0] as any;
     expect(created.currency).toBe("native1");
     expect(created.toAddress).toBe(INTERNAL_B);
@@ -337,7 +371,7 @@ describe("TaurusSigner request lifecycle (mocked backend)", () => {
     const wallet = await walletOf(undefined);
 
     const tx = await wallet.signer.sendTransaction({ to: TOKEN, data: erc20.encodeFunctionData("transfer", [FROM, 5n]) });
-    expect(tx.hash).toBe("0xdeadbeef");
+    expect(tx.hash).toBe(TX_HASH);
     expect(calls).not.toContain("POST /api/rest/v1/requests/approve");
   });
 
@@ -453,7 +487,11 @@ describe("Taurus chain reads come from PROTECT, never from an RPC node", () => {
             { id: "usdc", symbol: "USDC", type: "token", blockchain: "ETH", network: "mainnet", contractAddress: TOKEN_ADDR, decimals: "6" },
           ] });
         case "/api/rest/v1/addresses": {
-          if (!q.get("currency")) return reply({ result: [{ id: "42", walletId: "7", address: HOLDER }] });
+          const custody = [HOLDER, "0x2132acf642900d264ef0c5c1172154b356d5b2a9"];
+          const wanted = q.get("addresses");
+          if (wanted && !custody.includes(wanted)) return reply({});
+          if (q.get("currency") && wanted !== HOLDER) return reply({});
+          if (!q.get("currency")) return reply({ result: [{ id: "42", walletId: "7", address: wanted ?? HOLDER }] });
           const balance = q.get("currency") === "usdc" ? "1250000" : "52000000000000000";
           return reply({ result: [{ id: "42", walletId: "7", address: HOLDER, balance: { totalConfirmed: balance } }] });
         }
@@ -535,13 +573,21 @@ describe("Taurus chain reads come from PROTECT, never from an RPC node", () => {
     });
   });
 
-  test("a broadcast transaction is awaited on PROTECT's record of it", async () => {
-    const wallet = (await (await TaurusCustodyProvider.create(CONFIG)).resolveWallet(HOLDER))!;
-    const receipt = await (wallet.signer as any).waitForMined("0xabc");
-    expect(receipt.status).toBe(1);
-    expect(receipt.blockNumber).toBe(9374990);
-    expect((await receipt.getBlock()).timestamp).toBe(Date.parse("2026-10-12T10:00:00Z") / 1000);
+  test("receipts of broadcast transactions come from PROTECT's record", async () => {
+    const provider = await readProvider();
+    const receipt = await provider.getTransactionReceipt("0x" + "a1".repeat(32));
+    expect(receipt?.status).toBe(1);
+    expect(receipt?.blockNumber).toBe(9374990);
     txStatus = "INVALID";
-    expect((await (wallet.signer as any).waitForMined("0xabc")).status).toBe(0);
+    expect((await provider.getTransactionReceipt("0x" + "a2".repeat(32)))?.status).toBe(0);
+    txStatus = "PENDING";
+    expect(await provider.getTransactionReceipt("0x" + "a3".repeat(32))).toBeNull();
+  });
+
+  test("an address PROTECT holds but without a record for the currency has a zero balance", async () => {
+    const provider = await readProvider();
+    const token = new Contract(TOKEN_ADDR, ["function balanceOf(address) view returns (uint256)"], provider);
+    expect(await token.balanceOf("0x2132acf642900d264ef0c5c1172154b356d5b2a9")).toBe(0n);
+    await expect(token.balanceOf("0xad866063f66cc43fe37912f21ac448a75c1d14cf")).rejects.toThrow(/Taurus holds no address/);
   });
 });
