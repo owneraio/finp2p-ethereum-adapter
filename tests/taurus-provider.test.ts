@@ -1,5 +1,7 @@
 import { createHash, createHmac, generateKeyPairSync, verify as ecdsaVerify } from "crypto";
-import { Interface, parseUnits } from "ethers";
+import http from "http";
+import { AddressInfo } from "net";
+import { Contract, Interface, parseUnits } from "ethers";
 import { TaurusClient, decodeToContractCall, TaurusCustodyProvider } from "../src/integrations/custody/taurus";
 import { TaurusAppConfig } from "../src/integrations/custody/taurus/config";
 import { custodyProviderConformance } from "./utils/custody-provider-conformance";
@@ -13,7 +15,6 @@ const CONFIG: TaurusAppConfig = {
   operationMode: "transfer-only",
   blockchain: "ETH",
   network: "mainnet",
-  rpcUrl: "http://localhost:1",
   requestPollIntervalMs: 10,
   requestTimeoutMs: 1000,
 };
@@ -148,6 +149,9 @@ describe("TaurusSigner request lifecycle (mocked backend)", () => {
       const createdRequest = (fields: Record<string, unknown>) =>
         reply({ result: { id: "77", status: "CREATED", metadata: requestMetadata(fields) } });
 
+      if (path === "/api/rest/v1/blockchains") {
+        return reply({ blockchains: [{ symbol: "ETH", network: "mainnet", ethInfo: { chainId: "11155111" } }] });
+      }
       if (path === "/api/rest/v1/addresses") {
         return reply({ result: [{ id: "42", walletId: "7", address: FROM }, { id: "43", walletId: "7", address: INTERNAL_B }] });
       }
@@ -208,18 +212,15 @@ describe("TaurusSigner request lifecycle (mocked backend)", () => {
   const realFetch = global.fetch;
   afterEach(() => { (global as any).fetch = realFetch; });
 
-  async function walletWithoutRpc(operatorPrivateKey?: string, operationMode: TaurusAppConfig["operationMode"] = "transfer-only") {
+  async function walletOf(operatorPrivateKey?: string, operationMode: TaurusAppConfig["operationMode"] = "transfer-only") {
     const provider = await TaurusCustodyProvider.create({ ...CONFIG, operatorPrivateKey, operationMode });
-    const wallet = await provider.resolveWallet(FROM);
-    (wallet!.provider as any).getTransaction = async () => null; // no live RPC in test
-    (wallet!.signer as any).provider.getTransaction = async () => null;
-    return wallet!;
+    return (await provider.resolveWallet(FROM))!;
   }
 
   test("ERC20 transfer: currency-based address_to_address request -> approve -> poll signedRequests hash", async () => {
     const { fetchMock, calls, bodies } = lifecycleBackend();
     (global as any).fetch = fetchMock;
-    const wallet = await walletWithoutRpc(OPERATOR_PEM);
+    const wallet = await walletOf(OPERATOR_PEM);
 
     const CHECKSUMMED_DEST = "0xCD971e054569Fd0C430B92B2E8098ACe3638eE58";
     const tx = await wallet.signer.sendTransaction({ to: TOKEN, data: erc20.encodeFunctionData("transfer", [CHECKSUMMED_DEST, 5n]) });
@@ -238,7 +239,7 @@ describe("TaurusSigner request lifecycle (mocked backend)", () => {
   test("contract-call mode: every token operation is a structured contract call", async () => {
     const { fetchMock, calls, bodies } = lifecycleBackend();
     (global as any).fetch = fetchMock;
-    const wallet = await walletWithoutRpc(OPERATOR_PEM, "contract-call");
+    const wallet = await walletOf(OPERATOR_PEM, "contract-call");
     const mintable = new Interface(["function mint(address,uint256)"]);
 
     await wallet.signer.sendTransaction({ to: TOKEN, data: mintable.encodeFunctionData("mint", [FROM, 7n]) });
@@ -257,7 +258,7 @@ describe("TaurusSigner request lifecycle (mocked backend)", () => {
   test("native transfers to internal custody addresses go as native-currency transfers", async () => {
     const { fetchMock, bodies } = lifecycleBackend();
     (global as any).fetch = fetchMock;
-    const wallet = await walletWithoutRpc(OPERATOR_PEM);
+    const wallet = await walletOf(OPERATOR_PEM);
 
     const tx = await wallet.signer.sendTransaction({ to: INTERNAL_B, value: 7000n });
     expect(tx.hash).toBe("0xdeadbeef");
@@ -270,7 +271,7 @@ describe("TaurusSigner request lifecycle (mocked backend)", () => {
   test("a request whose signed payload differs from the submission is never approved", async () => {
     const { fetchMock, calls } = lifecycleBackend({ tamperDestination: "0x000000000000000000000000000000000000dead" });
     (global as any).fetch = fetchMock;
-    const wallet = await walletWithoutRpc(OPERATOR_PEM);
+    const wallet = await walletOf(OPERATOR_PEM);
 
     await expect(wallet.signer.sendTransaction({ to: TOKEN, data: erc20.encodeFunctionData("transfer", [FROM, 5n]) }))
       .rejects.toThrow(/failed pre-approval verification/);
@@ -280,7 +281,7 @@ describe("TaurusSigner request lifecycle (mocked backend)", () => {
   test("a contract call whose payload names a different destination contract is never approved", async () => {
     const { fetchMock, calls } = lifecycleBackend({ tamperDestination: "0x000000000000000000000000000000000000dead" });
     (global as any).fetch = fetchMock;
-    const wallet = await walletWithoutRpc(OPERATOR_PEM, "contract-call");
+    const wallet = await walletOf(OPERATOR_PEM, "contract-call");
     const mintable = new Interface(["function mint(address,uint256)"]);
 
     await expect(wallet.signer.sendTransaction({ to: TOKEN, data: mintable.encodeFunctionData("mint", [FROM, 7n]) }))
@@ -291,7 +292,7 @@ describe("TaurusSigner request lifecycle (mocked backend)", () => {
   test("a blank idempotency key omits externalRequestId instead of sending ''", async () => {
     const { fetchMock, bodies } = lifecycleBackend();
     (global as any).fetch = fetchMock;
-    const wallet = await walletWithoutRpc(OPERATOR_PEM);
+    const wallet = await walletOf(OPERATOR_PEM);
 
     await runWithIdempotencyKey("", () =>
       wallet.signer.sendTransaction({ to: TOKEN, data: erc20.encodeFunctionData("transfer", [FROM, 5n]) }));
@@ -302,7 +303,7 @@ describe("TaurusSigner request lifecycle (mocked backend)", () => {
   test("the adapter idempotency key rides as externalRequestId", async () => {
     const { fetchMock, bodies } = lifecycleBackend();
     (global as any).fetch = fetchMock;
-    const wallet = await walletWithoutRpc(OPERATOR_PEM);
+    const wallet = await walletOf(OPERATOR_PEM);
 
     await runWithIdempotencyKey("idem-123", () =>
       wallet.signer.sendTransaction({ to: TOKEN, data: erc20.encodeFunctionData("transfer", [FROM, 5n]) }));
@@ -313,7 +314,7 @@ describe("TaurusSigner request lifecycle (mocked backend)", () => {
   test("contract-call mode refuses native transfers", async () => {
     const { fetchMock, calls } = lifecycleBackend();
     (global as any).fetch = fetchMock;
-    const wallet = await walletWithoutRpc(OPERATOR_PEM, "contract-call");
+    const wallet = await walletOf(OPERATOR_PEM, "contract-call");
     await expect(wallet.signer.sendTransaction({ to: TOKEN, value: 5n }))
       .rejects.toThrow(/contract-call mode submits contract calls only/);
     expect(calls.filter(c => c.includes("/requests/")).length).toBe(0);
@@ -322,7 +323,7 @@ describe("TaurusSigner request lifecycle (mocked backend)", () => {
   test("transfer-only mode refuses non-transfer token operations", async () => {
     const { fetchMock, calls } = lifecycleBackend();
     (global as any).fetch = fetchMock;
-    const wallet = await walletWithoutRpc(OPERATOR_PEM);
+    const wallet = await walletOf(OPERATOR_PEM);
     const mintable = new Interface(["function mint(address,uint256)"]);
 
     await expect(wallet.signer.sendTransaction({ to: TOKEN, data: mintable.encodeFunctionData("mint", [FROM, 7n]) }))
@@ -333,7 +334,7 @@ describe("TaurusSigner request lifecycle (mocked backend)", () => {
   test("without an operator key the request is left for manual approval, not self-approved", async () => {
     const { fetchMock, calls } = lifecycleBackend();
     (global as any).fetch = fetchMock;
-    const wallet = await walletWithoutRpc(undefined);
+    const wallet = await walletOf(undefined);
 
     const tx = await wallet.signer.sendTransaction({ to: TOKEN, data: erc20.encodeFunctionData("transfer", [FROM, 5n]) });
     expect(tx.hash).toBe("0xdeadbeef");
@@ -343,7 +344,7 @@ describe("TaurusSigner request lifecycle (mocked backend)", () => {
   test("native transfers keep the amount in the smallest unit (wei)", async () => {
     const { fetchMock, bodies } = lifecycleBackend();
     (global as any).fetch = fetchMock;
-    const wallet = await walletWithoutRpc(OPERATOR_PEM);
+    const wallet = await walletOf(OPERATOR_PEM);
 
     await wallet.signer.sendTransaction({ to: TOKEN, value: 1000000000000000n });
     const created = bodies["/api/rest/v1/requests/outgoing"][0] as any;
@@ -371,6 +372,7 @@ function mockBackend() {
   return jest.fn(async (url: string) => {
     const path = new URL(url).pathname;
     const body =
+      path === "/api/rest/v1/blockchains" ? { blockchains: [{ ethInfo: { chainId: "11155111" } }] } :
       path === "/api/rest/v1/addresses" ? { result: addresses } :
         path === "/api/rest/v1/addresses/42" ? { result: addresses[0] } :
           undefined;
@@ -419,5 +421,127 @@ describe("pre-approval payload verification of zero-valued arguments", () => {
   test("an honest zero-amount payload verifies", () => {
     const request = { id: "9", status: "CREATED", metadata: payloadOf(fields("0")) };
     expect(() => verifyRequestPayload(request as any, expectation as any)).not.toThrow();
+  });
+});
+
+// ---- chain reads served by PROTECT (no RPC node) ----------------------------
+
+describe("Taurus chain reads come from PROTECT, never from an RPC node", () => {
+  const HOLDER = "0x5a814de4cec9414f28ff2a837c043f2405c07363";
+  const TOKEN_ADDR = "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238";
+  const realFetch = global.fetch;
+  const savedHost = process.env.NETWORK_HOST;
+  let calls: string[];
+  let txStatus: string;
+
+  beforeEach(() => {
+    calls = [];
+    txStatus = "MINED";
+    delete process.env.NETWORK_HOST;
+    (global as any).fetch = jest.fn(async (url: string, init?: RequestInit) => {
+      const { hostname, pathname, search } = new URL(url);
+      if (hostname !== "taurus.example.test") throw new Error(`unexpected request to ${url}`);
+      calls.push(`${init?.method ?? "GET"} ${pathname}${search}`);
+      const reply = (b: unknown) => ({ ok: true, status: 200, text: async () => JSON.stringify(b) } as Response);
+      const q = new URLSearchParams(search);
+      switch (pathname) {
+        case "/api/rest/v1/blockchains":
+          return reply({ blockchains: [{ symbol: "ETH", network: "mainnet", ethInfo: { chainId: "11155111" }, blockHeight: "9375001" }] });
+        case "/api/rest/v1/currencies":
+          return reply({ result: [
+            { id: "eth-native", symbol: "ETH", type: "native", blockchain: "ETH", network: "mainnet", decimals: "18" },
+            { id: "usdc", symbol: "USDC", type: "token", blockchain: "ETH", network: "mainnet", contractAddress: TOKEN_ADDR, decimals: "6" },
+          ] });
+        case "/api/rest/v1/addresses": {
+          if (!q.get("currency")) return reply({ result: [{ id: "42", walletId: "7", address: HOLDER }] });
+          const balance = q.get("currency") === "usdc" ? "1250000" : "52000000000000000";
+          return reply({ result: [{ id: "42", walletId: "7", address: HOLDER, balance: { totalConfirmed: balance } }] });
+        }
+        case "/api/rest/v1/transactions":
+          return reply({ result: [{ hash: q.get("hashes"), status: txStatus, block: "9374990", confirmationDate: "2026-10-12T10:00:00Z" }] });
+        default:
+          return { ok: false, status: 404, text: async () => "{}" } as Response;
+      }
+    });
+  });
+  afterEach(() => {
+    (global as any).fetch = realFetch;
+    process.env.NETWORK_HOST = savedHost;
+  });
+
+  const readProvider = async () => (await TaurusCustodyProvider.create(CONFIG)).chainReads.provider;
+
+  test("without NETWORK_HOST, chain id and block height are PROTECT's and the read scope is ERC20", async () => {
+    expect((await TaurusCustodyProvider.create(CONFIG)).chainReads.scope).toBe("erc20");
+    const provider = await readProvider();
+    expect((await provider.getNetwork()).chainId).toBe(11155111n);
+    expect(await provider.getBlockNumber()).toBe(9375001);
+    expect(calls).toContain("GET /api/rest/v1/blockchains?blockchain=ETH&network=mainnet&includeBlockHeight=true");
+  });
+
+  test("ERC20 decimals and balanceOf resolve through the PROTECT currency of the contract", async () => {
+    const provider = await readProvider();
+    const token = new Contract(TOKEN_ADDR, ["function decimals() view returns (uint8)", "function balanceOf(address) view returns (uint256)"], provider);
+    expect(await token.decimals()).toBe(6n);
+    expect(await token.balanceOf(HOLDER)).toBe(1250000n);
+    expect(calls.some(c => c.startsWith("GET /api/rest/v1/addresses?currency=usdc&addresses=0x5a814de4"))).toBe(true);
+  });
+
+  test("native balance is the confirmed balance of the native currency", async () => {
+    expect(await (await readProvider()).getBalance(HOLDER)).toBe(52000000000000000n);
+  });
+
+  test("reads PROTECT cannot answer are refused, not guessed", async () => {
+    const provider = await readProvider();
+    await expect(provider.getTransactionCount(HOLDER)).rejects.toThrow(/Taurus PROTECT does not serve 'getTransactionCount'/);
+    const other = new Contract(TOKEN_ADDR, ["function totalSupply() view returns (uint256)"], provider);
+    await expect(other.totalSupply()).rejects.toThrow(/only ERC20 balanceOf and decimals/);
+  });
+
+  describe("with NETWORK_HOST set", () => {
+    let rpc: http.Server;
+    let rpcChainId: string;
+    let rpcUrl: string;
+    beforeAll(async () => {
+      rpc = http.createServer((req, res) => {
+        let raw = "";
+        req.on("data", c => { raw += c; });
+        req.on("end", () => {
+          const reply = (r: { id: number; method: string }) => ({ jsonrpc: "2.0", id: r.id, result: r.method === "eth_chainId" ? rpcChainId : "0x1" });
+          const body = JSON.parse(raw);
+          res.setHeader("Content-Type", "application/json");
+          res.end(JSON.stringify(Array.isArray(body) ? body.map(reply) : reply(body)));
+        });
+      });
+      await new Promise<void>(r => rpc.listen(0, "127.0.0.1", r));
+      rpcUrl = `http://127.0.0.1:${(rpc.address() as AddressInfo).port}`;
+    });
+    afterAll(() => new Promise<void>(r => rpc.close(() => r())));
+
+    test("the configured RPC serves every read once it is on PROTECT's chain", async () => {
+      rpcChainId = "0xaa36a7";
+      process.env.NETWORK_HOST = rpcUrl;
+      const { chainReads } = await TaurusCustodyProvider.create(CONFIG);
+      expect(chainReads.scope).toBe("full");
+      expect((await chainReads.provider.getNetwork()).chainId).toBe(11155111n);
+      expect(calls.some(c => c.includes("includeBlockHeight"))).toBe(false);
+      (chainReads.provider as any).destroy();
+    });
+
+    test("an RPC on another chain is refused at boot", async () => {
+      rpcChainId = "0x1";
+      process.env.NETWORK_HOST = rpcUrl;
+      await expect(TaurusCustodyProvider.create(CONFIG)).rejects.toThrow(/NETWORK_HOST is on chain 1, but Taurus PROTECT operates ETH\/mainnet on chain 11155111/);
+    });
+  });
+
+  test("a broadcast transaction is awaited on PROTECT's record of it", async () => {
+    const wallet = (await (await TaurusCustodyProvider.create(CONFIG)).resolveWallet(HOLDER))!;
+    const receipt = await (wallet.signer as any).waitForMined("0xabc");
+    expect(receipt.status).toBe(1);
+    expect(receipt.blockNumber).toBe(9374990);
+    expect((await receipt.getBlock()).timestamp).toBe(Date.parse("2026-10-12T10:00:00Z") / 1000);
+    txStatus = "INVALID";
+    expect((await (wallet.signer as any).waitForMined("0xabc")).status).toBe(0);
   });
 });

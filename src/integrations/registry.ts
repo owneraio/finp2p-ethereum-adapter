@@ -5,6 +5,7 @@ import { InboundTransferHook } from "@owneraio/finp2p-nodejs-skeleton-adapter/pl
 import { FinP2PClient } from "@owneraio/finp2p-client";
 import { FinP2PContract } from "@owneraio/finp2p-ethereum-orchestrator";
 import { CustodyProvider, CustodyWallet } from "../services/custody";
+import { ChainReadScope } from "../services/custody/custody-provider";
 import { GasStation } from "../services/gas-station";
 import { WalletResolver } from "./wallet-resolver";
 import { AssetStore } from "../services/accounts";
@@ -22,8 +23,10 @@ export interface IntegrationContext {
   finP2PClient: FinP2PClient;
   walletResolver: WalletResolver | undefined;
   rpcUrl: string | undefined;
-  /** app-level read-only RPC provider (NETWORK_HOST or the custody transport) */
+  /** app-level read-only provider (NETWORK_HOST, the custody transport, or the custodian's own API) */
   readProvider: Provider | undefined;
+  /** what readProvider can serve; 'erc20' for a custodian API without an RPC node */
+  chainReadScope: ChainReadScope;
   /** app-level gas station (GAS_FUNDING_* over a custody-fabricated wallet) */
   gasStation: GasStation | undefined;
   /** omnibus wallet fabricated from OMNIBUS_CUSTODY_ACCOUNT_ID (omnibus mode) */

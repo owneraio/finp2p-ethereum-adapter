@@ -51,7 +51,6 @@ function taurusConfig(operationMode: TaurusAppConfig["operationMode"]): TaurusAp
     operationMode,
     blockchain: process.env.TAURUS_BLOCKCHAIN ?? "ETH",
     network: process.env.TAURUS_NETWORK ?? "mainnet",
-    rpcUrl: RPC_URL,
     operatorPrivateKey: process.env.TAURUS_OPERATOR_PRIVATE_KEY,
     requestPollIntervalMs: 5000,
     requestTimeoutMs: 600000,

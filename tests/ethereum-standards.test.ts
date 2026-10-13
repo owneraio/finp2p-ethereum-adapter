@@ -1,3 +1,4 @@
+import { JsonRpcProvider } from "ethers";
 import { TrexTokenStandard } from "@owneraio/finp2p-ethereum-trex-plugin";
 import { CmtatTokenStandard } from "@owneraio/finp2p-ethereum-cmtat-plugin";
 import { BenjiTokenStandard } from "@owneraio/finp2p-ethereum-benji-plugin";
@@ -74,6 +75,58 @@ describe("registerTokenStandards (real plugin standards)", () => {
     for (const [name, cls] of expected) {
       expect(tokenStandardRegistry.has(name)).toBe(true);
       expect(tokenStandardRegistry.resolve(name)).toBeInstanceOf(cls);
+    }
+  });
+
+  test("a custodian transport with full chain reads registers every standard without NETWORK_HOST", () => {
+    tokenStandardRegistry.reset();
+    delete process.env.ASSET_ISSUER_PRIVATE_KEY;
+    delete process.env.ASSET_CONTROLLER_PRIVATE_KEY;
+    const savedHost = process.env.NETWORK_HOST;
+    delete process.env.NETWORK_HOST;
+    try {
+      registerTokenStandards({ logger, rpcUrl: undefined, readProvider: new JsonRpcProvider(RPC), chainReadScope: "full" } as any);
+      for (const name of ALL) expect(tokenStandardRegistry.has(name)).toBe(true);
+    } finally {
+      process.env.NETWORK_HOST = savedHost;
+    }
+  });
+
+  test("a custodian API serving ERC20 reads only registers ERC20 alone, and says why", () => {
+    tokenStandardRegistry.reset();
+    delete process.env.ASSET_ISSUER_PRIVATE_KEY;
+    delete process.env.ASSET_CONTROLLER_PRIVATE_KEY;
+    const savedHost = process.env.NETWORK_HOST;
+    delete process.env.NETWORK_HOST;
+    const infos: string[] = [];
+    const infoLogger = { ...logger, info: (m: string) => infos.push(m), warn: () => {} };
+    try {
+      registerTokenStandards({ logger: infoLogger, rpcUrl: undefined, readProvider: new JsonRpcProvider(RPC), chainReadScope: "erc20" } as any);
+      expect(tokenStandardRegistry.has("ERC20")).toBe(true);
+      for (const name of ["TREX", "CMTAT", "BENJI", "HEDERA_ATS"]) expect(tokenStandardRegistry.has(name)).toBe(false);
+      expect(infos.some(m => /TREX, CMTAT, BENJI and HEDERA_ATS are not registered .* set NETWORK_HOST/.test(m))).toBe(true);
+    } finally {
+      process.env.NETWORK_HOST = savedHost;
+    }
+  });
+
+  test("a configured RPC registers every standard even when the custodian's own reads are ERC20-only", () => {
+    tokenStandardRegistry.reset();
+    registerTokenStandards({ logger, rpcUrl: RPC, readProvider: new JsonRpcProvider(RPC), chainReadScope: "erc20" } as any);
+    for (const name of ALL) expect(tokenStandardRegistry.has(name)).toBe(true);
+  });
+
+  test("a key that signs and submits its own transactions needs NETWORK_HOST, and says so at boot", () => {
+    tokenStandardRegistry.reset();
+    process.env.ASSET_ISSUER_PRIVATE_KEY = AGENT_KEY;
+    const savedHost = process.env.NETWORK_HOST;
+    delete process.env.NETWORK_HOST;
+    try {
+      expect(() => registerTokenStandards({ logger, rpcUrl: undefined, readProvider: new JsonRpcProvider(RPC) } as any))
+        .toThrow(/ASSET_ISSUER_PRIVATE_KEY signs and submits its own transactions, which needs NETWORK_HOST/);
+    } finally {
+      process.env.NETWORK_HOST = savedHost;
+      delete process.env.ASSET_ISSUER_PRIVATE_KEY;
     }
   });
 
