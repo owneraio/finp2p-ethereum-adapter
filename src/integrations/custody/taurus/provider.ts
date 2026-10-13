@@ -26,7 +26,7 @@ export class TaurusCustodyProvider implements CustodyProvider {
 
   static async create(config: TaurusAppConfig): Promise<TaurusCustodyProvider> {
     const client = new TaurusClient(config);
-    const chainReads = await TaurusCustodyProvider.chainReads(client, await client.getChainId());
+    const chainReads = await TaurusCustodyProvider.chainReads(client, await client.getChainId(), config.requestPollIntervalMs);
     const addressToId = new Map<string, string>();
     for (const a of await client.listAddresses()) {
       if (a.address) addressToId.set(a.address.toLowerCase(), a.id);
@@ -35,8 +35,8 @@ export class TaurusCustodyProvider implements CustodyProvider {
   }
 
   /** NETWORK_HOST when set (checked to be PROTECT's chain), otherwise PROTECT itself, which serves ERC20 reads only. */
-  private static async chainReads(client: TaurusClient, chainId: bigint): Promise<{ provider: Provider; scope: ChainReadScope }> {
-    if (!process.env.NETWORK_HOST) return { provider: new TaurusChainProvider(client, chainId), scope: 'erc20' };
+  private static async chainReads(client: TaurusClient, chainId: bigint, pollingInterval: number): Promise<{ provider: Provider; scope: ChainReadScope }> {
+    if (!process.env.NETWORK_HOST) return { provider: new TaurusChainProvider(client, chainId, pollingInterval), scope: 'erc20' };
     const rpc = new JsonRpcProvider(getNetworkRpcUrl());
     const rpcChainId = (await rpc.getNetwork()).chainId;
     if (rpcChainId !== chainId) {

@@ -1,5 +1,8 @@
-import { AbstractProvider, Interface, Network, PerformActionRequest, PerformActionTransaction, toQuantity } from 'ethers';
+import { AbstractProvider, Interface, Network, PerformActionRequest, PerformActionTransaction, Subscriber, Subscription, ZeroHash, toQuantity } from 'ethers';
 import { TaurusClient } from './client';
+
+const MINED = new Set(['SUCCESS', 'MINED']);
+const TRANSACTION_FAILED = new Set(['INVALID', 'TIMEOUT', 'LOST', 'EXPIRED']);
 
 const ERC20_READS = new Interface([
   'function balanceOf(address) view returns (uint256)',
@@ -10,13 +13,21 @@ const ERC20_READS = new Interface([
  * Chain reads served by Taurus PROTECT instead of an RPC node: Taurus
  * broadcasts every transaction itself, so the adapter never submits and needs
  * no NETWORK_HOST. PROTECT answers the chain id and height, the confirmed
- * balances of addresses in custody (native and its currencies), and ERC20
- * decimals; any other read is refused rather than guessed.
+ * balances of addresses in custody (native and its currencies), ERC20
+ * decimals, and receipts of the transactions it broadcast; any other read is
+ * refused rather than guessed.
  */
 export class TaurusChainProvider extends AbstractProvider {
 
-  constructor(private readonly client: TaurusClient, private readonly chainId: bigint) {
-    super(Network.from(chainId));
+  constructor(private readonly client: TaurusClient, private readonly chainId: bigint, pollingInterval: number) {
+    super(Network.from(chainId), { pollingInterval });
+  }
+
+  // A pending transaction is re-checked on a timer, not on new blocks: PROTECT's
+  // block height may lag, and a receipt must not wait on it.
+  _getSubscriber(sub: Subscription): Subscriber {
+    if (sub.type === 'transaction') return new ReceiptPoller(this, sub.hash, this.pollingInterval);
+    return super._getSubscriber(sub);
   }
 
   async _detectNetwork(): Promise<Network> {
@@ -35,9 +46,38 @@ export class TaurusChainProvider extends AbstractProvider {
       }
       case 'call':
         return await this.erc20Read(req.transaction) as T;
+      case 'getTransactionReceipt':
+        return await this.receipt(req.hash) as T;
       default:
         throw new Error(`Taurus PROTECT does not serve '${req.method}': chain reads in Taurus mode are limited to chain id, block height, custody balances and ERC20 decimals`);
     }
+  }
+
+  /**
+   * The receipt of a transaction PROTECT broadcast, from its record: hash,
+   * block, sender and outcome. PROTECT has no logs, block hash or gas figures
+   * for it. A transaction PROTECT has not recorded as mined or failed yet has
+   * no receipt; one that will never mine reports failure.
+   */
+  private async receipt(hash: string): Promise<Record<string, unknown> | null> {
+    const tx = await this.client.findTransaction(hash);
+    const status = tx?.status?.toUpperCase();
+    if (!tx || !status || !(MINED.has(status) || TRANSACTION_FAILED.has(status))) return null;
+    const blockNumber = tx.block ? Number(tx.block) : await this.client.getBlockHeight();
+    return {
+      transactionHash: hash,
+      blockHash: ZeroHash,
+      blockNumber: toQuantity(blockNumber),
+      transactionIndex: '0x0',
+      from: tx.sources?.[0]?.address ?? null,
+      to: null,
+      contractAddress: null,
+      logs: [],
+      gasUsed: '0x0',
+      cumulativeGasUsed: '0x0',
+      effectiveGasPrice: '0x0',
+      status: MINED.has(status) ? '0x1' : '0x0',
+    };
   }
 
   private async erc20Read(tx: PerformActionTransaction): Promise<string> {
@@ -54,5 +94,33 @@ export class TaurusChainProvider extends AbstractProvider {
     }
     const balance = await this.client.getBalance(String(call.args[0]), currency.id);
     return ERC20_READS.encodeFunctionResult('balanceOf', [balance]);
+  }
+}
+
+class ReceiptPoller implements Subscriber {
+  private timer: ReturnType<typeof setInterval> | undefined;
+
+  constructor(private readonly provider: TaurusChainProvider, private readonly hash: string, private readonly intervalMs: number) {}
+
+  start(): void {
+    this.timer = setInterval(() => void this.poll(), this.intervalMs);
+  }
+
+  stop(): void {
+    if (this.timer) clearInterval(this.timer);
+    this.timer = undefined;
+  }
+
+  pause(): void {
+    this.stop();
+  }
+
+  resume(): void {
+    this.start();
+  }
+
+  private async poll(): Promise<void> {
+    const receipt = await this.provider.getTransactionReceipt(this.hash).catch(() => null);
+    if (receipt) this.provider.emit(this.hash, receipt);
   }
 }
