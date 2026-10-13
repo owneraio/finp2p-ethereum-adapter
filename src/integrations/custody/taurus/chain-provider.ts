@@ -1,5 +1,5 @@
-import { AbstractProvider, Interface, Network, PerformActionRequest, PerformActionTransaction, Subscriber, Subscription, TransactionReceipt, ZeroHash, toQuantity } from 'ethers';
-import { TaurusClient } from './client';
+import { AbstractProvider, Interface, Network, PerformActionRequest, PerformActionTransaction, TransactionReceipt, ZeroHash, toQuantity } from 'ethers';
+import { TaurusApiError, TaurusClient } from './client';
 
 const MINED = new Set(['SUCCESS', 'MINED']);
 const TRANSACTION_FAILED = new Set(['INVALID', 'TIMEOUT', 'LOST', 'EXPIRED']);
@@ -32,27 +32,35 @@ export class TaurusChainProvider extends AbstractProvider {
     super(Network.from(chainId), { pollingInterval });
   }
 
-  /** Re-checks PROTECT's record on a timer, not on new blocks, within TAURUS_REQUEST_TIMEOUT_MS. */
+  /**
+   * Re-reads PROTECT's record one request at a time every
+   * TAURUS_REQUEST_POLL_INTERVAL_MS — not on new blocks — until the receipt has
+   * the requested confirmations. Transient failures (network, 5xx, 429) are
+   * retried until TAURUS_REQUEST_TIMEOUT_MS; any other PROTECT error fails at once.
+   */
   async waitForTransaction(hash: string, confirms?: number | null, timeout?: number | null): Promise<TransactionReceipt | null> {
     const wanted = confirms ?? 1;
-    if (wanted === 0) return this.getTransactionReceipt(hash);
     const limitMs = timeout ?? this.receiptTimeoutMs;
     const deadline = Date.now() + limitMs;
+    let lastError: unknown;
     for (;;) {
-      const receipt = await this.getTransactionReceipt(hash);
-      if (receipt && (await receipt.confirmations()) >= wanted) return receipt;
+      try {
+        const receipt = await this.getTransactionReceipt(hash);
+        if (wanted === 0) return receipt;
+        if (receipt && (await receipt.confirmations()) >= wanted) return receipt;
+        lastError = undefined;
+      } catch (e) {
+        if (e instanceof TaurusApiError && !e.transient) {
+          throw new Error(`Taurus broadcast ${hash} but its status cannot be read from PROTECT: ${e.message}; do not resubmit`);
+        }
+        lastError = e;
+      }
       if (Date.now() >= deadline) {
-        throw new Error(`Taurus broadcast ${hash} but PROTECT did not report it settled within ${limitMs}ms; it may still confirm, do not resubmit`);
+        const cause = lastError instanceof Error ? ` (last error: ${lastError.message})` : '';
+        throw new Error(`Taurus broadcast ${hash} but PROTECT did not report it settled within ${limitMs}ms${cause}; it may still confirm, do not resubmit`);
       }
       await new Promise(r => setTimeout(r, this.pollingInterval));
     }
-  }
-
-  // A pending transaction is re-checked on a timer, not on new blocks: PROTECT's
-  // block height may lag, and a receipt must not wait on it.
-  _getSubscriber(sub: Subscription): Subscriber {
-    if (sub.type === 'transaction') return new ReceiptPoller(this, sub.hash, this.pollingInterval);
-    return super._getSubscriber(sub);
   }
 
   async _detectNetwork(): Promise<Network> {
@@ -120,33 +128,5 @@ export class TaurusChainProvider extends AbstractProvider {
     }
     const balance = await this.client.getBalance(String(call.args[0]), currency.id);
     return ERC20_READS.encodeFunctionResult('balanceOf', [balance]);
-  }
-}
-
-class ReceiptPoller implements Subscriber {
-  private timer: ReturnType<typeof setInterval> | undefined;
-
-  constructor(private readonly provider: TaurusChainProvider, private readonly hash: string, private readonly intervalMs: number) {}
-
-  start(): void {
-    this.timer = setInterval(() => void this.poll(), this.intervalMs);
-  }
-
-  stop(): void {
-    if (this.timer) clearInterval(this.timer);
-    this.timer = undefined;
-  }
-
-  pause(): void {
-    this.stop();
-  }
-
-  resume(): void {
-    this.start();
-  }
-
-  private async poll(): Promise<void> {
-    const receipt = await this.provider.getTransactionReceipt(this.hash).catch(() => null);
-    if (receipt) this.provider.emit(this.hash, receipt);
   }
 }

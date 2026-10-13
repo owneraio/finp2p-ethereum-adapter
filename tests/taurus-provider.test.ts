@@ -136,11 +136,13 @@ describe("TaurusSigner request lifecycle (mocked backend)", () => {
     return { hash, payloadAsString };
   }
 
-  function lifecycleBackend(opts: { whitelisted?: boolean; tamperDestination?: string; txStatuses?: string[]; txBlock?: string } = {}) {
+  // txStatuses: PROTECT's transaction status per read; a number is an HTTP error reply instead
+  function lifecycleBackend(opts: { whitelisted?: boolean; tamperDestination?: string; txStatuses?: (string | number)[]; txBlock?: string; txDelayMs?: number } = {}) {
     const statuses = ["APPROVING", "HSM_SIGNED", "BROADCASTING"];
     const txStatuses = opts.txStatuses ?? ["SUCCESS"];
     let polls = 0;
     let txPolls = 0;
+    const txReads = { inFlight: 0, maxInFlight: 0 };
     const calls: string[] = [];
     const bodies: Record<string, unknown[]> = {};
     const address = (a: string) => ({ payload: { address: a } });
@@ -157,8 +159,15 @@ describe("TaurusSigner request lifecycle (mocked backend)", () => {
         return reply({ blockchains: [{ symbol: "ETH", network: "mainnet", ethInfo: { chainId: "11155111" }, blockHeight: "11904960" }] });
       }
       if (path === "/api/rest/v1/transactions") {
-        const status = txStatuses[Math.min(txPolls++, txStatuses.length - 1)];
-        return reply({ result: [{ hash: TX_HASH, status, block: opts.txBlock ?? "11904950", sources: [{ address: FROM.toLowerCase() }] }] });
+        txReads.maxInFlight = Math.max(txReads.maxInFlight, ++txReads.inFlight);
+        try {
+          if (opts.txDelayMs) await new Promise(r => setTimeout(r, opts.txDelayMs));
+          const status = txStatuses[Math.min(txPolls++, txStatuses.length - 1)];
+          if (typeof status === "number") return { ok: false, status, text: async () => `{"error":"http ${status}"}` } as Response;
+          return reply({ result: [{ hash: TX_HASH, status, block: opts.txBlock ?? "11904950", sources: [{ address: FROM.toLowerCase() }] }] });
+        } finally {
+          txReads.inFlight--;
+        }
       }
       if (path === "/api/rest/v1/addresses") {
         return reply({ result: [{ id: "42", walletId: "7", address: FROM }, { id: "43", walletId: "7", address: INTERNAL_B }] });
@@ -214,7 +223,7 @@ describe("TaurusSigner request lifecycle (mocked backend)", () => {
       }
       return { ok: false, status: 404, text: async () => "{}" } as Response;
     });
-    return { fetchMock, calls, bodies };
+    return { fetchMock, calls, bodies, txReads };
   }
 
   const realFetch = global.fetch;
@@ -271,14 +280,47 @@ describe("TaurusSigner request lifecycle (mocked backend)", () => {
     expect(calls.filter(c => c === "GET /api/rest/v1/transactions").length).toBeGreaterThanOrEqual(3);
   });
 
-  test("a direct wait() gives up at TAURUS_REQUEST_TIMEOUT_MS, saying not to resubmit", async () => {
+  test("a broadcast PROTECT never settles gives up at TAURUS_REQUEST_TIMEOUT_MS, saying not to resubmit", async () => {
     const { fetchMock } = lifecycleBackend({ txStatuses: ["PENDING"] });
     (global as any).fetch = fetchMock;
     delete process.env.NETWORK_HOST;
     const provider = await TaurusCustodyProvider.create({ ...CONFIG, operatorPrivateKey: OPERATOR_PEM, requestTimeoutMs: 300 });
     const wallet = (await provider.resolveWallet(FROM))!;
-    const tx = await wallet.signer.sendTransaction({ to: TOKEN, data: erc20.encodeFunctionData("transfer", [INTERNAL_B, 5n]) });
-    await expect(tx.wait()).rejects.toThrow(/PROTECT did not report it settled within 300ms; it may still confirm, do not resubmit/);
+    await expect(wallet.signer.sendTransaction({ to: TOKEN, data: erc20.encodeFunctionData("transfer", [INTERNAL_B, 5n]) }))
+      .rejects.toThrow(/PROTECT did not report it settled within 300ms; it may still confirm, do not resubmit/);
+  });
+
+  test("a permanent PROTECT error fails the transfer at once instead of being read as pending", async () => {
+    const { fetchMock, calls } = lifecycleBackend({ txStatuses: [403] });
+    (global as any).fetch = fetchMock;
+    delete process.env.NETWORK_HOST;
+    const wallet = await walletOf(OPERATOR_PEM);
+    const asset = { contractAddress: TOKEN, decimals: 2, tokenStandard: "ERC20" };
+    const result = await new ERC20TokenStandard(wallet.provider, undefined).transfer(wallet, asset, INTERNAL_B, 5n, console as any);
+    expect(result.status).toBe("failure");
+    expect((result as any).reason).toMatch(/cannot be read from PROTECT: Taurus GET \/api\/rest\/v1\/transactions failed: 403.*do not resubmit/);
+    expect(calls.filter(c => c === "GET /api/rest/v1/transactions").length).toBe(1);
+  });
+
+  test("transient PROTECT errors are retried until the transaction settles", async () => {
+    const { fetchMock } = lifecycleBackend({ txStatuses: [503, 429, "SUCCESS"] });
+    (global as any).fetch = fetchMock;
+    delete process.env.NETWORK_HOST;
+    const wallet = await walletOf(OPERATOR_PEM);
+    const asset = { contractAddress: TOKEN, decimals: 2, tokenStandard: "ERC20" };
+    const result = await new ERC20TokenStandard(wallet.provider, undefined).transfer(wallet, asset, INTERNAL_B, 5n, console as any);
+    expect(result.status).toBe("success");
+  });
+
+  test("status reads never overlap, however slow PROTECT answers", async () => {
+    const { fetchMock, txReads } = lifecycleBackend({ txStatuses: ["PENDING", "PENDING", "PENDING", "SUCCESS"], txDelayMs: 60 });
+    (global as any).fetch = fetchMock;
+    delete process.env.NETWORK_HOST;
+    const wallet = await walletOf(OPERATOR_PEM);
+    const asset = { contractAddress: TOKEN, decimals: 2, tokenStandard: "ERC20" };
+    const result = await new ERC20TokenStandard(wallet.provider, undefined).transfer(wallet, asset, INTERNAL_B, 5n, console as any);
+    expect(result.status).toBe("success");
+    expect(txReads.maxInFlight).toBe(1);
   });
 
   test("a PROTECT block height lagging behind the mined block still confirms the receipt", async () => {
