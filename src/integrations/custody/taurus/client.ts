@@ -29,6 +29,7 @@ export interface TaurusTransaction {
   hash?: string;
   block?: string;
   status?: string;
+  sources?: { address?: string }[];
   isConfirmed?: boolean;
   receptionDate?: string;
   confirmationDate?: string;
@@ -75,6 +76,17 @@ export interface ContractCall {
 
 const PAGE_LIMIT = 100;
 
+/** A PROTECT reply other than 2xx; status tells a transient failure (5xx, 429) from a permanent one. */
+export class TaurusApiError extends Error {
+  constructor(message: string, readonly status: number) {
+    super(message);
+  }
+
+  get transient(): boolean {
+    return this.status >= 500 || this.status === 429;
+  }
+}
+
 export class TaurusClient {
 
   constructor(private readonly config: TaurusAppConfig) {}
@@ -109,7 +121,7 @@ export class TaurusClient {
     });
     const text = await res.text();
     if (!res.ok) {
-      throw new Error(`Taurus ${method} ${path} failed: ${res.status} ${text.slice(0, 300)}`);
+      throw new TaurusApiError(`Taurus ${method} ${path} failed: ${res.status} ${text.slice(0, 300)}`, res.status);
     }
     return text ? JSON.parse(text) as T : (undefined as T);
   }
@@ -197,8 +209,19 @@ export class TaurusClient {
       + `&blockchain=${encodeURIComponent(this.config.blockchain)}&network=${encodeURIComponent(this.config.network)}`;
     const reply = await this.call<{ result?: TaurusAddress[] }>('GET', '/api/rest/v1/addresses', { query });
     const records = (reply.result ?? []).filter(a => a.address?.toLowerCase() === address.toLowerCase());
-    if (records.length === 0) throw new Error(`Taurus holds no address ${address} for currency ${currencyId}; balances are known only for addresses in custody`);
+    if (records.length === 0) {
+      if (await this.holdsAddress(address)) return 0n;
+      throw new Error(`Taurus holds no address ${address}; balances are known only for addresses in custody`);
+    }
     return records.reduce((sum, a) => sum + BigInt(a.balance?.totalConfirmed ?? '0'), 0n);
+  }
+
+  /** Whether PROTECT holds the chain address under any currency of the configured chain. */
+  private async holdsAddress(address: string): Promise<boolean> {
+    const query = `addresses=${encodeURIComponent(address.toLowerCase())}`
+      + `&blockchain=${encodeURIComponent(this.config.blockchain)}&network=${encodeURIComponent(this.config.network)}`;
+    const reply = await this.call<{ result?: TaurusAddress[] }>('GET', '/api/rest/v1/addresses', { query });
+    return (reply.result ?? []).some(a => a.address?.toLowerCase() === address.toLowerCase());
   }
 
   /** The chain transaction PROTECT recorded for a hash, once it has seen it. */
