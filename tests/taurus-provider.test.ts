@@ -136,7 +136,7 @@ describe("TaurusSigner request lifecycle (mocked backend)", () => {
     return { hash, payloadAsString };
   }
 
-  function lifecycleBackend(opts: { whitelisted?: boolean; tamperDestination?: string; txStatuses?: string[] } = {}) {
+  function lifecycleBackend(opts: { whitelisted?: boolean; tamperDestination?: string; txStatuses?: string[]; txBlock?: string } = {}) {
     const statuses = ["APPROVING", "HSM_SIGNED", "BROADCASTING"];
     const txStatuses = opts.txStatuses ?? ["SUCCESS"];
     let polls = 0;
@@ -158,7 +158,7 @@ describe("TaurusSigner request lifecycle (mocked backend)", () => {
       }
       if (path === "/api/rest/v1/transactions") {
         const status = txStatuses[Math.min(txPolls++, txStatuses.length - 1)];
-        return reply({ result: [{ hash: TX_HASH, status, block: "11904950", sources: [{ address: FROM.toLowerCase() }] }] });
+        return reply({ result: [{ hash: TX_HASH, status, block: opts.txBlock ?? "11904950", sources: [{ address: FROM.toLowerCase() }] }] });
       }
       if (path === "/api/rest/v1/addresses") {
         return reply({ result: [{ id: "42", walletId: "7", address: FROM }, { id: "43", walletId: "7", address: INTERNAL_B }] });
@@ -257,6 +257,39 @@ describe("TaurusSigner request lifecycle (mocked backend)", () => {
       .transfer(wallet, asset, INTERNAL_B, 5n, console as any);
     expect(result).toEqual({ status: "success", transactionId: TX_HASH, timestamp: expect.any(Number) });
     expect(calls.filter(c => c === "GET /api/rest/v1/transactions").length).toBeGreaterThanOrEqual(2);
+  });
+
+  // the block height in this backend never moves: a wait must not depend on new blocks
+  test("a direct wait() settles on PROTECT's record while the block height stays put", async () => {
+    const { fetchMock, calls } = lifecycleBackend({ txStatuses: ["PENDING", "PENDING", "SUCCESS"] });
+    (global as any).fetch = fetchMock;
+    delete process.env.NETWORK_HOST;
+    const wallet = await walletOf(OPERATOR_PEM);
+    const tx = await wallet.signer.sendTransaction({ to: TOKEN, data: erc20.encodeFunctionData("transfer", [INTERNAL_B, 5n]) });
+    const receipt = await tx.wait();
+    expect(receipt?.status).toBe(1);
+    expect(calls.filter(c => c === "GET /api/rest/v1/transactions").length).toBeGreaterThanOrEqual(3);
+  });
+
+  test("a direct wait() gives up at TAURUS_REQUEST_TIMEOUT_MS, saying not to resubmit", async () => {
+    const { fetchMock } = lifecycleBackend({ txStatuses: ["PENDING"] });
+    (global as any).fetch = fetchMock;
+    delete process.env.NETWORK_HOST;
+    const provider = await TaurusCustodyProvider.create({ ...CONFIG, operatorPrivateKey: OPERATOR_PEM, requestTimeoutMs: 300 });
+    const wallet = (await provider.resolveWallet(FROM))!;
+    const tx = await wallet.signer.sendTransaction({ to: TOKEN, data: erc20.encodeFunctionData("transfer", [INTERNAL_B, 5n]) });
+    await expect(tx.wait()).rejects.toThrow(/PROTECT did not report it settled within 300ms; it may still confirm, do not resubmit/);
+  });
+
+  test("a PROTECT block height lagging behind the mined block still confirms the receipt", async () => {
+    const { fetchMock } = lifecycleBackend({ txBlock: "11904999" });
+    (global as any).fetch = fetchMock;
+    delete process.env.NETWORK_HOST;
+    const wallet = await walletOf(OPERATOR_PEM);
+    const tx = await wallet.signer.sendTransaction({ to: TOKEN, data: erc20.encodeFunctionData("transfer", [INTERNAL_B, 5n]) });
+    const receipt = await tx.wait();
+    expect(receipt?.blockNumber).toBe(11904999);
+    expect(await receipt!.confirmations()).toBe(1);
   });
 
   test("a broadcast PROTECT reports as failed fails the plugin operation instead of hanging", async () => {

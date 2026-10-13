@@ -1,4 +1,4 @@
-import { AbstractProvider, Interface, Network, PerformActionRequest, PerformActionTransaction, Subscriber, Subscription, ZeroHash, toQuantity } from 'ethers';
+import { AbstractProvider, Interface, Network, PerformActionRequest, PerformActionTransaction, Subscriber, Subscription, TransactionReceipt, ZeroHash, toQuantity } from 'ethers';
 import { TaurusClient } from './client';
 
 const MINED = new Set(['SUCCESS', 'MINED']);
@@ -19,8 +19,33 @@ const ERC20_READS = new Interface([
  */
 export class TaurusChainProvider extends AbstractProvider {
 
-  constructor(private readonly client: TaurusClient, private readonly chainId: bigint, pollingInterval: number) {
+  // the chain is at least at the block of any transaction PROTECT reported mined,
+  // so a lagging PROTECT block height cannot hold a receipt below one confirmation
+  private highestMinedBlock = 0;
+
+  constructor(
+    private readonly client: TaurusClient,
+    private readonly chainId: bigint,
+    pollingInterval: number,
+    private readonly receiptTimeoutMs: number,
+  ) {
     super(Network.from(chainId), { pollingInterval });
+  }
+
+  /** Re-checks PROTECT's record on a timer, not on new blocks, within TAURUS_REQUEST_TIMEOUT_MS. */
+  async waitForTransaction(hash: string, confirms?: number | null, timeout?: number | null): Promise<TransactionReceipt | null> {
+    const wanted = confirms ?? 1;
+    if (wanted === 0) return this.getTransactionReceipt(hash);
+    const limitMs = timeout ?? this.receiptTimeoutMs;
+    const deadline = Date.now() + limitMs;
+    for (;;) {
+      const receipt = await this.getTransactionReceipt(hash);
+      if (receipt && (await receipt.confirmations()) >= wanted) return receipt;
+      if (Date.now() >= deadline) {
+        throw new Error(`Taurus broadcast ${hash} but PROTECT did not report it settled within ${limitMs}ms; it may still confirm, do not resubmit`);
+      }
+      await new Promise(r => setTimeout(r, this.pollingInterval));
+    }
   }
 
   // A pending transaction is re-checked on a timer, not on new blocks: PROTECT's
@@ -39,7 +64,7 @@ export class TaurusChainProvider extends AbstractProvider {
       case 'chainId':
         return toQuantity(this.chainId) as T;
       case 'getBlockNumber':
-        return toQuantity(await this.client.getBlockHeight()) as T;
+        return toQuantity(Math.max(await this.client.getBlockHeight(), this.highestMinedBlock)) as T;
       case 'getBalance': {
         const native = await this.client.findNativeCurrencyOrFail();
         return toQuantity(await this.client.getBalance(req.address, native.id)) as T;
@@ -64,6 +89,7 @@ export class TaurusChainProvider extends AbstractProvider {
     const status = tx?.status?.toUpperCase();
     if (!tx || !status || !(MINED.has(status) || TRANSACTION_FAILED.has(status))) return null;
     const blockNumber = tx.block ? Number(tx.block) : await this.client.getBlockHeight();
+    this.highestMinedBlock = Math.max(this.highestMinedBlock, blockNumber);
     return {
       transactionHash: hash,
       blockHash: ZeroHash,
