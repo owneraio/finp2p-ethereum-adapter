@@ -6,6 +6,7 @@ import { createHash } from 'crypto';
 import { ERC20__factory } from '@owneraio/finp2p-ethereum-erc20-plugin';
 import { TaurusClient, TaurusRequest, transactionHashOf } from '../client';
 import { TaurusAppConfig } from '../config';
+import { TaurusChainProvider } from '../chain-provider';
 import { currentIdempotencyKey } from '../../../../services/custody/idempotency-scope';
 
 /**
@@ -97,8 +98,11 @@ export abstract class TaurusSigner extends AbstractSigner {
       await this.client.approveRequests([request]);
     }
     const hash = await this.waitForHash(request.id);
-    // callers going through ethers Contract re-wrap this in a response bound to
-    // the provider, so the receipt must come from the provider either way
+    // ethers Contract re-wraps this response on the provider and waits through
+    // block subscriptions; on PROTECT reads, settle here on PROTECT's record
+    // (serialized, bounded, failing on permanent errors) so that wait finds the
+    // receipt at once
+    if (this.provider instanceof TaurusChainProvider) await this.provider.waitForTransaction(hash);
     return { hash, wait: async () => this.provider!.waitForTransaction(hash) } as unknown as TransactionResponse;
   }
 

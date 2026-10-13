@@ -76,6 +76,17 @@ export interface ContractCall {
 
 const PAGE_LIMIT = 100;
 
+/** A PROTECT reply other than 2xx; status tells a transient failure (5xx, 429) from a permanent one. */
+export class TaurusApiError extends Error {
+  constructor(message: string, readonly status: number) {
+    super(message);
+  }
+
+  get transient(): boolean {
+    return this.status >= 500 || this.status === 429;
+  }
+}
+
 export class TaurusClient {
 
   constructor(private readonly config: TaurusAppConfig) {}
@@ -110,7 +121,7 @@ export class TaurusClient {
     });
     const text = await res.text();
     if (!res.ok) {
-      throw new Error(`Taurus ${method} ${path} failed: ${res.status} ${text.slice(0, 300)}`);
+      throw new TaurusApiError(`Taurus ${method} ${path} failed: ${res.status} ${text.slice(0, 300)}`, res.status);
     }
     return text ? JSON.parse(text) as T : (undefined as T);
   }
