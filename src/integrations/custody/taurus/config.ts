@@ -20,7 +20,6 @@ export interface TaurusAppConfig {
    *  unique across networks, so every lookup filters on these */
   blockchain: string;
   network: string;
-  rpcUrl: string;
   /** unencrypted ECDSA operator key of a RequestApprover service account —
    *  enables end-to-end self-approval; without it requests wait for a human */
   operatorPrivateKey?: string;
@@ -29,7 +28,7 @@ export interface TaurusAppConfig {
   requestTimeoutMs: number;
 }
 
-export function createTaurusAppConfig(rpcUrl: string): TaurusAppConfig {
+export function createTaurusAppConfig(): TaurusAppConfig {
   const host = process.env.TAURUS_HOST;
   const apiKey = process.env.TAURUS_API_KEY;
   const apiSecret = process.env.TAURUS_API_SECRET;
@@ -48,5 +47,5 @@ export function createTaurusAppConfig(rpcUrl: string): TaurusAppConfig {
     throw new Error(`TAURUS_OPERATION_MODE must be contract-call or transfer-only, got '${operationMode}'`);
   }
 
-  return { host, apiKey, apiSecret, authScheme, operationMode, blockchain, network, rpcUrl, operatorPrivateKey, requestPollIntervalMs, requestTimeoutMs };
+  return { host, apiKey, apiSecret, authScheme, operationMode, blockchain, network, operatorPrivateKey, requestPollIntervalMs, requestTimeoutMs };
 }

@@ -46,7 +46,7 @@ import { CommonServiceImpl as DirectCommonServiceImpl } from "./services/operati
 import { registerCustodyIntegrations, registerIntegrations } from "./integrations/registry";
 import { pooledProvider, pooledSigner } from "./integrations/signer-pool";
 import { buildCustodyPlanApprovalService } from "./services/plan-approval";
-import { AppConfig, FinP2PContractAppConfig, getNetworkRpcUrl } from "./config";
+import { AppConfig, FinP2PContractAppConfig, getNetworkRpcUrl, localSubmitRpcUrl } from "./config";
 
 // Register compiled-in custody providers; token standards are registered per-network in registerIntegrations.
 registerCustodyIntegrations();
@@ -125,15 +125,13 @@ async function registerCustodyServices(
   }
 
   const assetIssuerKey = process.env.ASSET_ISSUER_PRIVATE_KEY;
-  const networkHost = process.env.NETWORK_HOST;
   if (!assetIssuerKey) {
     logger.warn("ASSET_ISSUER_PRIVATE_KEY is not set — asset deployment and issuance are disabled");
-  } else if (!networkHost) {
-    logger.warn("NETWORK_HOST is not set — asset deployment and issuance are disabled");
   }
-  // pooled signer: same NonceManager per key as the token standards use
-  const issuerWallet = assetIssuerKey && networkHost
-    ? { provider: readProvider, signer: pooledSigner(getNetworkRpcUrl(), assetIssuerKey) }
+  // the issuer signs and submits its own transactions (local submit): pooled
+  // signer, same NonceManager per key as the token standards use
+  const issuerWallet = assetIssuerKey
+    ? { provider: readProvider, signer: pooledSigner(localSubmitRpcUrl('ASSET_ISSUER_PRIVATE_KEY'), assetIssuerKey) }
     : undefined;
   let tokenService: CustodyTokenService = new CustodyTokenService(logger, custodyProvider, escrowWallet, readProvider, accountMapping, assetStore, issuerWallet);
   const commonService = new DirectCommonServiceImpl(workflowStorage);
@@ -236,13 +234,16 @@ async function createApp(
     ? await custodyProvider.createWalletForCustodyId(escrowAccountId)
     : undefined;
 
-  // The adapter's single read-only RPC provider, decided once here: the plain
-  // NETWORK_HOST endpoint when configured, otherwise the custody transport
-  // (taken from a fabricated custody wallet). Everything downstream receives
-  // this Provider and stays unaware of the choice.
+  // The adapter's single read-only provider, decided once here: a custodian
+  // without an RPC transport decides its own chain reads (Taurus: NETWORK_HOST
+  // when set, else PROTECT); otherwise the plain NETWORK_HOST endpoint when
+  // configured, else the custody transport (taken from a fabricated custody
+  // wallet). Everything downstream receives this Provider and its scope.
   const readProvider: Provider | undefined = custodyProvider
-    ? (process.env.NETWORK_HOST ? pooledProvider(getNetworkRpcUrl()) : escrowWallet?.provider)
+    ? (custodyProvider.chainReads?.provider
+      ?? (process.env.NETWORK_HOST ? pooledProvider(getNetworkRpcUrl()) : escrowWallet?.provider))
     : undefined;
+  const chainReadScope = custodyProvider?.chainReads?.scope ?? 'full';
 
   // Gas funding is app-level composition too: the custody provider only
   // fabricates the wallet for the configured funding account.
@@ -345,6 +346,7 @@ async function createApp(
     walletResolver: custodyProvider ? createWalletResolver(accountMappingStore, custodyProvider) : undefined,
     rpcUrl: process.env.NETWORK_HOST ? getNetworkRpcUrl() : undefined,
     readProvider,
+    chainReadScope,
     gasStation,
     omnibusWallet,
     escrowWallet,
