@@ -114,6 +114,7 @@ export class ZodiaSigner extends AbstractSigner {
     const destination = await this.destination(to);
     // a blank key (the skeleton encodes a missing header as '') cannot be resumed
     const key = currentIdempotencyKey() || randomUUID();
+    // a replay reproduces the ordinals only while an operation raises its requests one after another, as the token standards do today
     const ordinal = nextRequestOrdinal() ?? 0;
     const intent: TransferIntent = {
       walletId: this.walletId, currency, destination, amount,
