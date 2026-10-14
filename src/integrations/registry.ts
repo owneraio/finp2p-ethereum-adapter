@@ -13,6 +13,7 @@ import { AccountModel } from "../config";
 import { registerFireblocks } from "./custody/fireblocks";
 import { registerDfns } from "./custody/dfns";
 import { registerTaurus } from "./custody/taurus";
+import { registerZodia } from "./custody/zodia";
 import { registerDeposits } from "./deposits";
 import { registerTokenStandards } from "./token-standards";
 
@@ -48,6 +49,7 @@ export function registerCustodyIntegrations(): void {
   registerFireblocks();
   registerDfns();
   registerTaurus();
+  registerZodia();
 }
 
 const integrations: IntegrationRegistrar[] = [

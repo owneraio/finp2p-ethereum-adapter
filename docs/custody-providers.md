@@ -67,6 +67,25 @@ Either way the transaction may confirm before `sendTransaction` returns or
 long after — callers poll balances/receipts themselves, so do not block on
 finality inside the signer.
 
+3. **Governed custodian** — the backend signs only requests a maker raised
+   and an authoriser approved, never raw transactions (Taurus PROTECT,
+   Zodia). The signer translates `sendTransaction` into the backend's own
+   request and follows it until the backend posts it on chain or ends it, so
+   here the signer does settle before returning. What both providers share:
+   - the operation's idempotency key becomes the request's external id, so an
+     operation replayed after a restart finds its request instead of raising
+     a second one;
+   - only the backend's own statuses end the wait (the workflow layer runs it
+     in the background, so an authoriser may take hours);
+   - one serialized polling loop: network errors, 5xx and 429 are retried,
+     any other refusal ends the wait at once;
+   - whatever the maker signs is first checked against what was submitted;
+   - ethers `Contract` re-wraps the signer's response on the provider, so the
+     receipt must come from the provider;
+   - `chainReads`: `NETWORK_HOST` when set (checked to be the backend's
+     chain), otherwise reads the backend serves itself, which cover ERC20
+     only — the other token standards then are not registered.
+
 ## Case studies
 
 **Fireblocks** (`src/integrations/custody/fireblocks/`) — custody id = vault
@@ -82,6 +101,20 @@ the full address → walletId map once in `create()` (kept current when
 `createCustodyAccount` adds wallets), so `resolveWallet` is a map lookup. No
 deletion API — `archiveCustodyAccount` tags the wallet instead. The cleanest
 template to copy.
+
+**Zodia** (`src/integrations/custody/zodia/`) — custody id = Zodia wallet
+id; addresses cached at boot. Value moves as Digital Asset Service Desk
+transfers (product `0x0014-007`): created, submitted, confirmed by the adapter
+as maker with its P-256 key, approved by a human authoriser in Zodia. The
+request's `endToEndId` is a UUIDv5 of the idempotency key and what is moved.
+The maker confirmation is withheld when the HSM instruction does not state the
+submitted wallet, currency, destination and amount; the request then times
+out in Zodia. Native coin and ERC-20s mapped in `ZODIA_TOKEN_CURRENCIES` only;
+destinations are the company's wallets or active outgoing beneficiary
+addresses. Without `NETWORK_HOST`, balances come from the wallets' available
+balances and receipts from the transfers the adapter settled; block height
+costs no request, since Zodia allows about 1 request/s and 128/day per
+endpoint by default.
 
 **Blockdaemon Builder Vault** (PR #186, open) — custody id = Builder Vault
 account id, custom `Signer` over the vault's intent API. Written before the
