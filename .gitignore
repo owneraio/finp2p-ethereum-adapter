@@ -13,3 +13,5 @@ node_modules
 .claude/
 /adapter-contract/dist/
 /adapter-contract/node_modules/
+.env.zodia
+.zodia/

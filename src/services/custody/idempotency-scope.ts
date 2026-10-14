@@ -7,12 +7,23 @@ import { AsyncLocalStorage } from 'node:async_hooks';
  * reference (Taurus: externalRequestId), so a retried operation resolves to
  * the original custody request instead of creating a second live one.
  */
-const scope = new AsyncLocalStorage<string>();
+const scope = new AsyncLocalStorage<{ key: string; requests: number }>();
 
 export function runWithIdempotencyKey<T>(idempotencyKey: string, fn: () => Promise<T>): Promise<T> {
-  return scope.run(idempotencyKey, fn);
+  return scope.run({ key: idempotencyKey, requests: 0 }, fn);
 }
 
 export function currentIdempotencyKey(): string | undefined {
-  return scope.getStore();
+  return scope.getStore()?.key;
+}
+
+/**
+ * The position of this custody request among those the current operation has
+ * raised, from 0. An operation run again raises its requests in the same order,
+ * so the same request gets the same ordinal, while two identical requests of
+ * one operation are told apart.
+ */
+export function nextRequestOrdinal(): number | undefined {
+  const store = scope.getStore();
+  return store ? store.requests++ : undefined;
 }
