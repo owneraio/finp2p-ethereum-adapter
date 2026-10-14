@@ -115,8 +115,11 @@ export class ZodiaChainProvider extends AbstractProvider {
     if (!wallet) throw new Error(`Zodia wallet ${walletId} is not listed`);
     const line = lineOf(wallet, currency);
     if (!line?.availableBalance) return 0n;
+    // amountUnit is the exact smallest-unit figure, grouped with commas ("29,527,676,251,739,295");
+    // amount is rounded to 8 places, so it is only the fallback
     const { amount, amountUnit } = line.availableBalance;
-    if (amountUnit !== undefined && /^\d+$/.test(amountUnit)) return BigInt(amountUnit);
+    const exact = amountUnit?.replace(/,/g, '');
+    if (exact !== undefined && /^\d+$/.test(exact)) return BigInt(exact);
     return parseUnits(amount, await this.decimals(currency));
   }
 

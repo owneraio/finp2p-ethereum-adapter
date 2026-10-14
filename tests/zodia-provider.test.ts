@@ -76,7 +76,7 @@ function fakeZodia(calls: unknown[][], options: FakeOptions = {}) {
       calls.push(["wallets", f]);
       return [{ id: "ZTEST-NOBENF-ALICE", status: "ACTIVE", currency: "eth", currencyId: "eth-Seth",
         balances: [
-          { currency: "ETH", availableBalance: { amount: "0.05", amountUnit: "50000000000000000" } },
+          { currency: "ETH", availableBalance: { amount: "0.05000000", amountUnit: "50,000,000,000,000,001" } },
           { currency: "TMMF", availableBalance: { amount: "12.5" } },
         ] }, { id: "ZTEST-NOBENF-BOB", status: "ACTIVE", currency: "eth", currencyId: "eth-Seth", balances: [] }]
         .filter(w => !f.ids || f.ids.includes(w.id));
@@ -435,7 +435,8 @@ describe("Zodia chain reads without NETWORK_HOST", () => {
     expect(provider.chainReads.scope).toBe("erc20");
     const read = provider.chainReads.provider;
     expect((await read.getNetwork()).chainId).toBe(11155111n);
-    expect(await read.getBalance(ALICE)).toBe(50000000000000000n);
+    // exact from amountUnit despite Zodia's thousands separators; amount alone would round to 8 places
+    expect(await read.getBalance(ALICE)).toBe(50000000000000001n);
     const token = new Contract(TMMF, ["function decimals() view returns (uint8)", "function balanceOf(address) view returns (uint256)"], read);
     expect(await token.decimals()).toBe(2n);
     expect(await token.balanceOf(ALICE)).toBe(1250n);
