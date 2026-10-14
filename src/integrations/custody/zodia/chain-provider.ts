@@ -47,8 +47,11 @@ export class ZodiaChainProvider extends AbstractProvider {
     this.settled.set(hash.toLowerCase(), transfer);
   }
 
+  /** Zodia cannot be asked by hash, so a receipt the adapter did not settle never appears: say so instead of waiting forever. */
   async waitForTransaction(hash: string): Promise<TransactionReceipt | null> {
-    return this.getTransactionReceipt(hash);
+    const receipt = await this.getTransactionReceipt(hash);
+    if (!receipt) throw new Error(`Zodia reports no transaction ${hash}: receipts are known only for transfers this adapter settled`);
+    return receipt;
   }
 
   async _detectNetwork(): Promise<Network> {
@@ -72,9 +75,10 @@ export class ZodiaChainProvider extends AbstractProvider {
     }
   }
 
-  private receipt(hash: string): Record<string, unknown> {
+  /** The receipt of a transfer this adapter settled; null, as for any provider, for a hash it does not know. */
+  private receipt(hash: string): Record<string, unknown> | null {
     const transfer = this.settled.get(hash.toLowerCase());
-    if (!transfer) throw new Error(`Zodia reports no transaction ${hash}: receipts are known only for transfers this adapter settled`);
+    if (!transfer) return null;
     return {
       transactionHash: hash,
       blockHash: ZeroHash,

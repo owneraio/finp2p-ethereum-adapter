@@ -101,6 +101,7 @@ export const ZODIA_SERVICE = {
 } as const;
 
 const paged = <T>(reply: { items?: T[] } | T[] | undefined): T[] => (Array.isArray(reply) ? reply : reply?.items ?? []);
+const PAGE_LIMIT = 100;
 
 export class ZodiaClient {
   constructor(private readonly config: ZodiaClientConfig) {}
@@ -140,8 +141,8 @@ export class ZodiaClient {
 
   // ------------------------------------------------------------- custody reads
 
-  async wallets(filter: { ids?: string[]; names?: string[]; currenciesIds?: string[]; statuses?: string[]; paginationLimit?: number } = {}): Promise<ZodiaWallet[]> {
-    return paged(await this.post<{ items?: ZodiaWallet[] }>('/v3/api/custody/wallets', { paginationLimit: 100, ...filter }));
+  async wallets(filter: { ids?: string[]; names?: string[]; currenciesIds?: string[]; statuses?: string[] } = {}): Promise<ZodiaWallet[]> {
+    return this.allPages<ZodiaWallet>('/v3/api/custody/wallets', filter);
   }
 
   /** Per-address balances of a wallet, as fixed-point strings. */
@@ -149,8 +150,8 @@ export class ZodiaClient {
     return paged(await this.post<{ address: string; balance: string; currency?: string }[]>('/v3/api/custody/wallets/balance', { walletId, hideZeroBalance: false }));
   }
 
-  async addresses(filter: { walletIds?: string[]; addresses?: string[]; currenciesIds?: string[]; paginationLimit?: number } = {}): Promise<ZodiaAddress[]> {
-    return paged(await this.post<{ items?: ZodiaAddress[] }>('/v3/api/custody/wallets/addresses', { paginationLimit: 100, ...filter }));
+  async addresses(filter: { walletIds?: string[]; addresses?: string[]; currenciesIds?: string[] } = {}): Promise<ZodiaAddress[]> {
+    return this.allPages<ZodiaAddress>('/v3/api/custody/wallets/addresses', filter);
   }
 
   async generateAddress(walletId: string, currencyId?: string): Promise<ZodiaAddress> {
@@ -161,20 +162,20 @@ export class ZodiaClient {
     return paged(await this.post<{ items?: ZodiaCurrency[] }>('/v3/api/custody/currencies', {}));
   }
 
-  async transactions(filter: { walletIds?: string[]; statuses?: string[]; currenciesIds?: string[]; fromDate?: string; paginationLimit?: number } = {}): Promise<ZodiaTransfer[]> {
-    return paged(await this.post<{ items?: ZodiaTransfer[] }>('/v3/api/custody/transactions', { paginationLimit: 100, ...filter }));
+  async transactions(filter: { walletIds?: string[]; statuses?: string[]; currenciesIds?: string[]; fromDate?: string } = {}): Promise<ZodiaTransfer[]> {
+    return this.allPages<ZodiaTransfer>('/v3/api/custody/transactions', filter);
   }
 
-  async beneficiaryAddresses(filter: { addresses?: string[]; blockchainIds?: string[]; statuses?: string[]; paginationLimit?: number } = {}): Promise<ZodiaBeneficiaryAddress[]> {
-    return paged(await this.post<{ items?: ZodiaBeneficiaryAddress[] } | ZodiaBeneficiaryAddress[]>('/v3/api/netwmgmt/addresses', { paginationLimit: 100, ...filter }));
+  async beneficiaryAddresses(filter: { addresses?: string[]; blockchainIds?: string[]; statuses?: string[] } = {}): Promise<ZodiaBeneficiaryAddress[]> {
+    return this.allPages<ZodiaBeneficiaryAddress>('/v3/api/netwmgmt/addresses', filter);
   }
 
   // ------------------------------------------------------------ service desk
 
   /** `serviceIds` is required by Zodia, and so are the product ids, which are the service ids' prefix. */
-  async serviceRequests(filter: { serviceIds: string[]; requestIds?: string[]; endToEndIds?: string[]; entityIds?: string[]; statuses?: string[]; paginationLimit?: number }): Promise<ZodiaServiceRequest[]> {
+  async serviceRequests(filter: { serviceIds: string[]; requestIds?: string[]; endToEndIds?: string[]; entityIds?: string[]; statuses?: string[] }): Promise<ZodiaServiceRequest[]> {
     const productIds = [...new Set(filter.serviceIds.map(id => id.split('-')[0]!))];
-    return paged(await this.post<{ items?: ZodiaServiceRequest[] }>('/v3/api/servicedesk/requests', { paginationLimit: 100, productIds, ...filter }));
+    return this.allPages<ZodiaServiceRequest>('/v3/api/servicedesk/requests', { productIds, ...filter });
   }
 
   /** Step 1 of every state change: a service request in DRAFT. `endToEndId` is the caller's own reference, a UUID, and what a retry is found by. */
@@ -197,6 +198,18 @@ export class ZodiaClient {
   async confirmAsMaker(requestId: string, instruction: ZodiaInstruction): Promise<void> {
     const signed = this.signAsMaker(instruction.request);
     await this.post<unknown>('/v3/api/servicedesk/approve', { requestId, request: signed.request, signature: signed.signature });
+  }
+
+  /** Every page of a listing: Zodia pages by `paginationOffset` and reports the `total`. */
+  private async allPages<T>(path: string, filter: object): Promise<T[]> {
+    const all: T[] = [];
+    for (;;) {
+      const reply = await this.post<{ items?: T[]; total?: number } | T[]>(path, { ...filter, paginationLimit: PAGE_LIMIT, paginationOffset: all.length });
+      const page = paged(reply);
+      all.push(...page);
+      const total = Array.isArray(reply) ? undefined : reply?.total;
+      if (page.length < PAGE_LIMIT || (total !== undefined && all.length >= total)) return all;
+    }
   }
 
   private async post<T>(path: string, body: unknown): Promise<T> {

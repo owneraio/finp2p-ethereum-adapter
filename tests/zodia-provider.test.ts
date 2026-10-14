@@ -2,7 +2,8 @@ import { createVerify, generateKeyPairSync, verify as ecdsaVerify } from "crypto
 import http from "http";
 import { AddressInfo } from "net";
 import { Contract, Interface } from "ethers";
-import { ZodiaApiError, ZodiaClient, ZodiaCustodyProvider, ZodiaApi, endToEndIdOf, stableStringify } from "../src/integrations/custody/zodia";
+import { ZodiaApiError, ZodiaClient, ZodiaCustodyProvider, ZodiaApi, endToEndIdOf, instructionMismatch, stableStringify } from "../src/integrations/custody/zodia";
+import { endToEndIdOfAttempt } from "../src/integrations/custody/zodia/signer";
 import { ERC20TokenStandard } from "@owneraio/finp2p-ethereum-erc20-plugin";
 import { runWithIdempotencyKey } from "../src/services/custody/idempotency-scope";
 import { ZodiaAppConfig, parseTokenCurrencies } from "../src/integrations/custody/zodia/config";
@@ -38,8 +39,12 @@ interface FakeOptions {
   rejects?: boolean;
   /** the instruction states another amount than the one submitted */
   tamperAmount?: boolean;
-  /** HTTP status of each serviceRequests read made while following a transfer, in order */
+  /** HTTP status of each serviceRequests read made while following a transfer, in order; 0 is a network failure */
   followErrors?: number[];
+  /** HTTP status of each pendingInstruction read, in order */
+  makerErrors?: number[];
+  /** the request is cancelled in the Zodia console instead of decided */
+  cancels?: boolean;
 }
 
 /**
@@ -55,14 +60,15 @@ function fakeZodia(calls: unknown[][], options: FakeOptions = {}) {
   const requests = new Map<string, ZodiaServiceRequest & { payload: Record<string, any>; pendingPolls: number }>();
   const transfers: ZodiaTransfer[] = [];
   const followErrors = [...(options.followErrors ?? [])];
+  const makerErrors = [...(options.makerErrors ?? [])];
   let n = 0;
   const advance = () => {
     for (const r of requests.values()) {
       if (r.status !== "PENDING AUTHORISATION" && r.status !== "PENDING CONFIRMATION") continue;
       if (++r.pendingPolls <= (options.approveAfter ?? 2)) continue;
       if (r.status === "PENDING CONFIRMATION") { r.status = "CONFIRMATION TIMEOUT"; continue; }
-      r.status = options.rejects ? "REJECTED BY AUTHORISER" : "CONFIRMED";
-      if (!options.rejects) transfers.push({ id: r.entityId!, status: "POSTED ON CHAIN", currency: "eth", currencyId: "eth-Seth", ledgerRef: "0x" + r.entityId!.slice(-1).repeat(64), createdAt: "2026-10-14T10:00:00Z" });
+      r.status = options.cancels ? "CANCELLED" : options.rejects ? "REJECTED BY AUTHORISER" : "CONFIRMED";
+      if (!options.rejects && !options.cancels) transfers.push({ id: r.entityId!, status: "POSTED ON CHAIN", currency: "eth", currencyId: "eth-Seth", ledgerRef: "0x" + r.entityId!.slice(-1).repeat(64), createdAt: "2026-10-14T10:00:00Z" });
     }
   };
   const api: ZodiaApi = {
@@ -91,6 +97,7 @@ function fakeZodia(calls: unknown[][], options: FakeOptions = {}) {
       calls.push(["serviceRequests", f]);
       if (f.requestIds && followErrors.length) {
         const status = followErrors.shift()!;
+        if (status === 0) throw new TypeError("fetch failed");
         throw new ZodiaApiError(status, "/v3/api/servicedesk/requests", `{"title":"http ${status}"}`);
       }
       if (f.requestIds) advance();
@@ -106,6 +113,10 @@ function fakeZodia(calls: unknown[][], options: FakeOptions = {}) {
     submitServiceRequest: async requestId => { calls.push(["submitServiceRequest", requestId]); requests.get(requestId)!.status = "PENDING CONFIRMATION"; },
     pendingInstruction: async requestId => {
       calls.push(["pendingInstruction", requestId]);
+      if (makerErrors.length) {
+        const status = makerErrors.shift()!;
+        throw new ZodiaApiError(status, "/v3/api/servicedesk/pending", `{"title":"http ${status}"}`);
+      }
       const r = requests.get(requestId)!;
       if (r.status !== "PENDING CONFIRMATION") return undefined;
       // shaped like an HSM order: our values, nested, under Zodia's own names
@@ -127,6 +138,12 @@ function fakeZodia(calls: unknown[][], options: FakeOptions = {}) {
 async function walletOf(api: ZodiaApi, address = ALICE) {
   const provider = await ZodiaCustodyProvider.create(CONFIG, api);
   return (await provider.resolveWallet(address))!;
+}
+
+/** Unset stays unset: assigning undefined would leave the string "undefined" in the environment. */
+function restoreHost(saved: string | undefined): void {
+  if (saved === undefined) delete process.env.NETWORK_HOST;
+  else process.env.NETWORK_HOST = saved;
 }
 
 const created = (calls: unknown[][]) => calls.filter(c => c[0] === "createServiceRequest");
@@ -179,7 +196,7 @@ describe("Zodia request signing", () => {
 describe("ZodiaSigner: sendTransaction as a governed Service Desk transfer", () => {
   const savedHost = process.env.NETWORK_HOST;
   beforeAll(() => { delete process.env.NETWORK_HOST; });
-  afterAll(() => { process.env.NETWORK_HOST = savedHost; });
+  afterAll(() => { restoreHost(savedHost); });
 
   test("a native transfer to one of our wallets: created, submitted, confirmed as maker, then the chain hash", async () => {
     const calls: unknown[][] = [];
@@ -193,7 +210,7 @@ describe("ZodiaSigner: sendTransaction as a governed Service Desk transfer", () 
       amount: "5", sender: { type: "WALLETID", value: "ZTEST-NOBENF-ALICE" }, currency: "eth", currencyId: "eth-Seth",
       destination: { type: "WALLETID", value: "ZTEST-NOBENF-BOB" }, subtractFee: false,
     });
-    expect(endToEndId).toBe(endToEndIdOf("ik-1", "ZTEST-NOBENF-ALICE", "eth-Seth", { type: "WALLETID", value: "ZTEST-NOBENF-BOB" }, "5"));
+    expect(endToEndId).toBe(endToEndIdOf("ik-1", 0, "ZTEST-NOBENF-ALICE", "eth-Seth", { type: "WALLETID", value: "ZTEST-NOBENF-BOB" }, "5"));
     const order = calls.map(c => c[0]).filter(c => !["serviceRequests", "transactions", "addresses", "currencies", "wallets"].includes(c as string));
     expect(order).toEqual(["createServiceRequest", "submitServiceRequest", "pendingInstruction", "confirmAsMaker"]);
   });
@@ -212,7 +229,7 @@ describe("ZodiaSigner: sendTransaction as a governed Service Desk transfer", () 
     const calls: unknown[][] = [];
     const { api, requests } = fakeZodia(calls);
     const wallet = await walletOf(api);
-    const endToEndId = endToEndIdOf("ik-crash", "ZTEST-NOBENF-ALICE", "eth-Seth", { type: "WALLETID", value: "ZTEST-NOBENF-BOB" }, "3");
+    const endToEndId = endToEndIdOf("ik-crash", 0, "ZTEST-NOBENF-ALICE", "eth-Seth", { type: "WALLETID", value: "ZTEST-NOBENF-BOB" }, "3");
     await api.createServiceRequest("0x0014-007", { amount: "3", sender: { type: "WALLETID", value: "ZTEST-NOBENF-ALICE" }, currency: "eth", currencyId: "eth-Seth", destination: { type: "WALLETID", value: "ZTEST-NOBENF-BOB" } }, endToEndId);
     expect([...requests.values()][0]!.status).toBe("DRAFT");
 
@@ -240,7 +257,7 @@ describe("ZodiaSigner: sendTransaction as a governed Service Desk transfer", () 
     const calls: unknown[][] = [];
     const wallet = await walletOf(fakeZodia(calls, { tamperAmount: true }).api);
     await expect(runWithIdempotencyKey("ik-tamper", () => wallet.signer.sendTransaction({ to: BOB, value: 1n })))
-      .rejects.toThrow(/ended CONFIRMATION TIMEOUT \(maker confirmation withheld: the instruction does not state amount 1\)/);
+      .rejects.toThrow(/ended CONFIRMATION TIMEOUT \(maker confirmation withheld: the instruction states amount 999999 \(payload\.order\.amount\), submitted 1\)/);
     expect(calls.some(c => c[0] === "confirmAsMaker")).toBe(false);
   });
 
@@ -258,6 +275,59 @@ describe("ZodiaSigner: sendTransaction as a governed Service Desk transfer", () 
     await expect(runWithIdempotencyKey("ik-403", () => refused.signer.sendTransaction({ to: BOB, value: 1n })))
       .rejects.toThrow(/cannot be followed: Zodia \/v3\/api\/servicedesk\/requests answered 403.*do not resubmit/);
     expect(calls.filter(c => c[0] === "serviceRequests" && (c[1] as any).requestIds).length).toBe(1);
+  });
+
+  test("a request that timed out unsigned moved nothing: the replay raises the next attempt instead of failing for ever", async () => {
+    const calls: unknown[][] = [];
+    const { api, requests } = fakeZodia(calls);
+    const wallet = await walletOf(api);
+    const first = endToEndIdOf("ik-timeout", 0, "ZTEST-NOBENF-ALICE", "eth-Seth", { type: "WALLETID", value: "ZTEST-NOBENF-BOB" }, "2");
+    await api.createServiceRequest("0x0014-007", { amount: "2" }, first);
+    [...requests.values()][0]!.status = "CONFIRMATION TIMEOUT";
+
+    const tx = await runWithIdempotencyKey("ik-timeout", () => wallet.signer.sendTransaction({ to: BOB, value: 2n }));
+    expect(tx.hash).toBe("0x" + "2".repeat(64));
+    const raised = created(calls);
+    expect(raised).toHaveLength(2);
+    expect(raised[1]![3]).toBe(endToEndIdOfAttempt(first, 1));
+  });
+
+  test("a request cancelled in the Zodia console ends the operation", async () => {
+    const wallet = await walletOf(fakeZodia([], { cancels: true }).api);
+    await expect(runWithIdempotencyKey("ik-cancel", () => wallet.signer.sendTransaction({ to: BOB, value: 1n }))).rejects.toThrow(/ended CANCELLED/);
+  });
+
+  test("two identical transfers of one operation are two requests", async () => {
+    const calls: unknown[][] = [];
+    const wallet = await walletOf(fakeZodia(calls).api);
+    await runWithIdempotencyKey("ik-twice", async () => {
+      await wallet.signer.sendTransaction({ to: BOB, value: 4n });
+      await wallet.signer.sendTransaction({ to: BOB, value: 4n });
+    });
+    const ids = created(calls).map(c => c[3]);
+    expect(ids).toHaveLength(2);
+    expect(new Set(ids).size).toBe(2);
+  });
+
+  test("a network failure while following, and a 503 inside the maker window, are retried", async () => {
+    const calls: unknown[][] = [];
+    const wallet = await walletOf(fakeZodia(calls, { followErrors: [0], makerErrors: [503] }).api);
+    expect((await runWithIdempotencyKey("ik-net", () => wallet.signer.sendTransaction({ to: BOB, value: 1n }))).hash).toBe(HASH_1);
+    expect(calls.some(c => c[0] === "confirmAsMaker")).toBe(true);
+  });
+
+  test("a beneficiary on another chain, or not whitelisted for outgoing transfers, is refused before any request", async () => {
+    const calls: unknown[][] = [];
+    const { api } = fakeZodia(calls);
+    const wallet = await walletOf({
+      ...api,
+      beneficiaryAddresses: async () => [
+        { cryptoAddressId: "bnf-mainnet", address: BENEFICIARY, blockchain: "ETH", blockchainId: "eth-eth", status: "ACTIVE", addressPurpose: ["OUTGOING"] },
+        { cryptoAddressId: "bnf-no-purpose", address: BENEFICIARY, blockchain: "ETH", blockchainId: "eth-Seth", status: "ACTIVE" },
+      ],
+    });
+    await expect(wallet.signer.sendTransaction({ to: BENEFICIARY, value: 1n })).rejects.toThrow(/nor an active outgoing beneficiary address on eth-Seth/);
+    expect(created(calls)).toHaveLength(0);
   });
 
   test("an ERC-20 transfer of a mapped token goes to a whitelisted beneficiary in base units", async () => {
@@ -293,10 +363,71 @@ describe("ZodiaSigner: sendTransaction as a governed Service Desk transfer", () 
   });
 });
 
+describe("Zodia maker confirmation: the instruction must state the submitted payment", () => {
+  const intent = {
+    walletId: "ZTEST-NOBENF-ALICE", currency: { currency: "eth", currencyId: "eth-Seth" },
+    destination: { type: "WALLETID", value: "ZTEST-NOBENF-BOB" } as const, amount: "1", decimals: 18, endToEndId: "e2e",
+  };
+  const order = (fields: Record<string, unknown>) => ({ request: { id: "i-1", version: 1, payload: { order: fields } }, signature: "$$REPLACE$$" });
+  const honest = { accountId: "ZTEST-NOBENF-ALICE", ticker: "eth-Seth", destination: { ref: "ZTEST-NOBENF-BOB" }, amount: "1" };
+
+  test("an honest instruction matches, with the amount as a field or as an object's value", () => {
+    expect(instructionMismatch(order(honest), intent)).toBeUndefined();
+    expect(instructionMismatch(order({ ...honest, amount: { value: "0.000000000000000001", unit: "eth" } }), intent)).toBeUndefined();
+  });
+
+  test("a tampered amount fails even when the submitted value appears elsewhere (version: 1)", () => {
+    expect(instructionMismatch(order({ ...honest, amount: "999999" }), intent)).toMatch(/states amount 999999 \(payload\.order\.amount\), submitted 1/);
+  });
+
+  test("an instruction with no amount field, or a second amount field that differs, fails closed", () => {
+    const { amount, ...noAmount } = honest;
+    expect(instructionMismatch(order(noAmount), intent)).toBe("the instruction states no amount");
+    expect(instructionMismatch(order({ ...honest, fee: { amount: "5" } }), intent)).toMatch(/states amount 5/);
+  });
+
+  test("values scattered outside the payment do not count", () => {
+    const scattered = { request: { id: "i-1", meta: { accountId: "ZTEST-NOBENF-ALICE", ticker: "eth-Seth", ref: "ZTEST-NOBENF-BOB" }, payload: { order: { amount: "1", destination: { ref: "SOMEONE-ELSE" } } } }, signature: "x" };
+    expect(instructionMismatch(scattered, intent)).toMatch(/payment does not state source wallet ZTEST-NOBENF-ALICE, currency eth-Seth, destination ZTEST-NOBENF-BOB/);
+  });
+});
+
+describe("Zodia client pagination", () => {
+  test("every listing follows paginationOffset to the reported total", async () => {
+    const realFetch = global.fetch;
+    const offsets: number[] = [];
+    (global as any).fetch = jest.fn(async (_url: string, init?: RequestInit) => {
+      const body = JSON.parse(String(init?.body));
+      offsets.push(body.paginationOffset);
+      const total = 250;
+      const items = Array.from({ length: Math.max(0, Math.min(body.paginationLimit, total - body.paginationOffset)) }, (_, i) => ({ id: `w-${body.paginationOffset + i}`, status: "ACTIVE", currency: "eth", currencyId: "eth-Seth" }));
+      return { ok: true, status: 200, text: async () => JSON.stringify({ items, total }) } as Response;
+    });
+    try {
+      const wallets = await new ZodiaClient(CONFIG).wallets();
+      expect(wallets).toHaveLength(250);
+      expect(wallets[249]!.id).toBe("w-249");
+      expect(offsets).toEqual([0, 100, 200]);
+    } finally {
+      (global as any).fetch = realFetch;
+    }
+  });
+
+  test("a transfer is followed in the wallet's transactions since the request was made", async () => {
+    const calls: unknown[][] = [];
+    const { api } = fakeZodia(calls);
+    const withDates: ZodiaApi = { ...api, createServiceRequest: async (...args) => api.createServiceRequest(...args), serviceRequests: async f => (await api.serviceRequests(f)).map(r => ({ ...r, createdAt: "2026-10-14T09:00:00Z" })) };
+    delete process.env.NETWORK_HOST;
+    const wallet = await walletOf(withDates);
+    await runWithIdempotencyKey("ik-since", () => wallet.signer.sendTransaction({ to: BOB, value: 1n }));
+    expect(calls.filter(c => c[0] === "transactions").some(c => (c[1] as any).fromDate === "2026-10-14T09:00:00Z")).toBe(true);
+  });
+});
+
 describe("Zodia chain reads without NETWORK_HOST", () => {
   const savedHost = process.env.NETWORK_HOST;
   beforeAll(() => { delete process.env.NETWORK_HOST; });
-  afterAll(() => { process.env.NETWORK_HOST = savedHost; });
+  afterAll(() => { restoreHost(savedHost); });
 
   test("chain id from the native currency; ERC20 scope; balances and decimals from Zodia", async () => {
     const calls: unknown[][] = [];
@@ -324,7 +455,8 @@ describe("Zodia chain reads without NETWORK_HOST", () => {
     const provider = await ZodiaCustodyProvider.create(CONFIG, fakeZodia([]).api);
     const read = provider.chainReads.provider;
     await expect(read.getTransactionCount(ALICE)).rejects.toThrow(/Zodia does not serve 'getTransactionCount'/);
-    await expect(read.getTransactionReceipt("0x" + "ab".repeat(32))).rejects.toThrow(/receipts are known only for transfers this adapter settled/);
+    expect(await read.getTransactionReceipt("0x" + "ab".repeat(32))).toBeNull();
+    await expect(read.waitForTransaction("0x" + "ab".repeat(32))).rejects.toThrow(/receipts are known only for transfers this adapter settled/);
   });
 
   test("without a configured native currency, the chain is the one the company's EVM wallets are on", async () => {
@@ -350,7 +482,7 @@ describe("Zodia chain reads with NETWORK_HOST set", () => {
     await new Promise<void>(r => rpc.listen(0, "127.0.0.1", r));
     rpcUrl = `http://127.0.0.1:${(rpc.address() as AddressInfo).port}`;
   });
-  afterAll(async () => { process.env.NETWORK_HOST = savedHost; await new Promise<void>(r => rpc.close(() => r())); });
+  afterAll(async () => { restoreHost(savedHost); await new Promise<void>(r => rpc.close(() => r())); });
 
   test("the configured RPC serves every read once it is on the chain of Zodia's native currency", async () => {
     rpcChainId = "0xaa36a7"; process.env.NETWORK_HOST = rpcUrl;

@@ -60,7 +60,8 @@ export function parseTokenCurrencies(value: string | undefined): Map<string, Zod
   return tokens;
 }
 
-function pem(inline: string | undefined, path: string | undefined): string | undefined {
+/** A PEM given inline (`\\n` escapes allowed) or as a file path. */
+export function pem(inline: string | undefined, path: string | undefined): string | undefined {
   if (inline) return inline.replace(/\\n/g, '\n');
   if (path) return fs.readFileSync(path, 'utf8');
   return undefined;

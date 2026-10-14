@@ -1,5 +1,5 @@
-import fs from 'fs';
 import { ZODIA_SERVICE, ZodiaApiError, ZodiaClient } from '../src/integrations/custody/zodia/client';
+import { pem } from '../src/integrations/custody/zodia/config';
 
 /**
  * Read-only probe of a Zodia company: proves the request signature and the
@@ -9,8 +9,6 @@ import { ZODIA_SERVICE, ZodiaApiError, ZodiaClient } from '../src/integrations/c
  *
  *   set -a; . ./.env.zodia; set +a; npx ts-node scripts/zodia-probe.ts
  */
-const pem = (inline: string | undefined, path: string | undefined) => inline ? inline.replace(/\\n/g, '\n') : path ? fs.readFileSync(path, 'utf8') : undefined;
-
 async function main(): Promise<void> {
   const baseUrl = process.env.ZODIA_BASE_URL ?? 'https://gateway-preprod.uat.api-zodia.io';
   const companyId = process.env.ZODIA_COMPANY_ID;
@@ -45,7 +43,7 @@ async function main(): Promise<void> {
   say(`\n${beneficiaries.length} active beneficiary addresses (the only external destinations a transfer may name):`);
   for (const b of beneficiaries) say(`  ${b.cryptoAddressId.padEnd(38)} ${b.blockchainId.padEnd(12)} ${b.address}  ${(b.addressPurpose ?? []).join('/')}`);
 
-  const requests = await client.serviceRequests({ serviceIds: Object.values(ZODIA_SERVICE), paginationLimit: 10 });
+  const requests = (await client.serviceRequests({ serviceIds: Object.values(ZODIA_SERVICE) })).slice(0, 10);
   say(`\nlast ${requests.length} service requests:`);
   for (const r of requests) say(`  ${r.requestId.padEnd(22)} ${r.serviceId.padEnd(11)} ${r.status.padEnd(24)} ${r.entityId ?? ''}${r.endToEndId ? `  e2e=${r.endToEndId}` : ''}`);
 }

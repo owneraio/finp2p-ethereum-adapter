@@ -6,7 +6,7 @@ import { v5 as uuidv5 } from 'uuid';
 import { ZODIA_SERVICE, ZodiaApiError, ZodiaClient, ZodiaInstruction, ZodiaParty, ZodiaServiceRequest } from './client';
 import { ZodiaAppConfig, ZodiaCurrencyRef } from './config';
 import { ZodiaChainProvider } from './chain-provider';
-import { currentIdempotencyKey } from '../../../services/custody/idempotency-scope';
+import { currentIdempotencyKey, nextRequestOrdinal } from '../../../services/custody/idempotency-scope';
 
 /** The slice of ZodiaClient the provider and signer use, so tests can stand in for it. */
 export type ZodiaApi = Pick<ZodiaClient,
@@ -22,10 +22,16 @@ const KNOWN_REFUSALS = new Interface([
   'function burnFrom(address account, uint256 amount)',
 ]);
 
-const SERVICE_REQUEST_FAILED = new Set(['CONFIRMATION TIMEOUT', 'APPROVAL TIMEOUT', 'REJECTED BY AUTHORISER', 'REJECTED BY SYSTEM']);
-const TRANSFER_FAILED = new Set(['FAILED', 'REJECTED BY SYSTEM']);
+/** A request that ended without moving anything; the withdrawal and expiry spellings are accepted as well. */
+const SERVICE_REQUEST_FAILED = new Set([
+  'CONFIRMATION TIMEOUT', 'APPROVAL TIMEOUT', 'REJECTED BY AUTHORISER', 'REJECTED BY SYSTEM',
+  'CANCELLED', 'CANCELED', 'WITHDRAWN', 'EXPIRED', 'REJECTED',
+]);
+const TRANSFER_FAILED = new Set(['FAILED', 'REJECTED BY SYSTEM', 'REJECTED', 'CANCELLED', 'CANCELED', 'EXPIRED']);
 /** Submitted and waiting for the maker. PENDING CONFIRMATION is what Zodia documents; SUBMITTED is accepted as well. */
 const AWAITING_MAKER = new Set(['PENDING CONFIRMATION', 'SUBMITTED']);
+/** Nobody signed it, so nothing moved: such a request may be raised again. */
+const NOTHING_SIGNED = 'CONFIRMATION TIMEOUT';
 /** A maker has 120 seconds from submit to confirm. */
 const MAKER_WINDOW_MS = 110_000;
 /** A fixed namespace for the adapter's end-to-end ids. */
@@ -46,17 +52,24 @@ export interface TransferIntent {
   /** smallest unit */
   amount: string;
   decimals: number | undefined;
+  /** the end-to-end id of the first attempt; a later attempt derives its own (endToEndIdOfAttempt) */
   endToEndId: string;
 }
 
 /**
- * Zodia takes a service request's endToEndId as a UUID. The idempotency key
- * of the operation, with what is moved, becomes one deterministically: the
- * operation run again finds the request it raised, and a second transfer in
- * the same operation gets its own.
+ * Zodia takes a service request's endToEndId as a UUID. The operation's
+ * idempotency key, the request's position among those the operation raises,
+ * and what is moved become one deterministically: the operation run again
+ * finds the requests it raised, and two transfers of one operation — even two
+ * identical ones — get their own.
  */
-export function endToEndIdOf(idempotencyKey: string, walletId: string, currencyId: string, destination: ZodiaParty, amount: string): string {
-  return uuidv5([idempotencyKey, walletId, currencyId, `${destination.type}:${destination.value}`, amount].join('|'), END_TO_END_NAMESPACE);
+export function endToEndIdOf(idempotencyKey: string, ordinal: number, walletId: string, currencyId: string, destination: ZodiaParty, amount: string): string {
+  return uuidv5([idempotencyKey, ordinal, walletId, currencyId, `${destination.type}:${destination.value}`, amount].join('|'), END_TO_END_NAMESPACE);
+}
+
+/** A request that timed out unsigned is raised again under the next attempt's id. */
+export function endToEndIdOfAttempt(endToEndId: string, attempt: number): string {
+  return attempt === 0 ? endToEndId : uuidv5(`${endToEndId}#${attempt}`, END_TO_END_NAMESPACE);
 }
 
 /**
@@ -101,14 +114,15 @@ export class ZodiaSigner extends AbstractSigner {
     const destination = await this.destination(to);
     // a blank key (the skeleton encodes a missing header as '') cannot be resumed
     const key = currentIdempotencyKey() || randomUUID();
+    const ordinal = nextRequestOrdinal() ?? 0;
     const intent: TransferIntent = {
       walletId: this.walletId, currency, destination, amount,
       decimals: await this.wallets.decimalsOf(currency),
-      endToEndId: endToEndIdOf(key, this.walletId, currency.currencyId, destination, amount),
+      endToEndId: endToEndIdOf(key, ordinal, this.walletId, currency.currencyId, destination, amount),
     };
 
-    const requestId = await this.raiseOrResume(intent);
-    const settled = await this.settle(requestId, intent);
+    const request = await this.raiseOrResume(intent);
+    const settled = await this.settle(request, intent);
     // ethers Contract re-wraps this response on the provider, so the receipt must come from the provider
     if (this.provider instanceof ZodiaChainProvider) {
       this.provider.recordSettled(settled.hash, { status: 1, from: this.address, timestamp: settled.timestamp });
@@ -117,32 +131,38 @@ export class ZodiaSigner extends AbstractSigner {
   }
 
   /**
-   * The request raised under this end-to-end id before, taken as far as the
-   * maker goes — a process that stopped between creating and confirming left
-   * it waiting for a step only the maker can take — or a new one.
+   * The request raised for this transfer before, taken as far as the maker
+   * goes — a process that stopped between creating and confirming left it
+   * waiting for a step only the maker can take — or a new one. A request that
+   * timed out unsigned moved nothing, so the next attempt is raised under its
+   * own end-to-end id; any other outcome is followed, never raised again.
    */
-  private async raiseOrResume(intent: TransferIntent): Promise<string> {
-    const [known] = await this.api.serviceRequests({ serviceIds: [ZODIA_SERVICE.transfer], endToEndIds: [intent.endToEndId] });
-    if (known) {
-      if (known.status === 'DRAFT') {
-        await this.api.submitServiceRequest(known.requestId);
-        await this.confirmAsMaker(known.requestId, intent);
-      } else if (AWAITING_MAKER.has(known.status)) {
-        await this.confirmAsMaker(known.requestId, intent);
+  private async raiseOrResume(intent: TransferIntent): Promise<ZodiaServiceRequest> {
+    for (let attempt = 0; ; attempt++) {
+      const endToEndId = endToEndIdOfAttempt(intent.endToEndId, attempt);
+      const [known] = await this.retrying(() => this.api.serviceRequests({ serviceIds: [ZODIA_SERVICE.transfer], endToEndIds: [endToEndId] }));
+      if (known?.status === NOTHING_SIGNED) continue;
+      if (known) {
+        if (known.status === 'DRAFT') {
+          await this.api.submitServiceRequest(known.requestId);
+          await this.confirmAsMaker(known.requestId, intent);
+        } else if (AWAITING_MAKER.has(known.status)) {
+          await this.confirmAsMaker(known.requestId, intent);
+        }
+        return known;
       }
-      return known.requestId;
+      const created = await this.api.createServiceRequest(ZODIA_SERVICE.transfer, {
+        amount: intent.amount,
+        sender: { type: 'WALLETID', value: intent.walletId },
+        currency: intent.currency.currency,
+        currencyId: intent.currency.currencyId,
+        destination: intent.destination,
+        subtractFee: false,
+      }, endToEndId);
+      await this.api.submitServiceRequest(created.requestId);
+      await this.confirmAsMaker(created.requestId, intent);
+      return { requestId: created.requestId, serviceId: ZODIA_SERVICE.transfer, endToEndId, status: 'PENDING AUTHORISATION', entityId: created.pluginDetail?.entityId };
     }
-    const created = await this.api.createServiceRequest(ZODIA_SERVICE.transfer, {
-      amount: intent.amount,
-      sender: { type: 'WALLETID', value: intent.walletId },
-      currency: intent.currency.currency,
-      currencyId: intent.currency.currencyId,
-      destination: intent.destination,
-      subtractFee: false,
-    }, intent.endToEndId);
-    await this.api.submitServiceRequest(created.requestId);
-    await this.confirmAsMaker(created.requestId, intent);
-    return created.requestId;
   }
 
   private translate(target: string, tx: TransactionRequest): { currency: ZodiaCurrencyRef; to: string; amount: string } {
@@ -160,36 +180,47 @@ export class ZodiaSigner extends AbstractSigner {
     return { currency, to: String(call.args[0]), amount: (call.args[1] as bigint).toString() };
   }
 
-  /** Zodia moves value only to one of the company's own wallets or to an active outgoing beneficiary address. */
+  /**
+   * Zodia moves value only to one of the company's own wallets or to an
+   * address whitelisted on this chain for outgoing transfers; anything else is
+   * refused here rather than by Zodia after the request is raised.
+   */
   private async destination(to: string): Promise<ZodiaParty> {
     const own = await this.wallets.walletIdOf(to);
     if (own) return { type: 'WALLETID', value: own };
-    const beneficiary = (await this.api.beneficiaryAddresses({ addresses: [to], statuses: ['ACTIVE'] }))
-      .find(b => b.address.toLowerCase() === to.toLowerCase() && (b.addressPurpose ?? ['OUTGOING']).some(p => p === 'OUTGOING' || p === 'BIDIRECTIONAL'));
+    const chain = this.wallets.native.currencyId;
+    const beneficiary = (await this.api.beneficiaryAddresses({ addresses: [to], blockchainIds: [chain], statuses: ['ACTIVE'] }))
+      .find(b => b.address.toLowerCase() === to.toLowerCase() && b.blockchainId === chain
+        && (b.addressPurpose ?? []).some(p => p === 'OUTGOING' || p === 'BIDIRECTIONAL'));
     if (beneficiary) return { type: 'BENEFICIARYADDRESSID', value: beneficiary.cryptoAddressId };
-    throw new Error(`Zodia signer: ${to} is neither a wallet of this company nor an active outgoing beneficiary address; whitelist it in Zodia before transferring`);
+    throw new Error(`Zodia signer: ${to} is neither a wallet of this company nor an active outgoing beneficiary address on ${chain}; whitelist it in Zodia before transferring`);
   }
 
   /**
    * Steps 3 and 4 of the service desk flow, inside the maker's 120-second
    * window: fetch the HSM instruction and sign it — only when it states what
    * was submitted. Otherwise the confirmation is withheld: the request then
-   * times out in Zodia, and its status ends the operation.
+   * times out in Zodia, and its status ends the operation. Transient errors
+   * are retried within the window.
    */
   private async confirmAsMaker(requestId: string, intent: TransferIntent): Promise<void> {
     const deadline = Date.now() + MAKER_WINDOW_MS;
     let wait = this.config.makerPollIntervalMs;
     while (Date.now() < deadline) {
-      const instruction = await this.api.pendingInstruction(requestId);
-      const single = Array.isArray(instruction) ? instruction[0] : instruction;
-      if (single) {
-        const mismatch = instructionMismatch(single, intent);
-        if (mismatch) {
-          this.withheld.set(requestId, mismatch);
+      try {
+        const instruction = await this.api.pendingInstruction(requestId);
+        const single = Array.isArray(instruction) ? instruction[0] : instruction;
+        if (single) {
+          const mismatch = instructionMismatch(single, intent);
+          if (mismatch) {
+            this.withheld.set(requestId, mismatch);
+            return;
+          }
+          await this.api.confirmAsMaker(requestId, single as ZodiaInstruction);
           return;
         }
-        await this.api.confirmAsMaker(requestId, single as ZodiaInstruction);
-        return;
+      } catch (e) {
+        if (!isTransient(e)) throw e;
       }
       await sleep(Math.min(wait, Math.max(0, deadline - Date.now())));
       wait *= 2;
@@ -199,20 +230,23 @@ export class ZodiaSigner extends AbstractSigner {
 
   /**
    * One request at a time, slower each time up to the maximum interval, until
-   * Zodia posts the transfer on chain (its hash) or ends it. Network errors,
-   * 5xx and 429 are retried; any other Zodia refusal ends the wait at once.
+   * Zodia posts the transfer on chain (its hash) or ends it. Transient errors
+   * (network, 5xx, 429) are retried; any other error ends the wait at once.
    */
-  private async settle(requestId: string, intent: TransferIntent): Promise<{ hash: string; timestamp: number }> {
+  private async settle(request: ZodiaServiceRequest, intent: TransferIntent): Promise<{ hash: string; timestamp: number }> {
     let wait = this.config.pollIntervalMs;
-    let entityId: string | undefined;
+    let entityId = request.entityId;
+    let since = request.createdAt;
     for (;;) {
       try {
-        const [request] = await this.api.serviceRequests({ serviceIds: [ZODIA_SERVICE.transfer], requestIds: [requestId] });
-        if (request) {
-          if (SERVICE_REQUEST_FAILED.has(request.status)) throw new ZodiaTransferEnded(this.endedReason(requestId, request));
-          entityId = entityId ?? request.entityId;
+        const [current] = await this.api.serviceRequests({ serviceIds: [ZODIA_SERVICE.transfer], requestIds: [request.requestId] });
+        if (current) {
+          if (SERVICE_REQUEST_FAILED.has(current.status)) throw new ZodiaTransferEnded(this.endedReason(current));
+          entityId = entityId ?? current.entityId;
+          since = since ?? current.createdAt;
           if (entityId) {
-            const transfer = (await this.api.transactions({ walletIds: [intent.walletId], currenciesIds: [intent.currency.currencyId] })).find(t => t.id === entityId);
+            const transfer = (await this.api.transactions({ walletIds: [intent.walletId], currenciesIds: [intent.currency.currencyId], ...(since ? { fromDate: since } : {}) }))
+              .find(t => t.id === entityId);
             if (transfer && TRANSFER_FAILED.has(transfer.status)) throw new ZodiaTransferEnded(`Zodia transfer ${entityId} ended ${transfer.status}`);
             if (transfer?.ledgerRef) {
               const at = transfer.createdAt ? Date.parse(transfer.createdAt) : Date.now();
@@ -222,8 +256,8 @@ export class ZodiaSigner extends AbstractSigner {
         }
       } catch (e) {
         if (e instanceof ZodiaTransferEnded) throw e;
-        if (e instanceof ZodiaApiError && !(e.status >= 500 || e.status === 429)) {
-          throw new Error(`Zodia service request ${requestId} cannot be followed: ${e.message}; it may still execute in Zodia, do not resubmit`);
+        if (!isTransient(e)) {
+          throw new Error(`Zodia service request ${request.requestId} cannot be followed: ${(e as Error).message}; it may still execute in Zodia, do not resubmit`);
         }
       }
       await sleep(wait);
@@ -231,9 +265,23 @@ export class ZodiaSigner extends AbstractSigner {
     }
   }
 
-  private endedReason(requestId: string, request: ZodiaServiceRequest): string {
-    const withheld = this.withheld.get(requestId);
-    return `Zodia service request ${requestId} ended ${request.status}${withheld ? ` (maker confirmation withheld: ${withheld})` : ''}`;
+  /** A read that a transient error does not end: retried after a short pause. */
+  private async retrying<T>(read: () => Promise<T>): Promise<T> {
+    let wait = this.config.makerPollIntervalMs;
+    for (;;) {
+      try {
+        return await read();
+      } catch (e) {
+        if (!isTransient(e)) throw e;
+        await sleep(wait);
+        wait = Math.min(wait * 2, this.config.maxPollIntervalMs);
+      }
+    }
+  }
+
+  private endedReason(request: ZodiaServiceRequest): string {
+    const withheld = this.withheld.get(request.requestId);
+    return `Zodia service request ${request.requestId} ended ${request.status}${withheld ? ` (maker confirmation withheld: ${withheld})` : ''}`;
   }
 
   async signTransaction(): Promise<string> {
@@ -251,37 +299,71 @@ export class ZodiaSigner extends AbstractSigner {
 
 class ZodiaTransferEnded extends Error {}
 
+/** Worth asking again: Zodia's 5xx and 429, and a request that never reached it. */
+function isTransient(e: unknown): boolean {
+  if (e instanceof ZodiaApiError) return e.status >= 500 || e.status === 429;
+  if (!(e instanceof Error)) return false;
+  const code = (e as { cause?: { code?: string } }).cause?.code ?? (e as { code?: string }).code;
+  return e.message === 'fetch failed'
+    || ['ECONNRESET', 'ECONNREFUSED', 'ETIMEDOUT', 'ENOTFOUND', 'EAI_AGAIN', 'UND_ERR_SOCKET', 'UND_ERR_CONNECT_TIMEOUT'].includes(code ?? '');
+}
+
+const AMOUNT_KEY = /amount|quantity/i;
+
+/** A scalar of the instruction: the keys leading to it, its value, and the objects that hold it, outermost first. */
+type Leaf = { keys: string[]; value: string; parents: object[] };
+
 /**
  * Whether the HSM instruction states what the adapter submitted. Zodia does
- * not document the instruction's fields, so each expected value must appear
- * somewhere in it: the source wallet, the currency id, the destination (wallet
- * id or beneficiary address id), the amount (smallest unit or, when the
- * decimals are known, its decimal form). A missing value is a mismatch. The
- * end-to-end id is matched on the request itself, which is found by it.
+ * not document the instruction's fields, so the check is shape-tolerant but
+ * bound to structure, and fails closed:
+ *  - it must carry at least one amount field (a key naming an amount or a
+ *    quantity, or the value of an object so named), and every amount field
+ *    must hold the submitted amount — in the
+ *    smallest unit or, when the decimals are known, in decimal form;
+ *  - the object holding that amount must also state, among its own fields or
+ *    those of the objects nested in it, the source wallet, the currency id and
+ *    the destination (wallet id or beneficiary address id) — so they describe
+ *    one payment, not values scattered over unrelated parts of the instruction.
+ * The end-to-end id is matched on the request itself, which is found by it.
  */
 export function instructionMismatch(instruction: ZodiaInstruction, intent: TransferIntent): string | undefined {
-  const values = new Set<string>();
-  const collect = (v: unknown): void => {
-    if (v === null || v === undefined) return;
-    if (Array.isArray(v)) return v.forEach(collect);
-    if (typeof v === 'object') return Object.values(v as Record<string, unknown>).forEach(collect);
-    values.add(String(v).toLowerCase());
+  const leaves: Leaf[] = [];
+  const walk = (node: unknown, keys: string[], parents: object[]): void => {
+    if (node === null || node === undefined) return;
+    if (Array.isArray(node)) return node.forEach(v => walk(v, keys, parents));
+    if (typeof node === 'object') {
+      for (const [k, v] of Object.entries(node as Record<string, unknown>)) walk(v, [...keys, k], [...parents, node as object]);
+      return;
+    }
+    leaves.push({ keys, value: String(node).toLowerCase(), parents });
   };
-  collect(instruction.request);
-  const has = (...candidates: string[]) => candidates.some(c => values.has(c.toLowerCase()));
+  walk(instruction.request, [], []);
 
-  const amounts = [intent.amount];
+  const amounts = new Set([intent.amount]);
   if (intent.decimals !== undefined) {
     const decimal = formatUnits(BigInt(intent.amount), intent.decimals);
-    amounts.push(decimal, decimal.replace(/\.0$/, ''));
+    amounts.add(decimal).add(decimal.replace(/\.0$/, ''));
   }
+  // an amount is a field named so, or the scalar of an object named so (`amount: { value }`)
+  const amountDepth = (l: Leaf) => AMOUNT_KEY.test(l.keys[l.keys.length - 1] ?? '') ? 1
+    : AMOUNT_KEY.test(l.keys[l.keys.length - 2] ?? '') && /^(value|amount|quantity)$/i.test(l.keys[l.keys.length - 1] ?? '') ? 2 : 0;
+  const amountLeaves = leaves.filter(l => amountDepth(l) > 0);
+  if (amountLeaves.length === 0) return 'the instruction states no amount';
+  const other = amountLeaves.find(l => !amounts.has(l.value));
+  if (other) return `the instruction states amount ${other.value} (${other.keys.join('.')}), submitted ${intent.amount}`;
+
+  // the payment is the object holding the amount field
+  const first = amountLeaves[0]!;
+  const payment = first.parents[first.parents.length - amountDepth(first)]!;
+  const inPayment = leaves.filter(l => l.parents.includes(payment)).map(l => l.value);
+  const states = (v: string) => inPayment.includes(v.toLowerCase());
   const missing = [
-    !has(intent.walletId) && `source wallet ${intent.walletId}`,
-    !has(intent.currency.currencyId) && `currency ${intent.currency.currencyId}`,
-    !has(intent.destination.value) && `destination ${intent.destination.value}`,
-    !has(...amounts) && `amount ${intent.amount}`,
+    !states(intent.walletId) && `source wallet ${intent.walletId}`,
+    !states(intent.currency.currencyId) && `currency ${intent.currency.currencyId}`,
+    !states(intent.destination.value) && `destination ${intent.destination.value}`,
   ].filter(Boolean);
-  return missing.length ? `the instruction does not state ${missing.join(', ')}` : undefined;
+  return missing.length ? `the instruction's payment does not state ${missing.join(', ')}` : undefined;
 }
 
 const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
