@@ -1,11 +1,13 @@
 import winston from 'winston';
 import {
+  AccountAlreadyBoundError,
   AccountInvalidShapeError,
   AccountMappingServiceImpl,
   AccountOperation,
   BindInfo,
   NetworkAccountServiceImpl,
   NetworkAccountValidator,
+  NotSupportedError,
   failedAccountOperation,
   storage,
 } from '@owneraio/finp2p-nodejs-skeleton-adapter';
@@ -35,11 +37,19 @@ const ETH_ADDRESS_FORMAT = /^0x[0-9a-fA-F]{40}$/;
  * activation failure fails the onboarding before the account mapping is
  * mirrored; a repeat create replays the binding and re-attempts the
  * idempotent activation.
+ *
+ * A request from another organization proves nothing about the account it
+ * names until ownership challenges exist, so until then it may only bind an
+ * external EVM wallet: never a custody account of this adapter (a custodial
+ * bind, or the custody-id overload), and never in place of a different
+ * account the finId is already mapped to, since the mapping is shared by
+ * finId and drives every operation for that investor.
  */
 export class CustodyNetworkAccountService extends NetworkAccountServiceImpl {
 
   constructor(
     store: storage.NetworkAccountStore,
+    private readonly orgId: string,
     private readonly custodyProvider: CustodyProvider | undefined,
     private readonly mappingService: AccountMappingServiceImpl,
     private readonly logger: winston.Logger,
@@ -50,6 +60,8 @@ export class CustodyNetworkAccountService extends NetworkAccountServiceImpl {
   }
 
   async createAccount(idempotencyKey: string, organizationId: string, assetId: string, finId: string, bindInfo: BindInfo | undefined): Promise<AccountOperation> {
+    if (organizationId !== this.orgId) await this.guardForeignBind(organizationId, finId, bindInfo);
+
     let effectiveBind = bindInfo;
     let custodyAccountId: string | undefined;
     if (bindInfo?.account.type === 'custodialAccount') {
@@ -85,6 +97,20 @@ export class CustodyNetworkAccountService extends NetworkAccountServiceImpl {
       : { [FIELD_LEDGER_ACCOUNT_ID]: address });
 
     return op;
+  }
+
+  private async guardForeignBind(organizationId: string, finId: string, bindInfo: BindInfo | undefined): Promise<void> {
+    if (bindInfo?.account.type !== 'walletAccount' || !ETH_ADDRESS_FORMAT.test(bindInfo.account.address)) {
+      this.logger.warn(`onboarding: refused ${bindInfo?.account.type ?? 'create-new'} bind of ${finId} from organization '${organizationId}' (this adapter is '${this.orgId}')`);
+      throw new NotSupportedError(`organization '${organizationId}' may only bind an external EVM wallet on '${this.orgId}' until ownership challenges are supported`);
+    }
+    const requested = bindInfo.account.address;
+    const [mapping] = await this.mappingService.getAccounts([finId]);
+    const current = mapping?.fields[FIELD_LEDGER_ACCOUNT_ID];
+    if (current && current.toLowerCase() !== requested.toLowerCase()) {
+      this.logger.warn(`onboarding: refused rebinding ${finId} from ${current} to ${requested}, requested by organization '${organizationId}' (this adapter is '${this.orgId}')`);
+      throw new AccountAlreadyBoundError(`investor ${finId} is already mapped to another account; organization '${organizationId}' cannot replace it`);
+    }
   }
 
   private async resolveCustodyAddress(custodyAccountId: string): Promise<string> {
