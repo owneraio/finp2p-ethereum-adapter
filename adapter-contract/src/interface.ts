@@ -1,5 +1,5 @@
 import type { Provider, Signer } from 'ethers';
-import type { TokenWallet, AssetRecord, DeployResult, Logger, OperationContext, TokenOperationResult } from './types';
+import type { TokenWallet, AssetRecord, DeployContext, DeployResult, Logger, OperationContext, TokenOperationResult } from './types';
 
 /**
  * Token standard implementation for direct-mode operations.
@@ -16,11 +16,18 @@ import type { TokenWallet, AssetRecord, DeployResult, Logger, OperationContext, 
  * carrying business semantics (leg, phase, primaryType) so standards can
  * vary behavior — e.g. REPO flows use Phase to distinguish initiation from closure.
  *
+ * deploy runs when an asset is created without an existing token. It may run
+ * any number of transactions, and its DeployContext carries the creation
+ * request, so a standard can build a configured asset from the request's
+ * metadata. The host replays an unfinished creation after a restart, so a
+ * deploy that receives a context MUST be idempotent on (assetId,
+ * idempotencyKey): return the asset already created rather than create another.
+ *
  * Implement this interface in a plugin package; the adapter registers it in
  * its tokenStandardRegistry at bootstrap.
  */
 export interface TokenStandard {
-  deploy(wallet: TokenWallet, name: string, symbol: string, decimals: number, logger: Logger): Promise<DeployResult>;
+  deploy(wallet: TokenWallet, name: string, symbol: string, decimals: number, logger: Logger, context?: DeployContext): Promise<DeployResult>;
   decimals(provider: Provider, tokenAddress: string, logger: Logger): Promise<number>;
   balanceOf(provider: Provider, signer: Signer, asset: AssetRecord, address: string, logger: Logger): Promise<string>;
   mint(wallet: TokenWallet, asset: AssetRecord, to: string, amount: bigint, logger: Logger, opCtx?: OperationContext): Promise<TokenOperationResult>;
