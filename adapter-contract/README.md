@@ -8,7 +8,7 @@ token-standard plugin implements: the `TokenStandard` interface, the optional
 
 Owned and released from the adapter repository by its own tag pipeline
 (`adapter-contract-v*`), like `finp2p-contracts/`. Versioning: the
-major.minor line is shared with the platform (`0.28.x`); the patch version is
+major.minor line is shared with the platform (`0.29.x`); the patch version is
 independent of the adapter's — the same policy every package in this
 ecosystem follows. The adapter consumes it via a registry pin; plugins
 declare it as a peerDependency (plus devDependency for local builds). Nobody

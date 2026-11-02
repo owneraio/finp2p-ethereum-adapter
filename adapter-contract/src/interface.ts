@@ -1,5 +1,5 @@
 import type { Provider, Signer } from 'ethers';
-import type { TokenWallet, AssetRecord, DeployContext, DeployResult, Logger, OperationContext, TokenOperationResult } from './types';
+import type { TokenWallet, AssetRecord, DeployOptions, DeployResult, Logger, OperationContext, TokenOperationResult } from './types';
 
 /**
  * Token standard implementation for direct-mode operations.
@@ -17,12 +17,12 @@ import type { TokenWallet, AssetRecord, DeployContext, DeployResult, Logger, Ope
  * vary behavior — e.g. REPO flows use Phase to distinguish initiation from closure.
  *
  * deploy runs when an asset is created without an existing token. It may run
- * any number of transactions, and its DeployContext carries the creation
+ * any number of transactions, and options.context carries the creation
  * request, so a standard can build a configured asset from the request's
- * metadata. The host replays an unfinished creation after a restart, so a
- * deploy that receives a context MUST be idempotent on (assetId,
- * idempotencyKey): return the asset already created rather than create another,
- * and resume a creation that stopped part-way. Return only once the asset is
+ * metadata. A deploy that receives a context MUST NOT create a second asset
+ * for an assetId, whatever the idempotencyKey: it returns the asset already
+ * created for that assetId, and resumes a creation that stopped part-way (the
+ * host replays unfinished creations after a restart). Return only once the asset is
  * fully set up; throw to fail. name and symbol are advisory: a standard whose
  * on-chain identifiers must be unique derives them from the context instead.
  *
@@ -30,7 +30,7 @@ import type { TokenWallet, AssetRecord, DeployContext, DeployResult, Logger, Ope
  * its tokenStandardRegistry at bootstrap.
  */
 export interface TokenStandard {
-  deploy(wallet: TokenWallet, name: string, symbol: string, decimals: number, logger: Logger, context?: DeployContext): Promise<DeployResult>;
+  deploy(wallet: TokenWallet, name: string, symbol: string, decimals: number, logger: Logger, options?: DeployOptions): Promise<DeployResult>;
   decimals(provider: Provider, tokenAddress: string, logger: Logger): Promise<number>;
   balanceOf(provider: Provider, signer: Signer, asset: AssetRecord, address: string, logger: Logger): Promise<string>;
   mint(wallet: TokenWallet, asset: AssetRecord, to: string, amount: bigint, logger: Logger, opCtx?: OperationContext): Promise<TokenOperationResult>;
