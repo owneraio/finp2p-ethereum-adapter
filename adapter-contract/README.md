@@ -2,7 +2,7 @@
 
 The FinP2P Ethereum adapter's plugin SPI — the single source of truth for what a
 token-standard plugin implements: the `TokenStandard` interface, the optional
-`InvestorWhitelisting` capability, and the runtime values plugins use
+`InvestorWhitelisting` and `AssetCreation` capabilities, and the runtime values plugins use
 (`successfulTokenOp` / `failedTokenOp`, the `LegType` / `PrimaryType` / `Phase` /
 `ReleaseType` enums).
 

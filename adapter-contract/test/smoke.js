@@ -16,6 +16,10 @@ assert.strictEqual(spi.supportsWhitelisting({ ensureWhitelisted: async () => {} 
 assert.strictEqual(spi.supportsWhitelisting({ isWhitelisted: async () => true, whitelist: async () => {} }), false);
 assert.strictEqual(spi.supportsWhitelisting({ isWhitelisted: async () => true, whitelist: async () => {}, dewhitelist: async () => {} }), true);
 
+assert.strictEqual(spi.supportsAssetCreation({}), false);
+assert.strictEqual(spi.supportsAssetCreation({ deploy: async () => ({}) }), false);
+assert.strictEqual(spi.supportsAssetCreation({ createAsset: async () => ({}) }), true);
+
 assert.deepStrictEqual(spi.executedSwap('tx-1', 42, 1700000000), { status: 'executed', transactionId: 'tx-1', blockNumber: 42, timestamp: 1700000000 });
 assert.deepStrictEqual(spi.failedSwap('nope'), { status: 'failure', reason: 'nope' });
 assert.deepStrictEqual(spi.failedSwap('timeout', 'tx-prep'), { status: 'failure', reason: 'timeout', preparedTransactionId: 'tx-prep' });
