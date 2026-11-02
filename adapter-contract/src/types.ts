@@ -46,6 +46,27 @@ export const successfulTokenOp = (transactionId: string, timestamp: number): Tok
 export const failedTokenOp = (reason: string): TokenOperationResult =>
   ({ status: 'failure', reason });
 
+export interface AssetDenomination {
+  type: string;
+  code: string;
+}
+
+/**
+ * The asset-creation request behind a deploy. metadata is passed through
+ * untouched: its shape is the standard's own contract with whoever creates
+ * the asset.
+ */
+export interface DeployContext {
+  assetId: string;
+  /** the same key on every retry of one creation */
+  idempotencyKey: string;
+  metadata?: unknown;
+  issuerId?: string;
+  denomination?: AssetDenomination;
+  /** CAIP-2 network the asset was requested on, when given */
+  network?: string;
+}
+
 /**
  * Result of deploying a new token contract.
  */
