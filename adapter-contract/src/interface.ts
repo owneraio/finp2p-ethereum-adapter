@@ -21,7 +21,10 @@ import type { TokenWallet, AssetRecord, DeployContext, DeployResult, Logger, Ope
  * request, so a standard can build a configured asset from the request's
  * metadata. The host replays an unfinished creation after a restart, so a
  * deploy that receives a context MUST be idempotent on (assetId,
- * idempotencyKey): return the asset already created rather than create another.
+ * idempotencyKey): return the asset already created rather than create another,
+ * and resume a creation that stopped part-way. Return only once the asset is
+ * fully set up; throw to fail. name and symbol are advisory: a standard whose
+ * on-chain identifiers must be unique derives them from the context instead.
  *
  * Implement this interface in a plugin package; the adapter registers it in
  * its tokenStandardRegistry at bootstrap.
