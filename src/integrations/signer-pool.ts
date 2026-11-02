@@ -12,6 +12,11 @@ export function pooledProvider(rpcUrl: string): Provider {
   return provider;
 }
 
+/** Serves every pooled provider and signer for rpcUrl from the given provider; call before anything pools rpcUrl. */
+export function usePooledProvider(rpcUrl: string, provider: Provider): void {
+  providers.set(rpcUrl, provider);
+}
+
 /**
  * One NonceManager per (rpcUrl, key), shared across all integrations —
  * separate managers over the same address cache nonces independently and

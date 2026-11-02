@@ -25,6 +25,7 @@ The base `TokenStandard` interface is owned by the adapter and published as [`@o
 
 - [Design choices](specs/design.md)
 - [Contract details and scripts](./finp2p-contracts/README.md)
+- [DTCC access: DTCC Identity and the Gateway](docs/dtcc-access.md)
 
 ### Getting started
 
