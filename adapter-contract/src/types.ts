@@ -46,8 +46,10 @@ export const successfulTokenOp = (transactionId: string, timestamp: number): Tok
 export const failedTokenOp = (reason: string): TokenOperationResult =>
   ({ status: 'failure', reason });
 
+export type AssetDenominationType = 'finp2p' | 'fiat' | 'cryptocurrency';
+
 export interface AssetDenomination {
-  type: string;
+  type: AssetDenominationType;
   code: string;
 }
 
@@ -58,13 +60,22 @@ export interface AssetDenomination {
  */
 export interface DeployContext {
   assetId: string;
-  /** the same key on every retry of one creation */
+  /** identifies one creation request and its retries; uniqueness is by assetId */
   idempotencyKey: string;
   metadata?: unknown;
   issuerId?: string;
   denomination?: AssetDenomination;
   /** CAIP-2 network the asset was requested on, when given */
   network?: string;
+}
+
+/**
+ * deploy's options. operatorAddress is the address granted the token's
+ * operator role, for standards that have one.
+ */
+export interface DeployOptions {
+  operatorAddress?: string;
+  context?: DeployContext;
 }
 
 /**

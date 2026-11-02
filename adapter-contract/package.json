@@ -16,7 +16,7 @@
   ],
   "scripts": {
     "build": "tsc",
-    "test": "tsc --noEmit && npm run build && node test/smoke.js"
+    "test": "tsc --noEmit && tsc -p test && npm run build && node test/smoke.js"
   },
   "license": "TBD",
   "publishConfig": {
