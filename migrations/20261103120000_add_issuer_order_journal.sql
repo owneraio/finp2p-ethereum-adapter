@@ -7,6 +7,11 @@ CREATE TABLE ${LEDGER_SCHEMA?LEDGER_SCHEMA env var is required}.issuer_order_jou
   created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
+CREATE TABLE ${LEDGER_SCHEMA?LEDGER_SCHEMA env var is required}.issuer_burn_claim(
+  burn_id VARCHAR(255) PRIMARY KEY,
+  operation_id VARCHAR(255) NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
 -- +goose ENVSUB OFF
 -- +goose StatementEnd
 
@@ -27,6 +32,7 @@ DO $$
 
         IF users_exist THEN
             EXECUTE format('GRANT SELECT, UPDATE, DELETE, INSERT ON TABLE %I.issuer_order_journal TO %I;', ledger_adapter_schema, ledger_adapter_user);
+            EXECUTE format('GRANT SELECT, INSERT ON TABLE %I.issuer_burn_claim TO %I;', ledger_adapter_schema, ledger_adapter_user);
         END IF;
     END $$;
 -- +goose StatementEnd
@@ -34,6 +40,7 @@ DO $$
 -- +goose Down
 -- +goose StatementBegin
 -- +goose ENVSUB ON
+DROP TABLE ${LEDGER_SCHEMA?LEDGER_SCHEMA env var is required}.issuer_burn_claim;
 DROP TABLE ${LEDGER_SCHEMA?LEDGER_SCHEMA env var is required}.issuer_order_journal;
 -- +goose ENVSUB OFF
 -- +goose StatementEnd

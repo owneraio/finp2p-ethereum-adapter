@@ -172,18 +172,44 @@ describe("wisdomTreeSettings", () => {
 });
 
 describe("PgIssuerOrderJournal", () => {
+  const creating = { state: "creating", request: "Purchase|Ethereum Sepolia|WTGXX|0x0b25|0x9a22|5", createStartedAt: 5 };
 
-  test("reads an entry and upserts one as JSON under the operation id", async () => {
-    const query = jest.fn().mockResolvedValueOnce({ rows: [{ entry: { orderReference: "ref1", createStartedAt: 5 } }] }).mockResolvedValue({ rows: [] });
+  test("creates an entry only if none exists, and returns the stored one otherwise", async () => {
+    const stored = { ...creating, createStartedAt: 1 };
+    const query = jest.fn()
+      .mockResolvedValueOnce({ rowCount: 1, rows: [] })
+      .mockResolvedValueOnce({ rowCount: 0, rows: [] })
+      .mockResolvedValueOnce({ rows: [{ entry: stored }] });
     const journal = new PgIssuerOrderJournal({ query } as any, "ledger");
 
-    expect(await journal.get("ik-1")).toEqual({ orderReference: "ref1", createStartedAt: 5 });
-    expect(await journal.get("ik-2")).toBeUndefined();
-    await journal.put("ik-1", { createStartedAt: 5 });
+    expect(await journal.create("ik-1", creating)).toEqual({ record: creating, created: true });
+    expect(await journal.create("ik-1", creating)).toEqual({ record: stored, created: false });
 
-    expect(query.mock.calls[0][0]).toContain("FROM ledger.issuer_order_journal");
-    expect(query.mock.calls[0][1]).toEqual(["ik-1"]);
-    expect(query.mock.calls[2][0]).toMatch(/INSERT INTO ledger\.issuer_order_journal[\s\S]*ON CONFLICT \(operation_id\) DO UPDATE/);
-    expect(query.mock.calls[2][1]).toEqual(["ik-1", JSON.stringify({ createStartedAt: 5 })]);
+    expect(query.mock.calls[0][0]).toMatch(/INSERT INTO ledger\.issuer_order_journal[\s\S]*ON CONFLICT \(operation_id\) DO NOTHING/);
+    expect(query.mock.calls[0][1]).toEqual(["ik-1", JSON.stringify(creating)]);
+    expect(query.mock.calls[2][0]).toContain("FROM ledger.issuer_order_journal");
+  });
+
+  test("moves an entry only from the expected state of the same request", async () => {
+    const query = jest.fn().mockResolvedValueOnce({ rowCount: 1 }).mockResolvedValueOnce({ rowCount: 0 });
+    const journal = new PgIssuerOrderJournal({ query } as any, "ledger");
+    const placed = { ...creating, state: "placed", orderReference: "ref1" };
+
+    expect(await journal.transition("ik-1", "creating", placed)).toBe(true);
+    expect(await journal.transition("ik-1", "creating", placed)).toBe(false);
+
+    expect(query.mock.calls[0][0]).toMatch(/UPDATE ledger\.issuer_order_journal[\s\S]*WHERE operation_id = \$1 AND entry->>'state' = \$3 AND entry->>'request' = \$4/);
+    expect(query.mock.calls[0][1]).toEqual(["ik-1", JSON.stringify(placed), "creating", creating.request]);
+  });
+
+  test("gives a burn to its first claimant and reports that owner to every later one", async () => {
+    const query = jest.fn().mockResolvedValueOnce({ rowCount: 0 }).mockResolvedValueOnce({ rows: [{ operation_id: "ik-1" }] });
+    const journal = new PgIssuerOrderJournal({ query } as any, "ledger");
+
+    expect(await journal.claimBurn("eip155:11155111:0x0b25:0xburn:3", "ik-2")).toBe("ik-1");
+
+    expect(query.mock.calls[0][0]).toMatch(/INSERT INTO ledger\.issuer_burn_claim[\s\S]*ON CONFLICT \(burn_id\) DO NOTHING/);
+    expect(query.mock.calls[0][1]).toEqual(["eip155:11155111:0x0b25:0xburn:3", "ik-2"]);
+    expect(query.mock.calls[1][0]).toContain("FROM ledger.issuer_burn_claim WHERE burn_id = $1");
   });
 });
