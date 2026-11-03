@@ -46,7 +46,8 @@ import { GasStation } from "./services/gas-station";
 import { DEFAULT_ACTIVATION_AMOUNT, WalletActivator, isHederaNetwork } from "./services/gas-station/wallet-activation";
 import { CommonServiceImpl as DirectCommonServiceImpl } from "./services/operations";
 import { registerCustodyIntegrations, registerIntegrations } from "./integrations/registry";
-import { pooledProvider, pooledSigner } from "./integrations/signer-pool";
+import { pooledProvider, pooledSigner, usePooledProvider } from "./integrations/signer-pool";
+import { createDtccAccessRouter, dtccAccessFromEnv, dtccGatewayProvider } from "./integrations/dtcc-access";
 import { buildCustodyPlanApprovalService } from "./services/plan-approval";
 import { AppConfig, FinP2PContractAppConfig, getNetworkRpcUrl, localSubmitRpcUrl } from "./config";
 
@@ -190,6 +191,16 @@ async function createApp(
     statusLevels: true,
     ignoreRoute: (req) => req.url.toLowerCase() === "/health/readiness" || req.url.toLowerCase() === "/health/liveness"
   }));
+
+  // DTCC Identity: every NETWORK_HOST call goes through the DTCC Gateway with a service-account token
+  const dtcc = dtccAccessFromEnv(logger);
+  if (dtcc) {
+    app.use('/dtcc', createDtccAccessRouter(dtcc.access));
+    if (process.env.NETWORK_HOST) {
+      const gatewayRpcUrl = getNetworkRpcUrl();
+      usePooledProvider(gatewayRpcUrl, dtccGatewayProvider(gatewayRpcUrl, dtcc.access, dtcc.chainId));
+    }
+  }
 
   // Run database migrations if configured
   if (workflowsConfig?.migration) {
