@@ -1,4 +1,5 @@
 import * as process from "process";
+import path from "path";
 import { logger, storage } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import { FinP2PClient } from "@owneraio/finp2p-client";
 import winston, { format, transports } from "winston";
@@ -35,6 +36,7 @@ const init = async () => {
   const tableNameSanitizer = process.env.LEDGER_SCHEMA ? (id: string) => id : storage.toPostgresIdentifier;
   const migrationsTableName = tableNameSanitizer(`${schemaName}_migrations`);
   const vanillaMigrationsTableName = tableNameSanitizer(`${schemaName}_${vanillaMigrationsTable}`);
+  const adapterMigrationsTableName = tableNameSanitizer(`${schemaName}_adapter_migrations`);
 
   const workflowsConfig = {
     migration: {
@@ -45,6 +47,7 @@ const init = async () => {
       schemaName,
       additionalMigrations: [
         { migrationsDir: vanillaMigrationsDir, tableName: vanillaMigrationsTableName },
+        { migrationsDir: path.join(__dirname, "..", "migrations"), tableName: adapterMigrationsTableName },
       ],
     },
     storage: { connectionString: dbConnectionString },

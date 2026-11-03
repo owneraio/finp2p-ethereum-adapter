@@ -7,8 +7,10 @@ import { AtsTokenStandard, TokenStandardName as HEDERA_ATS_STANDARD } from "@own
 import { OwneraCollateralTokenStandard, TokenStandardName as COLLATERAL_TOKEN_STANDARD } from "@owneraio/finp2p-ethereum-collateral";
 import { CollateralTokenStandard as DtccCollateralTokenStandard, TokenStandardName as DTCC_TOKEN_STANDARD } from "@owneraio/finp2p-ethereum-dtcc-plugin";
 import { ERC20TokenStandard, TokenStandardName as ERC20_STANDARD } from "@owneraio/finp2p-ethereum-erc20-plugin";
+import { EvmBurnLocator, WisdomTreeTokenStandardName as WISDOMTREE_STANDARD, createWisdomTreeStandard } from "@owneraio/finp2p-ethereum-wisdomtree-connect";
 import { HoldModel, tokenStandardRegistry } from "./registry";
 import { parseAtsWhitelistingMechanisms } from "./ats-policy";
+import { wisdomTreeSettings } from "./wisdomtree-settings";
 import { IntegrationContext } from "../registry";
 import { pooledProvider, pooledSigner } from "../signer-pool";
 
@@ -55,7 +57,8 @@ export function registerTokenStandards(ctx: IntegrationContext): void {
   // The issuer is optional on every standard now: pass undefined when the key is
   // absent (issuance stays disabled) rather than a throwaway signer.
   const issuer = issuerKey ? pooledSigner(localSubmitRpcUrl('ASSET_ISSUER_PRIVATE_KEY'), issuerKey) : undefined;
-  const registered = [register(ERC20_STANDARD, new ERC20TokenStandard(provider, issuer))];
+  const erc20 = new ERC20TokenStandard(provider, issuer);
+  const registered = [register(ERC20_STANDARD, erc20)];
 
   if (fullChainReads) {
     // The controller is still a required constructor arg (TREX/CMTAT/BENJI/HEDERA).
@@ -95,6 +98,21 @@ export function registerTokenStandards(ctx: IntegrationContext): void {
     const impl = new OwneraCollateralTokenStandard(collateralRegistry, provider, agentSigner);
     if (register(COLLATERAL_TOKEN_STANDARD, impl)) {
       logger.info(`Collateral token standard '${COLLATERAL_TOKEN_STANDARD}' registered: registry=${collateralRegistry}`);
+    }
+  }
+
+  const wisdomTree = wisdomTreeSettings(process.env);
+  if (wisdomTree) {
+    if (!fullChainReads) throw new Error(`${WISDOMTREE_STANDARD} finds WisdomTree's burns in chain logs, which needs NETWORK_HOST`);
+    if (!ctx.issuerOrderJournal) throw new Error(`${WISDOMTREE_STANDARD} needs the issuer order journal`);
+    const impl = createWisdomTreeStandard({
+      ...wisdomTree,
+      delegate: erc20,
+      journal: ctx.issuerOrderJournal,
+      burns: new EvmBurnLocator(provider),
+    });
+    if (register(WISDOMTREE_STANDARD, impl)) {
+      logger.info(`WisdomTree token standard '${WISDOMTREE_STANDARD}' registered: ${wisdomTree.connect.baseUrl}, products ${Object.keys(wisdomTree.products).join(", ")}`);
     }
   }
 

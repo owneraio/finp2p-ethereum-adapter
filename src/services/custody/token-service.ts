@@ -7,13 +7,14 @@ import {
 } from '@owneraio/finp2p-nodejs-skeleton-adapter';
 import winston from 'winston';
 import { parseUnits, Provider, Signer, Wallet, ZeroAddress } from "ethers";
-import { AssetRecord, ReleaseType, TokenOperationResult, SwapIntent, SwapVenue, mirrored } from '@owneraio/finp2p-ethereum-adapter-contract';
+import { AssetRecord, ReleaseType, TokenOperationResult, SwapIntent, SwapVenue, issuesByApi, mirrored } from '@owneraio/finp2p-ethereum-adapter-contract';
 import { CustodyProvider, CustodyWallet } from './custody-provider';
 import { AccountResolver, AssetStore, ledgerAccountAddress, validateSwapWallets } from "../accounts";
 import { tokenStandardRegistry } from '../../integrations/token-standards/registry';
 import { TokenStandardName as ERC20_TOKEN_STANDARD, DEFAULT_NEW_ERC20_DECIMALS } from '@owneraio/finp2p-ethereum-erc20-plugin';
 import { buildOperationContext, deriveReleaseType } from "../operations";
 import { runWithIdempotencyKey } from './idempotency-scope';
+import { DEFAULT_ISSUER_API_BACKOFF, IssuerApiBackoff, untilIssuerApiSettles } from './issuer-api';
 
 /** LedgerBindingNotSupportedErr — the ledger does not support the requested network/standard. */
 const LEDGER_BINDING_NOT_SUPPORTED = 7311;
@@ -92,6 +93,7 @@ export class CustodyTokenService implements TokenService, EscrowService, HealthS
     // behind a throwaway signer.
     readonly issuerWallet: CustodyWallet | undefined,
     readonly swapVenue?: SwapVenue,
+    readonly issuerApiBackoff: IssuerApiBackoff = DEFAULT_ISSUER_API_BACKOFF,
   ) {}
 
   private readSigner?: Signer;
@@ -118,6 +120,13 @@ export class CustodyTokenService implements TokenService, EscrowService, HealthS
   private async resolveAddress(finId: string): Promise<string> {
     const address = await this.accountMapping.resolveAccount(finId);
     if (address === undefined) throw new Error(`Cannot resolve address for finId: ${finId}`);
+    return address;
+  }
+
+  private async destinationAddress(destination: Destination): Promise<string> {
+    const address = await this.accountMapping.resolveAccount(destination.finId)
+      ?? ledgerAccountAddress(destination.account, (await this.readProvider.getNetwork()).chainId);
+    if (!address) throw new Error(`Cannot resolve address for finId: ${destination.finId}`);
     return address;
   }
 
@@ -249,11 +258,17 @@ export class CustodyTokenService implements TokenService, EscrowService, HealthS
     try {
       const asset = await this.assetRecord(ast.assetId);
       const standard = tokenStandardRegistry.resolve(asset.tokenStandard);
+      if (issuesByApi(standard)) {
+        const to = await this.destinationAddress(destination);
+        const amount = parseUnits(quantity, asset.decimals);
+        const result = await untilIssuerApiSettles(
+          () => standard.issueByApi(asset, to, amount, idempotencyKey, this.logger),
+          this.logger, `issue ${idempotencyKey}`, this.issuerApiBackoff);
+        return resultToReceipt(result, ast, "issue", quantity, destination, destination, exCtx, undefined);
+      }
       const wallet = this.issuerWallet;
       if (!wallet) return failedReceiptOperation(1, 'ASSET_ISSUER_PRIVATE_KEY is not set — issuance is disabled');
-      const address = await this.accountMapping.resolveAccount(destination.finId)
-        ?? ledgerAccountAddress(destination.account, (await this.readProvider.getNetwork()).chainId);
-      if (!address) throw new Error(`Cannot resolve address for finId: ${destination.finId}`);
+      const address = await this.destinationAddress(destination);
       const amount = parseUnits(quantity, asset.decimals);
 
       const result = await runWithIdempotencyKey(idempotencyKey, () => standard.mint(wallet, asset, address, amount, this.logger));
@@ -423,6 +438,18 @@ export class CustodyTokenService implements TokenService, EscrowService, HealthS
       const standard = tokenStandardRegistry.resolve(asset.tokenStandard);
       const amount = parseUnits(quantity, asset.decimals);
       const opCtx = buildOperationContext(ast, signature, exCtx, operationId, ReleaseType.Redeem);
+
+      if (issuesByApi(standard) && standard.redeemByApi) {
+        const redeemByApi = standard.redeemByApi.bind(standard);
+        if (operationId && tokenStandardRegistry.holdModel(asset.tokenStandard) !== 'escrow-transfer') {
+          return failedReceiptOperation(1, `${asset.tokenStandard} redeems through its issuer's API, which takes held units from the escrow, but its holds stay on the holder's account`);
+        }
+        const from = operationId ? await this.requireEscrow().signer.getAddress() : await this.resolveAddress(source.finId);
+        const result = await untilIssuerApiSettles(
+          () => redeemByApi(asset, from, amount, idempotencyKey, this.logger, opCtx),
+          this.logger, `redeem ${idempotencyKey}`, this.issuerApiBackoff);
+        return resultToReceipt(result, ast, "redeem", quantity, source, undefined, exCtx, operationId);
+      }
 
       if (operationId && tokenStandardRegistry.holdModel(asset.tokenStandard) === 'holder-reservation') {
         // The held tokens never reached the escrow wallet — hold() reserved them

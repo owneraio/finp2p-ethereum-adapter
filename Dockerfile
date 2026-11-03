@@ -64,6 +64,7 @@ RUN rm -rf \
 
 COPY --from=dependencies /usr/app/node_modules ./node_modules
 COPY --from=build /usr/app/dist ./dist
+COPY migrations ./migrations
 COPY --from=migrator /go/bin/goose /usr/bin/goose
 
 CMD [ "node", "/usr/app/dist/index.js" ]
