@@ -10,10 +10,10 @@ import {
   CollateralTokenStandard as DtccCollateralTokenStandard,
   CollateralTokenStandardV2 as DtccCollateralTokenStandardV2,
   CollateralV2Environment,
-  SubgraphClient,
   TokenStandardName as DTCC_TOKEN_STANDARD,
   TokenStandardNameV2 as DTCC_V2_TOKEN_STANDARD,
 } from "@owneraio/finp2p-ethereum-dtcc-plugin";
+import { dtccSubgraphClient } from "./dtcc-subgraph";
 import { ERC20TokenStandard, TokenStandardName as ERC20_STANDARD } from "@owneraio/finp2p-ethereum-erc20-plugin";
 import { HoldModel, tokenStandardRegistry } from "./registry";
 import { parseAtsWhitelistingMechanisms } from "./ats-policy";
@@ -111,14 +111,7 @@ export function registerTokenStandards(ctx: IntegrationContext): void {
     const operatorKey = process.env.OPERATOR_PRIVATE_KEY!;
     const factoryAddress = process.env.FACTORY_ADDRESS ?? "";
     const agentSigner = pooledSigner(localSubmitRpcUrl('OPERATOR_PRIVATE_KEY'), operatorKey);
-    const subgraphBaseUrl = requiredEnv('SUBGRAPH_BASE_URL');
-    const subgraph = new SubgraphClient({
-      baseUrl: subgraphBaseUrl,
-      tokenFactoryUrl: `${subgraphBaseUrl}/token-factory-subgraph`,
-      accountFactoryUrl: `${subgraphBaseUrl}/account-factory-subgraph`,
-      priceContextsUrl: `${subgraphBaseUrl}/price-contexts-subgraph`,
-      haircutContextsUrl: `${subgraphBaseUrl}/haircut-contexts-subgraph`,
-    });
+    const subgraph = dtccSubgraphClient();
     const impl = new DtccCollateralTokenStandard(factoryAddress, provider, agentSigner, {
       finP2PClient: ctx.finP2PClient,
       subgraph,

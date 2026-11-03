@@ -53,7 +53,7 @@
     "@owneraio/finp2p-ethereum-benji-plugin": "^0.28.9",
     "@owneraio/finp2p-ethereum-cmtat-plugin": "^0.28.10",
     "@owneraio/finp2p-ethereum-collateral": "^0.28.29",
-    "@owneraio/finp2p-ethereum-dtcc-plugin": "^0.28.13-rc.1",
+    "@owneraio/finp2p-ethereum-dtcc-plugin": "^0.28.13-rc.2",
     "@owneraio/finp2p-ethereum-erc20-plugin": "^0.28.6",
     "@owneraio/finp2p-ethereum-hedera-plugin": "^0.28.47",
     "@owneraio/finp2p-ethereum-orchestrator": "^0.28.27",
@@ -69,6 +69,7 @@
     "pg": "^8.22.0",
     "ts-node": "^10.9.2",
     "typescript": "^5.2.0",
+    "undici": "^7.30.1",
     "uuid": "^9.0.0"
   },
   "devDependencies": {
