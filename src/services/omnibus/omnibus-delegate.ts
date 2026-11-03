@@ -16,6 +16,7 @@ import { TokenStandardName as ERC20_TOKEN_STANDARD, DEFAULT_NEW_ERC20_DECIMALS }
 import { AssetRecord } from '@owneraio/finp2p-ethereum-adapter-contract';
 import { AccountResolver, AssetStore, ledgerAccountAddress } from '../accounts/account-resolver';
 import { runWithIdempotencyKey } from '../custody/idempotency-scope';
+import { createAssetOnce, deployContext } from '../operations';
 
 export interface ReceiptPollingConfig {
   timeoutMs: number;
@@ -348,9 +349,11 @@ export class OmnibusDelegate implements TransferDelegate, AssetDelegate, EscrowD
 
     if (tokenAddress === undefined) {
       const symbol = 'OWNERA';
-      await this.ensureGas(this.omnibusWallet);
-      const result = await standard.deploy(this.omnibusWallet, assetName ?? 'OWNERACOIN', symbol, DEFAULT_NEW_ERC20_DECIMALS, this.logger);
-      await this.assetStore.saveAsset({ contract_address: result.contractAddress, decimals: result.decimals, token_standard: result.tokenStandard, id: assetId });
+      const context = deployContext(idempotencyKey, assetId, assetBind, assetMetadata, issuerId, assetDenomination);
+      const result = await createAssetOnce(this.assetStore, assetId, async () => {
+        await this.ensureGas(this.omnibusWallet);
+        return standard.deploy(this.omnibusWallet, assetName ?? 'OWNERACOIN', symbol, DEFAULT_NEW_ERC20_DECIMALS, this.logger, { context });
+      });
       // TODO(custody-registration): onAssetRegistered forwards to the custody
       // provider's ERC20 registration (Fireblocks registerNewAsset). It is an
       // ERC20-custody-only concern — collateral/registry standards are not

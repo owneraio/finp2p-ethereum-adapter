@@ -12,7 +12,7 @@ import { CustodyProvider, CustodyWallet } from './custody-provider';
 import { AccountResolver, AssetStore, ledgerAccountAddress, validateSwapWallets } from "../accounts";
 import { tokenStandardRegistry } from '../../integrations/token-standards/registry';
 import { TokenStandardName as ERC20_TOKEN_STANDARD, DEFAULT_NEW_ERC20_DECIMALS } from '@owneraio/finp2p-ethereum-erc20-plugin';
-import { buildOperationContext, deriveReleaseType } from "../operations";
+import { buildOperationContext, createAssetOnce, deployContext, deriveReleaseType } from "../operations";
 import { runWithIdempotencyKey } from './idempotency-scope';
 
 /** LedgerBindingNotSupportedErr — the ledger does not support the requested network/standard. */
@@ -182,13 +182,9 @@ export class CustodyTokenService implements TokenService, EscrowService, HealthS
       }
       const wallet = this.issuerWallet;
       const symbol = "OWNERA"; // TODO: align with product team which metadata fields to use for token name/symbol/decimals
-      const result = await standard.deploy(wallet, assetName ?? "OWNERACOIN", symbol, DEFAULT_NEW_ERC20_DECIMALS, this.logger);
-      await this.assetStore.saveAsset({
-        contract_address: result.contractAddress,
-        decimals: result.decimals,
-        token_standard: result.tokenStandard,
-        id: assetId,
-      });
+      const context = deployContext(idempotencyKey, assetId, assetBind, assetMetadata, issuerId, assetDenomination);
+      const result = await createAssetOnce(this.assetStore, assetId,
+        () => standard.deploy(wallet, assetName ?? "OWNERACOIN", symbol, DEFAULT_NEW_ERC20_DECIMALS, this.logger, { context }));
       // TODO(custody-registration): onAssetRegistered forwards to the custody
       // provider's ERC20 registration (Fireblocks registerNewAsset). It is an
       // ERC20-custody-only concern — collateral/registry standards are not

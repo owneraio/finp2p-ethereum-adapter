@@ -250,6 +250,52 @@ describe('OmnibusDelegate', () => {
   });
 
   describe('createAsset', () => {
+    beforeEach(() => mockGetAsset.mockResolvedValue(undefined));
+
+    it('should pass the creation request to deploy as its context', async () => {
+      mockStandard.deploy.mockResolvedValue({ contractAddress: '0xNEW_TOKEN', decimals: 2, tokenStandard: ERC20 });
+      const metadata = { collateral: { borrowerFinId: 'fin-1' } };
+      const denomination = { type: 'fiat' as const, code: 'USD' };
+
+      await delegate.createAsset(
+        'idem-ctx', TEST_ASSET.assetId, { network: 'eip155:11155111' },
+        metadata, 'TestCoin', 'issuer-1', denomination,
+      );
+
+      expect(mockStandard.deploy).toHaveBeenCalledWith(
+        expect.anything(), 'TestCoin', expect.any(String), expect.any(Number), expect.anything(),
+        { context: { assetId: TEST_ASSET.assetId, idempotencyKey: 'idem-ctx', metadata, issuerId: 'issuer-1', denomination, network: 'eip155:11155111' } },
+      );
+    });
+
+    it('should return the stored asset without deploying again', async () => {
+      mockGetAsset.mockResolvedValue(TEST_DB_ASSET);
+
+      const result = await delegate.createAsset(
+        'idem-other-key', TEST_ASSET.assetId, {},
+        undefined, 'TestCoin', undefined, undefined,
+      );
+
+      expect(mockStandard.deploy).not.toHaveBeenCalled();
+      expect(mockSaveAsset).not.toHaveBeenCalled();
+      expect(result.ledgerIdentifier.tokenId).toBe(TEST_DB_ASSET.contract_address);
+    });
+
+    it('should deploy once for concurrent creations of one assetId under different keys', async () => {
+      let finish!: (r: unknown) => void;
+      mockStandard.deploy.mockReturnValue(new Promise(resolve => { finish = resolve; }));
+
+      const first = delegate.createAsset('idem-a', TEST_ASSET.assetId, {}, undefined, 'TestCoin', undefined, undefined);
+      const second = delegate.createAsset('idem-b', TEST_ASSET.assetId, {}, undefined, 'TestCoin', undefined, undefined);
+      await new Promise(resolve => setImmediate(resolve));
+      finish({ contractAddress: '0xNEW_TOKEN', decimals: 2, tokenStandard: ERC20 });
+
+      const results = await Promise.all([first, second]);
+      expect(mockStandard.deploy).toHaveBeenCalledTimes(1);
+      expect(mockSaveAsset).toHaveBeenCalledTimes(1);
+      expect(results.map(r => r.ledgerIdentifier.tokenId)).toEqual(['0xNEW_TOKEN', '0xNEW_TOKEN']);
+    });
+
     it('should deploy via the standard when no tokenId provided', async () => {
       mockStandard.deploy.mockResolvedValue({ contractAddress: '0xNEW_TOKEN', decimals: 2, tokenStandard: ERC20 });
 
