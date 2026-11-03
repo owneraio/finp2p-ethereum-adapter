@@ -58,7 +58,7 @@
     "@owneraio/finp2p-ethereum-hedera-plugin": "^0.28.47",
     "@owneraio/finp2p-ethereum-orchestrator": "^0.28.27",
     "@owneraio/finp2p-ethereum-trex-plugin": "^0.28.10",
-    "@owneraio/finp2p-ethereum-wisdomtree-connect": "^0.30.0",
+    "@owneraio/finp2p-ethereum-wisdomtree-connect": "^0.29.0",
     "@owneraio/finp2p-nodejs-skeleton-adapter": "^0.29.1",
     "@owneraio/finp2p-vanilla-service": "^0.29.1",
     "@types/node": "^24.10.1",
