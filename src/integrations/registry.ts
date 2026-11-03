@@ -9,6 +9,7 @@ import { ChainReadScope } from "../services/custody/custody-provider";
 import { GasStation } from "../services/gas-station";
 import { WalletResolver } from "./wallet-resolver";
 import { AssetStore } from "../services/accounts";
+import type { OrderJournal } from "@owneraio/finp2p-ethereum-wisdomtree-connect";
 import { AccountModel } from "../config";
 import { registerFireblocks } from "./custody/fireblocks";
 import { registerDfns } from "./custody/dfns";
@@ -39,6 +40,7 @@ export interface IntegrationContext {
   inboundTransferHook: InboundTransferHook | undefined;
   /** finp2p-contract mode only — present iff PROVIDER_TYPE=finp2p-contract. */
   finP2PContract: FinP2PContract | undefined;
+  issuerOrderJournal: OrderJournal | undefined;
 }
 
 export type IntegrationRegistrar = (ctx: IntegrationContext) => void;

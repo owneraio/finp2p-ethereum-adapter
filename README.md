@@ -18,8 +18,16 @@ The base `TokenStandard` interface is owned by the adapter and published as [`@o
 | `HEDERA_ATS` | `@owneraio/finp2p-ethereum-hedera-plugin` | always¹ |
 | `OWNERA_COLLATERAL_REGISTRY` | `@owneraio/finp2p-ethereum-collateral` | `COLLATERAL_REGISTRY_ADDRESS` + `COLLATERAL_AGENT_PRIVATE_KEY` |
 | `DTCC_COLLATERAL_ACCOUNT` | `@owneraio/finp2p-ethereum-dtcc-plugin` | `DTCC_PLUGIN_ENABLED=true` |
+| `WISDOMTREE` | `@owneraio/finp2p-ethereum-wisdomtree-connect` | `WISDOMTREE_CONNECT_BASE_URL` + credentials² |
 
 ¹ Signers default to `OPERATOR_PRIVATE_KEY`; override per role with `ASSET_ISSUER_PRIVATE_KEY` / `ASSET_CONTROLLER_PRIVATE_KEY`. Standards whose constructors accept a whitelisting signer receive `ASSET_WHITELIST_PRIVATE_KEY` (TREX, CMTAT, HEDERA_ATS). Optional-argument semantics are each plugin's contract. Without an issuer/controller key the standards register with an ephemeral signer — reads and whitelist checks work; on-chain agent writes need a configured, authorized key. Skipped entirely only when `NETWORK_HOST` is unset.
+
+² `WISDOMTREE` is a hybrid standard. Transfer, hold, release and balance are plain ERC20. Issue is a WisdomTree Connect **Purchase**, and redeem a Connect **Sale**, which WisdomTree's admin burns from the holder (or from the escrow, for a held redemption). No issuer key is used: the adapter asks the standard under the operation's idempotency key until the order ends, and its journal (`issuer_order_journal`) resumes the same order after a restart. Settings:
+- `WISDOMTREE_CONNECT_BASE_URL`, `WISDOMTREE_CONNECT_CLIENT_ID`, `WISDOMTREE_CONNECT_CLIENT_SECRET`, `WISDOMTREE_CONNECT_USERNAME`, `WISDOMTREE_CONNECT_PASSWORD`;
+- `WISDOMTREE_PRODUCTS`: JSON from token address to `{ exchangeCode, blockchain, settlementCurrency, orderType? }`, e.g. `{"0x0b2517eef907389F36fd87Add36E9118d364BD67":{"exchangeCode":"WTGXX","blockchain":"Ethereum Sepolia","settlementCurrency":"USD"}}`;
+- optional `WISDOMTREE_ORGANIZATION_GUID`, `WISDOMTREE_WAIT_SECONDS` and `WISDOMTREE_POLL_INTERVAL_MS`.
+
+It needs `NETWORK_HOST`, because a redeem's receipt is the burn, found in chain logs.
 
 ## Documentation
 

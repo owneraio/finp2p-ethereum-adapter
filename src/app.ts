@@ -49,6 +49,7 @@ import { registerCustodyIntegrations, registerIntegrations } from "./integration
 import { pooledProvider, pooledSigner } from "./integrations/signer-pool";
 import { buildCustodyPlanApprovalService } from "./services/plan-approval";
 import { AppConfig, FinP2PContractAppConfig, getNetworkRpcUrl, localSubmitRpcUrl } from "./config";
+import { PgIssuerOrderJournal } from "./services/custody/issuer-order-journal";
 
 // Register compiled-in custody providers; token standards are registered per-network in registerIntegrations.
 registerCustodyIntegrations();
@@ -357,6 +358,7 @@ async function createApp(
     custodyProvider,
     inboundTransferHook: omnibusCtx?.vanilla.inboundTransferHook,
     finP2PContract: appConfig.type === 'finp2p-contract' ? (appConfig as FinP2PContractAppConfig).finP2PContract : undefined,
+    issuerOrderJournal: new PgIssuerOrderJournal(dbPool, ledgerSchema),
   });
 
   const paymentsService = new PaymentsServiceImpl(pluginManager);
