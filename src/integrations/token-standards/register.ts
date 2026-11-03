@@ -5,7 +5,15 @@ import { CmtatTokenStandard, TokenStandardName as CMTAT_STANDARD } from "@ownera
 import { BenjiTokenStandard, TokenStandardName as BENJI_STANDARD } from "@owneraio/finp2p-ethereum-benji-plugin";
 import { AtsTokenStandard, TokenStandardName as HEDERA_ATS_STANDARD } from "@owneraio/finp2p-ethereum-hedera-plugin";
 import { OwneraCollateralTokenStandard, TokenStandardName as COLLATERAL_TOKEN_STANDARD } from "@owneraio/finp2p-ethereum-collateral";
-import { CollateralTokenStandard as DtccCollateralTokenStandard, TokenStandardName as DTCC_TOKEN_STANDARD } from "@owneraio/finp2p-ethereum-dtcc-plugin";
+import {
+  BorrowerResolver,
+  CollateralTokenStandard as DtccCollateralTokenStandard,
+  CollateralTokenStandardV2 as DtccCollateralTokenStandardV2,
+  CollateralV2Environment,
+  SubgraphClient,
+  TokenStandardName as DTCC_TOKEN_STANDARD,
+  TokenStandardNameV2 as DTCC_V2_TOKEN_STANDARD,
+} from "@owneraio/finp2p-ethereum-dtcc-plugin";
 import { ERC20TokenStandard, TokenStandardName as ERC20_STANDARD } from "@owneraio/finp2p-ethereum-erc20-plugin";
 import { HoldModel, tokenStandardRegistry } from "./registry";
 import { parseAtsWhitelistingMechanisms } from "./ats-policy";
@@ -103,9 +111,77 @@ export function registerTokenStandards(ctx: IntegrationContext): void {
     const operatorKey = process.env.OPERATOR_PRIVATE_KEY!;
     const factoryAddress = process.env.FACTORY_ADDRESS ?? "";
     const agentSigner = pooledSigner(localSubmitRpcUrl('OPERATOR_PRIVATE_KEY'), operatorKey);
-    const impl = new DtccCollateralTokenStandard(factoryAddress, provider, agentSigner);
+    const subgraphBaseUrl = requiredEnv('SUBGRAPH_BASE_URL');
+    const subgraph = new SubgraphClient({
+      baseUrl: subgraphBaseUrl,
+      tokenFactoryUrl: `${subgraphBaseUrl}/token-factory-subgraph`,
+      accountFactoryUrl: `${subgraphBaseUrl}/account-factory-subgraph`,
+      priceContextsUrl: `${subgraphBaseUrl}/price-contexts-subgraph`,
+      haircutContextsUrl: `${subgraphBaseUrl}/haircut-contexts-subgraph`,
+    });
+    const impl = new DtccCollateralTokenStandard(factoryAddress, provider, agentSigner, {
+      finP2PClient: ctx.finP2PClient,
+      subgraph,
+      resolveBorrower: dtccBorrowerResolver(ctx),
+    });
     if (register(DTCC_TOKEN_STANDARD, impl)) {
       logger.info(`DTCC token standard '${DTCC_TOKEN_STANDARD}' registered`);
     }
   }
+
+  // DTCC_COLLATERAL_ACCOUNT_V2 — gated on DTCC_V2_ENABLED; no defaults, every setting is per deployment.
+  if (process.env.DTCC_V2_ENABLED === "true") {
+    const operatorKey = requiredEnv('DTCC_V2_OPERATOR_PRIVATE_KEY');
+    const factoryAddress = requiredEnv('DTCC_V2_FACTORY_ADDRESS');
+    const template = requiredEnv('DTCC_V2_TEMPLATE');
+    const fromBlockEnv = process.env.DTCC_V2_FROM_BLOCK;
+    const indexedAssetListsEnv = process.env.DTCC_V2_INDEXED_ASSET_LISTS;
+    const environment: CollateralV2Environment = {
+      haircutContext: requiredEnv('DTCC_V2_HAIRCUT_CONTEXT'),
+      priceContext: requiredEnv('DTCC_V2_PRICE_CONTEXT'),
+      pricedInToken: requiredEnv('DTCC_V2_PRICED_IN_TOKEN'),
+      liabilityService: requiredEnv('DTCC_V2_LIABILITY_SERVICE'),
+      liabilityType: requiredEnv('DTCC_V2_LIABILITY_TYPE'),
+      indexedAssetLists: indexedAssetListsEnv ? indexedAssetListsEnv.split(',').map(s => s.trim()).filter(Boolean) : undefined,
+      targetRatio: requiredEnv('DTCC_V2_TARGET_RATIO'),
+      defaultRatio: requiredEnv('DTCC_V2_DEFAULT_RATIO'),
+      graceBuffer: requiredEnv('DTCC_V2_GRACE_BUFFER'),
+      targetRatioLimit: requiredEnv('DTCC_V2_TARGET_RATIO_LIMIT'),
+      defaultRatioLimit: requiredEnv('DTCC_V2_DEFAULT_RATIO_LIMIT'),
+    };
+    const operatorSigner = pooledSigner(localSubmitRpcUrl('DTCC_V2_OPERATOR_PRIVATE_KEY'), operatorKey);
+    const impl = new DtccCollateralTokenStandardV2({
+      factoryAddress,
+      template,
+      provider,
+      operatorSigner,
+      creation: {
+        finP2PClient: ctx.finP2PClient,
+        resolveBorrower: dtccBorrowerResolver(ctx),
+        environment,
+        fromBlock: fromBlockEnv ? Number(fromBlockEnv) : undefined,
+      },
+    });
+    if (register(DTCC_V2_TOKEN_STANDARD, impl)) {
+      logger.info(`DTCC token standard '${DTCC_V2_TOKEN_STANDARD}' registered: factory=${factoryAddress}`);
+    }
+  }
+}
+
+function requiredEnv(name: string): string {
+  const value = process.env[name];
+  if (!value) throw new Error(`${name} is not set`);
+  return value;
+}
+
+/** The borrower's wallet comes from the explicit finId → wallet mapping, never derived from the finId. */
+function dtccBorrowerResolver(ctx: IntegrationContext): BorrowerResolver {
+  const { walletResolver } = ctx;
+  if (!walletResolver) {
+    throw new Error('DTCC asset creation requires a custody provider to resolve borrower wallets');
+  }
+  return async (finId) => {
+    const resolved = await walletResolver(finId);
+    return resolved ? { walletAddress: resolved.walletAddress } : undefined;
+  };
 }

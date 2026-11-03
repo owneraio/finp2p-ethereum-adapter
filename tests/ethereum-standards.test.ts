@@ -34,6 +34,7 @@ describe("registerTokenStandards (real plugin standards)", () => {
     delete process.env.COLLATERAL_REGISTRY_ADDRESS;
     delete process.env.COLLATERAL_AGENT_PRIVATE_KEY;
     delete process.env.DTCC_PLUGIN_ENABLED;
+    delete process.env.DTCC_V2_ENABLED;
 
     registerTokenStandards({ logger: warningLogger, rpcUrl: undefined } as any);
     expect(warnings.length).toBe(1);
