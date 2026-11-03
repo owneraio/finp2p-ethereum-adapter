@@ -39,3 +39,30 @@ export interface TokenStandard {
   hold(sourceWallet: TokenWallet, escrowWallet: TokenWallet, asset: AssetRecord, amount: bigint, logger: Logger, opCtx?: OperationContext): Promise<TokenOperationResult>;
   release(escrowWallet: TokenWallet, asset: AssetRecord, to: string, amount: bigint, logger: Logger, opCtx?: OperationContext): Promise<TokenOperationResult>;
 }
+
+/**
+ * Issuance and redemption done by the issuer's own API rather than by a
+ * signed ledger transaction: a fund that mints on a subscription order and
+ * takes units back on a redemption order (WisdomTree Connect).
+ *
+ * The host passes no wallet. It passes the operation's idempotency key as
+ * `operationId`, required, and the standard keys its order by it: calling
+ * again under the same `operationId` resumes the order already placed and
+ * never places a second one. A failure marked `submitted: true` means the
+ * order is in flight or its state is unknown; the host keeps the operation
+ * pending and calls again under the same `operationId`. Only a success or an
+ * unmarked failure ends it, unless the host gives up and leaves the order
+ * for manual handling.
+ *
+ * A standard implements this beside TokenStandard; its other operations
+ * (transfer, hold, release, balance) take the ordinary path. Mirrored by
+ * `@owneraio/generic-token-standard`, which must stay structurally identical.
+ */
+export interface IssuerApiIssuance {
+  issueByApi(asset: AssetRecord, to: string, amount: bigint, operationId: string, logger: Logger, opCtx?: OperationContext): Promise<TokenOperationResult>;
+  redeemByApi?(asset: AssetRecord, from: string, amount: bigint, operationId: string, logger: Logger, opCtx?: OperationContext): Promise<TokenOperationResult>;
+}
+
+/** Whether a standard issues by its issuer's API. */
+export const issuesByApi = (standard: unknown): standard is IssuerApiIssuance =>
+  typeof (standard as Partial<IssuerApiIssuance> | undefined)?.issueByApi === 'function';
