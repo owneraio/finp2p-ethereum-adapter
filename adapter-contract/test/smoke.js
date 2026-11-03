@@ -5,6 +5,12 @@ const spi = require('../dist/index.js');
 
 assert.deepStrictEqual(spi.successfulTokenOp('tx-1', 42), { status: 'success', transactionId: 'tx-1', timestamp: 42 });
 assert.deepStrictEqual(spi.failedTokenOp('nope'), { status: 'failure', reason: 'nope' });
+assert.deepStrictEqual(spi.failedTokenOp('in flight', true), { status: 'failure', reason: 'in flight', submitted: true });
+assert.deepStrictEqual(spi.failedTokenOp('refused', false), { status: 'failure', reason: 'refused', submitted: false });
+
+assert.strictEqual(spi.issuesByApi(undefined), false);
+assert.strictEqual(spi.issuesByApi({ mint: async () => {} }), false);
+assert.strictEqual(spi.issuesByApi({ issueByApi: async () => {} }), true);
 
 assert.strictEqual(spi.LegType.Settlement, 1);
 assert.strictEqual(spi.PrimaryType.Move, 7);
