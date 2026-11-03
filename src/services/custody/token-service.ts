@@ -1,8 +1,8 @@
 import {
   Asset, AssetBind, AssetCreationStatus, AssetDenomination,
   Balance, Destination, ExecutionContext, HealthService, OperationType, Receipt,
-  ReceiptOperation, Signature, Source, SwapLeg, SwapOperation, SwapRole, TokenService, EscrowService,
-  failedReceiptOperation, failedAssetCreation, failedSwapOperation,
+  ReceiptOperation, AuthorizeOperation, Signature, Source, SwapLeg, SwapOperation, SwapRole, TokenService, EscrowService,
+  failedReceiptOperation, failedAuthorizeOperation, failedAssetCreation, failedSwapOperation,
   successfulSwapOperation
 } from '@owneraio/finp2p-nodejs-skeleton-adapter';
 import winston from 'winston';
@@ -369,9 +369,9 @@ export class CustodyTokenService implements TokenService, EscrowService, HealthS
   async authorize(
     _idempotencyKey: string, _nonce: string, _source: Source, _destination: Destination | undefined, _asset: Asset,
     _quantity: string, _signature: Signature, operationId: string, _expiry: number | undefined, _exCtx: ExecutionContext | undefined
-  ): Promise<ReceiptOperation> {
+  ): Promise<AuthorizeOperation> {
     this.logger.info(`authorize ${operationId}: not supported by the custody token service`);
-    return failedReceiptOperation(1, "Authorize is not supported by the custody token service");
+    return failedAuthorizeOperation(1, "Authorize is not supported by the custody token service");
   }
 
   private async swapBothLegs(

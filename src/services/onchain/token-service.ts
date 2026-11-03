@@ -3,6 +3,7 @@ import {
   CommonService, HealthService, OperationStatus,
   failedAssetCreation, successfulAssetCreation,
   failedReceiptOperation, successfulReceiptOperation,
+  AuthorizeOperation, failedAuthorizeOperation, successfulAuthorizeOperation,
   AssetBind, AssetDenomination, AssetCreationResult, Destination, ExecutionContext,
   Receipt, ReceiptOperation, Source, Signature, SwapLeg, SwapOperation, SwapRole,
   successfulSwapOperation, failedSwapOperation,
@@ -439,9 +440,9 @@ export class OnChainTokenService implements TokenService, EscrowService, CommonS
 
   public async authorize(idempotencyKey: string, nonce: string, source: Source, destination: Destination | undefined, ast: Asset,
     quantity: string, sgn: Signature, operationId: string, expiry: number | undefined, exCtx: ExecutionContext
-  ): Promise<ReceiptOperation> {
+  ): Promise<AuthorizeOperation> {
     if (!this.swapVenue) {
-      return failedReceiptOperation(1, "Authorize is not supported: no swap venue is configured");
+      return failedAuthorizeOperation(1, "Authorize is not supported: no swap venue is configured");
     }
     const { signature, template } = sgn;
     if (template.type != "EIP712") {
@@ -479,13 +480,14 @@ export class OnChainTokenService implements TokenService, EscrowService, CommonS
         this.execDetailsStore?.addExecutionContext(transactionReceipt.hash, exCtx.planId, exCtx.sequence);
       }
 
-      return mapReceiptOperation(await this.finP2PContract.getReceiptFromTransactionReceipt(transactionReceipt), ast, exCtx)
+      // Authorize establishes the on-chain allowance; it returns a proof, not a settlement receipt.
+      return successfulAuthorizeOperation();
     } catch (e) {
       logger.error(`Error asset authorize: ${e}`);
       if (e instanceof EthereumTransactionError) {
-        return failedReceiptOperation(1, e.message);
+        return failedAuthorizeOperation(1, e.message);
       } else {
-        return failedReceiptOperation(1, `${e}`);
+        return failedAuthorizeOperation(1, `${e}`);
       }
     }
   }

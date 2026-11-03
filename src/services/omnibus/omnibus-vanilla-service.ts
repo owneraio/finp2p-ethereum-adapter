@@ -1,6 +1,6 @@
 import {
   AssetBind, AssetCreationStatus, AssetDenomination, BusinessError, failedAssetCreation,
-  SwapOperation, failedSwapOperation, ReceiptOperation, failedReceiptOperation,
+  SwapOperation, failedSwapOperation, ReceiptOperation, failedReceiptOperation, AuthorizeOperation, failedAuthorizeOperation,
 } from '@owneraio/finp2p-nodejs-skeleton-adapter';
 import { VanillaServiceImpl } from '@owneraio/finp2p-vanilla-service';
 
@@ -25,7 +25,7 @@ export class OmnibusVanillaService extends VanillaServiceImpl {
     return failedSwapOperation(1, 'Swap is not supported in omnibus mode');
   }
 
-  async authorize(): Promise<ReceiptOperation> {
-    return failedReceiptOperation(1, 'Authorize is not supported in omnibus mode');
+  async authorize(): Promise<AuthorizeOperation> {
+    return failedAuthorizeOperation(1, 'Authorize is not supported in omnibus mode');
   }
 }
