@@ -28,16 +28,17 @@ const issuerApi = {
   release: jest.fn(),
 };
 tokenStandardRegistry.register("ISSUER_API_TEST", issuerApi as any);
+tokenStandardRegistry.register("ISSUER_API_RESERVING", issuerApi as any, "holder-reservation");
 
-function service(): CustodyTokenService {
+function service(backoff = { firstMs: 1, maxMs: 2, deadlineMs: 60_000 }, tokenStandard = "ISSUER_API_TEST"): CustodyTokenService {
   const assetStore = {
-    getAsset: async () => ({ contract_address: TOKEN, decimals: 18, token_standard: "ISSUER_API_TEST" }),
+    getAsset: async () => ({ contract_address: TOKEN, decimals: 18, token_standard: tokenStandard }),
     saveAsset: async () => {},
   } as any;
   const accountMapping = {
     resolveAccount: async (finId: string) => (finId === INVESTOR_FINID ? INVESTOR_ADDRESS : undefined),
   } as any;
-  return new CustodyTokenService(logger, {} as any, wallet(ESCROW_ADDRESS), {} as any, accountMapping, assetStore, undefined, undefined, { firstMs: 1, maxMs: 2 });
+  return new CustodyTokenService(logger, {} as any, wallet(ESCROW_ADDRESS), {} as any, accountMapping, assetStore, undefined, undefined, backoff);
 }
 
 const ASSET = { assetId: "bank-us:102:asset-1", assetType: "finp2p" } as any;
@@ -73,6 +74,17 @@ describe("CustodyTokenService with an issuer-API standard", () => {
     expect(issuerApi.issueByApi).toHaveBeenCalledTimes(1);
   });
 
+  test("an order still in flight at the deadline fails, left for manual handling", async () => {
+    issuerApi.issueByApi.mockResolvedValue(inFlight);
+
+    const receipt = await service({ firstMs: 5, maxMs: 5, deadlineMs: 12 }).issue("ik-1", ASSET, INVESTOR, "5", EX_CTX);
+
+    expect(receipt).toMatchObject({ type: "failure" });
+    expect(JSON.stringify(receipt)).toMatch(/order ref1 is Order Valid; no final answer within 0 min, so the order is left for manual handling/);
+    expect(issuerApi.issueByApi.mock.calls.length).toBeGreaterThanOrEqual(2);
+    expect(issuerApi.issueByApi.mock.calls.length).toBeLessThanOrEqual(4);
+  });
+
   test("a held redeem asks the issuer to take the units from the escrow, under the idempotency key", async () => {
     issuerApi.redeemByApi.mockResolvedValueOnce(inFlight).mockResolvedValueOnce({ ...done, transactionId: "0xburn" });
 
@@ -86,6 +98,15 @@ describe("CustodyTokenService with an issuer-API standard", () => {
     expect(operationId).toBe("ik-2");
     expect(opCtx).toMatchObject({ operationId: "op-1", releaseType: ReleaseType.Redeem });
     expect(issuerApi.burn).not.toHaveBeenCalled();
+    expect(issuerApi.release).not.toHaveBeenCalled();
+  });
+
+  test("a held redeem is refused when the standard's holds stay on the holder", async () => {
+    const receipt = await service(undefined, "ISSUER_API_RESERVING").redeem("ik-2", "nonce", INVESTOR, ASSET, "6", "op-1", undefined as any, EX_CTX);
+
+    expect(receipt).toMatchObject({ type: "failure" });
+    expect(JSON.stringify(receipt)).toMatch(/takes held units from the escrow, but its holds stay on the holder's account/);
+    expect(issuerApi.redeemByApi).not.toHaveBeenCalled();
     expect(issuerApi.release).not.toHaveBeenCalled();
   });
 

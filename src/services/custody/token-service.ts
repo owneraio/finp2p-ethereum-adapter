@@ -7,14 +7,14 @@ import {
 } from '@owneraio/finp2p-nodejs-skeleton-adapter';
 import winston from 'winston';
 import { parseUnits, Provider, Signer, Wallet, ZeroAddress } from "ethers";
-import { AssetRecord, ReleaseType, TokenOperationResult, SwapIntent, SwapVenue, mirrored } from '@owneraio/finp2p-ethereum-adapter-contract';
+import { AssetRecord, ReleaseType, TokenOperationResult, SwapIntent, SwapVenue, issuesByApi, mirrored } from '@owneraio/finp2p-ethereum-adapter-contract';
 import { CustodyProvider, CustodyWallet } from './custody-provider';
 import { AccountResolver, AssetStore, ledgerAccountAddress, validateSwapWallets } from "../accounts";
 import { tokenStandardRegistry } from '../../integrations/token-standards/registry';
 import { TokenStandardName as ERC20_TOKEN_STANDARD, DEFAULT_NEW_ERC20_DECIMALS } from '@owneraio/finp2p-ethereum-erc20-plugin';
 import { buildOperationContext, deriveReleaseType } from "../operations";
 import { runWithIdempotencyKey } from './idempotency-scope';
-import { DEFAULT_ISSUER_API_BACKOFF, IssuerApiBackoff, issuesByApi, untilIssuerApiSettles } from './issuer-api';
+import { DEFAULT_ISSUER_API_BACKOFF, IssuerApiBackoff, untilIssuerApiSettles } from './issuer-api';
 
 /** LedgerBindingNotSupportedErr — the ledger does not support the requested network/standard. */
 const LEDGER_BINDING_NOT_SUPPORTED = 7311;
@@ -441,6 +441,9 @@ export class CustodyTokenService implements TokenService, EscrowService, HealthS
 
       if (issuesByApi(standard) && standard.redeemByApi) {
         const redeemByApi = standard.redeemByApi.bind(standard);
+        if (operationId && tokenStandardRegistry.holdModel(asset.tokenStandard) !== 'escrow-transfer') {
+          return failedReceiptOperation(1, `${asset.tokenStandard} redeems through its issuer's API, which takes held units from the escrow, but its holds stay on the holder's account`);
+        }
         const from = operationId ? await this.requireEscrow().signer.getAddress() : await this.resolveAddress(source.finId);
         const result = await untilIssuerApiSettles(
           () => redeemByApi(asset, from, amount, idempotencyKey, this.logger, opCtx),

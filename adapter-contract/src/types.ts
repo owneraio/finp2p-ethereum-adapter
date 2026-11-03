@@ -34,17 +34,21 @@ export interface AssetRecord {
  *
  * - success: transactionId is always present — standards that don't produce
  *   an on-chain tx must generate a synthetic ID themselves
- * - failure: operation failed with a reason
+ * - failure: the operation failed with a reason. `submitted` says whether it
+ *   may still take effect. false: it cannot, because nothing was sent or the
+ *   ledger gave its final rejection. true: it went out with no final answer
+ *   and may yet be applied. Absent: the standard does not say, which is
+ *   every standard written before the flag.
  */
 export type TokenOperationResult =
   | { status: 'success'; transactionId: string; timestamp: number }
-  | { status: 'failure'; reason: string };
+  | { status: 'failure'; reason: string; submitted?: boolean };
 
 export const successfulTokenOp = (transactionId: string, timestamp: number): TokenOperationResult =>
   ({ status: 'success', transactionId, timestamp });
 
-export const failedTokenOp = (reason: string): TokenOperationResult =>
-  ({ status: 'failure', reason });
+export const failedTokenOp = (reason: string, submitted?: boolean): TokenOperationResult =>
+  (submitted === undefined ? { status: 'failure', reason } : { status: 'failure', reason, submitted });
 
 export type AssetDenominationType = 'finp2p' | 'fiat' | 'cryptocurrency';
 
