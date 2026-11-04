@@ -1,7 +1,7 @@
 import { format } from "winston";
 
 const MESSAGE = Symbol.for("message");
-const EXACT_SECRET_KEYS = new Set(["NETWORK_AUTH"]);
+const EXACT_SECRET_KEYS = new Set(["NETWORK_AUTH", "SUBGRAPH_AUTH"]);
 const SECRET_KEY_SUFFIXES = [
   "_PRIVATE_KEY",
   "_PRIVATE_KEY_BASE64",

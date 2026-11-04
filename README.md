@@ -17,9 +17,12 @@ The base `TokenStandard` interface is owned by the adapter and published as [`@o
 | `BENJI` | `@owneraio/finp2p-ethereum-benji-plugin` | always¹ |
 | `HEDERA_ATS` | `@owneraio/finp2p-ethereum-hedera-plugin` | always¹ |
 | `OWNERA_COLLATERAL_REGISTRY` | `@owneraio/finp2p-ethereum-collateral` | `COLLATERAL_REGISTRY_ADDRESS` + `COLLATERAL_AGENT_PRIVATE_KEY` |
-| `DTCC_COLLATERAL_ACCOUNT` | `@owneraio/finp2p-ethereum-dtcc-plugin` | `DTCC_PLUGIN_ENABLED=true` |
+| `DTCC_COLLATERAL_ACCOUNT` | `@owneraio/finp2p-ethereum-dtcc-plugin` | `DTCC_PLUGIN_ENABLED=true` + `SUBGRAPH_BASE_URL` |
+| `DTCC_COLLATERAL_ACCOUNT_V2` | `@owneraio/finp2p-ethereum-dtcc-plugin` | `DTCC_V2_ENABLED=true` + `DTCC_V2_*`² |
 
 ¹ Signers default to `OPERATOR_PRIVATE_KEY`; override per role with `ASSET_ISSUER_PRIVATE_KEY` / `ASSET_CONTROLLER_PRIVATE_KEY`. Standards whose constructors accept a whitelisting signer receive `ASSET_WHITELIST_PRIVATE_KEY` (TREX, CMTAT, HEDERA_ATS). Optional-argument semantics are each plugin's contract. Without an issuer/controller key the standards register with an ephemeral signer — reads and whitelist checks work; on-chain agent writes need a configured, authorized key. Skipped entirely only when `NETWORK_HOST` is unset.
+
+² `DTCC_V2_OPERATOR_PRIVATE_KEY`, `DTCC_V2_FACTORY_ADDRESS`, `DTCC_V2_TEMPLATE`, `DTCC_V2_HAIRCUT_CONTEXT`, `DTCC_V2_PRICE_CONTEXT`, `DTCC_V2_PRICED_IN_TOKEN`, `DTCC_V2_LIABILITY_SERVICE`, `DTCC_V2_LIABILITY_TYPE`, `DTCC_V2_TARGET_RATIO`, `DTCC_V2_DEFAULT_RATIO`, `DTCC_V2_GRACE_BUFFER`, `DTCC_V2_TARGET_RATIO_LIMIT`, `DTCC_V2_DEFAULT_RATIO_LIMIT`; optional `DTCC_V2_INDEXED_ASSET_LISTS` (comma-separated) and `DTCC_V2_FROM_BLOCK`. No defaults. Both DTCC standards create the agreement on `/assets/create` from the request metadata and resolve the borrower through the account mapping, so they need `FINP2P_ADDRESS`, `OSS_URL` and a custody provider. The DTCC subgraph takes `SUBGRAPH_AUTH` (`user:password`, basic auth) and a client certificate in `SUBGRAPH_TLS_CERT` + `SUBGRAPH_TLS_PRIVATE_KEY` (PEM, optional `SUBGRAPH_TLS_CA`).
 
 ## Documentation
 

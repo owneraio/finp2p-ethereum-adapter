@@ -13,6 +13,7 @@ module.exports = {
     "<rootDir>/tests/onchain-redeem.test.+(ts|tsx|js)",
     "<rootDir>/tests/token-standard-registry.test.+(ts|tsx|js)",
     "<rootDir>/tests/ethereum-standards.test.+(ts|tsx|js)",
+    "<rootDir>/tests/dtcc-subgraph.test.+(ts|tsx|js)",
     "<rootDir>/tests/token-whitelisting.test.+(ts|tsx|js)",
     "<rootDir>/tests/wallet-activation.test.+(ts|tsx|js)",
     "<rootDir>/tests/network-accounts.test.+(ts|tsx|js)",
