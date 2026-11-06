@@ -363,9 +363,7 @@ export class CustodyTokenService implements TokenService, EscrowService, HealthS
     }
   }
 
-  // AUTHORIZE on the custody path would be a custody-native ERC20 approve (the custody wallet
-  // signs approve(venue, amount) itself), not an operator-verified grant. That path is not wired
-  // here yet — the on-chain operator adapter is the one that implements authorize.
+  // Authorize is implemented by the on-chain operator adapter, not the custody path.
   async authorize(
     _idempotencyKey: string, _nonce: string, _source: Source, _destination: Destination | undefined, _asset: Asset,
     _quantity: string, _signature: Signature, operationId: string, _expiry: number | undefined, _exCtx: ExecutionContext | undefined

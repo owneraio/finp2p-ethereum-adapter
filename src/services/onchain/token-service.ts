@@ -9,8 +9,7 @@ import {
   successfulSwapOperation, failedSwapOperation,
   logger, ProofProvider, PluginManager,
 } from "@owneraio/finp2p-nodejs-skeleton-adapter";
-import { Contract, keccak256, parseUnits, toUtf8Bytes, TypedDataEncoder, recoverAddress } from "ethers";
-import { finIdToAddress } from "@owneraio/finp2p-ethereum-orchestrator";
+import { Contract, keccak256, parseUnits, toUtf8Bytes } from "ethers";
 import { Logger as SpiLogger, SwapIntent, SwapVenue, TokenWallet, mirrored } from "@owneraio/finp2p-ethereum-adapter-contract";
 import {
   FinP2PContract,
@@ -454,19 +453,6 @@ export class OnChainTokenService implements TokenService, EscrowService, CommonS
     const { buyerFinId, sellerFinId, asset, settlement, loan, params } = details;
     if (expiry) {
       logger.info(`authorize ${operationId}: expiry ${expiry} ignored — the allowance venue has no time-bound primitive`);
-    }
-
-    // TEMP AUTHZ-DIAG: recover who actually signed the template vs who the operator will expect
-    try {
-      const t = eip712Template as any;
-      const typesNoDomain = { ...(t.types ?? {}) };
-      delete typesNoDomain.EIP712Domain;
-      const digest = TypedDataEncoder.hash(t.domain, typesNoDomain, t.message);
-      const recovered = recoverAddress(digest, signature.startsWith("0x") ? signature : `0x${signature}`);
-      const sellerCred = await this.finP2PContract.getCredentialAddress(sellerFinId).catch(() => "n/a");
-      logger.info(`AUTHZ-DIAG op=${operationId} primaryType=${t.primaryType} leg=${params.leg} phase=${params.phase} nonce=${nonce} seller=${sellerFinId} buyer=${buyerFinId} recovered=${recovered} sellerFinIdAddr=${finIdToAddress(sellerFinId)} buyerFinIdAddr=${finIdToAddress(buyerFinId)} sellerCred=${sellerCred}`);
-    } catch (e) {
-      logger.info(`AUTHZ-DIAG failed: ${e}`);
     }
 
     try {

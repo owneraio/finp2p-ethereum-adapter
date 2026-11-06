@@ -12,12 +12,8 @@ export interface SwapPermit {
   deadline: number;
 }
 
-/**
- * This org's part in the swap, derived by the router from the swap's legs:
- * - 'executor'  — settles the whole crossing (the asset-leg org);
- * - 'observer'  — submits nothing, verifies the executor's crossing happened and attests.
- * Absent for the legacy role-less flow, where both orgs submit and rendezvous on-chain.
- */
+// executor settles the whole crossing; observer submits nothing and verifies it happened.
+// Absent for the legacy role-less flow where both orgs rendezvous on-chain.
 export type SwapRole = 'executor' | 'observer';
 
 export interface SwapIntent {
@@ -29,8 +25,7 @@ export interface SwapIntent {
   role?: SwapRole;
 }
 
-// role is this org's perspective, not a property of the swap — a mirrored intent
-// carries no role until one is set explicitly (same treatment as permit).
+// role, like permit, is this org's perspective — a mirrored intent drops it.
 export const mirrored = ({ permit, role, ...intent }: SwapIntent): SwapIntent =>
   ({ ...intent, give: intent.take, take: intent.give });
 
