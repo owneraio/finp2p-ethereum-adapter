@@ -13,7 +13,6 @@ export interface SwapPermit {
 }
 
 // executor settles the whole crossing; observer submits nothing and verifies it happened.
-// Absent for the legacy role-less flow where both orgs rendezvous on-chain.
 export type SwapRole = 'executor' | 'observer';
 
 export interface SwapIntent {

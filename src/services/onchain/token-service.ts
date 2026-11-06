@@ -458,7 +458,6 @@ export class OnChainTokenService implements TokenService, EscrowService, CommonS
     try {
       await this.ensureCredential(sellerFinId);
       await this.ensureCredential(buyerFinId);
-      // spender is the venue the source authorizes to pull — supplied by the adapter, not the signature
       const transactionReceipt = await this.finP2PContract.authorize(
         nonce, sellerFinId, buyerFinId, asset, settlement, loan, params, this.swapVenue.venueAddress, signature);
 
@@ -466,7 +465,6 @@ export class OnChainTokenService implements TokenService, EscrowService, CommonS
         this.execDetailsStore?.addExecutionContext(transactionReceipt.hash, exCtx.planId, exCtx.sequence);
       }
 
-      // Authorize establishes the on-chain allowance; it returns a proof, not a settlement receipt.
       return successfulAuthorizeOperation();
     } catch (e) {
       logger.error(`Error asset authorize: ${e}`);
