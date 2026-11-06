@@ -1,8 +1,8 @@
 import {
   Asset, AssetBind, AssetCreationStatus, AssetDenomination,
   Balance, Destination, ExecutionContext, HealthService, OperationType, Receipt,
-  ReceiptOperation, Signature, Source, SwapLeg, SwapOperation, TokenService, EscrowService,
-  failedReceiptOperation, failedAssetCreation, failedSwapOperation,
+  ReceiptOperation, AuthorizeOperation, Signature, Source, SwapLeg, SwapOperation, SwapRole, TokenService, EscrowService,
+  failedReceiptOperation, failedAuthorizeOperation, failedAssetCreation, failedSwapOperation,
   successfulSwapOperation
 } from '@owneraio/finp2p-nodejs-skeleton-adapter';
 import winston from 'winston';
@@ -290,7 +290,7 @@ export class CustodyTokenService implements TokenService, EscrowService, HealthS
   }
 
   private async toSwapIntent(operationId: string, asset: SwapLeg, settlement: SwapLeg,
-                             party: string, counterParty: string, deadline: number): Promise<SwapIntent> {
+                             party: string, counterParty: string, deadline: number, role?: SwapRole): Promise<SwapIntent> {
     const assetRecord = await this.assetRecord(asset.asset.assetId);
     const settlementRecord = await this.assetRecord(settlement.asset.assetId);
     return {
@@ -298,12 +298,13 @@ export class CustodyTokenService implements TokenService, EscrowService, HealthS
       give: { token: assetRecord.contractAddress, party, amount: parseUnits(asset.quantity, assetRecord.decimals) },
       take: { token: settlementRecord.contractAddress, party: counterParty, amount: parseUnits(settlement.quantity, settlementRecord.decimals) },
       deadline: deadline || undefined,
+      role,
     };
   }
 
   async swap(
     idempotencyKey: string, nonce: string, operationId: string, asset: SwapLeg,
-    settlement: SwapLeg, numberOfReceipts: number, deadline: number, exCtx: ExecutionContext | undefined
+    settlement: SwapLeg, numberOfReceipts: number, deadline: number, exCtx: ExecutionContext | undefined, role?: SwapRole
   ): Promise<SwapOperation> {
     if (numberOfReceipts === 2) {
       return this.swapBothLegs(operationId, asset, settlement, deadline, exCtx);
@@ -347,7 +348,7 @@ export class CustodyTokenService implements TokenService, EscrowService, HealthS
         ?? await this.accountMapping.resolveAccount(settlement.source.finId);
       if (!counterParty) return failedSwapOperation(1, `No wallet address for settlement source ${settlement.source.finId} — pass source.account or map the finId`);
 
-      const intent = await this.toSwapIntent(operationId, asset, settlement, resolved.address, counterParty, deadline);
+      const intent = await this.toSwapIntent(operationId, asset, settlement, resolved.address, counterParty, deadline, role);
       const submission = await this.swapVenue.swap(resolved.wallet, intent, this.logger);
       if (submission.status === 'failure') {
         return failedSwapOperation(1, submission.reason);
@@ -360,6 +361,15 @@ export class CustodyTokenService implements TokenService, EscrowService, HealthS
       this.logger.error(`Swap failed: operationId=${operationId} asset=${asset.asset.assetId} settlement=${settlement.asset.assetId}`, e);
       return failedSwapOperation(1, `${e}`);
     }
+  }
+
+  // Authorize is implemented by the on-chain operator adapter, not the custody path.
+  async authorize(
+    _idempotencyKey: string, _nonce: string, _source: Source, _destination: Destination | undefined, _asset: Asset,
+    _quantity: string, _signature: Signature, operationId: string, _expiry: number | undefined, _exCtx: ExecutionContext | undefined
+  ): Promise<AuthorizeOperation> {
+    this.logger.info(`authorize ${operationId}: not supported by the custody token service`);
+    return failedAuthorizeOperation(1, "Authorize is not supported by the custody token service");
   }
 
   private async swapBothLegs(
