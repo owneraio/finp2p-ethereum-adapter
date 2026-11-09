@@ -502,6 +502,21 @@ export class OnChainTokenService implements TokenService, EscrowService, CommonS
   ): Promise<ReceiptOperation> {
     try {
       await this.ensureCredential(source.finId);
+
+      // quantity 0 is core's signal that this rollback reverts an AUTHORIZE, not a hold: there is no
+      // escrowed hold to release — instead revoke the on-chain allowance the authorize granted to the
+      // swap venue (set it back to 0). Any other quantity is a hold rollback (releaseBack).
+      if (Number(quantity) === 0) {
+        if (!this.swapVenue) {
+          return failedReceiptOperation(1, "Cannot revert authorize: no swap venue is configured");
+        }
+        const revertReceipt = await this.finP2PContract.revertAuthorize(source.finId, asset.assetId, this.swapVenue.venueAddress);
+        if (exCtx) {
+          this.execDetailsStore?.addExecutionContext(revertReceipt.hash, exCtx.planId, exCtx.sequence);
+        }
+        return mapReceiptOperation(await this.finP2PContract.getReceiptFromTransactionReceipt(revertReceipt), asset, exCtx);
+      }
+
       const transactionReceipt = await this.finP2PContract.releaseBack(operationId, emptyOperationParams());
 
       if (exCtx) {
