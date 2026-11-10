@@ -5,7 +5,7 @@ import {
   failedReceiptOperation, successfulReceiptOperation,
   AuthorizeOperation, failedAuthorizeOperation, successfulAuthorizeOperation,
   AssetBind, AssetDenomination, AssetCreationResult, Destination, ExecutionContext,
-  Receipt, ReceiptOperation, Source, Signature, SwapLeg, SwapOperation, SwapRole,
+  Receipt, ReceiptOperation, RollbackType, Source, Signature, SwapLeg, SwapOperation, SwapRole,
   successfulSwapOperation, failedSwapOperation,
   logger, ProofProvider, PluginManager,
 } from "@owneraio/finp2p-nodejs-skeleton-adapter";
@@ -498,17 +498,16 @@ export class OnChainTokenService implements TokenService, EscrowService, CommonS
 
   }
 
-  public async rollback(idempotencyKey: string, source: Source, asset: Asset, quantity: string, operationId: string, exCtx: ExecutionContext | undefined
+  public async rollback(idempotencyKey: string, source: Source, asset: Asset, quantity: string, operationId: string, exCtx: ExecutionContext | undefined,
+    rollbackType: RollbackType | undefined
   ): Promise<ReceiptOperation> {
     try {
       await this.ensureCredential(source.finId);
 
-      // A hold writes an on-chain lock keyed by operationId; an authorize does not. The presence of
-      // that lock — not the quantity — distinguishes a hold rollback (releaseBack) from an authorize
-      // revert (revertAuthorize), and stays correct if an authorize is ever reverted with a non-zero
-      // amount.
-      const isHoldRollback = await this.finP2PContract.hasHold(operationId);
-      if (!isHoldRollback) {
+      // rollbackType says what we revert. 'authorize' revokes the on-chain allowance the grant placed;
+      // anything else — including an omitted value from an older core — rolls back a hold (releaseBack),
+      // the endpoint's original, backward-compatible behaviour.
+      if (rollbackType === "authorize") {
         if (!this.swapVenue) {
           return failedReceiptOperation(1, "Cannot revert authorize: no swap venue is configured");
         }
@@ -521,6 +520,7 @@ export class OnChainTokenService implements TokenService, EscrowService, CommonS
         // to read. Synthesize a minimal release-shaped receipt from the data we already hold; the tx
         // itself is the on-chain effect. mapReceiptOperation reinstates the execution context.
         const revertedReceipt = {
+          operation: "receipt",
           type: "success",
           receipt: {
             id: revertReceipt.hash,
