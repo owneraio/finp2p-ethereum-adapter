@@ -503,9 +503,12 @@ export class OnChainTokenService implements TokenService, EscrowService, CommonS
     try {
       await this.ensureCredential(source.finId);
 
-      // quantity 0 is core's signal that this rollback reverts an AUTHORIZE, not a hold. 
-      // Any other quantity is a hold rollback (releaseBack).
-      if (Number(quantity) === 0) {
+      // A hold writes an on-chain lock keyed by operationId; an authorize does not. The presence of
+      // that lock — not the quantity — distinguishes a hold rollback (releaseBack) from an authorize
+      // revert (revertAuthorize), and stays correct if an authorize is ever reverted with a non-zero
+      // amount.
+      const isHoldRollback = await this.finP2PContract.hasHold(operationId);
+      if (!isHoldRollback) {
         if (!this.swapVenue) {
           return failedReceiptOperation(1, "Cannot revert authorize: no swap venue is configured");
         }
