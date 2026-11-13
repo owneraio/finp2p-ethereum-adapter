@@ -140,7 +140,7 @@ describe("OnChainTokenService authorize -> rollback(revert) against a live FINP2
 
     // Core's RevertAuthorize arrives as /assets/rollback with quantity 0.
     const reverted = await service.rollback(
-      "idem-revert", { finId: seller.finId }, ast, "0", "op-authorize-1", undefined,
+      "idem-revert", { finId: seller.finId }, ast, "0", "op-authorize-1", undefined, "authorize",
     );
     expect(reverted).toMatchObject({ type: "success" });
     expect(await token.allowance(seller.address, venueAddress)).toBe(0n);
