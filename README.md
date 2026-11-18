@@ -29,6 +29,14 @@ Each entry is `0xaddress` or `Name=0xaddress`, for example `AllowanceSwapA=0x8A7
 
 An entry without a name is called `AllowanceSwap` when it is the only venue (this includes the singular variable). Otherwise it is called `AllowanceSwap-` followed by the first 8 hex digits of its address in lower case, so adapters configured with the same addresses derive the same names whatever the order.
 
+### Permit2 venues
+
+`FINP2P_ETHEREUM_PERMIT2_SWAP_ADDRESSES` lists `Permit2Swap` contracts in the same `0xaddress` or `Name=0xaddress` format; an unnamed entry is called `Permit2Swap` (or `Permit2Swap-` plus 8 hex digits when there are several). `FINP2P_ETHEREUM_PERMIT2_ADDRESS` is the Permit2 contract the venues pull through and defaults to the canonical `0x000000000022D473030F116dDEE9F6B43aC78BA3`.
+
+Allowance venues are listed first, then Permit2 venues. Names and addresses must be unique across both lists. A Permit2 venue is listed, and picked, by its `Permit2Swap` contract address; Permit2 itself is the venue's funds-entry point. The adapter only relays `executeSwap`: each party approves Permit2 once per token and submits a signed Permit2 allowance for the contract before the swap. Whichever side calls first settles both legs and the other side resumes from the `SwapExecuted` event.
+
+On a local chain, `node ./node_modules/@owneraio/finp2p-ethereum-permit2-swap/dist/scripts/deploy-local.js` (env `RPC_URL`, `DEPLOYER_PRIVATE_KEY`) installs Permit2 at the canonical address and deploys `Permit2Swap` at the deployer's nonce 0, skipping what already exists.
+
 The adapter reports its capabilities to the router: the FinP2P operator contract for hold, transfer, release, issue, revert hold and redeem, and every configured venue for swap, each under its name. When the router picks one of the listed contracts (it sends the contract address) for an instruction, the adapter runs it through that contract and refuses a contract it did not list. Custody modes keep a single venue and report no capability list.
 
 ## Documentation

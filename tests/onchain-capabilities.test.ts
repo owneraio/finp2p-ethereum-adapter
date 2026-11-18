@@ -11,10 +11,15 @@ const OTHER = "0x" + "cc".repeat(20);
 const ASSET = { assetId: "bank-us:102:asset-1", assetType: "finp2p" } as any;
 const DESTINATION = { finId: "02" + "aa".repeat(32) } as any;
 
-const venue = (address: string, name = "AllowanceSwap") => ({
+const PERMIT2 = "0x000000000022D473030F116dDEE9F6B43aC78BA3";
+const PERMIT2_SWAP_A = "0x" + "dd".repeat(20);
+const PERMIT2_SWAP_B = "0x" + "ee".repeat(20);
+
+const venue = (address: string, name = "AllowanceSwap", entryPoint = address) => ({
   name,
   description: "Settles both legs in one transaction from approved allowances",
-  venue: { venueAddress: address },
+  listedAddress: address,
+  venue: { venueAddress: entryPoint },
 }) as any;
 
 const upper = (address: string) => "0x" + address.slice(2).toUpperCase();
@@ -51,6 +56,18 @@ describe("onChainCapabilities", () => {
       expect(swap.contracts?.map((x) => [x.name, x.address])).toEqual(venueConfig);
       expect(swap.contracts?.every((x) => x.description !== undefined)).toBe(true);
     }
+  });
+
+  test("a Permit2 venue is listed by its Permit2Swap contract, not by Permit2", () => {
+    const list = onChainCapabilities(OPERATOR, [
+      venue(VENUE_A, "AllowanceSwap"),
+      venue(PERMIT2_SWAP_A, "Permit2Swap", PERMIT2),
+    ]);
+    const swap = list.find((c) => c.instruction === "INSTRUCTION_SWAP");
+    expect(swap?.contracts?.map((x) => [x.name, x.address])).toEqual([
+      ["AllowanceSwap", VENUE_A],
+      ["Permit2Swap", PERMIT2_SWAP_A],
+    ]);
   });
 
   test("every listed contract carries a name valid for the router", () => {
@@ -130,6 +147,70 @@ describe("detectSwapVenues", () => {
   });
 });
 
+describe("detectSwapVenues with Permit2 venues", () => {
+  const view = (env: NodeJS.ProcessEnv) =>
+    detectSwapVenues(env).map((v) => [v.name, v.listedAddress, v.venue.venueAddress]);
+
+  const cases: Array<[string, NodeJS.ProcessEnv, string[][]]> = [
+    ["a named Permit2 entry uses the canonical Permit2 as entry point", {
+      FINP2P_ETHEREUM_PERMIT2_SWAP_ADDRESSES: `Permit2Swap=${PERMIT2_SWAP_A}`,
+    }, [["Permit2Swap", PERMIT2_SWAP_A, PERMIT2]]],
+    ["an unnamed Permit2 entry gets the default name", {
+      FINP2P_ETHEREUM_PERMIT2_SWAP_ADDRESSES: PERMIT2_SWAP_A,
+    }, [["Permit2Swap", PERMIT2_SWAP_A, PERMIT2]]],
+    ["several unnamed Permit2 entries derive the name from the address", {
+      FINP2P_ETHEREUM_PERMIT2_SWAP_ADDRESSES: `${PERMIT2_SWAP_A},${PERMIT2_SWAP_B}`,
+    }, [["Permit2Swap-dddddddd", PERMIT2_SWAP_A, PERMIT2], ["Permit2Swap-eeeeeeee", PERMIT2_SWAP_B, PERMIT2]]],
+    ["the Permit2 address can be overridden", {
+      FINP2P_ETHEREUM_PERMIT2_SWAP_ADDRESSES: `Permit2Swap=${PERMIT2_SWAP_A}`,
+      FINP2P_ETHEREUM_PERMIT2_ADDRESS: OTHER,
+    }, [["Permit2Swap", PERMIT2_SWAP_A, OTHER]]],
+    ["the Permit2 address alone configures nothing", { FINP2P_ETHEREUM_PERMIT2_ADDRESS: OTHER }, []],
+    ["allowance venues come first, then Permit2 venues, whatever the variable order", {
+      FINP2P_ETHEREUM_PERMIT2_SWAP_ADDRESSES: `Permit2Swap=${PERMIT2_SWAP_A}`,
+      FINP2P_ETHEREUM_ALLOWANCE_SWAP_ADDRESSES: `AllowanceSwapA=${VENUE_A},AllowanceSwapB=${VENUE_B}`,
+    }, [
+      ["AllowanceSwapA", VENUE_A, VENUE_A],
+      ["AllowanceSwapB", VENUE_B, VENUE_B],
+      ["Permit2Swap", PERMIT2_SWAP_A, PERMIT2],
+    ]],
+    ["the singular allowance variable also precedes Permit2 venues", {
+      FINP2P_ETHEREUM_ALLOWANCE_SWAP_ADDRESS: VENUE_A,
+      FINP2P_ETHEREUM_PERMIT2_SWAP_ADDRESSES: `Permit2Swap=${PERMIT2_SWAP_A}`,
+    }, [["AllowanceSwap", VENUE_A, VENUE_A], ["Permit2Swap", PERMIT2_SWAP_A, PERMIT2]]],
+  ];
+  test.each(cases)("%s", (_name, env, expected) => {
+    expect(view(env)).toEqual(expected);
+  });
+
+  const invalid: Array<[string, NodeJS.ProcessEnv, RegExp]> = [
+    ["a name used in both lists", {
+      FINP2P_ETHEREUM_ALLOWANCE_SWAP_ADDRESSES: `Same=${VENUE_A}`,
+      FINP2P_ETHEREUM_PERMIT2_SWAP_ADDRESSES: `Same=${PERMIT2_SWAP_A}`,
+    }, /Duplicate venue name across swap venue lists: 'Same'/],
+    ["an address used in both lists", {
+      FINP2P_ETHEREUM_ALLOWANCE_SWAP_ADDRESSES: `A=${VENUE_A}`,
+      FINP2P_ETHEREUM_PERMIT2_SWAP_ADDRESSES: `B=${upper(VENUE_A)}`,
+    }, /Duplicate address across swap venue lists/],
+    ["a duplicate name inside the Permit2 list", {
+      FINP2P_ETHEREUM_PERMIT2_SWAP_ADDRESSES: `Same=${PERMIT2_SWAP_A},Same=${PERMIT2_SWAP_B}`,
+    }, /Duplicate venue name in FINP2P_ETHEREUM_PERMIT2_SWAP_ADDRESSES/],
+    ["an invalid Permit2 swap address", {
+      FINP2P_ETHEREUM_PERMIT2_SWAP_ADDRESSES: "Permit2Swap=nope",
+    }, /Invalid FINP2P_ETHEREUM_PERMIT2_SWAP_ADDRESSES/],
+    ["an invalid Permit2 address", {
+      FINP2P_ETHEREUM_PERMIT2_SWAP_ADDRESSES: `Permit2Swap=${PERMIT2_SWAP_A}`,
+      FINP2P_ETHEREUM_PERMIT2_ADDRESS: "nope",
+    }, /Invalid FINP2P_ETHEREUM_PERMIT2_ADDRESS/],
+    ["an invalid Permit2 venue name", {
+      FINP2P_ETHEREUM_PERMIT2_SWAP_ADDRESSES: `Permit2 Swap=${PERMIT2_SWAP_A}`,
+    }, /Invalid venue name/],
+  ];
+  test.each(invalid)("%s throws", (_name, env, message) => {
+    expect(() => detectSwapVenues(env)).toThrow(message);
+  });
+});
+
 describe("pickVenue", () => {
   const venues = [venue(VENUE_A), venue(VENUE_B)];
 
@@ -140,6 +221,18 @@ describe("pickVenue", () => {
   test("a listed contract in another letter case picks that venue", () => {
     const requested = upper(VENUE_B);
     expect(pickVenue({ planId: "p", sequence: 1, contract: requested } as any, venues)).toEqual({ venue: venues[1].venue });
+  });
+
+  test("two Permit2 venues sharing one entry point are told apart by their listed contract", () => {
+    const permit2Venues = [venue(PERMIT2_SWAP_A, "Permit2SwapA", PERMIT2), venue(PERMIT2_SWAP_B, "Permit2SwapB", PERMIT2)];
+    expect(pickVenue({ planId: "p", sequence: 1, contract: PERMIT2_SWAP_B } as any, permit2Venues))
+      .toEqual({ venue: permit2Venues[1].venue });
+  });
+
+  test("the Permit2 entry point is not a listed contract", () => {
+    const permit2Venues = [venue(PERMIT2_SWAP_A, "Permit2Swap", PERMIT2)];
+    expect(pickVenue({ planId: "p", sequence: 1, contract: PERMIT2 } as any, permit2Venues))
+      .toEqual({ error: `contract ${PERMIT2} is not available for SWAP on this adapter` });
   });
 
   test("an unknown contract is an error naming the address and SWAP", () => {

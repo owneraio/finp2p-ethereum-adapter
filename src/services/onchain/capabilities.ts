@@ -31,9 +31,9 @@ export const onChainCapabilities = (operatorAddress: string, venues: NamedSwapVe
   if (venues.length > 0) {
     list.push({
       instruction: "INSTRUCTION_SWAP",
-      contracts: venues.map(({ name, description, venue }) => ({
+      contracts: venues.map(({ name, description, listedAddress }) => ({
         name,
-        address: venue.venueAddress,
+        address: listedAddress,
         description,
       })),
     });
@@ -65,6 +65,6 @@ export const pickVenue = (
   if (requested === undefined) {
     return { venue: venues[0].venue };
   }
-  const found = venues.find((candidate) => sameAddress(candidate.venue.venueAddress, requested));
+  const found = venues.find((candidate) => sameAddress(candidate.listedAddress, requested));
   return found ? { venue: found.venue } : { error: unavailable(requested, "SWAP") };
 };
