@@ -1,7 +1,7 @@
 import {
   Asset, AssetCreationStatus, InstructionCapability, EIP712Template, Balance, TokenService, EscrowService,
   CommonService, HealthService, OperationStatus,
-  failedAssetCreation, successfulAssetCreation,
+  AssetNotFoundError, failedAssetCreation, successfulAssetCreation,
   failedReceiptOperation, successfulReceiptOperation,
   AssetBind, AssetDenomination, AssetCreationResult, Destination, ExecutionContext,
   Receipt, ReceiptOperation, Source, Signature, SwapLeg, SwapOperation,
@@ -84,7 +84,7 @@ export class OnChainTokenService implements TokenService, EscrowService, CommonS
       await this.finP2PContract.getAssetAddress(asset.assetId);
     } catch (e) {
       if (/Asset not found/.test(e instanceof Error ? e.message : String(e))) {
-        throw Object.assign(new Error(`asset ${asset.assetId} not found`), { status: 404 });
+        throw new AssetNotFoundError(`asset ${asset.assetId} not found`);
       }
       throw e;
     }

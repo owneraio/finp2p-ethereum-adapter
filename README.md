@@ -21,6 +21,12 @@ The base `TokenStandard` interface is owned by the adapter and published as [`@o
 
 ¹ Signers default to `OPERATOR_PRIVATE_KEY`; override per role with `ASSET_ISSUER_PRIVATE_KEY` / `ASSET_CONTROLLER_PRIVATE_KEY`. Standards whose constructors accept a whitelisting signer receive `ASSET_WHITELIST_PRIVATE_KEY` (TREX, CMTAT, HEDERA_ATS). Optional-argument semantics are each plugin's contract. Without an issuer/controller key the standards register with an ephemeral signer — reads and whitelist checks work; on-chain agent writes need a configured, authorized key. Skipped entirely only when `NETWORK_HOST` is unset.
 
+## Swap venues
+
+Swap is enabled by configuring one or more allowance swap venues: `FINP2P_ETHEREUM_ALLOWANCE_SWAP_ADDRESSES` takes a comma-separated list, the first entry is the default, and the singular `FINP2P_ETHEREUM_ALLOWANCE_SWAP_ADDRESS` still works (ignored when the plural is set).
+
+The adapter reports its capabilities to the router: the FinP2P operator contract for hold, transfer, release, issue, revert hold and redeem, and every configured venue for swap. When the router picks one of the listed contracts for an instruction, the adapter runs it through that contract and refuses a contract it did not list. Custody modes keep a single venue and report no capability list.
+
 ## Documentation
 
 - [Design choices](specs/design.md)

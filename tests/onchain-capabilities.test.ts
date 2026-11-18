@@ -1,3 +1,4 @@
+import { AssetNotFoundError } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import { OnChainTokenService, InMemoryExecDetailsStore } from "../src/services/onchain";
 import { onChainCapabilities, pickVenue, sameAddress } from "../src/services/onchain/capabilities";
 import { detectSwapVenues } from "../src/swap-venues";
@@ -135,10 +136,12 @@ describe("OnChainTokenService capabilities", () => {
     expect(list.map((c) => c.instruction)).toContain("INSTRUCTION_SWAP");
   });
 
-  test("getCapabilities on an unknown asset throws status 404", async () => {
+  test("getCapabilities on an unknown asset throws AssetNotFoundError", async () => {
     const contract = contractMock();
     contract.getAssetAddress.mockRejectedValue(new Error("execution reverted: Asset not found"));
 
-    await expect(service(contract).getCapabilities(ASSET)).rejects.toMatchObject({ status: 404 });
+    const error = await service(contract).getCapabilities(ASSET).catch((e) => e);
+    expect(error).toBeInstanceOf(AssetNotFoundError);
+    expect(error.message).toContain(`asset ${ASSET.assetId} not found`);
   });
 });
