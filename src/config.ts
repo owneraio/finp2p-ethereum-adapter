@@ -43,7 +43,7 @@ export type BaseAppConfig = {
   accountMappingType: AccountMappingType
   accountModel: AccountModel
   swapVenue?: SwapVenue
-  swapVenues?: SwapVenue[]
+  swapVenues?: NamedSwapVenue[]
 }
 
 export type FinP2PContractAppConfig = BaseAppConfig & {
@@ -71,7 +71,7 @@ export { getNetworkRpcUrl, localSubmitRpcUrl } from './network-host';
 import { getNetworkRpcUrl } from './network-host';
 
 export { detectSwapVenues, detectSwapVenue } from './swap-venues';
-import { detectSwapVenues } from './swap-venues';
+import { detectSwapVenues, NamedSwapVenue } from './swap-venues';
 
 export const createJsonProvider = (
   operatorPrivateKey: string, ethereumRPCUrl: string, useNonceManager: boolean = true
@@ -92,10 +92,10 @@ export async function envVarsToAppConfig(logger: Logger): Promise<AppConfig> {
   const accountMappingType = resolveAccountMappingType(process.env.ACCOUNT_MAPPING_TYPE)
   const accountModel = resolveAccountModel(process.env.ACCOUNT_MODEL)
   const swapVenues = detectSwapVenues(process.env, (message) => logger.warning(message))
-  const swapVenue = swapVenues[0]
+  const swapVenue = swapVenues[0]?.venue
   if (swapVenues.length > 0) {
-    swapVenues.forEach((venue) => {
-      logger.info(`Swap venue ${venue.constructor.name} configured at ${venue.venueAddress}`);
+    swapVenues.forEach(({ name, venue }) => {
+      logger.info(`Swap venue ${name} (${venue.constructor.name}) configured at ${venue.venueAddress}`);
     });
     logger.info('Swap functionality enabled');
   } else {

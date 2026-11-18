@@ -23,6 +23,7 @@ import { ExecDetailsStore } from "./exec-details-store";
 import { mapReceiptOperation } from "./mapping";
 import { emptyOperationParams, extractBusinessDetails, validateRequest } from "./helpers";
 import { validateSwapWallets } from "../accounts";
+import { NamedSwapVenue } from "../../swap-venues";
 import { OperatorInstruction, onChainCapabilities, operatorContractError, pickVenue } from "./capabilities";
 
 const DefaultDecimals = 2;
@@ -67,7 +68,7 @@ export class OnChainTokenService implements TokenService, EscrowService, CommonS
     readonly proofProvider: ProofProvider | undefined,
     readonly pluginManager: PluginManager | undefined,
     readonly defaultAssetStandard: string | undefined = undefined,
-    readonly swapVenues: SwapVenue[] = [],
+    readonly swapVenues: NamedSwapVenue[] = [],
   ) {}
 
   private operatorContractFailure(instruction: OperatorInstruction, exCtx: ExecutionContext | undefined): ReceiptOperation | undefined {

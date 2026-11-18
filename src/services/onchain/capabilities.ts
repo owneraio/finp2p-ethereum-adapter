@@ -1,5 +1,6 @@
 import { ExecutionContext, InstructionCapability } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import { SwapVenue } from "@owneraio/finp2p-ethereum-adapter-contract";
+import { NamedSwapVenue } from "../../swap-venues";
 
 const OPERATOR_INSTRUCTIONS = [
   "INSTRUCTION_HOLD",
@@ -18,22 +19,22 @@ const EVM_ADDRESS = /^0x[0-9a-fA-F]{40}$/;
 export const sameAddress = (a: string, b: string): boolean =>
   EVM_ADDRESS.test(a) && EVM_ADDRESS.test(b) ? a.toLowerCase() === b.toLowerCase() : a === b;
 
-export const onChainCapabilities = (operatorAddress: string, venues: SwapVenue[]): InstructionCapability[] => {
+export const onChainCapabilities = (operatorAddress: string, venues: NamedSwapVenue[]): InstructionCapability[] => {
   const list: InstructionCapability[] = OPERATOR_INSTRUCTIONS.map((instruction) => ({
     instruction,
     contracts: [{
-      address: operatorAddress,
       name: "FINP2POperator",
+      address: operatorAddress,
       description: "Holds, moves, issues and redeems the asset",
     }],
   }));
   if (venues.length > 0) {
     list.push({
       instruction: "INSTRUCTION_SWAP",
-      contracts: venues.map((venue) => ({
+      contracts: venues.map(({ name, description, venue }) => ({
+        name,
         address: venue.venueAddress,
-        name: "AllowanceSwap",
-        description: "Settles both legs in one transaction from approved allowances",
+        description,
       })),
     });
   }
@@ -58,12 +59,12 @@ export const operatorContractError = (
 
 export const pickVenue = (
   exCtx: ExecutionContext | undefined,
-  venues: SwapVenue[],
+  venues: NamedSwapVenue[],
 ): { venue: SwapVenue } | { error: string } => {
   const requested = exCtx?.contract;
   if (requested === undefined) {
-    return { venue: venues[0] };
+    return { venue: venues[0].venue };
   }
-  const venue = venues.find((candidate) => sameAddress(candidate.venueAddress, requested));
-  return venue ? { venue } : { error: unavailable(requested, "SWAP") };
+  const found = venues.find((candidate) => sameAddress(candidate.venue.venueAddress, requested));
+  return found ? { venue: found.venue } : { error: unavailable(requested, "SWAP") };
 };

@@ -23,9 +23,13 @@ The base `TokenStandard` interface is owned by the adapter and published as [`@o
 
 ## Swap venues
 
-Swap is enabled by configuring one or more allowance swap venues: `FINP2P_ETHEREUM_ALLOWANCE_SWAP_ADDRESSES` takes a comma-separated list, the first entry is the default, and the singular `FINP2P_ETHEREUM_ALLOWANCE_SWAP_ADDRESS` still works (ignored when the plural is set).
+Swap is enabled by configuring one or more allowance swap venues. `FINP2P_ETHEREUM_ALLOWANCE_SWAP_ADDRESSES` takes a comma-separated list, the first entry is the default, and the singular `FINP2P_ETHEREUM_ALLOWANCE_SWAP_ADDRESS` still works (ignored when the plural is set).
 
-The adapter reports its capabilities to the router: the FinP2P operator contract for hold, transfer, release, issue, revert hold and redeem, and every configured venue for swap. When the router picks one of the listed contracts for an instruction, the adapter runs it through that contract and refuses a contract it did not list. Custody modes keep a single venue and report no capability list.
+Each entry is `0xaddress` or `Name=0xaddress`, for example `AllowanceSwapA=0x8A79...C318,AllowanceSwapB=0xA51c...91C0`. The name is how the venue is listed in the asset's capabilities and must match `^[A-Za-z0-9._-]{1,64}$`. A duplicate name or address (any letter case) is rejected at startup. A swap needs both assets to list the venue under the same name and address, so give a venue the same name on every adapter.
+
+An entry without a name is called `AllowanceSwap` when it is the only venue (this includes the singular variable). Otherwise it is called `AllowanceSwap-` followed by the first 8 hex digits of its address in lower case, so adapters configured with the same addresses derive the same names whatever the order.
+
+The adapter reports its capabilities to the router: the FinP2P operator contract for hold, transfer, release, issue, revert hold and redeem, and every configured venue for swap, each under its name. When the router picks one of the listed contracts (it sends the contract address) for an instruction, the adapter runs it through that contract and refuses a contract it did not list. Custody modes keep a single venue and report no capability list.
 
 ## Documentation
 
