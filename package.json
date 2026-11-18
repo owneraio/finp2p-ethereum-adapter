@@ -17,7 +17,7 @@
     "clean": "rm -rf dist",
     "prebuild": "eslint ./src --ext .ts --fix",
     "build": "tsc",
-    "test": "jest && jest --config jest.account-resolver.config.js && jest --config jest.omnibus.config.js && jest --config jest.legacy-migration.config.js && jest --config jest.plan-approval.config.js && jest --config jest.operation-context.config.js && jest --config jest.uniswap-deploy.config.js",
+    "test": "jest && jest --config jest.account-resolver.config.js && jest --config jest.omnibus.config.js && jest --config jest.legacy-migration.config.js && jest --config jest.plan-approval.config.js && jest --config jest.operation-context.config.js",
     "test:fireblocks": "jest --config jest.fireblocks.config.js",
     "test:dfns": "jest --config jest.dfns.config.js",
     "test:account-mapping": "jest --config jest.account-resolver.config.js",
@@ -33,8 +33,7 @@
     "start-debug": "ts-node ./src/index.ts",
     "start": "node .",
     "test:plan-approval": "jest --config jest.plan-approval.config.js",
-    "test:taurus": "jest --config jest.taurus.config.js",
-    "test:uniswap-deploy": "jest --config jest.uniswap-deploy.config.js"
+    "test:taurus": "jest --config jest.taurus.config.js"
   },
   "publishConfig": {
     "registry": "https://npm.pkg.github.com"
@@ -62,8 +61,6 @@
     "@owneraio/finp2p-nodejs-skeleton-adapter": "file:vendor/owneraio-finp2p-nodejs-skeleton-adapter-0.29.5-caps-demo.0.tgz",
     "@owneraio/finp2p-vanilla-service": "^0.29.1",
     "@types/node": "^24.10.1",
-    "@uniswap/v2-core": "1.0.1",
-    "@uniswap/v2-periphery": "1.1.0-beta.0",
     "axios": "^1.1.3",
     "express": "^5.1.0",
     "fireblocks-sdk": "^5.25.1",
