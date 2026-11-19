@@ -21,6 +21,24 @@ The base `TokenStandard` interface is owned by the adapter and published as [`@o
 
 ¹ Signers default to `OPERATOR_PRIVATE_KEY`; override per role with `ASSET_ISSUER_PRIVATE_KEY` / `ASSET_CONTROLLER_PRIVATE_KEY`. Standards whose constructors accept a whitelisting signer receive `ASSET_WHITELIST_PRIVATE_KEY` (TREX, CMTAT, HEDERA_ATS). Optional-argument semantics are each plugin's contract. Without an issuer/controller key the standards register with an ephemeral signer — reads and whitelist checks work; on-chain agent writes need a configured, authorized key. Skipped entirely only when `NETWORK_HOST` is unset.
 
+## Swap venues
+
+Swap is enabled by configuring one or more allowance swap venues. `FINP2P_ETHEREUM_ALLOWANCE_SWAP_ADDRESSES` takes a comma-separated list, the first entry is the default, and the singular `FINP2P_ETHEREUM_ALLOWANCE_SWAP_ADDRESS` still works (ignored when the plural is set).
+
+Each entry is `0xaddress` or `Name=0xaddress`, for example `AllowanceSwapA=0x8A79...C318,AllowanceSwapB=0xA51c...91C0`. The name is only used in logs and must match `^[A-Za-z0-9._-]{1,64}$`; the router identifies a venue by its address. A duplicate name or address (any letter case) is rejected at startup.
+
+An entry without a name is called `AllowanceSwap` when it is the only venue (this includes the singular variable). Otherwise it is called `AllowanceSwap-` followed by the first 8 hex digits of its address in lower case, so adapters configured with the same addresses derive the same names whatever the order.
+
+### Permit2 venues
+
+`FINP2P_ETHEREUM_PERMIT2_SWAP_ADDRESSES` lists `Permit2Swap` contracts in the same `0xaddress` or `Name=0xaddress` format; an unnamed entry is called `Permit2Swap` (or `Permit2Swap-` plus 8 hex digits when there are several). `FINP2P_ETHEREUM_PERMIT2_ADDRESS` is the Permit2 contract the venues pull through and defaults to the canonical `0x000000000022D473030F116dDEE9F6B43aC78BA3`.
+
+Allowance venues are listed first, then Permit2 venues. Names and addresses must be unique across both lists. A Permit2 venue is listed, and picked, by its `Permit2Swap` contract address; Permit2 itself is the venue's funds-entry point. The adapter only relays `executeSwap`: each party approves Permit2 once per token and submits a signed Permit2 allowance for the contract before the swap. Whichever side calls first settles both legs and the other side resumes from the `SwapExecuted` event.
+
+On a local chain, `node ./node_modules/@owneraio/finp2p-ethereum-permit2-swap/dist/scripts/deploy-local.js` (env `RPC_URL`, `DEPLOYER_PRIVATE_KEY`) installs Permit2 at the canonical address and deploys `Permit2Swap` at the deployer's nonce 0, skipping what already exists.
+
+The adapter reports its capabilities to the router: the FinP2P operator contract for hold, transfer, release, issue, revert hold and redeem, and every configured venue for swap. Each contract is listed by its address and format, `eip155:<chainId>:<checksummed address>` with format `caip10`, and carries no name; display names come from a data provider. The router sends the same CAIP-10 string back as `executionContext.contract`; the adapter accepts it for the configured chain in any letter case, runs the instruction through that contract and refuses any other contract, chain or format. Custody modes keep a single venue and report no capability list.
+
 ## Documentation
 
 - [Design choices](specs/design.md)

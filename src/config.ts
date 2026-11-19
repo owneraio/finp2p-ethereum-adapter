@@ -1,4 +1,4 @@
-import { Interface, JsonRpcProvider, NonceManager, Provider, Signer, Wallet, ZeroAddress, isAddress, keccak256, toUtf8Bytes } from "ethers";
+import { Interface, JsonRpcProvider, NonceManager, Provider, Signer, Wallet, ZeroAddress, keccak256, toUtf8Bytes } from "ethers";
 import process from "process";
 import { FinP2PContract } from '@owneraio/finp2p-ethereum-orchestrator'
 import { FinP2PClient } from '@owneraio/finp2p-client'
@@ -9,7 +9,6 @@ import { InMemoryExecDetailsStore } from './services/onchain'
 import { FireblocksAppConfig, createFireblocksAppConfig } from './integrations/custody/fireblocks/config'
 import { DfnsAppConfig, createDfnsAppConfig } from './integrations/custody/dfns/config'
 import { SwapVenue } from '@owneraio/finp2p-ethereum-adapter-contract'
-import { AllowanceSwapVenue } from '@owneraio/finp2p-ethereum-allowance-swap'
 
 export const DEFAULT_ASSET_STANDARD_ERC20 = keccak256(toUtf8Bytes("ERC20"));
 
@@ -44,6 +43,7 @@ export type BaseAppConfig = {
   accountMappingType: AccountMappingType
   accountModel: AccountModel
   swapVenue?: SwapVenue
+  swapVenues?: NamedSwapVenue[]
 }
 
 export type FinP2PContractAppConfig = BaseAppConfig & {
@@ -70,16 +70,8 @@ export type AppConfig = FinP2PContractAppConfig | FireblocksAppConfig | DfnsAppC
 export { getNetworkRpcUrl, localSubmitRpcUrl } from './network-host';
 import { getNetworkRpcUrl } from './network-host';
 
-export const detectSwapVenue = (env: NodeJS.ProcessEnv = process.env): SwapVenue | undefined => {
-  const allowanceSwapAddress = env.FINP2P_ETHEREUM_ALLOWANCE_SWAP_ADDRESS;
-  if (allowanceSwapAddress) {
-    if (!isAddress(allowanceSwapAddress)) {
-      throw new Error(`Invalid FINP2P_ETHEREUM_ALLOWANCE_SWAP_ADDRESS: '${allowanceSwapAddress}' is not an Ethereum address`);
-    }
-    return new AllowanceSwapVenue(allowanceSwapAddress);
-  }
-  return undefined;
-};
+export { detectSwapVenues, detectSwapVenue } from './swap-venues';
+import { detectSwapVenues, NamedSwapVenue } from './swap-venues';
 
 export const createJsonProvider = (
   operatorPrivateKey: string, ethereumRPCUrl: string, useNonceManager: boolean = true
@@ -99,11 +91,15 @@ export async function envVarsToAppConfig(logger: Logger): Promise<AppConfig> {
   const configType = (process.env.PROVIDER_TYPE || 'finp2p-contract') as AppConfig['type']
   const accountMappingType = resolveAccountMappingType(process.env.ACCOUNT_MAPPING_TYPE)
   const accountModel = resolveAccountModel(process.env.ACCOUNT_MODEL)
-  const swapVenue = detectSwapVenue()
-  if (swapVenue) {
-    logger.info(`Swap venue ${swapVenue.constructor.name} configured at ${swapVenue.venueAddress} — swap functionality enabled`);
+  const swapVenues = detectSwapVenues(process.env, (message) => logger.warning(message))
+  const swapVenue = swapVenues[0]?.venue
+  if (swapVenues.length > 0) {
+    swapVenues.forEach(({ name, venue, listedAddress }) => {
+      logger.info(`Swap venue ${name} (${venue.constructor.name}) configured at ${listedAddress}`);
+    });
+    logger.info('Swap functionality enabled');
   } else {
-    logger.info('No swap venue configured — swap functionality is disabled');
+    logger.info('No swap venue configured: swap functionality is disabled');
   }
 
   switch (configType) {
@@ -202,13 +198,14 @@ export async function envVarsToAppConfig(logger: Logger): Promise<AppConfig> {
         execDetailsStore,
         defaultAssetStandard: defaultAssetStandardRaw,
         swapVenue,
+        swapVenues,
       }
     }
     case 'fireblocks': {
-      return { ...await createFireblocksAppConfig(), accountMappingType, accountModel, swapVenue }
+      return { ...await createFireblocksAppConfig(), accountMappingType, accountModel, swapVenue, swapVenues }
     }
     case 'dfns': {
-      return { ...await createDfnsAppConfig(), accountMappingType, accountModel, swapVenue }
+      return { ...await createDfnsAppConfig(), accountMappingType, accountModel, swapVenue, swapVenues }
     }
     default: {
       // For registry-based providers: the provider factory reads its own env vars.
@@ -221,6 +218,7 @@ export async function envVarsToAppConfig(logger: Logger): Promise<AppConfig> {
         accountMappingType,
         accountModel,
         swapVenue,
+        swapVenues,
       } as CustodyAppConfig;
     }
   }
