@@ -34,17 +34,53 @@ export interface AssetRecord {
  *
  * - success: transactionId is always present — standards that don't produce
  *   an on-chain tx must generate a synthetic ID themselves
- * - failure: operation failed with a reason
+ * - failure: the operation failed with a reason. `submitted` says whether it
+ *   may still take effect. false: it cannot, because nothing was sent or the
+ *   ledger gave its final rejection. true: it went out with no final answer
+ *   and may yet be applied. Absent: the standard does not say, which is
+ *   every standard written before the flag.
  */
 export type TokenOperationResult =
   | { status: 'success'; transactionId: string; timestamp: number }
-  | { status: 'failure'; reason: string };
+  | { status: 'failure'; reason: string; submitted?: boolean };
 
 export const successfulTokenOp = (transactionId: string, timestamp: number): TokenOperationResult =>
   ({ status: 'success', transactionId, timestamp });
 
-export const failedTokenOp = (reason: string): TokenOperationResult =>
-  ({ status: 'failure', reason });
+export const failedTokenOp = (reason: string, submitted?: boolean): TokenOperationResult =>
+  (submitted === undefined ? { status: 'failure', reason } : { status: 'failure', reason, submitted });
+
+export type AssetDenominationType = 'finp2p' | 'fiat' | 'cryptocurrency';
+
+export interface AssetDenomination {
+  type: AssetDenominationType;
+  code: string;
+}
+
+/**
+ * The asset-creation request behind a deploy. metadata is passed through
+ * untouched: its shape is the standard's own contract with whoever creates
+ * the asset.
+ */
+export interface DeployContext {
+  assetId: string;
+  /** identifies one creation request and its retries; uniqueness is by assetId */
+  idempotencyKey: string;
+  metadata?: unknown;
+  issuerId?: string;
+  denomination?: AssetDenomination;
+  /** CAIP-2 network the asset was requested on, when given */
+  network?: string;
+}
+
+/**
+ * deploy's options. operatorAddress is the address granted the token's
+ * operator role, for standards that have one.
+ */
+export interface DeployOptions {
+  operatorAddress?: string;
+  context?: DeployContext;
+}
 
 /**
  * Result of deploying a new token contract.
