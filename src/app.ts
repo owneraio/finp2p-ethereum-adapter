@@ -49,6 +49,7 @@ import { registerCustodyIntegrations, registerIntegrations } from "./integration
 import { pooledProvider, pooledSigner } from "./integrations/signer-pool";
 import { buildCustodyPlanApprovalService } from "./services/plan-approval";
 import { AppConfig, FinP2PContractAppConfig, getNetworkRpcUrl, localSubmitRpcUrl } from "./config";
+import { venuesFromConfig } from "./swap-venues";
 
 // Register compiled-in custody providers; token standards are registered per-network in registerIntegrations.
 registerCustodyIntegrations();
@@ -163,7 +164,7 @@ function registerFinP2PContractServices(
   }
   const proxiedNetworkAccountService = wrapWithWorkflowProxy(networkAccountService, workflowStorage, finP2PClient, 'createAccount', 'removeAccount');
   let planApprovalService = new PlanApprovalServiceImpl(contractConfig.orgId, pluginManager, contractConfig.finP2PClient);
-  const tokenService = new OnChainTokenService(contractConfig.finP2PContract, contractConfig.finP2PClient, contractConfig.execDetailsStore, contractConfig.proofProvider, pluginManager, contractConfig.defaultAssetStandard, contractConfig.swapVenue);
+  const tokenService = new OnChainTokenService(contractConfig.finP2PContract, contractConfig.finP2PClient, contractConfig.execDetailsStore, contractConfig.proofProvider, pluginManager, contractConfig.defaultAssetStandard, venuesFromConfig(contractConfig), contractConfig.reportCapabilities ?? false);
   const mappingService = new CredentialsMappingService(contractConfig.finP2PContract, walletResolutionMode);
   const mappingConfig = buildMappingConfig();
 

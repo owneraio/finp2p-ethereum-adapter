@@ -1,3 +1,3 @@
 import {runAdapterTests} from "@owneraio/adapter-tests"
 
-runAdapterTests();
+runAdapterTests({ capabilities: true });
