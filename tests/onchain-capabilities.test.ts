@@ -1,6 +1,8 @@
 import { AssetNotFoundError } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import { OnChainTokenService, InMemoryExecDetailsStore } from "../src/services/onchain";
-import { onChainCapabilities, pickVenue, sameAddress } from "../src/services/onchain/capabilities";
+import { getAddress } from "ethers";
+import { contractAddress } from "@owneraio/adapter-tests";
+import { onChainCapabilities, operatorContractError, pickVenue, requestedEvmAddress } from "../src/services/onchain/capabilities";
 import { detectSwapVenues, venuesFromConfig, VENUE_NAME_PATTERN } from "../src/swap-venues";
 
 jest.mock("../src/nonce-recovery", () => ({
@@ -16,13 +18,17 @@ const OTHER = "0x" + "cc".repeat(20);
 const ASSET = { assetId: "bank-us:102:asset-1", assetType: "finp2p" } as any;
 const DESTINATION = { finId: "02" + "aa".repeat(32) } as any;
 
+const CHAIN_ID = 31337n;
+
 const venue = (address: string, name = "AllowanceSwap") => ({
   name,
-  description: "Settles both legs in one transaction from approved allowances",
   venue: { venueAddress: address },
 }) as any;
 
 const upper = (address: string) => "0x" + address.slice(2).toUpperCase();
+const caip10 = (address: string, chainId: bigint | string = CHAIN_ID, namespace = "eip155") =>
+  `${namespace}:${chainId}:${address}`;
+const listed = (address: string) => ({ address: caip10(getAddress(address)), addressFormat: "caip10" });
 
 const OPERATOR_INSTRUCTIONS = [
   "INSTRUCTION_HOLD", "INSTRUCTION_TRANSFER", "INSTRUCTION_RELEASE",
@@ -30,51 +36,84 @@ const OPERATOR_INSTRUCTIONS = [
 ];
 
 describe("onChainCapabilities", () => {
-  const cases: Array<[string, Array<[string, string]>]> = [
+  const cases: Array<[string, string[]]> = [
     ["no venue", []],
-    ["one venue", [["AllowanceSwap", VENUE_A]]],
-    ["two venues keep config order and configured names", [["AllowanceSwapB", VENUE_B], ["AllowanceSwapA", VENUE_A]]],
+    ["one venue", [VENUE_A]],
+    ["two venues keep config order", [VENUE_B, VENUE_A]],
   ];
 
-  test.each(cases)("%s", (_name, venueConfig) => {
-    const list = onChainCapabilities(OPERATOR, venueConfig.map(([name, address]) => venue(address, name)));
+  test.each(cases)("%s", (_name, venueAddresses) => {
+    const list = onChainCapabilities(CHAIN_ID, OPERATOR, venueAddresses.map((address) => venue(address)));
     const instructions = list.map((c) => c.instruction);
 
     expect(instructions.slice(0, 6)).toEqual(OPERATOR_INSTRUCTIONS);
     expect(instructions.includes("INSTRUCTION_MOVE")).toBe(false);
     list.slice(0, 6).forEach((c) => {
-      expect(c.contracts?.map((x) => x.address)).toEqual([OPERATOR]);
-      expect(c.contracts?.map((x) => x.name)).toEqual(["FINP2POperator"]);
-      expect(c.contracts?.[0].restrictions).toBeUndefined();
+      expect(c.contracts).toEqual([listed(OPERATOR)]);
     });
-    if (venueConfig.length === 0) {
+    if (venueAddresses.length === 0) {
       expect(instructions).toHaveLength(6);
     } else {
       expect(instructions).toHaveLength(7);
-      const swap = list[6];
-      expect(swap.instruction).toBe("INSTRUCTION_SWAP");
-      expect(swap.contracts?.map((x) => [x.name, x.address])).toEqual(venueConfig);
-      expect(swap.contracts?.every((x) => x.description !== undefined)).toBe(true);
+      expect(list[6].instruction).toBe("INSTRUCTION_SWAP");
+      expect(list[6].contracts).toEqual(venueAddresses.map(listed));
     }
   });
 
-  test("every listed contract carries a name valid for the router", () => {
-    const list = onChainCapabilities(OPERATOR, [venue(VENUE_A, "AllowanceSwapA"), venue(VENUE_B, "AllowanceSwapB")]);
+  test("a contract is the checksummed CAIP-10 address with no name or description", () => {
+    const list = onChainCapabilities(CHAIN_ID, OPERATOR.toLowerCase(), [venue(VENUE_B.toLowerCase(), "AllowanceSwapB")]);
+    const swap = list.find((c) => c.instruction === "INSTRUCTION_SWAP")!;
+
+    expect(swap.contracts).toEqual([{ address: `eip155:31337:${VENUE_B}`, addressFormat: "caip10" }]);
     list.flatMap((c) => c.contracts ?? []).forEach((contract) => {
-      expect(contract.name).toMatch(VENUE_NAME_PATTERN);
+      expect(Object.keys(contract).sort()).toEqual(["address", "addressFormat"]);
+    });
+  });
+
+  test("every listed address is valid caip10 for the shared adapter tests", () => {
+    const list = onChainCapabilities(CHAIN_ID, OPERATOR, [venue(VENUE_A), venue(VENUE_B)]);
+    list.flatMap((c) => c.contracts ?? []).forEach(({ address, addressFormat }) => {
+      expect(contractAddress.isValidContractAddress(address, addressFormat)).toBe(true);
     });
   });
 });
 
-describe("sameAddress", () => {
-  const cases: Array<[string, string, boolean]> = [
-    [VENUE_A, VENUE_A.toUpperCase().replace("0X", "0x"), true],
-    [VENUE_A, OTHER, false],
-    ["ABC", "abc", false],
-    ["abc", "abc", true],
+describe("requestedEvmAddress", () => {
+  const cases: Array<[string, string, string | undefined]> = [
+    ["the listed spelling", caip10(VENUE_B), VENUE_B],
+    ["lower case address", caip10(VENUE_B.toLowerCase()), VENUE_B.toLowerCase()],
+    ["upper case namespace", caip10(VENUE_B, CHAIN_ID, "EIP155"), VENUE_B],
+    ["mixed case namespace", caip10(VENUE_B, CHAIN_ID, "Eip155"), VENUE_B],
+    ["the router respelling", contractAddress.respellContractAddress(caip10(VENUE_B), "caip10"), upper(VENUE_B)],
+    ["another chain", caip10(VENUE_B, 1n), undefined],
+    ["a chain reference with a leading zero", caip10(VENUE_B, "031337"), undefined],
+    ["another namespace", caip10(VENUE_B, CHAIN_ID, "solana"), undefined],
+    ["a bare 0x address", VENUE_B, undefined],
+    ["a short address", caip10("0x1234"), undefined],
+    ["a url", `https://example.com/${VENUE_B}`, undefined],
+    ["an empty string", "", undefined],
   ];
-  test.each(cases)("%s vs %s", (a, b, expected) => {
-    expect(sameAddress(a, b)).toBe(expected);
+  test.each(cases)("%s", (_name, requested, expected) => {
+    expect(requestedEvmAddress(requested, CHAIN_ID)).toEqual(expected);
+  });
+});
+
+describe("operatorContractError", () => {
+  const ex = (contract?: string) => ({ planId: "p", sequence: 1, contract }) as any;
+  const cases: Array<[string, string | undefined, boolean]> = [
+    ["no contract", undefined, false],
+    ["the listed spelling", caip10(getAddress(OPERATOR)), false],
+    ["a respelled address", caip10(upper(OPERATOR), CHAIN_ID, "EIP155"), false],
+    ["another contract", caip10(OTHER), true],
+    ["the operator on another chain", caip10(OPERATOR, 1n), true],
+    ["a bare operator address", OPERATOR, true],
+  ];
+  test.each(cases)("%s", (_name, contract, refused) => {
+    const error = operatorContractError("INSTRUCTION_HOLD", ex(contract), OPERATOR, CHAIN_ID);
+    expect(error !== undefined).toBe(refused);
+    if (refused) {
+      expect(error).toBe(`contract ${contract} is not available for HOLD on this adapter`);
+    }
   });
 });
 
@@ -137,19 +176,28 @@ describe("detectSwapVenues", () => {
 
 describe("pickVenue", () => {
   const venues = [venue(VENUE_A), venue(VENUE_B)];
+  const ex = (contract?: string) => ({ planId: "p", sequence: 1, contract }) as any;
 
   test("no contract picks the first venue", () => {
-    expect(pickVenue({ planId: "p", sequence: 1 } as any, venues)).toEqual({ venue: venues[0].venue });
+    expect(pickVenue(ex(), venues, CHAIN_ID)).toEqual({ venue: venues[0].venue });
   });
 
-  test("a listed contract in another letter case picks that venue", () => {
-    const requested = upper(VENUE_B);
-    expect(pickVenue({ planId: "p", sequence: 1, contract: requested } as any, venues)).toEqual({ venue: venues[1].venue });
+  test("a listed contract picks that venue", () => {
+    expect(pickVenue(ex(caip10(getAddress(VENUE_B))), venues, CHAIN_ID)).toEqual({ venue: venues[1].venue });
   });
 
-  test("an unknown contract is an error naming the address and SWAP", () => {
-    const result = pickVenue({ planId: "p", sequence: 1, contract: OTHER } as any, venues);
-    expect(result).toEqual({ error: `contract ${OTHER} is not available for SWAP on this adapter` });
+  test("another spelling of a listed contract picks that venue", () => {
+    const requested = caip10(upper(VENUE_B), CHAIN_ID, "EIP155");
+    expect(pickVenue(ex(requested), venues, CHAIN_ID)).toEqual({ venue: venues[1].venue });
+  });
+
+  const refused: Array<[string, string]> = [
+    ["an unknown contract", caip10(OTHER)],
+    ["a listed address on another chain", caip10(VENUE_A, 1n)],
+    ["a bare listed address", VENUE_A],
+  ];
+  test.each(refused)("%s is an error naming the contract and SWAP", (_name, requested) => {
+    expect(pickVenue(ex(requested), venues, CHAIN_ID)).toEqual({ error: `contract ${requested} is not available for SWAP on this adapter` });
   });
 });
 
@@ -173,7 +221,7 @@ describe("venuesFromConfig", () => {
 describe("OnChainTokenService capabilities", () => {
   const contractMock = () => ({
     finP2PContractAddress: OPERATOR,
-    provider: { getNetwork: jest.fn().mockResolvedValue({ chainId: 31337n, name: "hardhat" }) },
+    provider: { getNetwork: jest.fn().mockResolvedValue({ chainId: CHAIN_ID, name: "hardhat" }) },
     variant: "basic",
     getCredentialAddress: jest.fn().mockResolvedValue("0x" + "11".repeat(20)),
     getAssetAddress: jest.fn().mockResolvedValue("0x" + "22".repeat(20)),
@@ -187,10 +235,10 @@ describe("OnChainTokenService capabilities", () => {
 
   test.each([true, false])("issue with an unlisted contract fails and sends no transaction (reporting %s)", async (reporting) => {
     const contract = contractMock();
-    const result = await service(contract, reporting).issue("ik", ASSET, DESTINATION, "1", { planId: "p", sequence: 1, contract: OTHER } as any);
+    const result = await service(contract, reporting).issue("ik", ASSET, DESTINATION, "1", { planId: "p", sequence: 1, contract: caip10(OTHER) } as any);
 
     expect(result.type).toBe("failure");
-    expect(JSON.stringify(result)).toContain(`contract ${OTHER} is not available for ISSUE on this adapter`);
+    expect(JSON.stringify(result)).toContain(`contract ${caip10(OTHER)} is not available for ISSUE on this adapter`);
     expect(contract.issue).not.toHaveBeenCalled();
   });
 
@@ -199,6 +247,8 @@ describe("OnChainTokenService capabilities", () => {
 
     expect(created.type).toBe("success");
     expect(created.result.capabilities.map((c: any) => c.instruction)).toEqual([...OPERATOR_INSTRUCTIONS, "INSTRUCTION_SWAP"]);
+    expect(created.result.capabilities[0].contracts).toEqual([listed(OPERATOR)]);
+    expect(created.result.capabilities[6].contracts).toEqual([listed(VENUE_A)]);
   });
 
   test("reporting off: create carries no capabilities", async () => {
@@ -216,6 +266,28 @@ describe("OnChainTokenService capabilities", () => {
     const svc = service(contractMock(), true);
     const list = await svc.getCapabilities!(ASSET);
     expect(list.map((c) => c.instruction)).toContain("INSTRUCTION_SWAP");
+    expect(list[6].contracts).toEqual([listed(VENUE_A)]);
+  });
+
+  test("the chain id is read once and a failed read is retried", async () => {
+    const contract = contractMock();
+    contract.provider.getNetwork.mockRejectedValueOnce(new Error("rpc down"));
+    const svc = service(contract, true);
+
+    await expect(svc.getCapabilities!(ASSET)).rejects.toThrow("rpc down");
+    await svc.getCapabilities!(ASSET);
+    await svc.getCapabilities!(ASSET);
+    expect(contract.provider.getNetwork).toHaveBeenCalledTimes(2);
+  });
+
+  test("issue through the listed operator contract in another spelling reaches the ledger", async () => {
+    const contract = contractMock();
+    contract.issue.mockResolvedValue({ hash: "0xhash" });
+    const requested = caip10(upper(OPERATOR), CHAIN_ID, "EIP155");
+
+    await service(contract, true).issue("ik", ASSET, DESTINATION, "1", { planId: "p", sequence: 1, contract: requested } as any);
+
+    expect(contract.issue).toHaveBeenCalledTimes(1);
   });
 
   test("reporting on: getCapabilities on an unknown asset throws AssetNotFoundError", async () => {
@@ -229,10 +301,10 @@ describe("OnChainTokenService capabilities", () => {
 
   test("swap with a contract that is not a venue fails before any work", async () => {
     const svc = service(contractMock(), false);
-    const result: any = await svc.swap("ik", "n", "op", {} as any, {} as any, 2, 0, { planId: "p", sequence: 1, contract: OTHER } as any);
+    const result: any = await svc.swap("ik", "n", "op", {} as any, {} as any, 2, 0, { planId: "p", sequence: 1, contract: caip10(OTHER) } as any);
 
     expect(result.type).toBe("failure");
-    expect(JSON.stringify(result)).toContain(`contract ${OTHER} is not available for SWAP on this adapter`);
+    expect(JSON.stringify(result)).toContain(`contract ${caip10(OTHER)} is not available for SWAP on this adapter`);
   });
 
   test("the default venue is the first configured one", () => {

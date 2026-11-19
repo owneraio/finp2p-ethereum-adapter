@@ -3,17 +3,15 @@ import process from "process";
 import { SwapVenue } from "@owneraio/finp2p-ethereum-adapter-contract";
 import { AllowanceSwapVenue } from "@owneraio/finp2p-ethereum-allowance-swap";
 
-/** A venue with the name it is reported under in the asset's capability list. */
+/** A venue with the name it is logged under. The router identifies a venue by its address. */
 export type NamedSwapVenue = {
   name: string;
-  description: string;
   venue: SwapVenue;
 };
 
 export const DEFAULT_VENUE_NAME = "AllowanceSwap";
 export const VENUE_NAME_PATTERN = /^[A-Za-z0-9._-]{1,64}$/;
 
-const ALLOWANCE_SWAP_DESCRIPTION = "Settles both legs in one transaction from approved allowances";
 const PLURAL_VARIABLE = "FINP2P_ETHEREUM_ALLOWANCE_SWAP_ADDRESSES";
 const SINGULAR_VARIABLE = "FINP2P_ETHEREUM_ALLOWANCE_SWAP_ADDRESS";
 const ADDRESS_SUFFIX_LENGTH = 8;
@@ -48,7 +46,6 @@ const defaultName = (address: string, total: number): string =>
 
 const allowanceSwap = (name: string, address: string): NamedSwapVenue => ({
   name,
-  description: ALLOWANCE_SWAP_DESCRIPTION,
   venue: new AllowanceSwapVenue(address),
 });
 
@@ -98,6 +95,6 @@ export const venuesFromConfig = (config: { swapVenues?: NamedSwapVenue[]; swapVe
     return config.swapVenues;
   }
   return config.swapVenue
-    ? [{ name: DEFAULT_VENUE_NAME, description: ALLOWANCE_SWAP_DESCRIPTION, venue: config.swapVenue }]
+    ? [{ name: DEFAULT_VENUE_NAME, venue: config.swapVenue }]
     : [];
 };
