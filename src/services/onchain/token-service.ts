@@ -2,7 +2,7 @@ import {
   Asset, AssetCreationStatus, EIP712Template, Balance, TokenService, EscrowService,
   CommonService, HealthService, OperationStatus,
   failedAssetCreation, successfulAssetCreation,
-  failedReceiptOperation, successfulReceiptOperation,
+  failedReceiptOperation, successfulAuthorizeRevertOperation,
   AuthorizeOperation, failedAuthorizeOperation, successfulAuthorizeOperation,
   AssetBind, AssetDenomination, AssetCreationResult, Destination, ExecutionContext,
   Receipt, ReceiptOperation, RollbackType, Source, Signature, SwapLeg, SwapOperation, SwapRole,
@@ -515,25 +515,11 @@ export class OnChainTokenService implements TokenService, EscrowService, CommonS
         if (exCtx) {
           this.execDetailsStore?.addExecutionContext(revertReceipt.hash, exCtx.planId, exCtx.sequence);
         }
-        // revertAuthorize revokes an allowance — it emits no transfer/receipt event (the matching
-        // authorize grant likewise completes bare-status), so there is nothing for the receipt parser
-        // to read. Synthesize a minimal release-shaped receipt from the data we already hold; the tx
-        // itself is the on-chain effect. mapReceiptOperation reinstates the execution context.
-        const revertedReceipt = {
-          operation: "receipt",
-          type: "success",
-          receipt: {
-            id: revertReceipt.hash,
-            operationType: "release",
-            asset,
-            quantity: "0",
-            source: { finId: source.finId },
-            transactionDetails: { transactionId: revertReceipt.hash, operationId },
-            tradeDetails: {},
-            timestamp: Math.floor(Date.now() / 1000),
-          },
-        } as any;
-        return mapReceiptOperation(revertedReceipt, asset, exCtx);
+        // revertAuthorize revokes an allowance — it moves nothing and emits no receipt. Report a bare
+        // completion carrying rollbackType 'authorize'; the router accepts the receipt-less completion
+        // on that signal. The on-chain revert tx (revertReceipt.hash) is the effect, and the execution
+        // context was already recorded above.
+        return successfulAuthorizeRevertOperation();
       }
 
       const transactionReceipt = await this.finP2PContract.releaseBack(operationId, emptyOperationParams());
