@@ -1,4 +1,5 @@
-import { JsonRpcProvider, NonceManager, Provider, Signer, Wallet } from "ethers";
+import { JsonRpcProvider, Provider, Signer, Wallet } from "ethers";
+import { RecoveringNonceManager } from "../nonce-recovery";
 
 const providers = new Map<string, Provider>();
 const signers = new Map<string, Signer>();
@@ -21,7 +22,7 @@ export function pooledSigner(rpcUrl: string, privateKey: string): Signer {
   const key = `${rpcUrl}|${privateKey.toLowerCase().replace(/^0x/, "")}`;
   let signer = signers.get(key);
   if (!signer) {
-    signer = new NonceManager(new Wallet(privateKey, pooledProvider(rpcUrl)));
+    signer = new RecoveringNonceManager(new Wallet(privateKey, pooledProvider(rpcUrl)));
     signers.set(key, signer);
   }
   return signer;

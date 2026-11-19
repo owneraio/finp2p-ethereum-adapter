@@ -1,4 +1,4 @@
-import { Interface, JsonRpcProvider, NonceManager, Provider, Signer, Wallet, ZeroAddress, keccak256, toUtf8Bytes } from "ethers";
+import { Interface, JsonRpcProvider, Provider, Signer, Wallet, ZeroAddress, keccak256, toUtf8Bytes } from "ethers";
 import process from "process";
 import { FinP2PContract } from '@owneraio/finp2p-ethereum-orchestrator'
 import { FinP2PClient } from '@owneraio/finp2p-client'
@@ -74,6 +74,7 @@ import { getNetworkRpcUrl } from './network-host';
 
 export { detectSwapVenues, detectSwapVenue } from './swap-venues';
 import { detectSwapVenues, NamedSwapVenue } from './swap-venues';
+import { RecoveringNonceManager } from './nonce-recovery';
 
 export const createJsonProvider = (
   operatorPrivateKey: string, ethereumRPCUrl: string, useNonceManager: boolean = true
@@ -81,7 +82,7 @@ export const createJsonProvider = (
   const provider = new JsonRpcProvider(ethereumRPCUrl);
   let signer: Signer;
   if (useNonceManager) {
-    signer = new NonceManager(new Wallet(operatorPrivateKey)).connect(provider);
+    signer = new RecoveringNonceManager(new Wallet(operatorPrivateKey)).connect(provider);
   } else {
     signer = new Wallet(operatorPrivateKey).connect(provider);
   }

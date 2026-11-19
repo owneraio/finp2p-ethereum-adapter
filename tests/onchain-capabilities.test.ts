@@ -3,6 +3,11 @@ import { OnChainTokenService, InMemoryExecDetailsStore } from "../src/services/o
 import { onChainCapabilities, pickVenue, sameAddress } from "../src/services/onchain/capabilities";
 import { detectSwapVenues, venuesFromConfig, VENUE_NAME_PATTERN } from "../src/swap-venues";
 
+jest.mock("../src/nonce-recovery", () => ({
+  ...jest.requireActual("../src/nonce-recovery"),
+  deployERC20WithRecovery: jest.fn().mockResolvedValue("0x" + "22".repeat(20)),
+}));
+
 const OPERATOR = "0x" + "aa".repeat(20);
 const VENUE_A = "0x" + "bb".repeat(20);
 const VENUE_B = "0xA51c1fc2f0D1a1b8494Ed1FE312d7C3a78Ed91C0";
@@ -172,7 +177,6 @@ describe("OnChainTokenService capabilities", () => {
     variant: "basic",
     getCredentialAddress: jest.fn().mockResolvedValue("0x" + "11".repeat(20)),
     getAssetAddress: jest.fn().mockResolvedValue("0x" + "22".repeat(20)),
-    deployERC20: jest.fn().mockResolvedValue("0x" + "22".repeat(20)),
     associateAsset: jest.fn().mockResolvedValue("0xhash"),
     issue: jest.fn(),
   });

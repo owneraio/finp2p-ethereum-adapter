@@ -15,7 +15,7 @@ import {
   assetTypeFromString,
   EthereumTransactionError,
   ValidationError,
-  term, isEthereumAddress
+  term, isEthereumAddress, resetSignerNonce
 } from "@owneraio/finp2p-ethereum-orchestrator";
 import { FinP2PClient } from "@owneraio/finp2p-client";
 
@@ -24,6 +24,7 @@ import { mapReceiptOperation } from "./mapping";
 import { emptyOperationParams, extractBusinessDetails, validateRequest } from "./helpers";
 import { validateSwapWallets } from "../accounts";
 import { NamedSwapVenue } from "../../swap-venues";
+import { deployERC20WithRecovery, resetNonceOnFailure } from "../../nonce-recovery";
 import { OperatorInstruction, onChainCapabilities, operatorContractError, pickVenue } from "./capabilities";
 
 const DefaultDecimals = 2;
@@ -151,7 +152,7 @@ export class OnChainTokenService implements TokenService, EscrowService, CommonS
         return failedAssetCreation(LEDGER_BINDING_NOT_SUPPORTED,
           `unsupported ledger network '${assetBind.network}', only ${supportedNetwork} is supported`);
       }
-      tokenAddress = await this.finP2PContract.deployERC20(assetId, assetId, DefaultDecimals, this.finP2PContract.finP2PContractAddress);
+      tokenAddress = await deployERC20WithRecovery(this.finP2PContract, assetId, assetId, DefaultDecimals, this.finP2PContract.finP2PContractAddress);
       allowanceRequired = false;
       logger.debug(`Deployed new token ${tokenAddress} for asset ${assetId}`);
     }
@@ -297,10 +298,30 @@ export class OnChainTokenService implements TokenService, EscrowService, CommonS
     return parseUnits(quantity, await erc20.decimals());
   }
 
+  /**
+   * Venues report failures as results and send on the operator signer, so a
+   * failed swap resyncs the signer's nonce like a failed contract call does.
+   * Both legs finish before the reset, so one never resets under the other.
+   */
+  private async venueSwapAll(swapVenue: SwapVenue, intents: SwapIntent[]) {
+    const signer = this.finP2PContract.signer;
+    const results = await resetNonceOnFailure(signer, () =>
+      Promise.all(intents.map((intent) => swapVenue.swap(this.operatorWallet(), intent, spiLogger))));
+    if (results.some((result) => result.status === "failure")) {
+      resetSignerNonce(signer);
+    }
+    return results;
+  }
+
+  private async venueSwap(swapVenue: SwapVenue, intent: SwapIntent) {
+    const [result] = await this.venueSwapAll(swapVenue, [intent]);
+    return result;
+  }
+
   private async swapViaVenue(swapVenue: SwapVenue, operationId: string, assetLeg: SwapLeg,
                              settlementLeg: SwapLeg, deadline: number, exCtx: ExecutionContext | undefined): Promise<SwapOperation> {
     const intent = await this.toSwapIntent(operationId, assetLeg, settlementLeg, deadline);
-    const submission = await swapVenue.swap(this.operatorWallet(), intent, spiLogger);
+    const submission = await this.venueSwap(swapVenue, intent);
     if (submission.status === "failure") {
       return failedSwapOperation(1, submission.reason);
     }
@@ -369,10 +390,7 @@ export class OnChainTokenService implements TokenService, EscrowService, CommonS
   private async swapBothLegsViaVenue(swapVenue: SwapVenue, operationId: string, asset: SwapLeg,
                                      settlement: SwapLeg, deadline: number, exCtx: ExecutionContext | undefined): Promise<SwapOperation> {
     const intent = await this.toSwapIntent(operationId, asset, settlement, deadline);
-    const [assetSubmission, settlementSubmission] = await Promise.all([
-      swapVenue.swap(this.operatorWallet(), intent, spiLogger),
-      swapVenue.swap(this.operatorWallet(), mirrored(intent), spiLogger),
-    ]);
+    const [assetSubmission, settlementSubmission] = await this.venueSwapAll(swapVenue, [intent, mirrored(intent)]);
     if (assetSubmission.status === "failure") {
       return failedSwapOperation(1, assetSubmission.reason);
     }
