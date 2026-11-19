@@ -25,7 +25,7 @@ The base `TokenStandard` interface is owned by the adapter and published as [`@o
 
 Swap is enabled by configuring one or more allowance swap venues. `FINP2P_ETHEREUM_ALLOWANCE_SWAP_ADDRESSES` takes a comma-separated list, the first entry is the default, and the singular `FINP2P_ETHEREUM_ALLOWANCE_SWAP_ADDRESS` still works (ignored when the plural is set).
 
-Each entry is `0xaddress` or `Name=0xaddress`, for example `AllowanceSwapA=0x8A79...C318,AllowanceSwapB=0xA51c...91C0`. The name is how the venue is listed in the asset's capabilities and must match `^[A-Za-z0-9._-]{1,64}$`. A duplicate name or address (any letter case) is rejected at startup. A swap needs both assets to list the venue under the same name and address, so give a venue the same name on every adapter.
+Each entry is `0xaddress` or `Name=0xaddress`, for example `AllowanceSwapA=0x8A79...C318,AllowanceSwapB=0xA51c...91C0`. The name is only used in logs and must match `^[A-Za-z0-9._-]{1,64}$`; the router identifies a venue by its address. A duplicate name or address (any letter case) is rejected at startup.
 
 An entry without a name is called `AllowanceSwap` when it is the only venue (this includes the singular variable). Otherwise it is called `AllowanceSwap-` followed by the first 8 hex digits of its address in lower case, so adapters configured with the same addresses derive the same names whatever the order.
 
@@ -37,7 +37,7 @@ Allowance venues are listed first, then Permit2 venues. Names and addresses must
 
 On a local chain, `node ./node_modules/@owneraio/finp2p-ethereum-permit2-swap/dist/scripts/deploy-local.js` (env `RPC_URL`, `DEPLOYER_PRIVATE_KEY`) installs Permit2 at the canonical address and deploys `Permit2Swap` at the deployer's nonce 0, skipping what already exists.
 
-The adapter reports its capabilities to the router: the FinP2P operator contract for hold, transfer, release, issue, revert hold and redeem, and every configured venue for swap, each under its name. When the router picks one of the listed contracts (it sends the contract address) for an instruction, the adapter runs it through that contract and refuses a contract it did not list. Custody modes keep a single venue and report no capability list.
+The adapter reports its capabilities to the router: the FinP2P operator contract for hold, transfer, release, issue, revert hold and redeem, and every configured venue for swap. Each contract is listed by its address and format, `eip155:<chainId>:<checksummed address>` with format `caip10`, and carries no name; display names come from a data provider. The router sends the same CAIP-10 string back as `executionContext.contract`; the adapter accepts it for the configured chain in any letter case, runs the instruction through that contract and refuses any other contract, chain or format. Custody modes keep a single venue and report no capability list.
 
 ## Documentation
 

@@ -71,13 +71,29 @@ export class OnChainTokenService implements TokenService, EscrowService, CommonS
     readonly swapVenues: NamedSwapVenue[] = [],
   ) {}
 
-  private operatorContractFailure(instruction: OperatorInstruction, exCtx: ExecutionContext | undefined): ReceiptOperation | undefined {
-    const error = operatorContractError(instruction, exCtx, this.finP2PContract.finP2PContractAddress);
+  private chainIdPromise: Promise<bigint> | undefined;
+
+  /** The chain id is read once; a failed read is not cached. */
+  private chainId(): Promise<bigint> {
+    if (!this.chainIdPromise) {
+      this.chainIdPromise = this.finP2PContract.provider.getNetwork().then(({ chainId }) => chainId).catch((e) => {
+        this.chainIdPromise = undefined;
+        throw e;
+      });
+    }
+    return this.chainIdPromise;
+  }
+
+  private async operatorContractFailure(instruction: OperatorInstruction, exCtx: ExecutionContext | undefined): Promise<ReceiptOperation | undefined> {
+    if (exCtx?.contract === undefined) {
+      return undefined;
+    }
+    const error = operatorContractError(instruction, exCtx, this.finP2PContract.finP2PContractAddress, await this.chainId());
     return error === undefined ? undefined : failedReceiptOperation(1, error);
   }
 
-  private capabilities(): InstructionCapability[] {
-    return onChainCapabilities(this.finP2PContract.finP2PContractAddress, this.swapVenues);
+  private capabilities(chainId: bigint): InstructionCapability[] {
+    return onChainCapabilities(chainId, this.finP2PContract.finP2PContractAddress, this.swapVenues);
   }
 
   public async getCapabilities(asset: Asset): Promise<InstructionCapability[]> {
@@ -89,7 +105,7 @@ export class OnChainTokenService implements TokenService, EscrowService, CommonS
       }
       throw e;
     }
-    return this.capabilities();
+    return this.capabilities(await this.chainId());
   }
 
   private operatorWallet(): TokenWallet {
@@ -178,13 +194,13 @@ export class OnChainTokenService implements TokenService, EscrowService, CommonS
           allowanceRequired
         }
       },
-      capabilities: this.capabilities(),
+      capabilities: this.capabilities(chainId),
     };
     return successfulAssetCreation(result);
   }
 
   public async issue(idempotencyKey: string, asset: Asset, destination: Destination, quantity: string, exCtx: ExecutionContext): Promise<ReceiptOperation> {
-    const refused = this.operatorContractFailure("INSTRUCTION_ISSUE", exCtx);
+    const refused = await this.operatorContractFailure("INSTRUCTION_ISSUE", exCtx);
     if (refused) return refused;
     const issuerFinId = destination.finId;
     try {
@@ -207,7 +223,7 @@ export class OnChainTokenService implements TokenService, EscrowService, CommonS
   public async transfer(idempotencyKey: string, nonce: string, source: Source, destination: Destination, ast: Asset,
                         quantity: string, signature: Signature, exCtx: ExecutionContext
   ): Promise<ReceiptOperation> {
-    const refused = this.operatorContractFailure("INSTRUCTION_TRANSFER", exCtx);
+    const refused = await this.operatorContractFailure("INSTRUCTION_TRANSFER", exCtx);
     if (refused) return refused;
     const { signature: sgn, template } = signature;
     if (template.type != "EIP712") {
@@ -240,7 +256,7 @@ export class OnChainTokenService implements TokenService, EscrowService, CommonS
   public async redeem(idempotencyKey: string, nonce: string, source: Source, asset: Asset, quantity: string, operationId: string | undefined,
     signature: Signature, exCtx: ExecutionContext
   ): Promise<ReceiptOperation> {
-    const refused = this.operatorContractFailure("INSTRUCTION_REDEEM", exCtx);
+    const refused = await this.operatorContractFailure("INSTRUCTION_REDEEM", exCtx);
     if (refused) return refused;
     try {
       await this.ensureCredential(source.finId);
@@ -316,7 +332,7 @@ export class OnChainTokenService implements TokenService, EscrowService, CommonS
       if (this.swapVenues.length === 0) {
         return failedSwapOperation(1, "Swap is not supported: no swap venue is configured");
       }
-      const picked = pickVenue(exCtx, this.swapVenues);
+      const picked = pickVenue(exCtx, this.swapVenues, await this.chainId());
       if ("error" in picked) {
         return failedSwapOperation(1, picked.error);
       }
@@ -388,7 +404,7 @@ export class OnChainTokenService implements TokenService, EscrowService, CommonS
       if (this.swapVenues.length === 0) {
         return failedSwapOperation(1, "Swap is not supported: no swap venue is configured");
       }
-      const picked = pickVenue(exCtx, this.swapVenues);
+      const picked = pickVenue(exCtx, this.swapVenues, await this.chainId());
       if ("error" in picked) {
         return failedSwapOperation(1, picked.error);
       }
@@ -441,7 +457,7 @@ export class OnChainTokenService implements TokenService, EscrowService, CommonS
   public async hold(idempotencyKey: string, nonce: string, source: Source, destination: Destination | undefined, ast: Asset,
     quantity: string, sgn: Signature, operationId: string, exCtx: ExecutionContext
   ): Promise<ReceiptOperation> {
-    const refused = this.operatorContractFailure("INSTRUCTION_HOLD", exCtx);
+    const refused = await this.operatorContractFailure("INSTRUCTION_HOLD", exCtx);
     if (refused) return refused;
     const { signature, template } = sgn;
     if (template.type != "EIP712") {
@@ -476,7 +492,7 @@ export class OnChainTokenService implements TokenService, EscrowService, CommonS
   }
 
   public async release(idempotencyKey: string, source: Source, destination: Destination, asset: Asset, quantity: string, operationId: string, exCtx: ExecutionContext | undefined): Promise<ReceiptOperation> {
-    const refused = this.operatorContractFailure("INSTRUCTION_RELEASE", exCtx);
+    const refused = await this.operatorContractFailure("INSTRUCTION_RELEASE", exCtx);
     if (refused) return refused;
     try {
       await this.ensureCredential(source.finId);
@@ -501,7 +517,7 @@ export class OnChainTokenService implements TokenService, EscrowService, CommonS
 
   public async rollback(idempotencyKey: string, source: Source, asset: Asset, quantity: string, operationId: string, exCtx: ExecutionContext | undefined
   ): Promise<ReceiptOperation> {
-    const refused = this.operatorContractFailure("INSTRUCTION_REVERT_HOLD", exCtx);
+    const refused = await this.operatorContractFailure("INSTRUCTION_REVERT_HOLD", exCtx);
     if (refused) return refused;
     try {
       await this.ensureCredential(source.finId);

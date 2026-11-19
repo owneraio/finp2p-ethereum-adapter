@@ -1,4 +1,5 @@
-import { ExecutionContext, InstructionCapability } from "@owneraio/finp2p-nodejs-skeleton-adapter";
+import { getAddress } from "ethers";
+import { ContractCapability, ExecutionContext, InstructionCapability } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import { SwapVenue } from "@owneraio/finp2p-ethereum-adapter-contract";
 import { NamedSwapVenue } from "../../swap-venues";
 
@@ -14,28 +15,38 @@ const OPERATOR_INSTRUCTIONS = [
 export type OperatorInstruction = (typeof OPERATOR_INSTRUCTIONS)[number];
 
 const EVM_ADDRESS = /^0x[0-9a-fA-F]{40}$/;
+const CAIP10_EVM_CONTRACT = /^eip155:([0-9]+):(0x[0-9a-fA-F]{40})$/;
 
-/** EVM addresses compare in any letter case, any other identifier exactly. */
-export const sameAddress = (a: string, b: string): boolean =>
-  EVM_ADDRESS.test(a) && EVM_ADDRESS.test(b) ? a.toLowerCase() === b.toLowerCase() : a === b;
+const contractId = (chainId: bigint, address: string): ContractCapability => ({
+  address: `eip155:${chainId}:${getAddress(address)}`,
+  addressFormat: "caip10",
+});
 
-export const onChainCapabilities = (operatorAddress: string, venues: NamedSwapVenue[]): InstructionCapability[] => {
+/**
+ * The 0x address in a requested contract: a CAIP-10 id on this chain
+ * (`eip155:<chainId>:0x...`) or a bare 0x address. Anything else is undefined.
+ */
+export const requestedEvmAddress = (requested: string, chainId: bigint): string | undefined => {
+  if (EVM_ADDRESS.test(requested)) {
+    return requested;
+  }
+  const match = CAIP10_EVM_CONTRACT.exec(requested);
+  return match && match[1] === chainId.toString() ? match[2] : undefined;
+};
+
+/** True when the requested contract is `address` on this chain, in any letter case. */
+export const isRequestedContract = (requested: string, chainId: bigint, address: string): boolean =>
+  requestedEvmAddress(requested, chainId)?.toLowerCase() === address.toLowerCase();
+
+export const onChainCapabilities = (chainId: bigint, operatorAddress: string, venues: NamedSwapVenue[]): InstructionCapability[] => {
   const list: InstructionCapability[] = OPERATOR_INSTRUCTIONS.map((instruction) => ({
     instruction,
-    contracts: [{
-      name: "FINP2POperator",
-      address: operatorAddress,
-      description: "Holds, moves, issues and redeems the asset",
-    }],
+    contracts: [contractId(chainId, operatorAddress)],
   }));
   if (venues.length > 0) {
     list.push({
       instruction: "INSTRUCTION_SWAP",
-      contracts: venues.map(({ name, description, listedAddress }) => ({
-        name,
-        address: listedAddress,
-        description,
-      })),
+      contracts: venues.map(({ listedAddress }) => contractId(chainId, listedAddress)),
     });
   }
   return list;
@@ -44,14 +55,15 @@ export const onChainCapabilities = (operatorAddress: string, venues: NamedSwapVe
 const unavailable = (contract: string, instruction: string): string =>
   `contract ${contract} is not available for ${instruction} on this adapter`;
 
-/** Returns an error message when the requested contract is not the operator, undefined otherwise. */
+/** Returns an error message when the requested contract is not the operator on this chain, undefined otherwise. */
 export const operatorContractError = (
   instruction: OperatorInstruction | "INSTRUCTION_SWAP",
   exCtx: ExecutionContext | undefined,
   operatorAddress: string,
+  chainId: bigint,
 ): string | undefined => {
   const requested = exCtx?.contract;
-  if (requested === undefined || sameAddress(requested, operatorAddress)) {
+  if (requested === undefined || isRequestedContract(requested, chainId, operatorAddress)) {
     return undefined;
   }
   return unavailable(requested, instruction.replace("INSTRUCTION_", ""));
@@ -60,11 +72,12 @@ export const operatorContractError = (
 export const pickVenue = (
   exCtx: ExecutionContext | undefined,
   venues: NamedSwapVenue[],
+  chainId: bigint,
 ): { venue: SwapVenue } | { error: string } => {
   const requested = exCtx?.contract;
   if (requested === undefined) {
     return { venue: venues[0].venue };
   }
-  const found = venues.find((candidate) => sameAddress(candidate.listedAddress, requested));
+  const found = venues.find((candidate) => isRequestedContract(requested, chainId, candidate.listedAddress));
   return found ? { venue: found.venue } : { error: unavailable(requested, "SWAP") };
 };
