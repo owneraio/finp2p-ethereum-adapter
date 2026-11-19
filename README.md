@@ -21,6 +21,22 @@ The base `TokenStandard` interface is owned by the adapter and published as [`@o
 
 ¹ Signers default to `OPERATOR_PRIVATE_KEY`; override per role with `ASSET_ISSUER_PRIVATE_KEY` / `ASSET_CONTROLLER_PRIVATE_KEY`. Standards whose constructors accept a whitelisting signer receive `ASSET_WHITELIST_PRIVATE_KEY` (TREX, CMTAT, HEDERA_ATS). Optional-argument semantics are each plugin's contract. Without an issuer/controller key the standards register with an ephemeral signer — reads and whitelist checks work; on-chain agent writes need a configured, authorized key. Skipped entirely only when `NETWORK_HOST` is unset.
 
+## Swap venues
+
+Swap is enabled by configuring one or more allowance swap venues. `FINP2P_ETHEREUM_ALLOWANCE_SWAP_ADDRESS` configures a single venue. `FINP2P_ETHEREUM_ALLOWANCE_SWAP_ADDRESSES` takes a comma-separated list instead, the first entry is the default, and the singular variable is ignored when the plural one is set.
+
+Each entry is `0xaddress` or `Name=0xaddress`, for example `AllowanceSwapA=0x8A79...C318,AllowanceSwapB=0xA51c...91C0`. The name is how the venue is listed in the asset's capabilities and must match `^[A-Za-z0-9._-]{1,64}$`. A duplicate name or address (any letter case) is rejected at startup. A swap needs both assets to list the venue under the same name and address, so give a venue the same name on every adapter.
+
+An entry without a name is called `AllowanceSwap` when it is the only venue (this includes the singular variable). Otherwise it is called `AllowanceSwap-` followed by the first 8 hex digits of its address in lower case, so adapters configured with the same addresses derive the same names whatever the order.
+
+## Asset capabilities
+
+Set `ASSET_CAPABILITIES_ENABLED=true` to report which contracts can run each instruction for an asset. It is off by default: the adapter then returns no capability list on asset creation, which the router reads as the full instruction set, and `POST /assets/getCapabilities` answers 501. Only the `finp2p-contract` provider reports capabilities.
+
+With the flag on, the creation response and `getCapabilities` list the FinP2P operator contract for hold, transfer, release, issue, revert hold and redeem, and every configured swap venue for swap, each under its name. `getCapabilities` answers 404 for an unknown asset.
+
+The router sends the address of the contract it chose in `executionContext.contract`. The adapter matches it against the listed addresses (letter case ignored) and runs the instruction through that contract. An address the instruction does not list is refused with a failed receipt and no transaction. This check applies whether or not the flag is on.
+
 ## Documentation
 
 - [Design choices](specs/design.md)
