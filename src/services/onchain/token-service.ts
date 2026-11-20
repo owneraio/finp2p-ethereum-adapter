@@ -5,12 +5,13 @@ import {
   failedReceiptOperation, successfulAuthorizeRevertOperation,
   AuthorizeOperation, failedAuthorizeOperation, successfulAuthorizeOperation,
   AssetBind, AssetDenomination, AssetCreationResult, Destination, ExecutionContext,
-  Receipt, ReceiptOperation, RollbackType, Source, Signature, SwapLeg, SwapOperation, SwapRole,
+  Receipt, ReceiptOperation, RollbackType, Source, Signature, SwapLeg, SwapOperation, SwapRole, RelatedSwap,
   successfulSwapOperation, failedSwapOperation,
   logger, ProofProvider, PluginManager,
 } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import { Contract, keccak256, parseUnits, toUtf8Bytes } from "ethers";
 import { Logger as SpiLogger, SwapIntent, SwapVenue, TokenWallet, mirrored } from "@owneraio/finp2p-ethereum-adapter-contract";
+import { AllowanceSwapVenue, SwapLeg as VenueLeg } from "@owneraio/finp2p-ethereum-allowance-swap";
 import {
   FinP2PContract,
   assetTypeFromString,
@@ -437,8 +438,25 @@ export class OnChainTokenService implements TokenService, EscrowService, CommonS
 
   }
 
+  // Build the venue leg the authorized swap will cross: relatedSwap's asset leg becomes `give`
+  // (token/party/amount) and its settlement leg the counter side. Trade-role-fixed, so both orgs'
+  // AUTHORIZE calls derive the identical leg — which is what makes the on-chain record idempotent.
+  private async toAuthorizedLeg(relatedSwap: RelatedSwap): Promise<VenueLeg> {
+    const [token, counterToken, party, counterParty] = await Promise.all([
+      this.finP2PContract.getAssetAddress(relatedSwap.asset.asset.assetId),
+      this.finP2PContract.getAssetAddress(relatedSwap.settlement.asset.assetId),
+      this.finP2PContract.getCredentialAddress(relatedSwap.asset.source.finId),
+      this.finP2PContract.getCredentialAddress(relatedSwap.settlement.source.finId),
+    ]);
+    const [amount, counterAmount] = await Promise.all([
+      this.toTokenUnits(token, relatedSwap.asset.amount),
+      this.toTokenUnits(counterToken, relatedSwap.settlement.amount),
+    ]);
+    return { token, party, amount, counterToken, counterParty, counterAmount };
+  }
+
   public async authorize(idempotencyKey: string, nonce: string, source: Source, destination: Destination | undefined, ast: Asset,
-    quantity: string, sgn: Signature, operationId: string, expiry: number | undefined, exCtx: ExecutionContext
+    quantity: string, sgn: Signature, operationId: string, expiry: number | undefined, exCtx: ExecutionContext, relatedSwap: RelatedSwap
   ): Promise<AuthorizeOperation> {
     if (!this.swapVenue) {
       return failedAuthorizeOperation(1, "Authorize is not supported: no swap venue is configured");
@@ -463,6 +481,12 @@ export class OnChainTokenService implements TokenService, EscrowService, CommonS
 
       if (exCtx) {
         this.execDetailsStore?.addExecutionContext(transactionReceipt.hash, exCtx.planId, exCtx.sequence);
+      }
+
+      // Record the swap this grant backs, so the venue's executeSwap can only settle these exact terms.
+      if (this.swapVenue instanceof AllowanceSwapVenue) {
+        const leg = await this.toAuthorizedLeg(relatedSwap);
+        await this.swapVenue.recordAuthorization(this.operatorWallet(), relatedSwap.swapOperationId, leg, spiLogger);
       }
 
       return successfulAuthorizeOperation();
