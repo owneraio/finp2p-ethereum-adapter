@@ -58,7 +58,7 @@
     "@owneraio/finp2p-ethereum-erc20-plugin": "^0.28.6",
     "@owneraio/finp2p-ethereum-hedera-plugin": "^0.28.47",
     "@owneraio/finp2p-ethereum-orchestrator": "0.28.28-nonce.0",
-    "@owneraio/finp2p-ethereum-permit2-swap": "^0.29.1",
+    "@owneraio/finp2p-ethereum-permit2-swap": "0.29.1-permit2.0",
     "@owneraio/finp2p-ethereum-trex-plugin": "^0.28.10",
     "@owneraio/finp2p-nodejs-skeleton-adapter": "0.29.5-caps.1",
     "@owneraio/finp2p-vanilla-service": "^0.29.1",
