@@ -17,7 +17,7 @@
     "clean": "rm -rf dist",
     "prebuild": "eslint ./src --ext .ts --fix",
     "build": "tsc",
-    "test": "jest && jest --config jest.account-resolver.config.js && jest --config jest.omnibus.config.js && jest --config jest.legacy-migration.config.js && jest --config jest.plan-approval.config.js && jest --config jest.operation-context.config.js",
+    "test": "jest && jest --config jest.account-resolver.config.js && jest --config jest.omnibus.config.js && jest --config jest.legacy-migration.config.js && jest --config jest.plan-approval.config.js && jest --config jest.operation-context.config.js && jest --config jest.permit2-swap.config.js",
     "test:fireblocks": "jest --config jest.fireblocks.config.js",
     "test:dfns": "jest --config jest.dfns.config.js",
     "test:account-mapping": "jest --config jest.account-resolver.config.js",
@@ -33,6 +33,7 @@
     "start-debug": "ts-node ./src/index.ts",
     "start": "node .",
     "test:plan-approval": "jest --config jest.plan-approval.config.js",
+    "test:permit2-swap": "jest --config jest.permit2-swap.config.js",
     "test:taurus": "jest --config jest.taurus.config.js"
   },
   "publishConfig": {
