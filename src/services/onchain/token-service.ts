@@ -236,7 +236,7 @@ export class OnChainTokenService implements TokenService, EscrowService, CommonS
 
   }
 
-  private async toSwapIntent(operationId: string, assetLeg: SwapLeg, settlementLeg: SwapLeg, deadline: number, role?: SwapRole): Promise<SwapIntent> {
+  private async toSwapIntent(operationId: string, assetLeg: SwapLeg, settlementLeg: SwapLeg, deadline: number | undefined, role?: SwapRole): Promise<SwapIntent> {
     const [token, counterToken, party, counterParty] = await Promise.all([
       this.finP2PContract.getAssetAddress(assetLeg.asset.assetId),
       this.finP2PContract.getAssetAddress(settlementLeg.asset.assetId),
@@ -262,7 +262,7 @@ export class OnChainTokenService implements TokenService, EscrowService, CommonS
   }
 
   private async swapViaVenue(swapVenue: SwapVenue, operationId: string, assetLeg: SwapLeg,
-                             settlementLeg: SwapLeg, deadline: number, exCtx: ExecutionContext | undefined, role?: SwapRole): Promise<SwapOperation> {
+                             settlementLeg: SwapLeg, deadline: number | undefined, exCtx: ExecutionContext | undefined, role?: SwapRole): Promise<SwapOperation> {
     const intent = await this.toSwapIntent(operationId, assetLeg, settlementLeg, deadline, role);
     const submission = await swapVenue.swap(this.operatorWallet(), intent, spiLogger);
     if (submission.status === "failure") {
@@ -278,7 +278,7 @@ export class OnChainTokenService implements TokenService, EscrowService, CommonS
   }
 
   public async swap(idempotencyKey: string, nonce: string, operationId: string, assetLeg: SwapLeg,
-                    settlementLeg: SwapLeg, numberOfReceipts: number, deadline: number, exCtx: ExecutionContext | undefined, role?: SwapRole): Promise<SwapOperation> {
+                    settlementLeg: SwapLeg, numberOfReceipts: number, deadline: number | undefined, exCtx: ExecutionContext | undefined, role?: SwapRole): Promise<SwapOperation> {
     if (numberOfReceipts === 2) {
       return this.swapBothLegs(operationId, assetLeg, settlementLeg, deadline, exCtx);
     }
