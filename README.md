@@ -29,6 +29,20 @@ Each entry is `0xaddress` or `Name=0xaddress`, for example `AllowanceSwapA=0x8A7
 
 An entry without a name is called `AllowanceSwap` when it is the only venue (this includes the singular variable). Otherwise it is called `AllowanceSwap-` followed by the first 8 hex digits of its address in lower case, so adapters configured with the same addresses derive the same names in their logs whatever the order.
 
+### Permit2 swap venues
+
+`FINP2P_ETHEREUM_PERMIT2_SWAP_ADDRESSES` lists Permit2Swap contracts from `@owneraio/finp2p-ethereum-permit2-swap`, in the same `0xaddress` or `Name=0xaddress` format. An entry without a name is called `Permit2Swap` (or `Permit2Swap-` and 8 address digits when there are several). Permit2 venues join the same venue list after the allowance venues, are reported for swap and matched by contract address in the same way. The feature is off unless the variable is set. An address or name used in both lists is rejected at startup.
+
+| Variable | Default | Meaning |
+|----------|---------|---------|
+| `FINP2P_ETHEREUM_PERMIT2_SWAP_ADDRESSES` | unset (off) | Permit2Swap contract addresses |
+| `FINP2P_ETHEREUM_PERMIT2_ADDRESS` | canonical Permit2 | The Permit2 deployment each contract must be bound to; a mismatch fails the swap before sending |
+| `FINP2P_ETHEREUM_PERMIT2_DEADLINE_SECONDS` | `900` | Deadline window used when a swap carries no deadline |
+
+The operator account must hold `EXECUTOR_ROLE` on every Permit2Swap contract. The adapter checks this before each swap and fails it with a clear reason, without sending, when the role is missing. The swap deadline is the one on the instruction; without one the adapter uses now plus the window above and logs it. A swap past its deadline fails without sending.
+
+Investors approve Permit2 for their token and submit a signed Permit2 allowance for the Permit2Swap contract outside the adapter, which signs nothing for them. A retry of an executed operation id resumes with the recorded transaction when the executed legs match the instruction; a different trade under the same id fails the swap.
+
 ## Asset capabilities
 
 Set `ASSET_CAPABILITIES_ENABLED=true` to report which contracts can run each instruction for an asset. It is off by default: the adapter then returns no capability list on asset creation, which the router reads as the full instruction set, and `POST /assets/getCapabilities` answers 501. Only the `finp2p-contract` provider reports capabilities.

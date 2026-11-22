@@ -2,6 +2,8 @@ import { isAddress } from "ethers";
 import process from "process";
 import { SwapVenue } from "@owneraio/finp2p-ethereum-adapter-contract";
 import { AllowanceSwapVenue } from "@owneraio/finp2p-ethereum-allowance-swap";
+import { CANONICAL_PERMIT2_ADDRESS } from "@owneraio/finp2p-ethereum-permit2-swap";
+import { DEFAULT_DEADLINE_SECONDS, Permit2SwapVenue } from "./permit2-swap-venue";
 
 /** A venue with the name it is logged under. The router identifies a venue by its address. */
 export type NamedSwapVenue = {
@@ -10,11 +12,21 @@ export type NamedSwapVenue = {
 };
 
 export const DEFAULT_VENUE_NAME = "AllowanceSwap";
+export const DEFAULT_PERMIT2_VENUE_NAME = "Permit2Swap";
 export const VENUE_NAME_PATTERN = /^[A-Za-z0-9._-]{1,64}$/;
 
 const PLURAL_VARIABLE = "FINP2P_ETHEREUM_ALLOWANCE_SWAP_ADDRESSES";
 const SINGULAR_VARIABLE = "FINP2P_ETHEREUM_ALLOWANCE_SWAP_ADDRESS";
+const PERMIT2_SWAP_VARIABLE = "FINP2P_ETHEREUM_PERMIT2_SWAP_ADDRESSES";
+const PERMIT2_VARIABLE = "FINP2P_ETHEREUM_PERMIT2_ADDRESS";
+const PERMIT2_DEADLINE_VARIABLE = "FINP2P_ETHEREUM_PERMIT2_DEADLINE_SECONDS";
 const ADDRESS_SUFFIX_LENGTH = 8;
+
+type VenueList = {
+  variable: string;
+  defaultName: string;
+  create: (name: string, address: string) => NamedSwapVenue;
+};
 
 const parseVenueAddress = (variable: string, value: string): string => {
   if (!isAddress(value)) {
@@ -24,35 +36,100 @@ const parseVenueAddress = (variable: string, value: string): string => {
 };
 
 /** `Name=0xaddress` or a bare `0xaddress`. */
-const parseEntry = (raw: string): { name?: string; address: string } => {
+const parseEntry = (variable: string, raw: string): { name?: string; address: string } => {
   const separator = raw.indexOf("=");
   if (separator < 0) {
-    return { address: parseVenueAddress(PLURAL_VARIABLE, raw) };
+    return { address: parseVenueAddress(variable, raw) };
   }
   const name = raw.slice(0, separator).trim();
   if (!VENUE_NAME_PATTERN.test(name)) {
-    throw new Error(`Invalid venue name in ${PLURAL_VARIABLE}: '${name}' must match ${VENUE_NAME_PATTERN}`);
+    throw new Error(`Invalid venue name in ${variable}: '${name}' must match ${VENUE_NAME_PATTERN}`);
   }
-  return { name, address: parseVenueAddress(PLURAL_VARIABLE, raw.slice(separator + 1).trim()) };
+  return { name, address: parseVenueAddress(variable, raw.slice(separator + 1).trim()) };
 };
 
 /**
- * An unnamed entry is called `AllowanceSwap` when it is the only venue and
- * `AllowanceSwap-<first 8 hex digits of the address, lower case>` otherwise,
- * so every adapter configured with the same address derives the same name.
+ * An unnamed entry is called by the list's default name when it is the only
+ * venue and `<default name>-<first 8 hex digits of the address, lower case>`
+ * otherwise, so every adapter configured with the same address derives the same name.
  */
-const defaultName = (address: string, total: number): string =>
-  total === 1 ? DEFAULT_VENUE_NAME : `${DEFAULT_VENUE_NAME}-${address.slice(2, 2 + ADDRESS_SUFFIX_LENGTH).toLowerCase()}`;
+const defaultName = (base: string, address: string, total: number): string =>
+  total === 1 ? base : `${base}-${address.slice(2, 2 + ADDRESS_SUFFIX_LENGTH).toLowerCase()}`;
 
 const allowanceSwap = (name: string, address: string): NamedSwapVenue => ({
   name,
   venue: new AllowanceSwapVenue(address),
 });
 
+const allowanceList: VenueList = {
+  variable: PLURAL_VARIABLE,
+  defaultName: DEFAULT_VENUE_NAME,
+  create: allowanceSwap,
+};
+
+const parseDeadlineSeconds = (value: string | undefined): number => {
+  if (value === undefined || value === "") {
+    return DEFAULT_DEADLINE_SECONDS;
+  }
+  if (!/^[1-9][0-9]*$/.test(value)) {
+    throw new Error(`Invalid ${PERMIT2_DEADLINE_VARIABLE}: '${value}' is not a positive whole number of seconds`);
+  }
+  return Number(value);
+};
+
+const permit2List = (env: NodeJS.ProcessEnv): VenueList => {
+  const permit2Address = parseVenueAddress(PERMIT2_VARIABLE, env[PERMIT2_VARIABLE] || CANONICAL_PERMIT2_ADDRESS);
+  const defaultDeadlineSeconds = parseDeadlineSeconds(env[PERMIT2_DEADLINE_VARIABLE]);
+  return {
+    variable: PERMIT2_SWAP_VARIABLE,
+    defaultName: DEFAULT_PERMIT2_VENUE_NAME,
+    create: (name, address) => ({
+      name,
+      venue: new Permit2SwapVenue(address, { permit2Address, defaultDeadlineSeconds }),
+    }),
+  };
+};
+
+const venuesOf = (list: VenueList, value: string): NamedSwapVenue[] => {
+  const entries = value.split(",").map((raw) => raw.trim()).filter((raw) => raw !== "")
+    .map((raw) => parseEntry(list.variable, raw));
+  const addresses = new Set<string>();
+  const names = new Set<string>();
+  return entries.map(({ name, address }) => {
+    const resolved = name ?? defaultName(list.defaultName, address, entries.length);
+    if (addresses.has(address.toLowerCase())) {
+      throw new Error(`Duplicate address in ${list.variable}: '${address}'`);
+    }
+    if (names.has(resolved)) {
+      throw new Error(`Duplicate venue name in ${list.variable}: '${resolved}'`);
+    }
+    addresses.add(address.toLowerCase());
+    names.add(resolved);
+    return list.create(resolved, address);
+  });
+};
+
+const rejectClashes = (venues: NamedSwapVenue[]): void => {
+  const addresses = new Set<string>();
+  const names = new Set<string>();
+  venues.forEach(({ name, venue }) => {
+    const address = venue.venueAddress.toLowerCase();
+    if (addresses.has(address)) {
+      throw new Error(`Duplicate address across swap venue lists: '${venue.venueAddress}'`);
+    }
+    if (names.has(name)) {
+      throw new Error(`Duplicate venue name across swap venue lists: '${name}'`);
+    }
+    addresses.add(address);
+    names.add(name);
+  });
+};
+
 /**
- * Swap venues in preference order. The plural variable wins over the singular
- * one; its entries are `0xaddress` or `Name=0xaddress`. Duplicate addresses (any
- * letter case) and duplicate names are rejected.
+ * Swap venues in preference order: allowance venues, then Permit2 venues. The
+ * plural allowance variable wins over the singular one. Entries of both lists
+ * are `0xaddress` or `Name=0xaddress`; addresses (any letter case) and names
+ * must be unique across both lists.
  */
 export const detectSwapVenues = (
   env: NodeJS.ProcessEnv = process.env,
@@ -60,30 +137,20 @@ export const detectSwapVenues = (
 ): NamedSwapVenue[] => {
   const plural = env[PLURAL_VARIABLE];
   const singular = env[SINGULAR_VARIABLE];
+  let allowance: NamedSwapVenue[] = [];
   if (plural) {
     if (singular) {
       warn(`${SINGULAR_VARIABLE} is ignored because ${PLURAL_VARIABLE} is set`);
     }
-    const entries = plural.split(",").map((raw) => raw.trim()).filter((raw) => raw !== "").map(parseEntry);
-    const addresses = new Set<string>();
-    const names = new Set<string>();
-    return entries.map(({ name, address }) => {
-      const resolved = name ?? defaultName(address, entries.length);
-      if (addresses.has(address.toLowerCase())) {
-        throw new Error(`Duplicate address in ${PLURAL_VARIABLE}: '${address}'`);
-      }
-      if (names.has(resolved)) {
-        throw new Error(`Duplicate venue name in ${PLURAL_VARIABLE}: '${resolved}'`);
-      }
-      addresses.add(address.toLowerCase());
-      names.add(resolved);
-      return allowanceSwap(resolved, address);
-    });
+    allowance = venuesOf(allowanceList, plural);
+  } else if (singular) {
+    allowance = [allowanceSwap(DEFAULT_VENUE_NAME, parseVenueAddress(SINGULAR_VARIABLE, singular))];
   }
-  if (singular) {
-    return [allowanceSwap(DEFAULT_VENUE_NAME, parseVenueAddress(SINGULAR_VARIABLE, singular))];
-  }
-  return [];
+  const permit2Swap = env[PERMIT2_SWAP_VARIABLE];
+  const permit2 = permit2Swap ? venuesOf(permit2List(env), permit2Swap) : [];
+  const venues = [...allowance, ...permit2];
+  rejectClashes(venues);
+  return venues;
 };
 
 export const detectSwapVenue = (env: NodeJS.ProcessEnv = process.env): SwapVenue | undefined =>
