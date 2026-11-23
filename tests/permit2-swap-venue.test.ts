@@ -62,7 +62,7 @@ describe("Permit2SwapVenue on a hardhat node", () => {
     return account;
   };
 
-  const newSwap = async () => {
+  const newSwap = async ({ approvePermit2 = true } = {}) => {
     const [alice, bob] = [await funded(), await funded()];
     const tokenFactory = new ERC20__factory(operator);
     const operatorAddress = await operator.getAddress();
@@ -70,8 +70,10 @@ describe("Permit2SwapVenue on a hardhat node", () => {
     const tokenY = await tokenFactory.deploy("Token Y", "TKY", DECIMALS, operatorAddress);
     await (await tokenX.mint(alice.address, parseUnits("100", DECIMALS))).wait();
     await (await tokenY.mint(bob.address, parseUnits("50", DECIMALS))).wait();
-    await (await tokenX.connect(alice).approve(PERMIT2_ADDRESS, parseUnits("1000", DECIMALS))).wait();
-    await (await tokenY.connect(bob).approve(PERMIT2_ADDRESS, parseUnits("1000", DECIMALS))).wait();
+    if (approvePermit2) {
+      await (await tokenX.connect(alice).approve(PERMIT2_ADDRESS, parseUnits("1000", DECIMALS))).wait();
+      await (await tokenY.connect(bob).approve(PERMIT2_ADDRESS, parseUnits("1000", DECIMALS))).wait();
+    }
     const intent: SwapIntent = {
       operationId: hexlify(randomBytes(16)),
       give: { token: await tokenX.getAddress(), party: alice.address, amount: TEN },
@@ -333,5 +335,120 @@ describe("Permit2SwapVenue on a hardhat node", () => {
     const { intent } = await newSwap();
     await venue.swap(wallet, intent, logger);
     expect(logs.some((m) => m.startsWith("WARN") && m.includes(`relays for ${intent.give.party}`))).toBe(true);
+  });
+
+  describe("when the wallet signs for the party itself", () => {
+    let custody: Permit2SwapVenue;
+
+    beforeAll(() => {
+      custody = new Permit2SwapVenue(swapAddress, { permit2Address: PERMIT2_ADDRESS, executor: operator, pollIntervalMs: 100 });
+    });
+
+    const permit2Allowance = async (owner: string, token: string) => {
+      const [amount, expiration] = await permit2.allowance(owner, token, swapAddress);
+      return { amount, expiration: Number(expiration) };
+    };
+
+    test("each side approves Permit2, signs its own allowance and one transaction settles both legs", async () => {
+      const { alice, bob, tokenX, tokenY, intent } = await newSwap({ approvePermit2: false });
+
+      const [a, b] = await Promise.all([
+        custody.swap({ provider, signer: alice }, intent, logger),
+        custody.swap({ provider, signer: bob }, mirrored(intent), logger),
+      ]);
+
+      expect(a.status).toBe("executed");
+      expect(b).toEqual(a);
+      expect(await tokenX.balanceOf(bob.address)).toBe(TEN);
+      expect(await tokenY.balanceOf(alice.address)).toBe(FIVE);
+      expect(await tokenX.allowance(alice.address, PERMIT2_ADDRESS)).toBe(0n);
+      expect((await permit2Allowance(alice.address, intent.give.token)).amount).toBe(0n);
+      expect((await permit2Allowance(bob.address, intent.take.token)).amount).toBe(0n);
+      expect(logs.some((m) => m.includes("relays for"))).toBe(false);
+    });
+
+    test("the Permit2 allowance expires at the swap deadline", async () => {
+      const { alice, bob, intent } = await newSwap({ approvePermit2: false });
+      const deadline = nowSeconds() + 1800;
+      // the counterparty is already in place, so the grant is the only step before the swap
+      await (await ERC20__factory.connect(intent.take.token, bob).approve(PERMIT2_ADDRESS, FIVE)).wait();
+      await grant(bob, intent.take.token, FIVE);
+      const send = jest.spyOn(Permit2Swap.prototype, "executeSwap").mockRejectedValueOnce(new Error("stop before sending"));
+
+      await custody.swap({ provider, signer: alice }, { ...intent, deadline }, logger);
+
+      expect(send).toHaveBeenCalledTimes(1);
+      expect(await permit2Allowance(alice.address, intent.give.token)).toEqual({ amount: TEN, expiration: deadline });
+    });
+
+    test("an allowance that already covers the leg is not granted again", async () => {
+      const swap = await newSwap();
+      await grantBoth(swap);
+      const { alice, intent } = swap;
+      // the grant helper expires in an hour, so a deadline inside it needs no new grant
+      const nonceBefore = await provider.getTransactionCount(alice.address);
+
+      const result = await custody.swap({ provider, signer: alice }, { ...intent, deadline: nowSeconds() + 600 }, logger);
+
+      expect(result.status).toBe("executed");
+      expect(await provider.getTransactionCount(alice.address)).toBe(nonceBefore);
+      expect(logs.some((m) => m.includes("already covers"))).toBe(true);
+    });
+
+    test("fails at the deadline when the counterparty never grants, and moves nothing", async () => {
+      const { alice, bob, tokenX, tokenY, intent } = await newSwap({ approvePermit2: false });
+      const send = jest.spyOn(Permit2Swap.prototype, "executeSwap");
+
+      // hardhat's block clock runs ahead of the wall clock; move it past the deadline once waiting
+      const deadline = (await provider.getBlock("latest"))!.timestamp + 60;
+      const pending = custody.swap({ provider, signer: alice }, { ...intent, deadline }, logger);
+      while (!logs.some((m) => m.includes("waiting for the Permit2 allowance"))) {
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      }
+      await provider.send("evm_increaseTime", [120]);
+      await provider.send("evm_mine", []);
+
+      const result = await pending;
+
+      expect(result.status).toBe("failure");
+      expect((result as { reason: string }).reason).toContain("counterparty's Permit2 allowance was not in place");
+      expect(send).not.toHaveBeenCalled();
+      expect(logs.some((m) => m.includes(`waiting for the Permit2 allowance of ${bob.address}`))).toBe(true);
+      expect(await tokenX.balanceOf(alice.address)).toBe(parseUnits("100", DECIMALS));
+      expect(await tokenY.balanceOf(bob.address)).toBe(parseUnits("50", DECIMALS));
+    });
+
+    test("stops waiting and resumes when the other side settles first", async () => {
+      const { alice, bob, intent } = await newSwap({ approvePermit2: false });
+      const waiting = custody.swap({ provider, signer: alice }, intent, logger);
+      // bob settles through the operator path while alice is still waiting
+      await (await ERC20__factory.connect(intent.take.token, bob).approve(PERMIT2_ADDRESS, FIVE)).wait();
+      await grant(bob, intent.take.token, FIVE);
+      const settled = await custody.swap({ provider, signer: bob }, mirrored(intent), logger);
+
+      expect(settled.status).toBe("executed");
+      expect(await waiting).toEqual(settled);
+    });
+
+    test("without an executor the party wallet is refused before it grants anything", async () => {
+      const { alice, intent } = await newSwap({ approvePermit2: false });
+      const noExecutor = new Permit2SwapVenue(swapAddress, { permit2Address: PERMIT2_ADDRESS });
+
+      const result = await noExecutor.swap({ provider, signer: alice }, intent, logger);
+
+      expect(result.status).toBe("failure");
+      expect((result as { reason: string }).reason).toContain("EXECUTOR_ROLE");
+      expect(await provider.getTransactionCount(alice.address)).toBe(0);
+    });
+
+    test("a relaying operator still signs nothing for the party", async () => {
+      const { alice, intent } = await newSwap({ approvePermit2: false });
+
+      const result = await custody.swap(wallet, intent, logger);
+
+      expect(result.status).toBe("failure");
+      expect(await provider.getTransactionCount(alice.address)).toBe(0);
+      expect(logs.some((m) => m.startsWith("WARN") && m.includes(`relays for ${alice.address}`))).toBe(true);
+    });
   });
 });
