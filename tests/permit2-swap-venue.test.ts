@@ -349,8 +349,9 @@ describe("Permit2SwapVenue on a hardhat node", () => {
       return { amount, expiration: Number(expiration) };
     };
 
-    test("each side approves Permit2, signs its own allowance and one transaction settles both legs", async () => {
+    test("each side approves Permit2, sets its own allowance and one transaction settles both legs", async () => {
       const { alice, bob, tokenX, tokenY, intent } = await newSwap({ approvePermit2: false });
+      const signs = [jest.spyOn(alice, "signTypedData"), jest.spyOn(bob, "signTypedData")];
 
       const [a, b] = await Promise.all([
         custody.swap({ provider, signer: alice }, intent, logger),
@@ -365,6 +366,7 @@ describe("Permit2SwapVenue on a hardhat node", () => {
       expect((await permit2Allowance(alice.address, intent.give.token)).amount).toBe(0n);
       expect((await permit2Allowance(bob.address, intent.take.token)).amount).toBe(0n);
       expect(logs.some((m) => m.includes("relays for"))).toBe(false);
+      signs.forEach((sign) => expect(sign).not.toHaveBeenCalled());
     });
 
     test("the Permit2 allowance expires at the swap deadline", async () => {

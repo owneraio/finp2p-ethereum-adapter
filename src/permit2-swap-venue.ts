@@ -36,28 +36,14 @@ const ERC20_ABI = [
 ];
 
 const PERMIT2_ABI = [
-  "function permit(address owner, ((address token, uint160 amount, uint48 expiration, uint48 nonce) details, address spender, uint256 sigDeadline) permitSingle, bytes signature)",
+  "function approve(address token, address spender, uint160 amount, uint48 expiration)",
   "function allowance(address owner, address token, address spender) view returns (uint160 amount, uint48 expiration, uint48 nonce)",
 ];
 
-const PERMIT_TYPES = {
-  PermitDetails: [
-    { name: "token", type: "address" },
-    { name: "amount", type: "uint160" },
-    { name: "expiration", type: "uint48" },
-    { name: "nonce", type: "uint48" },
-  ],
-  PermitSingle: [
-    { name: "details", type: "PermitDetails" },
-    { name: "spender", type: "address" },
-    { name: "sigDeadline", type: "uint256" },
-  ],
-};
-
 /**
  * Swap venue on a Permit2Swap contract. `executeSwap` needs EXECUTOR_ROLE.
- * A wallet that signs for the party itself (custody) grants its own Permit2
- * allowance first and waits for the counterparty's; a relaying operator expects
+ * A wallet that signs for the party itself (custody) sets its own Permit2
+ * allowance with `Permit2.approve` first and waits for the counterparty's; a relaying operator expects
  * both allowances in place. The first caller settles both legs and the other
  * side resumes from the SwapExecuted event.
  *
@@ -145,15 +131,16 @@ export class Permit2SwapVenue implements SwapVenue {
   }
 
   /**
-   * Approves Permit2 for the leg when the token allowance is short, then signs
-   * a PermitSingle for this contract that expires at the swap deadline. Skips
-   * both when a large enough allowance that outlives the deadline is in place.
+   * Approves Permit2 for the leg when the token allowance is short, then sets
+   * a Permit2 allowance for this contract that expires at the swap deadline.
+   * A plain transaction from the wallet, so no typed-data signing is needed.
+   * Skips both when a large enough allowance that outlives the deadline is in place.
    */
   private async grantOwnAllowance(
     wallet: TokenWallet, { give }: SwapIntent, permit2Address: string, deadline: number, logger: Logger, tag: string,
   ): Promise<void> {
     const permit2 = new Contract(permit2Address, PERMIT2_ABI, wallet.signer);
-    const [amount, expiration, nonce] = await permit2.allowance(give.party, give.token, this.venueAddress);
+    const [amount, expiration] = await permit2.allowance(give.party, give.token, this.venueAddress);
     if (amount >= give.amount && Number(expiration) >= deadline) {
       logger.info(`${tag}: Permit2 allowance of ${give.party} for ${this.venueAddress} already covers ${give.amount}`);
       return;
@@ -163,16 +150,8 @@ export class Permit2SwapVenue implements SwapVenue {
       logger.info(`${tag}: approving Permit2 for ${give.amount} of ${give.token}`);
       await (await token.approve(permit2Address, give.amount)).wait();
     }
-    const permitSingle = {
-      details: { token: give.token, amount: give.amount, expiration: deadline, nonce },
-      spender: this.venueAddress,
-      sigDeadline: deadline,
-    };
-    const { chainId } = await wallet.provider.getNetwork();
-    const domain = { name: "Permit2", chainId, verifyingContract: permit2Address };
-    const signature = await wallet.signer.signTypedData(domain, PERMIT_TYPES, permitSingle);
     logger.info(`${tag}: granting ${give.amount} of ${give.token} to ${this.venueAddress} through Permit2 until ${deadline}`);
-    await (await permit2.permit(give.party, permitSingle, signature)).wait();
+    await (await permit2.approve(give.token, this.venueAddress, give.amount, deadline)).wait();
   }
 
   /** Each side grants inside its own swap call, so the counter leg may arrive later. */

@@ -41,7 +41,7 @@ An entry without a name is called `AllowanceSwap` when it is the only venue (thi
 
 The operator account must hold `EXECUTOR_ROLE` on every Permit2Swap contract. The adapter checks this before each swap and fails it with a clear reason, without sending, when the role is missing. The swap deadline is the one on the instruction; without one the adapter uses now plus the window above and logs it. A swap past its deadline fails without sending.
 
-Investors approve Permit2 for their token and submit a signed Permit2 allowance for the Permit2Swap contract outside the adapter, which signs nothing for them. A retry of an executed operation id resumes with the recorded transaction when the executed legs match the instruction; a different trade under the same id fails the swap.
+When the adapter holds the investor's wallet (custody), it approves Permit2 for the token and sets the Permit2 allowance for the Permit2Swap contract itself with `Permit2.approve`, expiring at the swap deadline, then waits for the counterparty's allowance. Otherwise investors approve Permit2 and set that allowance outside the adapter. A retry of an executed operation id resumes with the recorded transaction when the executed legs match the instruction; a different trade under the same id fails the swap.
 
 ## Asset capabilities
 
