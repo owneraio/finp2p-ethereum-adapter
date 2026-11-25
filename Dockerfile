@@ -24,6 +24,7 @@ COPY \
     tsconfig.json \
     jest.config.js \
     ./
+COPY vendor ./vendor
 COPY src ./src
 
 RUN --mount=type=secret,id=npm_token \
@@ -38,6 +39,7 @@ RUN npm run build
 # ------- Production dependencies --------
 FROM base AS dependencies
 COPY --from=build /usr/app/package.json /usr/app/package-lock.json .
+COPY --from=build /usr/app/vendor ./vendor
 RUN --mount=type=secret,id=npm_token \
     NPM_TOKEN="$(cat /run/secrets/npm_token)" && \
     echo "//npm.pkg.github.com/:_authToken=${NPM_TOKEN}" > .npmrc && \
