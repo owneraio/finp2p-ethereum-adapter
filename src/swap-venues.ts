@@ -147,6 +147,22 @@ export const detectSwapVenues = (
   return venues;
 };
 
+/**
+ * Leaves Permit2 venues out, warning once for each. The operator relays in
+ * `finp2p-contract` mode and cannot grant the Permit2 allowance for a party.
+ */
+export const withoutPermit2Venues = (
+  venues: NamedSwapVenue[],
+  warn: (message: string) => void,
+): NamedSwapVenue[] =>
+  venues.filter(({ name, listedAddress, venue }) => {
+    if (!(venue instanceof Permit2SwapVenue)) {
+      return true;
+    }
+    warn(`Permit2 swap venue ${name} at ${listedAddress} is not used: the operator cannot grant the Permit2 allowance in finp2p-contract mode`);
+    return false;
+  });
+
 export const detectSwapVenue = (env: NodeJS.ProcessEnv = process.env): SwapVenue | undefined =>
   detectSwapVenues(env)[0]?.venue;
 

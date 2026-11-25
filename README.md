@@ -31,7 +31,7 @@ An entry without a name is called `AllowanceSwap` when it is the only venue (thi
 
 ### Permit2 swap venues
 
-`FINP2P_ETHEREUM_PERMIT2_SWAP_ADDRESSES` lists Permit2Swap contracts from `@owneraio/finp2p-ethereum-permit2-swap`, in the same `0xaddress` or `Name=0xaddress` format. An entry without a name is called `Permit2Swap` (or `Permit2Swap-` and 8 address digits when there are several). Permit2 venues join the same venue list after the allowance venues. The asset lists the Permit2Swap contract address for swap, and the router's chosen contract is matched against it; the Permit2 address itself is never listed. The feature is off unless the variable is set. An address or name used in both lists is rejected at startup.
+`FINP2P_ETHEREUM_PERMIT2_SWAP_ADDRESSES` lists Permit2Swap contracts from `@owneraio/finp2p-ethereum-permit2-swap`, in the same `0xaddress` or `Name=0xaddress` format. An entry without a name is called `Permit2Swap` (or `Permit2Swap-` and 8 address digits when there are several). Permit2 venues join the same venue list after the allowance venues, but only for custody providers; see below for `finp2p-contract`. The asset lists the Permit2Swap contract address for swap, and the router's chosen contract is matched against it; the Permit2 address itself is never listed. The feature is off unless the variable is set. An address or name used in both lists is rejected at startup.
 
 | Variable | Default | Meaning |
 |----------|---------|---------|
@@ -40,17 +40,19 @@ An entry without a name is called `AllowanceSwap` when it is the only venue (thi
 
 Permit2Swap works like AllowanceSwap: the first `swap(operationId, leg)` call records a leg and the counterparty's mirrored call moves both legs through `Permit2.transferFrom` in one transaction. The contract is permissionless, so the operator needs no role on it. Each leg needs a Permit2 allowance from the party to the Permit2Swap contract that covers the amount and has not expired.
 
-When the wallet signer is the giving party (custody modes), the adapter grants that allowance itself: an ERC20 `approve(Permit2)` when the token allowance is short, then `Permit2.approve(token, Permit2Swap, amount, expiration)`, expiring a minute after the swap deadline. When the operator relays for the party, the party's allowance must already be in place. The swap deadline is the one on the instruction, or the venue's default window when there is none. A retry of an operation id resumes with the recorded transaction or the prepared leg; a different trade under the same id fails the swap.
+In custody modes the wallet signer is the giving party, and the adapter grants that allowance itself: an ERC20 `approve(Permit2)` when the token allowance is short, then `Permit2.approve(token, Permit2Swap, amount, expiration)`, expiring a minute after the swap deadline. The swap deadline is the one on the instruction, or the venue's default window when there is none. A retry of an operation id resumes with the recorded transaction or the prepared leg; a different trade under the same id fails the swap.
 
-Custody modes use only the first venue in the list, so a Permit2 venue runs there only when no allowance venue is configured.
+In `finp2p-contract` mode the operator relays for the party and cannot grant the Permit2 allowance, so Permit2 venues are ignored there: they are not reported as swap contracts, the router cannot pick them, and the adapter logs a warning naming each one at startup. Custody modes use only the first venue in the list, so a Permit2 venue runs there only when no allowance venue is configured.
 
 ## Asset capabilities
 
 Set `ASSET_CAPABILITIES_ENABLED=true` to report which contracts can run each instruction for an asset. It is off by default: the adapter then returns no capability list on asset creation, which the router reads as the full instruction set, and `POST /assets/getCapabilities` answers 501. Only the `finp2p-contract` provider reports capabilities.
 
-With the flag on, the creation response and `getCapabilities` list the FinP2P operator contract for hold, transfer, release, issue, revert hold and redeem, and every configured swap venue for swap. A contract is listed by address and format only, as `eip155:<chainId>:<checksummed address>` with format `caip10`; it has no name or description. `getCapabilities` answers 404 for an unknown asset.
+With the flag on, the creation response and `getCapabilities` list the FinP2P operator contract for hold, transfer, release, issue, revert hold and redeem, and every configured allowance swap venue for swap (Permit2 venues are not used in this mode). A contract is listed by address and format only, as `eip155:<chainId>:<checksummed address>` with format `caip10`; it has no name or description. `getCapabilities` answers 404 for an unknown asset.
 
 The router sends the address of the contract it chose in `executionContext.contract`, in the form the asset listed it. The adapter accepts a CAIP-10 id whose namespace is `eip155` (any letter case), whose chain reference is this chain's decimal id, and whose 0x address matches a listed contract in any letter case. It runs the instruction through that contract. Anything else, including a bare 0x address, another chain or another format, is refused with a failed receipt and no transaction. This check applies whether or not the flag is on.
+
+Custody providers report no capability list and run no contract of their own. When the router names a contract for hold, transfer, release, issue, revert hold or redeem, they refuse it with a failed receipt and no chain call. For swap they run the contract only when it is the venue they are configured with, matched the same way, and refuse any other.
 
 ## Documentation
 

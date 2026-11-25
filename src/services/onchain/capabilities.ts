@@ -53,7 +53,8 @@ export const onChainCapabilities = (
   return list;
 };
 
-const unavailable = (contract: string, instruction: string): string =>
+/** The refusal for a requested contract an adapter cannot run; `instruction` is the name without its prefix, such as HOLD. */
+export const contractUnavailable = (contract: string, instruction: string): string =>
   `contract ${contract} is not available for ${instruction} on this adapter`;
 
 /** Returns an error message when the requested contract is not the operator on this chain, undefined otherwise. */
@@ -67,7 +68,7 @@ export const operatorContractError = (
   if (requested === undefined || isRequestedContract(requested, chainId, operatorAddress)) {
     return undefined;
   }
-  return unavailable(requested, instruction.replace("INSTRUCTION_", ""));
+  return contractUnavailable(requested, instruction.replace("INSTRUCTION_", ""));
 };
 
 export const pickVenue = (
@@ -80,5 +81,5 @@ export const pickVenue = (
     return venues.length > 0 ? { venue: venues[0].venue } : { error: "no swap venue is configured" };
   }
   const found = venues.find((candidate) => isRequestedContract(requested, chainId, candidate.listedAddress));
-  return found ? { venue: found.venue } : { error: unavailable(requested, "SWAP") };
+  return found ? { venue: found.venue } : { error: contractUnavailable(requested, "SWAP") };
 };

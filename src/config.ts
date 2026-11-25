@@ -73,7 +73,7 @@ export { getNetworkRpcUrl, localSubmitRpcUrl } from './network-host';
 import { getNetworkRpcUrl } from './network-host';
 
 export { detectSwapVenues, detectSwapVenue } from './swap-venues';
-import { detectSwapVenues, NamedSwapVenue } from './swap-venues';
+import { detectSwapVenues, NamedSwapVenue, withoutPermit2Venues } from './swap-venues';
 import { RecoveringNonceManager } from './nonce-recovery';
 
 export const createJsonProvider = (
@@ -94,7 +94,9 @@ export async function envVarsToAppConfig(logger: Logger): Promise<AppConfig> {
   const configType = (process.env.PROVIDER_TYPE || 'finp2p-contract') as AppConfig['type']
   const accountMappingType = resolveAccountMappingType(process.env.ACCOUNT_MAPPING_TYPE)
   const accountModel = resolveAccountModel(process.env.ACCOUNT_MODEL)
-  const swapVenues = detectSwapVenues(process.env, (message) => logger.warning(message))
+  const warn = (message: string) => logger.warning(message)
+  const detectedVenues = detectSwapVenues(process.env, warn)
+  const swapVenues = configType === 'finp2p-contract' ? withoutPermit2Venues(detectedVenues, warn) : detectedVenues
   const swapVenue = swapVenues[0]?.venue
   if (swapVenues.length > 0) {
     swapVenues.forEach(({ name, venue, listedAddress }) => {

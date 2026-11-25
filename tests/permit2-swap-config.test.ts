@@ -1,6 +1,6 @@
 import { getAddress } from "ethers";
 import { PERMIT2_ADDRESS, Permit2SwapVenue } from "@owneraio/finp2p-ethereum-permit2-swap";
-import { detectSwapVenues } from "../src/swap-venues";
+import { detectSwapVenues, withoutPermit2Venues } from "../src/swap-venues";
 import { onChainCapabilities, pickVenue } from "../src/services/onchain/capabilities";
 
 const ALLOWANCE = "0x" + "bb".repeat(20);
@@ -83,5 +83,45 @@ describe("Permit2 swap venue configuration", () => {
       detectSwapVenues({ [LIST]: SWAP_A, ...env })[0].venue.venueAddress;
     expect(permit2Of({})).toBe(PERMIT2_ADDRESS);
     expect(permit2Of({ FINP2P_ETHEREUM_PERMIT2_ADDRESS: SWAP_B })).toBe(SWAP_B);
+  });
+});
+
+describe("Permit2 venues in finp2p-contract mode", () => {
+  const env = {
+    FINP2P_ETHEREUM_ALLOWANCE_SWAP_ADDRESS: ALLOWANCE,
+    [LIST]: `Desk=${SWAP_A},${SWAP_B}`,
+  };
+
+  test("are left out of the venue list, so none is reported or picked", () => {
+    const venues = withoutPermit2Venues(detectSwapVenues(env), () => undefined);
+
+    expect(venues.map((v) => v.name)).toEqual(["AllowanceSwap"]);
+    const swap = onChainCapabilities(31337n, "0x" + "aa".repeat(20), venues)
+      .find((c) => c.instruction === "INSTRUCTION_SWAP")!;
+    expect(swap.contracts!.map((c) => c.address)).toEqual([`eip155:31337:${getAddress(ALLOWANCE)}`]);
+    const requested = `eip155:31337:${getAddress(SWAP_A)}`;
+    expect(pickVenue({ contract: requested } as any, venues, 31337n))
+      .toEqual({ error: `contract ${requested} is not available for SWAP on this adapter` });
+  });
+
+  test("each one is named in a warning", () => {
+    const warnings: string[] = [];
+    withoutPermit2Venues(detectSwapVenues(env), (message) => warnings.push(message));
+
+    expect(warnings).toHaveLength(2);
+    expect(warnings[0]).toContain(`Desk at ${SWAP_A}`);
+    expect(warnings[1]).toContain(`Permit2Swap-a51c1fc2 at ${SWAP_B}`);
+  });
+
+  test("with only Permit2 venues configured no venue remains", () => {
+    expect(withoutPermit2Venues(detectSwapVenues({ [LIST]: SWAP_A }), () => undefined)).toEqual([]);
+  });
+
+  test("allowance venues stay and raise no warning", () => {
+    const warnings: string[] = [];
+    const venues = detectSwapVenues({ FINP2P_ETHEREUM_ALLOWANCE_SWAP_ADDRESSES: `${ALLOWANCE},${SWAP_A}` });
+
+    expect(withoutPermit2Venues(venues, (message) => warnings.push(message))).toEqual(venues);
+    expect(warnings).toEqual([]);
   });
 });
