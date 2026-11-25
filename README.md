@@ -31,17 +31,18 @@ An entry without a name is called `AllowanceSwap` when it is the only venue (thi
 
 ### Permit2 swap venues
 
-`FINP2P_ETHEREUM_PERMIT2_SWAP_ADDRESSES` lists Permit2Swap contracts from `@owneraio/finp2p-ethereum-permit2-swap`, in the same `0xaddress` or `Name=0xaddress` format. An entry without a name is called `Permit2Swap` (or `Permit2Swap-` and 8 address digits when there are several). Permit2 venues join the same venue list after the allowance venues, are reported for swap and matched by contract address in the same way. The feature is off unless the variable is set. An address or name used in both lists is rejected at startup.
+`FINP2P_ETHEREUM_PERMIT2_SWAP_ADDRESSES` lists Permit2Swap contracts from `@owneraio/finp2p-ethereum-permit2-swap`, in the same `0xaddress` or `Name=0xaddress` format. An entry without a name is called `Permit2Swap` (or `Permit2Swap-` and 8 address digits when there are several). Permit2 venues join the same venue list after the allowance venues. The asset lists the Permit2Swap contract address for swap, and the router's chosen contract is matched against it; the Permit2 address itself is never listed. The feature is off unless the variable is set. An address or name used in both lists is rejected at startup.
 
 | Variable | Default | Meaning |
 |----------|---------|---------|
 | `FINP2P_ETHEREUM_PERMIT2_SWAP_ADDRESSES` | unset (off) | Permit2Swap contract addresses |
-| `FINP2P_ETHEREUM_PERMIT2_ADDRESS` | canonical Permit2 | The Permit2 deployment each contract must be bound to; a mismatch fails the swap before sending |
-| `FINP2P_ETHEREUM_PERMIT2_DEADLINE_SECONDS` | `900` | Deadline window used when a swap carries no deadline |
+| `FINP2P_ETHEREUM_PERMIT2_ADDRESS` | canonical Permit2 | The Permit2 deployment the venues grant allowances through |
 
-The operator account must hold `EXECUTOR_ROLE` on every Permit2Swap contract. The adapter checks this before each swap and fails it with a clear reason, without sending, when the role is missing. The swap deadline is the one on the instruction; without one the adapter uses now plus the window above and logs it. A swap past its deadline fails without sending.
+Permit2Swap works like AllowanceSwap: the first `swap(operationId, leg)` call records a leg and the counterparty's mirrored call moves both legs through `Permit2.transferFrom` in one transaction. The contract is permissionless, so the operator needs no role on it. Each leg needs a Permit2 allowance from the party to the Permit2Swap contract that covers the amount and has not expired.
 
-When the adapter holds the investor's wallet (custody), it approves Permit2 for the token and sets the Permit2 allowance for the Permit2Swap contract itself with `Permit2.approve`, expiring at the swap deadline, then waits for the counterparty's allowance. Otherwise investors approve Permit2 and set that allowance outside the adapter. A retry of an executed operation id resumes with the recorded transaction when the executed legs match the instruction; a different trade under the same id fails the swap.
+When the wallet signer is the giving party (custody modes), the adapter grants that allowance itself: an ERC20 `approve(Permit2)` when the token allowance is short, then `Permit2.approve(token, Permit2Swap, amount, expiration)`, expiring a minute after the swap deadline. When the operator relays for the party, the party's allowance must already be in place. The swap deadline is the one on the instruction, or the venue's default window when there is none. A retry of an operation id resumes with the recorded transaction or the prepared leg; a different trade under the same id fails the swap.
+
+Custody modes use only the first venue in the list, so a Permit2 venue runs there only when no allowance venue is configured.
 
 ## Asset capabilities
 

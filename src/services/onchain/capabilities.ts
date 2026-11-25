@@ -47,7 +47,7 @@ export const onChainCapabilities = (
   if (venues.length > 0) {
     list.push({
       instruction: "INSTRUCTION_SWAP",
-      contracts: venues.map(({ venue }) => contractId(chainId, venue.venueAddress)),
+      contracts: venues.map(({ listedAddress }) => contractId(chainId, listedAddress)),
     });
   }
   return list;
@@ -79,6 +79,6 @@ export const pickVenue = (
   if (requested === undefined) {
     return venues.length > 0 ? { venue: venues[0].venue } : { error: "no swap venue is configured" };
   }
-  const found = venues.find((candidate) => isRequestedContract(requested, chainId, candidate.venue.venueAddress));
+  const found = venues.find((candidate) => isRequestedContract(requested, chainId, candidate.listedAddress));
   return found ? { venue: found.venue } : { error: unavailable(requested, "SWAP") };
 };

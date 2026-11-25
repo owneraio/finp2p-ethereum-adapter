@@ -97,8 +97,8 @@ export async function envVarsToAppConfig(logger: Logger): Promise<AppConfig> {
   const swapVenues = detectSwapVenues(process.env, (message) => logger.warning(message))
   const swapVenue = swapVenues[0]?.venue
   if (swapVenues.length > 0) {
-    swapVenues.forEach(({ name, venue }) => {
-      logger.info(`Swap venue ${name} (${venue.constructor.name}) configured at ${venue.venueAddress}`);
+    swapVenues.forEach(({ name, venue, listedAddress }) => {
+      logger.info(`Swap venue ${name} (${venue.constructor.name}) configured at ${listedAddress}`);
     });
     logger.info('Swap functionality enabled');
   } else {

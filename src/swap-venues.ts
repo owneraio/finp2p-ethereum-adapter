@@ -2,12 +2,16 @@ import { isAddress } from "ethers";
 import process from "process";
 import { SwapVenue } from "@owneraio/finp2p-ethereum-adapter-contract";
 import { AllowanceSwapVenue } from "@owneraio/finp2p-ethereum-allowance-swap";
-import { CANONICAL_PERMIT2_ADDRESS } from "@owneraio/finp2p-ethereum-permit2-swap";
-import { DEFAULT_DEADLINE_SECONDS, Permit2SwapVenue } from "./permit2-swap-venue";
+import { PERMIT2_ADDRESS, Permit2SwapVenue } from "@owneraio/finp2p-ethereum-permit2-swap";
 
-/** A venue with the name it is logged under. The router identifies a venue by its address. */
+/**
+ * A venue with the name it is logged under. `listedAddress` is the contract
+ * the asset lists for swap and the router sends back in the execution context.
+ * For a Permit2 venue it is the Permit2Swap contract, not `venue.venueAddress`.
+ */
 export type NamedSwapVenue = {
   name: string;
+  listedAddress: string;
   venue: SwapVenue;
 };
 
@@ -19,7 +23,6 @@ const PLURAL_VARIABLE = "FINP2P_ETHEREUM_ALLOWANCE_SWAP_ADDRESSES";
 const SINGULAR_VARIABLE = "FINP2P_ETHEREUM_ALLOWANCE_SWAP_ADDRESS";
 const PERMIT2_SWAP_VARIABLE = "FINP2P_ETHEREUM_PERMIT2_SWAP_ADDRESSES";
 const PERMIT2_VARIABLE = "FINP2P_ETHEREUM_PERMIT2_ADDRESS";
-const PERMIT2_DEADLINE_VARIABLE = "FINP2P_ETHEREUM_PERMIT2_DEADLINE_SECONDS";
 const ADDRESS_SUFFIX_LENGTH = 8;
 
 type VenueList = {
@@ -58,6 +61,7 @@ const defaultName = (base: string, address: string, total: number): string =>
 
 const allowanceSwap = (name: string, address: string): NamedSwapVenue => ({
   name,
+  listedAddress: address,
   venue: new AllowanceSwapVenue(address),
 });
 
@@ -67,25 +71,15 @@ const allowanceList: VenueList = {
   create: allowanceSwap,
 };
 
-const parseDeadlineSeconds = (value: string | undefined): number => {
-  if (value === undefined || value === "") {
-    return DEFAULT_DEADLINE_SECONDS;
-  }
-  if (!/^[1-9][0-9]*$/.test(value)) {
-    throw new Error(`Invalid ${PERMIT2_DEADLINE_VARIABLE}: '${value}' is not a positive whole number of seconds`);
-  }
-  return Number(value);
-};
-
 const permit2List = (env: NodeJS.ProcessEnv): VenueList => {
-  const permit2Address = parseVenueAddress(PERMIT2_VARIABLE, env[PERMIT2_VARIABLE] || CANONICAL_PERMIT2_ADDRESS);
-  const defaultDeadlineSeconds = parseDeadlineSeconds(env[PERMIT2_DEADLINE_VARIABLE]);
+  const permit2Address = parseVenueAddress(PERMIT2_VARIABLE, env[PERMIT2_VARIABLE] || PERMIT2_ADDRESS);
   return {
     variable: PERMIT2_SWAP_VARIABLE,
     defaultName: DEFAULT_PERMIT2_VENUE_NAME,
     create: (name, address) => ({
       name,
-      venue: new Permit2SwapVenue(address, { permit2Address, defaultDeadlineSeconds }),
+      listedAddress: address,
+      venue: new Permit2SwapVenue(address, permit2Address),
     }),
   };
 };
@@ -112,10 +106,10 @@ const venuesOf = (list: VenueList, value: string): NamedSwapVenue[] => {
 const rejectClashes = (venues: NamedSwapVenue[]): void => {
   const addresses = new Set<string>();
   const names = new Set<string>();
-  venues.forEach(({ name, venue }) => {
-    const address = venue.venueAddress.toLowerCase();
+  venues.forEach(({ name, listedAddress }) => {
+    const address = listedAddress.toLowerCase();
     if (addresses.has(address)) {
-      throw new Error(`Duplicate address across swap venue lists: '${venue.venueAddress}'`);
+      throw new Error(`Duplicate address across swap venue lists: '${listedAddress}'`);
     }
     if (names.has(name)) {
       throw new Error(`Duplicate venue name across swap venue lists: '${name}'`);
@@ -162,6 +156,6 @@ export const venuesFromConfig = (config: { swapVenues?: NamedSwapVenue[]; swapVe
     return config.swapVenues;
   }
   return config.swapVenue
-    ? [{ name: DEFAULT_VENUE_NAME, venue: config.swapVenue }]
+    ? [{ name: DEFAULT_VENUE_NAME, listedAddress: config.swapVenue.venueAddress, venue: config.swapVenue }]
     : [];
 };

@@ -1,7 +1,6 @@
 import { getAddress } from "ethers";
-import { CANONICAL_PERMIT2_ADDRESS } from "@owneraio/finp2p-ethereum-permit2-swap";
+import { PERMIT2_ADDRESS, Permit2SwapVenue } from "@owneraio/finp2p-ethereum-permit2-swap";
 import { detectSwapVenues } from "../src/swap-venues";
-import { Permit2SwapVenue, DEFAULT_DEADLINE_SECONDS } from "../src/permit2-swap-venue";
 import { onChainCapabilities, pickVenue } from "../src/services/onchain/capabilities";
 
 const ALLOWANCE = "0x" + "bb".repeat(20);
@@ -20,7 +19,9 @@ describe("Permit2 swap venue configuration", () => {
     expect(venues).toHaveLength(1);
     expect(venues[0].name).toBe("Permit2Swap");
     expect(venues[0].venue).toBeInstanceOf(Permit2SwapVenue);
-    expect(venues[0].venue.venueAddress).toBe(SWAP_A);
+    expect(venues[0].listedAddress).toBe(SWAP_A);
+    expect((venues[0].venue as Permit2SwapVenue).swapAddress).toBe(SWAP_A);
+    expect(venues[0].venue.venueAddress).toBe(PERMIT2_ADDRESS);
   });
 
   test("several entries keep their names or derive one from the address", () => {
@@ -48,6 +49,13 @@ describe("Permit2 swap venue configuration", () => {
     expect(picked).toEqual({ venue: venues[0].venue });
   });
 
+  test("Permit2 itself is not a listed swap contract", () => {
+    const venues = detectSwapVenues({ [LIST]: SWAP_A });
+    const requested = `eip155:31337:${getAddress(PERMIT2_ADDRESS)}`;
+    expect(pickVenue({ contract: requested } as any, venues, 31337n))
+      .toEqual({ error: `contract ${requested} is not available for SWAP on this adapter` });
+  });
+
   test("an address in both lists is a startup error, in any letter case", () => {
     const env = { FINP2P_ETHEREUM_ALLOWANCE_SWAP_ADDRESSES: ALLOWANCE, [LIST]: ALLOWANCE.toUpperCase().replace("0X", "0x") };
     expect(() => detectSwapVenues(env)).toThrow(/Duplicate address across swap venue lists/);
@@ -66,17 +74,14 @@ describe("Permit2 swap venue configuration", () => {
     ["not an address", { [LIST]: "0x123" }, /Invalid FINP2P_ETHEREUM_PERMIT2_SWAP_ADDRESSES/],
     ["a bad name", { [LIST]: `bad name=${SWAP_A}` }, /Invalid venue name in FINP2P_ETHEREUM_PERMIT2_SWAP_ADDRESSES/],
     ["a bad Permit2 address", { [LIST]: SWAP_A, FINP2P_ETHEREUM_PERMIT2_ADDRESS: "nope" }, /Invalid FINP2P_ETHEREUM_PERMIT2_ADDRESS/],
-    ["a bad deadline window", { [LIST]: SWAP_A, FINP2P_ETHEREUM_PERMIT2_DEADLINE_SECONDS: "0" }, /Invalid FINP2P_ETHEREUM_PERMIT2_DEADLINE_SECONDS/],
   ])("rejects %s", (_label, env, message) => {
     expect(() => detectSwapVenues(env)).toThrow(message);
   });
 
-  test("Permit2 address and deadline window default and can be overridden", () => {
-    const readOptions = (env: NodeJS.ProcessEnv) =>
-      detectSwapVenues({ [LIST]: SWAP_A, ...env })[0].venue as any;
-    expect(readOptions({}).permit2Address).toBe(CANONICAL_PERMIT2_ADDRESS);
-    expect(readOptions({}).defaultDeadlineSeconds).toBe(DEFAULT_DEADLINE_SECONDS);
-    expect(readOptions({ FINP2P_ETHEREUM_PERMIT2_ADDRESS: SWAP_B }).permit2Address).toBe(SWAP_B);
-    expect(readOptions({ FINP2P_ETHEREUM_PERMIT2_DEADLINE_SECONDS: "60" }).defaultDeadlineSeconds).toBe(60);
+  test("the Permit2 address defaults to the canonical deployment and can be overridden", () => {
+    const permit2Of = (env: NodeJS.ProcessEnv) =>
+      detectSwapVenues({ [LIST]: SWAP_A, ...env })[0].venue.venueAddress;
+    expect(permit2Of({})).toBe(PERMIT2_ADDRESS);
+    expect(permit2Of({ FINP2P_ETHEREUM_PERMIT2_ADDRESS: SWAP_B })).toBe(SWAP_B);
   });
 });

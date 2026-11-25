@@ -22,6 +22,7 @@ const CHAIN_ID = 31337n;
 
 const venue = (address: string, name = "AllowanceSwap") => ({
   name,
+  listedAddress: address,
   venue: { venueAddress: address },
 }) as any;
 
@@ -210,7 +211,7 @@ describe("venuesFromConfig", () => {
   test("a config with only the single venue lists it under the default name", () => {
     const single = { venueAddress: VENUE_A } as any;
     const venues = venuesFromConfig({ swapVenue: single });
-    expect(venues.map((v) => [v.name, v.venue])).toEqual([["AllowanceSwap", single]]);
+    expect(venues.map((v) => [v.name, v.listedAddress, v.venue])).toEqual([["AllowanceSwap", VENUE_A, single]]);
   });
 
   test("a config without venues lists none", () => {
