@@ -2,8 +2,7 @@ import { isAddress } from "ethers";
 import process from "process";
 import { SwapVenue } from "@owneraio/finp2p-ethereum-adapter-contract";
 import { AllowanceSwapVenue } from "@owneraio/finp2p-ethereum-allowance-swap";
-import { PERMIT2_ADDRESS } from "@owneraio/finp2p-ethereum-permit2-swap";
-import { Permit2SwapVenue } from "./permit2-swap-venue";
+import { PERMIT2_ADDRESS, Permit2SwapVenue } from "@owneraio/finp2p-ethereum-permit2-swap";
 
 /**
  * A venue with the name it is reported under in the asset's capability list.
@@ -23,7 +22,7 @@ export const DEFAULT_PERMIT2_VENUE_NAME = "Permit2Swap";
 export const VENUE_NAME_PATTERN = /^[A-Za-z0-9._-]{1,64}$/;
 
 const ALLOWANCE_SWAP_DESCRIPTION = "Settles both legs in one transaction from approved allowances";
-const PERMIT2_SWAP_DESCRIPTION = "Settles both legs in one transaction from signed Permit2 allowances";
+const PERMIT2_SWAP_DESCRIPTION = "Settles both legs in one transaction from Permit2 allowances";
 const PLURAL_VARIABLE = "FINP2P_ETHEREUM_ALLOWANCE_SWAP_ADDRESSES";
 const SINGULAR_VARIABLE = "FINP2P_ETHEREUM_ALLOWANCE_SWAP_ADDRESS";
 const PERMIT2_SWAP_VARIABLE = "FINP2P_ETHEREUM_PERMIT2_SWAP_ADDRESSES";
