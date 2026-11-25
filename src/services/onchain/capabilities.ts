@@ -59,7 +59,7 @@ export const contractUnavailable = (contract: string, instruction: string): stri
 
 /** Returns an error message when the requested contract is not the operator on this chain, undefined otherwise. */
 export const operatorContractError = (
-  instruction: OperatorInstruction | "INSTRUCTION_SWAP",
+  instruction: OperatorInstruction,
   exCtx: ExecutionContext | undefined,
   operatorAddress: string,
   chainId: bigint,

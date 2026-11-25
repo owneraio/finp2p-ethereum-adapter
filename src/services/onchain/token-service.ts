@@ -315,9 +315,10 @@ export class OnChainTokenService implements TokenService, EscrowService, CommonS
   }
 
   /**
-   * Venues report failures as results and send on the operator signer, so a
-   * failed swap resyncs the signer's nonce like a failed contract call does.
-   * Both legs finish before the reset, so one never resets under the other.
+   * A venue returns a failed swap as a result, so a failure after the send
+   * never reaches the signer as a send error. A failed result resets the
+   * signer's nonce here, as a throw does. Both legs finish before the reset,
+   * so one never resets under the other.
    */
   private async venueSwapAll(swapVenue: SwapVenue, intents: SwapIntent[]) {
     const signer = this.finP2PContract.signer;

@@ -120,7 +120,8 @@ const rejectClashes = (venues: NamedSwapVenue[]): void => {
 };
 
 /**
- * Swap venues in preference order: allowance venues, then Permit2 venues. The
+ * Swap venues: allowance venues first, then Permit2 venues. Custody providers
+ * use the first venue, and a swap with no contract requested runs on it. The
  * plural allowance variable wins over the singular one. Entries of both lists
  * are `0xaddress` or `Name=0xaddress`; addresses (any letter case) and names
  * must be unique across both lists.
@@ -163,8 +164,11 @@ export const withoutPermit2Venues = (
     return false;
   });
 
-export const detectSwapVenue = (env: NodeJS.ProcessEnv = process.env): SwapVenue | undefined =>
-  detectSwapVenues(env)[0]?.venue;
+/** The contract a venue is listed under: its swap contract when it has one, else its funds-entry address. */
+const listedAddressOf = (venue: SwapVenue): string => {
+  const { swapAddress } = venue as { swapAddress?: unknown };
+  return typeof swapAddress === "string" ? swapAddress : venue.venueAddress;
+};
 
 /** The venue list of an app config, falling back to the single `swapVenue` of older configs. */
 export const venuesFromConfig = (config: { swapVenues?: NamedSwapVenue[]; swapVenue?: SwapVenue }): NamedSwapVenue[] => {
@@ -172,6 +176,6 @@ export const venuesFromConfig = (config: { swapVenues?: NamedSwapVenue[]; swapVe
     return config.swapVenues;
   }
   return config.swapVenue
-    ? [{ name: DEFAULT_VENUE_NAME, listedAddress: config.swapVenue.venueAddress, venue: config.swapVenue }]
+    ? [{ name: DEFAULT_VENUE_NAME, listedAddress: listedAddressOf(config.swapVenue), venue: config.swapVenue }]
     : [];
 };

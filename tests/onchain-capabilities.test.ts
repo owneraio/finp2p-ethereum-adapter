@@ -214,6 +214,12 @@ describe("venuesFromConfig", () => {
     expect(venues.map((v) => [v.name, v.listedAddress, v.venue])).toEqual([["AllowanceSwap", VENUE_A, single]]);
   });
 
+  test("a single venue with a swap contract of its own is listed under that contract", () => {
+    const single = { swapAddress: VENUE_B, venueAddress: VENUE_A } as any;
+    const venues = venuesFromConfig({ swapVenue: single });
+    expect(venues.map((v) => [v.listedAddress, v.venue])).toEqual([[VENUE_B, single]]);
+  });
+
   test("a config without venues lists none", () => {
     expect(venuesFromConfig({})).toEqual([]);
   });

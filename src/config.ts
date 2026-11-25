@@ -72,7 +72,7 @@ export type AppConfig = FinP2PContractAppConfig | FireblocksAppConfig | DfnsAppC
 export { getNetworkRpcUrl, localSubmitRpcUrl } from './network-host';
 import { getNetworkRpcUrl } from './network-host';
 
-export { detectSwapVenues, detectSwapVenue } from './swap-venues';
+export { detectSwapVenues } from './swap-venues';
 import { detectSwapVenues, NamedSwapVenue, withoutPermit2Venues } from './swap-venues';
 import { RecoveringNonceManager } from './nonce-recovery';
 
