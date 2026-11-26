@@ -1,4 +1,4 @@
-import { Interface, JsonRpcProvider, NonceManager, Provider, Signer, Wallet, ZeroAddress, isAddress, keccak256, toUtf8Bytes } from "ethers";
+import { Interface, JsonRpcProvider, Provider, Signer, Wallet, ZeroAddress, keccak256, toUtf8Bytes } from "ethers";
 import process from "process";
 import { FinP2PContract } from '@owneraio/finp2p-ethereum-orchestrator'
 import { FinP2PClient } from '@owneraio/finp2p-client'
@@ -9,7 +9,6 @@ import { InMemoryExecDetailsStore } from './services/onchain'
 import { FireblocksAppConfig, createFireblocksAppConfig } from './integrations/custody/fireblocks/config'
 import { DfnsAppConfig, createDfnsAppConfig } from './integrations/custody/dfns/config'
 import { SwapVenue } from '@owneraio/finp2p-ethereum-adapter-contract'
-import { AllowanceSwapVenue } from '@owneraio/finp2p-ethereum-allowance-swap'
 
 export const DEFAULT_ASSET_STANDARD_ERC20 = keccak256(toUtf8Bytes("ERC20"));
 
@@ -44,6 +43,9 @@ export type BaseAppConfig = {
   accountMappingType: AccountMappingType
   accountModel: AccountModel
   swapVenue?: SwapVenue
+  swapVenues?: NamedSwapVenue[]
+  /** Report asset capabilities on create and through getCapabilities. Off by default. */
+  reportCapabilities?: boolean
 }
 
 export type FinP2PContractAppConfig = BaseAppConfig & {
@@ -70,16 +72,9 @@ export type AppConfig = FinP2PContractAppConfig | FireblocksAppConfig | DfnsAppC
 export { getNetworkRpcUrl, localSubmitRpcUrl } from './network-host';
 import { getNetworkRpcUrl } from './network-host';
 
-export const detectSwapVenue = (env: NodeJS.ProcessEnv = process.env): SwapVenue | undefined => {
-  const allowanceSwapAddress = env.FINP2P_ETHEREUM_ALLOWANCE_SWAP_ADDRESS;
-  if (allowanceSwapAddress) {
-    if (!isAddress(allowanceSwapAddress)) {
-      throw new Error(`Invalid FINP2P_ETHEREUM_ALLOWANCE_SWAP_ADDRESS: '${allowanceSwapAddress}' is not an Ethereum address`);
-    }
-    return new AllowanceSwapVenue(allowanceSwapAddress);
-  }
-  return undefined;
-};
+export { detectSwapVenues } from './swap-venues';
+import { detectSwapVenues, NamedSwapVenue, withoutPermit2Venues } from './swap-venues';
+import { RecoveringNonceManager } from './nonce-recovery';
 
 export const createJsonProvider = (
   operatorPrivateKey: string, ethereumRPCUrl: string, useNonceManager: boolean = true
@@ -87,7 +82,7 @@ export const createJsonProvider = (
   const provider = new JsonRpcProvider(ethereumRPCUrl);
   let signer: Signer;
   if (useNonceManager) {
-    signer = new NonceManager(new Wallet(operatorPrivateKey)).connect(provider);
+    signer = new RecoveringNonceManager(new Wallet(operatorPrivateKey)).connect(provider);
   } else {
     signer = new Wallet(operatorPrivateKey).connect(provider);
   }
@@ -99,12 +94,20 @@ export async function envVarsToAppConfig(logger: Logger): Promise<AppConfig> {
   const configType = (process.env.PROVIDER_TYPE || 'finp2p-contract') as AppConfig['type']
   const accountMappingType = resolveAccountMappingType(process.env.ACCOUNT_MAPPING_TYPE)
   const accountModel = resolveAccountModel(process.env.ACCOUNT_MODEL)
-  const swapVenue = detectSwapVenue()
-  if (swapVenue) {
-    logger.info(`Swap venue ${swapVenue.constructor.name} configured at ${swapVenue.venueAddress} — swap functionality enabled`);
+  const warn = (message: string) => logger.warning(message)
+  const detectedVenues = detectSwapVenues(process.env, warn)
+  const swapVenues = configType === 'finp2p-contract' ? withoutPermit2Venues(detectedVenues, warn) : detectedVenues
+  const swapVenue = swapVenues[0]?.venue
+  if (swapVenues.length > 0) {
+    swapVenues.forEach(({ name, venue, listedAddress }) => {
+      logger.info(`Swap venue ${name} (${venue.constructor.name}) configured at ${listedAddress}`);
+    });
+    logger.info('Swap functionality enabled');
   } else {
-    logger.info('No swap venue configured — swap functionality is disabled');
+    logger.info('No swap venue configured: swap functionality is disabled');
   }
+  const reportCapabilities = process.env.ASSET_CAPABILITIES_ENABLED === 'true'
+  logger.info(`Asset capabilities reporting ${reportCapabilities ? 'enabled' : 'disabled'}`);
 
   switch (configType) {
     case 'finp2p-contract': {
@@ -202,13 +205,15 @@ export async function envVarsToAppConfig(logger: Logger): Promise<AppConfig> {
         execDetailsStore,
         defaultAssetStandard: defaultAssetStandardRaw,
         swapVenue,
+        swapVenues,
+        reportCapabilities,
       }
     }
     case 'fireblocks': {
-      return { ...await createFireblocksAppConfig(), accountMappingType, accountModel, swapVenue }
+      return { ...await createFireblocksAppConfig(), accountMappingType, accountModel, swapVenue, swapVenues, reportCapabilities }
     }
     case 'dfns': {
-      return { ...await createDfnsAppConfig(), accountMappingType, accountModel, swapVenue }
+      return { ...await createDfnsAppConfig(), accountMappingType, accountModel, swapVenue, swapVenues, reportCapabilities }
     }
     default: {
       // For registry-based providers: the provider factory reads its own env vars.
@@ -221,6 +226,8 @@ export async function envVarsToAppConfig(logger: Logger): Promise<AppConfig> {
         accountMappingType,
         accountModel,
         swapVenue,
+        swapVenues,
+        reportCapabilities,
       } as CustodyAppConfig;
     }
   }

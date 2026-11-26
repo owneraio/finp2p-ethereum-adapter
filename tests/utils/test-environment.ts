@@ -250,6 +250,7 @@ class CustomTestEnvironment extends NodeEnvironment {
         accountModel: 'segregated',
         finP2PContract,
         execDetailsStore,
+        reportCapabilities: true,
       },
       connectionString,
     );

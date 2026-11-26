@@ -10,13 +10,21 @@ module.exports = {
   "testMatch": [
     "<rootDir>/tests/operation-context.test.+(ts|tsx|js)",
     "<rootDir>/tests/custody-redeem.test.+(ts|tsx|js)",
+    "<rootDir>/tests/custody-contract.test.+(ts|tsx|js)",
     "<rootDir>/tests/onchain-redeem.test.+(ts|tsx|js)",
     "<rootDir>/tests/token-standard-registry.test.+(ts|tsx|js)",
     "<rootDir>/tests/ethereum-standards.test.+(ts|tsx|js)",
     "<rootDir>/tests/token-whitelisting.test.+(ts|tsx|js)",
     "<rootDir>/tests/wallet-activation.test.+(ts|tsx|js)",
     "<rootDir>/tests/network-accounts.test.+(ts|tsx|js)",
-    "<rootDir>/tests/custody-provider.test.+(ts|tsx|js)"
+    "<rootDir>/tests/custody-provider.test.+(ts|tsx|js)",
+    "<rootDir>/tests/local-custody-provider.test.+(ts|tsx|js)",
+    "<rootDir>/tests/custody-capabilities.test.+(ts|tsx|js)",
+    "<rootDir>/tests/custody-swap-foreign-asset.test.+(ts|tsx|js)",
+    "<rootDir>/tests/onchain-capabilities.test.+(ts|tsx|js)",
+    "<rootDir>/tests/nonce-recovery.test.+(ts|tsx|js)",
+    "<rootDir>/tests/permit2-swap-config.test.+(ts|tsx|js)",
+    "<rootDir>/tests/swap-deadline.test.+(ts|tsx|js)"
   ],
   "transform": {
     "^.+\\.(ts|tsx)$": "ts-jest"

@@ -49,6 +49,7 @@ import { registerCustodyIntegrations, registerIntegrations } from "./integration
 import { pooledProvider, pooledSigner } from "./integrations/signer-pool";
 import { buildCustodyPlanApprovalService } from "./services/plan-approval";
 import { AppConfig, FinP2PContractAppConfig, getNetworkRpcUrl, localSubmitRpcUrl } from "./config";
+import { venuesFromConfig } from "./swap-venues";
 
 // Register compiled-in custody providers; token standards are registered per-network in registerIntegrations.
 registerCustodyIntegrations();
@@ -135,7 +136,7 @@ async function registerCustodyServices(
   const issuerWallet = assetIssuerKey
     ? { provider: readProvider, signer: pooledSigner(localSubmitRpcUrl('ASSET_ISSUER_PRIVATE_KEY'), assetIssuerKey) }
     : undefined;
-  let tokenService: CustodyTokenService = new CustodyTokenService(logger, custodyProvider, escrowWallet, readProvider, accountMapping, assetStore, issuerWallet, appConfig.swapVenue);
+  let tokenService: CustodyTokenService = new CustodyTokenService(logger, custodyProvider, escrowWallet, readProvider, accountMapping, assetStore, issuerWallet, venuesFromConfig(appConfig), appConfig.reportCapabilities ?? false);
   const commonService = new DirectCommonServiceImpl(workflowStorage);
   const planApprovalService = buildCustodyPlanApprovalService(
     appConfig.orgId, finP2PClient,
@@ -163,7 +164,7 @@ function registerFinP2PContractServices(
   }
   const proxiedNetworkAccountService = wrapWithWorkflowProxy(networkAccountService, workflowStorage, finP2PClient, 'createAccount', 'removeAccount');
   let planApprovalService = new PlanApprovalServiceImpl(contractConfig.orgId, pluginManager, contractConfig.finP2PClient);
-  const tokenService = new OnChainTokenService(contractConfig.finP2PContract, contractConfig.finP2PClient, contractConfig.execDetailsStore, contractConfig.proofProvider, pluginManager, contractConfig.defaultAssetStandard, contractConfig.swapVenue);
+  const tokenService = new OnChainTokenService(contractConfig.finP2PContract, contractConfig.finP2PClient, contractConfig.execDetailsStore, contractConfig.proofProvider, pluginManager, contractConfig.defaultAssetStandard, venuesFromConfig(contractConfig), contractConfig.reportCapabilities ?? false);
   const mappingService = new CredentialsMappingService(contractConfig.finP2PContract, walletResolutionMode);
   const mappingConfig = buildMappingConfig();
 

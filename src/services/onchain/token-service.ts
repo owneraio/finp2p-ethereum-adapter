@@ -1,7 +1,7 @@
 import {
-  Asset, AssetCreationStatus, EIP712Template, Balance, TokenService, EscrowService,
+  Asset, AssetCreationStatus, InstructionCapability, EIP712Template, Balance, TokenService, EscrowService,
   CommonService, HealthService, OperationStatus,
-  failedAssetCreation, successfulAssetCreation,
+  AssetNotFoundError, failedAssetCreation, successfulAssetCreation,
   failedReceiptOperation, successfulReceiptOperation,
   AssetBind, AssetDenomination, AssetCreationResult, Destination, ExecutionContext,
   Receipt, ReceiptOperation, Source, Signature, SwapLeg, SwapOperation,
@@ -15,7 +15,7 @@ import {
   assetTypeFromString,
   EthereumTransactionError,
   ValidationError,
-  term, isEthereumAddress
+  term, isEthereumAddress, resetSignerNonce
 } from "@owneraio/finp2p-ethereum-orchestrator";
 import { FinP2PClient } from "@owneraio/finp2p-client";
 
@@ -23,6 +23,9 @@ import { ExecDetailsStore } from "./exec-details-store";
 import { mapReceiptOperation } from "./mapping";
 import { emptyOperationParams, extractBusinessDetails, validateRequest } from "./helpers";
 import { validateSwapWallets } from "../accounts";
+import { NamedSwapVenue, checksOwnDeadline, settleSwaps } from "../../swap-venues";
+import { deployERC20WithRecovery } from "../../nonce-recovery";
+import { OperatorInstruction, onChainCapabilities, operatorContractError, pickVenue } from "./capabilities";
 
 const DefaultDecimals = 2;
 
@@ -66,8 +69,61 @@ export class OnChainTokenService implements TokenService, EscrowService, CommonS
     readonly proofProvider: ProofProvider | undefined,
     readonly pluginManager: PluginManager | undefined,
     readonly defaultAssetStandard: string | undefined = undefined,
-    readonly swapVenue: SwapVenue | undefined = undefined,
-  ) {}
+    readonly swapVenues: NamedSwapVenue[] = [],
+    reportCapabilities: boolean = false,
+  ) {
+    if (reportCapabilities) {
+      this.getCapabilities = (asset) => this.assetCapabilities(asset);
+    }
+  }
+
+  /** Set only when capability reporting is enabled; the route answers 501 otherwise. */
+  getCapabilities?: (asset: Asset) => Promise<InstructionCapability[]>;
+
+  /** The default venue: the first configured one. */
+  get swapVenue(): SwapVenue | undefined {
+    return this.swapVenues[0]?.venue;
+  }
+
+  private chainIdPromise: Promise<bigint> | undefined;
+
+  /** The chain id is read once; a failed read is not cached. */
+  private chainId(): Promise<bigint> {
+    if (!this.chainIdPromise) {
+      this.chainIdPromise = this.finP2PContract.provider.getNetwork().then(({ chainId }) => chainId).catch((e) => {
+        this.chainIdPromise = undefined;
+        throw e;
+      });
+    }
+    return this.chainIdPromise;
+  }
+
+  private async operatorContractFailure(instruction: OperatorInstruction, exCtx: ExecutionContext | undefined): Promise<ReceiptOperation | undefined> {
+    if (exCtx?.contract === undefined) {
+      return undefined;
+    }
+    let chainId: bigint;
+    try {
+      chainId = await this.chainId();
+    } catch (e) {
+      logger.error(`Cannot read the chain id to check the requested contract for ${instruction}: ${e}`);
+      return failedReceiptOperation(1, `cannot check the requested contract ${exCtx.contract}: the chain id could not be read: ${e}`);
+    }
+    const error = operatorContractError(instruction, exCtx, this.finP2PContract.finP2PContractAddress, chainId);
+    return error === undefined ? undefined : failedReceiptOperation(1, error);
+  }
+
+  private async assetCapabilities(asset: Asset): Promise<InstructionCapability[]> {
+    try {
+      await this.finP2PContract.getAssetAddress(asset.assetId);
+    } catch (e) {
+      if (/Asset not found/.test(e instanceof Error ? e.message : String(e))) {
+        throw new AssetNotFoundError(`asset ${asset.assetId} not found`);
+      }
+      throw e;
+    }
+    return onChainCapabilities(await this.chainId(), this.finP2PContract.finP2PContractAddress, this.swapVenues);
+  }
 
   private operatorWallet(): TokenWallet {
     return { provider: this.finP2PContract.provider, signer: this.finP2PContract.signer };
@@ -119,7 +175,7 @@ export class OnChainTokenService implements TokenService, EscrowService, CommonS
         return failedAssetCreation(LEDGER_BINDING_NOT_SUPPORTED,
           `unsupported ledger network '${assetBind.network}', only ${supportedNetwork} is supported`);
       }
-      tokenAddress = await this.finP2PContract.deployERC20(assetId, assetId, DefaultDecimals, this.finP2PContract.finP2PContractAddress);
+      tokenAddress = await deployERC20WithRecovery(this.finP2PContract, assetId, assetId, DefaultDecimals, this.finP2PContract.finP2PContractAddress);
       allowanceRequired = false;
       logger.debug(`Deployed new token ${tokenAddress} for asset ${assetId}`);
     }
@@ -154,12 +210,15 @@ export class OnChainTokenService implements TokenService, EscrowService, CommonS
           finP2POperatorContractAddress,
           allowanceRequired
         }
-      }
+      },
+      ...(this.getCapabilities ? { capabilities: onChainCapabilities(chainId, finP2POperatorContractAddress, this.swapVenues) } : {}),
     };
     return successfulAssetCreation(result);
   }
 
   public async issue(idempotencyKey: string, asset: Asset, destination: Destination, quantity: string, exCtx: ExecutionContext): Promise<ReceiptOperation> {
+    const refused = await this.operatorContractFailure("INSTRUCTION_ISSUE", exCtx);
+    if (refused) return refused;
     const issuerFinId = destination.finId;
     try {
       await this.ensureCredential(issuerFinId);
@@ -181,6 +240,8 @@ export class OnChainTokenService implements TokenService, EscrowService, CommonS
   public async transfer(idempotencyKey: string, nonce: string, source: Source, destination: Destination, ast: Asset,
                         quantity: string, signature: Signature, exCtx: ExecutionContext
   ): Promise<ReceiptOperation> {
+    const refused = await this.operatorContractFailure("INSTRUCTION_TRANSFER", exCtx);
+    if (refused) return refused;
     const { signature: sgn, template } = signature;
     if (template.type != "EIP712") {
       throw new ValidationError(`Unsupported signature template type: ${template.type}`);
@@ -212,6 +273,8 @@ export class OnChainTokenService implements TokenService, EscrowService, CommonS
   public async redeem(idempotencyKey: string, nonce: string, source: Source, asset: Asset, quantity: string, operationId: string | undefined,
     signature: Signature, exCtx: ExecutionContext
   ): Promise<ReceiptOperation> {
+    const refused = await this.operatorContractFailure("INSTRUCTION_REDEEM", exCtx);
+    if (refused) return refused;
     try {
       await this.ensureCredential(source.finId);
       const transactionReceipt = operationId
@@ -258,10 +321,29 @@ export class OnChainTokenService implements TokenService, EscrowService, CommonS
     return parseUnits(quantity, await erc20.decimals());
   }
 
+  /**
+   * A venue returns a failed swap as a result, so a failure after the send
+   * never reaches the signer as a send error. A failed or thrown leg resets
+   * the signer's nonce here. Both legs finish before the reset, so one never
+   * resets under the other.
+   */
+  private async venueSwapAll(swapVenue: SwapVenue, intents: SwapIntent[]) {
+    const results = await settleSwaps(intents.map((intent) => () => swapVenue.swap(this.operatorWallet(), intent, spiLogger)));
+    if (results.some((result) => result.status === "failure")) {
+      resetSignerNonce(this.finP2PContract.signer);
+    }
+    return results;
+  }
+
+  private async venueSwap(swapVenue: SwapVenue, intent: SwapIntent) {
+    const [result] = await this.venueSwapAll(swapVenue, [intent]);
+    return result;
+  }
+
   private async swapViaVenue(swapVenue: SwapVenue, operationId: string, assetLeg: SwapLeg,
                              settlementLeg: SwapLeg, deadline: number, exCtx: ExecutionContext | undefined): Promise<SwapOperation> {
     const intent = await this.toSwapIntent(operationId, assetLeg, settlementLeg, deadline);
-    const submission = await swapVenue.swap(this.operatorWallet(), intent, spiLogger);
+    const submission = await this.venueSwap(swapVenue, intent);
     if (submission.status === "failure") {
       return failedSwapOperation(1, submission.reason);
     }
@@ -283,8 +365,12 @@ export class OnChainTokenService implements TokenService, EscrowService, CommonS
       return failedSwapOperation(1, `numberOfReceipts must be 1 or 2, got ${numberOfReceipts}`);
     }
     try {
-      if (!this.swapVenue) {
+      if (this.swapVenues.length === 0) {
         return failedSwapOperation(1, "Swap is not supported: no swap venue is configured");
+      }
+      const picked = pickVenue(exCtx, this.swapVenues, await this.chainId());
+      if ("error" in picked) {
+        return failedSwapOperation(1, picked.error);
       }
       if (!operationId) {
         return failedSwapOperation(1, "operationId is required");
@@ -292,7 +378,7 @@ export class OnChainTokenService implements TokenService, EscrowService, CommonS
       if (!assetLeg.signature) {
         return failedSwapOperation(1, "asset leg signature is required");
       }
-      if (deadline && deadline <= Math.floor(Date.now() / 1000)) {
+      if (deadline && !checksOwnDeadline(picked.venue) && deadline <= Math.floor(Date.now() / 1000)) {
         return failedSwapOperation(1, `swap deadline ${deadline} has already passed`);
       }
       if (assetLeg.destination.finId !== settlementLeg.source.finId) {
@@ -313,7 +399,7 @@ export class OnChainTokenService implements TokenService, EscrowService, CommonS
         return failedSwapOperation(1, `settlement destination wallet ${destinationWallet} does not match the registered credential ${ourWallet} the swap settles to`);
       }
 
-      return await this.swapViaVenue(this.swapVenue, operationId, assetLeg, settlementLeg, deadline, exCtx);
+      return await this.swapViaVenue(picked.venue, operationId, assetLeg, settlementLeg, deadline, exCtx);
     } catch (e) {
       logger.error(`Error on swap: ${e}`);
       if (e instanceof EthereumTransactionError || e instanceof ValidationError) {
@@ -326,10 +412,7 @@ export class OnChainTokenService implements TokenService, EscrowService, CommonS
   private async swapBothLegsViaVenue(swapVenue: SwapVenue, operationId: string, asset: SwapLeg,
                                      settlement: SwapLeg, deadline: number, exCtx: ExecutionContext | undefined): Promise<SwapOperation> {
     const intent = await this.toSwapIntent(operationId, asset, settlement, deadline);
-    const [assetSubmission, settlementSubmission] = await Promise.all([
-      swapVenue.swap(this.operatorWallet(), intent, spiLogger),
-      swapVenue.swap(this.operatorWallet(), mirrored(intent), spiLogger),
-    ]);
+    const [assetSubmission, settlementSubmission] = await this.venueSwapAll(swapVenue, [intent, mirrored(intent)]);
     if (assetSubmission.status === "failure") {
       return failedSwapOperation(1, assetSubmission.reason);
     }
@@ -351,8 +434,12 @@ export class OnChainTokenService implements TokenService, EscrowService, CommonS
   private async swapBothLegs(operationId: string, asset: SwapLeg,
                              settlement: SwapLeg, deadline: number, exCtx: ExecutionContext | undefined): Promise<SwapOperation> {
     try {
-      if (!this.swapVenue) {
+      if (this.swapVenues.length === 0) {
         return failedSwapOperation(1, "Swap is not supported: no swap venue is configured");
+      }
+      const picked = pickVenue(exCtx, this.swapVenues, await this.chainId());
+      if ("error" in picked) {
+        return failedSwapOperation(1, picked.error);
       }
       if (!operationId) {
         return failedSwapOperation(1, "operationId is required");
@@ -363,7 +450,7 @@ export class OnChainTokenService implements TokenService, EscrowService, CommonS
       if (!settlement.signature) {
         return failedSwapOperation(1, "settlement leg signature is required");
       }
-      if (deadline && deadline <= Math.floor(Date.now() / 1000)) {
+      if (deadline && !checksOwnDeadline(picked.venue) && deadline <= Math.floor(Date.now() / 1000)) {
         return failedSwapOperation(1, `swap deadline ${deadline} has already passed`);
       }
       if (asset.destination.finId !== settlement.source.finId) {
@@ -375,7 +462,7 @@ export class OnChainTokenService implements TokenService, EscrowService, CommonS
       const { chainId } = await this.finP2PContract.provider.getNetwork();
       validateSwapWallets(asset, settlement, chainId);
 
-      return await this.swapBothLegsViaVenue(this.swapVenue, operationId, asset, settlement, deadline, exCtx);
+      return await this.swapBothLegsViaVenue(picked.venue, operationId, asset, settlement, deadline, exCtx);
     } catch (e) {
       logger.error(`Error on swap (both legs): ${e}`);
       if (e instanceof EthereumTransactionError || e instanceof ValidationError) {
@@ -403,6 +490,8 @@ export class OnChainTokenService implements TokenService, EscrowService, CommonS
   public async hold(idempotencyKey: string, nonce: string, source: Source, destination: Destination | undefined, ast: Asset,
     quantity: string, sgn: Signature, operationId: string, exCtx: ExecutionContext
   ): Promise<ReceiptOperation> {
+    const refused = await this.operatorContractFailure("INSTRUCTION_HOLD", exCtx);
+    if (refused) return refused;
     const { signature, template } = sgn;
     if (template.type != "EIP712") {
       throw new ValidationError(`Unsupported signature template type: ${template.type}`);
@@ -436,6 +525,8 @@ export class OnChainTokenService implements TokenService, EscrowService, CommonS
   }
 
   public async release(idempotencyKey: string, source: Source, destination: Destination, asset: Asset, quantity: string, operationId: string, exCtx: ExecutionContext | undefined): Promise<ReceiptOperation> {
+    const refused = await this.operatorContractFailure("INSTRUCTION_RELEASE", exCtx);
+    if (refused) return refused;
     try {
       await this.ensureCredential(source.finId);
       await this.ensureCredential(destination.finId);
@@ -459,6 +550,8 @@ export class OnChainTokenService implements TokenService, EscrowService, CommonS
 
   public async rollback(idempotencyKey: string, source: Source, asset: Asset, quantity: string, operationId: string, exCtx: ExecutionContext | undefined
   ): Promise<ReceiptOperation> {
+    const refused = await this.operatorContractFailure("INSTRUCTION_REVERT_HOLD", exCtx);
+    if (refused) return refused;
     try {
       await this.ensureCredential(source.finId);
       const transactionReceipt = await this.finP2PContract.releaseBack(operationId, emptyOperationParams());

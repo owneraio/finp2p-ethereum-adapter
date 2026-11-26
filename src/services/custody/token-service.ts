@@ -1,12 +1,14 @@
 import {
-  Asset, AssetBind, AssetCreationStatus, AssetDenomination,
+  Asset, AssetBind, AssetCreationStatus, AssetDenomination, AssetNotFoundError, InstructionCapability,
   Balance, Destination, ExecutionContext, HealthService, OperationType, Receipt,
   ReceiptOperation, Signature, Source, SwapLeg, SwapOperation, TokenService, EscrowService,
   failedReceiptOperation, failedAssetCreation, failedSwapOperation,
   successfulSwapOperation
 } from '@owneraio/finp2p-nodejs-skeleton-adapter';
+import { contractUnavailable, custodyCapabilities, pickVenue } from '../onchain/capabilities';
+import { NamedSwapVenue, checksOwnDeadline, settleSwaps } from '../../swap-venues';
 import winston from 'winston';
-import { parseUnits, Provider, Signer, Wallet, ZeroAddress } from "ethers";
+import { isAddress, parseUnits, Provider, Signer, Wallet, ZeroAddress } from "ethers";
 import { AssetRecord, ReleaseType, TokenOperationResult, SwapIntent, SwapVenue, mirrored } from '@owneraio/finp2p-ethereum-adapter-contract';
 import { CustodyProvider, CustodyWallet } from './custody-provider';
 import { AccountResolver, AssetStore, ledgerAccountAddress, validateSwapWallets } from "../accounts";
@@ -91,10 +93,60 @@ export class CustodyTokenService implements TokenService, EscrowService, HealthS
     // not configured: deploy/issue then fail closed instead of stranding assets
     // behind a throwaway signer.
     readonly issuerWallet: CustodyWallet | undefined,
-    readonly swapVenue?: SwapVenue,
-  ) {}
+    // configured swap venues, the first is the default; empty disables swap
+    readonly swapVenues: NamedSwapVenue[] = [],
+    reportCapabilities: boolean = false,
+  ) {
+    if (reportCapabilities) {
+      this.getCapabilities = (asset) => this.assetCapabilities(asset);
+    }
+  }
+
+  /** Set only when capability reporting is enabled; the route answers 501 otherwise. */
+  getCapabilities?: (asset: Asset) => Promise<InstructionCapability[]>;
 
   private readSigner?: Signer;
+
+  private capabilities(chainId: bigint): InstructionCapability[] {
+    return custodyCapabilities(chainId, { issuer: this.issuerWallet !== undefined, escrow: this.escrowWallet !== undefined }, this.swapVenues);
+  }
+
+  private reportedCapabilities(chainId: bigint): { capabilities?: InstructionCapability[] } {
+    return this.getCapabilities ? { capabilities: this.capabilities(chainId) } : {};
+  }
+
+  private async assetCapabilities(asset: Asset): Promise<InstructionCapability[]> {
+    if (await this.assetStore.getAsset(asset.assetId) === undefined) {
+      throw new AssetNotFoundError(`asset ${asset.assetId} not found`);
+    }
+    const { chainId } = await this.readProvider.getNetwork();
+    return this.capabilities(chainId);
+  }
+
+  /**
+   * Custody providers list no contracts, so a requested contract is refused
+   * before any chain call.
+   */
+  private refuseContract(instruction: string, exCtx: ExecutionContext | undefined): ReceiptOperation | undefined {
+    return exCtx?.contract === undefined ? undefined : failedReceiptOperation(1, contractUnavailable(exCtx.contract, instruction));
+  }
+
+  /**
+   * The venue for a swap: the one whose listed address the request names, the
+   * default when it names none, or an error before any chain call. A venue of
+   * undefined means none is configured.
+   */
+  private async pickSwapVenue(exCtx: ExecutionContext | undefined): Promise<{ venue: SwapVenue | undefined } | { error: string }> {
+    const requested = exCtx?.contract;
+    if (requested === undefined) return { venue: this.swapVenues[0]?.venue };
+    if (this.swapVenues.length === 0) return { error: contractUnavailable(requested, 'SWAP') };
+    try {
+      const { chainId } = await this.readProvider.getNetwork();
+      return pickVenue(exCtx, this.swapVenues, chainId);
+    } catch (e) {
+      return { error: `${e}` };
+    }
+  }
 
   private requireEscrow(): CustodyWallet {
     if (!this.escrowWallet) throw new Error('No escrow wallet configured — set ASSET_ESCROW_CUSTODY_ACCOUNT_ID to enable hold/release/rollback and escrow-backed redeem');
@@ -200,7 +252,7 @@ export class CustodyTokenService implements TokenService, EscrowService, HealthS
       return {
         operation: "createAsset",
         type: "success",
-        result: { ledgerIdentifier: { assetIdentifierType: 'CAIP-19', network: defaultNetwork, tokenId: result.contractAddress, standard: result.tokenStandard }, reference: undefined }
+        result: { ledgerIdentifier: { assetIdentifierType: 'CAIP-19', network: defaultNetwork, tokenId: result.contractAddress, standard: result.tokenStandard }, reference: undefined, ...this.reportedCapabilities(chainId) }
       };
     } else {
       this.logger.info(`createAsset: bind path — assetId=${assetId} standard=${requestedStandard} tokenAddress=${tokenAddress} network=${assetBind.network ?? defaultNetwork}`);
@@ -221,7 +273,7 @@ export class CustodyTokenService implements TokenService, EscrowService, HealthS
       return {
         operation: "createAsset",
         type: "success",
-        result: { ledgerIdentifier: { assetIdentifierType: 'CAIP-19', network: assetBind.network || defaultNetwork, tokenId: tokenAddress, standard: requestedStandard }, reference: undefined }
+        result: { ledgerIdentifier: { assetIdentifierType: 'CAIP-19', network: assetBind.network || defaultNetwork, tokenId: tokenAddress, standard: requestedStandard }, reference: undefined, ...this.reportedCapabilities(chainId) }
       };
     }
   }
@@ -246,6 +298,8 @@ export class CustodyTokenService implements TokenService, EscrowService, HealthS
     idempotencyKey: string, ast: Asset, destination: Destination, quantity: string,
     exCtx: ExecutionContext | undefined
   ): Promise<ReceiptOperation> {
+    const refused = this.refuseContract('ISSUE', exCtx);
+    if (refused) return refused;
     try {
       const asset = await this.assetRecord(ast.assetId);
       const standard = tokenStandardRegistry.resolve(asset.tokenStandard);
@@ -269,6 +323,8 @@ export class CustodyTokenService implements TokenService, EscrowService, HealthS
     ast: Asset, quantity: string, signature: Signature,
     exCtx: ExecutionContext | undefined
   ): Promise<ReceiptOperation> {
+    const refused = this.refuseContract('TRANSFER', exCtx);
+    if (refused) return refused;
     try {
       const asset = await this.assetRecord(ast.assetId);
       const standard = tokenStandardRegistry.resolve(asset.tokenStandard);
@@ -289,10 +345,46 @@ export class CustodyTokenService implements TokenService, EscrowService, HealthS
     }
   }
 
+  /**
+   * A swap leg's token and decimals. In a cross-org swap one leg's asset may
+   * live only on the counterparty's adapter, so a leg with no DB row falls
+   * back to the token address in its ledger identifier and reads decimals from chain.
+   */
+  private async swapLegRecord(leg: SwapLeg): Promise<{ contractAddress: string; decimals: number }> {
+    const { assetId, ledgerIdentifier } = leg.asset;
+    const dbAsset = await this.assetStore.getAsset(assetId);
+    if (dbAsset !== undefined) return { contractAddress: dbAsset.contract_address, decimals: dbAsset.decimals };
+    const tokenId = ledgerIdentifier?.tokenId;
+    if (!tokenId || !isAddress(tokenId)) {
+      throw new Error(`Asset ${assetId} is not registered in DB and its ledger identifier carries no token address to read decimals from`);
+    }
+    await this.requireOwnNetwork(assetId, ledgerIdentifier.network);
+    const requested = ledgerIdentifier.standard;
+    const standard = tokenStandardRegistry.resolve(requested && tokenStandardRegistry.has(requested) ? requested : ERC20_TOKEN_STANDARD);
+    return { contractAddress: tokenId, decimals: await standard.decimals(this.readProvider, tokenId, this.logger) };
+  }
+
+  /**
+   * A token address read from a ledger identifier is only meaningful on its own
+   * network. An identifier that names another network, or one that is not
+   * `eip155:<id>`, is refused; an identifier with no network is taken as ours.
+   */
+  private async requireOwnNetwork(assetId: string, network: string | undefined): Promise<void> {
+    if (network === undefined) return;
+    const { chainId } = await this.readProvider.getNetwork();
+    const match = /^eip155:(\d+)$/.exec(network);
+    if (!match) {
+      throw new Error(`Asset ${assetId} ledger network '${network}' is not an eip155 network, so its token cannot be used on eip155:${chainId}`);
+    }
+    if (match[1] !== chainId.toString()) {
+      throw new Error(`Asset ${assetId} lives on ledger network '${network}', not on this adapter's chain eip155:${chainId}`);
+    }
+  }
+
   private async toSwapIntent(operationId: string, asset: SwapLeg, settlement: SwapLeg,
                              party: string, counterParty: string, deadline: number): Promise<SwapIntent> {
-    const assetRecord = await this.assetRecord(asset.asset.assetId);
-    const settlementRecord = await this.assetRecord(settlement.asset.assetId);
+    const assetRecord = await this.swapLegRecord(asset);
+    const settlementRecord = await this.swapLegRecord(settlement);
     return {
       operationId,
       give: { token: assetRecord.contractAddress, party, amount: parseUnits(asset.quantity, assetRecord.decimals) },
@@ -305,20 +397,23 @@ export class CustodyTokenService implements TokenService, EscrowService, HealthS
     idempotencyKey: string, nonce: string, operationId: string, asset: SwapLeg,
     settlement: SwapLeg, numberOfReceipts: number, deadline: number, exCtx: ExecutionContext | undefined
   ): Promise<SwapOperation> {
+    const picked = await this.pickSwapVenue(exCtx);
+    if ('error' in picked) return failedSwapOperation(1, picked.error);
+    const swapVenue = picked.venue;
     if (numberOfReceipts === 2) {
-      return this.swapBothLegs(operationId, asset, settlement, deadline, exCtx);
+      return this.swapBothLegs(swapVenue, operationId, asset, settlement, deadline, exCtx);
     }
     if (numberOfReceipts !== 1) {
       return failedSwapOperation(1, `numberOfReceipts must be 1 or 2, got ${numberOfReceipts}`);
     }
     try {
-      if (deadline && deadline <= Math.floor(Date.now() / 1000)) {
+      if (deadline && !checksOwnDeadline(swapVenue) && deadline <= Math.floor(Date.now() / 1000)) {
         return failedSwapOperation(1, `swap deadline ${deadline} has already passed`);
       }
       const { chainId } = await this.readProvider.getNetwork();
       const { approvalWallet, destinationWallet } = validateSwapWallets(asset, settlement, chainId);
 
-      if (!this.swapVenue) {
+      if (!swapVenue) {
         const approval = approvalWallet ?? await this.accountMapping.resolveAccount(asset.source.finId);
         if (!approval) return failedSwapOperation(1, `No wallet address for asset source ${asset.source.finId} — pass source.account or map the finId`);
         const to = destinationWallet ?? await this.accountMapping.resolveAccount(settlement.destination.finId);
@@ -348,7 +443,7 @@ export class CustodyTokenService implements TokenService, EscrowService, HealthS
       if (!counterParty) return failedSwapOperation(1, `No wallet address for settlement source ${settlement.source.finId} — pass source.account or map the finId`);
 
       const intent = await this.toSwapIntent(operationId, asset, settlement, resolved.address, counterParty, deadline);
-      const submission = await this.swapVenue.swap(resolved.wallet, intent, this.logger);
+      const submission = await swapVenue.swap(resolved.wallet, intent, this.logger);
       if (submission.status === 'failure') {
         return failedSwapOperation(1, submission.reason);
       }
@@ -363,14 +458,14 @@ export class CustodyTokenService implements TokenService, EscrowService, HealthS
   }
 
   private async swapBothLegs(
-    operationId: string, asset: SwapLeg,
+    swapVenue: SwapVenue | undefined, operationId: string, asset: SwapLeg,
     settlement: SwapLeg, deadline: number, exCtx: ExecutionContext | undefined
   ): Promise<SwapOperation> {
     try {
-      if (!this.swapVenue) {
+      if (!swapVenue) {
         return failedSwapOperation(1, 'Swap is not supported: no swap venue is configured');
       }
-      if (deadline && deadline <= Math.floor(Date.now() / 1000)) {
+      if (deadline && !checksOwnDeadline(swapVenue) && deadline <= Math.floor(Date.now() / 1000)) {
         return failedSwapOperation(1, `swap deadline ${deadline} has already passed`);
       }
       if (asset.destination.finId !== settlement.source.finId) {
@@ -389,9 +484,9 @@ export class CustodyTokenService implements TokenService, EscrowService, HealthS
 
       const intent = await this.toSwapIntent(operationId, asset, settlement, resolvedAsset.address, resolvedSettlement.address, deadline);
 
-      const [assetSubmission, settlementSubmission] = await Promise.all([
-        this.swapVenue.swap(resolvedAsset.wallet, intent, this.logger),
-        this.swapVenue.swap(resolvedSettlement.wallet, mirrored(intent), this.logger),
+      const [assetSubmission, settlementSubmission] = await settleSwaps([
+        () => swapVenue.swap(resolvedAsset.wallet, intent, this.logger),
+        () => swapVenue.swap(resolvedSettlement.wallet, mirrored(intent), this.logger),
       ]);
       if (assetSubmission.status === 'failure') {
         return failedSwapOperation(1, assetSubmission.reason);
@@ -418,6 +513,8 @@ export class CustodyTokenService implements TokenService, EscrowService, HealthS
     quantity: string, operationId: string | undefined, signature: Signature,
     exCtx: ExecutionContext | undefined
   ): Promise<ReceiptOperation> {
+    const refused = this.refuseContract('REDEEM', exCtx);
+    if (refused) return refused;
     try {
       const asset = await this.assetRecord(ast.assetId);
       const standard = tokenStandardRegistry.resolve(asset.tokenStandard);
@@ -459,6 +556,8 @@ export class CustodyTokenService implements TokenService, EscrowService, HealthS
     ast: Asset, quantity: string, signature: Signature, operationId: string,
     exCtx: ExecutionContext | undefined
   ): Promise<ReceiptOperation> {
+    const refused = this.refuseContract('HOLD', exCtx);
+    if (refused) return refused;
     try {
       const asset = await this.assetRecord(ast.assetId);
       const standard = tokenStandardRegistry.resolve(asset.tokenStandard);
@@ -480,6 +579,8 @@ export class CustodyTokenService implements TokenService, EscrowService, HealthS
     idempotencyKey: string, source: Source, destination: Destination, ast: Asset,
     quantity: string, operationId: string, exCtx: ExecutionContext | undefined
   ): Promise<ReceiptOperation> {
+    const refused = this.refuseContract('RELEASE', exCtx);
+    if (refused) return refused;
     try {
       const asset = await this.assetRecord(ast.assetId);
       const standard = tokenStandardRegistry.resolve(asset.tokenStandard);
@@ -502,6 +603,8 @@ export class CustodyTokenService implements TokenService, EscrowService, HealthS
     idempotencyKey: string, source: Source, ast: Asset, quantity: string,
     operationId: string, exCtx: ExecutionContext | undefined
   ): Promise<ReceiptOperation> {
+    const refused = this.refuseContract('REVERT_HOLD', exCtx);
+    if (refused) return refused;
     try {
       const asset = await this.assetRecord(ast.assetId);
       const standard = tokenStandardRegistry.resolve(asset.tokenStandard);

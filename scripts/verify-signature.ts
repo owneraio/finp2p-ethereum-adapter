@@ -8,10 +8,10 @@ import {
 } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import { Source, Destination } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import {
-  finIdToAddress,
   FinP2PContract,
   detectSigner
 } from "@owneraio/finp2p-ethereum-orchestrator";
+import { computeAddress } from "ethers";
 import winston, { format, transports } from "winston";
 import { extractBusinessDetails } from "../src/services/onchain/helpers";
 import console from "console";
@@ -82,7 +82,7 @@ const verifySignature = async (
   const { eip712PrimaryType: primaryType } = params;
   const signerFinId = detectSigner(params, buyerFinId, sellerFinId);
 
-  const signerAddress = finIdToAddress(signerFinId);
+  const signerAddress = computeAddress(`0x${signerFinId}`);
   const offChainHash = hashEIP712(chainId, verifyingContract, types, message);
   if (offChainHash === payloadHash) {
     logger.info("Off-chain hash matches payload hash");
