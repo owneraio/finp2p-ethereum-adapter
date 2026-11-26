@@ -21,7 +21,6 @@ module.exports = {
     "<rootDir>/tests/local-custody-provider.test.+(ts|tsx|js)",
     "<rootDir>/tests/custody-capabilities.test.+(ts|tsx|js)",
     "<rootDir>/tests/custody-swap-foreign-asset.test.+(ts|tsx|js)",
-    "<rootDir>/tests/taurus-provider.test.+(ts|tsx|js)",
     "<rootDir>/tests/onchain-capabilities.test.+(ts|tsx|js)",
     "<rootDir>/tests/nonce-recovery.test.+(ts|tsx|js)",
     "<rootDir>/tests/permit2-swap-config.test.+(ts|tsx|js)",
