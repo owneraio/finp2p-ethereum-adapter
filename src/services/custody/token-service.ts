@@ -8,7 +8,7 @@ import {
 import { contractUnavailable, custodyCapabilities, pickVenue } from '../onchain/capabilities';
 import { NamedSwapVenue } from '../../swap-venues';
 import winston from 'winston';
-import { parseUnits, Provider, Signer, Wallet, ZeroAddress } from "ethers";
+import { isAddress, parseUnits, Provider, Signer, Wallet, ZeroAddress } from "ethers";
 import { AssetRecord, ReleaseType, TokenOperationResult, SwapIntent, SwapVenue, mirrored } from '@owneraio/finp2p-ethereum-adapter-contract';
 import { CustodyProvider, CustodyWallet } from './custody-provider';
 import { AccountResolver, AssetStore, ledgerAccountAddress, validateSwapWallets } from "../accounts";
@@ -345,10 +345,28 @@ export class CustodyTokenService implements TokenService, EscrowService, HealthS
     }
   }
 
+  /**
+   * A swap leg's token and decimals. In a cross-org swap one leg's asset may
+   * live only on the counterparty's adapter, so a leg with no DB row falls
+   * back to the token address in its ledger identifier and reads decimals from chain.
+   */
+  private async swapLegRecord(leg: SwapLeg): Promise<{ contractAddress: string; decimals: number }> {
+    const { assetId, ledgerIdentifier } = leg.asset;
+    const dbAsset = await this.assetStore.getAsset(assetId);
+    if (dbAsset !== undefined) return { contractAddress: dbAsset.contract_address, decimals: dbAsset.decimals };
+    const tokenId = ledgerIdentifier?.tokenId;
+    if (!tokenId || !isAddress(tokenId)) {
+      throw new Error(`Asset ${assetId} is not registered in DB and its ledger identifier carries no token address to read decimals from`);
+    }
+    const requested = ledgerIdentifier.standard;
+    const standard = tokenStandardRegistry.resolve(requested && tokenStandardRegistry.has(requested) ? requested : ERC20_TOKEN_STANDARD);
+    return { contractAddress: tokenId, decimals: await standard.decimals(this.readProvider, tokenId, this.logger) };
+  }
+
   private async toSwapIntent(operationId: string, asset: SwapLeg, settlement: SwapLeg,
                              party: string, counterParty: string, deadline: number): Promise<SwapIntent> {
-    const assetRecord = await this.assetRecord(asset.asset.assetId);
-    const settlementRecord = await this.assetRecord(settlement.asset.assetId);
+    const assetRecord = await this.swapLegRecord(asset);
+    const settlementRecord = await this.swapLegRecord(settlement);
     return {
       operationId,
       give: { token: assetRecord.contractAddress, party, amount: parseUnits(asset.quantity, assetRecord.decimals) },
