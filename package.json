@@ -59,7 +59,7 @@
     "@owneraio/finp2p-ethereum-orchestrator": "0.28.28-nonce.1",
     "@owneraio/finp2p-ethereum-permit2-swap": "0.29.1-permit2.4",
     "@owneraio/finp2p-ethereum-trex-plugin": "^0.28.10",
-    "@owneraio/finp2p-nodejs-skeleton-adapter": "0.29.5-caps.1",
+    "@owneraio/finp2p-nodejs-skeleton-adapter": "0.29.8-caps.1",
     "@owneraio/finp2p-vanilla-service": "^0.29.1",
     "@types/node": "^24.10.1",
     "axios": "^1.1.3",
@@ -72,7 +72,7 @@
     "uuid": "^9.0.0"
   },
   "devDependencies": {
-    "@owneraio/adapter-tests": "0.29.2-caps.1",
+    "@owneraio/adapter-tests": "0.29.2-caps.3",
     "@testcontainers/postgresql": "^11.8.1",
     "@types/express": "^5.0.3",
     "@types/jest": "^29.2.0",
