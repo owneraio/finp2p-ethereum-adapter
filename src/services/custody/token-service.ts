@@ -5,7 +5,7 @@ import {
   failedReceiptOperation, failedAssetCreation, failedSwapOperation,
   successfulSwapOperation
 } from '@owneraio/finp2p-nodejs-skeleton-adapter';
-import { contractUnavailable, isRequestedContract } from '../onchain/capabilities';
+import { contractUnavailable, pickVenue } from '../onchain/capabilities';
 import { NamedSwapVenue } from '../../swap-venues';
 import winston from 'winston';
 import { parseUnits, Provider, Signer, Wallet, ZeroAddress } from "ethers";
@@ -93,14 +93,11 @@ export class CustodyTokenService implements TokenService, EscrowService, HealthS
     // not configured: deploy/issue then fail closed instead of stranding assets
     // behind a throwaway signer.
     readonly issuerWallet: CustodyWallet | undefined,
-    readonly namedSwapVenue?: NamedSwapVenue,
+    // configured swap venues, the first is the default; empty disables swap
+    readonly swapVenues: NamedSwapVenue[] = [],
   ) {}
 
   private readSigner?: Signer;
-
-  private get swapVenue(): SwapVenue | undefined {
-    return this.namedSwapVenue?.venue;
-  }
 
   /**
    * Custody providers list no contracts, so a requested contract is refused
@@ -110,19 +107,21 @@ export class CustodyTokenService implements TokenService, EscrowService, HealthS
     return exCtx?.contract === undefined ? undefined : failedReceiptOperation(1, contractUnavailable(exCtx.contract, instruction));
   }
 
-  /** Refuses a requested contract other than this service's own swap venue. */
-  private async refuseSwapContract(exCtx: ExecutionContext | undefined): Promise<SwapOperation | undefined> {
+  /**
+   * The venue for a swap: the one whose listed address the request names, the
+   * default when it names none, or an error before any chain call. A venue of
+   * undefined means none is configured.
+   */
+  private async pickSwapVenue(exCtx: ExecutionContext | undefined): Promise<{ venue: SwapVenue | undefined } | { error: string }> {
     const requested = exCtx?.contract;
-    if (requested === undefined) return undefined;
-    if (this.namedSwapVenue) {
-      try {
-        const { chainId } = await this.readProvider.getNetwork();
-        if (isRequestedContract(requested, chainId, this.namedSwapVenue.listedAddress)) return undefined;
-      } catch (e) {
-        return failedSwapOperation(1, `${e}`);
-      }
+    if (requested === undefined) return { venue: this.swapVenues[0]?.venue };
+    if (this.swapVenues.length === 0) return { error: contractUnavailable(requested, 'SWAP') };
+    try {
+      const { chainId } = await this.readProvider.getNetwork();
+      return pickVenue(exCtx, this.swapVenues, chainId);
+    } catch (e) {
+      return { error: `${e}` };
     }
-    return failedSwapOperation(1, contractUnavailable(requested, 'SWAP'));
   }
 
   private requireEscrow(): CustodyWallet {
@@ -338,10 +337,11 @@ export class CustodyTokenService implements TokenService, EscrowService, HealthS
     idempotencyKey: string, nonce: string, operationId: string, asset: SwapLeg,
     settlement: SwapLeg, numberOfReceipts: number, deadline: number, exCtx: ExecutionContext | undefined
   ): Promise<SwapOperation> {
-    const refused = await this.refuseSwapContract(exCtx);
-    if (refused) return refused;
+    const picked = await this.pickSwapVenue(exCtx);
+    if ('error' in picked) return failedSwapOperation(1, picked.error);
+    const swapVenue = picked.venue;
     if (numberOfReceipts === 2) {
-      return this.swapBothLegs(operationId, asset, settlement, deadline, exCtx);
+      return this.swapBothLegs(swapVenue, operationId, asset, settlement, deadline, exCtx);
     }
     if (numberOfReceipts !== 1) {
       return failedSwapOperation(1, `numberOfReceipts must be 1 or 2, got ${numberOfReceipts}`);
@@ -353,7 +353,7 @@ export class CustodyTokenService implements TokenService, EscrowService, HealthS
       const { chainId } = await this.readProvider.getNetwork();
       const { approvalWallet, destinationWallet } = validateSwapWallets(asset, settlement, chainId);
 
-      if (!this.swapVenue) {
+      if (!swapVenue) {
         const approval = approvalWallet ?? await this.accountMapping.resolveAccount(asset.source.finId);
         if (!approval) return failedSwapOperation(1, `No wallet address for asset source ${asset.source.finId} — pass source.account or map the finId`);
         const to = destinationWallet ?? await this.accountMapping.resolveAccount(settlement.destination.finId);
@@ -383,7 +383,7 @@ export class CustodyTokenService implements TokenService, EscrowService, HealthS
       if (!counterParty) return failedSwapOperation(1, `No wallet address for settlement source ${settlement.source.finId} — pass source.account or map the finId`);
 
       const intent = await this.toSwapIntent(operationId, asset, settlement, resolved.address, counterParty, deadline);
-      const submission = await this.swapVenue.swap(resolved.wallet, intent, this.logger);
+      const submission = await swapVenue.swap(resolved.wallet, intent, this.logger);
       if (submission.status === 'failure') {
         return failedSwapOperation(1, submission.reason);
       }
@@ -398,11 +398,11 @@ export class CustodyTokenService implements TokenService, EscrowService, HealthS
   }
 
   private async swapBothLegs(
-    operationId: string, asset: SwapLeg,
+    swapVenue: SwapVenue | undefined, operationId: string, asset: SwapLeg,
     settlement: SwapLeg, deadline: number, exCtx: ExecutionContext | undefined
   ): Promise<SwapOperation> {
     try {
-      if (!this.swapVenue) {
+      if (!swapVenue) {
         return failedSwapOperation(1, 'Swap is not supported: no swap venue is configured');
       }
       if (deadline && deadline <= Math.floor(Date.now() / 1000)) {
@@ -425,8 +425,8 @@ export class CustodyTokenService implements TokenService, EscrowService, HealthS
       const intent = await this.toSwapIntent(operationId, asset, settlement, resolvedAsset.address, resolvedSettlement.address, deadline);
 
       const [assetSubmission, settlementSubmission] = await Promise.all([
-        this.swapVenue.swap(resolvedAsset.wallet, intent, this.logger),
-        this.swapVenue.swap(resolvedSettlement.wallet, mirrored(intent), this.logger),
+        swapVenue.swap(resolvedAsset.wallet, intent, this.logger),
+        swapVenue.swap(resolvedSettlement.wallet, mirrored(intent), this.logger),
       ]);
       if (assetSubmission.status === 'failure') {
         return failedSwapOperation(1, assetSubmission.reason);

@@ -3,6 +3,7 @@ import { getAddress } from "ethers";
 import { TokenStandard } from "@owneraio/finp2p-ethereum-adapter-contract";
 import { tokenStandardRegistry } from "../src/integrations/token-standards/registry";
 import { CustodyTokenService } from "../src/services/custody/token-service";
+import { NamedSwapVenue, detectSwapVenues } from "../src/swap-venues";
 
 const ESCROW_ADDRESS = "0x" + "ee".repeat(20);
 const A_ADDRESS = "0x" + "11".repeat(20);
@@ -36,7 +37,7 @@ const namedVenue = { name: "Desk", listedAddress: VENUE_ADDRESS, venue: venue as
 const getAsset = jest.fn().mockResolvedValue({ contract_address: "0x" + "99".repeat(20), decimals: 2, token_standard: "CUSTODY_CONTRACT_TEST" });
 const getNetwork = jest.fn().mockResolvedValue({ chainId: CHAIN_ID });
 
-function service(swapVenue?: typeof namedVenue): CustodyTokenService {
+function service(swapVenue?: typeof namedVenue | NamedSwapVenue[]): CustodyTokenService {
   const addresses: Record<string, string> = { [A_FINID]: A_ADDRESS, [B_FINID]: B_ADDRESS };
   const accountMapping = { resolveAccount: async (finId: string) => addresses[finId] } as any;
   const custodyProvider = {
@@ -44,7 +45,8 @@ function service(swapVenue?: typeof namedVenue): CustodyTokenService {
   } as any;
   return new CustodyTokenService(
     logger, custodyProvider, wallet(ESCROW_ADDRESS), { getNetwork } as any, accountMapping,
-    { getAsset, saveAsset: async () => {} } as any, wallet(ESCROW_ADDRESS), swapVenue,
+    { getAsset, saveAsset: async () => {} } as any, wallet(ESCROW_ADDRESS),
+    Array.isArray(swapVenue) ? swapVenue : swapVenue ? [swapVenue] : [],
   );
 }
 
@@ -147,5 +149,81 @@ describe("CustodyTokenService swap contract", () => {
 
     expect(result.type).toBe("success");
     expect(venue.swap).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("CustodyTokenService with several swap venues", () => {
+  const ALLOWANCE_A = "0x" + "a1".repeat(20);
+  const ALLOWANCE_B = "0x" + "b2".repeat(20);
+  const PERMIT2_SWAP = "0x" + "c3".repeat(20);
+
+  const venues = () => {
+    const list = detectSwapVenues({
+      FINP2P_ETHEREUM_ALLOWANCE_SWAP_ADDRESSES: `${ALLOWANCE_A},${ALLOWANCE_B}`,
+      FINP2P_ETHEREUM_PERMIT2_SWAP_ADDRESSES: PERMIT2_SWAP,
+    });
+    const swaps = list.map((entry) => jest.spyOn(entry.venue, "swap").mockResolvedValue({ status: "executed", transactionId: "0xtx", blockNumber: 1, timestamp: 1 }));
+    return { list, swaps };
+  };
+  const called = (swaps: jest.SpyInstance[]) => swaps.map((spy) => spy.mock.calls.length);
+
+  test.each([
+    ["the first allowance venue", ALLOWANCE_A, [2, 0, 0]],
+    ["the second allowance venue", ALLOWANCE_B, [0, 2, 0]],
+    ["the Permit2 venue by its Permit2Swap address", PERMIT2_SWAP, [0, 0, 2]],
+  ])("a two-receipt swap naming %s runs only that venue", async (_name, address, expected) => {
+    const { list, swaps } = venues();
+    const result = await swap(service(list), exCtx(caip10(getAddress(address))));
+
+    expect(result.type).toBe("success");
+    expect(called(swaps)).toEqual(expected);
+  });
+
+  test.each([
+    ["the first allowance venue", ALLOWANCE_A, [1, 0, 0]],
+    ["the second allowance venue", ALLOWANCE_B, [0, 1, 0]],
+    ["the Permit2 venue", PERMIT2_SWAP, [0, 0, 1]],
+  ])("a one-receipt swap naming %s runs only that venue", async (_name, address, expected) => {
+    const { list, swaps } = venues();
+    const result = await swap(service(list), exCtx(caip10(getAddress(address))), 1);
+
+    expect(result.type).toBe("success");
+    expect(called(swaps)).toEqual(expected);
+  });
+
+  test.each([1, 2])("a swap with no contract runs the first venue (%s receipts)", async (receipts) => {
+    const { list, swaps } = venues();
+    const result = await swap(service(list), exCtx(), receipts);
+
+    expect(result.type).toBe("success");
+    expect(called(swaps)).toEqual([receipts, 0, 0]);
+  });
+
+  test.each([1, 2])("a contract matching no venue fails with no chain call (%s receipts)", async (receipts) => {
+    const { list, swaps } = venues();
+    const requested = caip10(OTHER_ADDRESS);
+    const result = await swap(service(list), exCtx(requested), receipts);
+
+    expect(result.type).toBe("failure");
+    expect(JSON.stringify(result)).toContain(`contract ${requested} is not available for SWAP on this adapter`);
+    expect(called(swaps)).toEqual([0, 0, 0]);
+    expect(getAsset).not.toHaveBeenCalled();
+  });
+
+  test("the Permit2 contract itself is not a venue", async () => {
+    const { list, swaps } = venues();
+    const result = await swap(service(list), exCtx(caip10("0x000000000022D473030F116dDEE9F6B43aC78BA3")));
+
+    expect(result.type).toBe("failure");
+    expect(called(swaps)).toEqual([0, 0, 0]);
+  });
+
+  test("non-swap instructions still refuse a contract even when it names a venue", async () => {
+    const { list } = venues();
+    const result = await service(list).transfer("ik", "n", SOURCE, DESTINATION, ASSET, "1", SIGNATURE, exCtx(caip10(ALLOWANCE_A)));
+
+    expect(result.type).toBe("failure");
+    expect(JSON.stringify(result)).toContain("is not available for TRANSFER on this adapter");
+    expect(standard.transfer).not.toHaveBeenCalled();
   });
 });
