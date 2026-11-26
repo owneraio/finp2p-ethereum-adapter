@@ -1,4 +1,5 @@
-import { finIdToAddress, privateKeyToFinId } from '@owneraio/finp2p-ethereum-orchestrator';
+import { privateKeyToFinId } from '@owneraio/finp2p-ethereum-orchestrator';
+import { computeAddress } from 'ethers';
 import {
   AccountResolver,
   DbAccountResolver,
@@ -14,6 +15,8 @@ import { storage, AccountMappingServiceImpl } from '@owneraio/finp2p-nodejs-skel
 import { execSync } from 'child_process';
 import { existsSync } from 'fs';
 import { join } from 'path';
+
+const finIdToAddress = (finId: string): string => computeAddress(`0x${finId}`);
 
 const TEST_PRIVATE_KEY = '0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d';
 const TEST_FIN_ID = privateKeyToFinId(TEST_PRIVATE_KEY);
