@@ -358,9 +358,27 @@ export class CustodyTokenService implements TokenService, EscrowService, HealthS
     if (!tokenId || !isAddress(tokenId)) {
       throw new Error(`Asset ${assetId} is not registered in DB and its ledger identifier carries no token address to read decimals from`);
     }
+    await this.requireOwnNetwork(assetId, ledgerIdentifier.network);
     const requested = ledgerIdentifier.standard;
     const standard = tokenStandardRegistry.resolve(requested && tokenStandardRegistry.has(requested) ? requested : ERC20_TOKEN_STANDARD);
     return { contractAddress: tokenId, decimals: await standard.decimals(this.readProvider, tokenId, this.logger) };
+  }
+
+  /**
+   * A token address read from a ledger identifier is only meaningful on its own
+   * network. An identifier that names another network, or one that is not
+   * `eip155:<id>`, is refused; an identifier with no network is taken as ours.
+   */
+  private async requireOwnNetwork(assetId: string, network: string | undefined): Promise<void> {
+    if (network === undefined) return;
+    const { chainId } = await this.readProvider.getNetwork();
+    const match = /^eip155:(\d+)$/.exec(network);
+    if (!match) {
+      throw new Error(`Asset ${assetId} ledger network '${network}' is not an eip155 network, so its token cannot be used on eip155:${chainId}`);
+    }
+    if (match[1] !== chainId.toString()) {
+      throw new Error(`Asset ${assetId} lives on ledger network '${network}', not on this adapter's chain eip155:${chainId}`);
+    }
   }
 
   private async toSwapIntent(operationId: string, asset: SwapLeg, settlement: SwapLeg,

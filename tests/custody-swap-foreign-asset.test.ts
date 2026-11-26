@@ -104,6 +104,31 @@ describe("swap leg for an asset this adapter does not know", () => {
   });
 
   test.each([
+    ["this adapter's chain", "eip155:31337", "success"],
+    ["no network", undefined, "success"],
+    ["another chain", "eip155:1", "failure"],
+    ["a chain id with a leading zero", "eip155:031337", "failure"],
+    ["a non-EVM network", "solana:mainnet", "failure"],
+    ["an unparseable network", "not-a-network", "failure"],
+    ["an empty network", "", "failure"],
+  ])("a foreign leg on %s: %s", async (_name, network, outcome) => {
+    const foreign = leg(FOREIGN_ID, FOREIGN_TOKEN, undefined, B_FINID, A_FINID);
+    foreign.asset.ledgerIdentifier.network = network;
+
+    const result = await swap(service(), leg(LOCAL_ID, LOCAL_TOKEN, "ERC20", A_FINID, B_FINID), foreign);
+
+    expect(result.type).toBe(outcome);
+    if (outcome === "failure") {
+      expect(JSON.stringify(result)).toContain(`Asset ${FOREIGN_ID}`);
+      expect(JSON.stringify(result)).toContain("eip155:31337");
+      expect(erc20.decimals).not.toHaveBeenCalled();
+      expect(venue.swap).not.toHaveBeenCalled();
+    } else {
+      expect(venue.swap).toHaveBeenCalled();
+    }
+  });
+
+  test.each([
     ["no token address", undefined],
     ["an empty token address", ""],
     ["a token id that is not an address", "eip155:1/erc20:not-an-address"],
