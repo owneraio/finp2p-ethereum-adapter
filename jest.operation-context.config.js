@@ -18,6 +18,7 @@ module.exports = {
     "<rootDir>/tests/wallet-activation.test.+(ts|tsx|js)",
     "<rootDir>/tests/network-accounts.test.+(ts|tsx|js)",
     "<rootDir>/tests/custody-provider.test.+(ts|tsx|js)",
+    "<rootDir>/tests/local-custody-provider.test.+(ts|tsx|js)",
     "<rootDir>/tests/taurus-provider.test.+(ts|tsx|js)",
     "<rootDir>/tests/onchain-capabilities.test.+(ts|tsx|js)",
     "<rootDir>/tests/nonce-recovery.test.+(ts|tsx|js)",
