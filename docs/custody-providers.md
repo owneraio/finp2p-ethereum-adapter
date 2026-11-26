@@ -86,7 +86,10 @@ template to copy.
 **Local** (`src/integrations/custody/local/`, dev only): custody id = wallet
 address. Signs with private keys from `LOCAL_CUSTODY_PRIVATE_KEYS` through
 the shared signer pool, so custody mode runs against a local chain without a
-custody service. Refuses to start unless `LOCAL_CUSTODY_DEV_ONLY=true`. No
+custody service. Refuses to start unless `LOCAL_CUSTODY_DEV_ONLY=true` and
+the RPC serves a dev chain: 31337 (hardhat, anvil default) or 1337 (geth,
+ganache dev). `LOCAL_CUSTODY_DEV_CHAIN_IDS` adds more, comma-separated decimal
+ids, for a local node run under another id; an invalid entry fails startup. No
 account lifecycle, so OTA deposits stay off.
 
 **Blockdaemon Builder Vault** (PR #186, open) — custody id = Builder Vault

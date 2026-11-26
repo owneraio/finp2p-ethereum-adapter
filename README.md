@@ -71,12 +71,13 @@ When the router names a contract for hold, transfer, release, issue, revert hold
 
 ## Local custody provider (dev only)
 
-`PROVIDER_TYPE=local` lets the adapter sign for investors itself, so a swap can run from the UI on a local or dev chain with no external signing approval. The keys sit in the adapter's environment, so it is not for production. It refuses to start unless `LOCAL_CUSTODY_DEV_ONLY=true` and the RPC serves a dev chain, chain id 31337 (hardhat, anvil default) or 1337 (geth or ganache dev).
+`PROVIDER_TYPE=local` lets the adapter sign for investors itself, so a swap can run from the UI on a local or dev chain with no external signing approval. The keys sit in the adapter's environment, so it is not for production. It refuses to start unless `LOCAL_CUSTODY_DEV_ONLY=true` and the RPC serves a dev chain, chain id 31337 (hardhat, anvil default) or 1337 (geth or ganache dev). `LOCAL_CUSTODY_DEV_CHAIN_IDS` adds more dev chain ids.
 
 | Variable | Meaning |
 |----------|---------|
 | `LOCAL_CUSTODY_DEV_ONLY` | Must be `true` to start |
 | `LOCAL_CUSTODY_PRIVATE_KEYS` | Comma-separated `0x` private keys, one wallet each |
+| `LOCAL_CUSTODY_DEV_CHAIN_IDS` | Optional. Comma-separated decimal chain ids accepted as dev chains besides 31337 and 1337, for a local node run under another id such as a forked anvil. Unset means the defaults only; an invalid entry fails startup |
 | `NETWORK_HOST` | The chain RPC the wallets submit to |
 
 The custody account id of a wallet is its address, matched in any letter case. Use it wherever a custody account id is expected, for example `ASSET_ESCROW_CUSTODY_ACCOUNT_ID`, or when binding an investor to a wallet. Each key has one nonce-managed signer, shared with the issuer when it uses the same key. The provider cannot create custody accounts, so deposits that need a new custody address are refused.

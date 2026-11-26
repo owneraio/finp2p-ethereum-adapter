@@ -11,7 +11,7 @@ export function registerLocal(): void {
   custodyRegistry.register('local', async () => {
     const config = createLocalCustodyConfig();
     const rpcUrl = getNetworkRpcUrl();
-    await requireDevChain(pooledProvider(rpcUrl));
+    await requireDevChain(pooledProvider(rpcUrl), config.extraDevChainIds);
     return new LocalCustodyProvider(config, rpcUrl);
   });
 }

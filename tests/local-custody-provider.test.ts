@@ -72,6 +72,21 @@ describe("createLocalCustodyConfig", () => {
       .toEqual([KEY_A, KEY_B]);
   });
 
+  test.each([
+    ["unset", undefined, []],
+    ["empty", "", []],
+    ["blank entries", " , ,", []],
+    ["decimal ids with spaces", " 296, 11155111 ,", [296n, 11155111n]],
+  ])("LOCAL_CUSTODY_DEV_CHAIN_IDS %s", (_name, value, expected) => {
+    const extra: Record<string, string> = value === undefined ? {} : { LOCAL_CUSTODY_DEV_CHAIN_IDS: value };
+    expect(createLocalCustodyConfig(env({ LOCAL_CUSTODY_PRIVATE_KEYS: KEY_A, ...extra })).extraDevChainIds).toEqual(expected);
+  });
+
+  test.each(["abc", "0x128", "-1", "1.5", "0", "296;1"])("a bad LOCAL_CUSTODY_DEV_CHAIN_IDS entry '%s' fails startup", (bad) => {
+    expect(() => createLocalCustodyConfig(env({ LOCAL_CUSTODY_PRIVATE_KEYS: KEY_A, LOCAL_CUSTODY_DEV_CHAIN_IDS: `296,${bad}` })))
+      .toThrow(`LOCAL_CUSTODY_DEV_CHAIN_IDS entry '${bad}' is not a decimal chain id`);
+  });
+
   test("requires at least one key", () => {
     expect(() => createLocalCustodyConfig(env({}))).toThrow(/LOCAL_CUSTODY_PRIVATE_KEYS is required/);
     expect(() => createLocalCustodyConfig(env({ LOCAL_CUSTODY_PRIVATE_KEYS: " , " }))).toThrow(/LOCAL_CUSTODY_PRIVATE_KEYS is required/);
@@ -99,6 +114,16 @@ describe("requireDevChain", () => {
     await expect(requireDevChain(chain(chainId))).rejects.toThrow(`refuses to run on chain ${chainId}`);
   });
 
+  test("an extra chain id is accepted, an unrelated one is still refused", async () => {
+    await expect(requireDevChain(chain(296n), [296n, 11155111n])).resolves.toBeUndefined();
+    await expect(requireDevChain(chain(31337n), [296n])).resolves.toBeUndefined();
+    await expect(requireDevChain(chain(1n), [296n])).rejects.toThrow("refuses to run on chain 1");
+  });
+
+  test("the refusal names the allowed chains and the variable that adds one", async () => {
+    await expect(requireDevChain(chain(1n), [296n])).rejects.toThrow(/31337, 1337, 296.*LOCAL_CUSTODY_DEV_CHAIN_IDS/);
+  });
+
   test("a failed chain read stops the start", async () => {
     await expect(requireDevChain({ getNetwork: async () => { throw new Error("rpc down"); } })).rejects.toThrow("rpc down");
   });
@@ -114,6 +139,27 @@ describe("PROVIDER_TYPE=local through the registry", () => {
   afterEach(() => {
     jest.restoreAllMocks();
     process.env = { ...saved };
+  });
+
+  test("boots on an extra dev chain from the environment and still refuses others", async () => {
+    process.env.NETWORK_HOST = RPC_URL;
+    process.env.LOCAL_CUSTODY_PRIVATE_KEYS = KEY_A;
+    process.env.LOCAL_CUSTODY_DEV_ONLY = "true";
+    process.env.LOCAL_CUSTODY_DEV_CHAIN_IDS = "296";
+
+    chainId = 296n;
+    await expect(custodyRegistry.create("local", {})).resolves.toBeDefined();
+    chainId = 1n;
+    await expect(custodyRegistry.create("local", {})).rejects.toThrow("refuses to run on chain 1");
+  });
+
+  test("a bad extra chain id fails the boot before any chain read", async () => {
+    process.env.NETWORK_HOST = RPC_URL;
+    process.env.LOCAL_CUSTODY_PRIVATE_KEYS = KEY_A;
+    process.env.LOCAL_CUSTODY_DEV_ONLY = "true";
+    process.env.LOCAL_CUSTODY_DEV_CHAIN_IDS = "sepolia";
+
+    await expect(custodyRegistry.create("local", {})).rejects.toThrow("LOCAL_CUSTODY_DEV_CHAIN_IDS entry 'sepolia'");
   });
 
   test("refuses to boot on a chain that is not a dev chain", async () => {
