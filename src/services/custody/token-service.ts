@@ -6,7 +6,7 @@ import {
   successfulSwapOperation
 } from '@owneraio/finp2p-nodejs-skeleton-adapter';
 import { contractUnavailable, custodyCapabilities, pickVenue } from '../onchain/capabilities';
-import { NamedSwapVenue, settleSwaps } from '../../swap-venues';
+import { NamedSwapVenue, checksOwnDeadline, settleSwaps } from '../../swap-venues';
 import winston from 'winston';
 import { isAddress, parseUnits, Provider, Signer, Wallet, ZeroAddress } from "ethers";
 import { AssetRecord, ReleaseType, TokenOperationResult, SwapIntent, SwapVenue, mirrored } from '@owneraio/finp2p-ethereum-adapter-contract';
@@ -389,7 +389,7 @@ export class CustodyTokenService implements TokenService, EscrowService, HealthS
       return failedSwapOperation(1, `numberOfReceipts must be 1 or 2, got ${numberOfReceipts}`);
     }
     try {
-      if (deadline && deadline <= Math.floor(Date.now() / 1000)) {
+      if (deadline && !checksOwnDeadline(swapVenue) && deadline <= Math.floor(Date.now() / 1000)) {
         return failedSwapOperation(1, `swap deadline ${deadline} has already passed`);
       }
       const { chainId } = await this.readProvider.getNetwork();
@@ -447,7 +447,7 @@ export class CustodyTokenService implements TokenService, EscrowService, HealthS
       if (!swapVenue) {
         return failedSwapOperation(1, 'Swap is not supported: no swap venue is configured');
       }
-      if (deadline && deadline <= Math.floor(Date.now() / 1000)) {
+      if (deadline && !checksOwnDeadline(swapVenue) && deadline <= Math.floor(Date.now() / 1000)) {
         return failedSwapOperation(1, `swap deadline ${deadline} has already passed`);
       }
       if (asset.destination.finId !== settlement.source.finId) {

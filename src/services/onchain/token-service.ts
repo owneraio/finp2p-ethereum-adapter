@@ -23,7 +23,7 @@ import { ExecDetailsStore } from "./exec-details-store";
 import { mapReceiptOperation } from "./mapping";
 import { emptyOperationParams, extractBusinessDetails, validateRequest } from "./helpers";
 import { validateSwapWallets } from "../accounts";
-import { NamedSwapVenue, settleSwaps } from "../../swap-venues";
+import { NamedSwapVenue, checksOwnDeadline, settleSwaps } from "../../swap-venues";
 import { deployERC20WithRecovery } from "../../nonce-recovery";
 import { OperatorInstruction, onChainCapabilities, operatorContractError, pickVenue } from "./capabilities";
 
@@ -371,7 +371,7 @@ export class OnChainTokenService implements TokenService, EscrowService, CommonS
       if (!assetLeg.signature) {
         return failedSwapOperation(1, "asset leg signature is required");
       }
-      if (deadline && deadline <= Math.floor(Date.now() / 1000)) {
+      if (deadline && !checksOwnDeadline(picked.venue) && deadline <= Math.floor(Date.now() / 1000)) {
         return failedSwapOperation(1, `swap deadline ${deadline} has already passed`);
       }
       if (assetLeg.destination.finId !== settlementLeg.source.finId) {
@@ -443,7 +443,7 @@ export class OnChainTokenService implements TokenService, EscrowService, CommonS
       if (!settlement.signature) {
         return failedSwapOperation(1, "settlement leg signature is required");
       }
-      if (deadline && deadline <= Math.floor(Date.now() / 1000)) {
+      if (deadline && !checksOwnDeadline(picked.venue) && deadline <= Math.floor(Date.now() / 1000)) {
         return failedSwapOperation(1, `swap deadline ${deadline} has already passed`);
       }
       if (asset.destination.finId !== settlement.source.finId) {

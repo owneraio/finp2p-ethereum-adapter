@@ -189,3 +189,11 @@ export const settleSwaps = async (calls: Array<() => Promise<SwapSubmission>>): 
     outcome.status === "fulfilled"
       ? outcome.value
       : failedSwap(outcome.reason instanceof Error ? outcome.reason.message : String(outcome.reason)));
+
+/**
+ * Whether the venue checks the swap deadline itself, after it looked up an
+ * executed swap of the same operation. Such a venue must be reached after the
+ * deadline too, so a retry of a settled swap still reports success. A venue
+ * that does not check leaves the expiry guard to the service.
+ */
+export const checksOwnDeadline = (venue: SwapVenue | undefined): boolean => venue instanceof Permit2SwapVenue;

@@ -24,7 +24,8 @@ module.exports = {
     "<rootDir>/tests/taurus-provider.test.+(ts|tsx|js)",
     "<rootDir>/tests/onchain-capabilities.test.+(ts|tsx|js)",
     "<rootDir>/tests/nonce-recovery.test.+(ts|tsx|js)",
-    "<rootDir>/tests/permit2-swap-config.test.+(ts|tsx|js)"
+    "<rootDir>/tests/permit2-swap-config.test.+(ts|tsx|js)",
+    "<rootDir>/tests/swap-deadline.test.+(ts|tsx|js)"
   ],
   "transform": {
     "^.+\\.(ts|tsx)$": "ts-jest"
