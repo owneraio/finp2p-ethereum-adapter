@@ -61,6 +61,62 @@ describe("RecoveringNonceManager", () => {
     expect(provider.getTransactionCount).toHaveBeenCalledTimes(1);
   });
 
+  describe("overlapping sends", () => {
+    const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+    /** A chain whose pending nonce counts the broadcasts it accepted; the first broadcast fails after a delay. */
+    const chain = () => {
+      const accepted: number[] = [];
+      const provider = { getTransactionCount: jest.fn(async () => 7 + accepted.length) };
+      const wallet = new Wallet("0x" + "11".repeat(32)).connect(provider as any);
+      jest.spyOn(wallet, "populateTransaction").mockImplementation(async (tx: any) => { await sleep(5); return tx; });
+      let broadcasts = 0;
+      const attempted: number[] = [];
+      jest.spyOn(wallet, "sendTransaction").mockImplementation(async (tx: any) => {
+        attempted.push(tx.nonce);
+        if (broadcasts++ === 0) {
+          await sleep(30);
+          throw new Error("insufficient funds");
+        }
+        accepted.push(tx.nonce);
+        return response(tx.nonce, async () => ({}));
+      });
+      return { wallet, attempted };
+    };
+
+    test("a failed send does not leave a later send on a nonce that is still in flight", async () => {
+      const { wallet, attempted } = chain();
+      const signer = new RecoveringNonceManager(wallet);
+
+      const results = await Promise.allSettled([
+        signer.sendTransaction({ to: OPERATOR }),
+        signer.sendTransaction({ to: OPERATOR }),
+      ]);
+      await signer.sendTransaction({ to: OPERATOR });
+
+      expect(results.map((r) => r.status)).toEqual(["rejected", "fulfilled"]);
+      expect(attempted).toEqual([7, 7, 8]);
+    });
+
+    test("confirmations of earlier sends do not block later sends", async () => {
+      const { wallet } = stubWallet(7);
+      let release: () => void = () => undefined;
+      const confirmed = new Promise<void>((resolve) => { release = resolve; });
+      jest.spyOn(wallet, "sendTransaction")
+        .mockImplementationOnce(async (tx: any) => response(tx.nonce, async () => { await confirmed; return {}; }))
+        .mockImplementation(async (tx: any) => response(tx.nonce, async () => ({})));
+      const signer = new RecoveringNonceManager(wallet);
+
+      const first = await signer.sendTransaction({ to: OPERATOR });
+      const pending = first.wait();
+      const second = await signer.sendTransaction({ to: OPERATOR });
+
+      expect(second.nonce).toBe(8);
+      release();
+      await pending;
+    });
+  });
+
   test("connect keeps the recovering behavior", () => {
     const { provider, wallet } = stubWallet();
     expect(new RecoveringNonceManager(wallet).connect(provider as any)).toBeInstanceOf(RecoveringNonceManager);

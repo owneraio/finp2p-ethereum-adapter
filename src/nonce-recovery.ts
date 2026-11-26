@@ -1,4 +1,4 @@
-import { NonceManager, Provider, Signer, TransactionRequest } from "ethers";
+import { NonceManager, Provider, Signer, TransactionRequest, TransactionResponse } from "ethers";
 import { ERC20WithOperator__factory } from "@owneraio/finp2p-ethereum-erc20-plugin";
 import { Logger, resetSignerNonce, sendWithNonceRecovery } from "@owneraio/finp2p-ethereum-orchestrator";
 
@@ -7,13 +7,25 @@ import { Logger, resetSignerNonce, sendWithNonceRecovery } from "@owneraio/finp2
  * transaction reads the nonce from the chain instead of queueing behind one
  * that never arrived. Covers every send on the signer, including those made
  * inside plugins and venues that only return a receipt.
+ *
+ * Reserving a nonce, populating and broadcasting run one send at a time, so a
+ * reset never discards the reservation of a send still in flight. Waiting for
+ * confirmation happens outside this queue and stays parallel.
  */
 export class RecoveringNonceManager extends NonceManager {
+  private sendQueue: Promise<unknown> = Promise.resolve();
+
   override connect(provider: Provider | null): RecoveringNonceManager {
     return new RecoveringNonceManager(this.signer.connect(provider));
   }
 
-  override async sendTransaction(tx: TransactionRequest) {
+  override sendTransaction(tx: TransactionRequest): Promise<TransactionResponse> {
+    const result = this.sendQueue.then(() => this.sendOrReset(tx));
+    this.sendQueue = result.catch(() => undefined);
+    return result;
+  }
+
+  private async sendOrReset(tx: TransactionRequest): Promise<TransactionResponse> {
     try {
       return await super.sendTransaction(tx);
     } catch (e) {
