@@ -6,7 +6,7 @@ import {
   successfulSwapOperation
 } from '@owneraio/finp2p-nodejs-skeleton-adapter';
 import { contractUnavailable, custodyCapabilities, pickVenue } from '../onchain/capabilities';
-import { NamedSwapVenue } from '../../swap-venues';
+import { NamedSwapVenue, settleSwaps } from '../../swap-venues';
 import winston from 'winston';
 import { isAddress, parseUnits, Provider, Signer, Wallet, ZeroAddress } from "ethers";
 import { AssetRecord, ReleaseType, TokenOperationResult, SwapIntent, SwapVenue, mirrored } from '@owneraio/finp2p-ethereum-adapter-contract';
@@ -466,9 +466,9 @@ export class CustodyTokenService implements TokenService, EscrowService, HealthS
 
       const intent = await this.toSwapIntent(operationId, asset, settlement, resolvedAsset.address, resolvedSettlement.address, deadline);
 
-      const [assetSubmission, settlementSubmission] = await Promise.all([
-        swapVenue.swap(resolvedAsset.wallet, intent, this.logger),
-        swapVenue.swap(resolvedSettlement.wallet, mirrored(intent), this.logger),
+      const [assetSubmission, settlementSubmission] = await settleSwaps([
+        () => swapVenue.swap(resolvedAsset.wallet, intent, this.logger),
+        () => swapVenue.swap(resolvedSettlement.wallet, mirrored(intent), this.logger),
       ]);
       if (assetSubmission.status === 'failure') {
         return failedSwapOperation(1, assetSubmission.reason);

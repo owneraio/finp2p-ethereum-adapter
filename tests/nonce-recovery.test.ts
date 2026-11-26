@@ -214,11 +214,45 @@ describe("OnChainTokenService swap venue failures", () => {
     expect(signer.reset).toHaveBeenCalledTimes(1);
   });
 
-  test("a thrown error resets the operator nonce and propagates", async () => {
+  test("a thrown leg becomes a failure result and resets the operator nonce", async () => {
     const { svc, signer, venue } = service(jest.fn().mockRejectedValue(new Error("rpc down")));
 
-    await expect(swapAll(svc, venue, [INTENT])).rejects.toThrow("rpc down");
+    const results = await swapAll(svc, venue, [INTENT]);
+
+    expect(results).toEqual([expect.objectContaining({ status: "failure", reason: "rpc down" })]);
     expect(signer.reset).toHaveBeenCalledTimes(1);
+  });
+
+  test("a thrown leg waits for the other leg before the nonce reset", async () => {
+    let finishOther: (value: unknown) => void = () => undefined;
+    const swap = jest.fn()
+      .mockRejectedValueOnce(new Error("rpc down"))
+      .mockReturnValueOnce(new Promise((resolve) => { finishOther = resolve; }));
+    const { svc, signer, venue } = service(swap);
+
+    const done = swapAll(svc, venue, [INTENT, INTENT]);
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    expect(signer.reset).not.toHaveBeenCalled();
+
+    finishOther({ status: "success", transactionId: "0x1", timestamp: 1 });
+    const results = await done;
+
+    expect(results.map((r: any) => r.status)).toEqual(["failure", "success"]);
+    expect(signer.reset).toHaveBeenCalledTimes(1);
+  });
+
+  test("a rejected leg fails the two-leg swap with its reason", async () => {
+    const swap = jest.fn()
+      .mockResolvedValueOnce({ status: "success", transactionId: "0x1", timestamp: 1 })
+      .mockRejectedValueOnce(new Error("rpc down"));
+    const { svc, venue } = service(swap);
+    const leg = { asset: { assetId: "a" }, source: { finId: "x" }, destination: { finId: "y" }, quantity: "1" };
+    jest.spyOn(svc as any, "toSwapIntent").mockResolvedValue({ operationId: "op", give: {}, take: {} });
+
+    const result: any = await (svc as any).swapBothLegsViaVenue(venue, "op", leg, leg, 0, undefined);
+
+    expect(result).toMatchObject({ type: "failure" });
+    expect(JSON.stringify(result)).toContain("rpc down");
   });
 
   test("successful legs leave the nonce cache alone", async () => {

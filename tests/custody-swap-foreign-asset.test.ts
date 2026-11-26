@@ -139,3 +139,25 @@ describe("other instructions still require a known asset", () => {
     expect(erc20.decimals).not.toHaveBeenCalled();
   });
 });
+
+describe("a leg that throws in a two-leg swap", () => {
+  test("fails the swap only after the other leg settled", async () => {
+    let finishOther: (value: unknown) => void = () => undefined;
+    venue.swap
+      .mockRejectedValueOnce(new Error("rpc down"))
+      .mockReturnValueOnce(new Promise((resolve) => { finishOther = resolve; }));
+    let settled = false;
+
+    const done = swap(service(),
+      leg(LOCAL_ID, LOCAL_TOKEN, "ERC20", A_FINID, B_FINID),
+      leg(FOREIGN_ID, FOREIGN_TOKEN, undefined, B_FINID, A_FINID)).then((result) => { settled = true; return result; });
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    expect(settled).toBe(false);
+
+    finishOther({ status: "executed", transactionId: "0xtx", blockNumber: 1, timestamp: 1 });
+    const result = await done;
+
+    expect(result.type).toBe("failure");
+    expect(JSON.stringify(result)).toContain("rpc down");
+  });
+});

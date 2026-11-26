@@ -1,6 +1,6 @@
 import { isAddress } from "ethers";
 import process from "process";
-import { SwapVenue } from "@owneraio/finp2p-ethereum-adapter-contract";
+import { SwapSubmission, SwapVenue, failedSwap } from "@owneraio/finp2p-ethereum-adapter-contract";
 import { AllowanceSwapVenue } from "@owneraio/finp2p-ethereum-allowance-swap";
 import { PERMIT2_ADDRESS, Permit2SwapVenue } from "@owneraio/finp2p-ethereum-permit2-swap";
 
@@ -179,3 +179,13 @@ export const venuesFromConfig = (config: { swapVenues?: NamedSwapVenue[]; swapVe
     ? [{ name: DEFAULT_VENUE_NAME, listedAddress: listedAddressOf(config.swapVenue), venue: config.swapVenue }]
     : [];
 };
+
+/**
+ * Runs every swap call to completion and reports a call that throws as a failed
+ * swap, so no leg is still sending when the caller acts on the results.
+ */
+export const settleSwaps = async (calls: Array<() => Promise<SwapSubmission>>): Promise<SwapSubmission[]> =>
+  (await Promise.allSettled(calls.map(async (call) => call()))).map((outcome) =>
+    outcome.status === "fulfilled"
+      ? outcome.value
+      : failedSwap(outcome.reason instanceof Error ? outcome.reason.message : String(outcome.reason)));

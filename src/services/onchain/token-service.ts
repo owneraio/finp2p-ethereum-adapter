@@ -23,8 +23,8 @@ import { ExecDetailsStore } from "./exec-details-store";
 import { mapReceiptOperation } from "./mapping";
 import { emptyOperationParams, extractBusinessDetails, validateRequest } from "./helpers";
 import { validateSwapWallets } from "../accounts";
-import { NamedSwapVenue } from "../../swap-venues";
-import { deployERC20WithRecovery, resetNonceOnFailure } from "../../nonce-recovery";
+import { NamedSwapVenue, settleSwaps } from "../../swap-venues";
+import { deployERC20WithRecovery } from "../../nonce-recovery";
 import { OperatorInstruction, onChainCapabilities, operatorContractError, pickVenue } from "./capabilities";
 
 const DefaultDecimals = 2;
@@ -316,16 +316,14 @@ export class OnChainTokenService implements TokenService, EscrowService, CommonS
 
   /**
    * A venue returns a failed swap as a result, so a failure after the send
-   * never reaches the signer as a send error. A failed result resets the
-   * signer's nonce here, as a throw does. Both legs finish before the reset,
-   * so one never resets under the other.
+   * never reaches the signer as a send error. A failed or thrown leg resets
+   * the signer's nonce here. Both legs finish before the reset, so one never
+   * resets under the other.
    */
   private async venueSwapAll(swapVenue: SwapVenue, intents: SwapIntent[]) {
-    const signer = this.finP2PContract.signer;
-    const results = await resetNonceOnFailure(signer, () =>
-      Promise.all(intents.map((intent) => swapVenue.swap(this.operatorWallet(), intent, spiLogger))));
+    const results = await settleSwaps(intents.map((intent) => () => swapVenue.swap(this.operatorWallet(), intent, spiLogger)));
     if (results.some((result) => result.status === "failure")) {
-      resetSignerNonce(signer);
+      resetSignerNonce(this.finP2PContract.signer);
     }
     return results;
   }
