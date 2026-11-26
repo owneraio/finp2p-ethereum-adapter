@@ -83,6 +83,12 @@ the full address → walletId map once in `create()` (kept current when
 deletion API — `archiveCustodyAccount` tags the wallet instead. The cleanest
 template to copy.
 
+**Local** (`src/integrations/custody/local/`, dev only): custody id = wallet
+address. Signs with private keys from `LOCAL_CUSTODY_PRIVATE_KEYS` through
+the shared signer pool, so custody mode runs against a local chain without a
+custody service. Refuses to start unless `LOCAL_CUSTODY_DEV_ONLY=true`. No
+account lifecycle, so OTA deposits stay off.
+
 **Blockdaemon Builder Vault** (PR #186, open) — custody id = Builder Vault
 account id, custom `Signer` over the vault's intent API. Written before the
 custody registry existed: it lives under the old `services/direct/` layout and

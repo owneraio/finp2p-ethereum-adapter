@@ -42,17 +42,42 @@ Permit2Swap works like AllowanceSwap: the first `swap(operationId, leg)` call re
 
 In custody modes the wallet signer is the giving party, and the adapter grants that allowance itself: an ERC20 `approve(Permit2)` when the token allowance is short, then `Permit2.approve(token, Permit2Swap, amount, expiration)`, expiring a minute after the swap deadline. The swap deadline is the one on the instruction, or the venue's default window when there is none. A retry of an operation id resumes with the recorded transaction or the prepared leg; a different trade under the same id fails the swap.
 
-In `finp2p-contract` mode the operator relays for the party and cannot grant the Permit2 allowance, so Permit2 venues are ignored there: they are not reported as swap contracts, the router cannot pick them, and the adapter logs a warning naming each one at startup. Custody modes use only the first venue in the list, so a Permit2 venue runs there only when no allowance venue is configured.
+In `finp2p-contract` mode the operator relays for the party and cannot grant the Permit2 allowance, so Permit2 venues are ignored there: they are not reported as swap contracts, the router cannot pick them, and the adapter logs a warning naming each one at startup. Custody modes run every venue in the list: a swap that names a contract runs on the venue listed under that address, and a swap that names none runs on the first venue.
+
+In a cross-org swap each organization's adapter submits its own party's leg, so one leg's asset can exist only on the counterparty's adapter. A custody adapter that has no record of a swap leg's asset takes the token address from the leg's ledger identifier and reads `decimals()` from chain. It fails the swap with a clear message when the identifier carries no token address. Only swap does this; issue, transfer, redeem and hold still need a known asset.
 
 ## Asset capabilities
 
-Set `ASSET_CAPABILITIES_ENABLED=true` to report which contracts can run each instruction for an asset. It is off by default: the adapter then returns no capability list on asset creation, which the router reads as the full instruction set, and `POST /assets/getCapabilities` answers 501. Only the `finp2p-contract` provider reports capabilities.
+Set `ASSET_CAPABILITIES_ENABLED=true` to report which contracts can run each instruction for an asset. It is off by default: the adapter then returns no capability list on asset creation, which the router reads as the full instruction set, and `POST /assets/getCapabilities` answers 501. The `finp2p-contract` provider and the custody providers report capabilities; the omnibus account model does not.
 
 With the flag on, the creation response and `getCapabilities` list the FinP2P operator contract for hold, transfer, release, issue, revert hold and redeem, and every configured allowance swap venue for swap (Permit2 venues are not used in this mode). A contract is listed by address and format only, as `eip155:<chainId>:<checksummed address>` with format `caip10`; it has no name or description. `getCapabilities` answers 404 for an unknown asset.
 
 The router sends the address of the contract it chose in `executionContext.contract`, in the form the asset listed it. The adapter accepts a CAIP-10 id whose namespace is `eip155` (any letter case), whose chain reference is this chain's decimal id, and whose 0x address matches a listed contract in any letter case. It runs the instruction through that contract. Anything else, including a bare 0x address, another chain or another format, is refused with a failed receipt and no transaction. This check applies whether or not the flag is on.
 
-Custody providers report no capability list and run no contract of their own. When the router names a contract for hold, transfer, release, issue, revert hold or redeem, they refuse it with a failed receipt and no chain call. For swap they run the contract only when it is the venue they are configured with, matched the same way, and refuse any other.
+Custody providers run no contract of their own, so their list names the instructions they can run and carries no contracts, except for swap:
+
+| Instruction | Listed when |
+|-------------|-------------|
+| transfer, redeem | always |
+| issue | an issuer wallet is configured (`ASSET_ISSUER_PRIVATE_KEY`) |
+| hold, release, revert hold | an escrow wallet is configured (`ASSET_ESCROW_CUSTODY_ACCOUNT_ID`) |
+| swap | at least one swap venue is configured; every venue is listed, allowance venues first, as described above |
+
+With the flag off, custody providers report no list and `getCapabilities` answers 501, as before.
+
+When the router names a contract for hold, transfer, release, issue, revert hold or redeem, a custody provider refuses it with a failed receipt and no chain call. For swap it runs the venue listed under that address, matched the same way, and refuses a contract that matches no venue with a failed swap and no chain call. With no contract named, swap runs on the first venue.
+
+## Local custody provider (dev only)
+
+`PROVIDER_TYPE=local` lets the adapter sign for investors itself, so a swap can run from the UI on a local or dev chain with no external signing approval. The keys sit in the adapter's environment, so it is not for production. It refuses to start unless `LOCAL_CUSTODY_DEV_ONLY=true`.
+
+| Variable | Meaning |
+|----------|---------|
+| `LOCAL_CUSTODY_DEV_ONLY` | Must be `true` to start |
+| `LOCAL_CUSTODY_PRIVATE_KEYS` | Comma-separated `0x` private keys, one wallet each |
+| `NETWORK_HOST` | The chain RPC the wallets submit to |
+
+The custody account id of a wallet is its address, matched in any letter case. Use it wherever a custody account id is expected, for example `ASSET_ESCROW_CUSTODY_ACCOUNT_ID`, or when binding an investor to a wallet. Each key has one nonce-managed signer, shared with the issuer when it uses the same key. The provider cannot create custody accounts, so deposits that need a new custody address are refused.
 
 ## Documentation
 
