@@ -169,6 +169,13 @@ describe("detectSwapVenues", () => {
     ["duplicate name", {
       FINP2P_ETHEREUM_ALLOWANCE_SWAP_ADDRESSES: `Same=${VENUE_A},Same=${VENUE_B}`,
     }, /Duplicate venue name/],
+    ["a plural list of only a comma", { FINP2P_ETHEREUM_ALLOWANCE_SWAP_ADDRESSES: "," }, /FINP2P_ETHEREUM_ALLOWANCE_SWAP_ADDRESSES is set but lists no venue/],
+    ["a plural list of only spaces", { FINP2P_ETHEREUM_ALLOWANCE_SWAP_ADDRESSES: "  " }, /is set but lists no venue/],
+    ["a plural list of commas and spaces beside a valid singular", {
+      FINP2P_ETHEREUM_ALLOWANCE_SWAP_ADDRESSES: " , ,",
+      FINP2P_ETHEREUM_ALLOWANCE_SWAP_ADDRESS: VENUE_A,
+    }, /is set but lists no venue/],
+    ["a Permit2 list of only commas", { FINP2P_ETHEREUM_PERMIT2_SWAP_ADDRESSES: ",," }, /FINP2P_ETHEREUM_PERMIT2_SWAP_ADDRESSES is set but lists no venue/],
   ];
   test.each(invalid)("%s throws", (_name, env, message) => {
     expect(() => detectSwapVenues(env)).toThrow(message);

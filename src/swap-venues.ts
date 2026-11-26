@@ -87,6 +87,9 @@ const permit2List = (env: NodeJS.ProcessEnv): VenueList => {
 const venuesOf = (list: VenueList, value: string): NamedSwapVenue[] => {
   const entries = value.split(",").map((raw) => raw.trim()).filter((raw) => raw !== "")
     .map((raw) => parseEntry(list.variable, raw));
+  if (entries.length === 0) {
+    throw new Error(`${list.variable} is set but lists no venue: give 0xaddress or Name=0xaddress entries, or leave it unset`);
+  }
   const addresses = new Set<string>();
   const names = new Set<string>();
   return entries.map(({ name, address }) => {
