@@ -297,6 +297,23 @@ describe("OnChainTokenService capabilities", () => {
     expect(contract.issue).toHaveBeenCalledTimes(1);
   });
 
+  test("a failed chain id read fails a contract-selected issue instead of throwing, and a retry works", async () => {
+    const contract = contractMock();
+    contract.provider.getNetwork.mockRejectedValueOnce(new Error("rpc down"));
+    contract.issue.mockResolvedValue({ hash: "0xhash" });
+    const svc = service(contract, true);
+    const ctx = { planId: "p", sequence: 1, contract: caip10(OPERATOR) } as any;
+
+    const failed: any = await svc.issue("ik", ASSET, DESTINATION, "1", ctx);
+
+    expect(failed.type).toBe("failure");
+    expect(JSON.stringify(failed)).toContain("rpc down");
+    expect(contract.issue).not.toHaveBeenCalled();
+
+    await svc.issue("ik", ASSET, DESTINATION, "1", ctx);
+    expect(contract.issue).toHaveBeenCalledTimes(1);
+  });
+
   test("reporting on: getCapabilities on an unknown asset throws AssetNotFoundError", async () => {
     const contract = contractMock();
     contract.getAssetAddress.mockRejectedValue(new Error("execution reverted: Asset not found"));

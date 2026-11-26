@@ -102,7 +102,14 @@ export class OnChainTokenService implements TokenService, EscrowService, CommonS
     if (exCtx?.contract === undefined) {
       return undefined;
     }
-    const error = operatorContractError(instruction, exCtx, this.finP2PContract.finP2PContractAddress, await this.chainId());
+    let chainId: bigint;
+    try {
+      chainId = await this.chainId();
+    } catch (e) {
+      logger.error(`Cannot read the chain id to check the requested contract for ${instruction}: ${e}`);
+      return failedReceiptOperation(1, `cannot check the requested contract ${exCtx.contract}: the chain id could not be read: ${e}`);
+    }
+    const error = operatorContractError(instruction, exCtx, this.finP2PContract.finP2PContractAddress, chainId);
     return error === undefined ? undefined : failedReceiptOperation(1, error);
   }
 
