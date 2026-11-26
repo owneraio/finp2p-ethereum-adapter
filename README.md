@@ -71,7 +71,7 @@ When the router names a contract for hold, transfer, release, issue, revert hold
 
 ## Local custody provider (dev only)
 
-`PROVIDER_TYPE=local` lets the adapter sign for investors itself, so a swap can run from the UI on a local or dev chain with no external signing approval. The keys sit in the adapter's environment, so it is not for production. It refuses to start unless `LOCAL_CUSTODY_DEV_ONLY=true`.
+`PROVIDER_TYPE=local` lets the adapter sign for investors itself, so a swap can run from the UI on a local or dev chain with no external signing approval. The keys sit in the adapter's environment, so it is not for production. It refuses to start unless `LOCAL_CUSTODY_DEV_ONLY=true` and the RPC serves a dev chain, chain id 31337 (hardhat, anvil default) or 1337 (geth or ganache dev).
 
 | Variable | Meaning |
 |----------|---------|

@@ -1,10 +1,17 @@
 import { custodyRegistry } from "../../../services/custody";
-import { createLocalCustodyConfig } from "./config";
+import { getNetworkRpcUrl } from "../../../network-host";
+import { pooledProvider } from "../../signer-pool";
+import { createLocalCustodyConfig, requireDevChain } from "./config";
 import { LocalCustodyProvider } from "./provider";
 
 export * from "./config";
 export * from "./provider";
 
 export function registerLocal(): void {
-  custodyRegistry.register('local', async () => new LocalCustodyProvider(createLocalCustodyConfig()));
+  custodyRegistry.register('local', async () => {
+    const config = createLocalCustodyConfig();
+    const rpcUrl = getNetworkRpcUrl();
+    await requireDevChain(pooledProvider(rpcUrl));
+    return new LocalCustodyProvider(config, rpcUrl);
+  });
 }

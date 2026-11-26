@@ -27,3 +27,17 @@ export function createLocalCustodyConfig(env: NodeJS.ProcessEnv = process.env): 
   });
   return { privateKeys };
 }
+
+/** Hardhat and anvil default (31337), geth and ganache dev chains (1337). */
+export const DEV_CHAIN_IDS: readonly bigint[] = [31337n, 1337n];
+
+/**
+ * Refuses to start unless the RPC serves a dev chain: the keys are plaintext
+ * in the environment, so a chain that holds real value must not be reachable.
+ */
+export async function requireDevChain(provider: { getNetwork(): Promise<{ chainId: bigint }> }): Promise<void> {
+  const { chainId } = await provider.getNetwork();
+  if (!DEV_CHAIN_IDS.includes(chainId)) {
+    throw new Error(`PROVIDER_TYPE=local refuses to run on chain ${chainId}: it only runs on a dev chain (${DEV_CHAIN_IDS.join(', ')}) because its keys are plaintext in the environment`);
+  }
+}

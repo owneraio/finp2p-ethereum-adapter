@@ -1,6 +1,7 @@
 import { Wallet, getAddress } from "ethers";
 import { CustodyProvider, custodyRegistry } from "../src/services/custody";
-import { LocalCustodyProvider, createLocalCustodyConfig, registerLocal } from "../src/integrations/custody/local";
+import { LocalCustodyProvider, createLocalCustodyConfig, registerLocal, requireDevChain } from "../src/integrations/custody/local";
+import * as signerPool from "../src/integrations/signer-pool";
 import { pooledSigner } from "../src/integrations/signer-pool";
 import { custodyProviderConformance } from "./utils/custody-provider-conformance";
 
@@ -87,14 +88,44 @@ describe("createLocalCustodyConfig", () => {
   });
 });
 
+describe("requireDevChain", () => {
+  const chain = (chainId: bigint) => ({ getNetwork: async () => ({ chainId }) });
+
+  test.each([31337n, 1337n])("accepts dev chain %s", async (chainId) => {
+    await expect(requireDevChain(chain(chainId))).resolves.toBeUndefined();
+  });
+
+  test.each([1n, 11155111n, 137n, 31338n, 0n])("refuses chain %s and names it", async (chainId) => {
+    await expect(requireDevChain(chain(chainId))).rejects.toThrow(`refuses to run on chain ${chainId}`);
+  });
+
+  test("a failed chain read stops the start", async () => {
+    await expect(requireDevChain({ getNetwork: async () => { throw new Error("rpc down"); } })).rejects.toThrow("rpc down");
+  });
+});
+
 describe("PROVIDER_TYPE=local through the registry", () => {
   const saved = { ...process.env };
+  let chainId = 31337n;
+  beforeAll(() => registerLocal());
+  beforeEach(() => {
+    jest.spyOn(signerPool, "pooledProvider").mockReturnValue({ getNetwork: async () => ({ chainId }) } as any);
+  });
   afterEach(() => {
+    jest.restoreAllMocks();
     process.env = { ...saved };
   });
 
+  test("refuses to boot on a chain that is not a dev chain", async () => {
+    process.env.NETWORK_HOST = RPC_URL;
+    process.env.LOCAL_CUSTODY_PRIVATE_KEYS = KEY_A;
+    process.env.LOCAL_CUSTODY_DEV_ONLY = "true";
+    chainId = 1n;
+
+    await expect(custodyRegistry.create("local", {})).rejects.toThrow("refuses to run on chain 1");
+  });
+
   test("is registered by registerLocal and boots only with the dev flag", async () => {
-    registerLocal();
     expect(custodyRegistry.has("local")).toBe(true);
     process.env.NETWORK_HOST = RPC_URL;
     process.env.LOCAL_CUSTODY_PRIVATE_KEYS = KEY_A;
@@ -103,6 +134,7 @@ describe("PROVIDER_TYPE=local through the registry", () => {
     await expect(custodyRegistry.create("local", {})).rejects.toThrow(/local or dev chains only/);
 
     process.env.LOCAL_CUSTODY_DEV_ONLY = "true";
+    chainId = 31337n;
     const created = await custodyRegistry.create("local", {});
     expect(await (await created.resolveWallet(getAddress(ADDRESS_A.toLowerCase())))!.signer.getAddress()).toBe(ADDRESS_A);
   });
