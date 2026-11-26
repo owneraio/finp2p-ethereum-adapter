@@ -44,6 +44,8 @@ export type BaseAppConfig = {
   accountModel: AccountModel
   swapVenue?: SwapVenue
   swapVenues?: NamedSwapVenue[]
+  /** Report asset capabilities on create and through getCapabilities. Off by default. */
+  reportCapabilities?: boolean
 }
 
 export type FinP2PContractAppConfig = BaseAppConfig & {
@@ -51,8 +53,6 @@ export type FinP2PContractAppConfig = BaseAppConfig & {
   finP2PContract: FinP2PContract
   execDetailsStore: ExecDetailsStore | undefined
   defaultAssetStandard?: string
-  /** Report asset capabilities on create and through getCapabilities. Off by default. */
-  reportCapabilities?: boolean
 }
 
 export { FireblocksAppConfig } from './integrations/custody/fireblocks/config'
@@ -107,9 +107,6 @@ export async function envVarsToAppConfig(logger: Logger): Promise<AppConfig> {
     logger.info('No swap venue configured: swap functionality is disabled');
   }
   const reportCapabilities = process.env.ASSET_CAPABILITIES_ENABLED === 'true'
-  if (reportCapabilities && configType !== 'finp2p-contract') {
-    logger.warning(`ASSET_CAPABILITIES_ENABLED is ignored for provider type ${configType}`);
-  }
   logger.info(`Asset capabilities reporting ${reportCapabilities ? 'enabled' : 'disabled'}`);
 
   switch (configType) {
@@ -213,10 +210,10 @@ export async function envVarsToAppConfig(logger: Logger): Promise<AppConfig> {
       }
     }
     case 'fireblocks': {
-      return { ...await createFireblocksAppConfig(), accountMappingType, accountModel, swapVenue, swapVenues }
+      return { ...await createFireblocksAppConfig(), accountMappingType, accountModel, swapVenue, swapVenues, reportCapabilities }
     }
     case 'dfns': {
-      return { ...await createDfnsAppConfig(), accountMappingType, accountModel, swapVenue, swapVenues }
+      return { ...await createDfnsAppConfig(), accountMappingType, accountModel, swapVenue, swapVenues, reportCapabilities }
     }
     default: {
       // For registry-based providers: the provider factory reads its own env vars.
@@ -230,6 +227,7 @@ export async function envVarsToAppConfig(logger: Logger): Promise<AppConfig> {
         accountModel,
         swapVenue,
         swapVenues,
+        reportCapabilities,
       } as CustodyAppConfig;
     }
   }

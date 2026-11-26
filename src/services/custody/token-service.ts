@@ -1,11 +1,11 @@
 import {
-  Asset, AssetBind, AssetCreationStatus, AssetDenomination,
+  Asset, AssetBind, AssetCreationStatus, AssetDenomination, AssetNotFoundError, InstructionCapability,
   Balance, Destination, ExecutionContext, HealthService, OperationType, Receipt,
   ReceiptOperation, Signature, Source, SwapLeg, SwapOperation, TokenService, EscrowService,
   failedReceiptOperation, failedAssetCreation, failedSwapOperation,
   successfulSwapOperation
 } from '@owneraio/finp2p-nodejs-skeleton-adapter';
-import { contractUnavailable, pickVenue } from '../onchain/capabilities';
+import { contractUnavailable, custodyCapabilities, pickVenue } from '../onchain/capabilities';
 import { NamedSwapVenue } from '../../swap-venues';
 import winston from 'winston';
 import { parseUnits, Provider, Signer, Wallet, ZeroAddress } from "ethers";
@@ -95,9 +95,33 @@ export class CustodyTokenService implements TokenService, EscrowService, HealthS
     readonly issuerWallet: CustodyWallet | undefined,
     // configured swap venues, the first is the default; empty disables swap
     readonly swapVenues: NamedSwapVenue[] = [],
-  ) {}
+    reportCapabilities: boolean = false,
+  ) {
+    if (reportCapabilities) {
+      this.getCapabilities = (asset) => this.assetCapabilities(asset);
+    }
+  }
+
+  /** Set only when capability reporting is enabled; the route answers 501 otherwise. */
+  getCapabilities?: (asset: Asset) => Promise<InstructionCapability[]>;
 
   private readSigner?: Signer;
+
+  private capabilities(chainId: bigint): InstructionCapability[] {
+    return custodyCapabilities(chainId, { issuer: this.issuerWallet !== undefined, escrow: this.escrowWallet !== undefined }, this.swapVenues);
+  }
+
+  private reportedCapabilities(chainId: bigint): { capabilities?: InstructionCapability[] } {
+    return this.getCapabilities ? { capabilities: this.capabilities(chainId) } : {};
+  }
+
+  private async assetCapabilities(asset: Asset): Promise<InstructionCapability[]> {
+    if (await this.assetStore.getAsset(asset.assetId) === undefined) {
+      throw new AssetNotFoundError(`asset ${asset.assetId} not found`);
+    }
+    const { chainId } = await this.readProvider.getNetwork();
+    return this.capabilities(chainId);
+  }
 
   /**
    * Custody providers list no contracts, so a requested contract is refused
@@ -228,7 +252,7 @@ export class CustodyTokenService implements TokenService, EscrowService, HealthS
       return {
         operation: "createAsset",
         type: "success",
-        result: { ledgerIdentifier: { assetIdentifierType: 'CAIP-19', network: defaultNetwork, tokenId: result.contractAddress, standard: result.tokenStandard }, reference: undefined }
+        result: { ledgerIdentifier: { assetIdentifierType: 'CAIP-19', network: defaultNetwork, tokenId: result.contractAddress, standard: result.tokenStandard }, reference: undefined, ...this.reportedCapabilities(chainId) }
       };
     } else {
       this.logger.info(`createAsset: bind path — assetId=${assetId} standard=${requestedStandard} tokenAddress=${tokenAddress} network=${assetBind.network ?? defaultNetwork}`);
@@ -249,7 +273,7 @@ export class CustodyTokenService implements TokenService, EscrowService, HealthS
       return {
         operation: "createAsset",
         type: "success",
-        result: { ledgerIdentifier: { assetIdentifierType: 'CAIP-19', network: assetBind.network || defaultNetwork, tokenId: tokenAddress, standard: requestedStandard }, reference: undefined }
+        result: { ledgerIdentifier: { assetIdentifierType: 'CAIP-19', network: assetBind.network || defaultNetwork, tokenId: tokenAddress, standard: requestedStandard }, reference: undefined, ...this.reportedCapabilities(chainId) }
       };
     }
   }

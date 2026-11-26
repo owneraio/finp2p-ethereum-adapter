@@ -35,22 +35,50 @@ export const requestedEvmAddress = (requested: string, chainId: bigint): string 
 export const isRequestedContract = (requested: string, chainId: bigint, address: string): boolean =>
   requestedEvmAddress(requested, chainId)?.toLowerCase() === address.toLowerCase();
 
+/** The SWAP row listing every venue's address, or nothing when there is no venue. */
+const swapCapabilities = (chainId: bigint, venues: NamedSwapVenue[]): InstructionCapability[] =>
+  venues.length === 0
+    ? []
+    : [{ instruction: "INSTRUCTION_SWAP", contracts: venues.map(({ listedAddress }) => contractId(chainId, listedAddress)) }];
+
 export const onChainCapabilities = (
   chainId: bigint,
   operatorAddress: string,
   venues: NamedSwapVenue[],
-): InstructionCapability[] => {
-  const list: InstructionCapability[] = OPERATOR_INSTRUCTIONS.map((instruction) => ({
+): InstructionCapability[] => [
+  ...OPERATOR_INSTRUCTIONS.map((instruction) => ({
     instruction,
     contracts: [contractId(chainId, operatorAddress)],
-  }));
-  if (venues.length > 0) {
-    list.push({
-      instruction: "INSTRUCTION_SWAP",
-      contracts: venues.map(({ listedAddress }) => contractId(chainId, listedAddress)),
-    });
-  }
-  return list;
+  })),
+  ...swapCapabilities(chainId, venues),
+];
+
+/**
+ * Capabilities of a custody adapter, which runs no contract of its own: ISSUE
+ * needs an issuer wallet, HOLD, RELEASE and REVERT_HOLD need an escrow wallet,
+ * and SWAP needs a venue. Only SWAP lists contracts.
+ */
+export const custodyCapabilities = (
+  chainId: bigint,
+  wallets: { issuer: boolean; escrow: boolean },
+  venues: NamedSwapVenue[],
+): InstructionCapability[] => {
+  const available = (instruction: OperatorInstruction): boolean => {
+    switch (instruction) {
+      case "INSTRUCTION_ISSUE":
+        return wallets.issuer;
+      case "INSTRUCTION_HOLD":
+      case "INSTRUCTION_RELEASE":
+      case "INSTRUCTION_REVERT_HOLD":
+        return wallets.escrow;
+      default:
+        return true;
+    }
+  };
+  return [
+    ...OPERATOR_INSTRUCTIONS.filter(available).map((instruction) => ({ instruction })),
+    ...swapCapabilities(chainId, venues),
+  ];
 };
 
 /** The refusal for a requested contract an adapter cannot run; `instruction` is the name without its prefix, such as HOLD. */
