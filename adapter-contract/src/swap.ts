@@ -12,15 +12,20 @@ export interface SwapPermit {
   deadline: number;
 }
 
+// executor settles the whole crossing; observer submits nothing and verifies it happened.
+export type SwapRole = 'executor' | 'observer';
+
 export interface SwapIntent {
   operationId: string;
   give: SwapSide;
   take: SwapSide;
   deadline?: number;
   permit?: SwapPermit;
+  role?: SwapRole;
 }
 
-export const mirrored = ({ permit, ...intent }: SwapIntent): SwapIntent =>
+// role, like permit, is this org's perspective — a mirrored intent drops it.
+export const mirrored = ({ permit, role, ...intent }: SwapIntent): SwapIntent =>
   ({ ...intent, give: intent.take, take: intent.give });
 
 export type SwapSubmission =

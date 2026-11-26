@@ -2,14 +2,16 @@ import {
   Asset, AssetCreationStatus, EIP712Template, Balance, TokenService, EscrowService,
   CommonService, HealthService, OperationStatus,
   failedAssetCreation, successfulAssetCreation,
-  failedReceiptOperation, successfulReceiptOperation,
+  failedReceiptOperation, successfulAuthorizeRevertOperation,
+  AuthorizeOperation, failedAuthorizeOperation, successfulAuthorizeOperation,
   AssetBind, AssetDenomination, AssetCreationResult, Destination, ExecutionContext,
-  Receipt, ReceiptOperation, Source, Signature, SwapLeg, SwapOperation,
+  Receipt, ReceiptOperation, RollbackType, Source, Signature, SwapLeg, SwapOperation, SwapRole, RelatedSwap,
   successfulSwapOperation, failedSwapOperation,
   logger, ProofProvider, PluginManager,
 } from "@owneraio/finp2p-nodejs-skeleton-adapter";
 import { Contract, keccak256, parseUnits, toUtf8Bytes } from "ethers";
 import { Logger as SpiLogger, SwapIntent, SwapVenue, TokenWallet, mirrored } from "@owneraio/finp2p-ethereum-adapter-contract";
+import { AllowanceSwapVenue, SwapLeg as VenueLeg } from "@owneraio/finp2p-ethereum-allowance-swap";
 import {
   FinP2PContract,
   assetTypeFromString,
@@ -234,7 +236,7 @@ export class OnChainTokenService implements TokenService, EscrowService, CommonS
 
   }
 
-  private async toSwapIntent(operationId: string, assetLeg: SwapLeg, settlementLeg: SwapLeg, deadline: number): Promise<SwapIntent> {
+  private async toSwapIntent(operationId: string, assetLeg: SwapLeg, settlementLeg: SwapLeg, deadline: number | undefined, role?: SwapRole): Promise<SwapIntent> {
     const [token, counterToken, party, counterParty] = await Promise.all([
       this.finP2PContract.getAssetAddress(assetLeg.asset.assetId),
       this.finP2PContract.getAssetAddress(settlementLeg.asset.assetId),
@@ -250,6 +252,7 @@ export class OnChainTokenService implements TokenService, EscrowService, CommonS
       give: { token, party, amount },
       take: { token: counterToken, party: counterParty, amount: counterAmount },
       deadline: deadline || undefined,
+      role,
     };
   }
 
@@ -259,8 +262,8 @@ export class OnChainTokenService implements TokenService, EscrowService, CommonS
   }
 
   private async swapViaVenue(swapVenue: SwapVenue, operationId: string, assetLeg: SwapLeg,
-                             settlementLeg: SwapLeg, deadline: number, exCtx: ExecutionContext | undefined): Promise<SwapOperation> {
-    const intent = await this.toSwapIntent(operationId, assetLeg, settlementLeg, deadline);
+                             settlementLeg: SwapLeg, deadline: number | undefined, exCtx: ExecutionContext | undefined, role?: SwapRole): Promise<SwapOperation> {
+    const intent = await this.toSwapIntent(operationId, assetLeg, settlementLeg, deadline, role);
     const submission = await swapVenue.swap(this.operatorWallet(), intent, spiLogger);
     if (submission.status === "failure") {
       return failedSwapOperation(1, submission.reason);
@@ -275,7 +278,7 @@ export class OnChainTokenService implements TokenService, EscrowService, CommonS
   }
 
   public async swap(idempotencyKey: string, nonce: string, operationId: string, assetLeg: SwapLeg,
-                    settlementLeg: SwapLeg, numberOfReceipts: number, deadline: number, exCtx: ExecutionContext | undefined): Promise<SwapOperation> {
+                    settlementLeg: SwapLeg, numberOfReceipts: number, deadline: number | undefined, exCtx: ExecutionContext | undefined, role?: SwapRole): Promise<SwapOperation> {
     if (numberOfReceipts === 2) {
       return this.swapBothLegs(operationId, assetLeg, settlementLeg, deadline, exCtx);
     }
@@ -313,7 +316,7 @@ export class OnChainTokenService implements TokenService, EscrowService, CommonS
         return failedSwapOperation(1, `settlement destination wallet ${destinationWallet} does not match the registered credential ${ourWallet} the swap settles to`);
       }
 
-      return await this.swapViaVenue(this.swapVenue, operationId, assetLeg, settlementLeg, deadline, exCtx);
+      return await this.swapViaVenue(this.swapVenue, operationId, assetLeg, settlementLeg, deadline, exCtx, role);
     } catch (e) {
       logger.error(`Error on swap: ${e}`);
       if (e instanceof EthereumTransactionError || e instanceof ValidationError) {
@@ -435,6 +438,68 @@ export class OnChainTokenService implements TokenService, EscrowService, CommonS
 
   }
 
+  // Build the venue leg the authorized swap will cross: relatedSwap's asset leg becomes `give`
+  // (token/party/amount) and its settlement leg the counter side. Trade-role-fixed, so both orgs'
+  // AUTHORIZE calls derive the identical leg — which is what makes the on-chain record idempotent.
+  private async toAuthorizedLeg(relatedSwap: RelatedSwap): Promise<VenueLeg> {
+    const [token, counterToken, party, counterParty] = await Promise.all([
+      this.finP2PContract.getAssetAddress(relatedSwap.asset.asset.assetId),
+      this.finP2PContract.getAssetAddress(relatedSwap.settlement.asset.assetId),
+      this.finP2PContract.getCredentialAddress(relatedSwap.asset.source.finId),
+      this.finP2PContract.getCredentialAddress(relatedSwap.settlement.source.finId),
+    ]);
+    const [amount, counterAmount] = await Promise.all([
+      this.toTokenUnits(token, relatedSwap.asset.amount),
+      this.toTokenUnits(counterToken, relatedSwap.settlement.amount),
+    ]);
+    return { token, party, amount, counterToken, counterParty, counterAmount };
+  }
+
+  public async authorize(idempotencyKey: string, nonce: string, source: Source, destination: Destination | undefined, ast: Asset,
+    quantity: string, sgn: Signature, operationId: string, expiry: number | undefined, exCtx: ExecutionContext, relatedSwap: RelatedSwap
+  ): Promise<AuthorizeOperation> {
+    if (!this.swapVenue) {
+      return failedAuthorizeOperation(1, "Authorize is not supported: no swap venue is configured");
+    }
+    const { signature, template } = sgn;
+    if (template.type != "EIP712") {
+      throw new ValidationError(`Unsupported signature template type: ${template.type}`);
+    }
+    const eip712Template = template as EIP712Template;
+    const details = extractBusinessDetails(ast, source, destination, operationId, eip712Template, exCtx);
+    validateRequest(source, destination, quantity, details);
+    const { buyerFinId, sellerFinId, asset, settlement, loan, params } = details;
+    if (expiry) {
+      logger.info(`authorize ${operationId}: expiry ${expiry} ignored — the allowance venue has no time-bound primitive`);
+    }
+
+    try {
+      await this.ensureCredential(sellerFinId);
+      await this.ensureCredential(buyerFinId);
+      const transactionReceipt = await this.finP2PContract.authorize(
+        nonce, sellerFinId, buyerFinId, asset, settlement, loan, params, this.swapVenue.venueAddress, signature);
+
+      if (exCtx) {
+        this.execDetailsStore?.addExecutionContext(transactionReceipt.hash, exCtx.planId, exCtx.sequence);
+      }
+
+      // Record the swap this grant backs, so the venue's executeSwap can only settle these exact terms.
+      if (this.swapVenue instanceof AllowanceSwapVenue) {
+        const leg = await this.toAuthorizedLeg(relatedSwap);
+        await this.swapVenue.recordAuthorization(this.operatorWallet(), relatedSwap.swapOperationId, leg, spiLogger);
+      }
+
+      return successfulAuthorizeOperation();
+    } catch (e) {
+      logger.error(`Error asset authorize: ${e}`);
+      if (e instanceof EthereumTransactionError) {
+        return failedAuthorizeOperation(1, e.message);
+      } else {
+        return failedAuthorizeOperation(1, `${e}`);
+      }
+    }
+  }
+
   public async release(idempotencyKey: string, source: Source, destination: Destination, asset: Asset, quantity: string, operationId: string, exCtx: ExecutionContext | undefined): Promise<ReceiptOperation> {
     try {
       await this.ensureCredential(source.finId);
@@ -457,10 +522,30 @@ export class OnChainTokenService implements TokenService, EscrowService, CommonS
 
   }
 
-  public async rollback(idempotencyKey: string, source: Source, asset: Asset, quantity: string, operationId: string, exCtx: ExecutionContext | undefined
+  public async rollback(idempotencyKey: string, source: Source, asset: Asset, quantity: string, operationId: string, exCtx: ExecutionContext | undefined,
+    rollbackType: RollbackType | undefined
   ): Promise<ReceiptOperation> {
     try {
       await this.ensureCredential(source.finId);
+
+      // rollbackType says what we revert. 'authorize' revokes the on-chain allowance the grant placed;
+      // anything else — including an omitted value from an older core — rolls back a hold (releaseBack),
+      // the endpoint's original, backward-compatible behaviour.
+      if (rollbackType === "authorize") {
+        if (!this.swapVenue) {
+          return failedReceiptOperation(1, "Cannot revert authorize: no swap venue is configured");
+        }
+        const revertReceipt = await this.finP2PContract.revertAuthorize(source.finId, asset.assetId, this.swapVenue.venueAddress);
+        if (exCtx) {
+          this.execDetailsStore?.addExecutionContext(revertReceipt.hash, exCtx.planId, exCtx.sequence);
+        }
+        // revertAuthorize revokes an allowance — it moves nothing and emits no receipt. Report a bare
+        // completion carrying rollbackType 'authorize'; the router accepts the receipt-less completion
+        // on that signal. The on-chain revert tx (revertReceipt.hash) is the effect, and the execution
+        // context was already recorded above.
+        return successfulAuthorizeRevertOperation();
+      }
+
       const transactionReceipt = await this.finP2PContract.releaseBack(operationId, emptyOperationParams());
 
       if (exCtx) {
