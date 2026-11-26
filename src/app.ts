@@ -237,8 +237,7 @@ async function createApp(
     : undefined;
 
   // The adapter's single read-only provider, decided once here: a custodian
-  // without an RPC transport decides its own chain reads (Taurus: NETWORK_HOST
-  // when set, else PROTECT); otherwise the plain NETWORK_HOST endpoint when
+  // without an RPC transport decides its own chain reads; otherwise the plain NETWORK_HOST endpoint when
   // configured, else the custody transport (taken from a fabricated custody
   // wallet). Everything downstream receives this Provider and its scope.
   const readProvider: Provider | undefined = custodyProvider
